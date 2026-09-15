@@ -14,7 +14,6 @@ use serde_json::{json, Value};
 
 // Use skills module
 use super::skills::{get_skill_registry, render_loaded_skill_for_assistant};
-use crate::agentic::tools::implementations::qt_migration_intake_tool::QtMigrationIntakeTool;
 use bitfun_agent_runtime::qt_migration_intake_state::{
     QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QT_MIGRATION_SKILL_DIR,
 };
@@ -181,26 +180,8 @@ impl Tool for SkillTool {
     async fn validate_input(
         &self,
         input: &Value,
-        context: Option<&ToolUseContext>,
+        _context: Option<&ToolUseContext>,
     ) -> ValidationResult {
-        if let Some(context) = context {
-            if input
-                .get("command")
-                .and_then(Value::as_str)
-                .is_some_and(|name| {
-                    (name == QT_MIGRATION_SKILL_DIR || name.ends_with("::ohos-qt-skills"))
-                        && context.custom_data.get("qt_migration_enabled")
-                            != Some(&Value::Bool(true))
-                })
-            {
-                return ValidationResult {
-                    result: false,
-                    message: Some("ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string()),
-                    error_code: Some(400),
-                    meta: None,
-                };
-            }
-        }
         if input
             .get("command")
             .and_then(|v| v.as_str())
@@ -250,30 +231,6 @@ impl Tool for SkillTool {
             .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| BitFunError::tool("command is required".to_string()))?;
-
-        let is_qt_migration_skill =
-            skill_name == QT_MIGRATION_SKILL_DIR || skill_name.ends_with("::ohos-qt-skills");
-        if is_qt_migration_skill {
-            let enabled = context
-                .custom_data
-                .get("qt_migration_enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or_else(|| {
-                    context
-                        .custom_data
-                        .get("original_user_input")
-                        .and_then(Value::as_str)
-                        .is_some_and(|input| {
-                            QtMigrationIntakeTool::analyze_request(input)["taskType"].as_str()
-                                == Some("app_migration")
-                        })
-                });
-            if !enabled {
-                return Err(BitFunError::tool(
-                    "ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string(),
-                ));
-            }
-        }
 
         debug!("Skill tool executing skill: {}", skill_name);
 

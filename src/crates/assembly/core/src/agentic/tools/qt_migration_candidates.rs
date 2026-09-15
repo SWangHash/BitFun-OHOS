@@ -1,12 +1,13 @@
 //! Backend-owned candidate probing for the `qt-migration-paths` question card.
 //!
-//! Fills option paths for the intake fields the backend can discover, so the
-//! model does not have to:
+//! Priority: prompt-named candidates (model-provided, validated) rank first in
+//! every field; per-field discovery order below that:
 //! - `source_project`: qmake projects (`*.pro`) in the workspace;
-//! - `toolchain`: qmake from `PATH`, falling back to the workspace;
-//! - `template`: Qt-for-HarmonyOS template via the `qEmbeddedUiExtensionHost`
-//!   marker.
-//!
+//! - `toolchain`: workspace qmake, then BitFun-managed shared toolchains,
+//!   then `PATH`;
+//! - `template`: Qt-for-HarmonyOS templates in the workspace, then
+//!   BitFun-managed shared templates (via the `qEmbeddedUiExtensionHost`
+//!   marker);
 //! - `output_project`: workspace directories whose names denote an output
 //!   container for migrated projects (e.g. `output-project`, `迁移工程`);
 //!   the workspace root is the last-resort default.
@@ -15,16 +16,15 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-const SKILL_WORKSPACE_DIR: &str = "workspace";
-
 pub(crate) struct QtMigrationCandidateProbe {
     pub candidates: HashMap<String, Vec<String>>,
     pub managed_toolchain_available: bool,
     pub managed_template_available: bool,
 }
 
-/// Upper bound on candidates per field (the backend keeps option lists short).
-const MAX_SOURCE_PROJECTS: usize = 3;
+/// Upper bound on candidates per field (the backend keeps option lists short;
+/// the question card renders default + alternate, so every field caps at 2).
+const MAX_SOURCE_PROJECTS: usize = 2;
 const MAX_OUTPUT_PROJECTS: usize = 2;
 const MAX_TOOLCHAINS: usize = 2;
 const MAX_TEMPLATES: usize = 2;
@@ -57,14 +57,63 @@ const TEMPLATE_QT_DECLARATIONS: &str = "entry/src/main/qt/libqohos.d.ts";
 /// accepts Qt5 qmake only.
 const QMAKE_EXECUTABLES: &[&str] = &["qmake", "qmake.exe"];
 
-/// Returns candidates from the current workspace, BitFun-managed shared
-/// resources, and the installed skill workspace. Local paths are never searched
-/// for remote sessions.
+/// Login shells tried (in order) to capture the session PATH. The BitFun app
+/// process on sandboxed platforms inherits a fixed minimal PATH, while
+/// user-installed toolchains are exposed through shell profiles.
+const LOGIN_SHELLS: &[&str] = &["bash", "zsh", "sh"];
+const LOGIN_SHELL_CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The PATH a login shell would see.
+///
+/// On desktop platforms the BitFun process inherits the user environment, so
+/// the process PATH is already equivalent and is returned directly. On
+/// sandboxed platforms (HarmonyOS) the app process gets a fixed minimal PATH,
+/// so the session PATH is captured from a login shell instead; this keeps
+/// "the qmake in the environment variables" consistent with what `which
+/// qmake` reports inside BitFun shell sessions.
+pub(crate) fn shell_session_path_env() -> String {
+    if cfg!(target_env = "ohos") {
+        for shell in LOGIN_SHELLS {
+            if let Some(captured) = capture_login_shell_path(shell) {
+                return captured;
+            }
+        }
+    }
+    std::env::var("PATH").unwrap_or_default()
+}
+
+/// Spawn a login shell that prints its PATH. Returns `None` when the shell is
+/// unavailable, the login phase fails, or the answer does not arrive in time.
+fn capture_login_shell_path(shell: &str) -> Option<String> {
+    let mut child = std::process::Command::new(shell)
+        .arg("-l")
+        .arg("-c")
+        .arg("echo $PATH")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let Ok(output) = child.wait_with_output() {
+            let _ = sender.send(output);
+        }
+    });
+    let output = receiver.recv_timeout(LOGIN_SHELL_CAPTURE_TIMEOUT).ok()?;
+    let captured = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if captured.is_empty() || !captured.contains(':') {
+        return None;
+    }
+    Some(captured)
+}
+
+/// Returns candidates from the current workspace and BitFun-managed shared
+/// resources. Local paths are never searched for remote sessions.
 pub(crate) fn probe_qt_migration_candidates(
     workspace: &Path,
     path_env: &str,
     managed_root: &Path,
-    skill_root: Option<&Path>,
     model_candidates: &HashMap<String, Vec<String>>,
 ) -> QtMigrationCandidateProbe {
     let mut out = HashMap::new();
@@ -92,7 +141,6 @@ pub(crate) fn probe_qt_migration_candidates(
             workspace,
             path_env,
             managed_root,
-            skill_root,
             model_candidates
                 .get("toolchain")
                 .map(Vec::as_slice)
@@ -104,7 +152,6 @@ pub(crate) fn probe_qt_migration_candidates(
         probe_templates(
             workspace,
             managed_root,
-            skill_root,
             model_candidates
                 .get("template")
                 .map(Vec::as_slice)
@@ -139,20 +186,23 @@ fn merge_output_candidates(
     workspace_output_candidates: &[String],
 ) -> Vec<String> {
     let mut ranked: Vec<(u8, String)> = Vec::new();
-    for path in workspace_output_candidates {
-        ranked.push((0, path.clone()));
-    }
-    for path in probe_output_project(workspace) {
-        ranked.push((0, path));
-    }
-    // Model candidates fill the remaining slots after backend validation.
+    // Prompt-named candidates rank first (explicit user intent); the is_dir
+    // check still applies so only real directories reach the option list, and
+    // a previous migration result (inside an output container) is excluded —
+    // it is a finished product, not a target for the next migration.
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
         };
-        if path.is_dir() {
-            ranked.push((1, path.to_string_lossy().into_owned()));
+        if path.is_dir() && !is_migration_artifact_location(&path) {
+            ranked.push((0, path.to_string_lossy().into_owned()));
         }
+    }
+    for path in workspace_output_candidates {
+        ranked.push((1, path.clone()));
+    }
+    for path in probe_output_project(workspace) {
+        ranked.push((1, path));
     }
     ranked.sort_by(|a, b| {
         a.0.cmp(&b.0)
@@ -191,7 +241,10 @@ pub(crate) fn filter_output_candidates(
 fn probe_output_project(workspace: &Path) -> Vec<String> {
     let mut found: Vec<(usize, PathBuf)> = Vec::new();
     scan_output_projects(workspace, 0, &mut found);
-    found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| path_key(&a.1).cmp(&path_key(&b.1))));
+    found.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
+    });
     let mut candidates = found
         .into_iter()
         .map(|(_, p)| p.to_string_lossy().into_owned())
@@ -377,8 +430,14 @@ pub(crate) fn is_output_container_name(name: &str) -> bool {
         .collect();
     matches!(
         normalized.as_str(),
-        "output" | "outputs" | "outputproject" | "migrationproject" | "migrationoutput"
-            | "迁移工程" | "迁移输出" | "输出工程"
+        "output"
+            | "outputs"
+            | "outputproject"
+            | "migrationproject"
+            | "migrationoutput"
+            | "迁移工程"
+            | "迁移输出"
+            | "输出工程"
     )
 }
 
@@ -390,22 +449,38 @@ fn probe_toolchains(
     workspace: &Path,
     path_env: &str,
     managed_root: &Path,
-    skill_root: Option<&Path>,
     model_candidates: &[String],
 ) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // PATH order is preserved: earlier entries rank above later ones.
-    for dir in std::env::split_paths(path_env) {
-        for exe in QMAKE_EXECUTABLES {
-            if dir.join(exe).is_file() {
-                push_unique(&mut out, &mut seen, &dir);
-                break;
+    // Prompt-named candidates rank first: they reflect explicit user intent.
+    // The qmake structural check still applies, so invalid paths cannot pass.
+    if !model_candidates.is_empty() {
+        let mut model_hits = model_candidates
+            .iter()
+            .filter_map(|candidate| normalize_workspace_candidate(workspace, candidate))
+            .filter_map(|candidate| normalize_toolchain_candidate(&candidate))
+            .collect::<Vec<_>>();
+        model_hits.sort_by_key(|path| path_key(path));
+        for dir in model_hits {
+            push_unique(&mut out, &mut seen, &dir);
+            if out.len() >= MAX_TOOLCHAINS {
+                return out;
             }
         }
-        if out.len() >= MAX_TOOLCHAINS {
-            break;
+    }
+
+    // Workspace-local qmake outranks the shared managed toolchain.
+    if out.len() < MAX_TOOLCHAINS {
+        let mut ws_hits: Vec<PathBuf> = Vec::new();
+        scan_workspace_qmake(workspace, 0, &mut ws_hits);
+        ws_hits.sort();
+        for dir in ws_hits {
+            push_unique(&mut out, &mut seen, &dir);
+            if out.len() >= MAX_TOOLCHAINS {
+                return out;
+            }
         }
     }
 
@@ -417,57 +492,22 @@ fn probe_toolchains(
         for dir in managed_hits {
             push_unique(&mut out, &mut seen, &dir);
             if out.len() >= MAX_TOOLCHAINS {
-                break;
+                return out;
             }
         }
     }
 
-    // A workspace-local qmake fills the remaining slot.
-    if out.len() < MAX_TOOLCHAINS {
-        let mut ws_hits: Vec<PathBuf> = Vec::new();
-        scan_workspace_qmake(workspace, 0, &mut ws_hits);
-        ws_hits.sort();
-        for dir in ws_hits {
-            push_unique(&mut out, &mut seen, &dir);
-            if out.len() >= MAX_TOOLCHAINS {
-                break;
-            }
-        }
-    }
-
-    if out.len() < MAX_TOOLCHAINS {
-        let mut model_hits = model_candidates
-            .iter()
-            .filter_map(|candidate| normalize_workspace_candidate(workspace, candidate))
-            .filter_map(|candidate| normalize_toolchain_candidate(&candidate))
-            .collect::<Vec<_>>();
-        model_hits.sort_by_key(|path| path_key(path));
-        for dir in model_hits {
-            push_unique(&mut out, &mut seen, &dir);
-            if out.len() >= MAX_TOOLCHAINS {
-                break;
-            }
-        }
-    }
-
-    if out.len() < MAX_TOOLCHAINS {
-        if let Some(root) = skill_root {
-            let skill_workspace = root.join(SKILL_WORKSPACE_DIR);
-            let mut skill_hits = Vec::new();
-            for candidate_root in [
-                skill_workspace.join("qt-sdk"),
-                skill_workspace.join("qt-src"),
-                skill_workspace.join("commandline-tools"),
-            ] {
-                scan_workspace_qmake(&candidate_root, 0, &mut skill_hits);
-            }
-            skill_hits.sort();
-            for dir in skill_hits {
+    // PATH is the last resort: entries on PATH may be desktop Qt builds that
+    // are unrelated to the HarmonyOS migration.
+    for dir in std::env::split_paths(path_env) {
+        for exe in QMAKE_EXECUTABLES {
+            if dir.join(exe).is_file() {
                 push_unique(&mut out, &mut seen, &dir);
-                if out.len() >= MAX_TOOLCHAINS {
-                    break;
-                }
+                break;
             }
+        }
+        if out.len() >= MAX_TOOLCHAINS {
+            break;
         }
     }
 
@@ -536,44 +576,36 @@ fn push_unique(out: &mut Vec<String>, seen: &mut std::collections::HashSet<Strin
 fn probe_templates(
     workspace: &Path,
     managed_root: &Path,
-    skill_root: Option<&Path>,
     model_candidates: &[String],
 ) -> Vec<String> {
     let mut found: Vec<(u8, usize, PathBuf)> = Vec::new();
-    let mut managed_hits = Vec::new();
-    scan_templates(&managed_root.join("templates"), 0, &mut managed_hits);
-    for (depth, path) in managed_hits {
-        found.push((0, depth, path));
-    }
-    let mut workspace_hits = Vec::new();
-    scan_templates(workspace, 0, &mut workspace_hits);
-    for (depth, path) in workspace_hits {
-        found.push((1, depth, path));
-    }
+    // Prompt-named candidates rank first (explicit user intent); the Qt
+    // template structural check still applies.
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
         };
-        if is_qt_harmonyos_template(&path) {
+        if is_qt_harmonyos_template(&path) && !is_migration_artifact_location(&path) {
             let depth = path
                 .strip_prefix(workspace)
                 .map(|relative| relative.components().count())
                 .unwrap_or(MAX_PROBE_DEPTH + 1);
-            found.push((2, depth, path));
+            found.push((0, depth, path));
         }
     }
-    if let Some(root) = skill_root {
-        let skill_workspace = root.join(SKILL_WORKSPACE_DIR);
-        let mut skill_hits = Vec::new();
-        for candidate_root in [
-            skill_workspace.join("templates"),
-            skill_workspace.join("qt-src"),
-        ] {
-            scan_templates(&candidate_root, 0, &mut skill_hits);
+    let mut workspace_hits = Vec::new();
+    scan_templates(workspace, 0, &mut workspace_hits);
+    // 已迁移产物（输出容器内）不是可复用模板：上次迁移的工程结构同样满足
+    // 模板四特征，只有位置能区分两者。
+    for (depth, path) in workspace_hits {
+        if !is_migration_artifact_location(&path) {
+            found.push((1, depth, path));
         }
-        for (depth, path) in skill_hits {
-            found.push((3, depth, path));
-        }
+    }
+    let mut managed_hits = Vec::new();
+    scan_templates(&managed_root.join("templates"), 0, &mut managed_hits);
+    for (depth, path) in managed_hits {
+        found.push((2, depth, path));
     }
     found.sort_by(|a, b| {
         a.0.cmp(&b.0)
@@ -601,6 +633,8 @@ fn is_qt_harmonyos_template(dir: &Path) -> bool {
 }
 
 /// Collect directories that match the Qt-for-HarmonyOS template structure.
+/// Migration-result exclusion is applied by the caller (managed resources are
+/// never migration results, so they skip the check).
 fn scan_templates(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
     if depth > MAX_PROBE_DEPTH {
         return;
@@ -633,6 +667,23 @@ fn scan_templates(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
     }
 }
 
+/// A path that lives inside an output container (`output-project`, `迁移工程`,
+/// ...) is a migration result, never a reusable template or a fresh output
+/// target. Structural checks are deliberately NOT used here: both the official
+/// template and a migrated project share the same HarmonyOS project layout, so
+/// only the location tells them apart.
+fn is_migration_artifact_location(path: &Path) -> bool {
+    path.ancestors()
+        .skip(1)
+        .take(MAX_PROBE_DEPTH + 2)
+        .any(|ancestor| {
+            ancestor
+                .file_name()
+                .map(|name| is_output_container_name(&name.to_string_lossy()))
+                .unwrap_or(false)
+        })
+}
+
 fn is_noise_dir(name: &str) -> bool {
     let name = name.to_lowercase();
     NOISE_DIRS.iter().any(|n| {
@@ -657,6 +708,12 @@ fn normalize_toolchain_candidate(candidate: &Path) -> Option<PathBuf> {
         .then(|| candidate.to_path_buf())
 }
 
+/// Normalize a model-provided candidate path. Absolute paths are accepted even
+/// outside the workspace: users may point at toolchains/templates anywhere,
+/// and a prompt-named path is user intent, not a workspace scan hit. Relative
+/// paths resolve against the workspace; `..` segments are rejected. Callers
+/// still apply per-field structural checks (qmake / template layout / is_dir),
+/// so hallucinated paths cannot reach the option list.
 fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<PathBuf> {
     let candidate = candidate.trim();
     if candidate.is_empty() {
@@ -674,26 +731,15 @@ fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<Pa
     } else {
         workspace.join(candidate)
     };
-    let workspace_compare = workspace
-        .canonicalize()
-        .unwrap_or_else(|_| workspace.to_path_buf());
-    let candidate_compare = if candidate.exists() {
-        candidate.canonicalize().ok()?
+    if candidate.exists() {
+        // dunce keeps the Windows canonical form free of the `\\?\` prefix;
+        // std canonicalize would leak it into user-visible option paths.
+        dunce::canonicalize(&candidate)
+            .ok()
+            .or_else(|| Some(candidate))
     } else {
-        candidate.clone()
-    };
-    let workspace_key = path_key(&workspace_compare)
-        .trim_end_matches(['/', '\\'])
-        .to_string();
-    let candidate_key = path_key(&candidate_compare)
-        .trim_end_matches(['/', '\\'])
-        .to_string();
-    let inside_workspace = candidate_key == workspace_key
-        || candidate_key
-            .strip_prefix(&workspace_key)
-            .map(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
-            .unwrap_or(false);
-    inside_workspace.then_some(candidate)
+        Some(candidate)
+    }
 }
 
 fn dedup_paths(paths: &mut Vec<String>) {
@@ -756,7 +802,7 @@ mod tests {
         let managed_root = root.join("managed");
         let model = candidate_map("source_project", vec![deep.to_string_lossy().into_owned()]);
 
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &model);
 
         assert_eq!(
             probe.candidates["source_project"],
@@ -772,7 +818,7 @@ mod tests {
         touch(&project, "RealCompare.pro");
         let model = candidate_map("source_project", vec![pro.to_string_lossy().into_owned()]);
 
-        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
         assert_eq!(
             path_key(Path::new(&probe.candidates["source_project"][0])),
@@ -791,8 +837,6 @@ mod tests {
         touch(&model_c, "model.pro");
         let model_d = mkdir(&root, "d-model");
         touch(&model_d, "model.pro");
-        let outside = tempfile::tempdir().unwrap();
-        touch(outside.path(), "outside.pro");
         let migrated = mkdir(&root, "migrated-ohos");
         touch(&migrated, "build-profile.json5");
         mkdir(&migrated, "entry");
@@ -802,7 +846,6 @@ mod tests {
             "source_project",
             vec![
                 model_d.to_string_lossy().into_owned(),
-                outside.path().to_string_lossy().into_owned(),
                 migrated.to_string_lossy().into_owned(),
                 model_b.to_string_lossy().into_owned(),
                 model_b.to_string_lossy().to_uppercase(),
@@ -810,13 +853,34 @@ mod tests {
             ],
         );
 
-        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
         let source = &probe.candidates["source_project"];
+        assert_eq!(source.len(), 2, "capped at two like every field");
         assert_eq!(path_key(Path::new(&source[0])), path_key(&model_b));
+        assert_eq!(path_key(Path::new(&source[1])), path_key(&model_c));
         assert!(source
             .iter()
-            .all(|path| path_key(Path::new(path)) != path_key(&outside.path())));
+            .all(|path| path_key(Path::new(path)) != path_key(&migrated)));
+    }
+
+    #[test]
+    fn workspace_external_source_candidate_is_kept() {
+        let (_t, root) = tree();
+        let outside = tempfile::tempdir().unwrap();
+        touch(outside.path(), "outside.pro");
+        let model = candidate_map(
+            "source_project",
+            vec![outside.path().to_string_lossy().into_owned()],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        // 用户显式给出的工作区外工程是用户意图，必须保留在候选中。
+        assert_eq!(
+            probe.candidates["source_project"],
+            vec![outside.path().to_string_lossy().into_owned()]
+        );
     }
 
     #[test]
@@ -836,10 +900,14 @@ mod tests {
             ],
         );
 
-        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+        // 用户显式给出的工作区外输出目录保留（用户意图），workspace 内探测候选优先。
         assert_eq!(
             probe.candidates["output_project"],
-            vec![output.to_string_lossy().into_owned()]
+            vec![
+                output.to_string_lossy().into_owned(),
+                outside.path().to_string_lossy().into_owned(),
+            ]
         );
 
         let invalid_model = candidate_map(
@@ -847,7 +915,7 @@ mod tests {
             vec![source.to_string_lossy().into_owned()],
         );
         let fallback =
-            probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &invalid_model);
+            probe_qt_migration_candidates(&root, "", &root.join("managed"), &invalid_model);
         assert_eq!(
             fallback.candidates["output_project"],
             vec![root.to_string_lossy().into_owned()]
@@ -862,7 +930,7 @@ mod tests {
             "output_project",
             vec![nonexistent.to_string_lossy().into_owned()],
         );
-        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
         assert!(probe.candidates["output_project"]
             .iter()
             .all(|p| path_key(Path::new(p)) != path_key(&nonexistent)));
@@ -879,7 +947,7 @@ mod tests {
         mkdir(&migrated, "entry");
         let managed_root = root.join("managed");
 
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &HashMap::new());
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
 
         assert_eq!(
             probe.candidates["output_project"],
@@ -889,6 +957,51 @@ mod tests {
         assert!(probe.candidates["output_project"]
             .iter()
             .all(|p| path_key(Path::new(p)) != path_key(&migrated)));
+    }
+
+    #[test]
+    fn prompt_named_output_inside_container_is_rejected() {
+        let (_t, root) = tree();
+        let output_container = mkdir(&root, "output");
+        let previous = mkdir(&output_container, "calculator-ohos");
+        touch(&previous, "build-profile.json5");
+        // 模型自作主张把上次迁移产物作为输出候选传入：容器内路径必须被拒。
+        let model = candidate_map(
+            "output_project",
+            vec![previous.to_string_lossy().into_owned()],
+        );
+        let managed_root = root.join("managed");
+
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &model);
+
+        // 容器内的旧产物被拒后，容器本身由语义扫描补上作为输出目标。
+        assert_eq!(
+            probe.candidates["output_project"],
+            vec![output_container.to_string_lossy().into_owned()]
+        );
+    }
+
+    #[test]
+    fn managed_template_survives_migrated_project_exclusion() {
+        // 官方模板自身就是完整鸿蒙工程结构（build-profile + entry + marker），
+        // 不得被"已迁移工程"排除逻辑误伤；输出容器内的迁移产物则被排除。
+        let (_t, root) = tree();
+        let managed_root = root.join("managed");
+        let managed_tpl = managed_root.join("templates").join("qt5.12");
+        create_template(&managed_tpl);
+        let output_container = mkdir(&root, "output");
+        let migrated_tpl_like = mkdir(&output_container, "calc-ohos");
+        create_template(&migrated_tpl_like);
+
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
+
+        assert!(probe.managed_template_available);
+        assert!(probe.candidates["template"]
+            .iter()
+            .any(|p| path_key(Path::new(p)) == path_key(&managed_tpl)));
+        assert!(probe.candidates["template"]
+            .iter()
+            .all(|p| path_key(Path::new(p)) != path_key(&migrated_tpl_like)));
     }
 
     #[test]
@@ -916,7 +1029,7 @@ mod tests {
     }
 
     #[test]
-    fn output_container_dir_ranks_before_model_candidate() {
+    fn prompt_named_output_ranks_before_output_container() {
         let (_t, root) = tree();
         let output_dir = mkdir(&root, "output-project");
         let model_dir = mkdir(&root, "model-output");
@@ -925,25 +1038,23 @@ mod tests {
             vec![model_dir.to_string_lossy().into_owned()],
         );
 
-        let probe =
-            probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
+        // Prompt-named output ranks first; output-container dirs follow.
         assert_eq!(
             probe.candidates["output_project"],
             vec![
-                output_dir.to_string_lossy().into_owned(),
                 model_dir.to_string_lossy().into_owned(),
+                output_dir.to_string_lossy().into_owned(),
             ]
         );
     }
 
     #[test]
-    fn workspace_service_output_candidate_is_merged_first() {
+    fn workspace_service_output_is_merged_after_model_candidate() {
         let (_t, root) = tree();
         let workspace_output = root.join("迁移工程").to_string_lossy().into_owned();
-        let model_output = mkdir(&root, "model-output")
-            .to_string_lossy()
-            .into_owned();
+        let model_output = mkdir(&root, "model-output").to_string_lossy().into_owned();
 
         let candidates = merge_workspace_output_candidates(
             &root,
@@ -952,11 +1063,12 @@ mod tests {
             &[workspace_output.clone()],
         );
 
-        assert_eq!(candidates, vec![workspace_output, model_output]);
+        // Prompt-named candidate outranks the workspace service output dir.
+        assert_eq!(candidates, vec![model_output, workspace_output]);
     }
 
     #[test]
-    fn backend_priority_can_displace_valid_model_toolchain() {
+    fn prompt_named_toolchain_ranks_first() {
         let (_t, root) = tree();
         let path_bin = mkdir(&root, "path-bin");
         touch(&path_bin, "qmake");
@@ -972,21 +1084,18 @@ mod tests {
             &root,
             &path_bin.to_string_lossy(),
             &managed_root,
-            None,
             &model,
         );
 
+        // Prompt-named toolchain ranks first; workspace/managed fill the rest.
         let toolchains = &probe.candidates["toolchain"];
         assert_eq!(toolchains.len(), 2);
-        assert_eq!(path_key(Path::new(&toolchains[0])), path_key(&path_bin));
-        assert_eq!(path_key(Path::new(&toolchains[1])), path_key(&managed_bin));
-        assert!(toolchains
-            .iter()
-            .all(|path| path_key(Path::new(path)) != path_key(&model_bin)));
+        assert_eq!(path_key(Path::new(&toolchains[0])), path_key(&model_bin));
+        assert_eq!(path_key(Path::new(&toolchains[1])), path_key(&path_bin));
     }
 
     #[test]
-    fn valid_model_template_is_merged_when_backend_has_capacity() {
+    fn valid_model_template_ranks_before_backend_discovery() {
         let (_t, root) = tree();
         let backend_template = mkdir(&root, "a-template");
         create_template(&backend_template);
@@ -997,13 +1106,13 @@ mod tests {
             vec![deep_model_template.to_string_lossy().into_owned()],
         );
 
-        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), None, &model);
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
         assert_eq!(
             probe.candidates["template"],
             vec![
-                backend_template.to_string_lossy().into_owned(),
                 deep_model_template.to_string_lossy().into_owned(),
+                backend_template.to_string_lossy().into_owned(),
             ]
         );
     }
@@ -1070,7 +1179,7 @@ mod tests {
     }
 
     #[test]
-    fn source_projects_cap_is_three_and_noise_dir_is_skipped() {
+    fn source_projects_cap_is_two_and_noise_dir_is_skipped() {
         let (_t, root) = tree();
         for n in ["a", "b", "c", "d"] {
             let d = mkdir(&root, n);
@@ -1079,12 +1188,12 @@ mod tests {
         let build = mkdir(&root, "build");
         touch(&build, "build.pro");
         let hits = probe_source_projects(&root, &[]);
-        assert_eq!(hits.len(), 3);
+        assert_eq!(hits.len(), 2);
         assert!(hits.iter().all(|h| !h.contains("build")));
     }
 
     #[test]
-    fn toolchain_prefers_path_order_then_workspace_fill() {
+    fn toolchain_prefers_workspace_then_managed_then_path() {
         let (_t, root) = tree();
         // workspaces dir (a qmake inside the workspace is the fallback)
         let ws_tools = mkdir(&root, "Qt5.15.2");
@@ -1099,30 +1208,38 @@ mod tests {
         touch(&dir1, "qmake.exe");
         touch(&dir2, "qmake.exe");
 
+        // Workspace qmake outranks PATH entries (PATH is the last resort).
         let path_env = format!("{};{}", dir1.to_string_lossy(), dir2.to_string_lossy());
         let managed_root = root.join("managed");
-        let hits = probe_toolchains(&root, &path_env, &managed_root, None, &[]);
+        let hits = probe_toolchains(&root, &path_env, &managed_root, &[]);
+        assert_eq!(
+            hits,
+            vec![
+                ws_bin.to_string_lossy().into_owned(),
+                dir1.to_string_lossy().into_owned()
+            ],
+            "workspace qmake fills default; first PATH entry fills alternate"
+        );
+
+        // No workspace qmake -> PATH entries fill the list in PATH order.
+        let empty_ws = tempfile::tempdir().expect("tempdir");
+        let hits = probe_toolchains(empty_ws.path(), &path_env, &managed_root, &[]);
         assert_eq!(
             hits,
             vec![
                 dir1.to_string_lossy().into_owned(),
                 dir2.to_string_lossy().into_owned()
-            ],
-            "first two PATH qmakes fill default + alternate; workspace not needed"
+            ]
         );
-
-        // PATH yields one candidate -> workspace qmake fills the alternate slot.
-        let one_path = dir1.to_string_lossy().into_owned();
-        let hits = probe_toolchains(&root, &one_path, &managed_root, None, &[]);
-        assert_eq!(hits.len(), 2);
-        assert_eq!(hits[0], dir1.to_string_lossy().into_owned());
-        assert_eq!(hits[1], ws_bin.to_string_lossy().into_owned());
     }
 
     #[test]
-    fn managed_resources_are_probed_before_workspace() {
+    fn workspace_toolchain_and_template_rank_before_managed() {
         let (_t, root) = tree();
-        let managed_root = root.join("managed");
+        // Managed resources live outside the workspace in production; keep the
+        // fixture faithful so the workspace scan cannot reach into them.
+        let managed_tmp = tempfile::tempdir().expect("tempdir");
+        let managed_root = managed_tmp.path().join("managed");
         let managed_bin = managed_root.join("toolchains").join("qt5.12").join("bin");
         std::fs::create_dir_all(&managed_bin).unwrap();
         touch(&managed_bin, "qmake");
@@ -1131,40 +1248,35 @@ mod tests {
             &managed_bin.parent().unwrap().join("lib/cmake/Qt5"),
             "Qt5Config.cmake",
         );
+        let managed_tpl = managed_root.join("templates").join("qt5.12");
+        create_template(&managed_tpl);
 
         let workspace_bin = root.join("workspace-tools");
         std::fs::create_dir_all(&workspace_bin).unwrap();
         touch(&workspace_bin, "qmake");
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &HashMap::new());
-        assert!(probe.managed_toolchain_available);
-        assert_eq!(
-            probe.candidates["toolchain"][0],
-            managed_bin.to_string_lossy()
-        );
-        assert_eq!(
-            probe.candidates["toolchain"][1],
-            workspace_bin.to_string_lossy()
-        );
-    }
-
-    #[test]
-    fn managed_template_is_probed_before_workspace() {
-        let (_t, root) = tree();
-        let managed_root = root.join("managed");
-        let managed_tpl = managed_root.join("templates").join("qt5.12");
-        create_template(&managed_tpl);
         let workspace_tpl = root.join("workspace-template");
         create_template(&workspace_tpl);
 
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &HashMap::new());
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
+        assert!(probe.managed_toolchain_available);
         assert!(probe.managed_template_available);
+        // Workspace-local resources outrank the shared managed ones in both
+        // fields (user confirmed priority).
+        assert_eq!(
+            probe.candidates["toolchain"][0],
+            workspace_bin.to_string_lossy()
+        );
+        assert_eq!(
+            probe.candidates["toolchain"][1],
+            managed_bin.to_string_lossy()
+        );
         assert_eq!(
             probe.candidates["template"][0],
-            managed_tpl.to_string_lossy()
+            workspace_tpl.to_string_lossy()
         );
         assert_eq!(
             probe.candidates["template"][1],
-            workspace_tpl.to_string_lossy()
+            managed_tpl.to_string_lossy()
         );
     }
 
@@ -1178,7 +1290,7 @@ mod tests {
         // same dir twice in PATH
         let path_env = format!("{};{}", d.to_string_lossy(), d.to_string_lossy());
         let managed_root = root.join("managed");
-        let hits = probe_toolchains(&root, &path_env, &managed_root, None, &[]);
+        let hits = probe_toolchains(&root, &path_env, &managed_root, &[]);
         assert_eq!(hits, vec![d.to_string_lossy().into_owned()]);
     }
 
@@ -1192,7 +1304,7 @@ mod tests {
         touch(&plain, "build-profile.json5");
 
         let managed_root = root.join("managed");
-        let hits = probe_templates(&root, &managed_root, None, &[]);
+        let hits = probe_templates(&root, &managed_root, &[]);
         assert_eq!(hits, vec![tpl.to_string_lossy().into_owned()]);
     }
 
@@ -1214,7 +1326,7 @@ mod tests {
         }
 
         let managed_root = root.join("managed");
-        assert!(probe_templates(&root, &managed_root, None, &[]).is_empty());
+        assert!(probe_templates(&root, &managed_root, &[]).is_empty());
     }
 
     #[test]
@@ -1223,7 +1335,7 @@ mod tests {
         let tpl = mkdir(&root, "templates");
         mkdir(&tpl, TEMPLATE_MARKER_DIR);
         let managed_root = root.join("managed");
-        assert!(probe_templates(&root, &managed_root, None, &[]).is_empty());
+        assert!(probe_templates(&root, &managed_root, &[]).is_empty());
     }
 
     #[test]
@@ -1234,7 +1346,7 @@ mod tests {
         touch(&plain, "build-profile.json5");
 
         let managed_root = root.join("managed");
-        assert!(probe_templates(&root, &managed_root, None, &[]).is_empty());
+        assert!(probe_templates(&root, &managed_root, &[]).is_empty());
     }
 
     #[test]
@@ -1242,7 +1354,7 @@ mod tests {
         let (_t, root) = tree();
         touch(&root, "app.pro");
         let managed_root = root.join("managed");
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &HashMap::new());
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
         assert!(probe.candidates["source_project"].contains(&root.to_string_lossy().into_owned()));
         assert!(probe.candidates["output_project"].is_empty());
     }
@@ -1260,7 +1372,7 @@ mod tests {
     fn probe_map_contains_output_workspace_candidate() {
         let (_t, root) = tree();
         let managed_root = root.join("managed");
-        let probe = probe_qt_migration_candidates(&root, "", &managed_root, None, &HashMap::new());
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
         assert_eq!(probe.candidates.len(), 4);
         assert!(probe.candidates.contains_key("source_project"));
         assert!(probe.candidates.contains_key("output_project"));

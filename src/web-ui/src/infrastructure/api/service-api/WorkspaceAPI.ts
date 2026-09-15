@@ -1105,6 +1105,9 @@ export class WorkspaceAPI {
   async open_oh_file_dialog(
     opts: OhOpenDialogOptions = {},
   ): Promise<string | string[] | null> {
+    // On desktop (non-OHOS) runtimes the ArkTS bridge is unavailable, so
+    // route to the native Tauri dialog plugin. This keeps every call site
+    // that uses `open_oh_file_dialog` working across all platforms.
     if (isTauriRuntime() && !isOpenHarmonyRuntime()) {
       const { open } = await import('@tauri-apps/plugin-dialog');
       return open({

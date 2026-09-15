@@ -143,7 +143,7 @@ fn has_harmonyos_target(text: &str) -> bool {
             .any(|token| has_word_ci(&text.to_lowercase(), token))
 }
 
-fn has_any_task_signal(text: &str) -> bool {
+pub(crate) fn has_any_task_signal(text: &str) -> bool {
     has_qt_context(text) || has_migration_action(text) || has_harmonyos_target(text)
 }
 
@@ -237,7 +237,8 @@ fn classify_non_migration_primary(text: &str) -> Option<String> {
 fn find_absolute_paths(text: &str) -> Vec<String> {
     let mut paths = Vec::new();
     for token in text.split_whitespace() {
-        let cleaned = token.trim_matches(|c: char| "。，,;；：:\"'()[]{}".contains(c));
+        let cleaned = token
+            .trim_matches(|c: char| "。，,;；：:\"'()[]{}《》〈〉“”‘’「」『』【】".contains(c));
         if cleaned.len() < 3 {
             continue;
         }
@@ -413,6 +414,7 @@ fn has_template_anchor_here_text(path: &str, text: &str) -> bool {
 fn extract_resolved_paths(text: &str) -> Value {
     let paths = find_absolute_paths(text);
     let mut resolved = serde_json::Map::new();
+    let mut unclassified: Vec<String> = Vec::new();
     for path in &paths {
         if output_anchor_here(0, path, text) {
             resolved.insert("output_project".to_string(), json!(path));
@@ -424,8 +426,10 @@ fn extract_resolved_paths(text: &str) -> Value {
             resolved
                 .entry("source_project".to_string())
                 .or_insert(json!(path));
+            unclassified.push(path.clone());
         }
     }
+    resolved.insert("unclassifiedPaths".to_string(), json!(unclassified));
     Value::Object(resolved)
 }
 
@@ -660,6 +664,31 @@ mod tests {
             FieldLevel::Missing,
             "output must not reuse source token"
         );
+    }
+
+    #[test]
+    fn quoted_path_is_stripped_and_extracted() {
+        let d =
+            QtMigrationIntakeTool::analyze_request("把《D:/workspace/myqt》这个 Qt 工程迁移到鸿蒙");
+        assert_eq!(d["taskType"], "app_migration");
+        assert_eq!(
+            d["resolvedPaths"]["source_project"].as_str(),
+            Some("D:/workspace/myqt"),
+            "中文书名号包裹的路径必须剥除后提取"
+        );
+    }
+
+    #[test]
+    fn unanchored_paths_are_surfaced_as_unclassified() {
+        // 三个路径都无法匹配 output/toolchain/template 锚词：第一个按惯例
+        // 归为源工程，全部路径（含第一个）必须透传给模型辅助归类。
+        let d = QtMigrationIntakeTool::analyze_request(
+            "迁移 D:/ws/myqt 这个 Qt 工程到鸿蒙，工具链用 D:/qt/5.12.12，模板用 D:/tpl/ohos，输出到 D:/out/myapp",
+        );
+        let unclassified = d["resolvedPaths"]["unclassifiedPaths"]
+            .as_array()
+            .expect("unclassifiedPaths array");
+        assert_eq!(unclassified.len(), 4, "所有未锚定路径都要透传");
     }
 
     #[test]

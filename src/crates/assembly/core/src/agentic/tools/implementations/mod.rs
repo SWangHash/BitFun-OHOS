@@ -64,6 +64,7 @@ pub mod page_publish_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod playbook_tool;
 pub mod qt_migration_intake_tool;
+pub mod qt_migration_semantic_analyzer;
 #[cfg(feature = "tools-git")]
 pub mod review_platform_tool;
 pub mod save_ui_screenshot_tool;
