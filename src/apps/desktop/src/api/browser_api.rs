@@ -112,8 +112,24 @@ pub struct WebviewCreateRequest {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub background_color: Option<String>,
 }
 
+fn browser_background_color(raw: Option<&str>) -> tauri::window::Color {
+    let Some(value) = raw.and_then(|value| value.strip_prefix('#')) else {
+        return tauri::window::Color(30, 30, 30, 255);
+    };
+    if value.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&value[0..2], 16),
+            u8::from_str_radix(&value[2..4], 16),
+            u8::from_str_radix(&value[4..6], 16),
+        ) {
+            return tauri::window::Color(r, g, b, 255);
+        }
+    }
+    tauri::window::Color(30, 30, 30, 255)
+}
 fn validate_browser_label(label: &str) -> Result<(), String> {
     if label.starts_with("embedded-browser-view-")
         || label.starts_with("embedded-browser-panel-view-")
@@ -246,7 +262,7 @@ pub async fn browser_webview_create(
             tauri::webview::WebviewBuilder::new(request.label, tauri::WebviewUrl::External(url))
                 .initialization_script(video_decoder_compatibility_script())
                 .transparent(false)
-                .background_color(tauri::window::Color(0, 0, 0, 255));
+                .background_color(browser_background_color(request.background_color.as_deref()));
 
         #[cfg(any(debug_assertions, feature = "devtools"))]
         {
