@@ -29,7 +29,7 @@ struct SettingsView: View {
                                 SettingsProfileRow(
                                     subtitle: model.accountUser ?? model.localized("未登录"),
                                     authenticated: model.accountUser != nil
-                                )
+                                ).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -45,7 +45,7 @@ struct SettingsView: View {
                                     title: "语言",
                                     value: model.appLanguage.nativeName,
                                     showsChevron: true
-                                )
+                                ).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -101,6 +101,7 @@ struct SettingsView: View {
                     .padding(.horizontal, MobileDesignGeometry.sheetHorizontalPadding)
                     .padding(.top, 22)
                     .padding(.bottom, 34)
+                    .id(model.appLanguage)
                 }
             }
 

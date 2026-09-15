@@ -1,4 +1,4 @@
-import { RemoteSession, SessionSummary } from '../../model/RemoteModels';
+import { RemoteSession, SessionSummary, SessionListResult } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { ConnectionErrorPolicy } from '../../services/ConnectionErrorPolicy';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
@@ -104,6 +104,7 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
   }
 
   aboutToDisappear(): void {
+    this.miniAppViewModel.close();
     this.settingsController.stopPresencePolling();
     this.watchProvisionController.stop();
     this.taskCompletionNotificationController.stop();
@@ -312,14 +313,18 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     if (targetDeviceId.length === 0 || targetPath.length === 0) {
       return;
     }
-    if (this.isConnectedDirectoryTarget(targetDeviceId)) {
-      const sessions = await this.sessionManager.listSessionsForWorkspace(targetPath, 50);
-      this.deviceDirectoryViewModel.captureWorkspaceSessions(targetDeviceId, targetPath, sessions);
-      this.remoteWorkspaceSessions = this.replaceWorkspaceSessions(targetPath, sessions);
-      this.publishRemoteWorkspaceSessions();
-      return;
-    }
     await this.deviceDirectoryViewModel.loadWorkspaceSessions(targetDeviceId, targetPath);
+  }
+
+  publishWorkspaceSessionPage(path: string, result: SessionListResult): void {
+    this.remoteWorkspaceSessions = this.replaceWorkspaceSessions(path, result.sessions);
+    if (path === this.remotePageState.workspacePath) {
+      // Update the controller as well as the sidebar so a later title change
+      // cannot republish the old current-workspace list.
+      this.remoteSessionController.setSessions(result.sessions, result.hasMore);
+    } else {
+      this.publishRemoteWorkspaceSessions();
+    }
   }
 
   private isConnectedDirectoryTarget(deviceId: string): boolean {
@@ -338,7 +343,9 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     });
     // The device rows are only on screen from here, and a desktop that came
     // online since the last look would otherwise stay grey.
-    void this.settingsController.refreshAccountDevicesIfStale(DEVICE_PRESENCE_MAX_AGE_MS);
+    void this.settingsController.refreshAccountDevicesIfStale(DEVICE_PRESENCE_MAX_AGE_MS).then(() =>
+      this.deviceDirectoryViewModel.refreshExpandedWorkspaceSessions()
+    );
   }
 
   closeAppSidebar(): void {

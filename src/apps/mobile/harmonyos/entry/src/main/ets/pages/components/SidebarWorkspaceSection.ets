@@ -4,7 +4,6 @@ import { RemoteI18n } from '../../i18n/RemoteI18n';
 import {
   DeviceDirectoryEntry,
   DeviceDirectoryState,
-  WorkspaceDirectoryStatus,
   emptyDeviceDirectoryEntry
 } from '../state/DeviceDirectoryState';
 import { SidebarDirectoryPreviewPolicy } from '../policy/SidebarDirectoryPreviewPolicy';
@@ -258,9 +257,6 @@ export struct SidebarWorkspaceSection {
         },
         onWorkspaceExpandedChange: (path: string, expanded: boolean): void => {
           this.directoryState.setWorkspaceExpanded(entry.deviceId, path, expanded);
-        },
-        onWorkspaceLoadStatusChange: (path: string, status: WorkspaceDirectoryStatus): void => {
-          this.directoryState.setWorkspaceStatus(entry.deviceId, path, status);
         }
       })
     }

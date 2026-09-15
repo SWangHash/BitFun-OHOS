@@ -89,7 +89,7 @@ export struct SidebarWorkspacePicker {
       .borderRadius(10)
       .backgroundColor(CARD)
       Column({ space: 3 }) {
-        Text(workspace.name || this.basename(workspace.path))
+        Text((workspace.name || this.basename(workspace.path)) + (workspace.remoteSshHost?.trim() ? ` · ${workspace.remoteSshHost.trim()}` : ''))
           .width('100%')
           .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(workspace.path === this.selectedWorkspacePath ? FontWeight.Medium : FontWeight.Regular)

@@ -124,9 +124,11 @@
       "headers": "请求头",
       "env": "环境变量",
       "oauth": "OAuth"
-    }
+    },
+    "importedSource": "外部导入"
   },
   "status": {
+    "disabled": "已停用",
     "uninitialized": "未初始化",
     "starting": "启动中",
     "connected": "已连接",
@@ -141,6 +143,7 @@
     "error": "错误"
   },
   "actions": {
+    "enableAndStart": "启用并启动",
     "add": "添加服务器",
     "addFirst": "添加第一个服务器",
     "edit": "编辑",

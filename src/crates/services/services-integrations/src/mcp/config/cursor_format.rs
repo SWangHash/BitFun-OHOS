@@ -44,6 +44,9 @@ fn parse_legacy_type(value: &str) -> Option<(Option<MCPServerType>, Option<MCPSe
 
 pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
     let mut cursor_config = serde_json::Map::new();
+    if let Some(origin) = config.settings.get("_openbitfunImport") {
+        cursor_config.insert("_openbitfunImport".into(), origin.clone());
+    }
 
     let type_str = match (config.server_type, config.resolved_transport()) {
         (MCPServerType::Local, _) => "stdio",
@@ -65,6 +68,12 @@ pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
 
     if let Some(command) = &config.command {
         cursor_config.insert("command".to_string(), serde_json::json!(command));
+    }
+    if let Some(directory) = &config.working_directory {
+        cursor_config.insert("workingDirectory".into(), serde_json::json!(directory));
+    }
+    if !config.timeouts.is_empty() {
+        cursor_config.insert("timeouts".into(), serde_json::json!(config.timeouts));
     }
 
     if let Some(inherit) = config.inherit_parent_environment {
@@ -287,11 +296,21 @@ pub fn parse_cursor_format(
                                 .collect::<Vec<_>>()
                         })
                         .unwrap_or_default(),
-                    settings: obj
-                        .get("settings")
-                        .and_then(|v| v.as_object())
-                        .map(|m| m.clone().into_iter().collect::<std::collections::HashMap<_, _>>())
-                        .unwrap_or_default(),
+                    settings: {
+                        let mut settings = obj
+                            .get("settings")
+                            .and_then(|v| v.as_object())
+                            .map(|m| {
+                                m.clone().into_iter().collect::<std::collections::HashMap<_, _>>()
+                            })
+                            .unwrap_or_default();
+                        if let Some(value) =
+                            obj.get("_openbitfunImport").filter(|value| value.is_object())
+                        {
+                            settings.insert("_openbitfunImport".to_string(), value.clone());
+                        }
+                        settings
+                    },
                     oauth: obj
                         .get("oauth")
                         .cloned()
@@ -310,11 +329,23 @@ pub fn parse_cursor_format(
                         .get("xaa")
                         .cloned()
                         .and_then(|value| serde_json::from_value(value).ok()),
-                    timeouts: obj
-                        .get("timeouts")
-                        .cloned()
-                        .and_then(|value| serde_json::from_value(value).ok())
-                        .unwrap_or_default(),
+                    timeouts: match obj.get("timeouts") {
+                        None => Default::default(),
+                        Some(value) => {
+                            match serde_json::from_value::<crate::mcp::MCPServerTimeouts>(
+                                value.clone(),
+                            ) {
+                                Ok(timeouts) if timeouts.validate().is_ok() => timeouts,
+                                _ => {
+                                    warn!(
+                                        "Invalid MCP timeout configuration for server '{}'",
+                                        server_id
+                                    );
+                                    continue;
+                                }
+                            }
+                        }
+                    },
                 };
 
                 servers.push(server_config);

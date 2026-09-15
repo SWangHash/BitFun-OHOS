@@ -1,6 +1,9 @@
 # OpenCode 扩展兼容执行计划
 
-本文定义 OpenCode 兼容能力的近期交付顺序。完整能力差异保留在
+本文保留 OpenCode 兼容能力的历史交付顺序与阶段退出条件，阶段措辞不承担实时进度声明。
+截至 2026-09-13，当前范围见[发现、导入与使用口径](../architecture/extensions/external-ai-work-sources-design.md#当前支持声明与状态口径2026-09-13)，
+显式 package plugin 已有执行切片，见[Plugin Host 当前实现](../architecture/extensions/plugin-runtime-design.md#7-当前实现)。
+下文关于后续 package plugin 的表述应按当时的阶段边界理解。完整能力差异保留在
 [兼容矩阵](../architecture/extensions/opencode-extension-compatibility.md)，跨生态来源体验与生命周期见
 [外部 AI 工作内容设计](../architecture/extensions/external-ai-work-sources-design.md)，通用能力归属、当前版本与宿主边界见
 [能力装配与宿主集成设计](../architecture/extensions/capability-runtime-integration-design.md)。本计划只覆盖外部 OpenCode

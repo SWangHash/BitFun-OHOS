@@ -989,6 +989,16 @@
     "currentStatus": "目前狀態: {{status}}"
   },
   "contextPicker": {
+    "mcp": {
+      "label": "MCP",
+      "server": "MCP 服務",
+      "empty": "目前模式沒有可用的已連線 MCP 工具。請在 MCP 設定中啟用並啟動服務。",
+      "modeRestricted": "目前模式不提供已連線的 MCP 工具。請切換至 Standard、Ultimate 或 Creative 使用。",
+      "loadFailed": "MCP 工具載入失敗，請重新整理後重試。",
+      "refresh": "重新整理 MCP 工具",
+      "remoteWorkspace": "遠端工作區暫不支援選擇 MCP。",
+      "unsupportedHost": "目前主機不支援選擇 MCP，請更新主機版本。"
+    },
     "skillsIncomplete": "部分技能掃描失敗，已成功讀取的技能仍可使用。",
     "skillsDiagnosticsUnavailable": "目前主機不提供技能掃描診斷。",
     "menuTitle": "選擇上下文",
@@ -1295,7 +1305,8 @@
       "emptyWorkspace": "目前工作區沒有可審核的變更",
       "emptyExplicitScope": "要求的檔案或目錄沒有工作區變更",
       "missingExplicitScope": "要求的檔案或目錄不存在於目前工作區中",
-      "unresolvedTarget": "無法將審核目標準備為有界證據，請開啟對應工作區或縮小目標後重試",
+      "unresolvedTarget": "無法讀取待審核的檔案或程式碼差異，請確認已開啟對應工作區、審核目標有效，並查看日誌中的具體錯誤",
+      "notGitRepository": "目前工作區未找到 Git 儲存庫，暫時無法啟動審核。請開啟包含 Git 儲存庫且已有提交記錄的專案後重試",
       "repositoryUntrusted": "該目錄屬於其他使用者，Git 拒絕讀取此儲存庫。請在提示中信任該目錄後重新啟動審核",
       "uncertain": "審核要求可能已在執行。工作階段已保留，可安全檢查或重試",
       "unknown": "審核啟動失敗，請重試"
@@ -1597,6 +1608,7 @@
     "roundHistoryShow": "顯示 {{count}} 次歷史重試輪次",
     "roundHistoryHide": "隱藏歷史重試輪次",
     "roundRetryLabel": "重試輪次 {{index}}",
+    "continued": "已繼續",
     "retryHistoryShow": "顯示 {{count}} 次歷史嘗試",
     "retryHistoryHide": "隱藏重試歷史",
     "attemptLabel": "第 {{index}} 次嘗試",
@@ -1872,6 +1884,7 @@
       "interruptedByRetry": "這次嘗試已被同一輪回應中的更新重試接替"
     },
     "askUser": {
+      "interactionFailed": "無法停止執行裝置上的提問計時，請儘快提交或更新該裝置。",
       "completed": "已完成",
       "submittedWaiting": "已提交，等待處理",
       "submitting": "提交中...",
@@ -1883,7 +1896,7 @@
       "submit": "提交",
       "questionsAnswered": "{{count}} 個問題已回答",
       "notAnswered": "未回答",
-      "timeout": "等待超時（10分鐘）",
+      "timeout": "使用者未回應，已略過提問",
       "parseError": "無法解析問題資料",
       "loadingQuestions": "正在接收問題…",
       "other": "其他",

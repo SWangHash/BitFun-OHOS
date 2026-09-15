@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Activity, AlertTriangle, Database, FileText, GitCompare, ShieldCheck, Wrench, type LucideProps } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
-import { OverflowText, Tooltip } from '@openbitfun/ui';
+import { Button, OverflowText, TabGroup, Tooltip } from '@openbitfun/ui';
 import { snapshotAPI } from '@/infrastructure/api';
 import type { SessionUsageReport } from '@/infrastructure/api/service-api/SessionAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -85,7 +85,6 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
   const [copied, setCopied] = useState(false);
   const [copiedMeta, setCopiedMeta] = useState<'session' | 'workspace' | null>(null);
   const [redactExportPaths, setRedactExportPaths] = useState(getUsageExportRedactPathsPreference);
-  const tabRefs = useRef<Partial<Record<SessionUsagePanelTab, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
     if (initialTab) {
@@ -127,37 +126,10 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
     }
   }, []);
 
-  const handleTabKeyDown = useCallback((
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    currentTab: SessionUsagePanelTab
-  ) => {
-    const currentIndex = TABS.indexOf(currentTab);
-    let nextIndex: number | null = null;
-
-    if (event.key === 'ArrowRight') {
-      nextIndex = (currentIndex + 1) % TABS.length;
-    } else if (event.key === 'ArrowLeft') {
-      nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
-    } else if (event.key === 'Home') {
-      nextIndex = 0;
-    } else if (event.key === 'End') {
-      nextIndex = TABS.length - 1;
-    }
-
-    if (nextIndex === null) {
-      return;
-    }
-
-    event.preventDefault();
-    const nextTab = TABS[nextIndex];
-    setActiveTab(nextTab);
-    tabRefs.current[nextTab]?.focus();
-  }, []);
-
   if (!report) {
     return (
-      <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="root" data-openbitfun-state="fallback" className="session-usage-panel session-usage-panel--fallback">
-        <div className="session-usage-panel__fallback-toolbar" data-openbitfun-component="session-usage-panel" data-openbitfun-part="header">
+      <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="root" data-openbitfun-state="fallback" className="session-usage-panel session-usage-panel--fallback">
+        <div className="session-usage-panel__fallback-toolbar" data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="header">
           <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
             <IconButton
               size="sm"
@@ -188,8 +160,8 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
   );
 
   return (
-    <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="root" data-openbitfun-tab={activeTab} className="session-usage-panel">
-      <header className="session-usage-panel__header" data-openbitfun-component="session-usage-panel" data-openbitfun-part="header">
+    <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="root" data-openbitfun-tab={activeTab} className="session-usage-panel">
+      <header className="session-usage-panel__header" data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="header">
         <div className="session-usage-panel__title-wrap">
           <div className="session-usage-panel__title-main">
             <h2>{t('usage.title')}</h2>
@@ -238,43 +210,32 @@ export const SessionUsagePanel: React.FC<SessionUsagePanelProps> = ({
         </div>
       </header>
 
-      <nav
+      <TabGroup
         className="session-usage-panel__tabs"
-        data-openbitfun-component="session-usage-panel"
-        data-openbitfun-part="tabs"
-        role="tablist"
-        aria-orientation="horizontal"
+        data-openbitfun-product-component="session-usage-panel"
+        data-openbitfun-product-part="tabs"
         aria-label={t('usage.panel.tabsLabel')}
-      >
-        {TABS.map(tab => (
-          <button
-            key={tab}
-            ref={node => {
-              tabRefs.current[tab] = node;
-            }}
-            id={tabId(tab)}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            aria-controls={tabPanelId(tab)}
-            tabIndex={activeTab === tab ? 0 : -1}
-            className={`session-usage-panel__tab${activeTab === tab ? ' session-usage-panel__tab--active' : ''}`}
-            data-openbitfun-component="session-usage-panel"
-            data-openbitfun-part="tab"
-            data-openbitfun-tab={tab}
-            data-openbitfun-state={activeTab === tab ? 'active' : undefined}
-            onClick={() => setActiveTab(tab)}
-            onKeyDown={event => handleTabKeyDown(event, tab)}
-          >
-            {t(`usage.tabs.${tab}`)}
-          </button>
-        ))}
-      </nav>
+        value={activeTab}
+        onValueChange={value => setActiveTab(value as SessionUsagePanelTab)}
+        items={TABS.map(tab => ({
+          value: tab,
+          id: tabId(tab),
+          panelId: tabPanelId(tab),
+          label: t(`usage.tabs.${tab}`),
+          tabProps: {
+            className: `session-usage-panel__tab${activeTab === tab ? ' session-usage-panel__tab--active' : ''}`,
+            'data-openbitfun-product-component': 'session-usage-panel',
+            'data-openbitfun-product-part': 'tab',
+            'data-openbitfun-tab': tab,
+            'data-openbitfun-state': activeTab === tab ? 'active' : undefined,
+          },
+        }))}
+      />
 
       <main
         className="session-usage-panel__body"
-        data-openbitfun-component="session-usage-panel"
-        data-openbitfun-part="body"
+        data-openbitfun-product-component="session-usage-panel"
+        data-openbitfun-product-part="body"
         data-openbitfun-tab={activeTab}
         role="tabpanel"
         id={tabPanelId(activeTab)}
@@ -337,7 +298,7 @@ function UsageMetaRow({
   onCopy?: () => void;
 }) {
   return (
-    <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="metaRow" className="session-usage-panel__meta-row">
+    <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="metaRow" className="session-usage-panel__meta-row">
       <span className="session-usage-panel__meta-label">{label}</span>
       <OverflowText className="session-usage-panel__meta-value" title={value}>{value}</OverflowText>
       {onCopy && copyLabel && (
@@ -440,7 +401,7 @@ function UsageRowAnchorLink({
 
   const jumpHelp = t('usage.actions.jumpToTurn');
   const node = (
-    <button data-overflow-trigger
+    <Button labelBehavior="static" variant="text" data-overflow-trigger
       type="button"
       className="session-usage-panel__row-anchor-link"
       onClick={() => {
@@ -462,7 +423,7 @@ function UsageRowAnchorLink({
       aria-label={`${jumpHelp}: ${label}`}
     ><OverflowText>
       {label}
-    </OverflowText></button>
+    </OverflowText></Button>
   );
 
   return (
@@ -517,14 +478,14 @@ function UsageFileTurnIndexesValue({
         const displayTurnText = formatUsageNumber(displayTurnIndex, t);
         return (
           <Tooltip key={rawTurnIndex} content={t('usage.actions.jumpToTurn')}>
-            <button
+            <Button labelBehavior="static" variant="text"
               type="button"
               className="session-usage-panel__turn-index-link"
               onClick={() => onJumpToTurn(file, rawTurnIndex)}
               aria-label={`${t('usage.actions.jumpToTurn')}: ${displayTurnText}`}
             >
               {displayTurnText}
-            </button>
+            </Button>
           </Tooltip>
         );
       })}
@@ -621,7 +582,7 @@ function UsageOverview({ report }: { report: SessionUsageReport }) {
   ];
 
   return (
-    <section data-openbitfun-component="session-usage-panel" data-openbitfun-part="section" className="session-usage-panel__section">
+    <section data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="section" className="session-usage-panel__section">
       {report.coverage.level !== 'complete' && (
         <div className="session-usage-panel__notice">
           <AlertTriangle size={14} aria-hidden />
@@ -633,7 +594,7 @@ function UsageOverview({ report }: { report: SessionUsageReport }) {
         {metrics.map(metric => {
           const Icon = metric.icon;
           return (
-            <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="metric" className="session-usage-panel__overview-metric" key={metric.key}>
+            <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="metric" className="session-usage-panel__overview-metric" key={metric.key}>
               <Icon size={16} aria-hidden />
               <div>
                 <span>{metric.label}</span>
@@ -952,7 +913,7 @@ function UsageFiles({
   }), [handleJumpToFileTurn, handleOpenFileDiff, openingDiffKey, redactPaths, report.files.files, report.files.scope, sessionId, t, workspacePath]);
 
   return (
-    <section data-openbitfun-component="session-usage-panel" data-openbitfun-part="section" className="session-usage-panel__section">
+    <section data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="section" className="session-usage-panel__section">
       <div className="session-usage-panel__scope-line">
         <span>{t('usage.panel.fileScope')}</span>
         <UsageValue
@@ -983,7 +944,7 @@ function UsageFiles({
 function UsageErrors({ report, sessionId }: { report: SessionUsageReport; sessionId?: string }) {
   const { t } = useTranslation('flow-chat');
   return (
-    <section data-openbitfun-component="session-usage-panel" data-openbitfun-part="section" className="session-usage-panel__section">
+    <section data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="section" className="session-usage-panel__section">
       <div className="session-usage-panel__scope-line">
         <span>{t('usage.panel.errorScope')}</span>
         <UsageValue
@@ -1106,7 +1067,7 @@ function UsageSlowest({ report, sessionId }: { report: SessionUsageReport; sessi
   }, [sessionId]);
 
   return (
-    <section data-openbitfun-component="session-usage-panel" data-openbitfun-part="section" className="session-usage-panel__section">
+    <section data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="section" className="session-usage-panel__section">
       <div className="session-usage-panel__scope-line">
         <span>{t('usage.sections.slowest')}</span>
         <UsageValue
@@ -1140,14 +1101,14 @@ function UsageSlowest({ report, sessionId }: { report: SessionUsageReport; sessi
               node: (
                 <div className="session-usage-panel__slow-span">
                   <Tooltip content={spanHelp ? `${spanHelp} ${jumpHelp}` : jumpHelp}>
-                    <button data-overflow-trigger
+                    <Button labelBehavior="static" variant="text" data-overflow-trigger
                       type="button"
                       className="session-usage-panel__turn-link"
                       onClick={() => handleJumpToSpan(span)}
                       aria-label={`${jumpHelp}: ${spanLabel}`}
                     ><OverflowText>
                       {spanLabel}
-                    </OverflowText></button>
+                    </OverflowText></Button>
                   </Tooltip>
                   {detailRows.length > 0 && (
                     <dl className="session-usage-panel__slow-span-details">
@@ -1259,7 +1220,7 @@ function UsageTable({ empty, emptyLabel, emptyDescription, emptyHelp, headers, r
 
   if (empty) {
     return (
-      <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="empty" className="session-usage-panel__empty">
+      <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="empty" className="session-usage-panel__empty">
         <UsageValue value={emptyLabel} help={emptyHelp} strong />
         {emptyDescription && <span>{emptyDescription}</span>}
       </div>
@@ -1273,7 +1234,7 @@ function UsageTable({ empty, emptyLabel, emptyDescription, emptyHelp, headers, r
 
   return (
     <>
-      <div data-openbitfun-component="session-usage-panel" data-openbitfun-part="table" className="session-usage-panel__table-wrap">
+      <div data-openbitfun-product-component="session-usage-panel" data-openbitfun-product-part="table" className="session-usage-panel__table-wrap">
         <table className={['session-usage-panel__table', tableClassName].filter(Boolean).join(' ')}>
           <thead>
             <tr>
@@ -1312,7 +1273,7 @@ function UsageTable({ empty, emptyLabel, emptyDescription, emptyHelp, headers, r
               total: rows.length,
             })}
           </span>
-          <button
+          <Button labelBehavior="static" variant="text"
             type="button"
             className="session-usage-panel__table-expand"
             onClick={() => setExpanded(value => !value)}
@@ -1320,7 +1281,7 @@ function UsageTable({ empty, emptyLabel, emptyDescription, emptyHelp, headers, r
             {expanded
               ? t('usage.table.showFewerRows', { count: MAX_USAGE_TABLE_ROWS })
               : t('usage.table.showAllRows', { count: rows.length })}
-          </button>
+          </Button>
         </div>
       )}
     </>

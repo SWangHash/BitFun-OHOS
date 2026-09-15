@@ -1,4 +1,4 @@
-import { Button, Combobox, ConfirmDialog, Icon, Select, Switch, Tooltip } from '@openbitfun/ui';
+import { Button, Combobox, ConfirmDialog, Icon, IconButton, Select, Switch, Tooltip } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -1875,7 +1875,7 @@ const ExternalSourcesConfig: React.FC<ExternalSourcesConfigProps> = ({
                                 })}
                               />
                               <Tooltip content={t('policy.capabilitiesHint')} placement="top">
-                                <button
+                                <IconButton
                                   type="button"
                                   className="openbitfun-external-sources-config__icon-action"
                                   aria-label={t('policy.capabilitiesFor', {
@@ -1889,9 +1889,8 @@ const ExternalSourcesConfig: React.FC<ExternalSourcesConfigProps> = ({
                                     else next.add(ecosystem.ecosystemId);
                                     return next;
                                   })}
-                                >
-                                  <Icon name="settings" size="md" aria-hidden="true" />
-                                </button>
+                                  icon={<Icon name="settings" size="md" aria-hidden="true" />}
+                                />
                               </Tooltip>
                             </div>
                           </div>
@@ -2096,7 +2095,7 @@ const ExternalSourcesConfig: React.FC<ExternalSourcesConfigProps> = ({
                       })}
                     />
                     <Tooltip content={t('policy.capabilitiesHint')} placement="top">
-                      <button
+                      <IconButton
                         type="button"
                         className="openbitfun-external-sources-config__icon-action"
                         aria-label={t('policy.capabilitiesFor', {
@@ -2110,9 +2109,8 @@ const ExternalSourcesConfig: React.FC<ExternalSourcesConfigProps> = ({
                           else next.add(ecosystem.ecosystemId);
                           return next;
                         })}
-                      >
-                        <Icon name="settings" size="md" aria-hidden="true" />
-                      </button>
+                        icon={<Icon name="settings" size="md" aria-hidden="true" />}
+                      />
                     </Tooltip>
                   </div>
                 </div>

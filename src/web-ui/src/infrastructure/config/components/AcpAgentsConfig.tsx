@@ -163,6 +163,8 @@ interface InstallConfirmation {
 export type AcpConfigView = 'local' | 'ssh' | 'json';
 
 interface AcpAgentsConfigProps {
+  /** When embedded in an ecosystem, expose only that product’s clients. */
+  clientIds?: readonly string[];
   viewId?: AcpConfigView;
   navigationRequestId?: number;
   onViewChange?: (view: AcpConfigView) => void;
@@ -476,6 +478,7 @@ function AgentStatusPill({
 
 const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
   viewId,
+  clientIds,
   navigationRequestId = 0,
   onViewChange,
   settingsDraftEnabled = false,
@@ -545,9 +548,9 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
     ]);
 
     return Array.from(ids)
-      .filter(id => !PRESET_BY_ID.has(id))
+      .filter(id => !PRESET_BY_ID.has(id) && (!clientIds || clientIds.includes(id)))
       .sort((a, b) => a.localeCompare(b));
-  }, [clients, config.acpClients]);
+  }, [clientIds, clients, config.acpClients]);
 
   const getPresetDescription = useCallback((presetId: string) => {
     switch (presetId) {
@@ -569,6 +572,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
   const registryPresets = useMemo(() => {
     const search = registrySearch.trim().toLowerCase();
     return PRESETS.filter(preset => {
+      if (clientIds && !clientIds.includes(preset.id)) return false;
       const probe = probesById.get(preset.id);
       const probePending = probingRequirements && !probe;
       const configured = Boolean(config.acpClients[preset.id]);
@@ -595,6 +599,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
       ].join(' ').toLowerCase().includes(search);
     });
   }, [
+    clientIds,
     clientsById,
     config.acpClients,
     getPresetDescription,
@@ -1216,7 +1221,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
       ...PRESETS.map(preset => preset.id),
       ...Object.keys(config.acpClients),
     ]);
-    return Array.from(ids).sort((left, right) => {
+    return Array.from(ids).filter(id => !clientIds || clientIds.includes(id)).sort((left, right) => {
       const leftPresetIndex = PRESETS.findIndex(preset => preset.id === left);
       const rightPresetIndex = PRESETS.findIndex(preset => preset.id === right);
       if (leftPresetIndex !== -1 || rightPresetIndex !== -1) {
@@ -1226,7 +1231,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
       }
       return left.localeCompare(right);
     });
-  }, [config.acpClients]);
+  }, [clientIds, config.acpClients]);
 
   const viewTabs = useMemo(() => [
     {
@@ -1247,7 +1252,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
       panelId: 'acp-config-json-panel',
       value: 'json',
     },
-  ], [t]);
+  ].filter(tab => !clientIds || tab.value !== 'json'), [clientIds, t]);
 
   const activateView = useCallback((nextView: AcpConfigView) => {
     if (nextView === 'json') {

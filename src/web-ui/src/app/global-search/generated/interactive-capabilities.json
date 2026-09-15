@@ -4,7 +4,7 @@
   "title": "OpenBitFun Playbook",
   "origin": "https://playbook.openbitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "896281a3cd5cac2b50ec607988e04624224444911ddb2d58ba59a5d7d06493c5",
+  "digest": "124222af073f8c5164b15b625723c0e3b81f0b200e41855cd343ef1f07d5f39b",
   "ownerDigest": "c0e5c187cf62bc6ed06196ce8520b3eb427bf268cf24659b72d2552fb1d99c54",
   "searchAcceptance": [
     {
@@ -138,11 +138,11 @@
     "features": 22,
     "settings": 21,
     "userFacing": 43,
-    "documentedItems": 319,
+    "documentedItems": 320,
     "controlCoverage": {
       "direct": 48,
       "delegated": 61,
-      "interactive": 210,
+      "interactive": 211,
       "unsupported": 0
     }
   },
@@ -197,6 +197,7 @@
         "permission-mailbox",
         "history-search",
         "agent-session-coordination",
+        "mcp-mentions",
         "tool-activity",
         "goals",
         "goal-maintenance",
@@ -613,6 +614,52 @@
         "SessionControl",
         "SessionMessage"
       ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
+    },
+    {
+      "id": "feature.ai-assistant:open:mcp-mentions",
+      "capabilityId": "feature.ai-assistant",
+      "itemIds": [
+        "mcp-mentions"
+      ],
+      "kind": "open",
+      "risk": "ui",
+      "executionHost": "presentationSurface",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": false,
+          "reason": "This delivery profile has no live presentation surface"
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1",
+            "product_control_presentation_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": false,
+          "reason": "This delivery profile has no live presentation surface"
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "openReason": "unstructuredInteraction",
       "presentationTarget": {
         "kind": "scene",
         "sceneId": "session"
@@ -19168,6 +19215,17 @@
           }
         },
         {
+          "id": "mcp-mentions",
+          "titleZh": "在对话中通过 @ 选择当前模式可用的 MCP 服务",
+          "titleEn": "Use @ in chat to select MCP servers available to the current mode",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在对话中通过 @ 选择当前模式可用的 MCP 服务”需要用户在当前输入框选择服务并编辑草稿，没有可直接完成该交互的结构化 Command。也可通过工具名称或描述搜索所属服务；工具不会单独列出。目录按当前主机、工作区和模式过滤；Minimal 隐藏 MCP 入口。远程工作区暂不支持此选择器，Peer Host 必须协商 chat_mcp_catalog_v1 能力。",
+            "reasonEn": "“Use @ in chat to select MCP servers available to the current mode” requires the user to select a server and edit the current composer draft; no structured Command completes that interaction directly. Tool names and descriptions can find their owning server without separate tool rows. The catalog is scoped to the current host, workspace, and mode; Minimal hides MCP. Remote workspaces are unsupported; Peer Hosts must advertise chat_mcp_catalog_v1."
+          }
+        },
+        {
           "id": "tool-activity",
           "titleZh": "查看工具调用与后台命令，读取输出并继续输入或停止",
           "titleEn": "Inspect tool calls and background commands, read output, send input, or stop them",
@@ -19349,6 +19407,8 @@
         "Page through, search, and backfill historical turns and session content",
         "让 Agent 创建、列出、取消、删除会话或向另一会话发送消息",
         "Let an agent create, list, cancel, or delete sessions and send messages to another session",
+        "在对话中通过 @ 选择当前模式可用的 MCP 服务",
+        "Use @ in chat to select MCP servers available to the current mode",
         "查看工具调用与后台命令，读取输出并继续输入或停止",
         "Inspect tool calls and background commands, read output, send input, or stop them",
         "查看、创建并完成或阻塞当前会话目标",
@@ -23143,8 +23203,8 @@
       "categoryId": "automation",
       "titleZh": "外部 AI 生态兼容",
       "titleEn": "External AI ecosystem compatibility",
-      "summaryZh": "发现并迁移 OpenCode、Claude Code、Codex 等外部 AI 工具的配置、命令、Hooks 与 MCP 资源。",
-      "summaryEn": "Discover and migrate configuration, commands, hooks, and MCP resources from OpenCode, Claude Code, Codex, and other AI tools.",
+      "summaryZh": "查看五类外部 AI 生态的内容与状态，导入受支持的 Skill、MCP 和 Hook 副本，并查看 Command、Tool、Subagent 的兼容使用状态。",
+      "summaryEn": "Inspect content and status from five external AI ecosystems, import supported Skill, MCP and Hook copies, and review compatibility usage for commands, tools and subagents.",
       "keywordsZh": [
         "生态兼容",
         "外部 AI",
@@ -23164,14 +23224,14 @@
         "import"
       ],
       "highlightsZh": [
-        "扫描外部 AI 应用",
-        "预览冲突与迁移计划",
-        "按项导入提示词、Hooks、Agent 与 MCP"
+        "区分支持发现、当前发现结果、副本导入与兼容使用状态",
+        "审阅并导入受支持的 Skill、MCP 与 Hook；Command、Tool、Subagent 暂无副本导入",
+        "已导入表示副本已保存；在对应管理页确认启用与连接"
       ],
       "highlightsEn": [
-        "Scan external AI applications",
-        "Preview conflicts and migration plans",
-        "Import prompts, hooks, agents, and MCP selectively"
+        "Distinguish discovery coverage, scan results, copy import and compatibility usage",
+        "Review and import supported Skills, MCP and Hooks; command, tool and subagent copy import is unavailable",
+        "Imported means a copy was saved; confirm activation and connection in the relevant settings"
       ],
       "items": [
         {
@@ -23209,13 +23269,13 @@
         },
         {
           "id": "subagents",
-          "titleZh": "导入或启用外部 Agent，处理同名冲突并绑定模型",
-          "titleEn": "Import or enable external agents, resolve naming conflicts, and bind models",
+          "titleZh": "启用外部 Agent，处理同名冲突并绑定模型",
+          "titleEn": "Enable external agents, resolve naming conflicts, and bind models",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“导入或启用外部 Agent，处理同名冲突并绑定模型”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Import or enable external agents, resolve naming conflicts, and bind models” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“启用外部 Agent，处理同名冲突并绑定模型”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Enable external agents, resolve naming conflicts, and bind models” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           }
         },
         {
@@ -23275,14 +23335,16 @@
         }
       ],
       "stepsZh": [
-        "打开“生态兼容”",
-        "选择来源并查看扫描结果",
-        "确认计划后导入需要的内容"
+        "打开“生态兼容”并选择 Agent",
+        "按类别查看发现结果、限制与当前状态；未发现、发现关闭和发现失败会分别显示",
+        "审阅可导入项目并确认创建副本；Command、Tool、Subagent 按已有兼容功能使用",
+        "前往对应管理页确认副本启用或连接；当前页不将“已导入”视为可用"
       ],
       "stepsEn": [
-        "Open Ecosystem Compatibility",
-        "Choose a source and review the scan",
-        "Confirm the plan and import selected content"
+        "Open Ecosystem Compatibility and choose an agent",
+        "Expand a category to inspect results, limits and current status; missing, disabled and failed discovery are distinct",
+        "Review importable items and confirm copies; use commands, tools and subagents through existing compatibility features",
+        "Confirm copy activation or connection in the relevant settings; Imported does not mean available"
       ],
       "agentExamplesZh": [
         "打开外部 AI 生态兼容",
@@ -23315,20 +23377,20 @@
         "external AI",
         "configuration migration",
         "import",
-        "扫描外部 AI 应用",
-        "预览冲突与迁移计划",
-        "按项导入提示词、Hooks、Agent 与 MCP",
-        "Scan external AI applications",
-        "Preview conflicts and migration plans",
-        "Import prompts, hooks, agents, and MCP selectively",
+        "区分支持发现、当前发现结果、副本导入与兼容使用状态",
+        "审阅并导入受支持的 Skill、MCP 与 Hook；Command、Tool、Subagent 暂无副本导入",
+        "已导入表示副本已保存；在对应管理页确认启用与连接",
+        "Distinguish discovery coverage, scan results, copy import and compatibility usage",
+        "Review and import supported Skills, MCP and Hooks; command, tool and subagent copy import is unavailable",
+        "Imported means a copy was saved; confirm activation and connection in the relevant settings",
         "发现 OpenCode、Claude Code、Codex 等外部 AI 来源与可用内容",
         "Discover OpenCode, Claude Code, Codex, and other external AI sources and content",
         "按来源启用或停用集成，并选择管理、预览或只读策略",
         "Enable or disable each source and choose managed, preview, or read-only policy",
         "展开外部 Prompt/Command 内容并处理与原生命令的冲突",
         "Expand external prompt/command content and resolve conflicts with native commands",
-        "导入或启用外部 Agent，处理同名冲突并绑定模型",
-        "Import or enable external agents, resolve naming conflicts, and bind models",
+        "启用外部 Agent，处理同名冲突并绑定模型",
+        "Enable external agents, resolve naming conflicts, and bind models",
         "预览 MCP 导入计划，逐个处理服务器冲突并应用",
         "Preview MCP import plans, resolve server conflicts individually, and apply them",
         "选择外部工具目标、解决冲突并控制是否启用",
@@ -26344,8 +26406,8 @@
         },
         {
           "id": "subscription-auth",
-          "titleZh": "登录、刷新和退出 Codex、Antigravity、Grok、OpenCode、Hermes 等订阅账户",
-          "titleEn": "Sign in, refresh, and sign out of Codex, Antigravity, Grok, OpenCode, Hermes, and other subscription accounts",
+          "titleZh": "登录、刷新和退出 Codex、Antigravity、OpenCode Console（Zen）、Grok、Hermes 等账户",
+          "titleEn": "Sign in, refresh, and sign out of Codex, Antigravity, OpenCode Console (Zen), Grok, Hermes, and other accounts",
           "control": {
             "kind": "open",
             "reasonCode": "externalAuth",
@@ -26539,8 +26601,8 @@
         "Add, edit, and remove built-in or custom AI providers",
         "配置 API Key、Base URL、请求格式和模型列表",
         "Configure API keys, base URLs, request formats, and model lists",
-        "登录、刷新和退出 Codex、Antigravity、Grok、OpenCode、Hermes 等订阅账户",
-        "Sign in, refresh, and sign out of Codex, Antigravity, Grok, OpenCode, Hermes, and other subscription accounts",
+        "登录、刷新和退出 Codex、Antigravity、OpenCode Console（Zen）、Grok、Hermes 等账户",
+        "Sign in, refresh, and sign out of Codex, Antigravity, OpenCode Console (Zen), Grok, Hermes, and other accounts",
         "选择主模型、快速模型以及图像理解、图像生成和语音识别模型",
         "Choose primary, fast, image-understanding, image-generation, and speech-recognition models",
         "为模型选择推理预设或自定义推理强度",

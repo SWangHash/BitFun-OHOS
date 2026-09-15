@@ -184,6 +184,8 @@ export interface ImageAnalysisResult {
 }
 
 export interface ModelRoundRenderHints {
+  /** Display-only recovery boundary, derived from the preceding cancelled round. */
+  continuedAfterInterruption?: boolean;
   /**
    * Keep all round items in the normal transcript instead of merging
    * collapsible tools and adjacent narrative into an explore group.

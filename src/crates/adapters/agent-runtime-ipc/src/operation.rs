@@ -181,6 +181,14 @@ pub enum RuntimeIpcOperation {
         request_id: String,
         reply: PermissionReply,
     },
+    CancelUserQuestion {
+        session_id: String,
+        tool_id: String,
+    },
+    StartQuestionInteraction {
+        session_id: String,
+        tool_id: String,
+    },
     SubmitUserAnswers {
         request: RuntimeUserAnswersRequest,
     },
@@ -226,6 +234,8 @@ impl RuntimeIpcOperation {
             Self::CancelTurn { request } => Some(&request.session_id),
             Self::PendingPermissions { session_id }
             | Self::RespondPermission { session_id, .. } => Some(session_id),
+            Self::StartQuestionInteraction { session_id, .. }
+            | Self::CancelUserQuestion { session_id, .. } => Some(session_id),
             Self::SubmitUserAnswers { request } => Some(&request.session_id),
             Self::Health
             | Self::ListAgentModes { session_id: None }
@@ -274,6 +284,8 @@ impl RuntimeIpcOperation {
             | Self::SteerTurn { .. }
             | Self::CancelTurn { .. }
             | Self::RespondPermission { .. }
+            | Self::CancelUserQuestion { .. }
+            | Self::StartQuestionInteraction { .. }
             | Self::SubmitUserAnswers { .. } => {
                 RuntimeIpcOperationRules::new(CurrentController, false, false, true)
             }

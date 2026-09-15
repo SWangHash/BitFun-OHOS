@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import type { ModeSkillInfo, SkillScanDiagnostic } from '@/infrastructure/config/types';
+import { isOpenBitFunManagedSkill } from '@/infrastructure/config/skillSourcePresentation';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('useResolvedModeSkills');
@@ -53,7 +54,8 @@ export function useResolvedModeSkills({
     setSnapshot({ ...entry });
     void configAPI.getModeSkillScanReport({ modeId, workspacePath: workspacePath || undefined })
       .then(report => {
-        entry.skills = report.skills;
+        // Older hosts can still return their full external discovery catalog.
+        entry.skills = report.skills.filter(isOpenBitFunManagedSkill);
         entry.diagnostics = report.diagnostics;
         entry.diagnosticsAvailable = report.diagnosticsAvailable;
       })

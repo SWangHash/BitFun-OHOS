@@ -24,6 +24,28 @@
 }
 
 .openbitfun-canvas-panel__toolbar-button {
+  // Keep the existing canvas surface and authored icon sizes through the public slot.
+  transition: none;
+  outline: revert;
+  outline-offset: revert;
+
+  &::before { content: none; }
+
+  > [data-openbitfun-part='icon'] {
+    --openbitfun-opacity-icon-artwork: inherit;
+    display: contents;
+  }
+
+  > :where([data-openbitfun-part='icon']) > :where(svg) {
+    inline-size: 15px;
+    block-size: 15px;
+  }
+
+  > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -11,6 +11,8 @@ import {
   Dialog,
   DialogBody,
   DialogClose,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogHeading,
   DialogTitle,
@@ -23,7 +25,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Save, ShieldCheck } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   requestSettingsDraftExit,
@@ -299,7 +301,7 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
         .get(focusTargetId)
         ?.querySelector<HTMLButtonElement>('.global-permission-rules-dialog__rule-actions button:last-of-type')
       : dialogRootRef.current?.querySelector<HTMLButtonElement>(
-        '.global-permission-rules-dialog__section-header button',
+        '[data-permission-add-rule]',
       );
     focusTarget?.focus();
   };
@@ -383,175 +385,171 @@ export const GlobalPermissionRulesDialog: React.FC<GlobalPermissionRulesDialogPr
       <DialogHeader>
         <DialogHeading>
           <DialogTitle>{t('permissionPolicy.globalRulesDialogTitle')}</DialogTitle>
+          <DialogDescription data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="intro">
+            {t('permissionPolicy.globalRulesDialogDescription')}
+          </DialogDescription>
         </DialogHeading>
         <DialogClose disabled={isSaving} />
       </DialogHeader>
       <DialogBody>
-        <div className="global-permission-rules-dialog__modal">
-      <div ref={dialogRootRef} className="global-permission-rules-dialog" data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="root">
-        <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="intro" className="global-permission-rules-dialog__intro">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <p>{t('permissionPolicy.globalRulesDialogDescription')}</p>
-        </div>
-
-        <FormSection
-          data-openbitfun-component="global-permission-rules-dialog"
-          data-openbitfun-part="section"
-          className="global-permission-rules-dialog__section"
-          title={(
-            <span data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="sectionHeader">
-              {t('permissionPolicy.globalRulesTitle')}
-            </span>
-          )}
-          actions={(
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isSaving}
-              onClick={handleAddRule}
-              leadingIcon={<Icon name="plus" size="sm" />}
-            >
-              {t('permissionPolicy.addGlobalRule')}
-            </Button>
-          )}
-        >
-
-          {draftRules.length === 0 ? (
-            <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="empty" className="global-permission-rules-dialog__empty">
-              {t('permissionPolicy.globalRulesEmpty')}
-            </div>
-          ) : (
-            <FieldGroup
-              appearance="plain"
-              dividers={false}
-              data-openbitfun-component="global-permission-rules-dialog"
-              data-openbitfun-part="rules"
-              className="global-permission-rules-dialog__rules"
-            >
-              <div className="global-permission-rules-dialog__rule-heading" aria-hidden="true">
-                <span>{t('permissionPolicy.globalRulesEffect')}</span>
-                <span>{t('permissionPolicy.globalRulesAction')}</span>
-                <span>{t('permissionPolicy.globalRulesResource')}</span>
-                <span />
-              </div>
-              {draftRules.map((rule) => {
-                const exiting = exitingRuleIds.has(rule.localId);
-                const activeIndex = activeRuleIndexes.get(rule.localId);
-                return (
-                  <div
-                    ref={(row) => {
-                      if (row) {
-                        ruleRowsRef.current.set(rule.localId, row);
-                      } else {
-                        ruleRowsRef.current.delete(rule.localId);
-                      }
-                    }}
-                    data-openbitfun-component="global-permission-rules-dialog"
-                    data-openbitfun-part="rule"
-                    data-rule-id={rule.localId}
-                    data-exiting={exiting ? 'true' : 'false'}
-                    aria-hidden={exiting || undefined}
-                    {...(exiting ? { inert: '' } : {})}
-                    key={rule.localId}
-                    className="global-permission-rules-dialog__rule-row"
-                  >
-                    <Select
-                      size="sm"
-                      value={rule.effect}
-                      options={effectOptions}
-                      aria-label={t('permissionPolicy.globalRulesEffect')}
-                      disabled={isSaving || exiting}
-                      onValueChange={(value) => updateDraftRule(rule.localId, { effect: value as PermissionEffect })}
-                    />
-                    <Select
-                      size="sm"
-                      value={rule.action}
-                      options={GLOBAL_PERMISSION_ACTION_OPTIONS}
-                      placeholder={t('permissionPolicy.globalRulesAction')}
-                      aria-label={t('permissionPolicy.globalRulesAction')}
-                      disabled={isSaving || exiting}
-                      invalid={!rule.action.trim()}
-                      onValueChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
-                    />
-                    <Input
-                      value={rule.resource}
-                      placeholder={t('permissionPolicy.globalRulesResourcePlaceholder')}
-                      aria-label={t('permissionPolicy.globalRulesResource')}
-                      disabled={isSaving || exiting}
-                      invalid={!rule.resource.trim()}
-                      onChange={(event) => updateDraftRule(rule.localId, { resource: event.target.value })}
-                      size="sm"
-                    />
-                    <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="ruleActions" className="global-permission-rules-dialog__rule-actions">
-                      <Tooltip content={t('permissionPolicy.moveGlobalRuleUp')}>
-                        <IconButton
-                          type="button"
-                          size="sm"
-                          aria-label={t('permissionPolicy.moveGlobalRuleUp')}
-                          disabled={isSaving || exiting || activeIndex === 0}
-                          onClick={() => moveDraftRule(rule.localId, -1)}
-                          icon={<Icon name="arrow-up" size="sm" />}
-                        />
-                      </Tooltip>
-                      <Tooltip content={t('permissionPolicy.moveGlobalRuleDown')}>
-                        <IconButton
-                          type="button"
-                          size="sm"
-                          aria-label={t('permissionPolicy.moveGlobalRuleDown')}
-                          disabled={
-                            isSaving
-                            || exiting
-                            || activeIndex === undefined
-                            || activeIndex === activeDraftRules.length - 1
-                          }
-                          onClick={() => moveDraftRule(rule.localId, 1)}
-                          icon={<Icon name="arrow-down" size="sm" />}
-                        />
-                      </Tooltip>
-                      <Tooltip content={t('permissionPolicy.removeGlobalRule')}>
-                        <IconButton
-                          type="button"
-                          size="sm"
-                          aria-label={t('permissionPolicy.removeGlobalRule')}
-                          disabled={isSaving || exiting}
-                          onClick={() => handleRemoveRule(rule.localId)}
-                          icon={<Icon name="delete" size="sm" />}
-                        />
-                      </Tooltip>
-                    </div>
-                  </div>
-                );
-              })}
-            </FieldGroup>
-          )}
-
-          {rulesDirty ? (
-            <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="footer" className="global-permission-rules-dialog__footer">
+        <div ref={dialogRootRef} className="global-permission-rules-dialog" data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="root">
+          <FormSection
+            data-openbitfun-component="global-permission-rules-dialog"
+            data-openbitfun-part="section"
+            className="global-permission-rules-dialog__section"
+            title={(
+              <span data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="sectionHeader">
+                {t('permissionPolicy.globalRulesTitle')}
+              </span>
+            )}
+            actions={(
               <Button
-                type="button"
+                size="sm"
                 variant="fill"
-                onClick={handleDiscard}
+                data-permission-add-rule
                 disabled={isSaving}
+                onClick={handleAddRule}
+                leadingIcon={<Icon name="plus" size="sm" />}
               >
-                {t('permissionPolicy.discardGlobalRules')}
+                {t('permissionPolicy.addGlobalRule')}
               </Button>
-              <Button
-                type="button"
-                variant="primary"
-                loading={isSaving}
-                disabled={!rulesValid || isSaving}
-                onClick={() => void handleSave()}
-                leadingIcon={<Save size={14} />}
+            )}
+          >
+            {draftRules.length === 0 ? (
+              <FieldGroup>
+                <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="empty" className="global-permission-rules-dialog__empty">
+                  {t('permissionPolicy.globalRulesEmpty')}
+                </div>
+              </FieldGroup>
+            ) : (
+              <FieldGroup
+                appearance="subtle"
+                dividers={false}
+                data-openbitfun-component="global-permission-rules-dialog"
+                data-openbitfun-part="rules"
+                className="global-permission-rules-dialog__rules"
               >
-
-                {t('permissionPolicy.saveGlobalRules')}
-              </Button>
-            </div>
-          ) : null}
-        </FormSection>
-      </div>
-            </div>
-            </DialogBody>
+                <div className="global-permission-rules-dialog__rule-heading" aria-hidden="true">
+                  <span>{t('permissionPolicy.globalRulesEffect')}</span>
+                  <span>{t('permissionPolicy.globalRulesAction')}</span>
+                  <span>{t('permissionPolicy.globalRulesResource')}</span>
+                  <span />
+                </div>
+                {draftRules.map((rule) => {
+                  const exiting = exitingRuleIds.has(rule.localId);
+                  const activeIndex = activeRuleIndexes.get(rule.localId);
+                  return (
+                    <div
+                      ref={(row) => {
+                        if (row) {
+                          ruleRowsRef.current.set(rule.localId, row);
+                        } else {
+                          ruleRowsRef.current.delete(rule.localId);
+                        }
+                      }}
+                      data-openbitfun-component="global-permission-rules-dialog"
+                      data-openbitfun-part="rule"
+                      data-rule-id={rule.localId}
+                      data-exiting={exiting ? 'true' : 'false'}
+                      aria-hidden={exiting || undefined}
+                      {...(exiting ? { inert: '' } : {})}
+                      key={rule.localId}
+                      className="global-permission-rules-dialog__rule-row"
+                    >
+                      <Select
+                        size="sm"
+                        value={rule.effect}
+                        options={effectOptions}
+                        aria-label={t('permissionPolicy.globalRulesEffect')}
+                        disabled={isSaving || exiting}
+                        onValueChange={(value) => updateDraftRule(rule.localId, { effect: value as PermissionEffect })}
+                      />
+                      <Select
+                        size="sm"
+                        value={rule.action}
+                        options={GLOBAL_PERMISSION_ACTION_OPTIONS}
+                        placeholder={t('permissionPolicy.globalRulesAction')}
+                        aria-label={t('permissionPolicy.globalRulesAction')}
+                        disabled={isSaving || exiting}
+                        invalid={!rule.action.trim()}
+                        onValueChange={(value) => updateDraftRule(rule.localId, { action: value as string })}
+                      />
+                      <Input
+                        value={rule.resource}
+                        placeholder={t('permissionPolicy.globalRulesResourcePlaceholder')}
+                        aria-label={t('permissionPolicy.globalRulesResource')}
+                        disabled={isSaving || exiting}
+                        invalid={!rule.resource.trim()}
+                        onChange={(event) => updateDraftRule(rule.localId, { resource: event.target.value })}
+                        size="sm"
+                      />
+                      <div data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="ruleActions" className="global-permission-rules-dialog__rule-actions">
+                        <Tooltip content={t('permissionPolicy.moveGlobalRuleUp')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('permissionPolicy.moveGlobalRuleUp')}
+                            disabled={isSaving || exiting || activeIndex === 0}
+                            onClick={() => moveDraftRule(rule.localId, -1)}
+                            icon={<Icon name="arrow-up" size="sm" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('permissionPolicy.moveGlobalRuleDown')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('permissionPolicy.moveGlobalRuleDown')}
+                            disabled={
+                              isSaving
+                              || exiting
+                              || activeIndex === undefined
+                              || activeIndex === activeDraftRules.length - 1
+                            }
+                            onClick={() => moveDraftRule(rule.localId, 1)}
+                            icon={<Icon name="arrow-down" size="sm" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content={t('permissionPolicy.removeGlobalRule')}>
+                          <IconButton
+                            type="button"
+                            size="sm"
+                            aria-label={t('permissionPolicy.removeGlobalRule')}
+                            disabled={isSaving || exiting}
+                            onClick={() => handleRemoveRule(rule.localId)}
+                            icon={<Icon name="delete" size="sm" />}
+                          />
+                        </Tooltip>
+                      </div>
+                    </div>
+                  );
+                })}
+              </FieldGroup>
+            )}
+          </FormSection>
+        </div>
+      </DialogBody>
+      {rulesDirty ? (
+        <DialogFooter data-openbitfun-component="global-permission-rules-dialog" data-openbitfun-part="footer">
+          <Button
+            type="button"
+            variant="fill"
+            onClick={handleDiscard}
+            disabled={isSaving}
+          >
+            {t('permissionPolicy.discardGlobalRules')}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            loading={isSaving}
+            disabled={!rulesValid || isSaving}
+            onClick={() => void handleSave()}
+            leadingIcon={<Save size={14} />}
+          >
+            {t('permissionPolicy.saveGlobalRules')}
+          </Button>
+        </DialogFooter>
+      ) : null}
     </Dialog>
   );
 };

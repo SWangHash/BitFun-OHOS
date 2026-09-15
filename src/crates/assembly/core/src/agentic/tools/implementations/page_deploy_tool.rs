@@ -1,8 +1,8 @@
 //! PageDeploy tool — deploy a saved OpenBitFun Page version to production.
 
-use crate::agentic::tools::account_login_capability::account_login_available;
 use crate::agentic::tools::framework::{PermissionIntent, Tool, ToolResult, ToolUseContext};
 use crate::agentic::tools::page_deploy_host::invoke_page_deploy;
+use crate::agentic::tools::page_publish_host::page_account_available;
 use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -110,7 +110,7 @@ Preview a version at /p/{username}/{slug}/@v/{version_id}."#
     }
 
     async fn is_available_in_context(&self, _context: Option<&ToolUseContext>) -> bool {
-        account_login_available()
+        page_account_available().await
     }
 
     async fn call_impl(
@@ -118,7 +118,7 @@ Preview a version at /p/{username}/{slug}/@v/{version_id}."#
         input: &Value,
         _context: &ToolUseContext,
     ) -> OpenBitFunResult<Vec<ToolResult>> {
-        if !account_login_available() {
+        if !page_account_available().await {
             return Err(OpenBitFunError::tool(
                 "PageDeploy requires a logged-in GitHub account".to_string(),
             ));

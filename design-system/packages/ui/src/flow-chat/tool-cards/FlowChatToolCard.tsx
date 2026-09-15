@@ -699,7 +699,9 @@ export function ProminentToolCardSummary({
           data-openbitfun-part="action"
           data-testid={actionTestId}
         >
-          {action}
+          {typeof action === "string" || typeof action === "number"
+            ? <OverflowText>{action}</OverflowText>
+            : action}
         </span>
       )}
       {content !== undefined && content !== null && content !== false && (
@@ -821,7 +823,9 @@ export function AmbientToolCardHeader({
           data-openbitfun-component="flow-chat-tool-card"
           data-openbitfun-part="action"
         >
-          {action}
+          {typeof action === "string" || typeof action === "number"
+            ? <OverflowText>{action}</OverflowText>
+            : action}
         </span>
       )}
       {content !== undefined && content !== null && content !== false && (

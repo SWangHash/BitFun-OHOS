@@ -992,6 +992,16 @@
     "currentStatus": "当前状态: {{status}}"
   },
   "contextPicker": {
+    "mcp": {
+      "label": "MCP",
+      "server": "MCP 服务",
+      "empty": "当前模式没有可用的已连接 MCP 工具。请在 MCP 设置中启用并启动服务。",
+      "modeRestricted": "当前模式不提供已连接的 MCP 工具。请切换到 Standard、Ultimate 或 Creative 使用。",
+      "loadFailed": "MCP 工具加载失败，请刷新重试。",
+      "refresh": "刷新 MCP 工具",
+      "remoteWorkspace": "远程工作区暂不支持选择 MCP。",
+      "unsupportedHost": "当前主机不支持选择 MCP，请更新主机版本。"
+    },
     "skillsIncomplete": "部分技能扫描失败，已成功读取的技能仍可使用。",
     "skillsDiagnosticsUnavailable": "当前主机不提供技能扫描诊断。",
     "menuTitle": "选择上下文",
@@ -1298,7 +1308,8 @@
       "emptyWorkspace": "当前工作区没有可审核的变更",
       "emptyExplicitScope": "请求的文件或目录没有工作区变更",
       "missingExplicitScope": "请求的文件或目录在当前工作区中不存在",
-      "unresolvedTarget": "无法将审核目标准备为有界证据，请打开对应工作区或缩小目标后重试",
+      "unresolvedTarget": "无法读取待审核的文件或代码差异，请确认已打开对应工作区、审核目标有效，并查看日志中的具体错误",
+      "notGitRepository": "当前工作区未找到 Git 仓库，暂时无法启动审核。请打开包含 Git 仓库且已有提交记录的项目后重试",
       "repositoryUntrusted": "该目录属于其他用户，Git 拒绝读取此仓库。请在提示中信任该目录后重新启动审核",
       "uncertain": "审核请求可能已经在运行。会话已保留，可安全检查或重试",
       "unknown": "审核启动失败，请重试"
@@ -1601,6 +1612,7 @@
     "roundHistoryShow": "显示 {{count}} 次历史重试轮次",
     "roundHistoryHide": "隐藏历史重试轮次",
     "roundRetryLabel": "重试轮次 {{index}}",
+    "continued": "已继续",
     "retryHistoryShow": "显示 {{count}} 次历史尝试",
     "retryHistoryHide": "隐藏重试历史",
     "attemptLabel": "第 {{index}} 次尝试",
@@ -1877,6 +1889,7 @@
       "interruptedByRetry": "这次尝试已被同一轮响应中的更新重试接替"
     },
     "askUser": {
+      "interactionFailed": "未能停止执行设备上的提问计时，请尽快提交或更新该设备。",
       "completed": "已完成",
       "submittedWaiting": "已提交，等待处理",
       "submitting": "提交中...",
@@ -1888,7 +1901,7 @@
       "submit": "提交",
       "questionsAnswered": "{{count}} 个问题已回答",
       "notAnswered": "未回答",
-      "timeout": "等待超时（10分钟）",
+      "timeout": "用户未响应，已跳过提问",
       "parseError": "无法解析问题数据",
       "loadingQuestions": "正在接收问题…",
       "other": "其他",

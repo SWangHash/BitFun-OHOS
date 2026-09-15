@@ -34,6 +34,7 @@ describe('PeerConnectionManager attach', () => {
         productControlNativeV1: false,
         productControlPresentationV1: false,
         userQuestionResponse: true,
+        userQuestionInteraction: true,
       },
     });
     expect(manager.get('peer-1')).toBe(connection);
@@ -85,7 +86,9 @@ describe('PeerConnectionManager attach', () => {
           capabilities: {
             cancel_tool: true,
             tool_catalog: true,
+            chat_mcp_catalog_v1: true,
             user_question_response: true,
+            user_question_interaction_v1: true,
             miniapp_agent_context_files_v1: true,
           },
         },
@@ -97,6 +100,7 @@ describe('PeerConnectionManager attach', () => {
     const caps = connection.getState().capabilities;
     expect(caps.cancelTool).toBe(true);
     expect(caps.toolCatalog).toBe(true);
+    expect(caps.chatMcpCatalogV1).toBe(true);
     expect(caps.miniAppAgentContextFilesV1).toBe(true);
   });
 
@@ -125,6 +129,7 @@ describe('PeerConnectionManager attach', () => {
     const desktop = await makeManager('desktop').connect('peer-1', 'Studio');
     expect(desktop.getState().capabilities.hostKind).toBe('desktop');
     expect(desktop.getState().capabilities.inlineImageAttachmentsV1).toBe(false);
+    expect(desktop.getState().capabilities.chatMcpCatalogV1).toBe(false);
 
     const cli = await makeManager('cli').connect('peer-2', 'Studio');
     expect(cli.getState().capabilities.hostKind).toBe('cli');
@@ -275,6 +280,18 @@ describe('PeerConnectionManager health', () => {
     await manager.disposeAll();
   });
 
+  it('does not flash a reconnect warning when the roster misses a healthy host', async () => {
+    const rpc = createRpc();
+    const manager = createManager(rpc.deviceRpc);
+    const seen = observe(manager);
+    await manager.connect('peer-1', 'Studio');
+    manager.reportPresence([]);
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS);
+    expect(seen.healthTimeline()).toEqual(['connecting', 'ready']);
+    expect(rpc.commands().filter(command => command === 'peer_control_attach')).toHaveLength(2);
+    await manager.disposeAll();
+  });
+
   it('recovers a 2.3 second presence gap on the same attachment', async () => {
     const rpc = createRpc();
     const manager = createManager(rpc.deviceRpc);
@@ -282,7 +299,7 @@ describe('PeerConnectionManager health', () => {
 
     rpc.failAll();
     manager.reportPresence(['peer-2']);
-    expect(connection.getState()).toMatchObject({ health: 'degraded', consecutiveFailures: 0 });
+    expect(connection.getState()).toMatchObject({ health: 'ready', consecutiveFailures: 0 });
     await vi.advanceTimersByTimeAsync(2_300);
 
     rpc.failNext(0);
@@ -326,12 +343,12 @@ describe('PeerConnectionManager health', () => {
         .rejects.toThrow('relay unavailable');
     }));
 
-    expect(connection.getState()).toMatchObject({ health: 'degraded', consecutiveFailures: 0 });
+    expect(connection.getState()).toMatchObject({ health: 'ready', consecutiveFailures: 0 });
     expect(rpc.commands().filter(command => command === 'peer_mode_ping')).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS);
     expect(connection.getState()).toMatchObject({ health: 'ready', consecutiveFailures: 0 });
     expect(rpc.commands().filter(command => command === 'peer_mode_ping')).toHaveLength(2);
-    expect(rpc.commands().filter(command => command === 'peer_control_attach')).toHaveLength(2);
+    expect(rpc.commands().filter(command => command === 'peer_control_attach')).toHaveLength(1);
   });
 
   it('does not postpone a health retry when more product requests or presence updates fail', async () => {
@@ -608,6 +625,7 @@ function createRpc(options: { failCommands?: Set<string> } = {}) {
             cancel_tool: true,
             tool_catalog: true,
             user_question_response: true,
+            user_question_interaction_v1: true,
           },
         },
       });
@@ -723,7 +741,7 @@ describe('PeerConnectionManager recovery races', () => {
     await connection.adapter.request('get_opened_workspaces', { request: {} });
     await vi.advanceTimersByTimeAsync(KEEPALIVE_MS * 2);
     expect(attachCount).toBe(2);
-    expect(connection.getState().health).toBe('degraded');
+    expect(connection.getState().health).toBe('ready');
 
     reattach.resolve(JSON.stringify({ resp: 'host_invoke_result', ok: true, value: null }));
     await vi.advanceTimersByTimeAsync(0);

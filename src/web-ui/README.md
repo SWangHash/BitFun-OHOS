@@ -180,3 +180,29 @@ preserve omitted source fields and existing app storage when updating.
 1. **Don’t call Tauri APIs directly** in UI components; use the adapter layer.
 2. **Keep Web compatibility** in mind (some capabilities may not exist in browsers).
 3. **Prefer CSS variables** over hard-coded colors/sizes.
+
+## Ecosystem compatibility status checks
+
+Open a disposable local workspace in Desktop and select an agent under Ecosystem Compatibility.
+Use test content or reversible imported copies. Category discovery coverage is independent of copy import and execution support.
+
+| Check | Action | Expected result |
+|---|---|---|
+| Direct command use | Put `Reply with STATUS_OK.` in `.claude/commands/status-check.md`, allow Claude Code command compatibility, then refresh | The command shows its usage state and explains that copy import is unavailable. Discover-only policy shows disabled use; unresolved same-name selection shows a conflict |
+| MCP copy versus connection | Review and import an existing supported MCP declaration, leaving the native copy disabled | The row says Imported and connection not confirmed. Check and enable the copy in MCP settings, which owns the actual connection result |
+| Read-only hooks | Select Pi or DSH with a configured extension and expand Hook | Static declarations are viewable without execution. Single and category import actions are absent |
+| Categories without discovery | Inspect plugins or full settings | The label describes discovery not integrated on this page, without claiming that all other feature entry points are unsupported |
+| Discovery and environment | Disable discovery for the selected ecosystem, refresh and inspect MCP; then switch to a remote workspace or Peer | Disabled discovery is explicit. Host-provided remote catalogs remain viewable, while local copy import is gated without falling back to the controller |
+
+From the repository root, run the focused status and interaction checks:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/scenes/ecosystem-compatibility
+pnpm run check:web
+pnpm run i18n:audit
+pnpm run capabilities:check
+pnpm run capabilities:test
+```
+
+Fixtures cover scan failures, legacy hosts with missing facts, and conflicts without damaging real configuration.
+Remote/Peer frontend fixtures verify presentation and import gates; actual SSH, cross-device, IM remote control and Detached Dispatch require separate environment testing.

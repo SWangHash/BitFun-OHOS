@@ -39,9 +39,9 @@ pub struct ClaudeCodeCommandProviderOptions {
 impl ClaudeCodeCommandProviderOptions {
     pub fn from_environment() -> Self {
         Self {
-            user_claude_dir: dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".claude"),
+            user_claude_dir: crate::ClaudeCodeInstructionSourceOptions::from_environment()
+                .config_dir
+                .unwrap_or_default(),
             project_root_override: None,
             project_config_enabled: true,
         }
@@ -113,6 +113,13 @@ impl PromptCommandSourceProvider for ClaudeCodeCommandProvider {
         &self,
         context: &ExternalSourceContext,
     ) -> Result<PromptCommandProviderSnapshot, ExternalSourceProviderError> {
+        if !self.options.user_claude_dir.is_absolute() {
+            return Err(ExternalSourceProviderError::new(
+                "claude.config_root_invalid",
+                "Claude Code configuration directory must be absolute",
+                false,
+            ));
+        }
         if context
             .workspace_root
             .as_ref()
@@ -345,7 +352,9 @@ impl PromptCommandSourceProvider for ClaudeCodeCommandProvider {
 
     fn watch_roots(&self, context: &ExternalSourceContext) -> Vec<ExternalWatchRoot> {
         let mut roots = BTreeMap::new();
-        roots.insert(self.options.user_claude_dir.clone(), true);
+        if self.options.user_claude_dir.is_absolute() {
+            roots.insert(self.options.user_claude_dir.clone(), true);
+        }
         if self.options.project_config_enabled {
             if let Some(workspace) = &context.workspace_root {
                 let project_root = self.project_root(workspace);

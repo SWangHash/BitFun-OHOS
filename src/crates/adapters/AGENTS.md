@@ -14,7 +14,7 @@ services.
 | `agent-runtime-ipc` | Non-published private local IPC adapter for the opt-in first-party Shared TUI Runtime; closed interactive operations only | [AGENTS.md](agent-runtime-ipc/AGENTS.md) |
 | `ai-adapters` | AI provider request/response adapters and stream protocol glue | [AGENTS.md](ai-adapters/AGENTS.md) |
 | `opencode-adapter` | OpenCode source semantics for user Instructions plus the live Command, standalone Tool, Subagent, MCP, and static Hook providers; managed-package static preview | [AGENTS.md](opencode-adapter/AGENTS.md) |
-| `dsh-adapter` | DeepSeek Harness (`dsh`) bundle/profile source projection and static Cordis Hook bridge discovery | [AGENTS.md](dsh-adapter/AGENTS.md) |
+| `dsh-adapter` | DeepSeek Harness (`dsh`) bundle/profile projection, static Hook bridge discovery and explicit MCP declarations | [AGENTS.md](dsh-adapter/AGENTS.md) |
 | `pi-adapter` | PI settings/package extension selection and static native event discovery; no execution | [AGENTS.md](pi-adapter/AGENTS.md) |
 | `claude-code-adapter` | Runtime-free Claude Code user Instructions, Command, Subagent, MCP, and Hook source semantics with redacted projection | [AGENTS.md](claude-code-adapter/AGENTS.md) |
 | `codex-adapter` | Runtime-free Codex user Instructions, Subagent, MCP, and Hook source semantics with redacted projection | [AGENTS.md](codex-adapter/AGENTS.md) |

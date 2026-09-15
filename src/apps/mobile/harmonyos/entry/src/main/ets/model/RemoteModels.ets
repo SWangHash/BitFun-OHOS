@@ -23,6 +23,7 @@ export interface InitialSyncResult {
 }
 
 export interface RecentWorkspaceEntry {
+  remoteSshHost?: string;
   path: string;
   name: string;
   lastOpened: string;
@@ -156,6 +157,7 @@ export interface WorkspaceInfoResponse extends CommandStatusResponse {
 }
 
 export interface RecentWorkspaceEntryResponse {
+  remote_ssh_host?: string;
   path?: string;
   name?: string;
   last_opened?: string | number;

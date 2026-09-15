@@ -74,6 +74,19 @@ impl SkillLocation {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillImportOrigin {
+    pub schema_version: u32,
+    pub import_id: String,
+    pub source_key: String,
+    pub source_path: String,
+    pub source_id: String,
+    pub source_label: String,
+    pub source_slot: String,
+    pub fingerprint: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillInfo {
@@ -95,6 +108,9 @@ pub struct SkillInfo {
     /// Repository recorded by the installer, distinct from the discovery ecosystem.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub installation_source: Option<String>,
+    /// Provenance of a native copy; storage ownership stays with source_id/source_slot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub import_origin: Option<SkillImportOrigin>,
     pub dir_name: String,
     #[serde(default)]
     pub is_builtin: bool,
@@ -115,6 +131,44 @@ pub struct SkillInfo {
 }
 
 impl SkillInfo {
+    /// Native storage ownership, independent of the provenance of an imported copy.
+    /// Older payloads may only carry the source slot.
+    pub fn is_native(&self) -> bool {
+        if self.is_builtin {
+            return true;
+        }
+        let source = if self.source_id.trim().is_empty() {
+            self.source_slot.trim()
+        } else {
+            self.source_id.trim()
+        };
+        matches!(
+            source,
+            "" | "openbitfun" | "openbitfun-system" | "openbitfun-user"
+        )
+    }
+
+    pub fn parser_source_slot(&self) -> &str {
+        self.import_origin
+            .as_ref()
+            .map_or(&self.source_slot, |origin| &origin.source_slot)
+    }
+
+    pub fn parser_path(&self) -> String {
+        match self
+            .entry_file
+            .as_deref()
+            .filter(|entry| *entry != "SKILL.md")
+        {
+            Some(entry) => format!(
+                "{}/{}",
+                self.path.trim_end_matches(['/', '\\']),
+                entry.strip_suffix(".md").unwrap_or(entry)
+            ),
+            None => self.path.clone(),
+        }
+    }
+
     pub fn to_xml_desc(&self) -> String {
         format!(
             r#"<skill name="{}">{}</skill>"#,

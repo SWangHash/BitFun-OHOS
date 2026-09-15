@@ -550,6 +550,8 @@ pub struct AgentCompanionPetSelection {
     pub package_path: String,
     pub spritesheet_path: String,
     pub spritesheet_mime_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sprite_version_number: Option<u32>,
 }
 
 fn default_agent_companion_pet() -> Option<AgentCompanionPetSelection> {
@@ -563,6 +565,7 @@ fn default_agent_companion_pet() -> Option<AgentCompanionPetSelection> {
         package_path: "/agent-companion-pets/blue-golden".to_string(),
         spritesheet_path: "/agent-companion-pets/blue-golden/spritesheet.png".to_string(),
         spritesheet_mime_type: "image/png".to_string(),
+        sprite_version_number: None,
     })
 }
 
@@ -2094,6 +2097,28 @@ impl AIModelConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn companion_pet_legacy_selection_round_trip_preserves_missing_version() {
+        let legacy = serde_json::json!({
+            "id": "sample", "displayName": "Sample", "source": "user",
+            "packagePath": "/pets/sample", "spritesheetPath": "/pets/sample/spritesheet.webp",
+            "spritesheetMimeType": "image/webp"
+        });
+        let selection: super::AgentCompanionPetSelection =
+            serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(selection.sprite_version_number, None);
+        assert_eq!(serde_json::to_value(&selection).unwrap(), legacy);
+        for version in [1, 2, 3] {
+            let mut payload = legacy.clone();
+            payload["spriteVersionNumber"] = serde_json::json!(version);
+            let selection: super::AgentCompanionPetSelection =
+                serde_json::from_value(payload.clone()).unwrap();
+            assert_eq!(selection.sprite_version_number, Some(version));
+            // Unknown future versions remain on disk; the renderer decides support.
+            assert_eq!(serde_json::to_value(selection).unwrap(), payload);
+        }
+    }
+
     use super::{
         AIConfig, AIExperienceConfig, AIModelConfig, AgentModelDefaultsConfig, AgentProfileConfig,
         AgentProfileView, AppConfig, AppLoggingConfig, AuthConfig, ChatInputDefaultModeStrategy,

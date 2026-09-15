@@ -19,6 +19,7 @@ public data class RemoteToolStatusResponse(
     @SerialName("result_preview") val resultPreview: String? = null,
     @SerialName("error_preview") val errorPreview: String? = null,
     @SerialName("exit_code") val exitCode: Int? = null,
+    @SerialName("plan") val plan: JsonElement? = null,
 )
 
 @Serializable

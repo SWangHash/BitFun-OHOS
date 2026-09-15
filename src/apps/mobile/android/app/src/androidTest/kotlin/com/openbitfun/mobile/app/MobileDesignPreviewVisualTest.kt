@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -121,8 +122,8 @@ class MobileDesignPreviewVisualTest {
             composeRule.onNodeWithText(scenario.composerDraft).assertIsDisplayed()
         }
         if (scenario == MobilePreviewScenarios.StreamingDark) {
-            composeRule.onNodeWithContentDescription(targetContext.getString(R.string.message_stop))
-                .assertIsDisplayed()
+            composeRule.onNodeWithContentDescription(targetContext.getString(R.string.message_send))
+                .assertIsDisplayed().assertIsEnabled()
         }
     }
 

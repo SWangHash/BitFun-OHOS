@@ -27,7 +27,12 @@ import kotlinx.coroutines.launch
 
 internal class AccountViewModel(application: Application) : AndroidViewModel(application) {
     private val completionNotifier = com.openbitfun.mobile.app.platform.TaskCompletionNotifier(application)
-    fun setBackground(value: Boolean) { completionNotifier.setBackground(value) }
+    private var foreground = true
+    fun setBackground(value: Boolean) {
+        foreground = !value
+        completionNotifier.setBackground(value)
+        remoteStore?.dispatch(RemoteSessionIntent.SetForeground(foreground))
+    }
     private val identity = application.deviceIdentity()
     private val store = AccountStore.create(
         viewModelScope,
@@ -119,6 +124,7 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
                 created.connectionPhase.collect { _connectionPhase.value = it }
             }
             created.dispatch(RemoteSessionIntent.Load)
+            created.dispatch(RemoteSessionIntent.SetForeground(foreground))
         }
         workspaceStore = store.createWorkspaceStore(viewModelScope)?.also { created ->
             workspaceJob = viewModelScope.launch { created.state.collect { _workspaceState.value = it } }

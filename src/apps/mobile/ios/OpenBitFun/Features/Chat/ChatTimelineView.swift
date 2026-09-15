@@ -852,7 +852,19 @@ private struct ToolStatusList: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(displayRows) { row in
                 switch row {
-                case let .tool(tool): ToolStatusRow(tool: tool, model: model)
+                case let .tool(tool):
+                    if let path = tool.planPath {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(tool.planName.isEmpty ? model.localized("计划") : tool.planName).font(MobileDesignTypography.titleSmall.font)
+                            if !tool.planOverview.isEmpty { Text(tool.planOverview).font(MobileDesignTypography.bodySmall.font) }
+                            Button(model.localized("查看计划")) { model.openRemoteFile(reference: path, label: tool.planName) }.disabled(path.isEmpty)
+                            Button(model.localized("执行计划")) { model.buildRemotePlan(path: path, name: tool.planName) }
+                                .disabled(!model.remoteHostCapabilities.contains("plan_build_v1") || model.busy || model.isSending || !model.remoteConnected || tool.phase != "COMPLETED" || path.isEmpty)
+                            if !model.remoteHostCapabilities.contains("plan_build_v1") { Text(model.localized("此电脑暂不支持执行计划")) }
+                            else if model.isSending || model.busy { Text(model.localized("请等待当前操作完成")) }
+                        }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(OpenBitFunTheme.soft).clipShape(RoundedRectangle(cornerRadius: 14))
+                    } else { ToolStatusRow(tool: tool, model: model) }
                 case let .collapsed(_, tools): CollapsedToolsRow(tools: tools, model: model)
                 }
             }

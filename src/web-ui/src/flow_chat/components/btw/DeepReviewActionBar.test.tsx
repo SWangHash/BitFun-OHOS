@@ -1,6 +1,11 @@
 import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+import { Simulate } from 'react-dom/test-utils';
+import { AppearanceCompiler } from '@/infrastructure/appearance/compiler/AppearanceCompiler';
+import { AppearanceRegistry } from '@/infrastructure/appearance/registry/AppearanceRegistry';
+import { APPEARANCE_SCHEMA_VERSION, type AppearancePackage } from '@/infrastructure/appearance/types';
+import { deepReviewActionBarAppearanceDescriptor } from '../../deep-review/action-bar/appearance';
 import { useReviewActionBarStore } from '../../store/deepReviewActionBarStore';
 import { DeepReviewActionBar, ReviewActionBar } from './DeepReviewActionBar';
 
@@ -40,7 +45,8 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@openbitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@openbitfun/ui')>(),
   Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
   Button: ({
     children,
@@ -1120,9 +1126,61 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
     useReviewActionBarStore.getState().setSelectedRemediationIds(new Set(['remediation-needs_decision-0']));
 
+    const onKeyDown = vi.fn();
     await act(async () => {
-      root.render(<DeepReviewActionBar />);
+      root.render(<div onKeyDown={onKeyDown}><DeepReviewActionBar /></div>);
     });
+
+    const customToggle = container.querySelector<HTMLButtonElement>('.deep-review-action-bar__custom-toggle')!;
+    await act(async () => customToggle.click());
+    const input = container.querySelector<HTMLTextAreaElement>('textarea[data-openbitfun-product-part="customInput"]')!;
+    expect(input.rows).toBe(2);
+    expect(input.getAttribute('data-openbitfun-part')).toBe('input');
+    expect(input.parentElement?.getAttribute('data-auto-resize')).toBe('false');
+    expect(input.parentElement?.getAttribute('data-resize')).toBe('vertical');
+    const instructions = 'Keep existing data.\n保留兼容行为。';
+    act(() => {
+      input.value = instructions;
+      Simulate.change(input);
+      Simulate.compositionStart(input);
+      Simulate.keyDown(input, { key: 'Enter' });
+      Simulate.keyDown(input, { key: 'Escape' });
+    });
+    expect(onKeyDown).not.toHaveBeenCalled();
+    act(() => {
+      Simulate.compositionEnd(input);
+      Simulate.keyDown(input, { key: 'Enter' });
+    });
+    expect(onKeyDown).toHaveBeenCalledOnce();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+
+    const legacy: AppearancePackage = {
+      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      id: 'test.review-input', name: 'Review input', version: '1.0.0', mode: 'dark',
+      components: { 'deep-review-action-bar': { parts: {
+        customInput: { base: { opacity: { kind: 'number', value: 0.6 } } },
+      } } },
+    };
+    const serialized = JSON.stringify(legacy);
+    const restored = JSON.parse(serialized) as AppearancePackage;
+    const snapshot = new AppearanceCompiler(new AppearanceRegistry()
+      .registerComponent(deepReviewActionBarAppearanceDescriptor)).compile(restored, 1);
+    expect(JSON.stringify(restored)).toBe(serialized);
+    document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
+    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+    const style = document.createElement('style');
+    style.textContent = snapshot.cssText;
+    document.head.appendChild(style);
+    const rule = Array.from(style.sheet!.cssRules).find(candidate =>
+      candidate instanceof dom.window.CSSStyleRule && candidate.style.opacity === '0.6',
+    ) as CSSStyleRule | undefined;
+    expect(rule).toBeDefined();
+    expect(document.querySelector(rule!.selectorText)).toBe(input);
+
+    await act(async () => customToggle.click());
+    expect(container.querySelector('textarea')).toBeNull();
+    await act(async () => customToggle.click());
+    expect(container.querySelector('textarea')?.value).toBe(instructions);
 
     const startFixButton = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent?.includes('Start fixing'));
@@ -1137,6 +1195,15 @@ describeWithJsdom('DeepReviewActionBar', () => {
     expect(container.textContent).toContain('Confirm decision items before fixing');
     expect(container.textContent).toContain('Which migration strategy should we use?');
     expect(container.textContent).toContain('Fast path is risky; staged path is safer.');
+    const supplement = container.querySelector<HTMLTextAreaElement>('.deep-review-action-bar__decision-gate-supplement textarea')!;
+    expect(supplement.value).toBe(instructions);
+    expect(supplement.rows).toBe(2);
+    expect(supplement.labels?.[0]?.className).toBe('deep-review-action-bar__decision-gate-supplement');
+    const updatedInstructions = `${instructions}\nUse the staged rollout.`;
+    act(() => {
+      supplement.value = updatedInstructions;
+      Simulate.change(supplement);
+    });
 
     const confirmBeforeSelection = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent?.includes('Confirm and start')) as HTMLButtonElement | undefined;
@@ -1164,6 +1231,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
     const [prompt] = sendMessageMock.mock.calls[0];
     expect(prompt).toContain('User chose option 2: Staged path');
+    expect(prompt).toContain(updatedInstructions);
     expect(prompt).not.toContain('Recommended option 2: Staged path');
   });
 

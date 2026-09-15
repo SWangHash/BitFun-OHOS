@@ -99,6 +99,16 @@ impl ChatMode {
 
         // ── Question prompt intercepts all keys when active ──
         if let Some(ref mut prompt) = chat_state.question_prompt {
+            if !prompt.interaction_acknowledged && key.code != KeyCode::Esc {
+                match tokio::task::block_in_place(|| {
+                    rt_handle.block_on(self.agent.start_question_interaction(&prompt.tool_id))
+                }) {
+                    Ok(()) => prompt.interaction_acknowledged = true,
+                    Err(error) => chat_view.set_status(Some(format!(
+                        "Question timeout could not be stopped: {error}"
+                    ))),
+                }
+            }
             let action = prompt.handle_key_event(key);
             match action {
                 QuestionAction::Submit(answers) => {
@@ -109,7 +119,7 @@ impl ChatMode {
                         rt_handle.block_on(agent.submit_user_answers(&tool_id, answers))
                     }) {
                         Ok(()) => {
-                            chat_state.question_prompt = None;
+                            chat_state.resolve_question_prompt(&tool_id);
                             chat_view.set_status(Some("Answers submitted".to_string()));
                         }
                         Err(error) => {
@@ -120,7 +130,13 @@ impl ChatMode {
                 }
                 QuestionAction::Reject => {
                     let tool_id = prompt.tool_id.clone();
-                    chat_state.question_prompt = None;
+                    if let Err(error) = tokio::task::block_in_place(|| {
+                        rt_handle.block_on(self.agent.cancel_user_question(&tool_id))
+                    }) {
+                        chat_view.set_status(Some(format!("Question dismissal failed: {error}")));
+                        return Ok(None);
+                    }
+                    chat_state.resolve_question_prompt(&tool_id);
                     tracing::info!("User dismissed question prompt: {}", tool_id);
                     chat_view.set_status(Some("Question dismissed".to_string()));
                 }

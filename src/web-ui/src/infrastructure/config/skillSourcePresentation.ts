@@ -41,6 +41,8 @@ export function getSkillSourceLabel(
   skill: SkillInfo,
   fallbackLabel = 'Other source',
 ): string {
+  if (skill.importOrigin?.sourceId) return skill.importOrigin.sourceLabel
+    || knownSourceLabel(skill.importOrigin.sourceId) || skill.importOrigin.sourceId;
   return getSkillSourceLabelFromIdentity(
     skill.sourceLabel,
     skill.sourceId,
@@ -60,6 +62,20 @@ export function getSkillSourceId(skill: SkillInfo): string {
   if (identity === 'openbitfun-system' || identity === 'openbitfun-user') return 'openbitfun';
   if (identity.startsWith('opencode.')) return 'opencode';
   return identity;
+}
+
+/** Origin is a presentation/filter dimension; it never changes native ownership. */
+export function getSkillOriginSourceId(skill: SkillInfo): string {
+  return skill.importOrigin?.sourceId || getSkillSourceId(skill);
+}
+
+export function getEcosystemSourceLabel(sourceId?: string): string | undefined {
+  return knownSourceLabel(sourceId) || sourceId;
+}
+
+/** Discovery is broader than installation; native management only owns native copies. */
+export function isOpenBitFunManagedSkill(skill: SkillInfo): boolean {
+  return skill.isBuiltin || getSkillSourceId(skill) === 'openbitfun';
 }
 
 export function canDeleteSkill(skill: SkillInfo): boolean {

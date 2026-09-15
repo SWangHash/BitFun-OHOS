@@ -3097,6 +3097,12 @@ impl RemoteInteractionRuntimeHost for CoreRemoteInteractionRuntimeHost {
             .map_err(|error| error.to_string())
     }
 
+    fn start_question_interaction(&self, session_id: &str, tool_id: &str) -> Result<(), String> {
+        crate::agentic::tools::user_input_manager::get_user_input_manager()
+            .start_interaction(session_id, tool_id)
+            .map_err(|error| error.to_string())
+    }
+
     fn answer_question(&self, tool_id: &str, answers: serde_json::Value) -> Result<(), String> {
         crate::agentic::tools::user_input_manager::get_user_input_manager()
             .send_answer(tool_id, answers)

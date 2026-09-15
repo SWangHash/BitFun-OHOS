@@ -1,6 +1,7 @@
 import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const welcomePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'welcome-panel',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root', propertyProfile: 'layout', visualRole: 'workspace' },
     { id: 'content', visualRole: 'card' },

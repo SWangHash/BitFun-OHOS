@@ -68,7 +68,7 @@ class AccountRemoteScreenTest {
             }
         }
 
-        composeRule.onAllNodesWithText("Connect to a desktop").assertCountEquals(0)
+        composeRule.onAllNodesWithText(testString(R.string.pairing_title)).assertCountEquals(0)
     }
 
     @Test
@@ -98,7 +98,7 @@ class AccountRemoteScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Choose a desktop").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.connect_account_devices_title)).assertIsDisplayed()
         composeRule.onNodeWithTag(CONNECT_ACCOUNT_DEVICE_REFRESH_TEST_TAG).performClick()
         composeRule.onNodeWithTag(CONNECT_ACCOUNT_DEVICE_ROW_TEST_TAG_PREFIX + "desk-1").performClick()
         composeRule.onNodeWithTag(CONNECT_ACCOUNT_DEVICE_ROW_TEST_TAG_PREFIX + "desk-2").performClick()

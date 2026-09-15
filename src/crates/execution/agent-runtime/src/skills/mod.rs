@@ -43,6 +43,7 @@ pub use selection::{
     ExplicitSkillInvocationResolution, SkillCandidate,
 };
 pub use types::{
-    render_loaded_skill_for_assistant, ModeSkillInfo, ModeSkillStateReason, SkillData, SkillInfo,
-    SkillLocation, SkillParseError, SkillScanDiagnostic, SkillScanReport,
+    render_loaded_skill_for_assistant, ModeSkillInfo, ModeSkillStateReason, SkillData,
+    SkillImportOrigin, SkillInfo, SkillLocation, SkillParseError, SkillScanDiagnostic,
+    SkillScanReport,
 };

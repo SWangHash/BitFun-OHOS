@@ -1,6 +1,7 @@
  
 
 import { api } from './ApiClient';
+import { notifyMcpConfigChanged } from '@/infrastructure/mcp/configEvents';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 
 function canonicalConfig(json: string): string {
@@ -28,6 +29,7 @@ export type MCPServerStatus =
 
  
 export interface MCPServerInfo {
+  importOrigin?: { sourceCandidateId: string; behaviorVersion: string; sourceId?: string | null } | null;
   id: string;
   name: string;
   status: string;
@@ -324,6 +326,22 @@ export class MCPAPI {
     return api.invoke('start_mcp_server', { serverId });
   }
 
+  static async enableServer(serverId: string): Promise<{ runtimeApplied: boolean }> {
+    const scope = getActiveSurfaceScope();
+    const snapshot = await this.loadMCPJsonConfig();
+    scope.assertCurrent('enable MCP server');
+    const config = JSON.parse(snapshot.jsonConfig);
+    const servers = config?.mcpServers;
+    const server = servers && typeof servers === 'object' && !Array.isArray(servers)
+      && Object.prototype.hasOwnProperty.call(servers, serverId) ? servers[serverId] : null;
+    if (!server || typeof server !== 'object' || Array.isArray(server)) {
+      throw new Error('MCP server configuration is unavailable; refresh before enabling');
+    }
+    if (server.enabled !== false) return { runtimeApplied: true };
+    server.enabled = true;
+    return this.saveMCPJsonConfig(JSON.stringify(config, null, 2), snapshot.fingerprint);
+  }
+
    
   static async stopServer(serverId: string): Promise<void> {
     return api.invoke('stop_mcp_server', { serverId });
@@ -352,7 +370,7 @@ export class MCPAPI {
     const scope = getActiveSurfaceScope();
     try {
       await api.invoke('save_mcp_json_config', { jsonConfig, expectedFingerprint });
-      scope.assertCurrent('save MCP configuration');
+      notifyMcpConfigChanged(scope);
       return { runtimeApplied: true };
     } catch (error) {
       scope.assertCurrent('confirm saved MCP configuration');
@@ -362,6 +380,7 @@ export class MCPAPI {
       const message = error instanceof Error ? error.message : error;
       if (typeof message === 'string'
         && message.startsWith('MCP config was saved, but runtime reconciliation failed:')) {
+        notifyMcpConfigChanged(scope);
         return { runtimeApplied: false };
       }
       if (error instanceof Error && (error as Error & { code?: string }).code === 'REQUEST_TIMEOUT') {
@@ -370,6 +389,7 @@ export class MCPAPI {
         const snapshot = await this.loadMCPJsonConfig().catch(() => null);
         scope.assertCurrent('read back saved MCP configuration');
         if (snapshot && canonicalConfig(snapshot.jsonConfig) === canonicalConfig(jsonConfig)) {
+          notifyMcpConfigChanged(scope);
           return { runtimeApplied: false };
         }
       }
@@ -424,7 +444,9 @@ export class MCPAPI {
   }
 
   static async deleteServer(request: DeleteMCPServerRequest): Promise<void> {
-    return api.invoke('delete_mcp_server', { request });
+    const scope = getActiveSurfaceScope();
+    await api.invoke('delete_mcp_server', { request });
+    notifyMcpConfigChanged(scope);
   }
 
   static async startRemoteOAuth(

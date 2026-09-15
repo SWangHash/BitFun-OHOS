@@ -146,3 +146,22 @@ test('legacy catalog reads stay on one device generation across both requests', 
   await assert.rejects(pending, RemoteControlTargetChangedError);
   assert.deepEqual(calls, [['desktop-a', 'list_recent_workspaces'], ['desktop-a', 'list_assistants']]);
 });
+
+test('question activity is capability-gated and scoped to its owning session', async () => {
+  const calls = [];
+  const client = catalogClient(async (device, cmd) => {
+    calls.push([device, cmd]);
+    return { resp: 'interaction_accepted', action: 'start_question_interaction', target_id: 'tool-a' };
+  });
+  const legacy = new RemoteSessionManager(client);
+  await assert.rejects(legacy.startQuestionInteraction('session-a', 'tool-a'), /does not support/);
+  assert.equal(calls.length, 0);
+  const manager = new RemoteSessionManager(client, ['user_question_interaction_v1']);
+  await manager.startQuestionInteraction('session-a', 'tool-a');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'desktop-a');
+  assert.equal(calls[0][1].cmd, 'start_question_interaction');
+  assert.equal(calls[0][1].session_id, 'session-a');
+  assert.equal(calls[0][1].tool_id, 'tool-a');
+  assert.equal(calls[0][1].answers, undefined);
+});

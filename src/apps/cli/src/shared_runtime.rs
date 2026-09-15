@@ -618,6 +618,30 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
                     .map_err(runtime_ipc_error)?;
                 Ok(RuntimeIpcOperationResult::Unit)
             }
+            RuntimeIpcOperation::CancelUserQuestion {
+                session_id,
+                tool_id,
+            } => {
+                self.runtime
+                    .cancel_user_question(&session_id, &tool_id)
+                    .map_err(|error| RuntimeIpcError {
+                        code: RuntimeIpcErrorCode::SessionMismatch,
+                        message: error.to_string(),
+                    })?;
+                Ok(RuntimeIpcOperationResult::Unit)
+            }
+            RuntimeIpcOperation::StartQuestionInteraction {
+                session_id,
+                tool_id,
+            } => {
+                self.runtime
+                    .start_user_question_interaction(&session_id, &tool_id)
+                    .map_err(|error| RuntimeIpcError {
+                        code: RuntimeIpcErrorCode::SessionMismatch,
+                        message: error.to_string(),
+                    })?;
+                Ok(RuntimeIpcOperationResult::Unit)
+            }
             RuntimeIpcOperation::SubmitUserAnswers { request } => {
                 let permitted = self
                     .question_sessions
@@ -1572,6 +1596,73 @@ mod tests {
         assert_eq!(request.session_name, "Auth refactor");
         assert!(request.remote_connection_id.is_none());
         assert!(request.remote_ssh_host.is_none());
+    }
+
+    #[tokio::test]
+    async fn shared_question_interaction_and_dismissal_use_the_runtime_mailbox() {
+        use openbitfun_agent_runtime::user_questions::{
+            get_user_input_manager, PendingUserQuestion,
+        };
+        use openbitfun_agent_runtime_ipc::{RuntimeIpcOperation, RuntimeIpcRequestHandler};
+        let runtime = AgentRuntimeBuilder::new()
+            .with_submission_port(Arc::new(RecordingSessionPort::default()))
+            .build()
+            .unwrap();
+        let (available, _) = watch::channel(true);
+        let handler = super::SharedRuntimeHandler {
+            runtime,
+            compatibility: None,
+            workspace: std::env::temp_dir(),
+            events: Arc::new(Mutex::new(HashMap::new())),
+            question_sessions: Arc::new(Mutex::new(HashMap::new())),
+            subagent_routes: Arc::new(SubagentRoutes::new(HashMap::new())),
+            event_stream_available: available,
+        };
+        let manager = get_user_input_manager();
+        let (sender, mut receiver) = tokio::sync::oneshot::channel();
+        let _registration = manager.register_question(
+            PendingUserQuestion::new(
+                "shared-timeout-tool",
+                "shared-timeout-session",
+                None,
+                None,
+                serde_json::json!({}),
+            ),
+            sender,
+        );
+        assert!(handler
+            .execute(RuntimeIpcOperation::StartQuestionInteraction {
+                session_id: "other".into(),
+                tool_id: "shared-timeout-tool".into(),
+            })
+            .await
+            .is_err());
+        handler
+            .execute(RuntimeIpcOperation::StartQuestionInteraction {
+                session_id: "shared-timeout-session".into(),
+                tool_id: "shared-timeout-tool".into(),
+            })
+            .await
+            .unwrap();
+        assert!(
+            manager
+                .pending_question_snapshot("shared-timeout-session")
+                .questions[0]
+                .interaction_started
+        );
+        assert!(matches!(
+            receiver.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+        handler
+            .execute(RuntimeIpcOperation::CancelUserQuestion {
+                session_id: "shared-timeout-session".into(),
+                tool_id: "shared-timeout-tool".into(),
+            })
+            .await
+            .unwrap();
+        assert!(receiver.await.is_err());
+        assert!(!manager.has_pending("shared-timeout-tool"));
     }
 
     #[tokio::test]

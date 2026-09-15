@@ -1010,11 +1010,58 @@ function reconcilePendingUserQuestionSnapshot(
     }
   }
 
+  for (const turn of nextTurns) {
+    turn.modelRounds = turn.modelRounds.map(round => {
+      const reconciled = reconcileInteractionAttemptItems(round);
+      changed ||= reconciled !== round;
+      return reconciled;
+    });
+  }
+
   return {
     turns: changed ? nextTurns : turns,
     changed,
     revisionApplied: fullyApplied,
   };
+}
+
+/** Keep mailbox edits in the attempt owner used by rendering and later stream writes. */
+function reconcileInteractionAttemptItems(round: ModelRound): ModelRound {
+  if (!round.attempts?.length) return round;
+  const attemptItems = flattenRoundAttemptItems(round);
+  const isMailboxItem = (item: AnyFlowItem) => item.type === 'tool' &&
+    item._runtimeInteractionProjection?.kind === 'user_question';
+  if (!round.items.some(isMailboxItem) && !attemptItems.some(isMailboxItem)) return round;
+  if (attemptItems.length === round.items.length &&
+      attemptItems.every((item, index) => item === round.items[index])) return round;
+
+  const itemsById = new Map(round.items.map(item => [item.id, item]));
+  const ownedIds = new Set(round.attempts.flatMap(attempt => attempt.items.map(item => item.id)));
+  const added = round.items.filter(item => !ownedIds.has(item.id));
+  const attempts = round.attempts.map(attempt => ({
+    ...attempt,
+    items: attempt.items.flatMap(item => {
+      const replacement = itemsById.get(item.id);
+      return replacement ? [replacement] : [];
+    }),
+  }));
+  if (added.length) {
+    // Diagnostic-only attempts remain history. A recovered interaction must
+    // have a visible current owner, even when the checkpoint has no live attempt.
+    let active = sortAttemptEntries(attempts).at(-1);
+    if (!active || active.diagnostic || active.status === 'superseded') {
+      active = {
+        id: `runtime-interaction:${round.id}`,
+        index: Math.max(...attempts.map(attempt => attempt.index)) + 1,
+        status: 'streaming',
+        items: [],
+      };
+      attempts.push(active);
+    }
+    const owner = active;
+    owner.items.push(...added.map(item => withAttemptMetadata(item, owner)));
+  }
+  return synchronizeRoundAttempts({ ...round, attempts });
 }
 
 function itemMatchesIdentity(item: AnyFlowItem, itemId: string): boolean {

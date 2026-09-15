@@ -43,6 +43,18 @@ pub struct WorkspaceInstructionFile {
     pub path_patterns: Vec<String>,
 }
 
+/// Metadata from the same resolver used by context injection. Shared AGENTS
+/// documents have no single upstream owner.
+pub struct WorkspaceInstructionSource {
+    pub file: WorkspaceInstructionFile,
+    pub ecosystem_id: &'static str,
+}
+
+pub struct WorkspaceInstructionSourceCatalog {
+    pub sources: Vec<WorkspaceInstructionSource>,
+    pub incomplete_ecosystems: Vec<&'static str>,
+}
+
 /// Compiled workspace-relative path scope owned alongside declarative
 /// instruction glob expansion. Consumers do not need a direct glob dependency.
 pub struct WorkspaceInstructionPathMatcher {
@@ -307,6 +319,9 @@ impl InstructionIo<'_> {
 struct WorkspaceInstructionResolver<'a> {
     io: InstructionIo<'a>,
     files: Vec<WorkspaceInstructionFile>,
+    origins: Vec<&'static str>,
+    ecosystem_id: &'static str,
+    incomplete_ecosystems: HashSet<&'static str>,
     seen: HashSet<String>,
     read_file_count: usize,
     total_instruction_bytes: usize,
@@ -321,6 +336,9 @@ impl<'a> WorkspaceInstructionResolver<'a> {
         Self {
             io,
             files: Vec::new(),
+            origins: Vec::new(),
+            ecosystem_id: "shared",
+            incomplete_ecosystems: HashSet::new(),
             seen: HashSet::new(),
             read_file_count: 0,
             total_instruction_bytes: 0,
@@ -331,10 +349,15 @@ impl<'a> WorkspaceInstructionResolver<'a> {
         }
     }
 
-    async fn resolve(mut self) -> Result<Vec<WorkspaceInstructionFile>, String> {
+    async fn resolve(self) -> Result<Vec<WorkspaceInstructionFile>, String> {
+        Ok(self.resolve_sources().await?.files)
+    }
+
+    async fn resolve_sources(mut self) -> Result<Self, String> {
         if let Some(path) = self.first_existing(AGENTS_INSTRUCTION_FILE_GROUP).await? {
             self.append_source_tree(path, false).await?;
         }
+        self.ecosystem_id = "claude-code";
         if let Some(path) = self.first_existing(CLAUDE_INSTRUCTION_FILE_GROUP).await? {
             self.append_source_tree(path, true).await?;
         }
@@ -345,12 +368,13 @@ impl<'a> WorkspaceInstructionResolver<'a> {
 
         self.append_claude_rules(false).await?;
 
+        self.ecosystem_id = "opencode";
         for config_path in OPENCODE_PROJECT_CONFIG_FILES {
             self.append_opencode_config_instructions(config_path)
                 .await?;
         }
 
-        Ok(self.files)
+        Ok(self)
     }
 
     async fn resolve_conditional(mut self) -> Result<Vec<WorkspaceInstructionFile>, String> {
@@ -359,6 +383,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
     }
 
     async fn append_claude_rules(&mut self, conditional_only: bool) -> Result<(), String> {
+        self.ecosystem_id = "claude-code";
         let rules = self.collect_files(CLAUDE_RULES_DIRECTORY).await?;
         for rule in rules
             .into_iter()
@@ -382,6 +407,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
                     self.seen.insert(rule.clone());
                     let content = self.expand_scoped_rule_imports(&rule, body).await?;
                     if !content.trim().is_empty() {
+                        self.origins.push(self.ecosystem_id);
                         self.files.push(WorkspaceInstructionFile {
                             name: rule,
                             content,
@@ -391,6 +417,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
                 }
                 Err(error) => {
                     self.seen.insert(rule);
+                    self.incomplete_ecosystems.insert("claude-code");
                     log::warn!("Ignoring invalid Claude Code rule front matter: {error}");
                 }
             }
@@ -484,6 +511,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
                 Vec::new()
             };
             if !content.trim().is_empty() {
+                self.origins.push(self.ecosystem_id);
                 self.files.push(WorkspaceInstructionFile {
                     name: path.clone(),
                     content,
@@ -545,6 +573,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
         }
 
         let Some(content) = self.io.read_text(config_path).await? else {
+            self.incomplete_ecosystems.insert("opencode");
             log::warn!(
                 "Ignoring oversized project OpenCode instruction config {}",
                 config_path
@@ -554,6 +583,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
         let value = match serde_json::from_str::<Value>(&strip_jsonc(&content)) {
             Ok(value) => value,
             Err(error) => {
+                self.incomplete_ecosystems.insert("opencode");
                 log::warn!(
                     "Ignoring invalid project OpenCode instruction config {}: {}",
                     config_path,
@@ -568,6 +598,7 @@ impl<'a> WorkspaceInstructionResolver<'a> {
 
         for raw in instructions.iter().filter_map(Value::as_str) {
             if unsupported_instruction_reference(raw) {
+                self.incomplete_ecosystems.insert("opencode");
                 continue;
             }
             if has_glob_meta(raw) {
@@ -668,6 +699,29 @@ pub async fn read_workspace_instruction_sources(
     WorkspaceInstructionResolver::new(InstructionIo::Local(workspace_root))
         .resolve()
         .await
+}
+
+pub async fn read_workspace_instruction_source_catalog(
+    workspace_root: &Path,
+) -> Result<WorkspaceInstructionSourceCatalog, String> {
+    let resolver = WorkspaceInstructionResolver::new(InstructionIo::Local(workspace_root))
+        .resolve_sources()
+        .await?;
+    let mut incomplete_ecosystems = resolver.incomplete_ecosystems;
+    if resolver.scan_limit_logged || resolver.file_limit_logged || resolver.byte_limit_logged {
+        incomplete_ecosystems.insert("shared");
+    }
+    let mut incomplete_ecosystems = incomplete_ecosystems.into_iter().collect::<Vec<_>>();
+    incomplete_ecosystems.sort();
+    Ok(WorkspaceInstructionSourceCatalog {
+        incomplete_ecosystems,
+        sources: resolver
+            .files
+            .into_iter()
+            .zip(resolver.origins)
+            .map(|(file, ecosystem_id)| WorkspaceInstructionSource { file, ecosystem_id })
+            .collect(),
+    })
 }
 
 pub async fn read_workspace_conditional_instruction_sources(

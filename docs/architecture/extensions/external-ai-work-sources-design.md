@@ -22,19 +22,58 @@ Prompt Command；静态文件和经审阅的本地 shell 输出由共享归属�
 工作区隔离和失败反馈；现有 Skill 加载模块另行展示来源、用户/项目范围和固定优先级产生的覆盖结果，不并入上述
 可执行来源选择规则。第五条端到端能力在不增加新的 Rust Runtime 进程的前提下接入 Claude Code 的 legacy Command、Subagent、
 MCP 安全子集，以及 Codex Subagent、MCP 安全子集；三种生态使用同一个来源管理模块，并共享审批、冲突、刷新和故障隔离规则，
-但各自在 sibling adapter 内保留原生来源与覆盖语义。完整 TypeScript/Bun、包依赖、package plugin 执行、
-Codex/Claude Code 运行时适配和外部 Subagent 续接仍属于后续阶段；Claude Code Agent 定义可按同一静态安全子集进入主选择器，
+但各自在 sibling adapter 内保留原生来源与覆盖语义。standalone Tool 的 TypeScript/模块依赖仍未覆盖；显式配置的
+OpenCode package plugin 已有共享 Bun Host 执行切片，当前接口与限制见
+[Plugin Host 当前实现](plugin-runtime-design.md#7-当前实现)，不能与单文件 Tool 或只读目录合并计算支持范围。
+完整 Codex/Claude Code 运行时适配和外部 Subagent 续接仍属于后续阶段；Claude Code Agent 定义可按同一静态安全子集进入主选择器，
 Codex role 仍仅作为 Subagent，不能因来源被识别就宣称宿主运行时兼容。OpenCode、Claude Code 与 Codex 的本地 Hook 脱敏目录
 已作为独立只读切片接入；在此之上，Claude Code 与 Codex 的同步 command 子集可经精确命令审阅复制为 OpenBitFun 管理的
-原生 Hook 层，仍由唯一 `AgentHookEngine` 执行。OpenCode handler、非 command/异步 handler 和未审阅声明仍不可执行。
-独立的 MCP C0a 快照导入复用上述来源与现有 MCP 配置 owner：Desktop 和根 CLI 可预览 OpenCode、Claude Code
-与 Codex 中语义等价的安全声明，并在用户显式确认后原子写入 disabled 原生条目。凭据/header/env/cwd 迁移、
-通用导入记录、undo、Peer/Remote 写入均未实现；这不改变外部 MCP 持续兼容来源的运行路径。
+原生 Hook 层，仍由唯一 `AgentHookEngine` 执行。此只读目录中的 OpenCode handler、非 command/异步 handler 和未审阅声明
+不进入执行注册表；显式配置的 package plugin Hook 使用独立的 Plugin Host 执行契约。
+独立的 MCP C0a 快照导入复用上述来源与现有 MCP 配置 owner：Desktop 和根 CLI 可预览 OpenCode、Claude Code、
+Codex 与 DeepSeek Harness 中受支持的安全声明，并在用户显式确认后原子写入 disabled 原生条目。静态 env/header
+值随私有投影复制，来源信息保存在原生配置中；GUI 可批量导入并撤销本机副本。动态凭据引用解析和 Peer/Remote
+写入仍不支持；这不改变外部 MCP 持续兼容来源的运行路径。
+
+## 当前支持声明与状态口径（2026-09-13）
+
+本文维护跨生态的当前产品范围；各生态设计维护具体格式、字段子集与固定版本基线；用户功能说明由
+`src/shared/interactive-capabilities/catalog.json` 生成。实施计划只记录当时阶段，不作为实时支持表。
+“已实现”必须限定生态、内容形态、版本与环境，并同时具备生产入口、实际消费方、失败处理与验证证据。
+仅有解析器、类型或演示分别记为“支持静态发现”“接口已定义”“样例验证”。不得由本地用例推断远程可用。
+
+| 内容与生态 | 此页发现范围 | 原生副本导入 | 使用与限制 |
+|---|---|---|---|
+| Skill：Claude Code、Codex、OpenCode、Pi、DSH | 已接入各自受支持目录/文件子集；不代表完整包或动态配置解析 | 本地 Desktop 可复制受支持格式；按主机导入版本保留旧格式路径 | 未导入外部 Skill 不进入原生运行目录；导入后由 Skill owner 选择 |
+| MCP：Claude Code、Codex、OpenCode、DSH | 已接入安全声明子集；Pi 没有 provider | 本地 Desktop、根 CLI 可规划并复制；副本默认禁用 | 原生连接状态由 MCP owner 确认；前三类另有持续兼容路径，DSH 发现不意味着 DSH 持续运行兼容 |
+| Hook：五种生态 | 静态来源和事件声明 | 仅 Claude Code/Codex 的受支持同步 command，经审阅导入 | 目录本身不执行；原生 Hook 仍受开关控制；Pi/DSH/OpenCode 目录只读 |
+| Command：Claude Code、OpenCode | 受支持声明 | 此页暂无副本导入 | 既有命令兼容功能负责展开、权限与冲突 |
+| Tool：OpenCode | standalone 工具声明 | 此页暂无副本导入 | 受支持单文件 JS 由现有 Tool owner 启用、审批与执行；不代表 TS/依赖型工具全部可用 |
+| Agent/Subagent：Claude Code、Codex、OpenCode | 安全声明子集 | 此页暂无副本导入 | 既有 Agent owner 管理启用、冲突与模型绑定；Codex role 不等于完整外部运行时 |
+| 账户、完整设置、记忆、插件、宠物 | 此页尚未接入对应类别的内容发现 | 此页暂无副本导入 | 不能据此推断其他入口完全不支持；例如 instructions 加载、账户登录与显式 package plugin 已有独立实现 |
+
+四类事实独立保存于现有 owner，页面只做展示投影，不引入另一套运行状态机：
+
+| 维度 | 事实来源 | 页面规则 |
+|---|---|---|
+| 发现覆盖 | 页面显式的生态/类别清单 | 类别显示“支持发现”或“此页尚未接入发现”；不推断导入与执行能力，不再显示笼统“已适配/未适配” |
+| 当前发现 | 来源策略、pending、诊断及各 owner 扫描结果 | 区分检查中、关闭、失败、未发现；缓存条目不掩盖本次失败；有成功记录的 Skill 不因其他文件诊断丧失导入资格 |
+| 副本导入 | MCP plan、Skill 协议版本和来源记录、Hook plan/import snapshot | 显示可导入、待审阅、已导入或具体限制；“已导入”只证明副本已保存，已知副本在发现失败时仍可显示 |
+| 兼容使用 | 命令 availability/冲突、Tool/Agent activation、主机能力及策略 | 显示可通过兼容功能使用、待授权、未启用、冲突、受限或失败；旧主机缺少或返回未知事实时显示未确认，发现不推断可用 |
+
+条目使用一个主状态、一句原因和已有操作。Command/Tool/Subagent 的使用状态与“不支持副本导入”同时说明；
+MCP 副本的连接状态不借用外部来源 activation，页面明确“尚未确认”，由原生 MCP 管理页提供实际连接事实。
+本地 Desktop 导入能力不外推至 Server/Web、Peer、远程工作区；不支持写入时显示当前环境限制，仍可查看宿主返回的目录。
+远程控制与 Detached Dispatch 不因共享此展示代码而获得导入能力；任何新目标写入能力仍需独立协商和验证。
+
+状态投影与交互回归见 Web UI 的 `ecosystemContentPresentation.test.ts`、`ExternalAgentContent.test.tsx`。
+其中远程工作区和 Peer 为前端能力门禁模拟，不是 SSH、IM、Peer 或 Detached Dispatch 端到端证据；手工步骤见
+[Web UI 使用说明](../../../src/web-ui/README.zh-CN.md#生态兼容状态检查)。
 
 ## 0. 当前 MCP 快照导入契约（C0a）
 
 快照导入是显式复制，不是持续同步，也不改变现有外部 MCP 兼容来源。Desktop 与根 CLI 只负责展示脱敏预览并发送
-typed intent；OpenCode、Claude Code 与 Codex sibling adapter 复用各自已合并的解析结果生成私有安全投影，外部来源
+typed intent；OpenCode、Claude Code 与 Codex sibling adapter 复用各自已合并的解析结果，DeepSeek Harness adapter 读取独立的完整声明，生成私有安全投影。外部来源
 协调器固定当前 candidate 与行为版本，core 负责重新规划，最终仍由唯一 MCP 配置 service 校验并写入
 `mcp_servers`。Codex 的投影与其运行准备共用同一当前 candidate/version fencing，不建立第二套解析或缓存。
 
@@ -43,36 +82,83 @@ native ID、disposition 和稳定 reason code，不包含 command arguments、UR
 `MCPServerConfig`。provider 私有投影不可序列化且使用 redacted `Debug`；plan/request 最多包含 256 个 candidate，未知请求
 字段与重复选择直接拒绝。
 
+发现任务在进程共享并发预算下排队，并保留原有扫描及延迟完成期限。一次刷新中的提供方超过 worker 数量时不能被
+直接丢弃为过载；导入预览也不能把待完成或调度失败的扫描当作完整目录。
+
 当前只复制能够与原生配置保持等价语义的声明：
 
-- 无显式 environment/cwd 的 local stdio command 与 adapter 已解析 arguments；
-- 无 userinfo、query、fragment、header、bearer token 或 provider OAuth 变化的 HTTPS streamable HTTP URL。
+- local stdio command、adapter 已解析 arguments、静态 environment 和绝对 working directory；
+- 无 userinfo、query、fragment 的 HTTPS streamable HTTP URL、静态 headers，保留显式 OAuth discovery 开关；
+- adapter 已校验的 startup/catalog/execution 毫秒超时。原生 JSON 的读写与再次保存均保留这些可选字段，旧配置缺省语义不变。
 
-environment 值或引用、header/authorization、cwd、未知字段和其他 transport 不猜测、不复制、不记录。导入条目始终为
+environment/header 的静态值仅经不可序列化、Debug 脱敏的私有投影复制到原生配置，并纳入计划摘要；目录和确认界面只展示字段名。
+未解析的变量或凭据引用、未知字段和其他 transport 不猜测、不复制。导入条目始终为
 `enabled: false` 与 `autoStart: false`；local 条目不继承完整父进程环境，只保留 MCP runtime owner 提供的安全环境。
 Codex 的 legacy `name` 是上游忽略的展示字段，不进入导入结果或行为版本；`startup_timeout_sec`（含旧
-`startup_timeout_ms`）和 `tool_timeout_sec` 可进入受审批保护的兼容运行投影，但当前原生快照格式不能无损保留它们，
-因此仍会阻断 C0a 导入。`enabled_tools`、`disabled_tools`、approval、environment/scopes/OAuth 与并行调用等运行敏感字段
+`startup_timeout_ms`）和 `tool_timeout_sec` 同时进入受审批保护的兼容运行投影和原生快照导入。
+`enabled_tools`、`disabled_tools`、approval、scopes/OAuth 凭据与并行调用等运行敏感字段
 仍按不支持处理，不能因静态发现成功而丢弃语义后导入。
-Codex 未显式声明 cwd 时，其兼容运行投影仍会把当前 workspace 作为 effective cwd；现有原生快照格式不会保留这项隐式
-语义，因此 workspace 场景的 local 声明返回“需要设置”，不能以“没有 cwd 字段”为由导入后继承 OpenBitFun 进程目录。
+Codex 和 OpenCode 未显式声明 cwd 时，当前 workspace 产生的 effective cwd 也会随导入保留；不能因上游未写 cwd
+就改为继承 OpenBitFun 进程目录。工作目录仅通过私有投影传到配置 owner，不加入公开预览。
+
+DeepSeek Harness 读取 `DSH_HOME`（缺省 `~/.dsh`）及其 `profiles/*`、选中 workspace 下的 `cordis.yml` 和
+`cordis.patch.yml` 中显式 MCP 声明；可识别普通 group 和无目标 insert，但不合成原生 profile 或加载 bundle。
+每个文件独立复用完整 `@deepseek-ai/dsh-mcp-client` 配置，目录中其他 profile 不会被视为当前启用 profile。
+相对 cwd 按选中 workspace 解析；缺少该上下文时不猜测。保留默认 60 秒 tool timeout，并关闭此来源未提供的 OAuth
+discovery。动态 YAML tag、需合成的 partial patch、重复声明、作用域/生命周期字段、显式 reconnect policy 和
+`failOnStartupError: true` 显示不支持，不执行插件。OpenBitFun MCP owner 负责导入后的连接、重连与启停。
+PI 本轮未接入 MCP provider。
 
 native ID 优先使用外部 logical name，再使用稳定生态后缀和最小可用数字后缀；超长名称使用 bounded digest，已有条目
 永不覆盖。plan fingerprint 同时绑定脱敏 plan、私有投影和当前原生 MCP 配置摘要。apply 会重新发现并重建 plan；来源或
 目标内容变化时返回刷新后的脱敏 plan，且不写入；fingerprint 不绑定 coordinator refresh generation，因此内容未变的刷新
 不会让 plan stale。配置 service 通过同一 JSON key 的 compare-and-set mutation lane
-一次提交全部选中条目或全部不提交，并在 `_openbitfunImport` 中只保留 source-qualified candidate ID 与 behavior version。
-普通 MCP 编辑保留这段 provenance，删除条目时随条目一并移除。
+一次提交全部选中条目或全部不提交，并在 `_openbitfunImport` 中保留 source-qualified candidate ID、behavior version 和可选 sourceId。
+普通 MCP 编辑保留这段 provenance，删除条目时随条目一并移除。旧记录缺少 sourceId 时，Desktop 从 candidate 的完整稳定 ID 与已注册 provider identity 恢复来源显示，不依赖外部文件仍在线。
 
 根 CLI 的 `openbitfun mcp import` 默认只预览，`--apply` 导入全部 eligible 项；重复 `--candidate` 可缩小集合，单一选择可用
 `--native-id` 指定目标 ID，`--format json` 输出 versioned plan/result。当前没有 TUI/Mobile/Server/Peer/Remote/ACP/SDK
-写入口、导入 journal、tombstone、undo、外部应用回写或插件安装/激活策略；导入后仍由既有 MCP manager 完成复核、编辑、
+写入口、导入 journal、tombstone、外部应用回写或插件安装/激活策略；Desktop 可审阅并撤销选定原生副本，仍由既有 MCP manager 完成复核、编辑、
 启用和删除。
 
-Desktop 的导入卡默认选中当前 plan 中全部 eligible 项，用户可在原卡片内取消个别条目；每项同时显示来源生态和
-用户/项目使用范围，不增加新的向导或主选择器。apply 只发送当前选中 candidate。若并发来源或目标配置变化导致 plan
-stale，界面替换为服务端返回的新 plan，并只保留“旧选择与新 eligible candidate 的交集”；新出现的 candidate 不自动
-勾选，避免一次旧确认扩大到用户未见过的内容。取消、完成或切换作用域会清空这份易失选择。
+Desktop 的生态兼容页按所选 Agent 隔离外部内容。查看不会创建原生条目；用户可单项导入、导入当前类别或一键导入该 Agent 的全部可用项，审阅来源、目标 ID
+和默认禁用状态后确认。MCP 选择集合一次提交；Skill/Hook 保留逐项成功、跳过和失败结果。Hook 在批量执行期间仅刷新目标 revision，源行为和精确命令必须与审阅内容相同。
+其他 Agent 的 candidate 不进入此次选择。来源或目标变化导致 plan
+stale 时，保留同一 candidate 的更新预览并要求重新确认；不自动加入新条目，也不隐式重试写入。切换 Agent、工作区、
+Peer 主机或取消操作会清空详情与确认状态，迟到的旧请求不能更新新作用域。
+
+### 0.1 外部内容与原生管理的界面边界
+
+生态兼容页独立展示所选 Agent 的 Skill、MCP、Hook 和其他已发现目录项，不嵌入原生 Skill/MCP/Hook 管理页。
+来源设置仅列出所选生态；范围级总开关明确标注其影响，保留既有兼容策略，不把发现动作当作导入。
+ACP 配置嵌入时也只展示所选产品的 clients，并隐藏包含全部产品内容的 JSON 视图。
+
+- Skill 使用现有扫描报告按稳定 sourceId 归属筛选，展示该生态的诊断。目录包复制完整依赖，PI/DSH 支持的 Markdown 单文件转换为独立 SKILL.md 包；包内链接依赖明确拒绝。
+  当前 Host 通过扫描报告的可选 importOperationsVersion 协商新导入能力；旧 Host 保留原有目录导入路径。
+  版本 2 支持可选 targetName：确认页可为同名项指定独立目录及调用名称，仅修改副本的 frontmatter name；旧 Host 不接收改名请求。
+  add_skill 的 sourceKey 对应已发现来源；复制先在临时目录校验、写入 `.openbitfun-import.json`，再发布到用户/项目原生目录。
+  来源 ID、位置、解析方言、内容摘要和导入 ID 随副本保存；sourceId 仍为 OpenBitFun，原始来源单独用于标签和筛选。
+  发现目录与原生运行时目录分离：未导入的外部 Skill 不进入对话候选、模式技能列表、提示词目录或名称/key 调用入口；旧来源 key 不会自动重定向到副本。
+  本地与远程工作区执行相同过滤，撤销后重新解析即失去调用资格。已批准插件通过独立发布 owner 提供的 Skill 贡献保持原有执行契约。
+  原生用户副本优先于外部用户发现，项目优先于用户的规则保持不变。PI 单文件的缺省名称来自文件名，扫描与实际加载使用相同规则。
+  同源重复导入保持现有副本及用户修改；不同内容或其他来源的同名目标拒绝覆盖。明确重新导入可为内容完全相同的旧副本补齐来源。
+  撤销核对导入 ID 并与发布共用跨进程锁，仅删除审阅的原生副本，外部原文件保留；来源标记损坏时保留文件并显示诊断。
+- 批量操作支持当前 Agent 全部、分类以及勾选项，确认前列出目标和改名结果，完成后保留逐项成功/失败及具体错误。
+  一键导入/撤销弹窗按 Skill、MCP、Hook 分组，限制窗口高度并只滚动清单；进度以实际返回结果数推进（失败也计入已处理），列表刷新期间保留进度与操作区。
+  技能套件的列表、计数、分组编辑及保存后刷新均仅消费原生技能与已导入副本，外部发现项不自动进入套件。
+  批量 MCP 撤销把相同配置指纹下的删除合并为一次 CAS；Hook 撤销仅沿本批成功操作返回的版本推进，其他修改仍触发冲突。
+  弹窗关闭时保留最后一次完整内容直到退场结束，避免标题、正文和页脚先被清空。
+- Hook 按 ecosystemId 和 source key 展示只读目录。Claude Code/Codex 支持的来源经既有 plan/apply 精确命令审阅导入；
+  其他形态只展示信息。原生 Hook 页仅管理已导入来源及原生启用设置，后续更新仍需明确确认。
+- 原生 Skill 页只展示 OpenBitFun 自有目录和内置内容（含导入后的副本），按导入来源提供筛选；原生 MCP 页展示来源标签。
+  外部 Command/Tool/Subagent 等尚无快照导入能力的类型展示限制，不用原生管理入口冒充导入实现。
+- 导入前端在不支持写入的 Server/Peer/Remote 环境明确禁用，继续通过现有宿主 API 展示可取得的目录；不回退到控制端文件。
+  已保存的兼容运行策略和用户数据不因发现失败或不支持而重置。
+
+“支持发现”不表示支持快照导入或已经可执行。当前五种生态均有 Skill 发现；MCP provider 覆盖 OpenCode、Claude Code、Codex、DSH，PI 暂不支持。
+五种生态的 Hook 目录与同步 command 导入范围分开呈现，后者仅覆盖 Claude Code/Codex 的受支持子集。
+Command/Tool/Subagent 的持续兼容能力继续由原有归属模块控制，此页不提供其快照导入。
+MCP/Hook 的“已导入”只表示已保存，界面提示到原生管理页启用与连接；实际执行仍需满足原生运行时的状态与策略。
 
 ## 1. 产品判断与竞品启示
 
@@ -701,11 +787,32 @@ Command；明确缺失且未被标记失败的 Command 是稳定删除。产品�
    Claude Code 单服务器执行 timeout 已映射为统一的启动、目录读取、执行阶段事实；Codex `startup_timeout_sec` 同时约束
    初始化和首次工具目录请求，`tool_timeout_sec` 只约束工具执行。只有来源显式声明时才覆盖现有运行行为；当前使用每次请求的
    硬期限，不因 progress 重置，超时只停止
-   OpenBitFun 的当前等待，不承诺服务端工作已经取消，也不触发自动重放或重启。Remote 执行域、OpenCode OAuth client 配置、SSE、OpenCode V2 分阶段 timeout
-   配置格式、Agent 范围和通用凭据归属模块明确延后。
+   OpenBitFun 的当前等待，不承诺服务端工作已经取消，也不触发自动重放或重启。Remote 执行域、OpenCode OAuth client 配置、SSE、Agent 范围和通用凭据归属模块明确延后。OpenCode V2 的独立解析与阶段 timeout 见下面的显式导入边界。
 9. 本阶段只把外部 MCP 的 Tool 目录接入 Agent Tool 归属模块。通用 Resource/Prompt/MCP App Desktop 接口不接受无工作区
    上下文的外部 runtime id；外部服务器发起的 roots、sampling 和 elicitation 请求也一律拒绝，防止跨工作区读取或借用
    OpenBitFun 宿主能力。后续若接入这些能力，必须先补独立契约、工作区路由与权限交互，不能复用全局连接绕过当前边界。
+
+MCP 显式发现与导入的当前边界（2026-09）：
+
+- Claude Code 读取用户 `.claude.json`、项目 `.mcp.json` 与 `projects[path].mcpServers`，保留原生整条覆盖顺序，
+  并读取项目 `disabledMcpServers` 作为来源状态。HTTP 导入允许 OpenBitFun 自行完成动态 OAuth 登录；不复制外部登录缓存。
+- Codex 读取用户和项目 `config.toml` 的 MCP 声明并保留字段覆盖；普通 `enabled = false` 不阻止导入。
+- OpenCode V1/V2 使用 adapter 内独立模块：V1 的 `mcp.<name>` 递归合并；V2 的 `mcp.servers.<name>` 整条替换，
+  使用 `disabled` 和 startup/catalog/execution 超时继承。有效 V1 `servers` 同名服务器保持兼容，来源链混用版本时明确报错。
+- DSH 读取 home/profile/workspace Cordis 文件中的完整静态 MCP 声明；普通禁用、有效的 reconnect/failOnStartupError
+  可导入，预览说明生命周期由 OpenBitFun 接管。动态 YAML、依赖执行或缺失上下文的 patch、作用域策略仍明确不可导入。
+  PI 本轮不新增 MCP provider；Claude 插件包/云端连接器与自定义配置目录也不属于当前声明发现范围。
+- 导入是显式复制，与外部 Agent 是否在线、是否启用无关，也不需要启动外部 Agent。协调器与导入计划以独立的
+  `prepare_import` 结果判断可导入性；直接兼容运行仍保留原启用条件。OpenBitFun 的来源抑制、导入权限及版本守卫继续生效。
+- MCP 导入计划和应用只刷新 MCP provider，保留当前来源策略与版本守卫，不等待无关的 Command/Tool/Agent/Reference 扫描。
+  同步的导入准备文件读取放在 blocking worker；持久化成功后通过前端带 surface 身份的配置变更通知刷新已挂载的 MCP 页面，
+  原生列表重新读 owner 配置，不依赖重新进入页面。未保存 JSON 草稿及其原 CAS fingerprint 不被刷新覆盖；失败或 stale 导入不发成功通知。
+  导入/撤销后的补充目录重扫在后台进行，不能延长已提交操作的界面锁定；撤销仍等待必要的目标运行清理。
+- 成功导入写入原生用户 MCP 配置，默认 `enabled=false`、`autoStart=false`，保留可表达的连接参数、cwd、阶段超时和认证开关。
+  OpenBitFun 管理启停、登录、重连和工具权限；外部文件后续变化不自动覆盖或删除副本。环境变量、Header、认证或权限字段
+  无法由当前导入契约无损表达时返回 setup-required/unsupported，不把占位符当字面量写入，不静默丢弃约束。
+- 本地 Windows 定向测试覆盖四个 adapter、协调器、导入计划与原生配置写入/旧数据往返。Remote Workspace 保持显式不支持；
+  Remote Control、Peer Device 和 Detached Dispatch 未经本轮端到端验证，不能把本地导入测试作为远端能力证据。
 
 独立 Hook 切片不依赖 Plugin Runtime 阶段：
 

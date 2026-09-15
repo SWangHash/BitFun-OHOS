@@ -1416,6 +1416,7 @@ export function findProductEntrypointCoreFeatureViolations(
   ];
   const reviewedCoreFeatureClosures = new Map([
     ['openbitfun-cli', [
+      'tools-pages',
       ...coreCompatibilityReviewedFeatures,
       'product-search',
       'remote-connect',
@@ -1481,6 +1482,7 @@ export function findProductEntrypointCoreFeatureViolations(
   ];
   const reviewedActiveCoreFeatureClosures = new Map([
     ['openbitfun-cli', [
+      'tools-pages',
       ...acpActiveCoreFeatures,
       'i18n-runtime',
       'plugin-runtime',

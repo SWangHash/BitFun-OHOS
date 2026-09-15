@@ -1,3 +1,4 @@
+import { isValidElement } from "react";
 import { Check, Clock, X, type LucideProps } from "lucide-react";
 import { classNames } from "../../internal/classNames";
 import type { FlowChatToolStatus } from "./FlowChatToolCard";
@@ -53,10 +54,7 @@ export function ToolCardStatusSlot({
   toolIcon,
 }: ToolCardStatusSlotProps) {
   const hasStatusGlyph = hasVisibleToolCardStatusGlyph(status);
-  const hasToolIcon = toolIcon !== undefined
-    && toolIcon !== null
-    && toolIcon !== false
-    && toolIcon !== "";
+  const hasToolIcon = isValidElement(toolIcon);
 
   if (!hasStatusGlyph && !hasToolIcon) {
     return null;

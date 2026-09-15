@@ -15,7 +15,6 @@ import {
   peekSessionStream,
   resetSessionStreamsForTest,
   sessionStream,
-  type SessionStreamRead,
 } from '@/flow_chat/session-stream/SessionStream';
 import {
   isRuntimePosition,
@@ -25,6 +24,8 @@ import {
 /** Keep in sync with the Rust `SessionEventJournal` delivery-envelope keys. */
 export const RUNTIME_EVENT_STREAM_ID_KEY = '__openbitfunRuntimeStreamId';
 export const RUNTIME_EVENT_CURSOR_KEY = '__openbitfunRuntimeEventCursor';
+
+const attachmentFinishedListeners = new Set<(surfaceId: DeviceSurfaceId, sessionId: string) => void>();
 
 const gapListeners = new Set<(surfaceId: DeviceSurfaceId, sessionId: string) => void>();
 
@@ -70,9 +71,17 @@ export interface RuntimeSessionAttachmentHandle {
   requiresReplay(snapshot: { streamId: string; cursor: number }): boolean;
   finish(
     snapshot: { streamId: string; cursor: number },
-    options?: { projectionCaughtUp?: boolean },
+    options?: { projectionCaughtUp?: boolean; events?: ReadonlyArray<{ eventName: string; payload: unknown }> },
   ): void;
   abort(options?: { discard?: boolean }): void;
+}
+
+/** Wake consumers whose work was deferred while the projection was rebuilding. */
+export function subscribeRuntimeSessionAttachmentFinished(
+  listener: (surfaceId: DeviceSurfaceId, sessionId: string) => void,
+): () => void {
+  attachmentFinishedListeners.add(listener);
+  return () => attachmentFinishedListeners.delete(listener);
 }
 
 export function subscribeRuntimeSessionEventGaps(
@@ -121,17 +130,11 @@ export function readRuntimeSessionProgress(
   return peekSessionStream(surfaceId, sessionId)?.appliedPosition() ?? null;
 }
 
-const inFlightReads = new Map<string, SessionStreamRead>();
-
-function readKey(surfaceId: DeviceSurfaceId, sessionId: string): string {
-  return JSON.stringify([surfaceId, sessionId]);
-}
-
 export function isRuntimeSessionAttachmentInFlight(
   surfaceId: DeviceSurfaceId,
   sessionId: string,
 ): boolean {
-  return inFlightReads.get(readKey(surfaceId, sessionId))?.isCurrent() === true;
+  return peekSessionStream(surfaceId, sessionId)?.isReadInFlight() === true;
 }
 
 export function beginRuntimeSessionAttachment(
@@ -140,10 +143,11 @@ export function beginRuntimeSessionAttachment(
 ): RuntimeSessionAttachmentHandle {
   const stream = sessionStream(surfaceId, sessionId);
   const read = stream.beginRead();
-  inFlightReads.set(readKey(surfaceId, sessionId), read);
+  const isCurrent = () => read.isCurrent() &&
+    peekSessionStream(surfaceId, sessionId) === stream;
 
   return {
-    isCurrent: () => read.isCurrent(),
+    isCurrent,
     requiresReplay(snapshot) {
       // Under the contract this is ordering, not inspection: replay when the
       // snapshot reaches past what is applied, when it belongs to another
@@ -155,7 +159,8 @@ export function beginRuntimeSessionAttachment(
       return applied.streamId !== snapshot.streamId || applied.cursor < snapshot.cursor;
     },
     finish(snapshot, options) {
-      read.settle(isRuntimePosition(snapshot) ? snapshot : null);
+      if (!isCurrent()) return;
+      read.settle(isRuntimePosition(snapshot) ? snapshot : null, options?.events);
       if (options?.projectionCaughtUp === false) {
         // Mark only. Notifying here would schedule a repair for a read that
         // just ran, and the caller reports it through
@@ -163,15 +168,13 @@ export function beginRuntimeSessionAttachment(
         // same flag and correctly stays silent.
         stream.markProjectionBehind();
       }
+      if (!stream.hasGap()) {
+        for (const listener of attachmentFinishedListeners) listener(surfaceId, sessionId);
+      }
     },
     abort(options) {
-      if (options?.discard === true) {
-        // Held writes belong to whichever read supersedes this one; releasing
-        // them here would apply them against a projection it is rebuilding.
-        read.settle(null);
-        return;
-      }
-      read.abandon();
+      if (!isCurrent()) return;
+      read.abandon(options);
     },
   };
 }
@@ -219,7 +222,7 @@ export function routeRuntimeSessionEvent<T>(
 
 export function resetRuntimeSessionEventGateForTest(): void {
   gapListeners.clear();
-  inFlightReads.clear();
+  attachmentFinishedListeners.clear();
   // Positions live on the streams now, so clearing only this module's maps
   // would leak applied state between tests.
   resetSessionStreamsForTest();

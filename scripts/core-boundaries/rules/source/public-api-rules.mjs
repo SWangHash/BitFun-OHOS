@@ -311,6 +311,20 @@ export const opencodeAdapterPublicApiEntries = [
     'OpenCodeConfiguredSkillRoot',
     'openbitfun-core external source composition root and OpenCode configured Skill fixtures',
   ),
+  ...['OpenCodeSkillRootDiagnostic', 'OpenCodeSkillRootReport'].map((symbol) => ({
+    symbol,
+    owner: 'opencode-adapter configured Skill root source owner',
+    consumer: 'openbitfun-core external_sources::opencode_configured_skill_roots_with_provider',
+    verification:
+      'opencode_static_source_contracts::opencode_skill_roots diagnostics fixtures and core-boundary public API checks',
+    p0: 'runtime-free configured local Skill root discovery with bounded diagnostics',
+    contractSlice: contractSlices.opencodeAdapterBoundary,
+    wireImpact: false,
+    rationale:
+      'Product Assembly projects valid roots and redacted discovery failures into its neutral Skill scan report without exposing OpenCode configuration syntax',
+    exit:
+      'remove only with the configured Skill root provider or an equivalent reviewed diagnostic projection',
+  })),
   opencodeAdapterEntry(
     'OpenCodeSkillRootProvider',
     'openbitfun-core external source composition root and OpenCode configured Skill fixtures',
@@ -1164,6 +1178,8 @@ export const externalSourceCorePublicApiEntries = [
     'NativePromptCommandReconfirmationProjection',
     'NativePromptCommandConflictSnapshot',
     'native_prompt_command_conflicts',
+    'instruction_source_catalog',
+    'InstructionSourceCatalog',
     'set_native_prompt_command_conflict_choice',
     'external_source_conflict_choices',
     'set_external_prompt_command_conflict_choice',
@@ -1195,6 +1211,19 @@ export const externalSourceCorePublicApiEntries = [
     'Desktop external-source configuration host adapter',
     true,
   ),
+  {
+    symbol: 'ecosystem_for_imported_mcp_candidate',
+    owner: 'openbitfun-core external MCP provider registration composition',
+    consumer: 'Desktop MCP list projection for legacy native import receipts',
+    verification: 'core imported_mcp_legacy_receipt_keeps_registered_origin_without_discovery test',
+    p0: 'preserve source identity for existing native MCP imports',
+    contractSlice: contractSlices.externalSourceMcpContract,
+    wireImpact: false,
+    rationale:
+      'resolve an optional ecosystem id from registered provider identity without discovery, runtime activation, or adapter types in the host API',
+    exit:
+      'remove when legacy import receipts no longer need source identity resolution or an owner replacement preserves offline provenance',
+  },
   ...[
     'unacknowledged_external_ecosystems',
     'acknowledge_external_ecosystems',

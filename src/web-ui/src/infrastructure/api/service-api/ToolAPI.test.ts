@@ -40,4 +40,11 @@ describe('ToolAPI user-question responses', () => {
       answers: { 0: 'Focused' },
     });
   });
+  it('sends an idempotent session-scoped activity command without an answer payload', async () => {
+    await new ToolAPI().startUserQuestionInteraction('ask-tool-1', 'session-1');
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('start_user_question_interaction', {
+      request: { toolId: 'ask-tool-1', sessionId: 'session-1' },
+    });
+  });
+
 });

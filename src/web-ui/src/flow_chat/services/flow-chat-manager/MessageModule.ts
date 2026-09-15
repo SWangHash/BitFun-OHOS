@@ -20,7 +20,11 @@ import type { FlowChatContext } from './types';
 import { isProjectedSessionEmpty } from '../../utils/flowChatTurnIdentity';
 import type { ImageContextData as ImageInputContextData } from '@/infrastructure/api/service-api/ImageContextTypes';
 import { pendingQueueManager } from './PendingQueueModule';
-import { isRuntimeSessionAttachmentInFlight } from '@/infrastructure/peer-device/runtimeSessionEventGate';
+import {
+  isRuntimeSessionAttachmentInFlight,
+  isRuntimeSessionProjectionStale,
+  subscribeRuntimeSessionAttachmentFinished,
+} from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { isSessionInUseError } from '@/infrastructure/api/errors/TauriCommandError';
 import { i18nService } from '@/infrastructure/i18n';
 import { driverForSession } from '../../session-drivers/registry';
@@ -535,7 +539,8 @@ export async function drainPendingQueue(
   sessionId: string,
   options?: { allowInterruptedRecoveryAbandon?: boolean },
 ): Promise<void> {
-  if (isRuntimeSessionAttachmentInFlight(getActiveSurfaceId(), sessionId)) {
+  if (isRuntimeSessionAttachmentInFlight(getActiveSurfaceId(), sessionId) ||
+      isRuntimeSessionProjectionStale(getActiveSurfaceId(), sessionId)) {
     return;
   }
   const machineState = stateMachineManager.getCurrentState(sessionId);
@@ -626,6 +631,21 @@ export async function drainPendingQueue(
 let queueDrainListenerInstalled = false;
 let queueDrainContext: FlowChatContext | null = null;
 
+const scheduledQueueDrains = new Set<string>();
+
+function schedulePendingQueueDrain(sessionId: string): void {
+  const scope = getActiveSurfaceScope();
+  const key = JSON.stringify([scope.surfaceId, scope.epoch, sessionId]);
+  if (scheduledQueueDrains.has(key)) return;
+  scheduledQueueDrains.add(key);
+  queueMicrotask(() => {
+    scheduledQueueDrains.delete(key);
+    if (!scope.isCurrent() || !queueDrainContext) return;
+    if (pendingQueueManager.list(sessionId).length === 0) return;
+    void drainPendingQueue(queueDrainContext, sessionId);
+  });
+}
+
 /** Install (once) the state-machine listener that drains the queue when a session returns to IDLE. */
 export function installPendingQueueDrainListener(context: FlowChatContext): void {
   queueDrainContext = context;
@@ -635,8 +655,9 @@ export function installPendingQueueDrainListener(context: FlowChatContext): void
   queueDrainListenerInstalled = true;
   stateMachineManager.subscribeGlobal((sessionId, machine) => {
     if (machine.currentState !== SessionExecutionState.IDLE) return;
-    if (!queueDrainContext) return;
-    if (pendingQueueManager.list(sessionId).length === 0) return;
-    void drainPendingQueue(queueDrainContext, sessionId);
+    schedulePendingQueueDrain(sessionId);
+  });
+  subscribeRuntimeSessionAttachmentFinished((surfaceId, sessionId) => {
+    if (surfaceId === getActiveSurfaceId()) schedulePendingQueueDrain(sessionId);
   });
 }

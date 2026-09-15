@@ -11,6 +11,7 @@ pub struct MarketConfig {
     pub database_path: PathBuf,
     pub artifact_dir: PathBuf,
     pub web_dir: PathBuf,
+    pub github_callback_url: Option<String>,
     pub github_client_id: Option<String>,
     pub github_client_secret: Option<String>,
     pub session_secret: String,
@@ -68,6 +69,7 @@ impl MarketConfig {
             database_path,
             artifact_dir,
             web_dir,
+            github_callback_url: non_empty_env("MARKET_GITHUB_CALLBACK_URL"),
             github_client_id: non_empty_env("MARKET_GITHUB_CLIENT_ID"),
             github_client_secret: non_empty_env("MARKET_GITHUB_CLIENT_SECRET"),
             session_secret,
@@ -82,7 +84,9 @@ impl MarketConfig {
     }
 
     pub fn github_callback_url(&self) -> String {
-        format!("{}/api/v1/auth/github/callback", self.public_base_url)
+        self.github_callback_url
+            .clone()
+            .unwrap_or_else(|| format!("{}/api/v1/auth/github/callback", self.public_base_url))
     }
 }
 

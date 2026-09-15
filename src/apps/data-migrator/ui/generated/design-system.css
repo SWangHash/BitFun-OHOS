@@ -615,6 +615,7 @@
     --openbitfun-type-micro-line-height: var(--openbitfun-line-height-compact);
     --openbitfun-type-modifier-leading-balanced-line-height: var(--openbitfun-line-height-balanced);
     --openbitfun-type-modifier-leading-dense-line-height: var(--openbitfun-line-height-dense);
+    --openbitfun-type-modifier-leading-intrinsic-line-height: normal;
     --openbitfun-type-modifier-leading-loose-line-height: var(--openbitfun-line-height-loose);
     --openbitfun-type-modifier-leading-none-line-height: var(--openbitfun-line-height-none);
     --openbitfun-type-modifier-leading-snug-line-height: var(--openbitfun-line-height-snug);

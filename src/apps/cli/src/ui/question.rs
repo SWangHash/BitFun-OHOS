@@ -40,6 +40,7 @@ struct QuestionData {
 #[derive(Debug, Clone)]
 pub(crate) struct QuestionPrompt {
     pub(crate) tool_id: String,
+    pub(crate) interaction_acknowledged: bool,
     questions: Vec<QuestionData>,
     /// Current active question tab (0-based); equals questions.len() when on confirm page
     current_tab: usize,
@@ -119,6 +120,7 @@ impl QuestionPrompt {
         let q_count = questions.len();
         Some(Self {
             tool_id,
+            interaction_acknowledged: false,
             questions,
             current_tab: 0,
             answers: vec![Vec::new(); q_count],

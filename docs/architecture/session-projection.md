@@ -8,6 +8,42 @@ Read [`peer-device-mode.md`](peer-device-mode.md) for how a controller reaches
 another device. This document is about what happens to the data once it
 arrives, and applies identically on the local surface.
 
+## Interaction and attempt ownership
+
+The current mailbox reconciler updates both representations of a model round:
+`attempts[].items` owns attempt-aware rendering and subsequent streaming writes;
+`items` is its flattened projection used by attention indicators and consumers
+without attempt support. Recovered questions, including child-agent questions
+projected into the controlling parent Session, must enter the current
+non-diagnostic attempt. Diagnostic attempts remain history. Legacy rounds without
+attempts keep their flat representation.
+
+Reconciliation applies replacements and removals to both representations before
+publishing the Session. An authoritative empty mailbox removes pending synthetic
+cards but preserves completed tool results. Replaying the same revision must not
+remount the card or erase drafts. A mailbox-only update must survive the next
+ordinary stream update; merely asserting that the flat list contains a question
+does not prove that FlowChat can display it.
+
+## Read lifecycle and multi-session isolation
+
+`SessionStream` owns both the read fence and whether a read is in flight. A read
+ends exactly once; completion, abandonment, supersession, and attachment disposal
+must make its old handle unable to affect a subsequent read. Returning to a
+healthy projection wakes pending-message consumers even when the terminal state
+was replayed while the fence blocked submission. Those wakeups are coalesced and
+bound to the rendered surface epoch.
+
+Replayed lifecycle events establish Turn ownership before newer held events are
+released. Changing Runtime process resets old ownership; a same-process snapshot
+behind the applied position cannot clear a delivery gap. A discarded queue keeps
+the original surface stale for replay rather than delivering to another device.
+The transport also checks the captured surface epoch and surviving subscriptions
+at delayed delivery time; replacement listeners cannot receive old events.
+
+A Session restore fences only that Session. Events buffered for other Sessions
+during the read must be flushed, never cleared with the restored projection.
+
 ## The problem this replaces
 
 Seven independent writers currently produce a Session's on-screen state:

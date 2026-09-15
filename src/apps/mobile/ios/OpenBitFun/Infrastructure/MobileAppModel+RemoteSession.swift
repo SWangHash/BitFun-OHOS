@@ -132,7 +132,7 @@ extension MobileAppModel {
                 let directory = entry.workspace(path: workspace.path)
                 return MobileWorkspaceGroup(
                     path: workspace.path,
-                    name: workspace.name.isEmpty ? workspace.path : workspace.name,
+                    name: workspace.name.isEmpty ? workspace.path : workspace.displayName,
                     selected: remoteExpectedDeviceKey == deviceKey &&
                         normalizedSessionWorkspacePath(workspace.path) == normalizedSessionWorkspacePath(workspaceCatalog.first(where: { $0.selected })?.path ?? ""),
                     sessions: sessions.filter { normalizedSessionWorkspacePath($0.workspacePath ?? "") == normalizedSessionWorkspacePath(workspace.path) },
@@ -711,7 +711,7 @@ extension MobileAppModel {
             openedSessionID: remoteOpenedSessionID,
             connected: remoteConnected && connectionPhase == .connected,
             busy: busy,
-            sending: isSending
+            sending: false // An active remote turn accepts steering or legacy queued messages.
         )
     }
 
@@ -724,6 +724,13 @@ extension MobileAppModel {
         isSending = true
         busy = true
         coreAdapter.sendRemote(sessionID: sessionID, content: value, images: images)
+    }
+
+    func buildRemotePlan(path: String, name: String) {
+        guard remoteHostCapabilities.contains("plan_build_v1"), !isSending,
+              let sessionID = remoteSendSessionID, !path.isEmpty else { return }
+        busy = true
+        coreAdapter?.buildRemotePlan(sessionID: sessionID, path: path, name: name)
     }
 
     func approveTool(_ toolID: String) {
@@ -1016,13 +1023,13 @@ extension MobileAppModel {
            !selected.path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let normalizedPath = normalizedSessionWorkspacePath(selected.path)
             seen.insert(normalizedPath)
-            catalog.append((selected.path, selected.name, true))
+            catalog.append((selected.path, ready.workspaces.first(where: { normalizedSessionWorkspacePath($0.path) == normalizedPath })?.displayName ?? selected.name, true))
         }
         for workspace in ready.workspaces {
             guard !workspace.path.isEmpty else { continue }
             let normalizedPath = normalizedSessionWorkspacePath(workspace.path)
             guard seen.insert(normalizedPath).inserted else { continue }
-            catalog.append((workspace.path, workspace.name, false))
+            catalog.append((workspace.path, workspace.displayName, false))
         }
         workspaceCatalog = catalog
         remoteAssistants = ready.assistants.map {

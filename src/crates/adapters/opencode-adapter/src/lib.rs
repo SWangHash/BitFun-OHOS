@@ -31,7 +31,8 @@ pub use reference_source::{
     OpenCodeWorkspaceReferenceProvider, OpenCodeWorkspaceReferenceProviderOptions,
 };
 pub use skill_source::{
-    OpenCodeConfiguredSkillRoot, OpenCodeSkillRootProvider, OpenCodeSkillRootProviderOptions,
+    OpenCodeConfiguredSkillRoot, OpenCodeSkillRootDiagnostic, OpenCodeSkillRootProvider,
+    OpenCodeSkillRootProviderOptions, OpenCodeSkillRootReport,
 };
 pub use source_adapter::{
     load_opencode_config_snapshot, load_opencode_package_adapter, OpenCodeConfigSnapshot,

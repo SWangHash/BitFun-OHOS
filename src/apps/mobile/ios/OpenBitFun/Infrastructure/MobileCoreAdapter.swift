@@ -11,6 +11,11 @@ final class MobileCoreAdapter {
     private let scope: any CoroutineScope
     private let account: AccountStore
     private let deviceDirectory: DeviceDirectoryStore
+    private var foreground = true
+    func setForeground(_ active: Bool) {
+        foreground = active
+        remoteSession?.dispatch(intent: RemoteSessionIntentSetForeground(active: active))
+    }
     private var remoteSession: RemoteSessionStore?
     private var remoteWorkspace: RemoteWorkspaceStore?
     private var remoteTargetKey: String?
@@ -241,6 +246,10 @@ final class MobileCoreAdapter {
                 images: images.isEmpty ? nil : images.map(\.coreImage)
             )
         )
+    }
+
+    func buildRemotePlan(sessionID: String, path: String, name: String) {
+        remoteSession?.dispatch(intent: RemoteSessionIntentBuildPlan(sessionId: sessionID, path: path, name: name))
     }
 
     func cancelRemoteTurn(sessionID: String, turnID: String?) {
@@ -580,6 +589,7 @@ final class MobileCoreAdapter {
         })
 
         sessionStore.dispatch(intent: RemoteSessionIntentLoad.shared)
+        sessionStore.dispatch(intent: RemoteSessionIntentSetForeground(active: foreground))
 
         let createFlow = SkieSwiftStateFlow<CreateSessionOperationState>(sessionStore.createOperation)
         handleCreateOperation(createFlow.value, targetKey: targetKey, epoch: boundEpoch)

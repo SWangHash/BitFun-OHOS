@@ -118,18 +118,16 @@
   }
 
   &--skills {
-    width: max-content;
+    // Keep mixed search results bounded independently of intrinsic row widths.
+    width: min(560px, calc(100vw - 16px));
     min-width: min(300px, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
   }
 
   &__skill-option > [data-openbitfun-part='content'] {
-    flex: 0 0 auto;
-  }
-
-  &__skill-name {
-    display: block;
-    white-space: nowrap;
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: 60%;
   }
 
   &__skill-option > [data-openbitfun-part='metadata'] {
@@ -141,30 +139,8 @@
 
   &__skill-description {
     inline-size: 100%;
-    // This picker uses a visible ellipsis instead of the shared resting fade.
-    -webkit-mask-image: none;
-    mask-image: none;
   }
 
-  &__skill-option:not(:hover):not(:focus-visible) &__skill-description > [data-overflow-content] {
-    display: block;
-    min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    // Virtual selection alone must not start the marquee on initial opening.
-    animation: none;
-    transform: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &__skill-description > [data-overflow-content] {
-      display: block;
-      min-inline-size: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-  
   &__footer {
     display: flex;
     align-items: center;

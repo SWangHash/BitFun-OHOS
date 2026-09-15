@@ -4,6 +4,7 @@ import { webSocketResponseError } from '../adapters/websocket-adapter';
 import { PeerProductCommandError } from '../adapters/peer-device-adapter';
 import { ApiClient } from './ApiClient';
 import { globalEventBus } from '@/infrastructure/event-bus';
+import { MCP_CONFIG_CHANGED } from '@/infrastructure/mcp/configEvents';
 
 const invokeMock = vi.hoisted(() => vi.fn());
 const adapterMocks = vi.hoisted(() => ({
@@ -134,6 +135,7 @@ describe('ExternalSourcesAPI', () => {
   });
 
   it('sends only typed selection intent when applying an MCP import plan', async () => {
+    invokeMock.mockResolvedValueOnce({ schemaVersion: 1, outcome: { status: 'applied', imported: [] } });
     const plan = {
       schemaVersion: 1 as const,
       planFingerprint: 'sha256:plan-v1',
@@ -153,6 +155,20 @@ describe('ExternalSourcesAPI', () => {
         },
       },
     });
+  });
+
+  it('invalidates native MCP lists on applied import, but not on a stale plan', async () => {
+    const changed = vi.fn();
+    const unsubscribe = globalEventBus.on(MCP_CONFIG_CHANGED, changed);
+    const plan = { schemaVersion: 1 as const, planFingerprint: 'plan', items: [] };
+    try {
+      invokeMock.mockResolvedValueOnce({ schemaVersion: 1, outcome: { status: 'stale', refreshedPlan: plan } });
+      await externalSourcesAPI.applyMcpImport(undefined, plan, []);
+      expect(changed).not.toHaveBeenCalled();
+      invokeMock.mockResolvedValueOnce({ schemaVersion: 1, outcome: { status: 'applied', imported: [] } });
+      await externalSourcesAPI.applyMcpImport(undefined, plan, []);
+      expect(changed).toHaveBeenCalledWith({ surfaceId: 'local' });
+    } finally { unsubscribe(); }
   });
 
   it('reveals a source by stable identity without sending its display location', async () => {

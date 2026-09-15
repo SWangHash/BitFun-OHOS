@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import { collectForwardedTabProps, findDomAttribute } from './appearance-dom-contracts.mjs';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.join(repoRoot, 'src', 'web-ui', 'src');
@@ -218,10 +219,8 @@ function jsxTagName(node) {
 }
 
 function jsxAttribute(node, name) {
-  const attribute = node.attributes.properties.find(property => (
-    ts.isJsxAttribute(property) && property.name.text === name
-  ));
-  if (!attribute || !ts.isJsxAttribute(attribute)) return { present: false, value: null };
+  const attribute = findDomAttribute(node, name);
+  if (!attribute) return { present: false, value: null };
   if (!attribute.initializer) return { present: true, value: null };
   if (ts.isStringLiteral(attribute.initializer)) {
     return { present: true, value: attribute.initializer.text };
@@ -239,14 +238,14 @@ function jsxLiteralAttribute(node, name) {
 }
 
 function jsxAttributeStringLiterals(node, name) {
-  const attribute = node.attributes.properties.find(property => (
-    ts.isJsxAttribute(property) && property.name.text === name
-  ));
-  if (!attribute || !ts.isJsxAttribute(attribute) || !attribute.initializer) return { present: false, dynamic: false, values: [] };
+  const attribute = findDomAttribute(node, name);
+  if (!attribute?.initializer) return { present: false, dynamic: false, values: [] };
   if (ts.isStringLiteral(attribute.initializer)) {
     return { present: true, dynamic: false, values: [attribute.initializer.text] };
   }
-  if (!ts.isJsxExpression(attribute.initializer) || !attribute.initializer.expression) {
+  const expression = ts.isPropertyAssignment(attribute) ? attribute.initializer
+    : ts.isJsxExpression(attribute.initializer) ? attribute.initializer.expression : undefined;
+  if (!expression) {
     return { present: true, dynamic: true, values: [] };
   }
   const values = new Set();
@@ -294,7 +293,7 @@ function jsxAttributeStringLiterals(node, name) {
       }
     }
   };
-  collectReturnedValues(attribute.initializer.expression);
+  collectReturnedValues(expression);
   return { present: true, dynamic: true, values: [...values] };
 }
 
@@ -488,8 +487,9 @@ const domContractSources = [
 
 for (const [file, source, strictContractOwnership] of domContractSources) {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const forwardedTabProps = collectForwardedTabProps(ast);
   const visit = node => {
-    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node) || forwardedTabProps.has(node)) {
       const component = jsxAttribute(node, 'data-openbitfun-component');
       const productComponent = jsxAttribute(node, 'data-openbitfun-product-component');
       const scene = jsxAttribute(node, 'data-openbitfun-scene');

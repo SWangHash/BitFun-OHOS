@@ -11,9 +11,9 @@ title_en: "External AI ecosystem compatibility"
 
 > 功能 / Feature
 
-发现并迁移 OpenCode、Claude Code、Codex 等外部 AI 工具的配置、命令、Hooks 与 MCP 资源。
+查看五类外部 AI 生态的内容与状态，导入受支持的 Skill、MCP 和 Hook 副本，并查看 Command、Tool、Subagent 的兼容使用状态。
 
-Discover and migrate configuration, commands, hooks, and MCP resources from OpenCode, Claude Code, Codex, and other AI tools.
+Inspect content and status from five external AI ecosystems, import supported Skill, MCP and Hook copies, and review compatibility usage for commands, tools and subagents.
 
 ## 完整功能清单 / Everything included
 
@@ -23,8 +23,8 @@ Discover and migrate configuration, commands, hooks, and MCP resources from Open
   - Enable or disable each source and choose managed, preview, or read-only policy
 - **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 展开外部 Prompt/Command 内容并处理与原生命令的冲突
   - Expand external prompt/command content and resolve conflicts with native commands
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 导入或启用外部 Agent，处理同名冲突并绑定模型
-  - Import or enable external agents, resolve naming conflicts, and bind models
+- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 启用外部 Agent，处理同名冲突并绑定模型
+  - Enable external agents, resolve naming conflicts, and bind models
 - **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 预览 MCP 导入计划，逐个处理服务器冲突并应用
   - Preview MCP import plans, resolve server conflicts individually, and apply them
 - **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择外部工具目标、解决冲突并控制是否启用
@@ -38,12 +38,14 @@ Discover and migrate configuration, commands, hooks, and MCP resources from Open
 
 ## 怎么用 / How to use it
 
-1. 打开“生态兼容”
-   Open Ecosystem Compatibility
-2. 选择来源并查看扫描结果
-   Choose a source and review the scan
-3. 确认计划后导入需要的内容
-   Confirm the plan and import selected content
+1. 打开“生态兼容”并选择 Agent
+   Open Ecosystem Compatibility and choose an agent
+2. 按类别查看发现结果、限制与当前状态；未发现、发现关闭和发现失败会分别显示
+   Expand a category to inspect results, limits and current status; missing, disabled and failed discovery are distinct
+3. 审阅可导入项目并确认创建副本；Command、Tool、Subagent 按已有兼容功能使用
+   Review importable items and confirm copies; use commands, tools and subagents through existing compatibility features
+4. 前往对应管理页确认副本启用或连接；当前页不将“已导入”视为可用
+   Confirm copy activation or connection in the relevant settings; Imported does not mean available
 
 入口 / Entry: OpenBitFun 功能入口
 

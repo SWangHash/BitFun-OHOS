@@ -408,6 +408,14 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).not.toContain('permissionMode.legacyRejectWarning');
   });
 
+  it('limits an embedded ecosystem view to its own clients and hides the aggregate JSON editor', async () => {
+    await act(async () => root.render(<AcpAgentsConfigPage clientIds={['codex']} />));
+    expect(container.textContent).toContain('Codex');
+    expect(container.textContent).not.toContain('Claude Code');
+    expect(container.textContent).not.toContain('OpenCode');
+    expect(container.textContent).not.toContain('views.json');
+  });
+
   it('probes requirements when opened and does not treat missing probe data as invalid config', async () => {
     await act(async () => {
       root.render(<AcpAgentsConfig />);

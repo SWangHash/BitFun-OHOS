@@ -1031,6 +1031,57 @@ class RemoteSessionStoreTest {
     }
 
     @Test
+    fun runningDraftNegotiatesSteeringAndKeepsLegacyQueue() = runTest {
+        for (supported in listOf(false, true)) {
+            val transport = FakeSessionTransport().apply {
+                capabilitiesJson = if (supported) "[\"dialog_steer_v1\"]" else "[]"
+                polls = listOf("""{"resp":"ok","version":1,"changed":true,"session_state":"running","active_turn":{"turn_id":"active-1","status":"active","text":"Working"}}""")
+            }
+            val store = RemoteSessionStore.create(this, transport)
+            store.dispatch(RemoteSessionIntent.Load); advanceUntilIdle()
+            store.dispatch(RemoteSessionIntent.Open("s-code")); runCurrent()
+            store.dispatch(RemoteSessionIntent.UpdateDraft("steer me"))
+            val image = ComposerImage("photo", "data:image/png;base64,abc", "image/png")
+            store.dispatch(RemoteSessionIntent.SendMessage("s-code", "steer me", listOf(image))); runCurrent()
+            val sent = transport.commands.last { it.cmd in listOf("send_message", "steer_turn") }
+            assertEquals(if (supported) "steer_turn" else "send_message", sent.cmd)
+            assertEquals(if (supported) "active-1" else null, sent.turnId)
+            assertEquals(if (supported) "steer me" else null, sent.displayContent)
+            assertEquals(image.dataUrl, sent.imageContexts!!.single().dataUrl)
+            val ready = assertIs<RemoteSessionUiState.Ready>(store.state.value)
+            assertEquals("", ready.draft)
+            assertEquals("active-1", ready.timeline?.activeTurn?.turnId)
+            store.stop()
+        }
+    }
+
+    @Test
+    fun buildPlanRequiresCapabilityAndDoesNotConsumeUnsentDraft() = runTest {
+        for (supported in listOf(false, true)) {
+            val transport = FakeSessionTransport().apply {
+                capabilitiesJson = if (supported) "[\"plan_build_v1\"]" else "[]"
+            }
+            val store = RemoteSessionStore.create(this, transport)
+            store.dispatch(RemoteSessionIntent.Load); advanceUntilIdle()
+            store.dispatch(RemoteSessionIntent.Open("s-code")); runCurrent()
+            store.dispatch(RemoteSessionIntent.UpdateDraft("keep draft"))
+            store.dispatch(RemoteSessionIntent.BuildPlan("s-code", "/repo/design.plan.md", "Design")); runCurrent()
+            val sent = transport.commands.lastOrNull { it.cmd == "build_plan" }
+            assertEquals(supported, sent != null)
+            if (supported) {
+                assertEquals("/repo/design.plan.md", sent?.planFilePath)
+                assertEquals("Design", sent?.planName)
+                assertEquals("code", sent?.agentType)
+            }
+            val ready = assertIs<RemoteSessionUiState.Ready>(store.state.value)
+            assertEquals("keep draft", ready.draft)
+            assertEquals("s-code", ready.selectedSessionId)
+            assertEquals(ConnectionPhase.CONNECTED, store.connectionPhase.value)
+            store.stop()
+        }
+    }
+
+    @Test
     fun sendMessageCarriesTheSessionsAgentType() = runTest {
         val transport = FakeSessionTransport()
         val store = RemoteSessionStore.create(this, transport)
@@ -1155,6 +1206,56 @@ class RemoteSessionStoreTest {
         assertEquals("keep me", ready.draft)
         assertEquals(false, ready.busy)
         store.dispatch(RemoteSessionIntent.Stop)
+    }
+
+    @Test
+    fun idleHealthRecoversWithoutDiscardingListAndStopsInBackground() = runTest {
+        val transport = FakeSessionTransport()
+        val store = RemoteSessionStore.create(this, transport)
+        store.dispatch(RemoteSessionIntent.Load); advanceUntilIdle()
+        val sessions = assertIs<RemoteSessionUiState.Ready>(store.state.value).sessions
+        transport.pingFailure = RelayFailure.NetworkUnreachable
+        store.dispatch(RemoteSessionIntent.SetForeground(true)); runCurrent()
+        assertEquals(ConnectionPhase.RECONNECTING, store.connectionPhase.value)
+        assertEquals(sessions, assertIs<RemoteSessionUiState.Ready>(store.state.value).sessions)
+        transport.pingFailure = null
+        advanceTimeBy(15_000); runCurrent()
+        assertEquals(ConnectionPhase.CONNECTED, store.connectionPhase.value)
+        store.dispatch(RemoteSessionIntent.SetForeground(false))
+        val count = transport.commands.count { it.cmd == "ping" }
+        advanceTimeBy(60_000); runCurrent()
+        assertEquals(count, transport.commands.count { it.cmd == "ping" })
+        store.stop()
+    }
+
+    @Test
+    fun slowHealthProbesDoNotOverlapAndLateResultsCannotChangeStoppedState() = runTest {
+        val transport = FakeSessionTransport()
+        val store = RemoteSessionStore.create(this, transport)
+        store.dispatch(RemoteSessionIntent.Load); advanceUntilIdle()
+        transport.nonCancellableCommands += "ping"
+        store.dispatch(RemoteSessionIntent.SetForeground(true)); runCurrent()
+        advanceTimeBy(60_000); runCurrent()
+        assertEquals(1, transport.commands.count { it.cmd == "ping" })
+        store.stop()
+        val stoppedPhase = store.connectionPhase.value
+        val stoppedState = store.state.value
+        transport.lateCommandContinuations.getValue("ping").resume(Unit)
+        runCurrent()
+        assertEquals(stoppedPhase, store.connectionPhase.value)
+        assertEquals(stoppedState, store.state.value)
+    }
+
+    @Test
+    fun openTranscriptUsesExistingPollForHealthInsteadOfExtraPings() = runTest {
+        val transport = FakeSessionTransport()
+        val store = RemoteSessionStore.create(this, transport)
+        store.dispatch(RemoteSessionIntent.Open("s-code")); runCurrent()
+        store.dispatch(RemoteSessionIntent.SetForeground(true)); runCurrent()
+        advanceTimeBy(30_000); runCurrent()
+        assertTrue(transport.commands.any { it.cmd == "poll_session" })
+        assertTrue(transport.commands.none { it.cmd == "ping" })
+        store.stop()
     }
 
     @Test
@@ -1324,6 +1425,7 @@ private class AssistantWorkspaceTransport(
 private class FakeSessionTransport : RemoteCommandTransport {
     val commands = mutableListOf<RemoteCommand>()
     var workspacePath: String = "/repo"
+    var capabilitiesJson: String = "[]"
 
     /** When set, the permission commands fail while everything else works. */
     var permissionFailure: RelayFailure? = null
@@ -1346,6 +1448,7 @@ private class FakeSessionTransport : RemoteCommandTransport {
 
     /** When set, the open conversation's health poll fails below the desktop. */
     var pollFailure: RelayFailure? = null
+    var pingFailure: RelayFailure? = null
 
     /** When set, `send_message` fails below the desktop while the draft is kept. */
     var sendMessageFailure: RelayFailure? = null
@@ -1389,10 +1492,11 @@ private class FakeSessionTransport : RemoteCommandTransport {
             rejection?.let { throw RelayTransportException(RelayFailure.RemoteRejected(it)) }
             failure?.let { throw RelayTransportException(it) }
         }
+        if (command.cmd == "ping") pingFailure?.let { throw RelayTransportException(it) }
         if (command.cmd == "poll_session") {
             pollFailure?.let { throw RelayTransportException(it) }
         }
-        if (command.cmd == "send_message") {
+        if (command.cmd == "send_message" || command.cmd == "steer_turn") {
             sendMessageFailure?.let { throw RelayTransportException(it) }
         }
         if (command.cmd == "create_session") {
@@ -1406,7 +1510,7 @@ private class FakeSessionTransport : RemoteCommandTransport {
         }
         val json = when (command.cmd) {
             "get_workspace_info" ->
-                """{"resp":"ok","has_workspace":${workspacePath.isNotEmpty()},"path":"$workspacePath"}"""
+                """{"resp":"ok","has_workspace":${workspacePath.isNotEmpty()},"path":"$workspacePath","capabilities":$capabilitiesJson}"""
             "get_model_catalog" -> """{
                 "resp":"ok",
                 "catalog":{
@@ -1428,8 +1532,8 @@ private class FakeSessionTransport : RemoteCommandTransport {
             "poll_session" -> polls[minOf(pollIndex++, polls.lastIndex)]
             "create_session" -> """{"resp":"ok","session_id":"s-new"}"""
             "set_session_model" -> """{"resp":"ok","model_id":"model-primary"}"""
-            "send_message" -> """{"resp":"ok","turn_id":"t-1"}"""
-            "delete_session", "update_session_title", "answer_question", "set_permission_mode", "confirm_tool" ->
+            "send_message", "steer_turn", "build_plan" -> """{"resp":"ok","turn_id":"t-1"}"""
+            "ping", "delete_session", "update_session_title", "answer_question", "set_permission_mode", "confirm_tool" ->
                 """{"resp":"ok"}"""
             else -> error("Unexpected command ${command.cmd}")
         }

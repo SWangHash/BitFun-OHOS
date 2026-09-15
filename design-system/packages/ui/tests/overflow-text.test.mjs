@@ -64,7 +64,7 @@ test("OverflowText measures real clipping for fade and marquee treatments", asyn
   assert.match(source, /measurementRef\.current/);
   assert.match(
     source,
-    /useIsomorphicLayoutEffect\(\(\) => \{\s*updateOverflow\(\);\s*\}, \[behavior, children, lines, updateOverflow\]\);/s,
+    /useIsomorphicLayoutEffect\(\(\) => \{\s*updateOverflow\(\);\s*\}, \[behavior, children, lines, overflowStyle, updateOverflow\]\);/s,
   );
   assert.match(source, /new ResizeObserver\(updateOverflow\)/);
   assert.match(source, /resizeObserver\?\.observe\(contentRef\.current\)/);
@@ -77,5 +77,21 @@ test("OverflowText measures real clipping for fade and marquee treatments", asyn
   assert.match(styles, /openbitfun-overflow-text-marquee/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.match(styles, /\.root:dir\(rtl\)/);
-  assert.doesNotMatch(styles, /text-overflow:\s*ellipsis/);
+  assert.match(styles, /\.root\[data-overflow-style="ellipsis"\] > \.content\s*\{[^}]*text-overflow:\s*ellipsis/s);
+  assert.match(styles, /data-overflow-active="true"[^\n]+:not\(\[data-marquee-trigger="interaction"\]\)/);
+});
+
+test("OverflowText makes resting ellipsis and interaction-only activation explicit", () => {
+  const markup = renderToStaticMarkup(createElement(OverflowText, {
+    overflowStyle: "ellipsis", marqueeTrigger: "interaction", marqueeActive: true,
+  }, "The complete description"));
+  assert.match(markup, /data-overflow-style="ellipsis"/);
+  assert.match(markup, /data-marquee-trigger="interaction"/);
+  assert.doesNotMatch(markup, /data-marquee-active/);
+  assert.match(markup, /The complete description/);
+  const multiline = renderToStaticMarkup(createElement(OverflowText, {
+    overflowStyle: "ellipsis", lines: 2,
+  }, "The complete description"));
+  assert.match(multiline, /data-overflow-lines="2"/);
+  assert.doesNotMatch(multiline, /data-overflow-style/);
 });

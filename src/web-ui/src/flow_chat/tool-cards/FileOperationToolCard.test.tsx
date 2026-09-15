@@ -786,7 +786,7 @@ describe('FileOperationToolCard', () => {
       );
     });
 
-    const contentRegion = container.querySelector('[data-openbitfun-part="content"]');
+    const contentRegion = container.querySelector('[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="content"]');
     const extraRegion = container.querySelector('[data-openbitfun-part="extra"]');
     const changeSummary = extraRegion?.querySelector('[data-openbitfun-part="changeSummary"]');
 

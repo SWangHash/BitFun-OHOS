@@ -19,8 +19,8 @@ use openbitfun_runtime_ports::{
 use serde_json::{json, Map};
 
 #[test]
-fn shared_runtime_protocol_stays_at_version_17() {
-    assert_eq!(PROTOCOL_VERSION, 17);
+fn shared_runtime_protocol_stays_at_version_18() {
+    assert_eq!(PROTOCOL_VERSION, 18);
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn protocol_round_trips_reviewed_permission_and_user_input_operations() {
 
 #[test]
 fn protocol_round_trips_read_only_main_agent_catalog() {
-    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(PROTOCOL_VERSION, 18);
     let operation = RuntimeIpcOperation::ListAgentModes {
         session_id: Some("session-1".to_string()),
     };
@@ -136,7 +136,7 @@ fn protocol_round_trips_read_only_main_agent_catalog() {
 
 #[test]
 fn protocol_round_trips_exact_turn_steering_without_replacing_turn_admission() {
-    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(PROTOCOL_VERSION, 18);
     let operation = RuntimeIpcOperation::SteerTurn {
         request: AgentDialogSteerRequest {
             session_id: "session-1".to_string(),
@@ -254,7 +254,7 @@ fn protocol_round_trips_root_scoped_lineage_operations() {
 
 #[test]
 fn protocol_round_trips_workspace_diff_as_a_read_only_workspace_operation() {
-    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(PROTOCOL_VERSION, 18);
 
     let operation = RuntimeIpcOperation::WorkspaceDiff;
     let encoded = serde_json::to_value(&operation).expect("serialize workspace diff operation");
@@ -376,7 +376,7 @@ fn protocol_round_trips_the_reviewed_session_model_operation() {
 
 #[test]
 fn protocol_round_trips_the_current_session_rename_operation() {
-    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(PROTOCOL_VERSION, 18);
 
     let operation = RuntimeIpcOperation::RenameSession {
         request: RuntimeSessionRenameRequest {
@@ -607,4 +607,22 @@ fn submit_turn_accepts_the_existing_64_kib_tui_paste_contract() {
 
     serialize_frame_with_limit(&frame, MAX_REQUEST_FRAME_BYTES)
         .expect("64 KiB TUI input plus its typed envelope must fit the request frame");
+}
+
+#[test]
+fn question_interaction_requires_current_session_controller() {
+    let operation = RuntimeIpcOperation::StartQuestionInteraction {
+        session_id: "session".into(),
+        tool_id: "tool".into(),
+    };
+    assert_eq!(operation.session_id(), Some("session"));
+    let encoded = serde_json::to_value(&operation).unwrap();
+    assert_eq!(
+        serde_json::from_value::<RuntimeIpcOperation>(encoded).unwrap(),
+        operation
+    );
+    assert_eq!(
+        operation.rules().session_requirement,
+        RuntimeIpcSessionRequirement::CurrentController
+    );
 }

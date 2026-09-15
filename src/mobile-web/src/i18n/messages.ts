@@ -10,6 +10,7 @@ export const messages: Record<MobileLanguage, MessageTree> = {
   'en-US': {
     shared: SHARED_TERMS_BY_LOCALE['en-US'],
     common: {
+      questionTimeoutActive: 'Could not stop the question timeout. Submit promptly or update the execution device.',
       back: 'Back',
       more: 'More',
       close: 'Close',
@@ -275,6 +276,7 @@ export const messages: Record<MobileLanguage, MessageTree> = {
   'zh-CN': {
     shared: SHARED_TERMS_BY_LOCALE['zh-CN'],
     common: {
+      questionTimeoutActive: '未能停止提问计时，请尽快提交或更新执行设备。',
       back: '返回',
       more: '更多',
       close: '关闭',
@@ -540,6 +542,7 @@ export const messages: Record<MobileLanguage, MessageTree> = {
   'zh-TW': {
     shared: SHARED_TERMS_BY_LOCALE['zh-TW'],
     common: {
+      questionTimeoutActive: '無法停止提問計時，請儘快提交或更新執行裝置。',
       back: '返回',
       more: '更多',
       close: '關閉',

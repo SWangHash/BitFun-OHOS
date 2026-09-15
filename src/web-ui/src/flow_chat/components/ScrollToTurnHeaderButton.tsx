@@ -7,7 +7,7 @@ import { ArrowUp as LucideArrowUp } from 'lucide-react';
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@openbitfun/ui';
+import { IconButton, Tooltip } from '@openbitfun/ui';
 import './ScrollToTurnHeaderButton.scss';
 
 interface ScrollToTurnHeaderButtonProps {
@@ -26,23 +26,22 @@ export const ScrollToTurnHeaderButton: React.FC<ScrollToTurnHeaderButtonProps> =
   const { t } = useTranslation('flow-chat');
 
   return (
-    <div data-openbitfun-component="scroll-to-turn-header-button" data-openbitfun-part="root" data-openbitfun-state={visible ? 'visible' : ''}
+    <div data-openbitfun-product-component="scroll-to-turn-header-button" data-openbitfun-product-part="root" data-openbitfun-state={visible ? 'visible' : ''}
       className={`scroll-to-turn-header-trigger ${visible ? 'scroll-to-turn-header-trigger--visible' : ''} ${className}`}
       aria-hidden={!visible}
     >
-      <div data-openbitfun-component="scroll-to-turn-header-button" data-openbitfun-part="gradient" className="scroll-to-turn-header-trigger__gradient" />
-      <div data-openbitfun-component="scroll-to-turn-header-button" data-openbitfun-part="content" className="scroll-to-turn-header-trigger__content">
+      <div data-openbitfun-product-component="scroll-to-turn-header-button" data-openbitfun-product-part="gradient" className="scroll-to-turn-header-trigger__gradient" />
+      <div data-openbitfun-product-component="scroll-to-turn-header-button" data-openbitfun-product-part="content" className="scroll-to-turn-header-trigger__content">
         <Tooltip content={turnLabel || t('scroll.toCurrentTurn')}>
-          <button
-            data-openbitfun-component="scroll-to-turn-header-button"
-            data-openbitfun-part="button"
+          <IconButton
+            data-openbitfun-product-component="scroll-to-turn-header-button"
+            data-openbitfun-product-part="button"
             className="scroll-to-turn-header-trigger__btn"
             onClick={onClick}
             aria-label={turnLabel || t('scroll.toCurrentTurn')}
             tabIndex={visible ? 0 : -1}
-          >
-            <LucideArrowUp width="16" height="16" aria-hidden="true" />
-          </button>
+            icon={<LucideArrowUp width="16" height="16" aria-hidden="true" />}
+          />
         </Tooltip>
       </div>
     </div>

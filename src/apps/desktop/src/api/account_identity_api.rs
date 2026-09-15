@@ -21,6 +21,16 @@ pub async fn account_github_poll(
         .await
         .map_err(|error| error.to_string())?;
     if response.status == "authorized" {
+        // Every entry point completes the same account session, including the
+        // markets. Relay failure must not turn a valid GitHub identity into a
+        // failed sign-in; the device panel can retry the connection later.
+        if let Err(error) = super::remote_connect_api::account_login(
+            super::remote_connect_api::AccountAuthRequest {},
+        )
+        .await
+        {
+            log::warn!("GitHub sign-in completed but Relay registration failed: {error}");
+        }
         emit_identity_changed(&app, "signed-in");
     }
     Ok(response)

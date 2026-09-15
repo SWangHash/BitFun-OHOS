@@ -53,6 +53,14 @@
 
   // ========== Circle arrow button ==========
   &__btn {
+    &::before { content: none; }
+
+    > [data-openbitfun-part='icon'] {
+      --openbitfun-opacity-icon-artwork: inherit;
+      inline-size: 16px;
+      block-size: 16px;
+    }
+
     display: flex;
     align-items: center;
     justify-content: center;

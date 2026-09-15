@@ -82,6 +82,7 @@ cargo run -p openbitfun-miniapp-market-server
 | `MARKET_DATABASE_PATH` | SQLite 文件 |
 | `MARKET_ARTIFACT_DIR` | 内容寻址包和截图目录 |
 | `MARKET_WEB_DIR` | 构建后的网页目录 |
+| `MARKET_GITHUB_CALLBACK_URL` | 可选 OAuth 回调地址；未设置时保留旧 public base 派生地址，官方 Compose 使用统一 auth 地址 |
 | `MARKET_GITHUB_CLIENT_ID` | GitHub OAuth App client ID |
 | `MARKET_GITHUB_CLIENT_SECRET` | GitHub OAuth App secret |
 | `MARKET_SESSION_SECRET` | 会话签名 secret，生产至少 24 字符并应使用强随机值 |
@@ -97,7 +98,7 @@ env 文件内容判断已经生效。
 
 固定生产 OAuth callback 是：
 
-`https://market.openbitfun.com/miniapp/api/v1/auth/github/callback`
+`https://auth.openbitfun.com/api/v1/auth/github/callback`
 
 ## 修改后的最小验证
 

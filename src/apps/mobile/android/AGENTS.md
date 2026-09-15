@@ -49,6 +49,9 @@ JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradle
 # Verify negotiated execution modes and legacy fallback on an emulator.
 JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.openbitfun.mobile.app.HarnessProfileMenuTest
 
+# Verify running-input, plan gating, offline tools, and attachment retention.
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.openbitfun.mobile.app.MobileParityTest
+
 # Run shared JVM tests after core-feature changes.
 cd ../shared
 JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew jvmTest

@@ -11,6 +11,13 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class RemotePersistenceStoreTest {
+    @Test fun workspaceHostSurvivesCacheRoundTripAndLegacyRecords() {
+        val legacy = Json.decodeFromString<PersistedRemoteWorkspace>("""{"path":"/app","name":"App"}""")
+        assertEquals(null, legacy.remoteSshHost)
+        val remote = legacy.copy(remoteSshHost = "10.0.0.8")
+        assertEquals(remote, Json.decodeFromString<PersistedRemoteWorkspace>(Json.encodeToString(remote)))
+    }
+
     private suspend fun stores(): Pair<RemoteSessionListStore, RemoteTranscriptStore> {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         MobileDatabase.Schema.create(driver).await()

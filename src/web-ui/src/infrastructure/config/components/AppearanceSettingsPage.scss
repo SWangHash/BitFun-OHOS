@@ -338,6 +338,10 @@
 
 }
 
+.appearance-market__dialog-header {
+  align-items: center;
+}
+
 /* Fixed height: every view scrolls internally so the dialog never resizes while loading. */
 .appearance-market__modal {
   min-height: min(720px, 78vh);
@@ -359,7 +363,20 @@
     padding-bottom: var(--openbitfun-space-2);
     border-bottom: 1px solid var(--openbitfun-color-border-default);
 
-    button {
+    .appearance-market__nav-item {
+      inline-size: auto;
+      min-inline-size: min-content;
+      min-block-size: 0;
+      align-items: stretch;
+      padding: 0;
+      gap: 0;
+      border-radius: var(--openbitfun-radius-sm);
+      background: transparent;
+      box-shadow: none;
+      transition: none;
+    }
+
+    .appearance-market__nav-item > [data-openbitfun-part='trigger'] {
       padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
       border: 0;
       border-radius: var(--openbitfun-radius-sm);
@@ -367,7 +384,18 @@
       color: var(--openbitfun-color-content-secondary);
       font: inherit;
       font-size: var(--openbitfun-type-label-md-font-size);
+      text-align: center;
+      white-space: normal;
       cursor: pointer;
+
+      @layer openbitfun.components {
+        outline: revert-layer;
+      }
+
+      > [data-openbitfun-part='label'] {
+        font: inherit;
+        letter-spacing: inherit;
+      }
 
       &:hover {
         background: var(--openbitfun-color-surface-subtle);
@@ -938,6 +966,24 @@
 
   &__empty p {
     margin: 0;
+  }
+
+  &__empty[data-openbitfun-component='empty'] {
+    padding: 0;
+    text-align: inherit;
+
+    > [data-openbitfun-part='media'] {
+      inline-size: 28px;
+      block-size: 28px;
+      color: inherit;
+    }
+
+    > [data-openbitfun-part='description'] {
+      max-inline-size: none;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+    }
   }
 
   &__error,

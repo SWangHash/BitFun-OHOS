@@ -9,7 +9,7 @@ mod process;
 mod registry;
 
 pub use config::{
-    MCPServerConfig, MCPServerOAuthConfig, MCPServerTimeouts, MCPServerTransport,
+    MCPImportOrigin, MCPServerConfig, MCPServerOAuthConfig, MCPServerTimeouts, MCPServerTransport,
     MCPServerXaaConfig,
 };
 pub use connection::{MCPConnection, MCPConnectionPool};

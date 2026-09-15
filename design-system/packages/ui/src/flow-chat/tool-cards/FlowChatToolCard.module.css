@@ -110,7 +110,9 @@
   }
 
   .actionLabel {
-    flex: 0 0 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    flex: 0 1 auto;
     color: var(--openbitfun-color-content-primary);
     font-weight: var(--_tool-card-title-font-weight);
     white-space: nowrap;
@@ -481,7 +483,8 @@
   }
 
   .ambientAction {
-    flex: 0 0 auto;
+    overflow: hidden;
+    flex: 0 1 auto;
     color: inherit;
     font-weight: var(--_tool-card-title-font-weight);
     white-space: nowrap;
@@ -489,7 +492,7 @@
 
   .ambientContent {
     overflow: hidden;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     color: inherit;
     font-weight: var(--_tool-card-content-font-weight);
     white-space: nowrap;
@@ -513,7 +516,19 @@
   }
 
   .ambientExpandedShell .ambientSurface {
+    /* Once enclosed, use the same header geometry as prominent cards.
+       Collapsed traces retain their compact, flush transcript alignment. */
+    min-block-size: var(--openbitfun-control-height-sm);
+    gap: var(--openbitfun-space-2);
+    padding-block: var(--openbitfun-space-1);
+    padding-inline: var(--openbitfun-space-3) var(--openbitfun-space-1);
+    line-height: var(--openbitfun-type-heading-page-line-height);
     color: var(--openbitfun-color-content-primary);
+  }
+
+  .ambientExpandedShell .ambientSurface .iconSlot {
+    --_tool-card-action-size: var(--openbitfun-space-6);
+    --_flow-chat-tool-card-icon-size: var(--openbitfun-font-size-xl);
   }
 
   .ambientRoot[data-openbitfun-state~="loading"] .ambientAction,

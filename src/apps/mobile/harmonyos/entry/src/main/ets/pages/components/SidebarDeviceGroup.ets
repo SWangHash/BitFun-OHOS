@@ -41,13 +41,12 @@ struct SidebarWorkspaceGroup {
   @Param bodyIndent: number = 10;
   @Param expanded: boolean = false;
   @Param loadStatus: WorkspaceDirectoryStatus = 'idle';
+  @Param hasLoadedSessions: boolean = false;
   @Param supportsHarnessProfiles: boolean = false;
   @Event onOpenWorkspace: (path: string) => void = (_path: string) => {};
   @Event onExpandWorkspace: (path: string) => Promise<void> = async (_path: string) => {};
   @Event onExpandedChange: (path: string, expanded: boolean) => void =
     (_path: string, _expanded: boolean) => {};
-  @Event onLoadStatusChange: (path: string, status: WorkspaceDirectoryStatus) => void =
-    (_path: string, _status: WorkspaceDirectoryStatus) => {};
   @Event onCreateInWorkspace: (path: string, agentType: string) => void =
     (_path: string, _agentType: string) => {};
   @Event onOpenSession: (session: RemoteSession) => void = (_session: RemoteSession) => {};
@@ -55,18 +54,11 @@ struct SidebarWorkspaceGroup {
   @Local visibleSessionCount: number = SidebarDirectoryPreviewPolicy.PREVIEW_COUNT;
   @Local showCreateMenu: boolean = false;
 
-  @Monitor('sessions')
-  onSessionsChanged(): void {
-    if (this.sessions.length > 0) {
-      this.onLoadStatusChange(this.path, 'ready');
-    }
-  }
-
   build() {
     Column() {
       this.WorkspaceRow()
       if (this.expanded) {
-        if (this.loadStatus === 'loading') {
+        if (this.loadStatus === 'loading' && !this.hasLoadedSessions && this.sessions.length === 0) {
           this.SessionLoadingRow()
         } else if (this.loadStatus === 'failed') {
           this.SessionRetryRow()
@@ -293,17 +285,10 @@ struct SidebarWorkspaceGroup {
   }
 
   private async loadSessions(): Promise<void> {
-    if (this.loadStatus === 'loading') {
-      return;
-    }
-    this.onLoadStatusChange(this.path, 'loading');
     try {
       await this.onExpandWorkspace(this.path);
-      this.onLoadStatusChange(this.path, 'ready');
     } catch (_err) {
-      // Keep failure local to this branch; the retry row is answerable without
-      // collapsing it and sibling disclosure state stays untouched.
-      this.onLoadStatusChange(this.path, 'failed');
+      // The request owner records failure without clearing cached rows.
     }
   }
 
@@ -361,8 +346,6 @@ export struct SidebarDeviceGroup {
   @Event onExpandWorkspace: (path: string) => Promise<void> = async (_path: string) => {};
   @Event onWorkspaceExpandedChange: (path: string, expanded: boolean) => void =
     (_path: string, _expanded: boolean) => {};
-  @Event onWorkspaceLoadStatusChange: (path: string, status: WorkspaceDirectoryStatus) => void =
-    (_path: string, _status: WorkspaceDirectoryStatus) => {};
   @Local visibleWorkspaceCount: number = SidebarDirectoryPreviewPolicy.PREVIEW_COUNT;
   private readonly projectionCache: SessionListProjectionCache = new SessionListProjectionCache();
 
@@ -387,7 +370,7 @@ export struct SidebarDeviceGroup {
             SidebarWorkspaceGroup({
               deviceId: this.device.deviceId,
               path: entry.path,
-              name: entry.name,
+              name: entry.remoteSshHost?.trim() ? `${entry.name} · ${entry.remoteSshHost.trim()}` : entry.name,
               sessions: this.sessionsFor(entry.path),
               selectedSessionId: this.selectedSessionId,
               runningSessionId: this.runningSessionId,
@@ -396,12 +379,11 @@ export struct SidebarDeviceGroup {
               supportsHarnessProfiles: this.supportsHarnessProfiles,
               bodyIndent: this.bodyIndent(),
               expanded: this.directoryState.workspaceExpanded(this.device.deviceId, entry.path),
-              loadStatus: this.sessionsFor(entry.path).length > 0 ?
-                'ready' : this.directoryState.workspaceStatus(this.device.deviceId, entry.path),
+              loadStatus: this.directoryState.workspaceStatus(this.device.deviceId, entry.path),
+              hasLoadedSessions: this.directoryState.workspaceHasLoadedSessions(this.device.deviceId, entry.path),
               onOpenWorkspace: this.onOpenWorkspace,
               onExpandWorkspace: this.onExpandWorkspace,
               onExpandedChange: this.onWorkspaceExpandedChange,
-              onLoadStatusChange: this.onWorkspaceLoadStatusChange,
               onCreateInWorkspace: this.onCreateInWorkspace,
               onOpenSession: this.onOpenSession,
               onSessionActions: this.onSessionActions

@@ -77,6 +77,10 @@ metrics during migration. `type.modifier.leading.support` provides the compact
 1.45 supporting-text rhythm used when an 11px role must align to a 16px line.
 `type.modifier.leading.tight` provides 1.2 leading for compact message bubbles:
 18px at the default 15px body size, scaling with user typography preferences.
+`type.modifier.leading.intrinsic` uses `normal` for the inner single-line text
+box in `OverflowText`. The browser includes the selected font's ascent/descent;
+existing numeric leading roles cannot express those platform-dependent metrics.
+The outer line box retains any larger leading supplied by its owning control.
 
 `layout.searchDialog` owns the shared Lab/product search composition: 800 × 460
 when space permits, 20px inset and query-to-scope gap, and a 30px query row.

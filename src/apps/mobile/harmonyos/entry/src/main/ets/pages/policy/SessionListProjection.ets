@@ -195,6 +195,7 @@ export class SessionListProjector {
       entries.push({
         path: inputs.workspacePath,
         name: inputs.workspaceName,
+        remoteSshHost: inputs.recentWorkspaces.find((item: RecentWorkspaceEntry) => item.path === inputs.workspacePath)?.remoteSshHost,
         lastOpened: '',
         workspaceKind: 'normal'
       });
@@ -355,7 +356,7 @@ export class SessionListProjectionCache {
 
   private static workspaceFingerprint(entries: RecentWorkspaceEntry[]): string[] {
     return entries.map((item: RecentWorkspaceEntry): string => {
-      return `${item.path}${item.name}${item.workspaceKind}`;
+      return `${item.path}${item.name}${item.workspaceKind}\u0001${item.remoteSshHost || ''}`;
     });
   }
 

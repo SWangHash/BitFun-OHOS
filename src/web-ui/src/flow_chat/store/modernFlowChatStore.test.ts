@@ -140,6 +140,47 @@ function makeSession(overrides: Partial<Session> = {}): Session {
 }
 
 describe('sessionToVirtualItems explore grouping', () => {
+  it('keeps legacy paused content visible across repeated continuations without changing saved attempts', () => {
+    const session = makeSession();
+    const turn = session.dialogTurns[0];
+    turn.recoveryEpoch = 2;
+    turn.modelRounds = [0, 1, 2].map(index => {
+      const items = [makeTextItem(`text-${index}`, `Response ${index}`)];
+      return makeRound({ id: `round-${index}`, index, roundGroupId: 'shared-group', items,
+        status: index < 2 ? 'cancelled' : 'completed',
+        attempts: [{ id: `attempt-${index}`, index: 1, items, status: index < 2 ? 'superseded' : 'completed',
+          ...(index < 2 ? { diagnostic: { attemptId: `attempt-${index}`, attemptIndex: 1,
+            category: 'stream_error', rawError: 'Cancelled: Stream processing cancelled' } } : {}),
+        }],
+      });
+    });
+    const rows = sessionToVirtualItems(session).filter((item): item is ModelRoundVirtualItem => item.type === 'model-round');
+    expect(rows.map(row => row.data.id)).toEqual(['round-0', 'round-1', 'round-2']);
+    expect(rows.map(row => !!row.data.renderHints?.continuedAfterInterruption)).toEqual([false, true, true]);
+    expect(rows.every(row => row.data.attempts?.[0].diagnostic === undefined)).toBe(true);
+    expect(rows.every(row => row.data.attempts?.[0].items.length === 1)).toBe(true);
+    expect(turn.modelRounds[0].attempts?.[0].diagnostic).toBeDefined();
+  });
+
+  it('preserves real failures and carries a continuation over an empty cancelled round', () => {
+    const session = makeSession();
+    const turn = session.dialogTurns[0];
+    turn.recoveryEpoch = 1;
+    turn.modelRounds = [makeRound({ status: 'cancelled', items: [], attempts: [] }),
+      makeRound({ id: 'resumed', items: [makeTextItem('result', 'Result')], attempts: [
+        { id: 'failed', index: 1, status: 'superseded', items: [], diagnostic: {
+          attemptId: 'failed', attemptIndex: 1, category: 'stream_error', rawError: 'Provider unavailable',
+        } },
+        { id: 'success', index: 2, status: 'completed', items: [makeTextItem('result', 'Result')] },
+      ] }), makeRound({ id: 'next', items: [makeTextItem('next-text', 'Next')] })];
+    const rows = sessionToVirtualItems(session).filter((item): item is ModelRoundVirtualItem => item.type === 'model-round');
+    expect(rows.map(row => !!row.data.renderHints?.continuedAfterInterruption)).toEqual([true, false]);
+    expect(rows[0].data.attempts?.[0].diagnostic?.rawError).toBe('Provider unavailable');
+    delete turn.recoveryEpoch;
+    expect(sessionToVirtualItems({ ...session, dialogTurns: [{ ...turn }] }).filter((item): item is ModelRoundVirtualItem => item.type === 'model-round')
+      .every(row => !row.data.renderHints?.continuedAfterInterruption)).toBe(true);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });

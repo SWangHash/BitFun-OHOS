@@ -13,7 +13,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem } from '@openbitfun/ui';
+import { IconButton, OverflowText, Menu, MenuItem } from '@openbitfun/ui';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Square, Maximize2, MoreVertical, PanelTopOpen, PanelTopClose } from 'lucide-react';
 import { useToolbarModeContext } from './ToolbarModeContext';
@@ -235,49 +235,49 @@ export const ToolbarMode: React.FC = () => {
   ].filter(Boolean).join(' ');
 
   return (
-    <div data-openbitfun-component="toolbar-mode" data-openbitfun-part="root" data-openbitfun-communication-mode={isExpanded && isVoiceMode ? 'voice' : 'chat'} data-openbitfun-state={[
+    <div data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="root" data-openbitfun-communication-mode={isExpanded && isVoiceMode ? 'voice' : 'chat'} data-openbitfun-state={[
       isExpanded && 'expanded',
       currentStreamState.isStreaming && 'processing',
       toolbarState.hasError && 'error',
       toolbarState.hasPendingConfirmation && 'confirm',
     ].filter(Boolean).join(' ') || undefined} className={containerClassName} onMouseDown={handleStartDrag}>
-      {!(isExpanded && isVoiceMode) && <div className="openbitfun-toolbar-mode__header" data-openbitfun-component="toolbar-mode" data-openbitfun-part="header">
-        <div className="openbitfun-toolbar-mode__header-left" data-openbitfun-component="toolbar-mode" data-openbitfun-part="headerLeft">
+      {!(isExpanded && isVoiceMode) && <div className="openbitfun-toolbar-mode__header" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="header">
+        <div className="openbitfun-toolbar-mode__header-left" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="headerLeft">
           {isExpanded ? <SessionMenu onOpenChange={handleSessionMenuOpenChange} /> : null}
         </div>
 
-        <div className="openbitfun-toolbar-mode__title-wrapper" data-openbitfun-component="toolbar-mode" data-openbitfun-part="title">
+        <div className="openbitfun-toolbar-mode__title-wrapper" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="title">
           <div className="openbitfun-toolbar-mode__title-display" title={surfaceTitle}>
             <OverflowText className="openbitfun-toolbar-mode__title-text">{surfaceTitle}</OverflowText>
           </div>
         </div>
 
-        <div className="openbitfun-toolbar-mode__header-right" data-openbitfun-component="toolbar-mode" data-openbitfun-part="headerActions">
+        <div className="openbitfun-toolbar-mode__header-right" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="headerActions">
           <div className="openbitfun-toolbar-mode__header-drag-area" aria-hidden="true" />
           <div className="openbitfun-toolbar-mode__header-overflow">
             {isExpanded ? (
               <>
                 <Tooltip content={t('toolCards.toolbar.moreMenu')}>
-                  <button
+                  <IconButton
                     ref={headerOverflowTriggerRef}
                     type="button"
                     className="toolbar-btn toolbar-btn--overflow openbitfun-toolbar-mode__overflow-trigger"
-                    data-openbitfun-component="toolbar-mode"
-                    data-openbitfun-part="overflowTrigger"
+                    data-openbitfun-product-component="toolbar-mode"
+                    data-openbitfun-product-part="overflowTrigger"
                     data-openbitfun-state={showHeaderOverflowMenu ? 'open' : undefined}
                     onClick={toggleHeaderOverflowMenu}
                     aria-expanded={showHeaderOverflowMenu}
                     aria-haspopup="menu"
-                  >
-                    <MoreVertical size={14} />
-                  </button>
+                    aria-label={t('toolCards.toolbar.moreMenu')}
+                    icon={<MoreVertical size={14} />}
+                  />
                 </Tooltip>
                 {showHeaderOverflowMenu && createPortal(
                   <Menu
                     ref={headerOverflowRef}
                     className="openbitfun-toolbar-mode__overflow-menu"
-                    data-openbitfun-component="toolbar-mode"
-                    data-openbitfun-part="overflowMenu"
+                    data-openbitfun-product-component="toolbar-mode"
+                    data-openbitfun-product-part="overflowMenu"
                     data-openbitfun-state="open"
                     data-openbitfun-placement={headerOverflowLayout?.placement ?? 'bottom'}
                     style={{
@@ -290,8 +290,8 @@ export const ToolbarMode: React.FC = () => {
                     <MenuItem
                       type="button"
                       leading={<PanelTopClose size={14} />}
-                      data-openbitfun-component="toolbar-mode"
-                      data-openbitfun-part="overflowItem"
+                      data-openbitfun-product-component="toolbar-mode"
+                      data-openbitfun-product-part="overflowItem"
                       onClick={() => {
                         void handleToggleExpanded();
                         setShowHeaderOverflowMenu(false);
@@ -302,8 +302,8 @@ export const ToolbarMode: React.FC = () => {
                     <MenuItem
                       type="button"
                       leading={<Maximize2 size={14} />}
-                      data-openbitfun-component="toolbar-mode"
-                      data-openbitfun-part="overflowItem"
+                      data-openbitfun-product-component="toolbar-mode"
+                      data-openbitfun-product-part="overflowItem"
                       onClick={() => {
                         void handleExpand();
                         setShowHeaderOverflowMenu(false);
@@ -316,26 +316,24 @@ export const ToolbarMode: React.FC = () => {
                 )}
               </>
             ) : (
-              <div className="openbitfun-toolbar-mode__header-collapsed-actions" data-openbitfun-component="toolbar-mode" data-openbitfun-part="collapsedActions">
+              <div className="openbitfun-toolbar-mode__header-collapsed-actions" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="collapsedActions">
                 <Tooltip content={t('toolCards.toolbar.expandChat')}>
-                  <button
+                  <IconButton
                     type="button"
                     className="toolbar-btn toolbar-btn--overflow"
                     onClick={() => void handleToggleExpanded()}
                     aria-label={t('toolCards.toolbar.expandChat')}
-                  >
-                    <PanelTopOpen size={14} />
-                  </button>
+                    icon={<PanelTopOpen size={14} />}
+                  />
                 </Tooltip>
                 <Tooltip content={t('session.restoreMain')}>
-                  <button
+                  <IconButton
                     type="button"
                     className="toolbar-btn toolbar-btn--expand"
                     onClick={() => void handleExpand()}
                     aria-label={t('session.restoreMain')}
-                  >
-                    <Maximize2 size={14} />
-                  </button>
+                    icon={<Maximize2 size={14} />}
+                  />
                 </Tooltip>
               </div>
             )}
@@ -348,8 +346,8 @@ export const ToolbarMode: React.FC = () => {
            text/voice mode while ChatPane remains the one shared chat surface. */
         <div
           className="openbitfun-toolbar-mode__session-surface"
-          data-openbitfun-component="toolbar-mode"
-          data-openbitfun-part="sessionSurface"
+          data-openbitfun-product-component="toolbar-mode"
+          data-openbitfun-product-part="sessionSurface"
         >
           <ConversationModeSurface onCloseVoice={handleToggleExpanded} switchTestId="toolbar-realtime-voice-mode-switch">
             <ChatPane
@@ -362,50 +360,53 @@ export const ToolbarMode: React.FC = () => {
           </ConversationModeSurface>
         </div>
       ) : (
-        <div className="openbitfun-toolbar-mode__content-row" data-openbitfun-component="toolbar-mode" data-openbitfun-part="content">
-          <div data-overflow-trigger className="openbitfun-toolbar-mode__stream-content" onClick={() => void handleToggleExpanded()} data-openbitfun-component="toolbar-mode" data-openbitfun-part="stream" data-openbitfun-content-kind={currentStreamState.toolName ? 'tool' : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? 'todo' : 'text'} data-openbitfun-state={currentStreamState.isStreaming ? 'streaming' : undefined}>
+        <div className="openbitfun-toolbar-mode__content-row" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="content">
+          <div data-overflow-trigger className="openbitfun-toolbar-mode__stream-content" onClick={() => void handleToggleExpanded()} data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="stream" data-openbitfun-content-kind={currentStreamState.toolName ? 'tool' : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? 'todo' : 'text'} data-openbitfun-state={currentStreamState.isStreaming ? 'streaming' : undefined}>
             {currentStreamState.toolName ? (
-              <div className="openbitfun-toolbar-mode__tool" data-openbitfun-component="toolbar-mode" data-openbitfun-part="tool">
-                <span className="openbitfun-toolbar-mode__tool-name" data-openbitfun-component="toolbar-mode" data-openbitfun-part="toolName">{currentStreamState.toolName}</span>
-                <OverflowText className="openbitfun-toolbar-mode__tool-summary" data-openbitfun-component="toolbar-mode" data-openbitfun-part="toolSummary">{currentStreamState.content || t('toolCards.toolbar.executing')}</OverflowText>
+              <div className="openbitfun-toolbar-mode__tool" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="tool">
+                <span className="openbitfun-toolbar-mode__tool-name" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="toolName">{currentStreamState.toolName}</span>
+                <OverflowText className="openbitfun-toolbar-mode__tool-summary" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="toolSummary">{currentStreamState.content || t('toolCards.toolbar.executing')}</OverflowText>
               </div>
             ) : toolbarState.todoProgress && toolbarState.todoProgress.total > 0 ? (
-              <div className="openbitfun-toolbar-mode__todo" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todo">
-                <span className="openbitfun-toolbar-mode__todo-progress" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todoProgress">
+              <div className="openbitfun-toolbar-mode__todo" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="todo">
+                <span className="openbitfun-toolbar-mode__todo-progress" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="todoProgress">
                   {toolbarState.todoProgress.completed}/{toolbarState.todoProgress.total}
                 </span>
-                <OverflowText className="openbitfun-toolbar-mode__todo-current" data-openbitfun-component="toolbar-mode" data-openbitfun-part="todoCurrent">
+                <OverflowText className="openbitfun-toolbar-mode__todo-current" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="todoCurrent">
                   {toolbarState.todoProgress.current || currentStreamState.content}
                 </OverflowText>
               </div>
             ) : (
-              <OverflowText className={`openbitfun-toolbar-mode__text ${currentStreamState.isStreaming ? 'openbitfun-toolbar-mode__text--streaming' : ''}`} data-openbitfun-component="toolbar-mode" data-openbitfun-part="streamText">
+              <OverflowText className={`openbitfun-toolbar-mode__text ${currentStreamState.isStreaming ? 'openbitfun-toolbar-mode__text--streaming' : ''}`} data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="streamText">
                 {currentStreamState.content || (currentStreamState.isStreaming ? t('toolCards.toolbar.processing') : (lastMessageContent || t('toolCards.toolbar.startNewChat')))}
               </OverflowText>
             )}
           </div>
 
-          <div className="openbitfun-toolbar-mode__controls" data-openbitfun-component="toolbar-mode" data-openbitfun-part="controls">
+          <div className="openbitfun-toolbar-mode__controls" data-openbitfun-product-component="toolbar-mode" data-openbitfun-product-part="controls">
             {toolbarState.hasPendingConfirmation && (
               <>
                 <Tooltip content={t('toolCards.common.confirm')}>
-                  <button className="toolbar-btn toolbar-btn--confirm" onClick={handleConfirm}>
-                    <Icon name="check-line" size="md" />
-                  </button>
+                  <IconButton className="toolbar-btn toolbar-btn--confirm" onClick={handleConfirm}
+                    aria-label={t('toolCards.common.confirm')}
+                    icon={<Icon name="check-line" size="md" />}
+                  />
                 </Tooltip>
                 <Tooltip content={t('toolCards.common.cancel')}>
-                  <button className="toolbar-btn toolbar-btn--reject" onClick={handleReject}>
-                    <Icon name="xmark" size="md" />
-                  </button>
+                  <IconButton className="toolbar-btn toolbar-btn--reject" onClick={handleReject}
+                    aria-label={t('toolCards.common.cancel')}
+                    icon={<Icon name="xmark" size="md" />}
+                  />
                 </Tooltip>
               </>
             )}
 
             {currentStreamState.isStreaming && !toolbarState.hasPendingConfirmation && (
               <Tooltip content={t('planner.cancel')}>
-                <button className="toolbar-btn toolbar-btn--cancel-compact" onClick={handleCancel}>
-                  <Square size={12} />
-                </button>
+                <IconButton className="toolbar-btn toolbar-btn--cancel-compact" onClick={handleCancel}
+                  aria-label={t('planner.cancel')}
+                  icon={<Square size={12} />}
+                />
               </Tooltip>
             )}
           </div>

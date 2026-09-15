@@ -235,7 +235,10 @@ final class MobileAppModel: ObservableObject {
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
-        if phase != .inactive { completionNotifier.setBackground(phase == .background) }
+        if phase != .inactive {
+            completionNotifier.setBackground(phase == .background)
+            coreAdapter?.setForeground(phase == .active)
+        }
         if phase == .active, accountUser != nil { refreshRemoteDevices() }
     }
 

@@ -1877,7 +1877,8 @@ fn remote_connect_workspace_response_helpers_own_wire_shape() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
-            REMOTE_CAPABILITY_PLAN_BUILD_V1
+            REMOTE_CAPABILITY_PLAN_BUILD_V1,
+            "user_question_interaction_v1"
         ])
     );
     let mut legacy_info_json = info_json.clone();
@@ -2044,7 +2045,8 @@ fn remote_connect_session_response_helpers_own_pagination_and_timestamps() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
-            REMOTE_CAPABILITY_PLAN_BUILD_V1
+            REMOTE_CAPABILITY_PLAN_BUILD_V1,
+            "user_question_interaction_v1"
         ])
     );
     let mut legacy_initial_json = initial_json;

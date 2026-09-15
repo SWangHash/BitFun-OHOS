@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { configAPI, workspaceAPI } from '@/infrastructure/api';
 import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import type { SkillInfo, SkillLevel, SkillValidationResult, SkillScanDiagnostic } from '@/infrastructure/config/types';
-import { canDeleteSkill, getSkillSourceId, getSkillSourceLabel } from '@/infrastructure/config/skillSourcePresentation';
+import { canDeleteSkill, isOpenBitFunManagedSkill, getSkillOriginSourceId, getSkillSourceLabel } from '@/infrastructure/config/skillSourcePresentation';
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -13,7 +13,7 @@ const log = createLogger('SkillsScene:useInstalledSkills');
 
 function installedSkillGroup(skill: SkillInfo): InstalledFilter {
   if (skill.isBuiltin) return 'builtin';
-  const sourceId = getSkillSourceId(skill);
+  const sourceId = getSkillOriginSourceId(skill);
   return sourceId === 'openbitfun' ? skill.level : `source:${sourceId}`;
 }
 
@@ -93,12 +93,14 @@ export function useInstalledSkills({
         return;
       }
       setLoadedContextKey(capabilityRef.current.key);
-      setSkills(list.skills);
-      setDiagnostics(list.diagnostics);
+      const nativeSkills = list.skills.filter(isOpenBitFunManagedSkill);
+      const nativeDiagnostics = list.diagnostics.filter((item) => item.sourceId === 'openbitfun' || item.sourceId.startsWith('openbitfun-'));
+      setSkills(nativeSkills);
+      setDiagnostics(nativeDiagnostics);
       setDiagnosticsAvailable(list.diagnosticsAvailable);
       setGloballyDisabledSkillKeys(new Set(globalSettings.globallyDisabledUserSkillKeys));
 
-      const diagnosticKeys = list.diagnostics
+      const diagnosticKeys = nativeDiagnostics
         .map(({ sourceId, path, message }) => JSON.stringify([sourceId, path, message]))
         .sort();
       const feedbackKey = JSON.stringify([
@@ -107,12 +109,12 @@ export function useInstalledSkills({
       // Gallery focus and tab re-entry refresh the scan; only changed results notify.
       if (lastScanFeedbackKeyRef.current !== feedbackKey) {
         lastScanFeedbackKeyRef.current = feedbackKey;
-        if (list.diagnostics.length > 0) {
-          const message = list.skills.length > 0 ? t('list.scanIncomplete') : t('list.loadFailed');
+        if (nativeDiagnostics.length > 0) {
+          const message = nativeSkills.length > 0 ? t('list.scanIncomplete') : t('list.loadFailed');
           notifyScanWarning(message, {
             title: t('nav.title'),
             metadata: {
-              diagnostics: list.diagnostics
+              diagnostics: nativeDiagnostics
                 .map(({ path, message }) => `${path}: ${message}`)
                 .join('\n'),
             },
@@ -372,7 +374,9 @@ export function useInstalledSkills({
   const filteredSkills = useMemo(() => {
     return skills.filter((skill) => {
       let matchesFilter = true;
-      if (activeFilter !== 'all') {
+      if (activeFilter === 'user' || activeFilter === 'project') {
+        matchesFilter = !skill.isBuiltin && skill.level === activeFilter;
+      } else if (activeFilter !== 'all') {
         matchesFilter = installedSkillGroup(skill) === activeFilter;
       }
 
@@ -394,6 +398,7 @@ export function useInstalledSkills({
       const group = installedSkillGroup(skill);
       counts[group] = (counts[group] ?? 0) + 1;
       if (group.startsWith('source:')) {
+        counts[skill.level] += 1;
         sources.set(group as `source:${string}`, getSkillSourceLabel(skill, t('list.item.unknownSource')));
       }
     }

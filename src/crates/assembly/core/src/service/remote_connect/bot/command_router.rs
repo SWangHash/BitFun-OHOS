@@ -2714,6 +2714,51 @@ async fn handle_question_reply(
     tool_id: String,
     questions: Vec<BotQuestion>,
     current_index: usize,
+    answers: Vec<Value>,
+    awaiting_custom_text: bool,
+    pending_answer: Option<Value>,
+    message: &str,
+    s: &'static BotStrings,
+) -> HandleResult {
+    let interaction = if let Some(target) = state.pending_remote_target.as_ref() {
+        target.start_question_interaction(&tool_id).await
+    } else if let Some(session_id) = state.current_session_id.as_deref() {
+        crate::agentic::tools::user_input_manager::get_user_input_manager()
+            .start_interaction(session_id, &tool_id)
+            .map_err(|error| error.to_string())
+    } else {
+        Err("Question has no associated session".into())
+    };
+    let mut result = handle_question_reply_after_interaction(
+        state,
+        tool_id,
+        questions,
+        current_index,
+        answers,
+        awaiting_custom_text,
+        pending_answer,
+        message,
+        s,
+    )
+    .await;
+    if let Err(error) = interaction {
+        if matches!(
+            state.pending_action,
+            Some(PendingAction::AskUserQuestion { .. })
+        ) {
+            let warning = format!("Question timeout could not be stopped: {error}");
+            result.reply = format!("{warning}\n\n{}", result.reply);
+            result.menu = result.menu.with_body(result.reply.clone());
+        }
+    }
+    result
+}
+
+async fn handle_question_reply_after_interaction(
+    state: &mut BotChatState,
+    tool_id: String,
+    questions: Vec<BotQuestion>,
+    current_index: usize,
     mut answers: Vec<Value>,
     awaiting_custom_text: bool,
     pending_answer: Option<Value>,
@@ -3495,6 +3540,69 @@ fn truncate_at_char_boundary(s: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod parse_command_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn bot_partial_answer_stops_unattended_timeout() {
+        use openbitfun_agent_runtime::user_questions::{
+            get_user_input_manager, PendingUserQuestion,
+        };
+        let manager = get_user_input_manager();
+        let (sender, mut receiver) = tokio::sync::oneshot::channel();
+        let _registration = manager.register_question(
+            PendingUserQuestion::new(
+                "bot-timeout-question",
+                "bot-timeout-session",
+                None,
+                None,
+                serde_json::json!({}),
+            ),
+            sender,
+        );
+        let mut state = BotChatState::new("bot-timeout-chat".into());
+        state.current_session_id = Some("bot-timeout-session".into());
+        let questions = vec![
+            BotQuestion {
+                question: "Choose".into(),
+                header: "Question".into(),
+                multi_select: false,
+                options: vec![BotQuestionOption {
+                    label: "Yes".into(),
+                    description: String::new()
+                }],
+            };
+            2
+        ];
+        let s = strings_for(BotLanguage::EnUS);
+        handle_question_reply(
+            &mut state,
+            "bot-timeout-question".into(),
+            questions,
+            0,
+            vec![],
+            false,
+            None,
+            "1",
+            s,
+        )
+        .await;
+        assert!(
+            manager
+                .pending_question_snapshot("bot-timeout-session")
+                .questions[0]
+                .interaction_started
+        );
+        assert!(matches!(
+            receiver.try_recv(),
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+        ));
+        assert!(matches!(
+            state.pending_action,
+            Some(PendingAction::AskUserQuestion {
+                current_index: 1,
+                ..
+            })
+        ));
+    }
 
     #[test]
     fn remote_picker_prefers_opened_workspaces_and_keeps_bot_mode_separation() {
@@ -4290,6 +4398,12 @@ mod handle_chat_tests {
 
     #[tokio::test]
     async fn remote_turn_reconnects_delivers_interactions_and_reads_original_device_bytes() {
+        for supports_interaction in [true, false] {
+            assert_remote_question_round_trip(supports_interaction).await;
+        }
+    }
+
+    async fn assert_remote_question_round_trip(supports_interaction: bool) {
         use openbitfun_services_integrations::remote_connect::{
             account::AccountSession, device_crypto, encryption,
         };
@@ -4372,6 +4486,15 @@ mod handle_chat_tests {
                                     "active_turn":{"turn_id":"next-turn","status":"active","text":"do not send this"},
                                     "new_messages":[{"id":"accepted-turn_assistant","role":"assistant","status":"done","content":"![image](result.png)"}]})
                             }
+                        }
+                        "get_workspace_info" => serde_json::json!({"resp":"workspace_info", "capabilities":
+                            if supports_interaction { vec!["user_question_interaction_v1"] } else { vec![] }
+                        }),
+                        "start_question_interaction" => {
+                            assert!(supports_interaction);
+                            assert_eq!(command["session_id"], "session-a");
+                            assert_eq!(command["tool_id"], "question-a");
+                            serde_json::json!({"resp":"interaction_accepted", "action":"start_question_interaction", "target_id":"question-a"})
                         }
                         "answer_question" => {
                             assert_eq!(command["tool_id"],"question-a");
@@ -4495,6 +4618,18 @@ mod handle_chat_tests {
                 .count(),
             1
         );
+        let observed = calls.lock().unwrap();
+        let activity = observed
+            .iter()
+            .position(|call| call["cmd"] == "start_question_interaction");
+        let answer = observed
+            .iter()
+            .position(|call| call["cmd"] == "answer_question")
+            .unwrap();
+        assert_eq!(activity.is_some(), supports_interaction);
+        if let Some(activity) = activity {
+            assert!(activity < answer);
+        }
         server.abort();
     }
 

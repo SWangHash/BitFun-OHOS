@@ -105,3 +105,9 @@ also run the focused state contracts:
 ```bash
 pnpm --dir src/web-ui run test:run src/app/services/sessionSceneLifecycle.test.ts src/flow_chat/services/sessionActivation.test.ts src/flow_chat/services/storeSync.test.ts src/app/stores/sceneStore.test.ts
 ```
+
+For ecosystem discovery, import, or compatibility status presentation changes:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/scenes/ecosystem-compatibility
+```

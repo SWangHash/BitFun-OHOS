@@ -126,6 +126,14 @@ Product-source boundary:
   Unsupported capabilities must return diagnostics or typed unsupported states
   instead of failing at runtime on external plugin content.
 
+MCP discovery keeps V1 and V2 parsing in separate private modules. V1 uses
+`mcp.<name>`, recursive field merging and a scalar timeout; V2 uses
+`mcp.servers.<name>`, whole-server replacement, `disabled` and independent
+startup/catalog/execution timeout defaults. Reject mixed-version layers
+explicitly. Keep valid V1 servers named `servers` discoverable. Source disablement
+blocks direct activation, but valid declarations remain eligible for explicit
+native import; OpenBitFun source suppression and revision fencing still apply.
+
 ## Verification
 
 - `cargo test -p openbitfun-opencode-adapter --test opencode_source_adapter`

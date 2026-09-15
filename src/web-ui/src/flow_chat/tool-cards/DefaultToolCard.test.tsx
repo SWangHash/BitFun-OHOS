@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
 
 import { DefaultToolCard } from './DefaultToolCard';
+import { getToolCardConfig } from './toolCardMetadata';
 import type { FlowToolItem, ToolCardConfig } from '../types/flow-chat';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -76,6 +77,33 @@ describe('DefaultToolCard', () => {
       root.unmount();
     });
     vi.unstubAllGlobals();
+  });
+
+  it('keeps cancelled ControlHub details toggleable without a text icon', () => {
+    const toolItem: FlowToolItem = {
+      ...completedWebFetchItem(undefined),
+      toolName: 'ControlHub',
+      status: 'cancelled',
+      toolResult: undefined,
+    };
+
+    act(() => {
+      root.render(<DefaultToolCard toolItem={toolItem} config={getToolCardConfig('ControlHub')} />);
+    });
+
+    for (const [index, expanded] of [false, true, false].entries()) {
+      expect(container.textContent).not.toContain('TOOL');
+      const button = container.querySelector<HTMLButtonElement>(
+        '[data-openbitfun-part="iconAffordanceButton"]',
+      );
+      expect(button).not.toBeNull();
+      expect(button?.getAttribute('aria-expanded')).toBe(String(expanded));
+      if (index < 2) {
+        act(() => {
+          button?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+        });
+      }
+    }
   });
 
   it('does not stringify detailed result payloads while collapsed', () => {

@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "896281a3cd5cac2b50ec607988e04624224444911ddb2d58ba59a5d7d06493c5",
-  "count": 210,
+  "catalogDigest": "124222af073f8c5164b15b625723c0e3b81f0b200e41855cd343ef1f07d5f39b",
+  "count": 211,
   "reasonCounts": {
     "externalAuth": 4,
     "secretEntry": 5,
-    "unstructuredInteraction": 183,
+    "unstructuredInteraction": 184,
     "visualSelection": 18
   },
   "entries": [
@@ -93,7 +93,26 @@
         "command:respond_permission",
         "command:respond_permission_batch",
         "command:subscribe_permission_requests",
-        "command:submit_user_answers"
+        "command:submit_user_answers",
+        "command:start_user_question_interaction"
+      ]
+    },
+    {
+      "capabilityId": "feature.ai-assistant",
+      "itemId": "mcp-mentions",
+      "titleZh": "在对话中通过 @ 选择当前模式可用的 MCP 服务",
+      "titleEn": "Use @ in chat to select MCP servers available to the current mode",
+      "reasonCode": "unstructuredInteraction",
+      "reasonZh": "“在对话中通过 @ 选择当前模式可用的 MCP 服务”需要用户在当前输入框选择服务并编辑草稿，没有可直接完成该交互的结构化 Command。也可通过工具名称或描述搜索所属服务；工具不会单独列出。目录按当前主机、工作区和模式过滤；Minimal 隐藏 MCP 入口。远程工作区暂不支持此选择器，Peer Host 必须协商 chat_mcp_catalog_v1 能力。",
+      "reasonEn": "“Use @ in chat to select MCP servers available to the current mode” requires the user to select a server and edit the current composer draft; no structured Command completes that interaction directly. Tool names and descriptions can find their owning server without separate tool rows. The catalog is scoped to the current host, workspace, and mode; Minimal hides MCP. Remote workspaces are unsupported; Peer Hosts must advertise chat_mcp_catalog_v1.",
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      },
+      "evidence": [
+        "command:get_chat_mcp_catalog",
+        "source:src/web-ui/src/flow_chat/components/ChatContextPicker.tsx#onSelectMcp",
+        "source:src/web-ui/src/flow_chat/components/ChatInput.tsx#selectContextMcp"
       ]
     },
     {
@@ -1567,7 +1586,8 @@
       },
       "evidence": [
         "command:get_external_ecosystem_awareness_command",
-        "command:get_external_source_snapshot"
+        "command:get_external_source_snapshot",
+        "command:get_instruction_source_catalog"
       ]
     },
     {
@@ -1609,11 +1629,11 @@
     {
       "capabilityId": "feature.ecosystem-compatibility",
       "itemId": "subagents",
-      "titleZh": "导入或启用外部 Agent，处理同名冲突并绑定模型",
-      "titleEn": "Import or enable external agents, resolve naming conflicts, and bind models",
+      "titleZh": "启用外部 Agent，处理同名冲突并绑定模型",
+      "titleEn": "Enable external agents, resolve naming conflicts, and bind models",
       "reasonCode": "unstructuredInteraction",
-      "reasonZh": "“导入或启用外部 Agent，处理同名冲突并绑定模型”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
-      "reasonEn": "“Import or enable external agents, resolve naming conflicts, and bind models” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
+      "reasonZh": "“启用外部 Agent，处理同名冲突并绑定模型”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；Agent 会打开精确入口，并把后续交互保留在用户可见界面。",
+      "reasonEn": "“Enable external agents, resolve naming conflicts, and bind models” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "action",
         "actionId": "surface.ecosystemCompatibility.open"
@@ -2652,8 +2672,8 @@
     {
       "capabilityId": "setting.ai.models",
       "itemId": "subscription-auth",
-      "titleZh": "登录、刷新和退出 Codex、Antigravity、Grok、OpenCode、Hermes 等订阅账户",
-      "titleEn": "Sign in, refresh, and sign out of Codex, Antigravity, Grok, OpenCode, Hermes, and other subscription accounts",
+      "titleZh": "登录、刷新和退出 Codex、Antigravity、OpenCode Console（Zen）、Grok、Hermes 等账户",
+      "titleEn": "Sign in, refresh, and sign out of Codex, Antigravity, OpenCode Console (Zen), Grok, Hermes, and other accounts",
       "reasonCode": "externalAuth",
       "reasonZh": "订阅账户登录需要在供应商网页或设备授权流程中确认；Agent 可以打开入口，但不能代替用户完成外部认证。",
       "reasonEn": "Subscription sign-in requires confirmation in a provider web or device-authorization flow; the Agent can open the entry but cannot complete external authentication for the user.",

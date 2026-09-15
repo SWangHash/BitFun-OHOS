@@ -68,12 +68,16 @@ export interface ResetModeSkillSelectionParams {
 }
 
 export interface AddSkillParams {
+  expectedSourceFingerprint?: string;
+  targetName?: string;
+  sourceKey?: string;
   sourcePath: string;
   level: SkillLevel;
   workspacePath?: string;
 }
 
 export interface DeleteSkillParams {
+  expectedImportId?: string;
   skillKey: string;
   workspacePath?: string;
 }
@@ -493,9 +497,9 @@ export class ConfigAPI {
   }
 
    
-  async validateSkillPath(path: string): Promise<SkillValidationResult> {
+  async validateSkillPath(path: string, source?: { sourceKey: string; workspacePath?: string }): Promise<SkillValidationResult> {
     try {
-      return await api.invoke('validate_skill_path', { path });
+      return await api.invoke('validate_skill_path', { path, ...source });
     } catch (error) {
       throw createTauriCommandError('validate_skill_path', error, { path });
     }
@@ -503,12 +507,15 @@ export class ConfigAPI {
 
    
   async addSkill({
+    expectedSourceFingerprint,
+    targetName,
+    sourceKey,
     sourcePath,
     level,
     workspacePath,
   }: AddSkillParams): Promise<string> {
     try {
-      return await api.invoke('add_skill', { sourcePath, level, workspacePath });
+      return await api.invoke('add_skill', { sourcePath, level, workspacePath, ...(sourceKey ? { sourceKey } : {}), ...(targetName ? { targetName } : {}), ...(expectedSourceFingerprint !== undefined ? { expectedSourceFingerprint } : {}) });
     } catch (error) {
       throw createTauriCommandError('add_skill', error, { sourcePath, level, workspacePath });
     }
@@ -516,11 +523,12 @@ export class ConfigAPI {
 
    
   async deleteSkill({
+    expectedImportId,
     skillKey,
     workspacePath,
   }: DeleteSkillParams): Promise<string> {
     try {
-      return await api.invoke('delete_skill', { skillKey, workspacePath });
+      return await api.invoke('delete_skill', { skillKey, workspacePath, ...(expectedImportId ? { expectedImportId } : {}) });
     } catch (error) {
       throw createTauriCommandError('delete_skill', error, { skillKey, workspacePath });
     }

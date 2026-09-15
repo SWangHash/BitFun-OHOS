@@ -86,6 +86,9 @@ public data class ToolCard public constructor(
     public val actions: Set<ToolAction>,
     public val expandable: Boolean,
 ) {
+    public val plan: PlanToolDescriptor?
+        get() = PlanToolPolicy.descriptor(name, input, filePath)
+
     /** Whether a finished tool can join the compact consecutive-activity summary. */
     public val foldIntoSummary: Boolean
         get() {
@@ -300,16 +303,18 @@ internal fun toolCard(tool: RemoteToolStatusResponse): ToolCard {
         }
     }
     val file = ToolInputPolicy.fileTarget(tool)
+    val planInput = tool.plan?.toString() ?: ToolStatusPolicy.inputText(tool)
+    val plan = PlanToolPolicy.descriptor(if (tool.plan != null) "CreatePlan" else tool.name.orEmpty(), planInput, file?.path.orEmpty())
     return ToolCard(
         id = tool.id.orEmpty(),
-        name = tool.name.orEmpty(),
+        name = if (tool.plan != null) "CreatePlan" else tool.name.orEmpty(),
         phase = toolPhase(tool),
         kind = toolKind(tool),
         operation = toolOperation(tool),
         target = ToolInputPolicy.summary(tool),
-        filePath = file?.path.orEmpty(),
+        filePath = plan?.path ?: file?.path.orEmpty(),
         fileLabel = file?.label.orEmpty(),
-        input = ToolStatusPolicy.inputText(tool),
+        input = planInput,
         output = ToolStatusPolicy.outputText(tool),
         question = question,
         questions = questions,

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MCPAPI } from './MCPAPI';
+import { globalEventBus } from '@/infrastructure/event-bus';
+import { MCP_CONFIG_CHANGED } from '@/infrastructure/mcp/configEvents';
 
 const invokeMock = vi.hoisted(() => vi.fn());
-const scopeMock = vi.hoisted(() => ({ assertCurrent: vi.fn() }));
+const scopeMock = vi.hoisted(() => ({ surfaceId: 'local', assertCurrent: vi.fn() }));
 vi.mock('./ApiClient', () => ({ api: { invoke: invokeMock } }));
 vi.mock('@/infrastructure/peer-device/deviceSurface', () => ({
   getActiveSurfaceScope: () => scopeMock,
@@ -10,6 +12,71 @@ vi.mock('@/infrastructure/peer-device/deviceSurface', () => ({
 
 describe('MCP JSON save acknowledgement', () => {
   beforeEach(() => { invokeMock.mockReset(); scopeMock.assertCurrent.mockReset(); });
+
+  it('enables one imported server with CAS and preserves origin, secrets and unrelated settings', async () => {
+    const config = { mcpServers: {
+      imported: { enabled: false, autoStart: false, env: { TEST_KEY: 'private-value' }, _openbitfunImport: { sourceCandidateId: 'codex:mcp' }, futureOption: 3 },
+      other: { enabled: false, command: 'other' },
+    }, futureRoot: true };
+    invokeMock.mockResolvedValueOnce({ jsonConfig: JSON.stringify(config), fingerprint: 'before-enable' }).mockResolvedValueOnce(undefined);
+    await expect(MCPAPI.enableServer('imported')).resolves.toEqual({ runtimeApplied: true });
+    const saved = invokeMock.mock.calls[1];
+    expect(saved[0]).toBe('save_mcp_json_config');
+    expect(saved[1].expectedFingerprint).toBe('before-enable');
+    expect(JSON.parse(saved[1].jsonConfig)).toEqual({ ...config, mcpServers: { ...config.mcpServers, imported: { ...config.mcpServers.imported, enabled: true } } });
+    expect(invokeMock.mock.calls.map(call => call[0])).not.toContain('start_mcp_server');
+  });
+
+  it('does not recreate a removed server or write to a changed host while enabling', async () => {
+    invokeMock.mockResolvedValueOnce({ jsonConfig: '{"mcpServers":{}}', fingerprint: 'current' });
+    await expect(MCPAPI.enableServer('removed')).rejects.toThrow('unavailable');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    invokeMock.mockClear();
+    invokeMock.mockResolvedValueOnce({ jsonConfig: '{"mcpServers":{"imported":{"enabled":false}}}', fingerprint: 'current' });
+    scopeMock.assertCurrent.mockImplementationOnce(() => { throw new Error('Surface changed'); });
+    await expect(MCPAPI.enableServer('imported')).rejects.toThrow('Surface changed');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies cached lists only for acknowledged persistence, including pending runtime cleanup', async () => {
+    const changed = vi.fn();
+    const unsubscribe = globalEventBus.on(MCP_CONFIG_CHANGED, changed);
+    try {
+      invokeMock.mockResolvedValueOnce(undefined);
+      await MCPAPI.saveMCPJsonConfig('{}', 'revision');
+      expect(changed).toHaveBeenCalledWith({ surfaceId: 'local' });
+      changed.mockClear();
+      invokeMock.mockRejectedValueOnce('MCP configuration changed; reload before saving');
+      await expect(MCPAPI.saveMCPJsonConfig('{}', 'revision')).rejects.toBeDefined();
+      expect(changed).not.toHaveBeenCalled();
+      invokeMock.mockRejectedValueOnce('MCP config was saved, but runtime reconciliation failed: offline');
+      await MCPAPI.saveMCPJsonConfig('{}', 'revision');
+      expect(changed).toHaveBeenCalledTimes(1);
+    } finally { unsubscribe(); }
+  });
+
+  it('publishes native MCP deletions only after acknowledged writes on the same host', async () => {
+    const changed = vi.fn();
+    const unsubscribe = globalEventBus.on(MCP_CONFIG_CHANGED, changed);
+    try {
+      let finish!: () => void;
+      invokeMock.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+      const deleting = MCPAPI.deleteServer({ serverId: 'imported-copy' });
+      expect(changed).not.toHaveBeenCalled();
+      finish();
+      await deleting;
+      expect(invokeMock).toHaveBeenCalledWith('delete_mcp_server', { request: { serverId: 'imported-copy' } });
+      expect(changed).toHaveBeenCalledExactlyOnceWith({ surfaceId: 'local' });
+      changed.mockClear();
+      invokeMock.mockRejectedValueOnce(new Error('Delete failed'));
+      await expect(MCPAPI.deleteServer({ serverId: 'kept-copy' })).rejects.toThrow('Delete failed');
+      expect(changed).not.toHaveBeenCalled();
+      invokeMock.mockResolvedValueOnce(undefined);
+      scopeMock.assertCurrent.mockImplementationOnce(() => { throw new Error('Surface changed'); });
+      await expect(MCPAPI.deleteServer({ serverId: 'previous-device-copy' })).rejects.toThrow('Surface changed');
+      expect(changed).not.toHaveBeenCalled();
+    } finally { unsubscribe(); }
+  });
 
   it('accepts the existing void success response', async () => {
     invokeMock.mockResolvedValue(undefined);

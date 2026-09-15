@@ -19,6 +19,23 @@ impl RemoteBotTarget {
         serde_json::from_str(&reply).map_err(|e| e.to_string())
     }
 
+    pub async fn start_question_interaction(&self, tool_id: &str) -> Result<(), String> {
+        let info = self.rpc(json!({"cmd": "get_workspace_info"})).await?;
+        if !info["capabilities"].as_array().is_some_and(|capabilities| {
+            capabilities.iter().any(|value| {
+                value.as_str()
+                    == Some(crate::remote_connect::REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1)
+            })
+        }) {
+            return Err("Execution host does not support stopping the question timeout".into());
+        }
+        let reply = self.rpc(json!({"cmd": "start_question_interaction", "session_id": self.session_id, "tool_id": tool_id})).await?;
+        if reply["resp"] != "interaction_accepted" {
+            return Err("Execution host did not acknowledge question interaction".into());
+        }
+        Ok(())
+    }
+
     pub async fn poll(&self, version: u64) -> Result<Value, String> {
         self.rpc_response(json!({"cmd":"poll_session","session_id":self.session_id,"since_version":version,"known_msg_count":0})).await
     }

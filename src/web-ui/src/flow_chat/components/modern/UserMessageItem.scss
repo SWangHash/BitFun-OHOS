@@ -207,7 +207,7 @@
 .user-message-item__copy-btn,
 .user-message-item__edit-btn,
 .user-message-item__rollback-btn {
-  // Align with the IconButton ghost variant.
+  // Keep the message action feedback and original pending indicator.
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -226,6 +226,18 @@
   align-self: center;
   outline: none;
   user-select: none;
+
+  &::before { content: none; }
+
+  > [data-openbitfun-part='icon'] {
+    --openbitfun-opacity-icon-artwork: inherit;
+    display: contents;
+  }
+
+  > :where([data-openbitfun-part='icon']) > :where(svg, [data-openbitfun-component='icon']) {
+    inline-size: 14px;
+    block-size: 14px;
+  }
 
   &:hover:not(:disabled) {
     background: transparent;

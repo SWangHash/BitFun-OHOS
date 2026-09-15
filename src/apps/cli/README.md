@@ -219,6 +219,25 @@ the limit is enforced at the stdin reader. stdin EOF is a deterministic
 disconnect: the Host cancels in-flight turns and exits. `app/initialize`
 advertises only the methods this Host actually serves.
 
+### Publishing Pages
+
+After `/login`, Standard and Claw sessions can use `PagePublish` to save page
+content and optionally publish it, and `PageDeploy` to deploy or roll back to a
+saved version. The tools appear only while the executing CLI Runtime has an
+account session. Existing tool permissions still apply; unattended `exec` and
+dispatch runs use their configured approval policy.
+
+The CLI restores its saved account session at startup, including for `exec` and
+Shared Runtime hosts. Shared TUI account login remains unsupported: sign in
+through an embedded TUI before starting the Shared Runtime. Login changes in a
+separate process require restarting the executing Runtime.
+
+Inline files work without a local workspace. Directory uploads read only a
+local workspace on the executing host; remote workspace directory uploads are
+rejected, so supply inline files instead. Publishing returns production and
+preview URLs; private pages still require account access in the browser. The
+CLI does not add a Pages management screen or Peer HostInvoke page commands.
+
 ### Always-on account device host
 
 After signing in with `/login`, a server can keep its account device route

@@ -40,6 +40,7 @@ openbitfun-core = { path = "../../crates/assembly/core", features = [
     "plugin-runtime",
     "opencode-plugin-host",
     "ssh-remote",
+    "tools-pages",
     "tools-basic",
     "tools-git",
     "tools-mcp",

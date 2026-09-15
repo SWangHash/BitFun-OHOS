@@ -3,6 +3,7 @@ import { isExpectedTauriRequestError, TauriTransportAdapter } from './tauri-adap
 import {
   beginRuntimeSessionAttachment,
   resetRuntimeSessionEventGateForTest,
+  isRuntimeSessionProjectionStale,
   RUNTIME_EVENT_CURSOR_KEY,
   RUNTIME_EVENT_STREAM_ID_KEY,
 } from '@/infrastructure/peer-device/runtimeSessionEventGate';
@@ -168,7 +169,28 @@ describe('Tauri adapter expected errors', () => {
     expect(underlyingUnlisten).toHaveBeenCalledOnce();
   });
 
-  it('releases a held event to the subscribers that owned it on arrival', async () => {
+  it('rejects delayed source-device events after the rendered device changes', async () => {
+    let nativeEvent: (event: { payload: unknown }) => void = () => {};
+    listenMock.mockImplementation(async (_event: string, handler: typeof nativeEvent) => {
+      nativeEvent = handler;
+      return vi.fn();
+    });
+    const adapter = new TauriTransportAdapter();
+    const delivered = vi.fn();
+    const unlisten = adapter.listen('agentic://text-chunk', delivered);
+    await adapter.waitForListenerRegistrations();
+    const attachment = beginRuntimeSessionAttachment('local', 'same-session');
+    nativeEvent({ payload: { sessionId: 'same-session', text: 'local-secret',
+      [RUNTIME_EVENT_STREAM_ID_KEY]: 'local-runtime', [RUNTIME_EVENT_CURSOR_KEY]: 2 } });
+    setActiveSurfaceDeviceId('peer-b');
+    attachment.finish({ streamId: 'local-runtime', cursor: 1 });
+    expect(delivered).not.toHaveBeenCalled();
+    expect(isRuntimeSessionProjectionStale('local', 'same-session')).toBe(true);
+    unlisten();
+    await adapter.disconnect();
+  });
+
+  it('does not release a held event to unsubscribed or replacement listeners', async () => {
     const handlers = new Map<string, (event: { payload: unknown }) => void>();
     listenMock.mockImplementation(async (event: string, handler: (event: { payload: unknown }) => void) => {
       handlers.set(event, handler);
@@ -197,12 +219,9 @@ describe('Tauri adapter expected errors', () => {
     await secondAdapter.waitForListenerRegistrations();
 
     attachment.finish({ streamId: 'runtime-1', cursor: 1 });
-    expect(first).toHaveBeenCalledOnce();
-    expect(first).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      text: 'held',
-    });
+    expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
+    expect(isRuntimeSessionProjectionStale('local', 'session-1')).toBe(true);
 
     unlistenSecond();
   });

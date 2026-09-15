@@ -963,6 +963,8 @@ async fn initialize_core_services_for_deployment(
         workspace_root,
         approval_policy,
     )?);
+    // Restore on the executing host for TUI, exec, Shared and detached jobs alike.
+    runtime.account_runtime().try_restore_session().await;
     debug_assert!(runtime
         .product()
         .service_availability()
@@ -1072,12 +1074,13 @@ async fn run_interactive(
     let account_runtime = runtime
         .as_ref()
         .map(|runtime| runtime.account_runtime().clone());
-    // 3.5 Restore persisted account session (if any)
+    // 3.5 Start device routing for the account restored by Runtime startup
     if !shared {
         let runtime = runtime
             .as_ref()
             .expect("Embedded account startup requires the CLI Runtime");
-        if let Some(user_id) = runtime.account_runtime().try_restore_session().await {
+        if let Ok(account_info) = runtime.account_runtime().account_info().await {
+            let user_id = account_info.user_id;
             tracing::info!("Restored account session for user {user_id}");
             if daemon::is_daemon_running() {
                 tracing::info!(

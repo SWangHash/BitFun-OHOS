@@ -18,9 +18,9 @@ pub mod manifest_resolver;
 pub(crate) mod miniapp_context_runtime;
 pub mod openbitfun_control_config;
 pub mod openbitfun_control_host;
-#[cfg(feature = "tools-miniapp")]
+#[cfg(feature = "tools-pages")]
 pub mod page_deploy_host;
-#[cfg(feature = "tools-miniapp")]
+#[cfg(feature = "tools-pages")]
 pub mod page_publish_host;
 pub mod pipeline;
 #[cfg(feature = "plugin-runtime")]

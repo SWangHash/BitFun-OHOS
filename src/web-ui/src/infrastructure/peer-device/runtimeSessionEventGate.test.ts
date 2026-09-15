@@ -1,7 +1,9 @@
+import { discardSessionStreams } from '@/flow_chat/session-stream/SessionStream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   beginRuntimeSessionAttachment,
   isRuntimeSessionProjectionStale,
+  isRuntimeSessionAttachmentInFlight,
   markRuntimeSessionProjectionStale,
   readRuntimeSessionProgress,
   resetRuntimeSessionEventGateForTest,
@@ -9,6 +11,7 @@ import {
   RUNTIME_EVENT_CURSOR_KEY,
   RUNTIME_EVENT_STREAM_ID_KEY,
   subscribeRuntimeSessionEventGaps,
+  subscribeRuntimeSessionAttachmentFinished,
 } from './runtimeSessionEventGate';
 
 function payload(sessionId: string, streamId: string, cursor: number, text: string) {
@@ -25,6 +28,55 @@ afterEach(() => {
 });
 
 describe('runtimeSessionEventGate', () => {
+  it.each(['finish', 'abort', 'discard'] as const)('ends the attachment fence after %s and ignores repeated completion', (mode) => {
+    const attachment = beginRuntimeSessionAttachment('local', 'session');
+    const delivered = vi.fn();
+    routeRuntimeSessionEvent('local', 'agentic://text-chunk', payload('session', 'a', 2, 'held'), delivered);
+    expect(isRuntimeSessionAttachmentInFlight('local', 'session')).toBe(true);
+    if (mode === 'finish') attachment.finish({ streamId: 'a', cursor: 1 });
+    else attachment.abort({ discard: mode === 'discard' });
+    expect(attachment.isCurrent()).toBe(false);
+    expect(isRuntimeSessionAttachmentInFlight('local', 'session')).toBe(false);
+    expect(delivered).toHaveBeenCalledTimes(mode === 'discard' ? 0 : 1);
+    const before = readRuntimeSessionProgress('local', 'session');
+    attachment.finish({ streamId: 'a', cursor: 99 });
+    expect(readRuntimeSessionProgress('local', 'session')).toEqual(before);
+    if (mode === 'discard') expect(isRuntimeSessionProjectionStale('local', 'session')).toBe(true);
+  });
+
+  it('isolates a disposed attachment from a new connection to the same device', () => {
+    const disposed = beginRuntimeSessionAttachment('peer-a', 'session');
+    discardSessionStreams('peer-a');
+    const reconnected = beginRuntimeSessionAttachment('peer-a', 'session');
+    disposed.abort({ discard: true });
+    expect(disposed.isCurrent()).toBe(false);
+    expect(isRuntimeSessionAttachmentInFlight('peer-a', 'session')).toBe(true);
+    reconnected.finish({ streamId: 'new-host', cursor: 1 });
+    expect(isRuntimeSessionAttachmentInFlight('peer-a', 'session')).toBe(false);
+  });
+
+  it('notifies queue consumers only after a healthy attachment is closed', () => {
+    const finished = vi.fn(() => expect(isRuntimeSessionAttachmentInFlight('local', 'session')).toBe(false));
+    const unsubscribe = subscribeRuntimeSessionAttachmentFinished(finished);
+    const obsolete = beginRuntimeSessionAttachment('local', 'session');
+    const current = beginRuntimeSessionAttachment('local', 'session');
+    obsolete.abort({ discard: true });
+    expect(current.isCurrent()).toBe(true);
+    current.finish({ streamId: 'a', cursor: 2 }, { projectionCaughtUp: false });
+    expect(finished).not.toHaveBeenCalled();
+    beginRuntimeSessionAttachment('local', 'session').finish({ streamId: 'a', cursor: 2 });
+    expect(finished).toHaveBeenCalledExactlyOnceWith('local', 'session');
+    unsubscribe();
+  });
+
+  it('does not let a superseded failed read poison a newer successful attachment', () => {
+    const old = beginRuntimeSessionAttachment('local', 'session');
+    const current = beginRuntimeSessionAttachment('local', 'session');
+    current.finish({ streamId: 'a', cursor: 5 });
+    old.finish({ streamId: 'a', cursor: 4 }, { projectionCaughtUp: false });
+    expect(isRuntimeSessionProjectionStale('local', 'session')).toBe(false);
+  });
+
   it('strips cursor metadata on the ordinary live path', () => {
     const delivered = vi.fn();
     routeRuntimeSessionEvent(

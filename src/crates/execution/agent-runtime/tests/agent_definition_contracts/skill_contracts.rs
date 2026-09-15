@@ -25,6 +25,7 @@ fn builtin_skill(dir_name: &str) -> SkillInfo {
         source_id: "openbitfun".to_string(),
         source_label: "OpenBitFun".to_string(),
         installation_source: None,
+        import_origin: None,
         entry_file: None,
         dir_name: dir_name.to_string(),
         is_builtin: true,
@@ -49,6 +50,7 @@ fn custom_user_skill(dir_name: &str) -> SkillInfo {
         source_id: "openbitfun".to_string(),
         source_label: "OpenBitFun".to_string(),
         installation_source: None,
+        import_origin: None,
         entry_file: None,
         dir_name: dir_name.to_string(),
         is_builtin: false,
@@ -74,6 +76,62 @@ fn skill_installation_source_is_optional_for_legacy_payloads_and_round_trips() {
     let current: SkillInfo =
         serde_json::from_value(serde_json::to_value(decoded).unwrap()).unwrap();
     assert_eq!(current.installation_source.as_deref(), Some("first/skills"));
+}
+
+#[test]
+fn import_origin_round_trips_without_changing_native_ownership_or_legacy_payloads() {
+    let legacy = serde_json::to_value(custom_user_skill("demo")).unwrap();
+    assert!(legacy.get("importOrigin").is_none());
+    let mut skill: SkillInfo = serde_json::from_value(legacy.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&skill).unwrap(), legacy);
+    skill.import_origin = Some(openbitfun_agent_runtime::skills::SkillImportOrigin {
+        schema_version: 1,
+        import_id: "import-1".into(),
+        source_key: "user::home.claude::demo".into(),
+        source_path: "/external/demo".into(),
+        source_id: "claude-code".into(),
+        source_label: "Claude Code".into(),
+        source_slot: "home.claude".into(),
+        fingerprint: "fixture-hash".into(),
+    });
+    let decoded: SkillInfo = serde_json::from_value(serde_json::to_value(&skill).unwrap()).unwrap();
+    assert_eq!(decoded.import_origin, skill.import_origin);
+    assert_eq!(decoded.source_id, "openbitfun");
+    assert_eq!(decoded.parser_source_slot(), "home.claude");
+    assert!(decoded.is_native());
+}
+
+#[test]
+fn native_ownership_rejects_discovery_sources_and_honors_legacy_slots() {
+    for source in [
+        "claude-code",
+        "codex",
+        "cursor",
+        "opencode",
+        "agent-skills",
+        "deepseek-harness",
+        "pi",
+    ] {
+        let mut skill = custom_user_skill("external");
+        skill.source_id = source.into();
+        assert!(!skill.is_native(), "{source}");
+    }
+    for (slot, expected) in [
+        ("openbitfun", true),
+        ("openbitfun-system", true),
+        ("home.claude", false),
+        ("codex", false),
+    ] {
+        let mut legacy = serde_json::to_value(custom_user_skill("legacy")).unwrap();
+        legacy.as_object_mut().unwrap().remove("sourceId");
+        legacy.as_object_mut().unwrap().remove("sourceLabel");
+        legacy["sourceSlot"] = slot.into();
+        let decoded: SkillInfo = serde_json::from_value(legacy).unwrap();
+        assert_eq!(decoded.is_native(), expected, "{slot}");
+        let round_trip: SkillInfo =
+            serde_json::from_value(serde_json::to_value(decoded).unwrap()).unwrap();
+        assert_eq!(round_trip.is_native(), expected);
+    }
 }
 
 #[test]
@@ -366,6 +424,7 @@ fn project_skill(dir_name: &str) -> SkillInfo {
         source_id: "openbitfun".to_string(),
         source_label: "OpenBitFun".to_string(),
         installation_source: None,
+        import_origin: None,
         entry_file: None,
         dir_name: dir_name.to_string(),
         is_builtin: false,

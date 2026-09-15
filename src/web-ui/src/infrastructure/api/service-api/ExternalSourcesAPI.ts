@@ -1,4 +1,6 @@
 import { api } from './ApiClient';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { notifyMcpConfigChanged } from '@/infrastructure/mcp/configEvents';
 import { globalEventBus } from '@/infrastructure/event-bus';
 
 export type ExternalSourceScope =
@@ -1329,12 +1331,13 @@ export const externalSourcesAPI = {
     );
   },
 
-  applyMcpImport(
+  async applyMcpImport(
     workspacePath: string | undefined,
     plan: ExternalMcpImportPlanV1,
     selections: ExternalMcpImportSelectionV1[],
   ) {
-    return invokeExternalSourceCommand<ExternalMcpImportApplyResultV1>(
+    const scope = getActiveSurfaceScope();
+    const result = await invokeExternalSourceCommand<ExternalMcpImportApplyResultV1>(
       'apply_external_mcp_import_command',
       {
         request: {
@@ -1347,6 +1350,9 @@ export const externalSourcesAPI = {
         },
       },
     );
+    scope.assertCurrent('confirm MCP import');
+    if (result.outcome.status === 'applied') notifyMcpConfigChanged(scope);
+    return result;
   },
 
   async getControlSnapshot(workspacePath?: string, forceRefresh = false) {

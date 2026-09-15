@@ -363,7 +363,9 @@ export struct ComposerBar {
           top: this.isComposerExpanded() ? 10 : 0,
           bottom: this.isComposerExpanded() ? 8 : 0
         })
-        .maxLines(this.isComposerExpanded() ? 4 : 1)
+        // Limit the viewport, not the editable text; keep overflow scrollable.
+        .textOverflow(TextOverflow.Clip)
+        .maxLines(this.isComposerExpanded() ? 4 : 1, { overflowMode: MaxLinesMode.SCROLL })
         .defaultFocus(false)
         .onFocus(() => {
           this.inputFocused = true;

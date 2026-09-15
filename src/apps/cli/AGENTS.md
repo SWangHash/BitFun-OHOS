@@ -38,7 +38,7 @@ Normal interactive submissions follow:
 ChatView / StartupPage
   -> CliAgentRuntimeClient
      -> Embedded AgentRuntime typed API
-     -> Shared private Runtime IPC v17
+     -> Shared private Runtime IPC v18
   -> existing owner/service APIs
      -> ConfigService / registries / MCPService / AccountRuntime / WorktreeService
      -> External Source and Hook domain APIs
@@ -107,7 +107,9 @@ restrictions remain enforced.
   parts. Hiding a command is not a backend capability restriction.
 - The CLI selects the reviewed `openbitfun-core` owner-feature closure
   (`agent-runtime`, `external-sources`, `plugin-runtime`, `remote-connect`, and
-  `ssh-remote`) plus the Code Agent atomic tool owners. It must not register
+  `ssh-remote`) plus the Code Agent atomic tool owners and the independent
+  `tools-pages` owner. Pages binds to the executing host's AccountRuntime;
+  controller-local account state must not enable remote tools. It must not register
   DeepReview, DeepResearch, MiniApp, or Canvas agents/tools. Do not replace the
   closure with `product-full` or a CLI-named umbrella; add a Core feature only
   when a production CLI path consumes that owner.
@@ -140,6 +142,7 @@ Run the smallest checks matching the changed path:
 ```bash
 cargo check -p openbitfun-cli
 cargo test -p openbitfun-cli
+cargo test -p openbitfun-cli --bin openbitfun peer_host::
 cargo test -p openbitfun-cli --bin openbitfun system_info_home_contract
 ```
 
@@ -158,3 +161,7 @@ owners' commands into this guide.
 Use [`README.md`](README.md) for user-facing behavior and installation. Keep
 developer internals here or in architecture docs instead of expanding the user
 guide.
+
+For unattended question lifecycle changes, run `cargo test --locked -p openbitfun-cli --bin openbitfun shared_runtime::` and `cargo test --locked -p openbitfun-agent-runtime-ipc protocol_contract_tests::`.
+
+For Pages account adapters, use the focused Core command in its guide and `cargo check -p openbitfun-cli`.

@@ -136,7 +136,7 @@ describe('ConfigCollectionItem', () => {
     act(() => {
       root.render(
         <ConfigCollectionItem
-          label="Model A"
+          label={<span>Model A</span>}
           control={<button type="button">Edit</button>}
           details={<span>Model details</span>}
           toggleOnRowClick
@@ -151,6 +151,15 @@ describe('ConfigCollectionItem', () => {
     const toggle = container.querySelector<HTMLButtonElement>('.openbitfun-collection-item__details-toggle');
 
     expect(row?.classList.contains('openbitfun-collection-item__row--toggleable')).toBe(true);
+    expect(document.getElementById(toggle!.getAttribute('aria-labelledby')!)?.textContent).toBe('Model A');
+
+    // A click on the nested icon must toggle once, without toggling the row again.
+    act(() => {
+      toggle?.querySelector('svg')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
 
     act(() => {
       control?.click();

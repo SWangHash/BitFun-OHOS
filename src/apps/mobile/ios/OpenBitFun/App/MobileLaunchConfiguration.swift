@@ -69,6 +69,20 @@ enum MobileLaunchConfiguration {
         if arguments.contains("--timeline-preview") {
             model.configureTimelinePreview()
         }
+        if arguments.contains("--plan-preview") {
+            model.configureConnectedPreview()
+            let plan = MobileTimelineTool(
+                id: "preview-plan", name: "CreatePlan", phase: "COMPLETED", kind: "DOCUMENT",
+                operation: "WRITE_FILE", target: "parity.plan.md", filePath: "/workspace/parity.plan.md",
+                fileLabel: "parity.plan.md", input: "", output: "", question: nil, questions: [], actions: [],
+                planPath: "/workspace/parity.plan.md", planName: "Mobile parity", planOverview: "Review the three native clients."
+            )
+            model.timelineRows = [MobileConversationRow(
+                id: "preview-plan-row", kind: "ASSISTANT", text: "", thinking: nil, images: [], tools: [plan],
+                blocks: [.tools(id: "preview-plan-tools", tools: [plan])], streaming: false, typing: false,
+                pending: false, showRetry: false, error: nil
+            )]
+        }
         if arguments.contains("--file-preview") {
             model.filePreview = MobileFilePreview(
                 id: "src/main.rs",
@@ -77,6 +91,8 @@ enum MobileLaunchConfiguration {
                 mimeType: "text/x-rust",
                 imageData: nil,
                 truncated: false,
+                lineStart: 2,
+                lineEnd: 3,
                 failure: nil
             )
         }

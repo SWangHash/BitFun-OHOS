@@ -992,6 +992,16 @@
     "currentStatus": "Current status: {{status}}"
   },
   "contextPicker": {
+    "mcp": {
+      "label": "MCP",
+      "server": "MCP server",
+      "empty": "No connected MCP tools are available in this mode. Enable and start a server in MCP settings.",
+      "modeRestricted": "This mode does not expose the connected MCP tools. Switch to Standard, Ultimate, or Creative to use them.",
+      "loadFailed": "Could not load MCP tools. Retry to refresh the catalog.",
+      "refresh": "Refresh MCP tools",
+      "remoteWorkspace": "MCP selection is not supported for remote workspaces yet.",
+      "unsupportedHost": "This host does not support MCP selection. Update the host to use it."
+    },
     "skillsIncomplete": "Some skills could not be scanned. Available skills are still listed.",
     "skillsDiagnosticsUnavailable": "This host does not report skill scan diagnostics.",
     "menuTitle": "Choose context",
@@ -1298,7 +1308,8 @@
       "emptyWorkspace": "There are no workspace changes to review.",
       "emptyExplicitScope": "The requested files or directories contain no workspace changes.",
       "missingExplicitScope": "The requested file or directory does not exist in the current workspace.",
-      "unresolvedTarget": "The Review target could not be prepared as bounded evidence. Open its workspace or narrow the target and try again.",
+      "unresolvedTarget": "The files or code diff could not be read for Review. Check that the corresponding workspace is open and the target is valid, and see the logs for the specific error.",
+      "notGitRepository": "No Git repository was found in the current workspace. Review requires a Git repository with an existing commit. Open such a project and try again.",
       "repositoryUntrusted": "Git will not read this repository because the folder is owned by another user. Trust the folder when prompted, then start Review again.",
       "uncertain": "The Review request may already be running. Its session was preserved so you can inspect or retry it safely.",
       "unknown": "Review launch failed. Please retry."
@@ -1601,6 +1612,7 @@
     "roundHistoryShow": "Show {{count}} previous retry rounds",
     "roundHistoryHide": "Hide previous retry rounds",
     "roundRetryLabel": "Retry {{index}}",
+    "continued": "Continued",
     "retryHistoryShow": "Show {{count}} previous attempts",
     "retryHistoryHide": "Hide retry history",
     "attemptLabel": "Attempt {{index}}",
@@ -1877,6 +1889,7 @@
       "interruptedByRetry": "This attempt was superseded by a newer retry in the same response"
     },
     "askUser": {
+      "interactionFailed": "Could not stop the question timeout on the execution device. Submit promptly or update that device.",
       "completed": "Completed",
       "submittedWaiting": "Submitted, waiting for processing",
       "submitting": "Submitting...",
@@ -1888,7 +1901,7 @@
       "submit": "Submit",
       "questionsAnswered": "{{count}} questions answered",
       "notAnswered": "Not answered",
-      "timeout": "Timeout (10 minutes)",
+      "timeout": "No response; question skipped",
       "parseError": "Unable to parse question data",
       "loadingQuestions": "Receiving questions…",
       "other": "Other",

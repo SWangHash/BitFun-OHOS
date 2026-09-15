@@ -5,7 +5,13 @@ public data class RecentWorkspace public constructor(
     public val name: String,
     public val lastOpened: String,
     public val kind: String,
-)
+    public val remoteSshHost: String?,
+) {
+    public constructor(path: String, name: String, lastOpened: String, kind: String) :
+        this(path, name, lastOpened, kind, null)
+    public val displayName: String
+        get() = remoteSshHost?.trim()?.takeIf { it.isNotEmpty() }?.let { "$name · $it" } ?: name
+}
 
 public data class WorkspaceAssistant public constructor(
     public val path: String,

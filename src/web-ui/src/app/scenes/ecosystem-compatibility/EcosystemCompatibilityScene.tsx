@@ -15,16 +15,14 @@ import {
   StatusPill,
   Switch,
   Textarea,
-  type IconSource,
   type StatusPillTone,
 } from '@openbitfun/ui';
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, CircleUserRound, Network, Package, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
+import { Bot, Network } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import {
   externalSourcesAPI,
-  type ExternalMcpImportPlanV1,
   type ExternalSourceCatalogSnapshot,
 } from '@/infrastructure/api/service-api/ExternalSourcesAPI';
 import {
@@ -33,26 +31,22 @@ import {
 } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { useNotification } from '@/shared/notification-system';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { isTauriRuntime } from '@/infrastructure/runtime';
 import { WorkspaceKind } from '@/shared/types';
 import {
-  buildEcosystemImportItems,
   buildEcosystemProductRuntimes,
   totalDiscoveredAssets,
-  type EcosystemImportItem,
-  type EcosystemImportItemKind,
   type EcosystemProductId,
   type EcosystemProductRuntime,
 } from './ecosystemCompatibilityModel';
+import ExternalAgentContent from './ExternalAgentContent';
 import { useEcosystemCompatibilityStore } from './ecosystemCompatibilityStore';
 import './EcosystemCompatibilityScene.scss';
 
 const AcpAgentsConfig = lazy(
   () => import('@/infrastructure/config/components/AcpAgentsConfig'),
 );
-const ExternalSourcesConfig = lazy(
-  () => import('@/infrastructure/config/components/ExternalSourcesConfig'),
-);
-
+const ExternalAgentDiscovery = lazy(() => import('./ExternalAgentDiscovery'));
 const PRODUCT_ICON_SOURCES: Record<EcosystemProductId, string> = {
   'claude-code': '/assets/ecosystem-compatibility/claude-code.svg',
   codex: '/assets/ecosystem-compatibility/codex.svg',
@@ -78,20 +72,6 @@ function EcosystemProductIcon({ productId, size }: {
   );
 }
 
-const IMPORT_ITEM_ICONS: Record<EcosystemImportItemKind, IconSource> = {
-  account: { glyph: CircleUserRound },
-  settings: { name: 'settings' },
-  command: { name: 'command-mac' },
-  tool: { glyph: Wrench },
-  subagent: { glyph: Bot },
-  skill: { glyph: Package },
-  mcp: { glyph: Server },
-  hook: { glyph: Webhook },
-  memory: { name: 'thinking' },
-  plugin: { name: 'extension' },
-  pet: { glyph: PawPrint },
-};
-
 const GROUP_ORDER = ['connected', 'available', 'other'] as const;
 const PRODUCT_STATUS_TONES: Record<EcosystemProductRuntime['status'], StatusPillTone> = {
   connected: 'success',
@@ -102,31 +82,6 @@ const PRODUCT_STATUS_TONES: Record<EcosystemProductRuntime['status'], StatusPill
 };
 
 type LoadIssue = 'externalSources' | 'acpClients';
-type ImportItemState =
-  | 'ready'
-  | 'readyRename'
-  | 'checking'
-  | 'imported'
-  | 'reusable'
-  | 'adapted'
-  | 'notDetected'
-  | 'notAdapted'
-  | 'unsupportedContext'
-  | 'unavailable';
-
-const IMPORT_STATE_TONES: Record<ImportItemState, StatusPillTone> = {
-  ready: 'success',
-  readyRename: 'success',
-  checking: 'info',
-  imported: 'success',
-  reusable: 'success',
-  adapted: 'success',
-  notDetected: 'neutral',
-  notAdapted: 'neutral',
-  unsupportedContext: 'warning',
-  unavailable: 'warning',
-};
-
 interface AcpSubagentDraft {
   enabled: boolean;
   description: string;
@@ -152,12 +107,22 @@ const EcosystemCompatibilityScene: React.FC = () => {
   const notification = useNotification();
   const { workspace, workspacePath } = useCurrentWorkspace();
   const peerDevice = usePeerDeviceModeOptional();
+  const peerDeviceId = peerDevice?.peerMode.active ? peerDevice.peerMode.deviceId : undefined;
+  const requestScope = JSON.stringify([peerDeviceId, workspace?.id, workspace?.workspaceKind, workspacePath]);
   const requestSequence = useRef(0);
-  const importPlanSequence = useRef(0);
-  const importActionSequence = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [snapshot, setSnapshot] = useState<ExternalSourceCatalogSnapshot | null>(null);
-  const [acpClients, setAcpClients] = useState<AcpClientInfo[]>([]);
+  const [snapshotState, setSnapshotState] = useState<{ scope: string; value: ExternalSourceCatalogSnapshot | null }>();
+  const [clientState, setClientState] = useState<{ scope: string; value: AcpClientInfo[] }>();
+  const [supplementalState, setSupplementalState] = useState<{ scope: string; counts: Record<string, number> }>();
+  const supplementalCounts = supplementalState?.scope === requestScope ? supplementalState.counts : undefined;
+  const onSupplementalCounts = useCallback((counts: Record<string, number>) => {
+    setSupplementalState((current) => current?.scope === requestScope
+      && JSON.stringify(current.counts) === JSON.stringify(counts) ? current : { scope: requestScope, counts });
+  }, [requestScope]);
+  const snapshot = snapshotState?.scope === requestScope ? snapshotState.value : null;
+  const acpClients = useMemo(() => clientState?.scope === requestScope ? clientState.value : [], [clientState, requestScope]);
+  const setSnapshot = useCallback((value: ExternalSourceCatalogSnapshot | null) => setSnapshotState({ scope: requestScope, value }), [requestScope]);
+  const setAcpClients = useCallback((value: AcpClientInfo[]) => setClientState({ scope: requestScope, value }), [requestScope]);
   const [loadIssues, setLoadIssues] = useState<LoadIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -165,9 +130,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
   const ownerSurface = useEcosystemCompatibilityStore((state) => state.ownerSurface);
   const selectProduct = useEcosystemCompatibilityStore((state) => state.selectProduct);
   const setOwnerSurface = useEcosystemCompatibilityStore((state) => state.setOwnerSurface);
-  const [mcpImportPlan, setMcpImportPlan] = useState<ExternalMcpImportPlanV1 | null>(null);
-  const [mcpImportPlanState, setMcpImportPlanState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
-  const [importingCandidateId, setImportingCandidateId] = useState<string | null>(null);
   const [editingSubagentClientId, setEditingSubagentClientId] = useState<string | null>(null);
   const [savingSubagentClientId, setSavingSubagentClientId] = useState<string | null>(null);
   const [subagentDraft, setSubagentDraft] = useState<AcpSubagentDraft>({
@@ -176,15 +138,18 @@ const EcosystemCompatibilityScene: React.FC = () => {
     bestFor: '',
   });
 
-  const loadCompatibility = useCallback(async (forceRefresh: boolean) => {
+  const loadCompatibility = useCallback(async (
+    forceRefresh: boolean,
+    backgroundRequest?: { isCurrent: () => boolean },
+  ) => {
     const sequence = ++requestSequence.current;
-    if (!forceRefresh) setLoading(true);
+    if (!forceRefresh && !backgroundRequest) setLoading(true);
 
     const [sourceResult, clientsResult] = await Promise.allSettled([
       externalSourcesAPI.getSnapshot(workspacePath, forceRefresh),
       ACPClientAPI.getClients(),
     ]);
-    if (sequence !== requestSequence.current) return;
+    if (sequence !== requestSequence.current || backgroundRequest?.isCurrent() === false) return undefined;
 
     const nextIssues: LoadIssue[] = [];
     if (sourceResult.status === 'fulfilled') {
@@ -199,7 +164,8 @@ const EcosystemCompatibilityScene: React.FC = () => {
     }
     setLoadIssues(nextIssues);
     setLoading(false);
-  }, [workspacePath]);
+    return sourceResult.status === 'fulfilled' ? sourceResult.value : undefined;
+  }, [setAcpClients, setSnapshot, workspacePath]);
 
   useEffect(() => {
     setSnapshot(null);
@@ -209,7 +175,28 @@ const EcosystemCompatibilityScene: React.FC = () => {
     return () => {
       requestSequence.current += 1;
     };
-  }, [loadCompatibility]);
+  }, [loadCompatibility, setAcpClients, setSnapshot]);
+
+  useEffect(() => {
+    if (!snapshot?.discoveryPending) return undefined;
+    let cancelled = false;
+    let timer: number | undefined;
+    let attempt = 0;
+    const poll = () => {
+      const delays = [300, 750, 1500, 3000];
+      timer = window.setTimeout(async () => {
+        const next = await loadCompatibility(false, { isCurrent: () => !cancelled });
+        if (cancelled || (next && !next.discoveryPending)) return;
+        attempt += 1;
+        poll();
+      }, delays[Math.min(attempt, delays.length - 1)]);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loadCompatibility, ownerSurface, snapshot?.discoveryPending]);
 
   useEffect(() => {
     const refreshClients = () => {
@@ -224,29 +211,15 @@ const EcosystemCompatibilityScene: React.FC = () => {
   }, [loadCompatibility]);
 
   const productRuntimes = useMemo(
-    () => buildEcosystemProductRuntimes(snapshot, acpClients),
-    [acpClients, snapshot],
+    () => buildEcosystemProductRuntimes(snapshot, acpClients).map((runtime): EcosystemProductRuntime => (
+      runtime.status === 'available' && (supplementalCounts?.[runtime.spec.ecosystemId] ?? 0) > 0
+        ? { ...runtime, status: 'detected', group: 'connected' } : runtime
+    )),
+    [acpClients, snapshot, supplementalCounts],
   );
   const selectedRuntime = productRuntimes.find(
     (runtime) => runtime.spec.id === selectedProductId,
   ) ?? productRuntimes[0];
-  const importItems = useMemo(
-    () => selectedRuntime
-      ? buildEcosystemImportItems(snapshot, selectedRuntime)
-      : [],
-    [selectedRuntime, snapshot],
-  );
-  const hasMcpImportItems = importItems.some(
-    (item) => item.kind === 'mcp' && item.discovered,
-  );
-  const peerDeviceId = peerDevice?.peerMode.active ? peerDevice.peerMode.deviceId : undefined;
-  const externalHostReadOnly = snapshot !== null
-    && !snapshot.hostCapabilities.canMutatePolicy
-    && !snapshot.hostCapabilities.canManageSources
-    && !snapshot.hostCapabilities.canApproveRuntime;
-  const mcpImportSupported = !peerDeviceId
-    && workspace?.workspaceKind !== WorkspaceKind.Remote
-    && !externalHostReadOnly;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredRuntimes = productRuntimes.filter((runtime) => {
     if (!normalizedSearch) return true;
@@ -266,38 +239,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
     setSavingSubagentClientId(null);
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [selectedProductId]);
-
-  useEffect(() => {
-    const sequence = ++importPlanSequence.current;
-    setMcpImportPlan(null);
-
-    if (!hasMcpImportItems || !mcpImportSupported) {
-      setMcpImportPlanState('idle');
-      return undefined;
-    }
-
-    setMcpImportPlanState('loading');
-    void externalSourcesAPI.planMcpImport(workspacePath || undefined)
-      .then((plan) => {
-        if (sequence !== importPlanSequence.current) return;
-        setMcpImportPlan(plan);
-        setMcpImportPlanState('ready');
-      })
-      .catch(() => {
-        if (sequence !== importPlanSequence.current) return;
-        setMcpImportPlan(null);
-        setMcpImportPlanState('failed');
-      });
-
-    return () => {
-      importPlanSequence.current += 1;
-    };
-  }, [hasMcpImportItems, mcpImportSupported, selectedProductId, snapshot?.generation, workspacePath]);
-
-  useEffect(() => {
-    importActionSequence.current += 1;
-    setImportingCandidateId(null);
-  }, [selectedProductId, workspacePath]);
 
   const showDevelopmentNotice = useCallback((name: string) => {
     notification.info(t('comingSoon.notice', { name }), {
@@ -365,87 +306,37 @@ const EcosystemCompatibilityScene: React.FC = () => {
     }
   }, [loadCompatibility, notification, savingSubagentClientId, subagentDraft, t]);
 
-  const handleImportItem = useCallback(async (item: EcosystemImportItem) => {
-    if (!item.candidateId || !mcpImportSupported || !mcpImportPlan) return;
-    const planItem = mcpImportPlan.items.find(
-      (candidate) => candidate.candidateId === item.candidateId,
-    );
-    if (!planItem || !['eligible', 'automatic_rename'].includes(planItem.disposition)) return;
-
-    const sequence = ++importActionSequence.current;
-    setImportingCandidateId(item.candidateId);
-    try {
-      const result = await externalSourcesAPI.applyMcpImport(
-        workspacePath || undefined,
-        mcpImportPlan,
-        [{ candidateId: item.candidateId }],
-      );
-      if (sequence !== importActionSequence.current) return;
-
-      if (result.outcome.status === 'stale') {
-        setMcpImportPlan(result.outcome.refreshedPlan);
-        notification.info(t('import.notifications.stale'), { duration: 3200 });
-        return;
-      }
-
-      setMcpImportPlan((current) => current ? {
-        ...current,
-        items: current.items.map((candidate) => (
-          candidate.candidateId === item.candidateId
-            ? { ...candidate, disposition: 'already_imported' }
-            : candidate
-        )),
-      } : current);
-      notification.success(t('import.notifications.success', { name: item.name }));
-      await loadCompatibility(true);
-    } catch {
-      if (sequence === importActionSequence.current) {
-        notification.error(t('import.notifications.failed', { name: item.name }));
-      }
-    } finally {
-      if (sequence === importActionSequence.current) {
-        setImportingCandidateId(null);
-      }
-    }
-  }, [loadCompatibility, mcpImportPlan, mcpImportSupported, notification, t, workspacePath]);
-
   if (!selectedRuntime) return null;
 
-  const discoveredAssetCount = totalDiscoveredAssets(selectedRuntime.capabilityCounts);
-  const currentHost = selectedRuntime.executionDomainId
-    ?? (workspace?.sshHost
-      ? t('host.remote', { name: workspace.sshHost })
-      : t('host.local'));
+  const discoveredAssetCount = totalDiscoveredAssets(selectedRuntime.capabilityCounts)
+    + (supplementalCounts?.[selectedRuntime.spec.ecosystemId] ?? 0);
+  const currentHost = workspace?.workspaceKind === WorkspaceKind.Remote
+    ? t('host.remote', { name: workspace.sshHost || workspace.name })
+    : peerDevice?.peerMode.active
+      ? t('host.remote', { name: peerDevice.peerMode.deviceName })
+      : isTauriRuntime() ? t('host.local') : t('host.remote', { name: window.location.hostname });
   const adapterLabel = selectedRuntime.adapterRevision
     ? t('header.adapterRevision', { revision: selectedRuntime.adapterRevision })
     : selectedRuntime.spec.acpClientId
       ? t('header.acpRuntime')
-      : t('header.notAvailable');
+      : null;
   const headerCheckSummary = t('header.checksSummary', {
     sourceCount: formatNumber(selectedRuntime.sources.length),
     assetCount: formatNumber(discoveredAssetCount),
     runtimeCount: formatNumber(selectedRuntime.acpClients.length),
   });
-
-  const importItemState = (item: EcosystemImportItem): ImportItemState => {
-    if (item.support === 'notAdapted') return 'notAdapted';
-    if (!item.discovered && item.detection === 'owner') return 'adapted';
-    if (!item.discovered) return 'notDetected';
-    if (!item.nativeImportSupported) return 'reusable';
-    if (!mcpImportSupported) return 'unsupportedContext';
-    if (mcpImportPlanState === 'loading' || mcpImportPlanState === 'idle') return 'checking';
-    if (mcpImportPlanState === 'failed' || !item.candidateId) return 'unavailable';
-    const planItem = mcpImportPlan?.items.find(
-      (candidate) => candidate.candidateId === item.candidateId,
-    );
-    if (planItem?.disposition === 'eligible') return 'ready';
-    if (planItem?.disposition === 'automatic_rename') return 'readyRename';
-    if (planItem?.disposition === 'already_imported') return 'imported';
-    return 'unavailable';
-  };
+  const sourceLocationFallback = snapshot?.integrationPolicy.status === 'compatible'
+    && !snapshot.integrationPolicy.effective.enabled
+    ? t('import.states.discoveryDisabled')
+    : loading || snapshot?.discoveryPending
+      ? t('loading')
+      : loadIssues.includes('externalSources')
+        ? t('import.states.discoveryUnavailable')
+        : t('header.notDetected');
 
   const renderProductSummary = (runtime: EcosystemProductRuntime): string => {
-    const assetCount = totalDiscoveredAssets(runtime.capabilityCounts);
+    const assetCount = totalDiscoveredAssets(runtime.capabilityCounts)
+      + (supplementalCounts?.[runtime.spec.ecosystemId] ?? 0);
     if (runtime.spec.development) return t('productSummary.development');
     if (assetCount > 0) {
       return t('productSummary.assets', { count: formatNumber(assetCount) });
@@ -455,106 +346,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
     }
     return t('productSummary.available');
   };
-
-  const renderImport = () => (
-    <div className="ecosystem-compatibility__view-stack">
-      <section className="ecosystem-compatibility__section">
-        <div className="ecosystem-compatibility__section-heading">
-          <div>
-            <h2>{t('import.title')}</h2>
-            <p>{t('import.description', { name: selectedRuntime.spec.name })}</p>
-          </div>
-        </div>
-        <div className="ecosystem-compatibility__import-table" role="table" aria-label={t('import.title')}>
-          <div className="ecosystem-compatibility__import-row ecosystem-compatibility__import-row--header" role="row">
-            <span role="columnheader">{t('import.columns.item')}</span>
-            <span role="columnheader">{t('import.columns.source')}</span>
-            <span role="columnheader">{t('import.columns.state')}</span>
-            <span role="columnheader">{t('import.columns.action')}</span>
-          </div>
-          {importItems.map((item) => {
-            const state = importItemState(item);
-            const itemIcon = IMPORT_ITEM_ICONS[item.kind];
-            const ready = state === 'ready' || state === 'readyRename';
-            const dimmed = [
-              'notDetected',
-              'notAdapted',
-              'unsupportedContext',
-              'unavailable',
-            ].includes(state);
-            const importing = item.candidateId === importingCandidateId;
-            const capabilityName = t(`capabilities.${item.kind}`);
-            const itemName = item.discovered ? item.name : capabilityName;
-            const itemDescription = item.discovered
-              ? item.description
-              : state === 'notAdapted'
-                ? t('import.notAdaptedDescription', {
-                  name: selectedRuntime.spec.name,
-                  type: capabilityName,
-                })
-                : state === 'adapted'
-                  ? t('import.ownerAdaptedDescription', { type: capabilityName })
-                  : t('import.undetectedDescription');
-            return (
-              <div
-                className={`ecosystem-compatibility__import-row${dimmed ? ' is-disabled' : ''}`}
-                role="row"
-                key={item.id}
-                data-import-kind={item.kind}
-                data-import-support={item.support}
-                data-import-state={state}
-                data-import-discovered={item.discovered ? 'true' : 'false'}
-              >
-                <span className="ecosystem-compatibility__import-item" role="cell">
-                  <span className="ecosystem-compatibility__import-item-icon" aria-hidden="true">
-                    <Icon {...itemIcon} size="sm" />
-                  </span>
-                  <span className="ecosystem-compatibility__import-item-copy">
-                    <strong><OverflowText>{itemName}</OverflowText></strong>
-                    <small>
-                      {item.discovered ? <span className="ecosystem-compatibility__import-kind">{capabilityName}</span> : null}
-                      {itemDescription}
-                    </small>
-                  </span>
-                </span>
-                <span className="ecosystem-compatibility__import-source" role="cell">
-                  <span className="ecosystem-compatibility__import-mobile-label" aria-hidden="true">{t('import.columns.source')}</span>
-                  <strong><OverflowText>{item.sourceName}</OverflowText></strong>
-                  {item.sourceLocation ? <small title={item.sourceLocation}>{item.sourceLocation}</small> : null}
-                </span>
-                <span role="cell" className="ecosystem-compatibility__import-state">
-                  <StatusPill tone={IMPORT_STATE_TONES[state]} title={t(`import.states.${state}`)}>
-                    {t(`import.states.${state}`)}
-                  </StatusPill>
-                </span>
-                <span className="ecosystem-compatibility__import-action" role="cell">
-                  {!ready && !importing ? (
-                    <span className="ecosystem-compatibility__import-action-placeholder" aria-hidden="true">
-                      -
-                    </span>
-                  ) : (
-                    <Button
-                      className="ecosystem-compatibility__import-button"
-                      size="sm"
-                      variant="outline"
-                      disabled={!ready || importing}
-                      loading={importing}
-                      aria-label={`${t('import.importAction')} ${itemName}`}
-                      onClick={() => void handleImportItem(item)}
-                    >
-                      {t(importing
-                        ? 'import.importingAction'
-                        : 'import.importAction')}
-                    </Button>
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-    </div>
-  );
 
   const renderRun = () => (
     <div className="ecosystem-compatibility__view-stack">
@@ -762,7 +553,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
             <span>{t('run.managerScope')}</span>
           </div>
           <Suspense fallback={<OwnerSurfaceLoading label={t('run.loadingManager')} />}>
-            <AcpAgentsConfig />
+            <AcpAgentsConfig clientIds={[...selectedRuntime.acpClients.map((client) => client.id), ...(selectedRuntime.spec.acpClientId ? [selectedRuntime.spec.acpClientId] : [])]} />
           </Suspense>
         </section>
       ) : null}
@@ -885,7 +676,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
                       {t(`status.${selectedRuntime.status}`)}
                     </StatusPill>
                   </div>
-                  <span className="ecosystem-compatibility__adapter-label">{adapterLabel}</span>
+                  {adapterLabel ? <span className="ecosystem-compatibility__adapter-label">{adapterLabel}</span> : null}
                 </div>
               </div>
               <Button
@@ -895,9 +686,9 @@ const EcosystemCompatibilityScene: React.FC = () => {
                 leadingIcon={<Icon name={ownerSurface === 'external-sources' ? 'chevron-left' : 'settings'} />}
                 aria-expanded={ownerSurface === 'external-sources'}
                 aria-controls="ecosystem-source-manager"
-                onClick={() => setOwnerSurface(
-                  ownerSurface === 'external-sources' ? null : 'external-sources',
-                )}
+                onClick={() => {
+                  setOwnerSurface(ownerSurface === 'external-sources' ? null : 'external-sources');
+                }}
               >
                 {ownerSurface === 'external-sources'
                   ? t('governance.closeAction')
@@ -908,7 +699,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
               <div>
                 <dt>{t('header.sourceLocation')}</dt>
                 <dd title={selectedRuntime.sourceLocation}>
-                  {selectedRuntime.sourceLocation ?? t('header.notDetected')}
+                  {selectedRuntime.sourceLocation ?? sourceLocationFallback}
                 </dd>
               </div>
               <div>
@@ -924,6 +715,17 @@ const EcosystemCompatibilityScene: React.FC = () => {
           </header>
 
           <div className="ecosystem-compatibility__body">
+            {snapshot?.integrationPolicy.status === 'compatible'
+              && !snapshot.integrationPolicy.effective.enabled
+              && ownerSurface !== 'external-sources' ? (
+                <div className="ecosystem-compatibility__load-notice" role="status">
+                  <Icon name="info" size="sm" aria-hidden="true" />
+                  <span>{t('discovery.disabledDescription')}</span>
+                  <Button variant="outline" size="sm" onClick={() => setOwnerSurface('external-sources')}>
+                    {t('discovery.manageAction')}
+                  </Button>
+                </div>
+              ) : null}
             {loading ? (
               <LoadingState className="ecosystem-compatibility__loading" role="status" size="sm">
                 {t('loading')}
@@ -942,22 +744,14 @@ const EcosystemCompatibilityScene: React.FC = () => {
               </div>
             ) : null}
             {ownerSurface === 'external-sources' ? (
-              <section
-                id="ecosystem-source-manager"
-                className="ecosystem-compatibility__owner-surface"
-                aria-label={t('governance.managerLabel')}
-              >
-                <div className="ecosystem-compatibility__owner-note">
-                  <Icon name="info" size="sm" aria-hidden="true" />
-                  <span>{t('governance.managerScope')}</span>
-                </div>
-                <Suspense fallback={<OwnerSurfaceLoading label={t('governance.loadingManager')} />}>
-                  <ExternalSourcesConfig
-                    presentation="governance"
-                    onSnapshotChange={setSnapshot}
-                  />
-                </Suspense>
-              </section>
+              <Suspense fallback={<OwnerSurfaceLoading label={t('governance.loadingManager')} />}>
+                <ExternalAgentDiscovery
+                  key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
+                  runtime={selectedRuntime}
+                  snapshot={snapshot}
+                  onSnapshotChange={setSnapshot}
+                />
+              </Suspense>
             ) : (
               <div className="ecosystem-compatibility__unified-stack">
                 {selectedRuntime.spec.development ? (
@@ -969,8 +763,15 @@ const EcosystemCompatibilityScene: React.FC = () => {
                     </div>
                   </div>
                 ) : null}
-                {renderRun()}
-                {renderImport()}
+                {selectedRuntime.spec.acpClientId || selectedRuntime.acpClients.length > 0 ? renderRun() : null}
+                <ExternalAgentContent
+                  key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
+                  runtime={selectedRuntime}
+                  snapshot={snapshot}
+                  catalogFailed={loadIssues.includes('externalSources')}
+                  onSupplementalCounts={onSupplementalCounts}
+                  onRefresh={() => loadCompatibility(true)}
+                />
               </div>
             )}
           </div>

@@ -27,6 +27,7 @@
       "importing": "Importing",
       "importHint": "Download an appearance zip from https://petdex.dev/, then import it here.",
       "importDialogTitle": "Choose Petdex appearance zip",
+      "loadFailed": "This pet could not be loaded. Check its package and sprite version in Pet settings.",
       "importFailed": "Failed to import pet appearance",
       "delete": "Remove imported appearance",
       "deleteConfirmTitle": "Remove appearance",

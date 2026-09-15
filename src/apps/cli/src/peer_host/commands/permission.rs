@@ -228,3 +228,114 @@ mod tests {
         );
     }
 }
+
+/// Preserve Desktop's distinct persisted-session and exact-active-turn selectors.
+pub(crate) async fn session_permission_mode(
+    state: &PeerHostState,
+    args: &Value,
+    mutate: bool,
+    active_turn_only: bool,
+) -> Result<Value, String> {
+    use crate::peer_host::args::{get_string, optional_string};
+    use openbitfun_core::agentic::core::SessionState;
+
+    let request = request_value(args);
+    let session_id = get_string(request, "sessionId")?;
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return Err("session_id is required".into());
+    }
+    let mode = parse_selector_mode(request)?;
+    let turn_id = optional_string(request, "turnId");
+    if active_turn_only && turn_id.is_none() {
+        return Err("turn_id is required".into());
+    }
+    if optional_string(request, "workspacePath").is_some() {
+        super::session::ensure_coordinator_session(state, args).await?;
+    }
+    let manager = &state.compatibility;
+    let session = manager
+        .loaded_session_snapshot(session_id)
+        .map_err(|error| error.to_string())?
+        .ok_or("Session is not loaded")?;
+    let active_turn_id = turn_id.filter(|turn_id| matches!(
+        &session.state, SessionState::Processing { current_turn_id, .. } if current_turn_id == turn_id
+    ));
+    if mutate {
+        if active_turn_only {
+            let turn_id = active_turn_id
+                .as_deref()
+                .ok_or("Turn is no longer active for this session")?;
+            match mode {
+                Some(mode) => {
+                    if !manager.set_active_turn_permission_mode(session_id, turn_id, mode) {
+                        return Err("Turn is no longer active for this session".into());
+                    }
+                }
+                None => {
+                    manager.clear_active_turn_permission_mode(session_id, turn_id);
+                }
+            }
+        } else {
+            manager
+                .update_session_permission_mode(session_id, mode)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(turn_id) = optional_string(request, "turnId") {
+                manager.clear_active_turn_permission_mode(session_id, &turn_id);
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "mode": manager.session_permission_mode(session_id),
+        "turnMode": active_turn_id.as_deref().and_then(|turn| manager.active_turn_permission_mode(session_id, turn)),
+        "activeTurnId": active_turn_id,
+    }))
+}
+
+fn parse_selector_mode(
+    request: &Value,
+) -> Result<Option<openbitfun_runtime_ports::PermissionMode>, String> {
+    use openbitfun_runtime_ports::PermissionMode;
+    match request.get("mode") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) if value.trim().is_empty() => Ok(None),
+        Some(Value::String(value)) => Ok(Some(
+            PermissionMode::parse(value.trim())
+                .ok_or_else(|| format!("unsupported permission mode: {value}"))?,
+        )),
+        _ => return Err("Invalid permission mode".into()),
+    }
+}
+
+#[cfg(test)]
+mod selector_tests {
+    use super::*;
+    use openbitfun_runtime_ports::PermissionMode;
+
+    #[test]
+    fn legacy_and_current_selectors_preserve_clear_and_explicit_modes() {
+        for request in [
+            serde_json::json!({}),
+            serde_json::json!({"mode": null}),
+            serde_json::json!({"mode": " "}),
+        ] {
+            assert_eq!(parse_selector_mode(&request).unwrap(), None);
+        }
+        assert_eq!(
+            parse_selector_mode(&serde_json::json!({"mode": "full_access"})).unwrap(),
+            Some(PermissionMode::FullAccess)
+        );
+        assert_eq!(
+            parse_selector_mode(&serde_json::json!({"mode": "ask"})).unwrap(),
+            Some(PermissionMode::Ask)
+        );
+        for value in [
+            serde_json::json!("unknown-future-mode"),
+            serde_json::json!(false),
+            serde_json::json!({}),
+        ] {
+            assert!(parse_selector_mode(&serde_json::json!({"mode": value})).is_err());
+        }
+    }
+}

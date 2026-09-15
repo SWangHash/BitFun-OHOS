@@ -3,6 +3,7 @@ import type { ModeSkillInfo, SkillInfo } from './types';
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
+  isOpenBitFunManagedSkill,
   findSkillByKey,
   formatSkillOrigin,
   getModeSkillRuntimeStatus,
@@ -40,6 +41,14 @@ function modeSkill(overrides: Partial<ModeSkillInfo> = {}): ModeSkillInfo {
 }
 
 describe('skill source presentation', () => {
+  it('keeps legacy native and imported copies while excluding external identities from native management', () => {
+    expect(isOpenBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'openbitfun-user' }))).toBe(true);
+    expect(isOpenBitFunManagedSkill(skill({ installationSource: 'github:example/external-skill' }))).toBe(true);
+    expect(isOpenBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'home.codex' }))).toBe(false);
+    expect(isOpenBitFunManagedSkill(skill({ sourceId: 'claude-code', sourceLabel: 'OpenBitFun' }))).toBe(false);
+    expect(isOpenBitFunManagedSkill(skill({ isBuiltin: true }))).toBe(true);
+  });
+
   it('normalizes legacy discovery slots without using paths or display labels as group identity', () => {
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'home.codex' }))).toBe('codex');
     expect(getSkillSourceId(skill({ sourceId: 'claude' }))).toBe('claude-code');

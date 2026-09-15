@@ -45,7 +45,7 @@ describe('PeerConnectionStatus', () => {
 
   it('shows the current peer and a manual return action until recovery', async () => {
     await render();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Reconnecting to Studio');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('peerConnection.reconnectingShort');
     await act(async () => container.querySelector('button')!.click());
     expect(peer.switchToLocal).toHaveBeenCalledExactlyOnceWith('manual');
     expect(peer.disconnectDevice).not.toHaveBeenCalled();

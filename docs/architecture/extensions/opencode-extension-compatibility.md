@@ -3,8 +3,11 @@
 本文是 OpenBitFun 适配 OpenCode 扩展生态的总入口。它只回答三件事：OpenBitFun 与每类 OpenCode 能力差在哪里、能否适配、需要补什么。实现细节分别放在配置、服务插件、终端插件和插件运行时/Plugin Host 设计中。
 
 本文描述目标设计与当前差距，不代表矩阵中的目标能力已经实现。只有通过固定版本样例和端到端验证的能力才能标记为已实现。
-矩阵是兼容审计库存，不是默认开发路线图；`OC-R*` 只表示该能力依赖的成熟度分区，近期执行顺序以
-[`OC-E0` 至 `OC-E3`](../../plans/opencode-extension-compatibility-plan.md) 为准。
+矩阵是兼容审计库存，不是默认开发路线图；`OC-R*` 只表示该能力依赖的成熟度分区。
+[`OC-E0` 至 `OC-E3`](../../plans/opencode-extension-compatibility-plan.md) 是历史实施阶段，当前跨生态发现、导入和使用范围以
+[当前支持声明与状态口径](external-ai-work-sources-design.md#当前支持声明与状态口径2026-09-13) 为准，
+package plugin 执行子集以 [Plugin Host 当前实现](plugin-runtime-design.md#7-当前实现) 为准。
+生态页“此页尚未接入发现”只描述该类别的目录入口；不表示独立 Plugin Host 未实现，也不由“支持发现”推断可执行。
 
 | 主题 | 详细设计 |
 |---|---|
@@ -157,7 +160,7 @@ output 作为模型展示结果，后续有真实消费方时再扩展小型展�
 | References | 融合现有能力 + 转换参数 | 部分实现：本地目录与既有 Workspace 消费点 | 可主要适配 | OC-R2 | 已按统一的 OpenCode 本地配置来源顺序解析 `references`/旧 `reference` 的本地 path、description/hidden，相同 alias 后者覆盖；通过独立生命周期协调器与 OpenBitFun 原生关联目录合成 native-first 有效快照，接入关联目录弹窗和既有 `@` 目录选择器。外部声明不自动进入 Prompt、不授予文件权限；Git、Remote、下载/缓存明确不支持且不做临时实现 | [References](opencode-config-assets-adapter-design.md#521-references) |
 | Commands | 补扩展接口 + 转换参数 | 部分实现：prompt、本地文本文件、经审阅的 shell 上下文与显式 Subagent 委派 | 可完整适配 | OC-R2 | 已支持全局/项目 JSON、JSONC、Markdown 命令、参数展开、动态目录、刷新和显式冲突选择；模板中的静态 workspace 相对 `@file` 可在调用时有界读取，`!shell` 经精确计划审阅后仅把 stdout 加入 Prompt，静态计划可记住、参数相关计划仅可单次运行。仅 `agent` 加缺省/`true` 的 `subtask` 可委派给同 workspace、同 OpenCode 生态、已审批且仍有效的精确 Subagent，并复用现有 fresh Task 生命周期；shell 与委派的组合、`model`、`variant`、`subtask: false`、隐式默认 Agent、Remote 与附件上下文保持受限，不回退到当前 Agent 或本机执行 | [Commands](opencode-config-assets-adapter-design.md#53-commands) |
 | Models / Providers 配置 | 融合现有能力 | 未实现 | 可主要适配 | OC-R1 | 静态字段进入模型归属模块；动态模型、鉴权和请求头交给插件运行时 | [声明式资产](opencode-config-assets-adapter-design.md#5-声明式资产映射) |
-| MCP | 转换参数 | 部分实现：local stdio 与 HTTPS remote | 可完整适配 | OC-R2 | 已接入发现、审批、冲突、workspace 隔离、更新和启动反馈；SSE、OAuth、完整 timeout/Agent 范围仍不支持；Remote 不回退本机实例 | [MCP、LSP 与 Formatter](opencode-config-assets-adapter-design.md#54-mcplsp-与-formatter) |
+| MCP | 转换参数 | 部分实现：local stdio 与 HTTPS remote | 可完整适配 | OC-R2 | 已接入发现、审批、冲突、workspace 隔离、更新和启动反馈；V1/V2 MCP 声明独立解析，显式导入保留 cwd、阶段超时和动态 OAuth 开关；SSE、自定义 OAuth client 与 Agent 范围仍不支持；Remote 不回退本机实例 | [MCP、LSP 与 Formatter](opencode-config-assets-adapter-design.md#54-mcplsp-与-formatter) |
 | LSP | 明确退役 | Runtime 已删除；仅可保留上游来源事实 | 明确降级：不适配 | 不安排 | command、extensions、env、initialization 只能形成 L0 `unsupported` 诊断；不得导入、应用、执行、创建 DTO、启动进程或 Remote fallback | [MCP、LSP 与 Formatter](opencode-config-assets-adapter-design.md#54-mcplsp-与-formatter) |
 | Formatters | 补基础能力 + 转换参数 | 未实现 | 可主要适配 | OC-R2 | R1 解析；R2 补文件写入后的格式化执行能力，再映射 command/environment/extensions/`$FILE` | [MCP、LSP 与 Formatter](opencode-config-assets-adapter-design.md#54-mcplsp-与-formatter) |
 | Themes | 转换参数 | 未实现 | 可主要适配 | OC-R1 | 保留 builtin/user/project/cwd 覆盖顺序，分别映射 GUI 和 TUI 色彩能力 | [声明式资产](opencode-config-assets-adapter-design.md#5-声明式资产映射) |

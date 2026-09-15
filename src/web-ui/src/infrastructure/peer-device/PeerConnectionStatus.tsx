@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button } from '@openbitfun/ui';
+import { Button, Tooltip } from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { usePeerDeviceModeOptional } from './peerDeviceContextState';
+import { WifiOff } from 'lucide-react';
 import './PeerConnectionStatus.scss';
 
 /** Keep the selected host visible while its control link recovers. */
@@ -35,23 +36,22 @@ export const PeerConnectionStatus: React.FC = () => {
       data-openbitfun-component="peer-device"
       data-openbitfun-part="connectionStatus"
     >
-      <Alert
-        tone="warning"
-        data-testid="peer-connection-status"
-        message={(
-          <span
-            className="peer-connection-status__content"
-            data-openbitfun-component="peer-device"
-            data-openbitfun-part="connectionStatusContent"
-          >
-            <span>{t('peerConnection.reconnecting', { name: peer.peerMode.deviceName })}</span>
-            <Button variant="outline" size="sm" disabled={returning} onClick={() => { void returnLocal(); }}>
-              {t(returning ? 'deviceOverview.returningToThisDevice' : 'deviceOverview.backToThisDevice')}
-            </Button>
+      <div
+        className="peer-connection-status__content"
+        data-openbitfun-component="peer-device"
+        data-openbitfun-part="connectionStatusContent"
+      >
+        <Tooltip content={t('peerConnection.reconnecting', { name: peer.peerMode.deviceName })}>
+          <span className="peer-connection-status__label" role="status" aria-live="polite">
+            <WifiOff size={13} aria-hidden="true" />
+            <span>{t('peerConnection.reconnectingShort')}</span>
           </span>
-        )}
-        description={error ?? undefined}
-      />
+        </Tooltip>
+        <Button variant="text" size="sm" disabled={returning} onClick={() => { void returnLocal(); }}>
+          {t(returning ? 'peerConnection.returningShort' : 'peerConnection.returnLocalShort')}
+        </Button>
+      </div>
+      {error && <span className="peer-connection-status__error" role="alert">{error}</span>}
     </div>
   );
 };

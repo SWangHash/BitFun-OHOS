@@ -500,7 +500,7 @@ describe('startup performance contract', () => {
     const sceneSource = readSource(
       '../scenes/ecosystem-compatibility/EcosystemCompatibilityScene.tsx'
     );
-    const ownerSpecifier = '@/infrastructure/config/components/ExternalSourcesConfig';
+    const ownerSpecifier = './ExternalAgentDiscovery';
 
     expect(dynamicImportSpecifiers(sceneSource)).toContain(ownerSpecifier);
     expect(staticImportSpecifiers(sceneSource)).not.toContain(ownerSpecifier);

@@ -4,6 +4,8 @@ export type InstalledFilter = 'all' | 'builtin' | 'user' | 'project' | `source:$
 export type SkillsView = InstalledFilter | 'groups';
 
 interface SkillsSceneState {
+  nativeNavigationRequest: number;
+  openNativeSkills: () => void;
   searchDraft: string;
   marketQuery: string;
   installedView: SkillsView;
@@ -18,6 +20,8 @@ interface SkillsSceneState {
 }
 
 export const useSkillsSceneStore = create<SkillsSceneState>((set) => ({
+  nativeNavigationRequest: 0,
+  openNativeSkills: () => set((state) => ({ nativeNavigationRequest: state.nativeNavigationRequest + 1, installedView: 'all', hideDuplicates: false })),
   searchDraft: '',
   marketQuery: '',
   installedView: 'all',

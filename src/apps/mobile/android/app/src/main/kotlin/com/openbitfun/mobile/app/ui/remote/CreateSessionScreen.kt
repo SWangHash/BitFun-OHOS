@@ -276,7 +276,7 @@ internal fun CreateSessionScreen(
                 label = when {
                     workspaceState is RemoteWorkspaceUiState.Loading -> stringResource(R.string.sessions_loading)
                     workspacePath.isEmpty() -> stringResource(R.string.create_chat)
-                    else -> ready?.workspaces?.firstOrNull { it.path == workspacePath }?.name.orEmpty()
+                    else -> ready?.workspaces?.firstOrNull { it.path == workspacePath }?.displayName.orEmpty()
                         .ifEmpty { workspacePath }
                 },
                 expanded = pickerKind == CreateSelectionKind.WORKSPACE,
@@ -299,7 +299,7 @@ internal fun CreateSessionScreen(
                     ) {
                         WorkspacePicker(
                         workspaces = ready?.workspaces.orEmpty().map {
-                            WorkspaceChoice(path = it.path, name = it.name)
+                            WorkspaceChoice(path = it.path, name = it.displayName)
                         },
                         selectedPath = workspacePath,
                         showHeader = false,
@@ -380,7 +380,7 @@ internal fun CreateSessionScreen(
         ModalBottomSheet(onDismissRequest = { pickerKind = null }) {
             WorkspacePicker(
                 workspaces = ready?.workspaces.orEmpty().map {
-                    WorkspaceChoice(path = it.path, name = it.name)
+                    WorkspaceChoice(path = it.path, name = it.displayName)
                 },
                 selectedPath = workspacePath,
                 showHeader = true,

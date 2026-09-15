@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flowChatStore, mergeModelRoundAttemptDiagnostics } from './FlowChatStore';
+import { sessionToVirtualItems } from './modernFlowChatStore';
+import { buildModelRoundItemGroups } from '../components/modern/modelRoundItemGrouping';
 import { sessionCompletionReceipt } from '../utils/sessionCompletionReceipt';
 import {
   LOCAL_SURFACE_ID,
@@ -2096,6 +2098,80 @@ describe('FlowChatStore historical session hydration state', () => {
       questions: [],
     })).toBe(true);
     expect(askUserQuestionDraftStore.getState().drafts[draftKey]).toBeUndefined();
+  });
+
+  it.each(['single', 'retry', 'diagnostic', 'answered'] as const)('keeps recovered questions in the rendered attempt and settles them without resurrection (%s)', (scenario) => {
+    const retry = scenario === 'retry';
+    const task = { id: 'task', type: 'tool', toolName: 'Task', status: 'running',
+      timestamp: 2, toolCall: { id: 'task', input: {} }, requiresConfirmation: false } as const;
+    const attempt = { id: 'attempt-live', index: retry ? 2 : 1, status: 'streaming' as const,
+      items: [{ ...task, attemptId: 'attempt-live', attemptIndex: retry ? 2 : 1 }] };
+    const older = { id: 'attempt-old', index: 1, status: 'superseded' as const,
+      items: [{ ...task, id: 'old-task', status: 'cancelled' as const,
+        attemptId: 'attempt-old', attemptIndex: 1 }] };
+    const attempts = scenario === 'diagnostic'
+      ? [{ ...attempt, diagnostic: { category: 'invalid_tool_arguments' } }]
+      : retry ? [older, attempt] : [attempt];
+    const originalRound = { id: 'round-live', index: 0, status: 'streaming' as const,
+      isStreaming: true, isComplete: false, startTime: 1,
+      attempts, items: attempts.flatMap(entry => entry.items) };
+    flowChatStore.setState(() => ({
+      sessions: new Map([['history-1', createSession({ sessionId: 'history-1',
+        dialogTurns: [{ id: 'turn-live', sessionId: 'history-1',
+          userMessage: { id: 'user', content: 'ask me', timestamp: 1 },
+          modelRounds: [originalRound], status: 'processing', startTime: 1 }] })]]),
+      activeSessionId: 'history-1',
+    }));
+    const snapshot = { revision: 7, questions: [{ toolId: 'child-question',
+      sessionId: 'history-1', dialogTurnId: 'turn-live',
+      questions: { questions: [{ question: 'Which time zone?' }] }, registeredAtMs: 3 }] };
+    const round = () => flowChatStore.getState().sessions.get('history-1')!.dialogTurns[0].modelRounds[0];
+    flowChatStore.reconcilePendingUserQuestions('history-1', snapshot);
+    expect(round().attempts!.at(-1)!.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'child-question', status: 'waiting',
+        attemptId: scenario === 'diagnostic' ? 'runtime-interaction:round-live' : 'attempt-live', isParamsStreaming: false }),
+    ]));
+    expect(round().items).toEqual(round().attempts!.flatMap(entry => entry.items));
+    const visibleRound = sessionToVirtualItems(flowChatStore.getState().sessions.get('history-1')!)
+      .find(item => item.type === 'model-round');
+    expect(visibleRound?.type).toBe('model-round');
+    if (visibleRound?.type === 'model-round') {
+      const displayed = [...visibleRound.data.attempts!].reverse().find(entry => !entry.diagnostic)!;
+      expect(buildModelRoundItemGroups({ items: displayed.items, isStreaming: true,
+        disableExploreGrouping: false, isCollapsibleTool: () => false }))
+        .toContainEqual({ type: 'critical', item: expect.objectContaining({ id: 'child-question' }) });
+    }
+    // Same-revision refresh is idempotent and retains the visible question.
+    const beforeRefresh = round();
+    flowChatStore.reconcilePendingUserQuestions('history-1', snapshot);
+    expect(round()).toBe(beforeRefresh);
+    flowChatStore.updateModelRoundItem('history-1', 'turn-live', 'child-question', { isParamsStreaming: true });
+    flowChatStore.reconcilePendingUserQuestions('history-1', snapshot);
+    expect(round().attempts!.at(-1)!.items.find(item => item.id === 'child-question'))
+      .toMatchObject({ status: 'waiting', isParamsStreaming: false });
+    expect(originalRound.items).toHaveLength(retry ? 2 : 1);
+    expect(attempt.items).toHaveLength(1);
+    if (retry) expect(round().attempts![0].items).toEqual(older.items);
+
+    // The ordinary streaming update path rebuilds items from attempts.
+    flowChatStore.updateModelRound('history-1', 'turn-live', 'round-live', current => ({ ...current }));
+    expect(round().items.some(item => item.id === 'child-question')).toBe(true);
+    if (scenario === 'answered') {
+      flowChatStore.updateModelRoundItem('history-1', 'turn-live', 'child-question', {
+        status: 'completed', toolResult: { success: true, result: { answers: { '0': 'UTC' } } },
+      });
+    }
+    flowChatStore.reconcilePendingUserQuestions('history-1', { revision: 8, questions: [] });
+    if (scenario === 'answered') {
+      expect(round().items.find(item => item.id === 'child-question')).toMatchObject({ status: 'completed' });
+      expect(round().items.find(item => item.id === 'child-question')).not.toHaveProperty('_runtimeInteractionProjection');
+      expect(round().items).toEqual(round().attempts!.flatMap(entry => entry.items));
+      return;
+    }
+    expect(round().items.some(item => item.id === 'child-question')).toBe(false);
+    expect(round().attempts!.flatMap(entry => entry.items).some(item => item.id === 'child-question')).toBe(false);
+    flowChatStore.updateModelRound('history-1', 'turn-live', 'round-live', current => ({ ...current }));
+    expect(round().items.some(item => item.id === 'child-question')).toBe(false);
   });
 
   it('re-enables a same-revision mailbox card changed back to parameter streaming', () => {

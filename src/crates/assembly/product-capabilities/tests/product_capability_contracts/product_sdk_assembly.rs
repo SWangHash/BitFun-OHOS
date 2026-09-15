@@ -70,14 +70,14 @@ async fn sdk_delivery_profile_builds_shared_runtime_owner_ceiling_without_openbi
             product_full_compatible_services(),
         ))
         .expect("SDK delivery profile should assemble with its shared runtime services");
-    let cli_plan =
-        openbitfun_product_capabilities::product_assembly_plan_for_profile(DeliveryProfile::Cli);
+    let acp_plan =
+        openbitfun_product_capabilities::product_assembly_plan_for_profile(DeliveryProfile::Acp);
 
     assert_eq!(parts.plan().profile(), DeliveryProfile::Sdk);
     assert_eq!(
         parts.plan().capability_set().ids(),
-        cli_plan.capability_set().ids(),
-        "SDK and Headless CLI currently select the same assembly-plan ceiling without sharing product identity"
+        acp_plan.capability_set().ids(),
+        "SDK and ACP currently select the same assembly-plan ceiling without sharing product identity"
     );
     assert!(parts.missing_service_requirements().is_empty());
     for capability in [

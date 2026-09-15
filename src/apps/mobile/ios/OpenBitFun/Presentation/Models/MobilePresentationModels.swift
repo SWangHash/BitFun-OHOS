@@ -55,6 +55,9 @@ struct MobileTimelineTool: Identifiable, Equatable {
     let questions: [MobileTimelineQuestion]
     let actions: Set<String>
     var foldIntoSummary: Bool = false
+    var planPath: String? = nil
+    var planName: String = ""
+    var planOverview: String = ""
 }
 
 indirect enum MobileTimelineBlock: Identifiable, Equatable {
@@ -110,6 +113,7 @@ struct MobileFilePreview: Identifiable, Equatable {
     let sizeBytes: Int64
     let markdown: Bool
     let lineStart: Int32
+    let lineEnd: Int32
     let failure: String?
     let failureKind: MobileFilePreviewFailureKind?
     let retryable: Bool
@@ -128,6 +132,7 @@ struct MobileFilePreview: Identifiable, Equatable {
         sizeBytes: Int64 = 0,
         markdown: Bool = false,
         lineStart: Int32 = 0,
+        lineEnd: Int32 = 0,
         failure: String?,
         failureKind: MobileFilePreviewFailureKind? = nil,
         retryable: Bool = false,
@@ -145,6 +150,7 @@ struct MobileFilePreview: Identifiable, Equatable {
         self.sizeBytes = sizeBytes
         self.markdown = markdown
         self.lineStart = lineStart
+        self.lineEnd = lineEnd
         self.failure = failure
         self.failureKind = failureKind
         self.retryable = retryable

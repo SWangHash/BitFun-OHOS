@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const deepReviewActionBarAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'deep-review-action-bar',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'progress' },

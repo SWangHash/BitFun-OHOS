@@ -247,6 +247,7 @@ impl CodexMcpProvider {
         input: &ExternalMcpDiscoveryInput,
         server_id: &SourceQualifiedMcpServerId,
         expected_behavior_version: &str,
+        for_import: bool,
     ) -> Result<(ExternalMcpServerDefinition, PreparedTransportTemplate), ExternalSourceProviderError>
     {
         if server_id.source.provider_id.as_str() != PROVIDER_ID {
@@ -277,8 +278,11 @@ impl CodexMcpProvider {
                 true,
             ));
         }
-        if !definition.source_enabled
-            || !matches!(definition.static_status, ExternalMcpStaticStatus::Ready)
+        if (!for_import && !definition.source_enabled)
+            || !matches!(
+                definition.static_status,
+                ExternalMcpStaticStatus::Ready | ExternalMcpStaticStatus::DisabledBySource
+            )
         {
             return Err(provider_error(
                 "not_activatable",
@@ -327,7 +331,7 @@ impl ExternalMcpSourceProvider for CodexMcpProvider {
         expected_behavior_version: &str,
     ) -> Result<PreparedExternalMcpServer, ExternalSourceProviderError> {
         let (definition, template) =
-            self.current_preparation(input, server_id, expected_behavior_version)?;
+            self.current_preparation(input, server_id, expected_behavior_version, false)?;
         prepare_transport(
             template,
             server_id.clone(),
@@ -343,7 +347,7 @@ impl ExternalMcpSourceProvider for CodexMcpProvider {
         expected_behavior_version: &str,
     ) -> Result<PreparedExternalMcpImportServer, ExternalSourceProviderError> {
         let (definition, template) =
-            self.current_preparation(input, server_id, expected_behavior_version)?;
+            self.current_preparation(input, server_id, expected_behavior_version, true)?;
         prepare_import_projection(definition, template)
     }
 
@@ -389,7 +393,6 @@ enum PreparedTransportTemplate {
         environment: BTreeMap<String, String>,
         environment_refs: BTreeMap<String, String>,
         working_directory: Option<PathBuf>,
-        working_directory_explicit: bool,
     },
     Remote {
         url: String,
@@ -630,7 +633,6 @@ fn materialize_local(
     let environment = string_map(object.get("env"), "env", &mut reasons);
     let environment_refs = environment_refs(object.get("env_vars"), &mut reasons);
     let timeouts = timeout_overrides(object, &mut reasons);
-    let working_directory_explicit = object.contains_key("cwd");
     let cwd = string_value_optional(object.get("cwd"), "cwd", &mut reasons).map(PathBuf::from);
     let cwd = cwd.or_else(|| context.workspace_root.clone());
     enforce_size(
@@ -680,7 +682,6 @@ fn materialize_local(
             environment,
             environment_refs,
             working_directory: cwd,
-            working_directory_explicit,
         },
         diagnostics,
     })
@@ -830,7 +831,6 @@ fn unsupported_local(
             environment: BTreeMap::new(),
             environment_refs: BTreeMap::new(),
             working_directory: None,
-            working_directory_explicit: false,
         },
         diagnostics: Vec::new(),
     }
@@ -849,7 +849,6 @@ fn prepare_transport(
             mut environment,
             environment_refs,
             working_directory,
-            working_directory_explicit: _,
         } => {
             for (key, reference) in environment_refs {
                 environment.insert(key, resolve_environment(&reference)?);
@@ -919,41 +918,33 @@ fn prepare_import_projection(
     definition: ExternalMcpServerDefinition,
     template: PreparedTransportTemplate,
 ) -> Result<PreparedExternalMcpImportServer, ExternalSourceProviderError> {
-    if !definition.timeouts.is_empty() {
-        return Err(ExternalSourceProviderError::new(
-            "external_mcp.import_setup_required",
-            "MCP timeout overrides cannot be imported into native configuration",
-            false,
-        ));
-    }
-    let transport = match template {
+    let (transport, working_directory, oauth_enabled, environment, headers) = match template {
         PreparedTransportTemplate::Local {
             command,
             args,
             environment,
             environment_refs,
             working_directory,
-            working_directory_explicit,
-        } if environment.is_empty()
-            && environment_refs.is_empty()
-            && working_directory.is_none()
-            && !working_directory_explicit =>
-        {
-            PreparedExternalMcpImportTransport::Local { command, args }
-        }
+        } if environment_refs.is_empty() => (
+            PreparedExternalMcpImportTransport::Local { command, args },
+            working_directory,
+            None,
+            environment,
+            BTreeMap::new(),
+        ),
         PreparedTransportTemplate::Remote {
             url,
             headers,
             header_refs,
             bearer_token_env_var,
             oauth_enabled,
-        } if headers.is_empty()
-            && header_refs.is_empty()
-            && bearer_token_env_var.is_none()
-            && oauth_enabled =>
-        {
-            PreparedExternalMcpImportTransport::Remote { url }
-        }
+        } if header_refs.is_empty() && bearer_token_env_var.is_none() => (
+            PreparedExternalMcpImportTransport::Remote { url },
+            None,
+            Some(oauth_enabled),
+            BTreeMap::new(),
+            headers,
+        ),
         _ => {
             return Err(ExternalSourceProviderError::new(
                 "external_mcp.import_setup_required",
@@ -963,9 +954,14 @@ fn prepare_import_projection(
         }
     };
     let prepared = PreparedExternalMcpImportServer {
+        environment,
+        headers,
         id: definition.id,
         behavior_version: definition.behavior_version,
         transport,
+        working_directory,
+        timeouts: definition.timeouts,
+        oauth_enabled,
     };
     prepared.validate().map_err(|_| {
         ExternalSourceProviderError::new(
@@ -1140,14 +1136,14 @@ fn duration_seconds_millis(value: &Value, field: &str, reasons: &mut Vec<String>
 }
 
 fn static_status(enabled: bool, reasons: Vec<String>) -> ExternalMcpStaticStatus {
-    if !enabled {
-        ExternalMcpStaticStatus::DisabledBySource
-    } else if reasons.is_empty() {
-        ExternalMcpStaticStatus::Ready
-    } else {
+    if !reasons.is_empty() {
         ExternalMcpStaticStatus::Unsupported {
             reason: reasons.join("; "),
         }
+    } else if !enabled {
+        ExternalMcpStaticStatus::DisabledBySource
+    } else {
+        ExternalMcpStaticStatus::Ready
     }
 }
 

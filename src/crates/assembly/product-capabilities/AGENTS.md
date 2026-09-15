@@ -24,7 +24,8 @@ concrete runtime execution.
   `core.basic`, `core.agent`, and `core.session`, while delivery profiles
   select their reviewed product plan explicitly.
 - Delivery profiles select built-in Agent ids and atomic tool provider groups
-  together. CLI, ACP, and SDK currently select only the Code Agent capability;
+  together. CLI selects Code Agent plus account-backed Pages; ACP and SDK select only
+  Code Agent;
   product workflow names must not leak in through a compiled Cargo feature.
 - `ProductAssembler` may validate explicit profile input and return immutable
   runtime parts; it must not create concrete services or product state.

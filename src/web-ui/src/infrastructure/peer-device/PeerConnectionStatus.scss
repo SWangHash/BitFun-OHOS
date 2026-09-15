@@ -1,12 +1,35 @@
 .peer-connection-status {
   flex-shrink: 0;
-  margin: 8px 12px;
+  min-width: 0;
+  max-width: 320px;
+  margin: 0 12px;
+  color: var(--openbitfun-color-content-secondary);
+  font-size: var(--openbitfun-type-label-sm-font-size);
 
   &__content {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 8px;
+    min-height: 32px;
+  }
+
+  &__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+
+    svg {
+      flex-shrink: 0;
+      color: var(--openbitfun-color-status-warning-emphasis);
+    }
+  }
+
+  &__error {
+    display: block;
+    overflow-wrap: anywhere;
+    padding-bottom: 8px;
+    color: var(--openbitfun-color-status-danger-content);
   }
 }

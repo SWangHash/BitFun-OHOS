@@ -73,12 +73,15 @@ export interface PeerHostCapabilities {
    * (older host); resolve via `hostKind` the same way as `cancelTool`.
    */
   readonly toolCatalog: boolean | null;
+  /** Scoped MCP choices must be explicitly advertised by the host. */
+  readonly chatMcpCatalogV1?: boolean;
   /**
    * Host implements `submit_user_answers` for Runtime-owned
    * AskUserQuestion interactions. Older Desktop hosts already implemented the
    * command; older CLI hosts did not.
    */
   readonly userQuestionResponse: boolean | null;
+  readonly userQuestionInteraction?: boolean;
   /**
    * Which kind of host answered `peer_mode_ping` (`"desktop"` | `"cli"`).
    * `null` = the host did not advertise `host_type` (even older host, or the
@@ -168,6 +171,7 @@ const NO_CAPABILITIES: PeerHostCapabilities = {
   // Consumers treat `null` optimistically so an unprobed host is not gated off.
   cancelTool: null,
   toolCatalog: null,
+  chatMcpCatalogV1: false,
   userQuestionResponse: null,
   // Host kind is unknown until the first `peer_mode_ping` resolves. Consumers
   // treat `null` optimistically. See PR #2428 round 5 #1.
@@ -190,6 +194,8 @@ interface ConnectionEntry {
   timer: ReturnType<typeof setTimeout> | null;
   disposed: boolean;
   presenceOnline: boolean | null;
+  probeRequested: boolean;
+  needsReattach: boolean;
   healthCheckInFlight: Promise<void> | null;
   reattachInFlight: Promise<void> | null;
   handle: PeerConnection;
@@ -341,7 +347,7 @@ export class PeerConnectionManager {
       entry.presenceOnline = online.has(entry.deviceId);
       if (!entry.presenceOnline && wasOnline !== false) {
         this.requestRecovery(entry, 'presence');
-      } else if (entry.presenceOnline && wasOnline === false && entry.health === 'degraded') {
+      } else if (entry.presenceOnline && wasOnline === false && (entry.health === 'degraded' || entry.probeRequested)) {
         this.cancelTimer(entry);
         void this.runHealthCheck(entry);
       }
@@ -373,6 +379,8 @@ export class PeerConnectionManager {
       timer: null,
       disposed: false,
       presenceOnline: null,
+      probeRequested: false,
+      needsReattach: false,
       healthCheckInFlight: null,
       reattachInFlight: null,
       handle: {
@@ -494,7 +502,9 @@ export class PeerConnectionManager {
         caps?.product_control_presentation_v1 === true,
       cancelTool,
       toolCatalog,
+      chatMcpCatalogV1: caps?.chat_mcp_catalog_v1 === true,
       userQuestionResponse,
+      userQuestionInteraction: caps?.user_question_interaction_v1 === true,
       hostKind,
     };
   }
@@ -546,8 +556,9 @@ export class PeerConnectionManager {
     const check = this.checkHealth(entry).finally(() => {
       if (entry.healthCheckInFlight !== check) return;
       entry.healthCheckInFlight = null;
+      entry.probeRequested = false;
       if (this.entries.get(entry.deviceId) !== entry || entry.disposed) return;
-      if (entry.health === 'ready') this.scheduleKeepalive(entry);
+      if (entry.health === 'ready' && !entry.needsReattach) this.scheduleKeepalive(entry);
       else this.scheduleReconnect(entry);
     });
     entry.healthCheckInFlight = check;
@@ -559,7 +570,8 @@ export class PeerConnectionManager {
       const capabilities = await this.probeCapabilities(entry);
       // A request/presence failure may have arrived while the ping was in
       // flight. Check the current state, not the state at probe start.
-      if (entry.health === 'degraded') {
+      if (entry.health === 'degraded' || entry.needsReattach) {
+        entry.needsReattach = false;
         const reattach = this.sendAttach(entry.deviceId);
         entry.reattachInFlight = reattach;
         try {
@@ -616,16 +628,15 @@ export class PeerConnectionManager {
     if (this.entries.get(entry.deviceId) !== entry || entry.disposed || entry.health !== 'ready') {
       return;
     }
-    entry.health = 'degraded';
-    log.warn('Peer connection degraded; checking control link', {
-      deviceId: entry.deviceId,
-      reason,
-      action,
+    // Roster omissions and product timeouts are hints, not proof of a broken
+    // control link. Verify silently; only a failed dedicated probe degrades UI.
+    if (reason === 'presence') entry.needsReattach = true;
+    if (entry.probeRequested) return;
+    entry.probeRequested = true;
+    log.debug('Checking peer control link after a transport hint', {
+      deviceId: entry.deviceId, reason, action,
     });
-    // One timer/probe owns recovery. A burst of failed product requests must
-    // neither start overlapping handshakes nor push the retry further away.
     if (!entry.healthCheckInFlight) this.scheduleReconnect(entry);
-    this.publish();
   }
 
   private cancelTimer(entry: ConnectionEntry): void {
@@ -718,7 +729,9 @@ function capabilitiesEqual(
     a.miniAppAgentContextFilesV1 === b.miniAppAgentContextFilesV1 &&
     a.cancelTool === b.cancelTool &&
     a.toolCatalog === b.toolCatalog &&
+    a.chatMcpCatalogV1 === b.chatMcpCatalogV1 &&
     a.userQuestionResponse === b.userQuestionResponse &&
+    a.userQuestionInteraction === b.userQuestionInteraction &&
     a.hostKind === b.hostKind;
 }
 

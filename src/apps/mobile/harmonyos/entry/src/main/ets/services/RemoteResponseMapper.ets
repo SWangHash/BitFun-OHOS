@@ -51,6 +51,7 @@ export class RemoteResponseMapper {
           item.updated_at,
           item.updatedAt
         ]),
+        remoteSshHost: item.remote_ssh_host,
         workspaceKind: item.workspace_kind || 'normal'
       };
       return workspace;

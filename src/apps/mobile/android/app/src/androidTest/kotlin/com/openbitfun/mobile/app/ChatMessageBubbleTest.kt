@@ -55,7 +55,7 @@ class ChatMessageBubbleTest {
         }
 
         val first = composeRule.onNodeWithText("Checking the manifest.").getUnclippedBoundsInRoot()
-        val tool = composeRule.onNodeWithText("Running \"AndroidManifest.xml\"").getUnclippedBoundsInRoot()
+        val tool = composeRule.onNodeWithText(testString(R.string.tool_line_running, "AndroidManifest.xml")).getUnclippedBoundsInRoot()
         val second = composeRule.onNodeWithText("It targets API 35.").getUnclippedBoundsInRoot()
 
         assertTrue(first.top < tool.top)
@@ -175,8 +175,8 @@ class ChatMessageBubbleTest {
         }
 
         // The agent's reply started and stopped; it was never "not delivered".
-        composeRule.onNodeWithText("Reply interrupted.").assertIsDisplayed()
-        composeRule.onNodeWithText("Retry").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.chat_reply_interrupted)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.account_devices_retry)).assertIsDisplayed()
     }
 
     @Test

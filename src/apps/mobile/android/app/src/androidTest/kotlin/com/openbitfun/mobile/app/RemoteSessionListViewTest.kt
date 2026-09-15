@@ -51,11 +51,11 @@ class RemoteSessionListViewTest {
             }
         }
 
-        composeRule.onNodeWithText("OpenBitFun").assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.app_name)).assertIsDisplayed()
         composeRule.onNodeWithTag(VIEW_SETTINGS_TOGGLE_TEST_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(SESSION_SEARCH_TOGGLE_TEST_TAG).assertIsDisplayed()
-        composeRule.onAllNodesWithText("Sessions").assertCountEquals(0)
-        composeRule.onAllNodesWithText("All").assertCountEquals(0)
+        composeRule.onAllNodesWithText(testString(R.string.sessions_title)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(testString(R.string.sessions_filter_all)).assertCountEquals(0)
 
         composeRule.onNodeWithTag(SESSION_SEARCH_FIELD_TEST_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(SESSION_SEARCH_TOGGLE_TEST_TAG).performClick()
@@ -118,7 +118,7 @@ class RemoteSessionListViewTest {
         }
 
         composeRule.onNodeWithTag(SESSION_PROJECT_CREATE_TEST_TAG_PREFIX + path).performClick()
-        composeRule.onNodeWithText("Code").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(testString(R.string.sessions_filter_code)).assertIsDisplayed().performClick()
         assertEquals("code", agentType)
     }
 

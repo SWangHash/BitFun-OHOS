@@ -1,12 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import {
   gitRepositoryUntrustedPath,
+  isGitRepositoryNotFoundError,
   isGitRepositoryUntrustedError,
   isNotAvailableError,
   isOutcomeUnknownError,
   isSessionInUseError,
   TauriCommandError,
 } from './TauriCommandError';
+
+describe('isGitRepositoryNotFoundError', () => {
+  const legacyError = "Failed to get Git status: Repository not found: could not find repository at '/workspace'; class=Repository (6); code=NotFound (-3)";
+
+  it.each([
+    legacyError,
+    new TauriCommandError(legacyError, {
+      command: 'git_get_status',
+      originalError: legacyError,
+    }),
+    { message: 'Host command failed', details: { originalError: legacyError } },
+    { message: 'Internal error', data: legacyError },
+    JSON.parse(JSON.stringify({ message: 'Internal error', data: legacyError })),
+    new Error('fatal: not a git repository (or any of the parent directories): .git'),
+  ])('recognizes existing host payloads through transport wrappers: %j', (error) => {
+    expect(isGitRepositoryNotFoundError(error)).toBe(true);
+  });
+
+  it.each([
+    'File not found: /workspace/src/file.ts',
+    'Failed to get Git status: Permission denied',
+    'git_repository_untrusted: /workspace',
+    "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.",
+    'Network connection timed out',
+  ])('does not misclassify another failure: %s', (message) => {
+    expect(isGitRepositoryNotFoundError(new Error(message))).toBe(false);
+  });
+});
 
 describe('isSessionInUseError', () => {
   it('recognizes local Tauri command errors without parsing human prose', () => {

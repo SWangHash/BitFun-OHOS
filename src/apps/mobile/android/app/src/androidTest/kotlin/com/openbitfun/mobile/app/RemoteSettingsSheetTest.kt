@@ -35,7 +35,7 @@ class RemoteSettingsSheetTest {
             .onNodeWithTag(MODEL_CATALOG_FAILURE_TEST_TAG)
             .assertIsDisplayed()
         composeRule
-            .onNodeWithText("Could not load the available models. Try again.")
+            .onNodeWithText(testString(R.string.model_catalog_load_failed))
             .assertIsDisplayed()
         composeRule
             .onNodeWithTag(MODEL_CATALOG_RETRY_TEST_TAG)
@@ -58,7 +58,7 @@ class RemoteSettingsSheetTest {
 
         composeRule
             .onNodeWithText(
-                "The connected desktop does not support choosing models from this app.",
+                testString(R.string.model_catalog_unsupported),
             )
             .assertIsDisplayed()
         composeRule.onNodeWithTag(MODEL_CATALOG_RETRY_TEST_TAG).assertDoesNotExist()

@@ -98,6 +98,18 @@
   }
 
   &__path-link {
+    block-size: auto;
+    border-radius: 0;
+    letter-spacing: inherit;
+    white-space: normal;
+    text-underline-offset: auto;
+    transition: none;
+    outline: revert;
+    outline-offset: revert;
+
+    &::before { content: none; }
+    > [data-openbitfun-part='content'] { display: contents; }
+
     display: inline;
     margin: 0;
     padding: 0;

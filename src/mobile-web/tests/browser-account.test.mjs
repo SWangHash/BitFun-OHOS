@@ -363,3 +363,43 @@ test('unavailable persistent storage shows an actionable state without silently 
     assert.deepEqual(relay.errors, []);
   } finally { await context.close(); }
 });
+
+test('mobile question clicks acknowledge once, input remains editable, and failures retry', { timeout: 40_000 }, async () => {
+  const context = await browser.createIncognitoBrowserContext();
+  try {
+    const page = await context.newPage();
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(source.origin);
+    await page.evaluate(async () => {
+      window.questionFixture = await import('/tests/helpers/question-card-fixture.tsx');
+      window.questionFixture.showQuestion('question-one');
+    });
+    const card = '#question-fixture .chat-ask-card';
+    await page.waitForSelector(card);
+    const events = () => page.evaluate(() => window.questionFixture.events);
+    assert.deepEqual(await events(), []);
+    await page.click(`${card} .chat-ask-card__option`);
+    await until(async () => (await events()).length === 1);
+    assert.equal((await events())[0].type, 'interaction');
+    await page.click(`${card} .chat-ask-card__option:last-child`);
+    await page.waitForSelector(`${card} input`);
+    await page.focus(`${card} input`);
+    await page.type(`${card} input`, 'Custom format');
+    assert.equal((await events()).length, 1, 'Repeated activity must not submit or send duplicate acknowledgements');
+    await page.click(`${card} .chat-ask-card__submit`);
+    await until(async () => (await events()).length === 2);
+    assert.deepEqual((await events())[1], { type: 'answer', toolId: 'question-one', answers: { 0: 'Custom format' } });
+    await page.evaluate(() => {
+      window.questionFixture.rejectNextInteraction();
+      window.questionFixture.showQuestion('question-two');
+    });
+    await page.waitForFunction(() => !document.querySelector('#question-fixture .chat-ask-card__option').disabled);
+    await page.click(`${card} .chat-ask-card__option`);
+    await until(async () => (await events()).length === 3);
+    await page.click(`${card} .chat-ask-card__option`);
+    await until(async () => (await events()).length === 4);
+    assert.deepEqual((await events()).slice(2), [
+      { type: 'interaction', toolId: 'question-two' }, { type: 'interaction', toolId: 'question-two' },
+    ]);
+  } finally { await context.close(); }
+});

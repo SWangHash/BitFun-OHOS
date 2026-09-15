@@ -719,6 +719,9 @@
     "errorCreateFailed": "Failed to create project"
   },
   "peerConnection": {
+    "reconnectingShort": "Reconnecting…",
+    "returnLocalShort": "Go local",
+    "returningShort": "Returning…",
     "reconnecting": "Reconnecting to {{name}}. Content may be out of date."
   },
   "peerDirectoryPicker": {

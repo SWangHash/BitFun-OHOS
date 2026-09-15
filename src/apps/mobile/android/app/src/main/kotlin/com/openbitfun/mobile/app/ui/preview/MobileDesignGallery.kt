@@ -81,7 +81,7 @@ internal fun MobileDesignGallery(scenario: MobilePreviewScenario, dark: Boolean)
             ComposerBar(
                 draft = scenario.composerDraft,
                 images = emptyList(),
-                busy = scenario.streaming,
+                busy = false,
                 streaming = scenario.streaming,
                 phase = if (scenario.connectionPhase == "reconnecting") {
                     ConnectionPhase.RECONNECTING

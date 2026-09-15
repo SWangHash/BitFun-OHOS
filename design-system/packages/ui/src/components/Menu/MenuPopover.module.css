@@ -1,4 +1,21 @@
 @layer openbitfun.components {
+  /* Slot wrappers must not introduce an inline SVG baseline inside the centered row. */
+  .icon,
+  .submenuArrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon {
+    inline-size: 100%;
+    block-size: 100%;
+  }
+  .icon > :where(svg, img),
+  .icon > [data-openbitfun-component="icon"] {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
   .submenuBoundary { display: contents; }
   .popup {
     position: fixed;

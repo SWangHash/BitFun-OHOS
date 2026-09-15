@@ -77,15 +77,19 @@ struct SidebarView: View {
                 if searchVisible {
                     searchField
                 }
-                ZStack(alignment: .bottom) {
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            workspaceSection
-                        }
-                        .padding(.bottom, showsPrimaryNavigation ? 84 : 142)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        MiniAppsButton(model: model, sidebar: true)
+                        workspaceSection
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 12)
                     }
-                    footer
                 }
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .layoutPriority(-1)
+                .clipped()
+                .accessibilityIdentifier("sidebar.workspaces")
+                footer.background(OpenBitFunTheme.page)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)

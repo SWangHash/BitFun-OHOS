@@ -88,6 +88,8 @@ public class RemoteSessionStore internal constructor(
     private val timelineStore = ChatTimelineStore()
     private val controller = ChatSessionController.create(scope, RoomPoller(transport), ControllerCallbacks())
     private var work: Job? = null
+    private var healthWork: Job? = null
+    private var healthGeneration: Long = 0
     private var modelCatalog: RemoteModelCatalog? = null
     private var modelCatalogFailure: ModelCatalogFailure? = null
     private val locallyCreatedSessions: MutableMap<String, RemoteSession> = mutableMapOf()
@@ -113,10 +115,12 @@ public class RemoteSessionStore internal constructor(
      * from the UI — the same shape as `RemoteSessionManager.workspace`.
      */
     private var workspacePath: String = ""
+    private var hostCapabilities: List<String> = emptyList()
 
     public fun dispatch(intent: RemoteSessionIntent) {
         val current = _state.value as? RemoteSessionUiState.Ready
         when (intent) {
+            is RemoteSessionIntent.SetForeground -> setForeground(intent.active)
             RemoteSessionIntent.Load, RemoteSessionIntent.Refresh ->
                 load(current?.query.orEmpty(), current?.agentFilter ?: SessionAgentFilter.ALL)
             RemoteSessionIntent.LoadMore -> loadMore()
@@ -169,6 +173,13 @@ public class RemoteSessionStore internal constructor(
             )
             is RemoteSessionIntent.UpdateDraft -> updateDraft(intent.text)
             is RemoteSessionIntent.SendMessage -> sendMessage(intent)
+            is RemoteSessionIntent.BuildPlan -> {
+                // Native plan cards expose the unsupported state. A stale or direct
+                // intent must not discard the live transcript or its draft.
+                if ("plan_build_v1" in hostCapabilities && current?.timeline?.activeTurn == null && intent.path.isNotBlank()) {
+                    sendMessage(RemoteSessionIntent.SendMessage(intent.sessionId, "Build Plan: ${intent.name}"), intent)
+                }
+            }
             is RemoteSessionIntent.CancelTurn -> cancelTurn(intent)
             is RemoteSessionIntent.ApproveTool -> approveTool(intent)
             is RemoteSessionIntent.RejectTool -> runAction(
@@ -491,6 +502,7 @@ public class RemoteSessionStore internal constructor(
     private fun isCurrentWork(token: Long): Boolean = token == workGeneration
 
     public fun stop() {
+        setForeground(false)
         activeCreateGeneration?.let { generation ->
             val requestId = (_createOperation.value as? CreateSessionOperationState.InFlight)?.requestId
             if (requestId != null) {
@@ -639,6 +651,7 @@ public class RemoteSessionStore internal constructor(
         val info = transport.send<WorkspaceInfoResponse>(RemoteCommand(cmd = "get_workspace_info"))
         if (!isCurrentWork(operationToken)) return false
         workspacePath = (info.path ?: info.workspacePath).orEmpty().trim()
+        hostCapabilities = info.capabilities
         return workspacePath.isNotEmpty() && workspacePath != "/"
     }
 
@@ -803,6 +816,17 @@ public class RemoteSessionStore internal constructor(
             ?: RemoteSessionUiState.Loading
         work = scope.launch {
             try {
+                // Direct opens can bypass the list that normally discovers host capabilities.
+                if (workspacePath.isEmpty()) {
+                    try {
+                        resolveWorkspacePath(operationToken)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Throwable) {
+                        // Known sessions still open on old peers; new commands remain gated.
+                    }
+                }
+                if (!isCurrentWork(operationToken)) return@launch
                 val opened = openSession(normalized, operationToken, resumableCursor) ?: return@launch
                 if (!isCurrentWork(operationToken)) return@launch
                 _state.value = RemoteSessionUiState.Ready(
@@ -1332,12 +1356,14 @@ public class RemoteSessionStore internal constructor(
         }
     }
 
-    private fun sendMessage(intent: RemoteSessionIntent.SendMessage) {
+    private fun sendMessage(intent: RemoteSessionIntent.SendMessage, plan: RemoteSessionIntent.BuildPlan? = null) {
         val sessionId = intent.sessionId.trim()
         val content = intent.content
         if (sessionId.isEmpty() || (content.trim().isEmpty() && intent.images.isNullOrEmpty())) return
         val current = _state.value as? RemoteSessionUiState.Ready ?: return
         if (current.busy || current.selectedSessionId != sessionId) return
+        val activeTurnId = current.timeline?.activeTurn?.turnId?.takeIf { it.isNotBlank() }
+        val steering = plan == null && activeTurnId != null && "dialog_steer_v1" in hostCapabilities
         val wireImages = intent.images?.map { image ->
             com.openbitfun.mobile.core.protocol.ImageAttachment(
                 name = image.id,
@@ -1377,7 +1403,11 @@ public class RemoteSessionStore internal constructor(
                     ?: locallyCreatedSessions[sessionId]?.agentType
                 val response = transport.send<SendMessageResponse>(
                     RemoteCommand(
-                        cmd = "send_message",
+                        cmd = if (plan != null) "build_plan" else if (steering) "steer_turn" else "send_message",
+                        turnId = activeTurnId.takeIf { steering },
+                        displayContent = content.takeIf { steering },
+                        planFilePath = plan?.path,
+                        planName = plan?.name,
                         sessionId = sessionId,
                         content = content,
                         agentType = agentType,
@@ -1385,14 +1415,14 @@ public class RemoteSessionStore internal constructor(
                     ),
                 )
                 if (!isCurrentWork(operationToken)) return@launch
-                response.turnId?.let(timelineStore::setLocalActiveTurn)
+                if (!steering && current.timeline?.activeTurn == null) response.turnId?.let(timelineStore::setLocalActiveTurn)
                 controller.nudge()
                 val ready = ((_state.value as? RemoteSessionUiState.Ready) ?: current)
                 if (ready.selectedSessionId == sessionId) {
                     // An acknowledgement owns only the submitted draft. Keep
                     // newer typing and let each native picker remove only the
                     // acknowledged images; failed sends retain their pixels.
-                    val draftUnchanged = ready.draft == current.draft && ready.draft.trim() == content.trim()
+                    val draftUnchanged = plan == null && ready.draft == current.draft && ready.draft.trim() == content.trim()
                     if (draftUnchanged) deletePersistedDraft(sessionId)
                     _state.value = ready.copy(
                         draft = if (draftUnchanged) "" else ready.draft,
@@ -1745,6 +1775,33 @@ public class RemoteSessionStore internal constructor(
             _state.value = current.copy(busy = false)
         }
         _connectionPhase.value = ConnectionPhase.FAILED
+    }
+
+    /** Open transcripts already probe via poll_session; idle lists need their own health check. */
+    private fun setForeground(active: Boolean) {
+        if (active && healthWork?.isActive == true) return
+        val generation = ++healthGeneration
+        healthWork?.cancel()
+        healthWork = null
+        if (!active) return
+        healthWork = scope.launch {
+            while (generation == healthGeneration) {
+                val ready = _state.value as? RemoteSessionUiState.Ready
+                if (ready != null && !ready.busy && ready.timeline == null) {
+                    try {
+                        transport.send<com.openbitfun.mobile.core.protocol.CommandStatusResponse>(RemoteCommand(cmd = "ping"))
+                        // A probe cannot overwrite a newer mutation's connection outcome.
+                        if (generation == healthGeneration && _state.value === ready) markConnected()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Throwable) {
+                        if (generation == healthGeneration && _state.value === ready) handleFailure(error, ready)
+                    }
+                }
+                // Match the native HarmonyOS idle health cadence, with no overlapping probes.
+                kotlinx.coroutines.delay(15_000)
+            }
+        }
     }
 
     private fun markConnected() {

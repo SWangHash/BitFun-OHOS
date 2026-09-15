@@ -446,6 +446,69 @@ mod tests {
         assert_eq!(receiver.await.unwrap().answers, answers);
     }
 
+    #[tokio::test]
+    async fn remote_question_interaction_stops_timeout_without_answering() {
+        use openbitfun_agent_runtime::user_questions::{
+            wait_for_user_question_response, PendingUserQuestion, UserQuestionWaitOutcome,
+        };
+        let manager = crate::agentic::tools::user_input_manager::get_user_input_manager();
+        let tool_id = format!("activity-{}", uuid::Uuid::new_v4());
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let registration = manager.register_question(
+            PendingUserQuestion::new(
+                &tool_id,
+                "remote-session",
+                None,
+                None,
+                serde_json::json!({"questions": []}),
+            ),
+            sender,
+        );
+        let bridge = RemoteServer::new([7; 32]);
+        let command: RemoteCommand = serde_json::from_value(serde_json::json!({
+            "cmd": "start_question_interaction", "session_id": "remote-session", "tool_id": tool_id
+        }))
+        .unwrap();
+        assert_eq!(
+            bridge.dispatch(&command).await,
+            RemoteResponse::InteractionAccepted {
+                action: "start_question_interaction".to_string(),
+                target_id: tool_id.clone(),
+            }
+        );
+        let wait = wait_for_user_question_response(
+            &registration,
+            receiver,
+            std::time::Duration::from_millis(1),
+        );
+        tokio::pin!(wait);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut wait)
+                .await
+                .is_err()
+        );
+        assert!(manager.has_pending(&tool_id));
+        assert!(matches!(
+            bridge
+                .dispatch(&RemoteCommand::StartQuestionInteraction {
+                    session_id: "other-session".to_string(),
+                    tool_id: tool_id.clone(),
+                })
+                .await,
+            RemoteResponse::Error { .. }
+        ));
+        assert_eq!(
+            bridge
+                .dispatch(&RemoteCommand::AnswerQuestion {
+                    tool_id,
+                    answers: serde_json::json!({"0": "Yes"}),
+                })
+                .await,
+            RemoteResponse::AnswerAccepted
+        );
+        assert!(matches!(wait.await, UserQuestionWaitOutcome::Answered(_)));
+    }
+
     #[test]
     fn core_service_agent_runtime_owner_maps_remote_image_context() {
         let metadata = serde_json::json!({ "source": "relay" });

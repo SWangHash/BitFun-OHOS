@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { AssistantEntry, RecentWorkspaceEntry, RemoteSession } from '../main/ets/model/RemoteModels';
+import { AssistantEntry, RecentWorkspaceEntry, RemoteSession, SessionListResult } from '../main/ets/model/RemoteModels';
 import { AccountDeviceDirectorySource } from '../main/ets/services/AccountDeviceDirectory';
+import { CloudAccountDevice } from '../main/ets/services/CloudAccountClient';
 import {
   mapInConcurrentBatches,
   mergeUniqueSessions
@@ -629,6 +630,180 @@ export default function deviceDirectoryUnitTest() {
       expect(sessions.some((item: RemoteSession): boolean => item.id === 'a-old')).assertFalse();
       expect(sessions.some((item: RemoteSession): boolean => item.id === 'a-new')).assertTrue();
       expect(sessions.some((item: RemoteSession): boolean => item.id === 'b-cached')).assertTrue();
+    });
+
+    it('refreshes ready cached branches only on the selected online device', 0, async () => {
+      const source = new FakeAccountDeviceDirectory();
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => '',
+        activeDeviceConnected: () => false
+      }, undefined, source);
+      viewModel.syncDevices([
+        { deviceId: 'desk-a', deviceName: 'A', online: true },
+        { deviceId: 'desk-b', deviceName: 'B', online: true }
+      ]);
+      state.select('desk-a');
+      state.setWorkspaceExpanded('desk-a', '/open', true);
+      state.setWorkspaceExpanded('desk-a', '/closed', false);
+      state.setWorkspaceExpanded('desk-b', '/open', true);
+      state.setWorkspaceStatus('desk-a', '/open', 'ready');
+      viewModel.captureWorkspaceSessions('desk-a', '/open', [sessionIn('desk-a', '/open', 'old', 'Old')]);
+      viewModel.captureWorkspaceSessions('desk-a', '/closed', [sessionIn('desk-a', '/closed', 'sibling', 'Sibling')]);
+      source.sessionsByDevicePath.set('desk-a:/open', [
+        sessionIn('desk-a', '/open', 'new', 'New'), sessionIn('desk-a', '/open', 'old', 'Old')
+      ]);
+      await viewModel.refreshExpandedWorkspaceSessions();
+      expect(source.listedWorkspacePaths.length).assertEqual(1);
+      expect(source.listedWorkspacePaths[0]).assertEqual('desk-a:/open');
+      expect(state.find('desk-a')?.sessions.length).assertEqual(3);
+      expect(state.find('desk-a')?.sessions[0].id).assertEqual('new');
+      expect(state.workspaceExpanded('desk-a', '/open')).assertTrue();
+      expect(state.workspaceStatus('desk-a', '/open')).assertEqual('ready');
+
+      viewModel.syncDevices([
+        { deviceId: 'desk-a', deviceName: 'A', online: false },
+        { deviceId: 'desk-b', deviceName: 'B', online: true }
+      ]);
+      await viewModel.refreshExpandedWorkspaceSessions();
+      expect(source.listedWorkspacePaths.length).assertEqual(1);
+    });
+
+    it('preserves cached rows on failure and replaces them with a successful empty list', 0, async () => {
+      const source = new FakeAccountDeviceDirectory();
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined, activeDeviceId: () => '', activeDeviceConnected: () => false
+      }, undefined, source);
+      viewModel.syncDevices([{ deviceId: 'desk-a', deviceName: 'A', online: true }]);
+      state.select('desk-a');
+      state.setWorkspaceExpanded('desk-a', '/a', true);
+      viewModel.captureWorkspaceSessions('desk-a', '/a', [sessionIn('desk-a', '/a', 'old', 'Old')]);
+      source.failingPaths = ['desk-a:/a'];
+      await viewModel.refreshExpandedWorkspaceSessions();
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('failed');
+      expect(state.workspaceHasLoadedSessions('desk-a', '/a')).assertFalse();
+      expect(state.find('desk-a')?.sessions[0].id).assertEqual('old');
+      source.failingPaths = [];
+      await viewModel.loadWorkspaceSessions('desk-a', '/a');
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('ready');
+      expect(state.find('desk-a')?.sessions.length).assertEqual(0);
+      expect(state.workspaceHasLoadedSessions('desk-a', '/a')).assertTrue();
+    });
+
+    it('joins simultaneous refreshes without clearing the visible cache', 0, async () => {
+      const source = new GatedAccountDeviceDirectory();
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined, activeDeviceId: () => '', activeDeviceConnected: () => false
+      }, undefined, source);
+      viewModel.syncDevices([{ deviceId: 'desk-a', deviceName: 'A', online: true }]);
+      viewModel.captureWorkspaceSessions('desk-a', '/a', [sessionIn('desk-a', '/a', 'old', 'Old')]);
+      const first = viewModel.loadWorkspaceSessions('desk-a', '/a');
+      await source.workspacesListed;
+      const second = viewModel.loadWorkspaceSessions('desk-a', '/a');
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('loading');
+      expect(state.find('desk-a')?.sessions[0].id).assertEqual('old');
+      source.releaseSessions();
+      await Promise.all([first, second]);
+      expect(source.listedWorkspacePaths.length).assertEqual(1);
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('ready');
+      expect(state.workspaceHasLoadedSessions('desk-a', '/a')).assertTrue();
+    });
+
+    it('discards an old directory request after account state is replaced', 0, async () => {
+      const source = new GatedAccountDeviceDirectory();
+      const state = new DeviceDirectoryState();
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined, activeDeviceId: () => '', activeDeviceConnected: () => false
+      }, undefined, source);
+      const devices: CloudAccountDevice[] = [{ deviceId: 'desk-a', deviceName: 'A', online: true }];
+      viewModel.syncDevices(devices);
+      source.sessionsByDevicePath.set('desk-a:/a', [sessionIn('desk-a', '/a', 'late', 'Late')]);
+      const pending = viewModel.loadWorkspaceSessions('desk-a', '/a');
+      await source.workspacesListed;
+      state.clear();
+      viewModel.syncDevices(devices);
+      source.releaseSessions();
+      await pending;
+      expect(state.find('desk-a')?.sessions.length).assertEqual(0);
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('idle');
+    });
+
+    it('publishes the live workspace page with its pagination state', 0, async () => {
+      const state = new DeviceDirectoryState();
+      const published: SessionListResult[] = [];
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => 'desk-a',
+        activeDeviceConnected: () => true,
+        loadActiveWorkspaceSessions: async (path: string): Promise<SessionListResult> => {
+          return { sessions: [sessionIn('desk-a', path, 'new', 'New')], hasMore: true };
+        },
+        onActiveWorkspaceSessions: (_path: string, page: SessionListResult): void => { published.push(page); }
+      });
+      // A live target may be visible without an account-directory row.
+      state.select('desk-a');
+      state.setWorkspaceExpanded('desk-a', '/a', true);
+      await viewModel.refreshExpandedWorkspaceSessions();
+      expect(published.length).assertEqual(1);
+      expect(published[0].sessions[0].id).assertEqual('new');
+      expect(published[0].hasMore).assertTrue();
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('ready');
+    });
+
+    it('does not publish live results after switching the control target', 0, async () => {
+      const state = new DeviceDirectoryState();
+      let activeId = 'desk-a';
+      let release: () => void = () => {};
+      const hold = new Promise<void>((resolve: () => void) => { release = resolve; });
+      let published = 0;
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => activeId,
+        activeDeviceConnected: () => true,
+        loadActiveWorkspaceSessions: async (): Promise<SessionListResult> => {
+          await hold;
+          return { sessions: [sessionIn('desk-a', '/a', 'late', 'Late')], hasMore: false };
+        },
+        onActiveWorkspaceSessions: (): void => { published++; }
+      });
+      const pending = viewModel.loadWorkspaceSessions('desk-a', '/a');
+      activeId = 'desk-b';
+      release();
+      await pending;
+      expect(published).assertEqual(0);
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('idle');
+    });
+
+    it('keeps a late previous-connection response out of the new workspace generation', 0, async () => {
+      const state = new DeviceDirectoryState();
+      let release: () => void = () => {};
+      const hold = new Promise<void>((resolve: () => void) => { release = resolve; });
+      let requests = 0;
+      const published: string[] = [];
+      const viewModel = new DeviceDirectoryViewModel(state, {
+        credentials: () => undefined,
+        activeDeviceId: () => 'desk-a',
+        activeDeviceConnected: () => true,
+        loadActiveWorkspaceSessions: async (): Promise<SessionListResult> => {
+          const index = ++requests;
+          if (index === 1) await hold;
+          return { sessions: [sessionIn('desk-a', '/a', `${index}`, 'Page')], hasMore: false };
+        },
+        onActiveWorkspaceSessions: (_path: string, result: SessionListResult): void => {
+          published.push(result.sessions[0].id);
+        }
+      });
+      const old = viewModel.loadWorkspaceSessions('desk-a', '/a');
+      state.resetWorkspaceDirectory('desk-a');
+      await viewModel.loadWorkspaceSessions('desk-a', '/a');
+      release();
+      await old;
+      expect(published.length).assertEqual(1);
+      expect(published[0]).assertEqual('2');
+      expect(state.workspaceStatus('desk-a', '/a')).assertEqual('ready');
     });
   });
 

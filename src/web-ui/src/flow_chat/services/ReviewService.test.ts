@@ -169,6 +169,33 @@ describe('ReviewService', () => {
     );
   });
 
+  it.each(['session files', 'slash command'])('explains a missing Git repository for %s', async (entry) => {
+    const error = new TauriCommandError('Internal error', {
+      command: 'git_get_status',
+      originalError: {
+        message: 'Internal error',
+        data: "Failed to get Git status: Repository not found: could not find repository at '/workspace'",
+      },
+    });
+    let preparation;
+    if (entry === 'session files') {
+      mocks.resolveCurrentFileReviewSnapshot.mockRejectedValueOnce(error);
+      preparation = prepareReviewLaunchFromSessionFiles(['src/file.ts'], {
+        workspacePath: '/workspace',
+      });
+    } else {
+      mocks.resolveSlashCommandReviewTarget.mockRejectedValueOnce(error);
+      preparation = prepareReviewLaunchFromSlashCommand('/review', '/workspace');
+    }
+
+    await expect(preparation).rejects.toMatchObject({
+      launchErrorMessageKey: 'deepReviewActionBar.launchError.notGitRepository',
+    });
+    expect(mocks.createBtwChildSession).not.toHaveBeenCalled();
+    expect(mocks.confirmWarning).not.toHaveBeenCalled();
+    expect(mocks.trustRepository).not.toHaveBeenCalled();
+  });
+
   it('prepares a small session review without constructing a review team', async () => {
     const prepared = await prepareReviewLaunchFromSessionFiles(
       ['src/small.ts'],
@@ -634,7 +661,7 @@ describe('ReviewService', () => {
     });
 
     await expect(prepareReviewLaunchFromSlashCommand('/review focus on auth'))
-      .rejects.toThrow('could not be prepared as bounded evidence');
+      .rejects.toThrow('files or code diff could not be read for Review');
   });
 
   it('launches standard review as a read-only CodeReview child in the shared pane', async () => {

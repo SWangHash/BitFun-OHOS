@@ -66,6 +66,11 @@ fn native_prompt_command_descriptors_reject_external_candidate_namespaces() {
 fn external_mcp_import_contract_keeps_private_values_out_of_debug_and_requests() {
     let source = SourceKey::new("opencode.mcp", "user-config").unwrap();
     let prepared = PreparedExternalMcpImportServer {
+        environment: Default::default(),
+        headers: Default::default(),
+        working_directory: None,
+        timeouts: Default::default(),
+        oauth_enabled: None,
         id: SourceQualifiedMcpServerId::new(source, "docs").unwrap(),
         behavior_version: "sha256:behavior-v1".to_string(),
         transport: PreparedExternalMcpImportTransport::Local {
@@ -95,6 +100,11 @@ fn external_mcp_import_contract_keeps_private_values_out_of_debug_and_requests()
 #[test]
 fn external_mcp_import_contract_rejects_urls_that_cannot_be_copied_losslessly() {
     let prepared = |url: &str| PreparedExternalMcpImportServer {
+        environment: Default::default(),
+        headers: Default::default(),
+        working_directory: None,
+        timeouts: Default::default(),
+        oauth_enabled: None,
         id: SourceQualifiedMcpServerId::new(
             SourceKey::new("codex.mcp", "user-config").unwrap(),
             "docs",

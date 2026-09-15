@@ -122,6 +122,24 @@ test('workspace file tools reject new per-tool SSH implementations', async () =>
   }
 });
 
+test('Pi Skill discovery may use bounded static-source support without opening other consumers', async () => {
+  const rule = forbiddenContentUnderRules.find(
+    (rule) => rule.reason === 'shared bounded static-source support is private to reviewed ecosystem source adapters',
+  );
+  assert.ok(rule);
+  const sourcePath = 'src/crates/adapters/pi-adapter/src/skill_source.rs';
+  const source = await readFile(new URL(`../${sourcePath}`, import.meta.url), 'utf8');
+  assert.match(source, /use openbitfun_static_hook_support::/);
+  assert.deepEqual(findForbiddenContentMatches(source, rule.patterns, sourcePath), []);
+  for (const rejectedPath of [
+    'src/crates/adapters/pi-adapter/src/unreviewed_source.rs',
+    'src/crates/assembly/core/src/agentic/tools/implementations/skills/registry.rs',
+  ]) {
+    assert.ok(findForbiddenContentMatches(source, rule.patterns, rejectedPath).length > 0,
+      `static-source support must remain private at ${rejectedPath}`);
+  }
+});
+
 test('Cargo manifest discovery ignores nested local-agent worktrees', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'openbitfun-core-boundaries-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -1726,6 +1744,7 @@ const ACP_REVIEWED_CORE_FEATURES = [
 ];
 
 const CLI_REVIEWED_CORE_FEATURES = [
+  'tools-pages',
   ...ACP_REVIEWED_CORE_FEATURES,
   'product-search',
   'remote-connect',

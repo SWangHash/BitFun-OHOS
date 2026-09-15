@@ -180,6 +180,7 @@ public data class PersistedRemoteWorkspace public constructor(
     public val name: String = "",
     public val lastOpened: String = "",
     public val workspaceKind: String = "",
+    public val remoteSshHost: String? = null,
 )
 
 public interface RemoteSessionListStore {

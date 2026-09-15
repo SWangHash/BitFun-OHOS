@@ -545,7 +545,9 @@ Use the remote project skill.
         }
     }
 
-    struct ClaudeRemoteFs;
+    struct ClaudeRemoteFs {
+        imported: bool,
+    }
 
     #[async_trait]
     impl WorkspaceFileSystem for ClaudeRemoteFs {
@@ -554,11 +556,20 @@ Use the remote project skill.
         }
 
         async fn read_file_text(&self, path: &str) -> anyhow::Result<String> {
-            if path == "/remote/project/.claude/skills/remote-review/SKILL.md" {
+            if path == "/remote/project/.claude/skills/remote-review/SKILL.md"
+                || (self.imported
+                    && path == "/remote/project/.openbitfun/skills/remote-review/SKILL.md")
+            {
                 return Ok(
                     "---\ndescription: Review a remote target.\narguments: target focus\nmodel: opus\n---\n\nReview $target for $focus.\nContext: !`git diff`\n"
                         .to_string(),
                 );
+            }
+            if self.imported
+                && path
+                    == "/remote/project/.openbitfun/skills/remote-review/.openbitfun-import.json"
+            {
+                return Ok(json!({ "schemaVersion": 1, "importId": "remote-import", "sourceKey": "project::claude::remote-review", "sourcePath": "/remote/project/.claude/skills/remote-review", "sourceId": "claude-code", "sourceLabel": "Claude Code", "sourceSlot": "claude", "fingerprint": "fixture" }).to_string());
             }
             anyhow::bail!("not found: {}", path)
         }
@@ -572,21 +583,29 @@ Use the remote project skill.
         }
 
         async fn is_file(&self, path: &str) -> anyhow::Result<bool> {
-            Ok(path == "/remote/project/.claude/skills/remote-review/SKILL.md")
+            Ok(path == "/remote/project/.claude/skills/remote-review/SKILL.md" || (self.imported && matches!(path,
+                "/remote/project/.openbitfun/skills/remote-review/SKILL.md" | "/remote/project/.openbitfun/skills/remote-review/.openbitfun-import.json")))
         }
 
         async fn is_dir(&self, path: &str) -> anyhow::Result<bool> {
             Ok(matches!(
                 path,
                 "/remote/project/.claude/skills" | "/remote/project/.claude/skills/remote-review"
-            ))
+            ) || (self.imported
+                && matches!(
+                    path,
+                    "/remote/project/.openbitfun/skills"
+                        | "/remote/project/.openbitfun/skills/remote-review"
+                )))
         }
 
         async fn read_dir(&self, path: &str) -> anyhow::Result<Vec<WorkspaceDirEntry>> {
-            if path == "/remote/project/.claude/skills" {
+            if path == "/remote/project/.claude/skills"
+                || (self.imported && path == "/remote/project/.openbitfun/skills")
+            {
                 return Ok(vec![WorkspaceDirEntry {
                     name: "remote-review".to_string(),
-                    path: "/remote/project/.claude/skills/remote-review".to_string(),
+                    path: format!("{path}/remote-review"),
                     is_dir: true,
                     is_symlink: false,
                     modified: None,
@@ -612,6 +631,37 @@ Use the remote project skill.
         }
     }
 
+    async fn import_test_skill(
+        root: &std::path::Path,
+        source_key: &str,
+        target_name: Option<&str>,
+    ) -> crate::agentic::tools::implementations::skills::types::SkillInfo {
+        let registry = SkillRegistry::global();
+        let source = registry
+            .find_skill_by_key_for_workspace(source_key, Some(root))
+            .await
+            .unwrap();
+        crate::agentic::tools::implementations::skills::registry::imports::import_copy_as(
+            source,
+            root.join(".openbitfun/skills"),
+            target_name.map(str::to_string),
+        )
+        .await
+        .unwrap();
+        registry
+            .get_all_skills_for_workspace(Some(root))
+            .await
+            .into_iter()
+            .find(|skill| {
+                skill.is_native()
+                    && skill
+                        .import_origin
+                        .as_ref()
+                        .is_some_and(|origin| origin.source_key == source_key)
+            })
+            .unwrap()
+    }
+
     #[test]
     fn skill_schema_exposes_optional_arguments() {
         let schema = SkillTool::new().input_schema();
@@ -621,7 +671,7 @@ Use the remote project skill.
     }
 
     #[tokio::test]
-    async fn stable_key_loads_a_shadowed_nested_skill_without_changing_name_resolution() {
+    async fn stable_key_requires_import_without_changing_original_name_resolution() {
         let temp = tempfile::tempdir().unwrap();
         for (directory, body) in [
             (".openbitfun/skills/same", "default body"),
@@ -638,9 +688,22 @@ Use the remote project skill.
             .unwrap();
         }
         let context = local_context(temp.path().to_path_buf());
+        assert!(SkillTool::new()
+            .call_impl(
+                &json!({ "command": "project::codex::nested/same" }),
+                &context
+            )
+            .await
+            .is_err());
+        let imported = import_test_skill(
+            temp.path(),
+            "project::codex::nested/same",
+            Some("chosen-copy"),
+        )
+        .await;
         for (command, expected) in [
             ("source-collision-regression", "default body"),
-            ("project::codex::nested/same", "chosen body"),
+            (imported.key.as_str(), "chosen body"),
         ] {
             let results = SkillTool::new()
                 .call_impl(&json!({ "command": command }), &context)
@@ -658,24 +721,124 @@ Use the remote project skill.
         let mut document = load_project_mode_skills_document_local(temp.path())
             .await
             .unwrap();
-        set_mode_skill_disabled_in_document(
-            &mut document,
-            "agent",
-            "project::codex::nested/same",
-            true,
-        )
-        .unwrap();
+        set_mode_skill_disabled_in_document(&mut document, "agent", &imported.key, true).unwrap();
         save_project_mode_skills_document_local(temp.path(), &document)
             .await
             .unwrap();
         assert!(SkillRegistry::global()
             .find_and_load_skill_by_key_for_workspace(
-                "project::codex::nested/same",
+                &imported.key,
                 Some(temp.path()),
                 Some("agent")
             )
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn discovered_external_skills_require_import_for_listing_and_execution_and_revoke_on_undo(
+    ) {
+        use crate::agentic::tools::implementations::skills::registry::imports::remove_imported_copy;
+        let temp = tempfile::tempdir().unwrap();
+        let registry = SkillRegistry::global();
+        let mut sources = Vec::new();
+        for ecosystem in [
+            "claude", "codex", "cursor", "opencode", "agents", "dsh", "pi",
+        ] {
+            let name = format!("import-boundary-{ecosystem}");
+            let path = temp.path().join(format!(".{ecosystem}/skills/{name}"));
+            fs::create_dir_all(&path).unwrap();
+            fs::write(path.join("SKILL.md"), format!("---\nname: {name}\ndescription: Import boundary fixture.\n---\nImported content for {ecosystem}.\n")).unwrap();
+            sources.push((name, path));
+        }
+        let report = registry
+            .get_skill_scan_report_for_workspace(Some(temp.path()))
+            .await;
+        let external = report
+            .skills
+            .iter()
+            .filter(|skill| skill.name.starts_with("import-boundary-"))
+            .collect::<Vec<_>>();
+        assert_eq!(external.len(), sources.len());
+        for mode in [None, Some("agent")] {
+            let mut context = local_context(temp.path().to_path_buf());
+            context.agent_type = mode.map(str::to_string);
+            assert!(!registry
+                .get_resolved_skills_for_workspace(Some(temp.path()), mode)
+                .await
+                .iter()
+                .any(|skill| skill.name.starts_with("import-boundary-")));
+            assert!(!registry
+                .get_resolved_skills_xml_for_workspace(Some(temp.path()), mode)
+                .await
+                .iter()
+                .any(|xml| xml.contains("<skill name=\"import-boundary-")));
+            for skill in &external {
+                for command in [&skill.name, &skill.key] {
+                    let error = SkillTool::new()
+                        .call_impl(&json!({ "command": command }), &context)
+                        .await
+                        .unwrap_err();
+                    assert!(error.to_string().contains("import it"), "{error}");
+                }
+            }
+        }
+        assert!(!registry
+            .get_mode_skill_infos_for_workspace(Some(temp.path()), "agent")
+            .await
+            .iter()
+            .any(|skill| skill.skill.name.starts_with("import-boundary-")));
+
+        let source = external
+            .iter()
+            .find(|skill| skill.source_id == "claude-code")
+            .unwrap();
+        let imported = import_test_skill(temp.path(), &source.key, None).await;
+        let visible = registry
+            .get_resolved_skills_for_workspace(Some(temp.path()), None)
+            .await;
+        assert!(visible.iter().any(|skill| skill.key == imported.key));
+        assert!(!visible.iter().any(|skill| skill.key == source.key));
+        let context = local_context(temp.path().to_path_buf());
+        for command in [&imported.name, &imported.key] {
+            let results = SkillTool::new()
+                .call_impl(&json!({ "command": command }), &context)
+                .await
+                .unwrap();
+            let ToolResult::Result { data, .. } = &results[0] else {
+                panic!("expected imported skill")
+            };
+            assert_eq!(data["source_id"], "openbitfun");
+            assert!(data["content"]
+                .as_str()
+                .unwrap()
+                .contains("Imported content for claude"));
+        }
+        // An old source key cannot bypass explicit import even after its copy exists.
+        assert!(SkillTool::new()
+            .call_impl(&json!({ "command": source.key }), &context)
+            .await
+            .is_err());
+        remove_imported_copy(
+            std::path::Path::new(&imported.path),
+            &imported.import_origin.as_ref().unwrap().import_id,
+        )
+        .await
+        .unwrap();
+        for command in [&imported.name, &imported.key] {
+            assert!(SkillTool::new()
+                .call_impl(&json!({ "command": command }), &context)
+                .await
+                .is_err());
+        }
+        assert!(!registry
+            .get_resolved_skills_for_workspace(Some(temp.path()), None)
+            .await
+            .iter()
+            .any(|skill| skill.name.starts_with("import-boundary-")));
+        assert!(sources
+            .iter()
+            .all(|(_, path)| path.join("SKILL.md").is_file()));
     }
 
     #[tokio::test]
@@ -732,6 +895,7 @@ Use the remote project skill.
             "interface:\n  display_name: \"Academic Deep Research\"\npolicy:\n  allow_implicit_invocation: false\n",
         )
         .expect("skill interface metadata");
+        import_test_skill(temp.path(), "project::codex::deep-research", None).await;
         let mut context = local_context(temp.path().to_path_buf());
         context.agent_type = Some("DeepResearch".to_string());
 
@@ -745,9 +909,9 @@ Use the remote project skill.
         };
         assert_eq!(data["skill_name"], "deep-research");
         assert!(data.get("skill_display_name").is_none());
-        assert_eq!(data["source_slot"], "codex");
-        assert_eq!(data["source_id"], "codex");
-        assert_eq!(data["source_label"], "Codex");
+        assert_eq!(data["source_slot"], "openbitfun");
+        assert_eq!(data["source_id"], "openbitfun");
+        assert_eq!(data["source_label"], "OpenBitFun");
     }
 
     #[tokio::test]
@@ -760,6 +924,7 @@ Use the remote project skill.
             "---\nname: deep-research\ndescription: Research workflow.\n---\n\nResearch the topic.\n",
         )
         .expect("skill markdown");
+        import_test_skill(temp.path(), "project::codex::deep-research", None).await;
         let registry = SkillRegistry::global();
         let resolved = registry
             .get_resolved_skills_for_workspace(Some(temp.path()), Some("DeepResearch"))
@@ -783,7 +948,7 @@ Use the remote project skill.
             .await
             .expect("native DeepResearch should still allow explicit stable-key invocation");
         assert_eq!(loaded.name, "deep-research");
-        assert_eq!(loaded.source_label, "Codex");
+        assert_eq!(loaded.source_label, "OpenBitFun");
     }
 
     #[tokio::test]
@@ -796,6 +961,7 @@ Use the remote project skill.
             "---\ndescription: Deploy a service.\narguments: service environment\n---\n\nDeploy $service to $environment.\n",
         )
         .expect("skill markdown");
+        import_test_skill(temp.path(), "project::claude::deploy-service", None).await;
         let context = local_context(temp.path().to_path_buf());
 
         let visible = SkillRegistry::global()
@@ -803,7 +969,7 @@ Use the remote project skill.
             .await;
         assert!(visible
             .iter()
-            .any(|skill| { skill.name == "deploy-service" && skill.source_slot == "claude" }));
+            .any(|skill| { skill.name == "deploy-service" && skill.source_slot == "openbitfun" }));
 
         let results = SkillTool::new()
             .call_impl(
@@ -825,7 +991,10 @@ Use the remote project skill.
     async fn remote_claude_skill_uses_the_same_dialect_for_discovery_and_load() {
         let registry = SkillRegistry::global();
         let report = registry
-            .get_skill_scan_report_for_remote_workspace(&ClaudeRemoteFs, "/remote/project")
+            .get_skill_scan_report_for_remote_workspace(
+                &ClaudeRemoteFs { imported: false },
+                "/remote/project",
+            )
             .await;
         assert!(report
             .skills
@@ -841,25 +1010,74 @@ Use the remote project skill.
                 .count(),
             2
         );
+        let external = report
+            .skills
+            .iter()
+            .find(|skill| skill.name == "remote-review")
+            .unwrap();
+        for mode in [None, Some("agent")] {
+            assert!(registry
+                .find_and_load_skill_for_remote_workspace(
+                    "remote-review",
+                    &ClaudeRemoteFs { imported: false },
+                    "/remote/project",
+                    mode
+                )
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("import it"));
+            assert!(registry
+                .find_and_load_skill_by_key_for_remote_workspace(
+                    &external.key,
+                    &ClaudeRemoteFs { imported: false },
+                    "/remote/project",
+                    mode
+                )
+                .await
+                .is_err());
+        }
+        assert!(!registry
+            .get_mode_skill_infos_for_remote_workspace(
+                &ClaudeRemoteFs { imported: false },
+                "/remote/project",
+                "agent"
+            )
+            .await
+            .iter()
+            .any(|skill| skill.skill.name == "remote-review"));
+        assert!(!registry
+            .get_resolved_skills_xml_for_remote_workspace(
+                &ClaudeRemoteFs { imported: false },
+                "/remote/project",
+                None
+            )
+            .await
+            .iter()
+            .any(|xml| xml.contains("<skill name=\"remote-review\"")));
         let visible = registry
-            .get_resolved_skills_for_remote_workspace(&ClaudeRemoteFs, "/remote/project", None)
+            .get_resolved_skills_for_remote_workspace(
+                &ClaudeRemoteFs { imported: true },
+                "/remote/project",
+                None,
+            )
             .await;
         assert!(visible
             .iter()
-            .any(|skill| { skill.name == "remote-review" && skill.source_slot == "claude" }));
+            .any(|skill| { skill.name == "remote-review" && skill.source_slot == "openbitfun" }));
 
         let loaded = registry
             .find_and_load_skill_for_remote_workspace(
                 "remote-review",
-                &ClaudeRemoteFs,
+                &ClaudeRemoteFs { imported: true },
                 "/remote/project",
                 None,
             )
             .await
             .expect("remote Claude skill should load with the discovery dialect");
         assert_eq!(loaded.name, "remote-review");
-        assert_eq!(loaded.source_id, "claude-code");
-        assert_eq!(loaded.source_label, "Claude Code");
+        assert_eq!(loaded.source_id, "openbitfun");
+        assert_eq!(loaded.source_label, "OpenBitFun");
         assert_eq!(loaded.argument_names, ["target", "focus"]);
         assert_eq!(loaded.compatibility_warnings.len(), 2);
         assert!(loaded.content.contains("!`git diff`"));
@@ -867,7 +1085,7 @@ Use the remote project skill.
         let loaded_by_key = registry
             .find_and_load_skill_by_key_for_remote_workspace(
                 &loaded.key,
-                &ClaudeRemoteFs,
+                &ClaudeRemoteFs { imported: true },
                 "/remote/project",
                 None,
             )
@@ -907,6 +1125,7 @@ Use the remote project skill.
                 .count(),
             3
         );
+        let skill = import_test_skill(temp.path(), &skill.key, None).await;
         let context = local_context(temp.path().to_path_buf());
         for command in [skill.name.as_str(), skill.key.as_str()] {
             let results = SkillTool::new()
@@ -1233,6 +1452,7 @@ Use the remote project skill.
         )
         .expect("skill policy");
 
+        import_test_skill(temp.path(), "project::codex::local-explicit-only", None).await;
         let registry = SkillRegistry::global();
         let resolved = registry
             .get_resolved_skills_for_workspace(Some(temp.path()), None)
@@ -1271,6 +1491,7 @@ Use the remote project skill.
         )
         .expect("skill markdown");
 
+        import_test_skill(temp.path(), "project::claude::model-only", None).await;
         let registry = SkillRegistry::global();
         let resolved = registry
             .get_resolved_skills_for_workspace(Some(temp.path()), None)

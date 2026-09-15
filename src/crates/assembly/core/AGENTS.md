@@ -190,6 +190,12 @@ Narrower local guides already exist for some subtrees:
 
 ## Verification
 
+AI client construction and subscription credential compatibility:
+
+```bash
+cargo test -p openbitfun-core --no-default-features --features ai-adapter-runtime,subscription-auth --lib infrastructure::ai::client_factory::tests
+```
+
 This guide owns Core verification. Select one command pattern that matches the
 change; do not run every feature variant:
 
@@ -232,6 +238,13 @@ cargo test -p openbitfun-core --no-default-features --features agent-runtime,git
 cargo test -p openbitfun-core --no-default-features --features agent-runtime,remote-workspace,git --lib service::snapshot::
 ```
 
+MCP chat discovery and deferred-tool manifest contracts (Git is needed by the
+existing Agent tool test assembly):
+
+```bash
+cargo test --locked -p openbitfun-core --no-default-features --features mcp-runtime,git --lib agentic::tools::product_runtime::
+```
+
 Skill discovery, installation provenance, and local/remote registry regressions:
 
 ```bash
@@ -255,3 +268,13 @@ IM bot reply routing, account-device observation, and interaction delivery:
 ```bash
 cargo test --locked -p openbitfun-core --no-default-features --features remote-connect --lib service::remote_connect::bot::
 ```
+
+Pages account publication and tool gates (including remote directory rejection):
+
+```bash
+cargo test -p openbitfun-core --no-default-features --features remote-connect,tools-pages,git,ssh-remote --lib page_
+```
+
+`tools-pages` selects only the Pages tool group. Account host wiring additionally
+requires `remote-connect`; CLI and Desktop select both explicitly. Pages does
+not select MiniApp runtime or market dependencies.

@@ -126,6 +126,7 @@ impl ClaudeCodeMcpProvider {
         let mut diagnostics = Vec::new();
         let mut winners = BTreeMap::<String, (SourceKey, Value)>::new();
         let mut documents = BTreeMap::<PathBuf, ParsedDocument>::new();
+        let mut disabled_servers = BTreeSet::<String>::new();
 
         for layer in self.layers(&input.context) {
             let key = source_key(&layer);
@@ -145,6 +146,24 @@ impl ClaudeCodeMcpProvider {
                     ..diagnostic
                 })
                 .collect::<Vec<_>>();
+            if let LayerSelector::WorkspaceLocal(workspace) = &layer.selector {
+                if let Some(disabled) = document
+                    .value
+                    .get("projects")
+                    .and_then(Value::as_object)
+                    .and_then(|projects| {
+                        projects.iter().find_map(|(path, project)| {
+                            paths_equal(Path::new(path), workspace).then_some(project)
+                        })
+                    })
+                    .and_then(|project| project.get("disabledMcpServers"))
+                {
+                    let names = disabled.as_array().filter(|names| names.len() <= MAX_MCP_SERVERS && names.iter().all(Value::is_string))
+                        .ok_or_else(|| provider_error("disabled_state_invalid", "Claude Code disabledMcpServers must be a bounded list of server names", false))?;
+                    disabled_servers
+                        .extend(names.iter().filter_map(Value::as_str).map(str::to_owned));
+                }
+            }
             let extracted = if document.fatal {
                 ExtractedServers::default()
             } else {
@@ -227,8 +246,20 @@ impl ClaudeCodeMcpProvider {
                     .with_asset_kind(ExternalSourceAssetKind::Mcp),
                 );
             }
-            let materialized =
+            let disabled = disabled_servers.contains(&name);
+            let mut materialized =
                 materialize_server(&input.context, &input.revision_key, source, name, value)?;
+            if disabled {
+                let definition = &mut materialized.definition;
+                definition.source_enabled = false;
+                if definition.static_status == ExternalMcpStaticStatus::Ready {
+                    definition.static_status = ExternalMcpStaticStatus::DisabledBySource;
+                }
+                definition.behavior_version = input.revision_key.opaque_revision(
+                    "claude.mcp.disabled.v1",
+                    [definition.behavior_version.as_bytes()],
+                );
+            }
             prepared.insert(
                 materialized.definition.id.stable_key(),
                 materialized.prepared,
@@ -253,6 +284,7 @@ impl ClaudeCodeMcpProvider {
         input: &ExternalMcpDiscoveryInput,
         server_id: &SourceQualifiedMcpServerId,
         expected_behavior_version: &str,
+        for_import: bool,
     ) -> Result<(ExternalMcpServerDefinition, PreparedTransportTemplate), ExternalSourceProviderError>
     {
         if server_id.source.provider_id.as_str() != PROVIDER_ID {
@@ -283,8 +315,11 @@ impl ClaudeCodeMcpProvider {
                 true,
             ));
         }
-        if !definition.source_enabled
-            || !matches!(definition.static_status, ExternalMcpStaticStatus::Ready)
+        if (!for_import && !definition.source_enabled)
+            || !matches!(
+                definition.static_status,
+                ExternalMcpStaticStatus::Ready | ExternalMcpStaticStatus::DisabledBySource
+            )
         {
             return Err(provider_error(
                 "not_activatable",
@@ -333,7 +368,7 @@ impl ExternalMcpSourceProvider for ClaudeCodeMcpProvider {
         expected_behavior_version: &str,
     ) -> Result<PreparedExternalMcpServer, ExternalSourceProviderError> {
         let (definition, template) =
-            self.current_preparation(input, server_id, expected_behavior_version)?;
+            self.current_preparation(input, server_id, expected_behavior_version, false)?;
         prepare_transport(
             template,
             server_id.clone(),
@@ -349,7 +384,7 @@ impl ExternalMcpSourceProvider for ClaudeCodeMcpProvider {
         expected_behavior_version: &str,
     ) -> Result<PreparedExternalMcpImportServer, ExternalSourceProviderError> {
         let (definition, template) =
-            self.current_preparation(input, server_id, expected_behavior_version)?;
+            self.current_preparation(input, server_id, expected_behavior_version, true)?;
         prepare_import_projection(definition, template)
     }
 
@@ -957,24 +992,35 @@ fn prepare_import_projection(
     definition: ExternalMcpServerDefinition,
     template: PreparedTransportTemplate,
 ) -> Result<PreparedExternalMcpImportServer, ExternalSourceProviderError> {
-    if !definition.timeouts.is_empty() {
-        return Err(ExternalSourceProviderError::new(
-            "external_mcp.import_setup_required",
-            "MCP timeout overrides cannot be imported into native configuration",
-            false,
-        ));
-    }
-    let transport = match template {
+    let (transport, working_directory, oauth_enabled, environment, headers) = match template {
         PreparedTransportTemplate::Local {
             command,
             args,
             environment,
             working_directory,
-        } if environment.is_empty() && working_directory.is_none() => {
-            PreparedExternalMcpImportTransport::Local { command, args }
+        } if collect_environment_reference_names(environment.values())
+            .is_ok_and(|refs| refs.is_empty()) =>
+        {
+            (
+                PreparedExternalMcpImportTransport::Local { command, args },
+                working_directory,
+                None,
+                environment,
+                BTreeMap::new(),
+            )
         }
-        PreparedTransportTemplate::Remote { url, headers } if headers.is_empty() => {
-            PreparedExternalMcpImportTransport::Remote { url }
+        PreparedTransportTemplate::Remote { url, headers }
+            if collect_environment_reference_names(headers.values())
+                .is_ok_and(|refs| refs.is_empty()) =>
+        {
+            (
+                PreparedExternalMcpImportTransport::Remote { url },
+                None,
+                // Native OAuth discovery and login belong to OpenBitFun after import.
+                Some(true),
+                BTreeMap::new(),
+                headers,
+            )
         }
         _ => {
             return Err(ExternalSourceProviderError::new(
@@ -985,9 +1031,14 @@ fn prepare_import_projection(
         }
     };
     let prepared = PreparedExternalMcpImportServer {
+        environment,
+        headers,
         id: definition.id,
         behavior_version: definition.behavior_version,
         transport,
+        working_directory,
+        timeouts: definition.timeouts,
+        oauth_enabled,
     };
     prepared.validate().map_err(|_| {
         ExternalSourceProviderError::new(

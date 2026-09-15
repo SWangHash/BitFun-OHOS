@@ -1,4 +1,4 @@
-//! Host callback for PageDeploy (wired by desktop account APIs).
+//! Host callback for PageDeploy (wired by product account hosts).
 
 use std::future::Future;
 use std::pin::Pin;

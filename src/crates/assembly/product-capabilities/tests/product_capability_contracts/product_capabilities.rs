@@ -142,6 +142,7 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
             "core.computer-use",
             "core.review",
             "core.miniapp",
+            "core.pages",
             "core.creation",
             "core.canvas",
         ]
@@ -164,6 +165,7 @@ fn capability_packs_describe_service_and_tool_requirements() {
             "deep-review",
             "deep-research",
             "miniapp",
+            "pages",
             "creation",
             "canvas",
             "voice-input"
@@ -183,6 +185,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "deep-review",
         "deep-research",
         "miniapp",
+        "pages",
         "creation",
         "canvas",
     ];
@@ -196,6 +199,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "core.computer-use",
         "core.review",
         "core.miniapp",
+        "core.pages",
         "core.creation",
         "core.canvas",
     ];
@@ -226,11 +230,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         );
     }
 
-    for profile in [
-        DeliveryProfile::Cli,
-        DeliveryProfile::Acp,
-        DeliveryProfile::Sdk,
-    ] {
+    for profile in [DeliveryProfile::Acp, DeliveryProfile::Sdk] {
         let plan = product_assembly_plan_for_profile(profile);
 
         assert_eq!(plan.profile(), profile);
@@ -501,6 +501,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             ProductFeatureGroup::Mcp,
             ProductFeatureGroup::ComputerUse,
             ProductFeatureGroup::MiniApp,
+            ProductFeatureGroup::Pages,
             ProductFeatureGroup::Creation,
             ProductFeatureGroup::Canvas,
         ]
@@ -516,6 +517,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             "mcp",
             "computer-use",
             "miniapp",
+            "pages",
             "creation",
             "canvas",
         ]
@@ -537,7 +539,7 @@ fn product_assembly_plan_reports_service_availability_by_capability() {
         .filter(|entry| entry.status() == ProductServiceCapabilityStatus::Unavailable)
         .collect::<Vec<_>>();
 
-    assert_eq!(unavailable.len(), 4);
+    assert_eq!(unavailable.len(), 5);
     assert_eq!(
         unavailable[0].requirement(),
         ProductServiceCapabilityRequirement::new(
@@ -596,6 +598,10 @@ fn product_runtime_assembly_reports_runtime_service_capability_gaps() {
             ),
             ProductServiceCapabilityRequirement::new(
                 ProductCapabilityId::DeepResearch,
+                RuntimeServiceCapability::Network,
+            ),
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::Pages,
                 RuntimeServiceCapability::Network,
             ),
         ]
@@ -770,6 +776,10 @@ fn product_assembler_reports_missing_services_without_building_runtime_parts() {
                     ProductCapabilityId::DeepResearch,
                     RuntimeServiceCapability::Network,
                 ),
+                ProductServiceCapabilityRequirement::new(
+                    ProductCapabilityId::Pages,
+                    RuntimeServiceCapability::Network,
+                ),
             ],
         }
     );
@@ -814,6 +824,7 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "deep-review",
             "deep-research",
             "miniapp",
+            "pages",
             "creation",
             "canvas",
             "voice-input"
@@ -852,6 +863,7 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "core.computer-use",
             "core.review",
             "core.miniapp",
+            "core.pages",
             "core.creation",
             "core.canvas",
         ]
@@ -886,6 +898,10 @@ fn capability_assembly_reports_missing_services_without_concrete_runtime_depende
             ),
             ProductServiceCapabilityRequirement::new(
                 ProductCapabilityId::DeepResearch,
+                RuntimeServiceCapability::Network,
+            ),
+            ProductServiceCapabilityRequirement::new(
+                ProductCapabilityId::Pages,
                 RuntimeServiceCapability::Network,
             ),
         ]

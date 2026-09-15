@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const sessionUsagePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'session-usage-panel',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'header' },

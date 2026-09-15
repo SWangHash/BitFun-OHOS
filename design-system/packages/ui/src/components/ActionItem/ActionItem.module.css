@@ -103,6 +103,11 @@
     white-space: nowrap;
   }
 
+  .staticLabel {
+    overflow: visible;
+    white-space: inherit;
+  }
+
   .metadata,
   .shortcut,
   .actions {

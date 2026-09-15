@@ -352,6 +352,14 @@ pub async fn get_external_source_snapshot(
 }
 
 #[tauri::command]
+pub async fn get_instruction_source_catalog(
+    request: ExternalSourceSnapshotRequest,
+) -> ExternalSourceOperationResult<openbitfun_core::external_sources::InstructionSourceCatalog> {
+    let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
+    Ok(openbitfun_core::external_sources::instruction_source_catalog(workspace).await)
+}
+
+#[tauri::command]
 pub async fn get_workspace_reference_snapshot(
     state: State<'_, AppState>,
     request: WorkspaceReferenceSnapshotRequest,
@@ -771,6 +779,19 @@ pub async fn choose_external_mcp_conflict_command(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn instruction_catalog_rejects_nonlocal_request_paths_before_discovery() {
+        for path in ["relative/workspace", "ssh://host/workspace"] {
+            let request = super::ExternalSourceSnapshotRequest {
+                workspace_path: Some(path.into()),
+                force_refresh: false,
+            };
+            assert!(super::get_instruction_source_catalog(request)
+                .await
+                .is_err());
+        }
+    }
+
     use super::*;
     use openbitfun_core::external_sources::{
         ExternalSourceCatalogSnapshot, ExternalSourceControlActionV1,

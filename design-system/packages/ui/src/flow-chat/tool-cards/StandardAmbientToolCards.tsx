@@ -336,7 +336,7 @@ export function ViewImageToolCard({
         ) : undefined}
         header={(
           <AmbientToolCardHeader
-            action={statusText}
+            content={statusText}
             icon={<ToolCardStatusSlot size={14} status={status} toolIcon={<ImageIcon aria-hidden="true" />} />}
           />
         )}

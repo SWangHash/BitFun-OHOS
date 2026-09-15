@@ -319,6 +319,8 @@
   }
 
   &__icon-action {
+    flex-shrink: 1;
+    transition: none;
     display: grid;
     width: 30px;
     height: 30px;
@@ -329,6 +331,18 @@
     color: var(--openbitfun-color-content-secondary);
     background: transparent;
     cursor: pointer;
+
+    &::before { content: none; }
+
+    > [data-openbitfun-part='icon'] {
+      --openbitfun-opacity-icon-artwork: inherit;
+      display: contents;
+    }
+
+    > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
+      inline-size: var(--openbitfun-control-icon-size-md);
+      block-size: var(--openbitfun-control-icon-size-md);
+    }
 
     &:hover,
     &:focus-visible,

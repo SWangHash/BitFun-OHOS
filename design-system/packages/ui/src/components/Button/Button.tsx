@@ -9,6 +9,8 @@ import styles from "./Button.module.css";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
+  /** Static labels inherit whitespace and line height without clipping, marquee, or overflow tooltips. */
+  labelBehavior?: "overflow" | "static";
   leadingIcon?: ReactNode;
   loading?: boolean;
   size?: "xs" | "sm" | "md" | "lg";
@@ -21,6 +23,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   children,
   className,
   disabled,
+  labelBehavior = "overflow",
   leadingIcon,
   loading = false,
   size = "md",
@@ -40,21 +43,26 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-openbitfun-tone={tone}
       data-openbitfun-variant={variant}
       data-loading={loading ? "true" : "false"}
+      data-label-behavior={labelBehavior}
       data-size={size}
       disabled={disabled || loading}
       ref={ref}
       type={type}
     >
-      <span aria-hidden="true" className={styles.progress} />
-      <span className={styles.content}>
+      <span aria-hidden="true" className={styles.progress} data-openbitfun-part="progress" />
+      <span className={styles.content} data-openbitfun-part="content">
         {leadingIcon && (
-          <span aria-hidden="true" className={classNames(styles.icon, styles.leadingIcon)}>
+          <span aria-hidden="true" className={classNames(styles.icon, styles.leadingIcon)} data-openbitfun-part="leading-icon">
             {leadingIcon}
           </span>
         )}
-        <OverflowText className={styles.label}>{children}</OverflowText>
+        {labelBehavior === "static" ? (
+          <span className={classNames(styles.label, styles.staticLabel)} data-openbitfun-part="label">{children}</span>
+        ) : (
+          <OverflowText className={styles.label} data-openbitfun-part="label">{children}</OverflowText>
+        )}
         {trailingIcon && (
-          <span aria-hidden="true" className={classNames(styles.icon, styles.trailingIcon)}>
+          <span aria-hidden="true" className={classNames(styles.icon, styles.trailingIcon)} data-openbitfun-part="trailing-icon">
             {trailingIcon}
           </span>
         )}

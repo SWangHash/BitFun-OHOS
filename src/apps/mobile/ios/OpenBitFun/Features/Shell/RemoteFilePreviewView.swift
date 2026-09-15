@@ -1,3 +1,4 @@
+import OpenBitFunMobileCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -65,6 +66,36 @@ struct RemoteFilePreviewSheet: View {
     var embedded = false
     @Environment(\.dismiss) private var dismiss
     @State private var visibleLine: Int = 0
+    @State private var codeLines: [AttributedString] = []
+
+    private func color(_ kind: CodeSyntaxTokenKind) -> Color {
+        switch kind {
+        case .lineNumber: return MobileDesignColors.codeLineNumber
+        case .keyword: return MobileDesignColors.codeKeyword
+        case .string: return MobileDesignColors.codeString
+        case .number: return MobileDesignColors.codeNumber
+        case .comment: return MobileDesignColors.codeComment
+        case .function: return MobileDesignColors.codeFunction
+        case .type: return MobileDesignColors.codeType
+        case .constant: return MobileDesignColors.codeConstant
+        case .property: return MobileDesignColors.codeProperty
+        default: return OpenBitFunTheme.ink
+        }
+    }
+
+    private func highlightCode() {
+        var lines = [AttributedString()]
+        for token in CodeSyntaxHighlighter.shared.tokenize(text: preview.content, fileName: preview.name) {
+            let parts = token.text.components(separatedBy: "\n")
+            for (index, part) in parts.enumerated() {
+                if index > 0 { lines.append(AttributedString()) }
+                var run = AttributedString(part)
+                run.foregroundColor = color(token.kind)
+                lines[lines.count - 1].append(run)
+            }
+        }
+        codeLines = lines
+    }
 
     private var scrollTargetKey: String {
         "\(preview.sessionID)|\(preview.controlTargetEpoch)|\(preview.id)"
@@ -248,11 +279,11 @@ struct RemoteFilePreviewSheet: View {
                         } else {
                             ScrollViewReader { proxy in
                                 LazyVStack(alignment: .leading, spacing: 0) {
-                                    ForEach(Array(preview.content.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { index, line in
-                                        Text(String(line))
+                                    ForEach(Array(codeLines.enumerated()), id: \.offset) { index, line in
+                                        Text(line)
                                             .font(.system(size: 13, design: .monospaced))
-                                            .foregroundStyle(OpenBitFunTheme.ink)
                                             .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(index + 1 >= Int(preview.lineStart) && index + 1 <= Int(max(preview.lineStart, preview.lineEnd)) && preview.lineStart > 0 ? MobileDesignColors.codeTargetBg : OpenBitFunTheme.transparent)
                                             .background(GeometryReader { geometry in
                                                 OpenBitFunTheme.transparent.preference(
                                                     key: FilePreviewVisibleLinePreferenceKey.self,
@@ -267,6 +298,10 @@ struct RemoteFilePreviewSheet: View {
                                     }
                                 }
                                 .padding(18).textSelection(.enabled)
+                                .onChange(of: codeLines) { _ in
+                                    let anchor = filePreviewScrollAnchorByTarget[scrollTargetKey] ?? max(1, Int(preview.lineStart))
+                                    proxy.scrollTo(anchor, anchor: .center)
+                                }
                                 .onAppear {
                                     let anchor = filePreviewScrollAnchorByTarget[scrollTargetKey] ??
                                         (preview.lineStart > 1 ? Int(preview.lineStart) : 1)
@@ -298,6 +333,8 @@ struct RemoteFilePreviewSheet: View {
             }
         }
         .background(OpenBitFunTheme.page)
+        .onAppear { highlightCode() }
+        .onChange(of: preview) { _ in highlightCode() }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

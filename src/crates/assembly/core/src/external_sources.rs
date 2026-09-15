@@ -3,6 +3,8 @@
 //! Concrete ecosystem providers are selected only in this assembly module. The
 //! catalog and product surfaces remain provider- and ecosystem-neutral.
 
+pub use crate::instruction_sources::{instruction_source_catalog, InstructionSourceCatalog};
+
 pub use openbitfun_product_domains::external_integration_policy::{
     EffectiveExternalIntegrationPolicy, ExternalIntegrationAccess, ExternalIntegrationMode,
     ExternalIntegrationPolicyMutation, ExternalIntegrationPolicyOperation,
@@ -65,6 +67,7 @@ use openbitfun_claude_code_adapter::{
     ClaudeCodeCommandProvider, ClaudeCodeMcpProvider, ClaudeCodeSubagentProvider,
 };
 use openbitfun_codex_adapter::{CodexMcpProvider, CodexSubagentProvider};
+use openbitfun_dsh_adapter::DshMcpProvider;
 use openbitfun_external_sources::{
     DeferredDiscovery, ExternalMcpDiscoveryResult, ExternalSourceControlPlane,
     ExternalSourceCoordinator, ExternalSourceDiscoveryResult, ExternalSubagentDiscoveryResult,
@@ -86,10 +89,9 @@ use openbitfun_product_domains::external_integration_policy::{
     EXTERNAL_INTEGRATION_POLICY_SCHEMA_MAJOR,
 };
 use openbitfun_product_domains::external_sources::{
-    ExecutionDomainId, ExternalMcpRevisionKey, ExternalMcpSourceProvider, ExternalMcpStaticStatus,
-    ExternalSourceContext, ExternalSourceScope, ExternalToolSourceProvider, PromptCommandConflict,
-    PromptCommandExpansion, PromptCommandShellInvocation, PromptCommandShellPreference,
-    PromptCommandSourceProvider,
+    ExecutionDomainId, ExternalMcpRevisionKey, ExternalMcpSourceProvider, ExternalSourceContext,
+    ExternalSourceScope, ExternalToolSourceProvider, PromptCommandConflict, PromptCommandExpansion,
+    PromptCommandShellInvocation, PromptCommandShellPreference, PromptCommandSourceProvider,
 };
 use openbitfun_product_domains::external_subagents::ExternalSubagentSourceProvider;
 use openbitfun_product_domains::workspace_references::{
@@ -548,26 +550,61 @@ pub(crate) struct LocalConfiguredSkillRootContribution {
 
 pub(crate) fn opencode_configured_skill_roots(
     workspace_root: Option<&Path>,
-) -> Vec<LocalConfiguredSkillRootContribution> {
+) -> (
+    Vec<LocalConfiguredSkillRootContribution>,
+    Vec<(String, String)>,
+) {
     opencode_configured_skill_roots_with_provider(
         workspace_root,
         &OpenCodeSkillRootProvider::default(),
     )
 }
 
+pub(crate) fn pi_configured_skill_roots(
+    workspace_root: Option<&Path>,
+) -> (
+    Vec<LocalConfiguredSkillRootContribution>,
+    Vec<(String, String)>,
+) {
+    let report = openbitfun_pi_adapter::PiSkillRootProvider::default().discover(workspace_root);
+    let roots = report
+        .roots
+        .into_iter()
+        .enumerate()
+        .map(|(precedence, root)| LocalConfiguredSkillRootContribution {
+            path: root.path,
+            scope: root.scope,
+            precedence,
+        })
+        .collect();
+    (roots, report.diagnostics)
+}
+
 fn opencode_configured_skill_roots_with_provider(
     workspace_root: Option<&Path>,
     provider: &OpenCodeSkillRootProvider,
-) -> Vec<LocalConfiguredSkillRootContribution> {
-    provider
-        .discover(workspace_root)
+) -> (
+    Vec<LocalConfiguredSkillRootContribution>,
+    Vec<(String, String)>,
+) {
+    let report = provider.discover_with_diagnostics(workspace_root);
+    let roots = report
+        .roots
         .into_iter()
         .map(|root| LocalConfiguredSkillRootContribution {
             path: root.path,
             scope: root.scope,
             precedence: root.precedence,
         })
-        .collect()
+        .collect();
+    (
+        roots,
+        report
+            .diagnostics
+            .into_iter()
+            .map(|diagnostic| (diagnostic.location, diagnostic.message))
+            .collect(),
+    )
 }
 
 async fn finalize_prompt_command_expansion(
@@ -853,7 +890,43 @@ fn default_external_integration_registry() -> Vec<ExternalEcosystemRegistration>
             mcp_provider: Some(Arc::new(CodexMcpProvider::default())),
             workspace_reference_provider: None,
         },
+        ExternalEcosystemRegistration {
+            descriptor: ExternalIntegrationEcosystemDescriptor {
+                ecosystem_id: EcosystemId::new("deepseek-harness").expect("static ecosystem id"),
+                display_name: "DeepSeek Harness".to_string(),
+                adapter_revision: "1".to_string(),
+                capabilities: vec![external_capability_descriptor(
+                    EXTERNAL_CAPABILITY_MCP,
+                    ExternalIntegrationAccess::AskBeforeUse,
+                    ExternalIntegrationAccess::AskBeforeUse,
+                )],
+            },
+            contract_major: EXTERNAL_ADAPTER_CONTRACT_MAJOR,
+            upstream_format_revision: "dsh-mcp-declarations-v1",
+            command_provider: None,
+            tool_provider: None,
+            subagent_provider: None,
+            mcp_provider: Some(Arc::new(DshMcpProvider::default())),
+            workspace_reference_provider: None,
+        },
     ]
+}
+
+/// Resolve legacy native import receipts using registered provider identity, even
+/// when the external source is offline or no longer present. This does no discovery.
+pub fn ecosystem_for_imported_mcp_candidate(candidate_id: &str) -> Option<String> {
+    let qualified =
+        openbitfun_product_domains::external_sources::SourceQualifiedMcpServerId::from_stable_key(
+            candidate_id.strip_prefix("external_mcp:")?,
+        )?;
+    default_external_integration_registry()
+        .into_iter()
+        .find_map(|registration| {
+            let provider = registration.mcp_provider?;
+            let identity = provider.identity();
+            (identity.provider_id == qualified.source.provider_id)
+                .then(|| identity.ecosystem_id.to_string())
+        })
 }
 
 fn default_external_integration_ecosystems() -> Vec<ExternalIntegrationEcosystemDescriptor> {
@@ -1649,6 +1722,45 @@ impl WorkspaceExternalSourceService {
     async fn refresh(self: &Arc<Self>) -> Result<ExternalSourceCatalogSnapshot, String> {
         self.refresh_with_worker_recovery(WorkerRecoveryPolicy::ResetAndAttempt)
             .await
+    }
+
+    /// Snapshot imports need fresh MCP declarations, not unrelated command/tool,
+    /// Agent or reference scans and their product/runtime reconciliation.
+    async fn refresh_mcp_import_sources(self: &Arc<Self>) -> Result<(), String> {
+        sync_service_preferences(self).await?;
+        let preferences = read_external_sources_config().await?;
+        let policy = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())?;
+        self.discover_mcp_import_sources(&policy).await;
+        Ok(())
+    }
+
+    async fn discover_mcp_import_sources(
+        self: &Arc<Self>,
+        policy: &ExternalIntegrationPolicySnapshot,
+    ) {
+        let _refresh_guard = self.refresh_gate.lock().await;
+        let mut requests = Vec::new();
+        let mut disabled_results = Vec::new();
+        for request in lock_mcp_coordinator(&self.control_plane).discovery_requests() {
+            if integration_capability_is_discoverable(
+                policy,
+                request.ecosystem_id().as_str(),
+                EXTERNAL_CAPABILITY_MCP,
+            ) {
+                requests.push(request);
+            } else {
+                disabled_results.push(request.disabled());
+            }
+        }
+        let mut batch = self
+            .control_plane
+            .discover_mcp(requests, PROVIDER_DISCOVERY_TIMEOUT)
+            .await;
+        batch.immediate.append(&mut disabled_results);
+        lock_mcp_coordinator(&self.control_plane).apply_discovery_results(batch.immediate);
+        for deferred in batch.deferred {
+            self.schedule_deferred_mcp_discovery(deferred);
+        }
     }
 
     async fn refresh_workspace_references(self: &Arc<Self>, force: bool) -> Result<(), String> {
@@ -4743,25 +4855,56 @@ async fn service_for(
     service_for_profile(workspace_root, ExternalSourceServiceProfile::LocalExecution).await
 }
 
+fn mcp_import_discovery_complete(
+    snapshot: &openbitfun_external_sources::ExternalMcpCoordinatorSnapshot,
+) -> bool {
+    !snapshot.discovery_pending
+        && !snapshot
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.starts_with("external_mcp.discovery_"))
+}
+
 pub(crate) async fn collect_external_mcp_import_candidates(
     workspace_root: Option<&Path>,
 ) -> Result<Vec<crate::external_mcp_import::ExternalMcpImportCandidate>, String> {
     let service = read_only_service_for(workspace_root).await?;
-    service.refresh().await?;
-    let coordinator = lock_mcp_coordinator(&service.control_plane);
-    let snapshot = coordinator.snapshot();
-    let input_candidates = snapshot
-        .servers
-        .iter()
-        .cloned()
-        .map(|definition| {
-            let ecosystem_id = coordinator
-                .ecosystem_for_provider(&definition.id.source.provider_id)
-                .ok_or_else(|| "External MCP provider ecosystem is unavailable".to_string())?;
-            let preparation = if definition.source_enabled
-                && matches!(definition.static_status, ExternalMcpStaticStatus::Ready)
-            {
-                match coordinator
+    service.refresh_mcp_import_sources().await?;
+    // Provider preparation performs bounded synchronous file reads. Keep it off
+    // the async workers serving UI requests and connection lifecycle.
+    tokio::task::spawn_blocking(move || {
+        let coordinator = lock_mcp_coordinator(&service.control_plane);
+        let snapshot = coordinator.snapshot();
+        log::debug!(
+        "External MCP import discovery: providers={:?}, servers={}, pending={}, diagnostics={:?}",
+        snapshot
+            .sources
+            .iter()
+            .map(|source| source.record.key.provider_id.as_str())
+            .collect::<BTreeSet<_>>(),
+        snapshot.servers.len(),
+        snapshot.discovery_pending,
+        snapshot
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.as_str())
+            .collect::<Vec<_>>(),
+    );
+        if !mcp_import_discovery_complete(&snapshot) {
+            return Err(
+                "External MCP discovery is incomplete; refresh before reviewing imports"
+                    .to_string(),
+            );
+        }
+        let input_candidates = snapshot
+            .servers
+            .iter()
+            .cloned()
+            .map(|definition| {
+                let ecosystem_id = coordinator
+                    .ecosystem_for_provider(&definition.id.source.provider_id)
+                    .ok_or_else(|| "External MCP provider ecosystem is unavailable".to_string())?;
+                let preparation = match coordinator
                     .prepare_import_guarded(&definition.id, &definition.behavior_version)
                 {
                     Ok(prepared) => {
@@ -4772,20 +4915,18 @@ pub(crate) async fn collect_external_mcp_import_candidates(
                             error.code,
                         )
                     }
-                }
-            } else {
-                crate::external_mcp_import::ExternalMcpImportPreparation::Unavailable(
-                    "external_mcp.import_candidate_unsupported".to_string(),
-                )
-            };
-            Ok(crate::external_mcp_import::ExternalMcpImportCandidate {
-                definition,
-                ecosystem_id,
-                preparation,
+                };
+                Ok(crate::external_mcp_import::ExternalMcpImportCandidate {
+                    definition,
+                    ecosystem_id,
+                    preparation,
+                })
             })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    Ok(input_candidates)
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(input_candidates)
+    })
+    .await
+    .map_err(|error| format!("External MCP import preparation failed: {error}"))?
 }
 
 async fn read_only_service_for(
@@ -7405,6 +7546,52 @@ mod opencode_local_source_order_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn imported_mcp_plan_does_not_treat_capacity_failures_as_an_empty_catalog() {
+        let mut snapshot = openbitfun_external_sources::ExternalMcpCoordinatorSnapshot {
+            generation: 1,
+            discovery_pending: false,
+            sources: vec![],
+            servers: vec![],
+            diagnostics: vec![],
+        };
+        assert!(mcp_import_discovery_complete(&snapshot));
+        snapshot.discovery_pending = true;
+        assert!(!mcp_import_discovery_complete(&snapshot));
+        snapshot.discovery_pending = false;
+        snapshot.diagnostics.push(ExternalSourceDiagnostic::warning(
+            "external_mcp.discovery_overloaded",
+            "Discovery capacity is busy",
+            None,
+        ));
+        assert!(!mcp_import_discovery_complete(&snapshot));
+        snapshot.diagnostics.clear();
+        assert!(mcp_import_discovery_complete(&snapshot));
+    }
+    #[test]
+    fn imported_mcp_legacy_receipt_keeps_registered_origin_without_discovery() {
+        use openbitfun_product_domains::external_sources::SourceQualifiedMcpServerId;
+        for (provider, ecosystem) in [
+            ("codex.mcp", "codex"),
+            ("claude-code.mcp", "claude-code"),
+            ("opencode.mcp", "opencode"),
+        ] {
+            let id = SourceQualifiedMcpServerId::new(
+                SourceKey::new(provider, "removed-source").unwrap(),
+                "old-server",
+            )
+            .unwrap();
+            let candidate = format!("external_mcp:{}", id.stable_key());
+            assert_eq!(
+                ecosystem_for_imported_mcp_candidate(&candidate).as_deref(),
+                Some(ecosystem)
+            );
+            assert!(
+                ecosystem_for_imported_mcp_candidate(&format!("{candidate}invalid-tail")).is_none()
+            );
+        }
+        assert!(ecosystem_for_imported_mcp_candidate("external_mcp:bad").is_none());
+    }
     use crate::service::mcp::{ConfigLocation, MCPServerConfig, MCPServerType};
     use openbitfun_product_domains::external_sources::{
         EcosystemId, ExternalSourceProviderError, ExternalSourceRecord, ExternalSourceScope,
@@ -8834,7 +9021,9 @@ mod tests {
             home_dir: Some(home),
         });
 
-        let roots = opencode_configured_skill_roots_with_provider(Some(&project), &provider);
+        let (roots, diagnostics) =
+            opencode_configured_skill_roots_with_provider(Some(&project), &provider);
+        assert!(diagnostics.is_empty());
 
         assert_eq!(roots.len(), 1);
         assert_eq!(
@@ -9169,6 +9358,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mcp_import_refresh_discovers_only_mcp_and_preserves_source_suppression() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join("opencode.json"),
+            r#"{"mcp":{"docs":{"type":"local","command":["docs"],"enabled":false}}}"#,
+        )
+        .unwrap();
+        let unrelated_calls = Arc::new(AtomicUsize::new(0));
+        let (unrelated, _release) = blocked_provider("opencode.commands", unrelated_calls.clone());
+        let mut service = test_service(Vec::new());
+        let runtime = Arc::new(CountingExternalMcpRuntime::default());
+        let inner = Arc::get_mut(&mut service).unwrap();
+        inner.profile = ExternalSourceServiceProfile::ReadOnlyProjection;
+        inner.mcp_runtime = runtime.clone();
+        inner.control_plane = Arc::new(
+            ExternalSourceControlPlane::new(
+                ExternalSourceContext {
+                    workspace_root: None,
+                    execution_domain_id: ExecutionDomainId::new("local-user").unwrap(),
+                },
+                ExternalMcpRevisionKey::new([7; 32]),
+                vec![unrelated],
+                Vec::new(),
+                Vec::new(),
+                vec![Arc::new(OpenCodeMcpProvider::new(
+                    OpenCodeMcpProviderOptions {
+                        config: OpenCodeCommandProviderOptions {
+                            user_config_dir: directory.path().to_path_buf(),
+                            legacy_user_config_dir: None,
+                            explicit_config_file: None,
+                            explicit_config_dir: None,
+                            inline_config_content: None,
+                            project_config_enabled: false,
+                        },
+                        project_root_override: None,
+                    },
+                ))],
+                Vec::new(),
+            )
+            .unwrap(),
+        );
+        let mut preferences = ExternalSourcesConfig::default();
+        let disabled_policy = integration_policy_snapshot(&preferences, None).unwrap();
+        service.discover_mcp_import_sources(&disabled_policy).await;
+        assert!(lock_mcp_coordinator(&service.control_plane)
+            .snapshot()
+            .servers
+            .is_empty());
+        preferences
+            .integration_policy
+            .known_mut()
+            .unwrap()
+            .user_defaults
+            .enabled = true;
+        let policy = integration_policy_snapshot(&preferences, None).unwrap();
+        service.discover_mcp_import_sources(&policy).await;
+        let snapshot = lock_mcp_coordinator(&service.control_plane).snapshot();
+        assert_eq!(snapshot.servers.len(), 1);
+        assert_eq!(unrelated_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
+        let source_key = snapshot.sources[0].stable_key.clone();
+        lock_mcp_coordinator(&service.control_plane)
+            .set_source_enabled(&source_key, false)
+            .unwrap();
+        service.discover_mcp_import_sources(&policy).await;
+        assert!(lock_mcp_coordinator(&service.control_plane)
+            .snapshot()
+            .servers
+            .is_empty());
+    }
+
+    #[tokio::test]
     async fn read_only_projection_never_calls_the_mcp_runtime() {
         let runtime = Arc::new(CountingExternalMcpRuntime::default());
         let mut service = test_service(Vec::new());
@@ -9367,9 +9628,13 @@ mod tests {
     #[test]
     fn default_registry_exposes_only_each_ecosystems_supported_asset_kinds() {
         let registrations = default_external_integration_registry();
-        assert_eq!(registrations.len(), 3);
+        assert_eq!(registrations.len(), 4);
 
         let expected = BTreeMap::from([
+            (
+                "deepseek-harness",
+                BTreeSet::from([EXTERNAL_CAPABILITY_MCP]),
+            ),
             (
                 "opencode",
                 BTreeSet::from([

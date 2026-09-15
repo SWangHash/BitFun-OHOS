@@ -547,6 +547,7 @@ pub const REMOTE_FILE_MAX_READ_BYTES: u64 = 30 * 1024 * 1024;
 pub const REMOTE_FILE_MAX_CHUNK_BYTES: u64 = 3 * 1024 * 1024;
 pub const REMOTE_CAPABILITY_HARNESS_PROFILES_V1: &str = "harness_profiles_v1";
 pub const REMOTE_CAPABILITY_DIALOG_STEER_V1: &str = "dialog_steer_v1";
+pub const REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1: &str = "user_question_interaction_v1";
 pub const REMOTE_CAPABILITY_PLAN_BUILD_V1: &str = "plan_build_v1";
 
 fn remote_host_capabilities() -> Vec<String> {
@@ -554,6 +555,7 @@ fn remote_host_capabilities() -> Vec<String> {
         REMOTE_CAPABILITY_HARNESS_PROFILES_V1.to_string(),
         REMOTE_CAPABILITY_DIALOG_STEER_V1.to_string(),
         REMOTE_CAPABILITY_PLAN_BUILD_V1.to_string(),
+        REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1.to_string(),
     ]
 }
 
@@ -1613,6 +1615,9 @@ pub trait RemoteInteractionRuntimeHost: Send + Sync {
         &self,
         mode: RemotePermissionMode,
     ) -> Result<RemotePermissionMode, String>;
+    fn start_question_interaction(&self, _session_id: &str, _tool_id: &str) -> Result<(), String> {
+        Err("User question interaction is unsupported by this host".to_string())
+    }
     fn answer_question(&self, tool_id: &str, answers: serde_json::Value) -> Result<(), String>;
 }
 
@@ -1658,6 +1663,14 @@ where
                 host.cancel_tool(tool_id, cancel_reason).await,
             )
         }
+        RemoteCommand::StartQuestionInteraction {
+            session_id,
+            tool_id,
+        } => remote_interaction_accepted_response(
+            "start_question_interaction",
+            tool_id.clone(),
+            host.start_question_interaction(session_id, tool_id),
+        ),
         RemoteCommand::AnswerQuestion { tool_id, answers } => {
             remote_answer_question_response(host.answer_question(tool_id, answers.clone()))
         }
@@ -2422,6 +2435,10 @@ pub enum RemoteCommand {
     SetPermissionMode {
         mode: RemotePermissionMode,
     },
+    StartQuestionInteraction {
+        session_id: String,
+        tool_id: String,
+    },
     AnswerQuestion {
         tool_id: String,
         answers: serde_json::Value,
@@ -2780,6 +2797,7 @@ where
         | RemoteCommand::GetPermissionMode
         | RemoteCommand::SetPermissionMode { .. }
         | RemoteCommand::CancelTool { .. }
+        | RemoteCommand::StartQuestionInteraction { .. }
         | RemoteCommand::AnswerQuestion { .. } => host.handle_interaction_command(command).await,
 
         RemoteCommand::SendMessage {

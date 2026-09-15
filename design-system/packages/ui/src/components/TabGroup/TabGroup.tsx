@@ -24,6 +24,9 @@ export interface TabGroupItem {
   /** Opt plain text into vertical replacement without remounting the tab. */
   labelTransitionKey?: string | number;
   panelId?: string;
+  /** Presentation and product data attributes on the native tab; selection stays owned by TabGroup. */
+  tabProps?: Pick<HTMLAttributes<HTMLButtonElement>, "className" | "style" | "title" | "aria-label" | "aria-describedby">
+    & Record<`data-${string}`, string | number | boolean | undefined>;
   value: string;
 }
 
@@ -144,10 +147,11 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
             key={item.value}
           >
             <button
+              {...item.tabProps}
               aria-controls={item.panelId}
               aria-disabled={item.disabled || undefined}
               aria-selected={selected}
-              className={styles.tab}
+              className={classNames(styles.tab, item.tabProps?.className)}
               data-openbitfun-part="tab"
               data-openbitfun-value={item.value}
               disabled={item.disabled}

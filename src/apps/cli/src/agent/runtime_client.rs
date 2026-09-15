@@ -2003,6 +2003,42 @@ impl CliAgentRuntimeClient {
         Ok(())
     }
 
+    pub(crate) async fn cancel_user_question(&self, tool_id: &str) -> Result<()> {
+        let session_id = self.require_session_id().await?;
+        match &self.backend {
+            CliAgentRuntimeBackend::Embedded(runtime) => runtime
+                .cancel_user_question(&session_id, tool_id)
+                .map_err(anyhow::Error::new),
+            CliAgentRuntimeBackend::Shared(client) => expect_unit(
+                client
+                    .request(RuntimeIpcOperation::CancelUserQuestion {
+                        session_id,
+                        tool_id: tool_id.to_string(),
+                    })
+                    .await?,
+                "cancel_user_question",
+            ),
+        }
+    }
+
+    pub(crate) async fn start_question_interaction(&self, tool_id: &str) -> Result<()> {
+        let session_id = self.require_session_id().await?;
+        match &self.backend {
+            CliAgentRuntimeBackend::Embedded(runtime) => runtime
+                .start_user_question_interaction(&session_id, tool_id)
+                .map_err(anyhow::Error::new),
+            CliAgentRuntimeBackend::Shared(client) => expect_unit(
+                client
+                    .request(RuntimeIpcOperation::StartQuestionInteraction {
+                        session_id,
+                        tool_id: tool_id.to_string(),
+                    })
+                    .await?,
+                "start_question_interaction",
+            ),
+        }
+    }
+
     pub(crate) async fn submit_user_answers(
         &self,
         tool_id: &str,
@@ -3592,6 +3628,56 @@ mod dual_backend_behavior_tests {
             restore_transcript_messages: transcript.messages.len(),
             event_states,
             remaining_session_count,
+        }
+    }
+
+    #[tokio::test]
+    async fn embedded_and_shared_questions_stop_timeout_and_cancel_without_an_answer() {
+        use openbitfun_agent_runtime::user_questions::{
+            get_user_input_manager, PendingUserQuestion,
+        };
+        let root = tempfile::tempdir().unwrap();
+        let workspace = dunce::canonicalize(root.path()).unwrap();
+        for shared in [false, true] {
+            let fixture = Fixture::new(&workspace);
+            let shared_backend = if shared {
+                Some(shared_client(&fixture).await)
+            } else {
+                None
+            };
+            let embedded = fixture.embedded_client();
+            let client = shared_backend
+                .as_ref()
+                .map(|(_, client, _)| client)
+                .unwrap_or(&embedded);
+            let session_id = client.create_new_session("Standard").await.unwrap();
+            let tool_id = format!("question-interaction-{shared}");
+            let manager = get_user_input_manager();
+            let (sender, mut receiver) = tokio::sync::oneshot::channel();
+            let _registration = manager.register_question(
+                PendingUserQuestion::new(
+                    tool_id.clone(),
+                    session_id.clone(),
+                    None,
+                    None,
+                    serde_json::json!({}),
+                ),
+                sender,
+            );
+            client.start_question_interaction(&tool_id).await.unwrap();
+            assert!(
+                manager.pending_question_snapshot(&session_id).questions[0].interaction_started
+            );
+            assert!(matches!(
+                receiver.try_recv(),
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+            ));
+            client.cancel_user_question(&tool_id).await.unwrap();
+            assert!(receiver.await.is_err());
+            assert!(!manager.has_pending(&tool_id));
+            if let Some((_, _, server)) = shared_backend {
+                server.abort();
+            }
         }
     }
 

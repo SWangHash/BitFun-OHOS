@@ -4,6 +4,8 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import McpToolsConfig from './McpToolsConfig';
+import { globalEventBus } from '@/infrastructure/event-bus';
+import { MCP_CONFIG_CHANGED } from '@/infrastructure/mcp/configEvents';
 
 const peerState = vi.hoisted(() => ({ active: true }));
 const runtimeState = vi.hoisted(() => ({ desktop: true }));
@@ -175,6 +177,38 @@ describe('McpToolsConfig remote behavior', () => {
 
     expect(container.textContent).not.toContain('Local test server');
     expect(container.textContent).toContain('section.serverList.remoteUnavailable');
+  });
+
+  it('updates an already mounted list after external import and undo without a remount', async () => {
+    peerState.active = false;
+    await act(async () => { root.render(<McpToolsConfig />); });
+    getServersMock.mockResolvedValue([{ id: 'imported', name: 'Imported docs', status: 'Stopped', serverType: 'local', transport: 'stdio', enabled: false, autoStart: false, startSupported: true }]);
+    await act(async () => { globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'local' }); });
+    expect(container.textContent).toContain('Imported docs');
+    getServersMock.mockResolvedValue([]);
+    await act(async () => { globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'local' }); });
+    expect(container.textContent).not.toContain('Imported docs');
+    expect(getServersMock).toHaveBeenCalledTimes(3);
+    await act(async () => { globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'peer-device' }); });
+    expect(getServersMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps unsaved JSON and its original fingerprint when another page changes MCP', async () => {
+    peerState.active = false;
+    await act(async () => { root.render(<McpToolsConfig />); });
+    await act(async () => { (container.querySelector('[aria-label="actions.jsonConfig"]') as HTMLButtonElement).click(); });
+    const textarea = container.querySelector('textarea')!;
+    const draft = '{"mcpServers":{"draft":{"command":"docs"}}}';
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, draft);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    loadJsonConfigMock.mockResolvedValue({ jsonConfig: '{"mcpServers":{"other":{"command":"other"}}}', fingerprint: 'new' });
+    await act(async () => { globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'local' }); });
+    expect(textarea.value).toBe(draft);
+    expect(loadJsonConfigMock).toHaveBeenCalledTimes(1);
+    await act(async () => { Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.saveConfig')!.click(); });
+    expect(saveJsonConfigMock).toHaveBeenCalledWith(draft, 'sha256:test');
   });
 
   it('shows a retryable failure instead of an empty native MCP list', async () => {

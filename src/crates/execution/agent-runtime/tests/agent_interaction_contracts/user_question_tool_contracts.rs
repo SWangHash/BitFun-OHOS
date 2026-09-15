@@ -34,6 +34,7 @@ fn ask_user_question_validation_preserves_legacy_limits() {
             &AskUserQuestionInput {
                 questions: vec![],
                 template_id: None,
+                timeout_seconds: 30,
             },
             false
         )
@@ -47,6 +48,7 @@ fn ask_user_question_validation_preserves_legacy_limits() {
             &AskUserQuestionInput {
                 questions: std::mem::take(&mut too_many),
                 template_id: None,
+                timeout_seconds: 30,
             },
             false
         )
@@ -61,6 +63,7 @@ fn ask_user_question_validation_preserves_legacy_limits() {
             &AskUserQuestionInput {
                 questions: vec![missing_header],
                 template_id: None,
+                timeout_seconds: 30,
             },
             false
         )
@@ -108,6 +111,7 @@ fn ask_user_question_answered_and_cancelled_results_keep_wire_shape() {
     let input = AskUserQuestionInput {
         questions: vec![question()],
         template_id: None,
+    timeout_seconds: 30,
     };
     let answered = build_answered_user_question_result(
         &input,
@@ -192,6 +196,7 @@ fn ask_user_question_validation_rejects_empty_input_placeholder() {
             &AskUserQuestionInput {
                 questions: vec![question],
                 template_id: None,
+                timeout_seconds: 30,
             },
             false
         )
@@ -228,6 +233,7 @@ fn ask_user_question_validation_allows_single_option_only_for_template_questions
             &AskUserQuestionInput {
                 questions: vec![single],
                 template_id: None,
+                timeout_seconds: 30,
             },
             false
         )
@@ -254,6 +260,7 @@ fn ask_user_question_template_id_round_trips_and_takes_precedence() {
     let plain = AskUserQuestionInput {
         questions: vec![question()],
         template_id: None,
+    timeout_seconds: 30,
     };
     let encoded_plain = serde_json::to_value(&plain).expect("input should serialize");
     assert!(encoded_plain.get("templateId").is_none());
@@ -278,6 +285,7 @@ fn ask_user_question_template_registry_serves_qt_migration_paths() {
         &AskUserQuestionInput {
             questions,
             template_id: Some(QT_MIGRATION_PATHS_TEMPLATE_ID.to_string()),
+            timeout_seconds: 30,
         },
         true
     )
@@ -333,4 +341,23 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
             .map(|s| !s.trim().is_empty()),
         Some(true)
     );
+
+#[test]
+fn timeout_is_distinct_from_answer_or_cancellation() {
+    let input = AskUserQuestionInput {
+        questions: vec![question()],
+        timeout_seconds: 30,
+    };
+    let result =
+        openbitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
+    assert_eq!(
+        result.data,
+        serde_json::json!({ "questions_count": 1, "status": "timeout" })
+    );
+    assert_eq!(
+        result.result_for_assistant,
+        "用户无响应，跳过提问，继续执行"
+    );
+    assert!(result.data.get("answers").is_none());
+}
 }
