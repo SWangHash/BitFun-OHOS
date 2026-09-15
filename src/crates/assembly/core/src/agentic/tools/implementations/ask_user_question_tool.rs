@@ -17,7 +17,6 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
-use crate::agentic::tools::implementations::qt_migration_intake_tool::QtMigrationIntakeTool;
 use crate::agentic::tools::user_input_manager::get_user_input_manager;
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
 use crate::util::errors::BitFunResult;
@@ -246,13 +245,8 @@ Usage notes:
                         let path_manager = crate::infrastructure::get_path_manager_arc();
                         let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
                             workspace,
-                            &std::env::var("PATH").unwrap_or_default(),
+                            &crate::agentic::tools::qt_migration_candidates::shell_session_path_env(),
                             &path_manager.qt_migration_root_dir(),
-                            Some(
-                                &path_manager
-                                    .builtin_skills_dir()
-                                    .join(bitfun_agent_runtime::qt_migration_intake_state::QT_MIGRATION_SKILL_DIR),
-                            ),
                             &candidates,
                         );
                         question_context = QtMigrationQuestionContext {

@@ -57,7 +57,6 @@ use crate::agentic::side_question::build_btw_user_input;
 use crate::agentic::skill_agent_snapshot::{
     diff_skill_agent_snapshot, resolve_skill_agent_snapshot, TurnSkillAgentSnapshot,
 };
-use crate::agentic::tools::implementations::qt_migration_intake_tool::QtMigrationIntakeTool;
 use crate::agentic::tools::pipeline::{
     PrimaryModelFacts, SubagentParentInfo, ToolExecutionContext, ToolExecutionOptions, ToolPipeline,
 };
@@ -6180,9 +6179,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
-        let migration_enabled = effective_agent_type == "QtMigration"
-            && QtMigrationIntakeTool::analyze_request(&original_user_input)["taskType"].as_str()
-                == Some("app_migration");
+        let migration_enabled = if effective_agent_type == "QtMigration" {
+            // LLM-backed semantic analysis with a deterministic fallback; the
+            // result is cached per (session, prompt) and shared with the
+            // execution engine's turn gate.
+            let decision = crate::agentic::tools::implementations::qt_migration_semantic_analyzer::analyze_qt_migration_intent(
+                &session_id,
+                &original_user_input,
+            )
+            .await;
+            decision["taskType"].as_str() == Some("app_migration")
+        } else {
+            false
+        };
         let mut skill_agent_context_vars = HashMap::new();
         skill_agent_context_vars.insert(
             "qt_migration_enabled".to_string(),
