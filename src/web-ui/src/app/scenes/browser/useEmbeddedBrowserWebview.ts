@@ -64,6 +64,12 @@ type WebviewBounds = {
   height: number;
 };
 
+function getBrowserBackgroundColor(): string {
+  const root = document.documentElement;
+  const color = getComputedStyle(root).backgroundColor;
+  return color || (getCurrentAppearanceMode() === 'dark' ? '#1e1e1e' : '#ffffff');
+}
+
 type BrowserWebviewPageLoadPayload = {
   label: string;
   event: 'started' | 'finished';
@@ -159,8 +165,30 @@ async function evalWebview(label: string, script: string): Promise<void> {
   await invoke('browser_webview_eval', { request: { label, script } });
 }
 
+function getCurrentAppearanceMode(): 'light' | 'dark' {
+  // The appearance runtime classifies every built-in and custom appearance via
+  // this contract attribute. Keep the complete appearance identity untouched;
+  // the browser only needs the light/dark capability classification here.
+  return document.documentElement.getAttribute('data-bf-appearance-mode') === 'light'
+    ? 'light'
+    : 'dark';
+}
+
 async function injectBrowserPageScripts(label: string): Promise<void> {
-  await evalWebview(label, `${BLANK_TARGET_INTERCEPT_SCRIPT};\n${STREAM_RENDER_OPTIMIZATION_SCRIPT};`);
+  const appearanceMode = getCurrentAppearanceMode();
+  const themeScript = `(() => {
+    const mode = ${JSON.stringify(appearanceMode)};
+    const root = document.documentElement;
+    root.style.colorScheme = mode;
+    let meta = document.querySelector('meta[name="color-scheme"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'color-scheme';
+      document.head?.appendChild(meta);
+    }
+    meta.content = mode;
+  })();`;
+  await evalWebview(label, `${themeScript}\n${BLANK_TARGET_INTERCEPT_SCRIPT};\n${STREAM_RENDER_OPTIMIZATION_SCRIPT};`);
 }
 
 async function navigateWebview(label: string, url: string): Promise<void> {
@@ -240,6 +268,7 @@ async function createBrowserWebview(
   label: string,
   url: string,
   bounds: WebviewBounds,
+  backgroundColor: string,
   html?: string,
 ): Promise<BrowserWebviewHandle> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -252,6 +281,7 @@ async function createBrowserWebview(
       y: bounds.top,
       width: bounds.width,
       height: bounds.height,
+      backgroundColor,
     },
   });
   return createCommandBasedBrowserWebviewHandle(label, invoke as TauriInvoke);
@@ -495,10 +525,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           return handle;
         }
         const bootstrapHtml = automationBootstrapRef.current;
-        const handle = await createBrowserWebview(
+          const handle = await createBrowserWebview(
           label,
           url,
           initialBounds,
+          getBrowserBackgroundColor(),
           bootstrapHtml ?? initialHtmlRef.current,
         );
         webviewRef.current = handle;
@@ -531,6 +562,14 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     throw lastError;
   }, [closeWebview, labelPrefix, log, requestedWebviewLabel, startPageLoadListener, waitForViewportBounds]);
 
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const label = webviewLabelRef.current;
+      if (label) void injectBrowserPageScripts(label).catch(() => {});
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bf-appearance-mode'] });
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (!automationId) return;
     const handleClose = (event: Event) => {
