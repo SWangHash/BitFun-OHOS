@@ -169,7 +169,7 @@ describe('builtin appearance preset output', () => {
           "type": "dark",
         },
         {
-          "hash": "e2dff5cddb2442779ca59ba92280cc3f01384a732c010f2e3dab8c399402e487",
+          "hash": "f19b43224205e94ae266dd8ba95b541a3eeb92476e7282a8be3d65962134a1d7",
           "id": "bitfun-china-style",
           "type": "light",
         },
