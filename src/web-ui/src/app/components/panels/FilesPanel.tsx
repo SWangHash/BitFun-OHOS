@@ -20,7 +20,7 @@ import type { FileSystemNode } from '@/tools/file-system/types';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { useNotification } from '@/shared/notification-system';
 import { InputDialog, CubeLoading } from '@/component-library';
-import { openFileInBestTarget } from '@/shared/utils/tabUtils';
+import { openFileInBestTarget, isFileAlreadyOpenInBestTarget } from '@/shared/utils/tabUtils';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
 import { PanelHeader } from './base';
 import { createLogger } from '@/shared/utils/logger';
@@ -363,6 +363,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   // ===== File Operation Handlers =====
 
   const shouldOpenLargeFile = useCallback(async (filePath: string, nodeSize?: number): Promise<boolean> => {
+    // Opening an already-open file only switches to its existing tab without
+    // reloading content, so the large-file warning is unnecessary.
+    if (isFileAlreadyOpenInBestTarget(filePath)) {
+      return true;
+    }
+
     let fileSize: number | undefined = nodeSize;
 
     if (fileSize === undefined || fileSize === null) {
@@ -1052,7 +1058,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     } else {
       setInternalViewMode(next);
     }
-  }, [viewMode, onViewModeChange]);
+    // When switching back to the tree, the search input unmounts and focus
+    // would land on <body>, leaving the filetree shortcut scope. Restore it.
+    if (next === 'tree') {
+      focusFileTree();
+    }
+  }, [viewMode, onViewModeChange, focusFileTree]);
 
   const handleExplorerToolbarNewFile = useCallback(() => {
     const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);

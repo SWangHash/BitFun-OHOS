@@ -4,10 +4,12 @@ import { i18nService } from '@/infrastructure/i18n';
 import { fileTabManager } from '@/shared/services/FileTabManager';
 import type { FileTabOptions } from '@/shared/services/FileTabManager';
 import { enqueuePendingTab } from '@/shared/services/pendingTabQueue';
-import { resolveAndFocusOpenTarget } from '@/shared/services/sceneOpenTargetResolver';
+import { resolveOpenTarget, resolveAndFocusOpenTarget } from '@/shared/services/sceneOpenTargetResolver';
 import type { OpenSource } from '@/shared/services/sceneOpenTargetResolver';
 import { TAB_EVENTS } from '@/app/components/panels/content-canvas/types';
 import { useSceneStore } from '@/app/stores/sceneStore';
+import { useAgentCanvasStore, useProjectCanvasStore } from '@/app/components/panels/content-canvas/stores';
+import { normalizePath } from '@/shared/utils/pathUtils';
 export type TabTargetMode = 'agent' | 'project' | 'git';
 
 export interface TabCreationOptions {
@@ -466,6 +468,21 @@ export function createTerminalTab(
 type OpenFileInBestTargetOptions = Omit<FileTabOptions, 'mode'>;
 interface OpenFileTargetContext {
   source?: OpenSource;
+}
+
+/**
+ * Check whether the file already has a tab in the canvas that
+ * `openFileInBestTarget` would route to. Callers use this to skip
+ * pre-open prompts (e.g. the large-file confirm dialog) when opening
+ * would only switch to the existing tab without reloading content.
+ */
+export function isFileAlreadyOpenInBestTarget(
+  filePath: string,
+  context: OpenFileTargetContext = {}
+): boolean {
+  const { mode } = resolveOpenTarget('file', { source: context.source ?? 'default' });
+  const store = mode === 'project' ? useProjectCanvasStore : useAgentCanvasStore;
+  return store.getState().findTabByMetadata({ duplicateCheckKey: normalizePath(filePath) }) !== null;
 }
 
 /**

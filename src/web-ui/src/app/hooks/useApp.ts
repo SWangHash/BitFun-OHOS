@@ -90,8 +90,12 @@ export const useApp = (): UseAppReturn => {
   }, []);
 
   const updateRightPanelWidth = useCallback((width: number) => {
-    // Clamp width: 200px min, 1200px max
-    const MIN_WIDTH = 200;
+    // SessionScene already validates the width against the live container size
+    // (dynamic max, compact floor when there is room). A hard floor here would
+    // override that validated width on narrow windows and reintroduce the
+    // horizontal overflow this clamp once guarded against, so only keep the
+    // sanity bounds.
+    const MIN_WIDTH = 0;
     const MAX_WIDTH = 1200;
     const clampedWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width));
     

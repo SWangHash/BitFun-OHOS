@@ -5,12 +5,13 @@
  * @module components/ImageViewer
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ZoomIn, ZoomOut, RotateCw, Download, Maximize2 } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
 import { createBrowserImageDataUrl, getImageMimeType, isTiffPath } from '@/shared/utils/imageDataUrl';
 import { apiClient } from '@/infrastructure/api/service-api/ApiClient';
 import { TauriTransportAdapter } from '@/infrastructure/api/adapters';
+import { isFileMissingFromMetadata, isLikelyFileNotFoundError } from '@/shared/utils/fsErrorUtils';
 import { Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import './ImageViewer.scss';
@@ -21,6 +22,18 @@ const MIN_SMALL_IMAGE_DISPLAY_SIZE = 32;
 const MAX_IMAGE_PREVIEW_BYTES = 64 * 1024 * 1024;
 const MAX_TIFF_PREVIEW_BYTES = 16 * 1024 * 1024;
 const MAX_CACHED_IMAGE_BYTES = 128 * 1024 * 1024;
+
+/** Poll disk metadata for the open image; only while tab is active (see isActiveTab). */
+const FILE_MISSING_POLL_INTERVAL_MS = 1000;
+
+function getPollOffsetMs(filePath: string): number {
+  let hash = 0;
+  for (let i = 0; i < filePath.length; i++) {
+    hash = ((hash << 5) - hash + filePath.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 400;
+}
+
 const imageDataCache = new Map<string, { dataUrl: string; byteLength: number }>();
 const imageLoadPromises = new Map<string, Promise<{ dataUrl: string; byteLength: number }>>();
 let cachedImageBytes = 0;
@@ -89,6 +102,10 @@ export interface ImageViewerProps {
   fileName?: string;
   /** Workspace path (for relative path resolution) */
   workspacePath?: string;
+  /** When false, disk-missing polling is paused (e.g. background editor tab). */
+  isActiveTab?: boolean;
+  /** File no longer exists on disk (drives tab "deleted" label). */
+  onFileMissingFromDiskChange?: (missing: boolean) => void;
   /** CSS class name */
   className?: string;
 }
@@ -96,6 +113,8 @@ export interface ImageViewerProps {
 export const ImageViewer: React.FC<ImageViewerProps> = ({
   filePath,
   fileName,
+  isActiveTab = true,
+  onFileMissingFromDiskChange,
   className = ''
 }) => {
   const { t } = useI18n('tools');
@@ -110,17 +129,74 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fileSize, setFileSize] = useState<number>(0);
+  const lastReportedMissingRef = useRef<boolean | undefined>(undefined);
+
+  const reportFileMissingFromDisk = useCallback(
+    (missing: boolean) => {
+      if (!onFileMissingFromDiskChange) {
+        return;
+      }
+      if (lastReportedMissingRef.current === missing) {
+        return;
+      }
+      lastReportedMissingRef.current = missing;
+      onFileMissingFromDiskChange(missing);
+    },
+    [onFileMissingFromDiskChange]
+  );
+
+  const checkFileStillExists = useCallback(async () => {
+    if (!filePath) {
+      return;
+    }
+    try {
+      const { workspaceAPI } = await import('@/infrastructure/api');
+      const metadata = await workspaceAPI.getFileMetadata(filePath);
+      reportFileMissingFromDisk(isFileMissingFromMetadata(metadata));
+    } catch (err) {
+      if (isLikelyFileNotFoundError(err)) {
+        reportFileMissingFromDisk(true);
+      }
+    }
+  }, [filePath, reportFileMissingFromDisk]);
 
   useEffect(() => {
+    if (!filePath || !isActiveTab) {
+      return;
+    }
+
+    const pollOffsetMs = getPollOffsetMs(filePath);
+    let intervalId: number | null = null;
+    // First check shortly after becoming active, then poll at a steady interval.
+    const timeoutId = window.setTimeout(() => {
+      void checkFileStillExists();
+      intervalId = window.setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          return;
+        }
+        void checkFileStillExists();
+      }, FILE_MISSING_POLL_INTERVAL_MS + pollOffsetMs);
+    }, 250 + pollOffsetMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [checkFileStillExists, filePath, isActiveTab]);
+
+  useEffect(() => {
+    if (!filePath) {
+      lastReportedMissingRef.current = undefined;
+      setError(tRef.current('editor.imageViewer.filePathEmpty'));
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     const loadImage = async () => {
-      if (!filePath) {
-        setError(tRef.current('editor.imageViewer.filePathEmpty'));
-        setLoading(false);
-        return;
-      }
-
       const cached = imageDataCache.get(filePath);
       if (cached) {
         imageDataCache.delete(filePath);
@@ -142,6 +218,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         const metadata = await workspaceAPI.getFileMetadata(filePath);
         const previewLimit = getImagePreviewLimit(filePath);
         setFileSize(metadata.size);
+
+        if (isFileMissingFromMetadata(metadata)) {
+          throw new Error('File does not exist');
+        }
 
         if (!isImagePreviewAllowed(filePath, metadata.size)) {
           setError(tRef.current('editor.imageViewer.fileTooLarge', {
@@ -187,9 +267,13 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
         setImageUrl(dataUrl);
         setFileSize(byteLength);
+        reportFileMissingFromDisk(false);
       } catch (err) {
         log.error('Failed to load image', err);
         if (!cancelled) {
+          if (isLikelyFileNotFoundError(err) || String(err).includes('File does not exist')) {
+            reportFileMissingFromDisk(true);
+          }
           setError(tRef.current('editor.imageViewer.loadImageFailedWithMessage', { message: String(err) }));
           setLoading(false);
         }
@@ -200,6 +284,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per filePath; reportFileMissingFromDisk changes via lastReportedMissingRef de-dupe instead
   }, [filePath]);
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {

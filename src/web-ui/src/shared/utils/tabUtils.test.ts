@@ -22,6 +22,7 @@ vi.mock('@/shared/services/pendingTabQueue', () => ({
 
 vi.mock('@/shared/services/sceneOpenTargetResolver', () => ({
   resolveAndFocusOpenTarget: vi.fn(),
+  resolveOpenTarget: vi.fn(() => ({ mode: 'project', targetSceneId: 'file-viewer', sceneJustOpened: false })),
 }));
 
 vi.mock('@/app/stores/sceneStore', () => ({
@@ -31,6 +32,11 @@ vi.mock('@/app/stores/sceneStore', () => ({
       openScene: (...args: unknown[]) => mocks.openScene(...args),
     }),
   },
+}));
+
+vi.mock('@/app/components/panels/content-canvas/stores', () => ({
+  useAgentCanvasStore: { getState: () => ({ findTabByMetadata: () => null }) },
+  useProjectCanvasStore: { getState: () => ({ findTabByMetadata: () => null }) },
 }));
 
 import { createTab } from './tabUtils';

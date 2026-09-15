@@ -386,7 +386,7 @@ export default class EntryAbility extends RustAbility {
           req.visible,
         );
         if (req.visible) {
-          mainWin.setWindowDecorHeight(44);
+          mainWin.setWindowDecorHeight(38);
           mainWin.setWindowTitleMoveEnabled(false);
           mainWin.setWindowDecorVisible(false);
         }
@@ -496,6 +496,19 @@ export default class EntryAbility extends RustAbility {
       return '';
     });
     RustModule.registerArktsFunction('set_min_size_ohos', async (err: Error, arg: string): Promise<string> => {
+      const req: SetMinSizeArg = JSON.parse(arg);
+      try {
+        const mainWin = windowStage.getMainWindowSync();
+        await mainWin.setWindowLimits({
+          minWidth: req.width,
+          minHeight: req.height,
+          maxWidth: -1,
+          maxHeight: -1,
+        });
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `setWindowLimits failed: ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('set_focus_ohos', async (err: Error, arg: string): Promise<string> => {
@@ -629,6 +642,27 @@ export default class EntryAbility extends RustAbility {
         data.setWindowDecorHeight(38);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
+        // setWindowLimits expects px (physical pixels). Convert the 800x600
+        // logical minimum, matching the desktop MAIN_WINDOW_MIN_WIDTH/HEIGHT,
+        // using the display density so non-1x scaling keeps the same logical
+        // minimum as Windows/Linux/macOS.
+        let scale: number = 1;
+        try {
+          scale = display.getDefaultDisplaySync().densityPixels > 0
+            ? display.getDefaultDisplaySync().densityPixels : 1;
+        } catch (e) {
+          hilog.warn(DOMAIN, TAG, 'read densityPixels on startup failed: ' + JSON.stringify(e));
+        }
+        const minWidth: number = Math.round(800 * scale);
+        const minHeight: number = Math.round(600 * scale);
+        data.setWindowLimits({
+          minWidth: minWidth,
+          minHeight: minHeight,
+          maxWidth: -1,
+          maxHeight: -1,
+        }).catch((e: BusinessError) => {
+          hilog.warn(DOMAIN, TAG, 'setWindowLimits on startup failed: ' + e.message);
+        });
       })
     }, 40)
     RustModule.registerArktsFunction('reveal_in_explorer', async (err: Error, arg: string): Promise<string> => {

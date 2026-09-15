@@ -393,6 +393,27 @@ $_indent-width: 8px;
   }
 }
 
+// File-tree native drag preview. Rendered offscreen into document.body during
+// dragstart, so it must be positioned fixed to stay out of the layout flow and
+// out of the visible viewport.
+.bitfun-file-explorer__drag-preview {
+  position: fixed;
+  top: -1000px;
+  left: 0;
+  padding: $size-gap-2 $size-gap-3;
+  background: var(--bf-appearance-token-color-bg-elevated);
+  color: var(--bf-appearance-token-color-text-primary);
+  border: 1px solid var(--bf-appearance-token-border-base);
+  border-radius: $size-radius-sm;
+  font-size: var(--bf-appearance-token-font-size-xs);
+  font-family: var(--bf-appearance-token-font-family-sans);
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--bf-appearance-token-shadow-sm);
+  pointer-events: none;
+  z-index: $z-overlay-host;
+}
+
 // 闁插秴鎳￠崥宥嗙墡妤犲本濮ら柨娆愯癁鐏炲偊绱檖ortal 閹稿倸鍩?body閿涘矂浼╅崗宥堫潶閺嶆垵顔愰崳?overflow 鐟佷礁澹€閿涘鈧?
 .bitfun-file-explorer__rename-error {
   position: fixed;
