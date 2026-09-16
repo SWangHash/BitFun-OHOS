@@ -17,6 +17,7 @@ use crate::agentic::memories::{
 use crate::agentic::permission_policy::{
     permission_mode_from_context, resolve_effective_permission_policy,
 };
+use crate::agentic::session::SessionManager;
 use crate::agentic::tools::computer_use_host::ComputerUseHostRef;
 use crate::agentic::tools::pipeline::{
     SubagentBatchExecutionPolicy as PipelineSubagentBatchExecutionPolicy, ToolExecutionContext,
@@ -115,14 +116,13 @@ impl ModelRoundLifecycle {
 }
 
 impl RoundExecutor {
-    const MAX_STREAM_ATTEMPTS: usize = 10;
-    const RETRY_BASE_DELAY_MS: u64 = 500;
-    const RATE_LIMIT_RETRY_BASE_DELAY_MS: u64 = 2_000;
-    const MAX_EXPONENTIAL_DELAY_MS: u64 = 30_000;
-    const MAX_RATE_LIMIT_DELAY_MS: u64 = 60_000;
-    const MAX_RETRY_EXPONENT_SHIFT: u32 = 6;
+    const MAX_STREAM_ATTEMPTS: usize = openbitfun_agent_stream::retry::MAX_MODEL_ATTEMPTS;
 
-    fn exhausted_request_error(error: &anyhow::Error, attempts: u32) -> OpenBitFunError {
+    fn should_retry_provider_error(category: &ErrorCategory) -> bool {
+        openbitfun_agent_stream::retry::should_retry(category)
+    }
+
+    fn terminal_request_error(error: &anyhow::Error, attempts: u32) -> OpenBitFunError {
         let mut provider_error = error
             .downcast_ref::<AiProviderError>()
             .cloned()
@@ -136,6 +136,12 @@ impl RoundExecutor {
         } else {
             OpenBitFunError::AIProvider(provider_error)
         }
+    }
+
+    /// Legacy name kept for the existing call sites and tests that predate the
+    /// provider-neutral retry policy rename.
+    fn exhausted_request_error(error: &anyhow::Error, attempts: u32) -> OpenBitFunError {
+        Self::terminal_request_error(error, attempts)
     }
 
     fn has_user_visible_assistant_text(text: &str) -> bool {
@@ -337,6 +343,7 @@ impl RoundExecutor {
             tool_definitions,
             context_window,
             &mut lifecycle,
+            None,
         )
         .await
     }
@@ -349,6 +356,7 @@ impl RoundExecutor {
         tool_definitions: Option<Vec<ToolDefinition>>,
         context_window: Option<usize>,
         lifecycle: &mut ModelRoundLifecycle,
+        session_manager: Option<&SessionManager>,
     ) -> OpenBitFunResult<RoundResult> {
         let round_started_at = lifecycle.started_at;
         let subagent_parent_info = context.subagent_parent_info.clone();
@@ -451,7 +459,9 @@ impl RoundExecutor {
                     error!("AI request failed: {:#}", e);
                     let provider_error = e.downcast_ref::<AiProviderError>().cloned();
                     let err_msg = format!("{e:#}");
-                    if local_attempt_index < max_attempts - 1 {
+                    let error = Self::terminal_request_error(&e, lifecycle.attempts_started());
+                    let retryable = Self::should_retry_provider_error(&error.error_category());
+                    if retryable && local_attempt_index < max_attempts - 1 {
                         self.record_retry_diagnostic(
                             &context,
                             &round_id,
@@ -481,12 +491,12 @@ impl RoundExecutor {
                         local_attempt_index += 1;
                         continue;
                     }
-                    let error = Self::exhausted_request_error(&e, lifecycle.attempts_started());
                     warn!(
-                        "AI request retry budget exhausted: session_id={}, round_id={}, attempts={}, category={:?}, error={}",
+                        "AI request stopped: session_id={}, round_id={}, attempts={}, reason={}, category={:?}, error={}",
                         context.session_id,
                         round_id,
                         lifecycle.attempts_started(),
+                        if retryable { "retry_budget_exhausted" } else { "non_retryable_error" },
                         error.error_category(),
                         error
                     );
@@ -817,6 +827,7 @@ impl RoundExecutor {
                     }
                     let err_msg = stream_err.error.to_string();
                     let stream_error_category = stream_err.error.error_category();
+                    let retryable = Self::should_retry_provider_error(&stream_error_category);
                     let provider_error = match &stream_err.error {
                         OpenBitFunError::AIProvider(error)
                         | OpenBitFunError::RecoverableContextOverflow(error) => Some(error),
@@ -828,7 +839,7 @@ impl RoundExecutor {
                         Self::error_trace_response("error", err_msg.clone()),
                     )
                     .await;
-                    if local_attempt_index < max_attempts - 1 {
+                    if retryable && local_attempt_index < max_attempts - 1 {
                         self.record_retry_diagnostic(
                             &context,
                             &round_id,
@@ -861,10 +872,11 @@ impl RoundExecutor {
                         continue;
                     }
                     warn!(
-                        "Stream retry budget exhausted: session_id={}, round_id={}, attempts={}, effective_output={}, category={:?}, error={}",
+                        "Stream stopped: session_id={}, round_id={}, attempts={}, reason={}, effective_output={}, category={:?}, error={}",
                         context.session_id,
                         round_id,
                         max_attempts,
+                        if retryable { "retry_budget_exhausted" } else { "non_retryable_error" },
                         stream_err.has_effective_output,
                         stream_error_category,
                         err_msg
@@ -1019,6 +1031,7 @@ impl RoundExecutor {
 
             return Ok(RoundResult {
                 assistant_message,
+                assistant_message_committed: false,
                 tool_calls: vec![],
                 tool_result_messages: vec![],
                 has_more_rounds: false,
@@ -1031,6 +1044,43 @@ impl RoundExecutor {
             });
         }
 
+        let mut tool_calls = stream_result.tool_calls.clone();
+        normalize_deferred_tool_calls_for_replay(&mut tool_calls);
+
+        // Create assistant message (includes tool calls and thinking content, supports interleaved thinking mode)
+        let reasoning = if stream_result.full_thinking.is_empty() {
+            if stream_result.reasoning_content_present {
+                Some(String::new())
+            } else {
+                None
+            }
+        } else {
+            Some(stream_result.full_thinking.clone())
+        };
+        let parsed_memory_citation =
+            Self::parsed_memory_citation_from_stream_result(&stream_result);
+        let model_response_replay = Self::model_response_replay(&stream_result);
+        let (clean_text, _) = strip_openbitfun_memory_citations(&stream_result.full_text);
+        let assistant_message =
+            Message::assistant_with_reasoning(reasoning, clean_text, tool_calls.clone())
+                .with_turn_id(context.dialog_turn_id.clone())
+                .with_round_id(round_id.clone())
+                .with_thinking_signature(stream_result.thinking_signature.clone())
+                .with_reasoning_content_kind(stream_result.reasoning_content_kind)
+                .with_memory_citation(parsed_memory_citation)
+                .with_model_response_replay(model_response_replay);
+
+        // Commit the complete provider response before any tool can block on IO,
+        // approval, or cancellation. Tool results remain separate semantic messages.
+        let assistant_message_committed = if let Some(session_manager) = session_manager {
+            session_manager
+                .add_message(&context.session_id, assistant_message.clone())
+                .await?;
+            true
+        } else {
+            false
+        };
+
         // Check cancellation token before executing tools
         if cancel_token.is_cancelled() {
             debug!(
@@ -1041,9 +1091,6 @@ impl RoundExecutor {
                 "Execution cancelled".to_string(),
             ));
         }
-
-        let mut tool_calls = stream_result.tool_calls.clone();
-        normalize_deferred_tool_calls_for_replay(&mut tool_calls);
 
         // Execute tool calls
         debug!(
@@ -1206,29 +1253,6 @@ impl RoundExecutor {
         };
         let tool_phase_ms = elapsed_ms_u64(tool_phase_started_at);
 
-        // Create assistant message (includes tool calls and thinking content, supports interleaved thinking mode)
-        let reasoning = if stream_result.full_thinking.is_empty() {
-            if stream_result.reasoning_content_present {
-                Some(String::new())
-            } else {
-                None
-            }
-        } else {
-            Some(stream_result.full_thinking.clone())
-        };
-        let parsed_memory_citation =
-            Self::parsed_memory_citation_from_stream_result(&stream_result);
-        let model_response_replay = Self::model_response_replay(&stream_result);
-        let (clean_text, _) = strip_openbitfun_memory_citations(&stream_result.full_text);
-        let assistant_message =
-            Message::assistant_with_reasoning(reasoning, clean_text, tool_calls.clone())
-                .with_turn_id(context.dialog_turn_id.clone())
-                .with_round_id(round_id.clone())
-                .with_thinking_signature(stream_result.thinking_signature.clone())
-                .with_reasoning_content_kind(stream_result.reasoning_content_kind)
-                .with_memory_citation(parsed_memory_citation)
-                .with_model_response_replay(model_response_replay);
-
         debug!(
             "Tool execution completed, creating message: assistant_msg_len={}, tool_results={}",
             match &assistant_message.content {
@@ -1279,6 +1303,7 @@ impl RoundExecutor {
 
         Ok(RoundResult {
             assistant_message,
+            assistant_message_committed,
             tool_calls,
             tool_result_messages,
             has_more_rounds,
@@ -1537,35 +1562,7 @@ impl RoundExecutor {
         error_message: &str,
         provider_error: Option<&AiProviderError>,
     ) -> u64 {
-        let shift = u32::try_from(attempt_index)
-            .unwrap_or(u32::MAX)
-            .min(Self::MAX_RETRY_EXPONENT_SHIFT);
-        let msg = error_message.to_lowercase();
-        let is_rate_limit = provider_error
-            .is_some_and(|error| error.category == ErrorCategory::RateLimit)
-            || msg.contains("429")
-            || msg.contains("rate limit")
-            || msg.contains("too many requests");
-
-        let fallback = if is_rate_limit {
-            Self::RATE_LIMIT_RETRY_BASE_DELAY_MS
-                .saturating_mul(1u64 << shift)
-                .min(Self::MAX_RATE_LIMIT_DELAY_MS)
-        } else {
-            Self::RETRY_BASE_DELAY_MS
-                .saturating_mul(1u64 << shift)
-                .min(Self::MAX_EXPONENTIAL_DELAY_MS)
-        };
-
-        match provider_error.and_then(|error| error.retry_after_ms) {
-            Some(retry_after_ms) if is_rate_limit => retry_after_ms
-                .max(fallback)
-                .min(Self::MAX_RATE_LIMIT_DELAY_MS),
-            Some(retry_after_ms) if retry_after_ms > 0 => {
-                retry_after_ms.min(Self::MAX_RATE_LIMIT_DELAY_MS)
-            }
-            Some(_) | None => fallback,
-        }
+        openbitfun_agent_stream::retry::delay_ms(attempt_index, error_message, provider_error)
     }
 }
 
@@ -1597,7 +1594,7 @@ fn token_details_from_usage(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::{
         normalize_deferred_tool_calls_for_replay, ModelRoundLifecycle, RoundExecutor,
         StreamProcessor,
@@ -1625,7 +1622,7 @@ mod tests {
     use std::time::Duration;
     use tokio_util::sync::CancellationToken;
 
-    fn test_round_executor() -> RoundExecutor {
+    pub(in crate::agentic::execution) fn test_round_executor() -> RoundExecutor {
         let event_queue = Arc::new(EventQueue::new(EventQueueConfig::default()));
         RoundExecutor {
             stream_processor: Arc::new(StreamProcessor::new(event_queue.clone())),
@@ -1760,15 +1757,15 @@ mod tests {
         }
     }
 
-    struct RetryTestServer {
+    pub(in crate::agentic::execution) struct RetryTestServer {
         url: String,
-        requests: Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
+        pub(in crate::agentic::execution) requests: Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
         stop: Arc<std::sync::atomic::AtomicBool>,
         thread: Option<std::thread::JoinHandle<()>>,
     }
 
     impl RetryTestServer {
-        fn new(replies: Vec<(u16, String)>) -> Self {
+        pub(in crate::agentic::execution) fn new(replies: Vec<(u16, String)>) -> Self {
             Self::with_open_stream(replies, false)
         }
 
@@ -1845,7 +1842,9 @@ mod tests {
             }
         }
 
-        fn client(&self) -> Arc<crate::infrastructure::ai::AIClient> {
+        pub(in crate::agentic::execution) fn client(
+            &self,
+        ) -> Arc<crate::infrastructure::ai::AIClient> {
             Arc::new(crate::infrastructure::ai::AIClient::new(
                 openbitfun_core_types::AIConfig {
                     name: "retry-test".to_string(),
@@ -1882,7 +1881,7 @@ mod tests {
         }
     }
 
-    fn retry_test_success() -> (u16, String) {
+    pub(in crate::agentic::execution) fn retry_test_success() -> (u16, String) {
         (
             200,
             format!(
@@ -1896,6 +1895,172 @@ mod tests {
                 })
             ),
         )
+    }
+
+    struct SemanticCommitTestTool {
+        entered: Arc<tokio::sync::Notify>,
+        release: Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::agentic::tools::framework::Tool for SemanticCommitTestTool {
+        fn name(&self) -> &str {
+            "SemanticCommitTest"
+        }
+        async fn description(&self) -> super::OpenBitFunResult<String> {
+            Ok("semantic commit test".into())
+        }
+        fn short_description(&self) -> String {
+            "semantic commit test".into()
+        }
+        fn is_readonly(&self) -> bool {
+            true
+        }
+        fn input_schema(&self) -> serde_json::Value {
+            json!({"type":"object"})
+        }
+        async fn validate_input(
+            &self,
+            _: &serde_json::Value,
+            _: Option<&crate::agentic::tools::framework::ToolUseContext>,
+        ) -> crate::agentic::tools::framework::ValidationResult {
+            crate::agentic::tools::framework::ValidationResult {
+                result: true,
+                message: None,
+                error_code: None,
+                meta: None,
+            }
+        }
+        async fn call_impl(
+            &self,
+            _: &serde_json::Value,
+            _: &crate::agentic::tools::framework::ToolUseContext,
+        ) -> super::OpenBitFunResult<Vec<crate::agentic::tools::framework::ToolResult>> {
+            self.entered.notify_one();
+            self.release.notified().await;
+            Ok(vec![crate::agentic::tools::framework::ToolResult::Result {
+                data: json!({"done":true}),
+                result_for_assistant: Some("done".into()),
+                image_attachments: None,
+            }])
+        }
+    }
+
+    #[tokio::test]
+    async fn semantic_tool_call_is_readable_while_tool_is_running() {
+        assert_semantic_tool_call_commit(false).await;
+    }
+
+    #[tokio::test]
+    async fn semantic_tool_call_survives_cancellation_during_execution() {
+        assert_semantic_tool_call_commit(true).await;
+    }
+
+    async fn assert_semantic_tool_call_commit(cancel: bool) {
+        use crate::agentic::persistence::PersistenceManager;
+        use crate::agentic::session::{SessionContextStore, SessionManager, SessionManagerConfig};
+        use crate::agentic::tools::pipeline::{ToolPipeline, ToolStateManager};
+        use crate::agentic::tools::registry::ToolRegistry;
+        let temp = tempfile::tempdir().unwrap();
+        let context_store = Arc::new(SessionContextStore::new());
+        let manager = SessionManager::new(
+            context_store.clone(),
+            Arc::new(
+                PersistenceManager::new(Arc::new(
+                    crate::infrastructure::PathManager::with_user_root_for_tests(
+                        temp.path().into(),
+                    ),
+                ))
+                .unwrap(),
+            ),
+            SessionManagerConfig {
+                enable_persistence: false,
+                ..Default::default()
+            },
+        );
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let mut registry = ToolRegistry::new();
+        registry.register_tool(Arc::new(SemanticCommitTestTool {
+            entered: entered.clone(),
+            release: release.clone(),
+        }));
+        let mut executor = test_round_executor();
+        executor.tool_pipeline = Some(Arc::new(ToolPipeline::new(
+            Arc::new(tokio::sync::RwLock::new(registry)),
+            Arc::new(ToolStateManager::new(executor.event_queue.clone())),
+            None,
+        )));
+        let server = RetryTestServer::new(vec![(
+            200,
+            format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                json!({
+                    "id":"semantic", "object":"chat.completion.chunk", "created":1, "model":"retry-test-model",
+                    "choices":[{"index":0,"delta":{"content":"Checking now", "tool_calls":[{"index":0,"id":"call-semantic","type":"function","function":{"name":"SemanticCommitTest","arguments":"{}"}}]},"finish_reason":"tool_calls"}]
+                })
+            ),
+        )]);
+        let mut context = test_round_context();
+        context.available_tools = vec!["SemanticCommitTest".into()];
+        let cancellation = CancellationToken::new();
+        executor.register_cancel_token("turn-1", cancellation.clone());
+        let mut lifecycle = ModelRoundLifecycle::new();
+        let execution = executor.execute_round_with_lifecycle(
+            server.client(),
+            context,
+            vec![super::AIMessage::user("Run the tool".into())],
+            None,
+            None,
+            &mut lifecycle,
+            Some(&manager),
+        );
+        let observer = async {
+            entered.notified().await;
+            let messages = context_store.get_context_messages("session-1");
+            assert_eq!(
+                messages.len(),
+                1,
+                "semantic response must be committed before the slow tool starts"
+            );
+            let encoded = serde_json::to_value(&messages[0]).unwrap();
+            assert!(encoded.to_string().contains("call-semantic"));
+            assert!(encoded.to_string().contains("Checking now"));
+            let id = messages[0].id.clone();
+            if cancel {
+                cancellation.cancel();
+                executor
+                    .tool_pipeline
+                    .as_ref()
+                    .unwrap()
+                    .cancel_dialog_turn_tools("turn-1")
+                    .await
+                    .unwrap();
+            } else {
+                release.notify_one();
+            }
+            id
+        };
+        let (result, committed_id) = tokio::time::timeout(Duration::from_secs(10), async {
+            tokio::join!(execution, observer)
+        })
+        .await
+        .expect("tool must enter before its result completes");
+        if cancel {
+            let messages = context_store.get_context_messages("session-1");
+            assert_eq!(messages.len(), 1);
+            assert_eq!(messages[0].id, committed_id);
+            return;
+        }
+        let result = result.unwrap();
+        assert!(result.assistant_message_committed);
+        assert_eq!(result.assistant_message.id, committed_id);
+        assert_eq!(result.tool_result_messages.len(), 1);
+        assert_eq!(
+            context_store.get_context_messages("session-1").len(),
+            1,
+            "completion must not create a second assistant message"
+        );
     }
 
     #[tokio::test]

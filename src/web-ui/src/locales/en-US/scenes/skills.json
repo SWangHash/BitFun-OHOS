@@ -12,7 +12,7 @@
     },
     "categories": {
       "discover": "Discover",
-      "installed": "Installed"
+      "installed": "Library"
     },
     "items": {
       "market": "Marketplace",
@@ -27,7 +27,7 @@
     "searchPlaceholder": "Search installed and marketplace skills..."
   },
   "installed": {
-    "titleAll": "Installed Skills",
+    "titleAll": "Skill Library",
     "titleListAll": "All Skills",
     "subtitleAll": "Manage all installed user-level and project-level skills",
     "titleBuiltin": "Built-in Skills",
@@ -51,11 +51,11 @@
     "groups": "Skill Groups"
   },
   "categories": {
-    "all": "All installed skills, including built-in, user-level, and project-level.",
+    "all": "All discovered skills, including built-in, user-level, and project-level.",
     "builtin": "Core skills shipped with the app. They cannot be deleted.",
-    "user": "OpenBitFun user-level skills installed globally for your account.",
-    "project": "OpenBitFun project-level skills for the current workspace.",
-    "source": "OpenBitFun copies imported from {{source}}, including user-level and current-workspace project-level skills.",
+    "user": "User-level skills from all source directories for your account.",
+    "project": "Project-level skills from all source directories in the current workspace.",
+    "source": "Skills from {{source}}, including user-level and current-workspace project-level skills.",
     "groups": "Create and organize reusable groups of skills."
   },
   "section": {
@@ -277,7 +277,8 @@
     "enabled": "enabled",
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}",
-    "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this."
+    "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this.",
+"copyPathFailed": "Failed to copy path: {{error}}"
   },
   "skillsCenter": "Skills Center",
   "searchSkills": "Search skills...",

@@ -15,6 +15,9 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
@@ -47,10 +50,10 @@ class CloudAccountClientTest {
 
     @Test
     fun authorizationAcceptsTheIdentityAuthorityGithubUrlAndRejectsOtherDestinations() = runTest {
-        for (url in listOf("https://github.com/login/oauth/authorize?state=test", "https://github.com.evil.example/login/oauth/authorize", "https://github.com/login", "https://user@github.com/login/oauth/authorize", "http://github.com/login/oauth/authorize")) {
+        for (url in listOf("https://github.com/login/oauth/authorize?state=test", "https://auth.openbitfun.com/sign-in#ticket=test", "https://auth.openbitfun.com.evil.example/sign-in", "https://user@auth.openbitfun.com/sign-in", "https://auth.openbitfun.com:444/sign-in", "https://github.com.evil.example/login/oauth/authorize", "https://github.com/login", "https://user@github.com/login/oauth/authorize", "http://github.com/login/oauth/authorize")) {
             val engine = MockEngine { json("""{"transactionId":"txn","transactionSecret":"secret","authorizationUrl":"$url","expiresAt":9999999999,"pollIntervalSeconds":3}""") }
             val client = CloudAccountClient(relayHttpClient(engine))
-            if (url == "https://github.com/login/oauth/authorize?state=test") assertEquals(url, client.startAuthorization(DEFAULT_CLOUD_RELAY_URL).authorizationUrl)
+            if (url == "https://github.com/login/oauth/authorize?state=test" || url == "https://auth.openbitfun.com/sign-in#ticket=test") assertEquals(url, client.startAuthorization(DEFAULT_CLOUD_RELAY_URL).authorizationUrl)
             else assertFailsWith<IllegalArgumentException> { client.startAuthorization(DEFAULT_CLOUD_RELAY_URL) }
         }
     }
@@ -59,7 +62,7 @@ class CloudAccountClientTest {
     fun githubLoginRegistersOnlyThePublicDeviceKey() = runTest {
         val bodies = mutableListOf<kotlinx.serialization.json.JsonObject>()
         val engine = MockEngine { request ->
-            assertEquals("https://remote.openbitfun.com/v/1.0.0/api/auth/login", request.url.toString())
+            assertEquals("https://remote.openbitfun.com/v/1.0.1/api/auth/login", request.url.toString())
             bodies += RelayJson.parseToJsonElement(request.text()).jsonObject
             json("""{"token":"token-1","user_id":"123"}""")
         }
@@ -120,27 +123,16 @@ class CloudAccountClientTest {
         val peerSecret = ByteArray(32) { 11 }
         val peerPublic = DeviceIdentity.publicKey(peerSecret)
         val messageKey = DeviceIdentity.messageKey(peerSecret, DeviceIdentity.publicKey(masterKey))
-        val engine = MockEngine { request ->
-            assertEquals("Bearer token-1", request.headers[HttpHeaders.Authorization])
-            if (request.url.encodedPath.endsWith("/key")) return@MockEngine json("""{"public_key":"${Base64.Default.encode(peerPublic)}"}""")
-            val envelope = RelayJson.decodeFromString(EncryptedPayload.serializer(), request.text())
+        val client = rpcClient(peerPublic) { target, params ->
+            assertEquals("desktop 1", target)
+            val envelope = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(), params)
             val commandText = CloudAccountCipher.decrypt(
-                Base64.Default.decode(envelope.encryptedData),
-                messageKey,
+                Base64.Default.decode(envelope.encryptedData), messageKey,
                 Base64.Default.decode(envelope.nonce),
             ).decodeToString()
             assertEquals("ping", RelayJson.decodeFromString(RemoteCommand.serializer(), commandText).cmd)
-            val nonce = ByteArray(12) { (it + 20).toByte() }
-            val plain = RelayJson.encodeToString(CommandStatusResponse.serializer(), CommandStatusResponse("ok", null))
-            val encrypted = CloudAccountCipher.encrypt(plain.encodeToByteArray(), messageKey, nonce)
-            json(
-                RelayJson.encodeToString(
-                    EncryptedPayload.serializer(),
-                    EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce)),
-                ),
-            )
+            encryptedReply(messageKey, CommandStatusResponse("ok", null))
         }
-        val client = CloudAccountClient(relayHttpClient(engine))
         val transport = AccountDeviceCommandTransport(client, "http://192.168.1.2:9700", session, "desktop 1")
 
         val response = transport.send<CommandStatusResponse>(RemoteCommand(cmd = "ping"))
@@ -149,7 +141,7 @@ class CloudAccountClientTest {
     }
 
     /**
-     * A desktop that answers `{"resp":"error"}` answered — the HTTP exchange
+     * A desktop that answers `{"resp":"error"}` answered — the acknowledged exchange
      * succeeded, so nothing below this notices. The paired transport has always
      * turned that into a rejection, and a caller cannot be asked to remember
      * which of the two it is talking to.
@@ -161,23 +153,11 @@ class CloudAccountClientTest {
         val peerSecret = ByteArray(32) { 11 }
         val peerPublic = DeviceIdentity.publicKey(peerSecret)
         val messageKey = DeviceIdentity.messageKey(peerSecret, DeviceIdentity.publicKey(masterKey))
-        val engine = MockEngine { request ->
-            if (request.url.encodedPath.endsWith("/key")) return@MockEngine json("""{"public_key":"${Base64.Default.encode(peerPublic)}"}""")
-            val nonce = ByteArray(12) { (it + 20).toByte() }
-            val plain = RelayJson.encodeToString(
-                CommandStatusResponse.serializer(),
-                CommandStatusResponse("error", "No workspace is open"),
-            )
-            val encrypted = CloudAccountCipher.encrypt(plain.encodeToByteArray(), messageKey, nonce)
-            json(
-                RelayJson.encodeToString(
-                    EncryptedPayload.serializer(),
-                    EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce)),
-                ),
-            )
+        val client = rpcClient(peerPublic) { _, _ ->
+            encryptedReply(messageKey, CommandStatusResponse("error", "No workspace is open"))
         }
         val transport = AccountDeviceCommandTransport(
-            CloudAccountClient(relayHttpClient(engine)),
+            client,
             "http://192.168.1.2:9700",
             session,
             "desktop-1",
@@ -200,7 +180,9 @@ class CloudAccountClientTest {
         val session = CloudAccountSession("token-1", "user-1", ByteArray(32))
         val engine = MockEngine { respond("upstream is down", HttpStatusCode.ServiceUnavailable) }
         val transport = AccountDeviceCommandTransport(
-            CloudAccountClient(relayHttpClient(engine)),
+            CloudAccountClient(relayHttpClient(engine), realtimeFactory = { _, _, _ ->
+                FakeRpc { _, _ -> error("Failed key lookup must prevent RPC dispatch") }
+            }),
             "http://192.168.1.2:9700",
             session,
             "desktop-1",
@@ -212,6 +194,29 @@ class CloudAccountClientTest {
 
         assertEquals(RelayFailure.RelayUnavailable(500), error.failure)
         assertEquals(CloudAccountFailure.RELAY_UNAVAILABLE, (error.cause as CloudAccountException).failure)
+    }
+
+    private class FakeRpc(private val reply: suspend (String, JsonElement) -> JsonElement) : AccountRpcConnection {
+        override suspend fun call(target: String, params: JsonElement, timeoutMs: Long): JsonElement = reply(target, params)
+        override fun close() {}
+    }
+
+    private fun rpcClient(peerPublic: ByteArray, reply: suspend (String, JsonElement) -> JsonElement): CloudAccountClient =
+        CloudAccountClient(relayHttpClient(MockEngine { request ->
+            assertEquals("Bearer token-1", request.headers[HttpHeaders.Authorization])
+            assertTrue(request.url.encodedPath.endsWith("/key"), "HTTP must only read the authenticated public key")
+            json("""{"public_key":"${Base64.Default.encode(peerPublic)}"}""")
+        }), realtimeFactory = { _, _, token ->
+            assertEquals("token-1", token)
+            FakeRpc(reply)
+        })
+
+    private suspend fun encryptedReply(key: ByteArray, response: CommandStatusResponse): JsonElement {
+        val nonce = ByteArray(12) { (it + 20).toByte() }
+        val plain = RelayJson.encodeToString(CommandStatusResponse.serializer(), response)
+        val ciphertext = CloudAccountCipher.encrypt(plain.encodeToByteArray(), key, nonce)
+        return RelayJson.encodeToJsonElement(EncryptedPayload.serializer(),
+            EncryptedPayload(Base64.Default.encode(ciphertext), Base64.Default.encode(nonce)))
     }
 
     /**

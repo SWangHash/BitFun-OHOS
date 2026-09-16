@@ -234,13 +234,10 @@ export struct RemoteSurfaceHost {
   @Builder
   private CompactEmptyState() {
     RecentRemoteHome({
-      sessions: this.remotePageState.sessions,
-      desktopName: this.remotePageState.desktopName,
       connected: this.remotePageState.connectionState === 'connected',
       busy: this.isInitialLoading(),
       onBrowse: () => { if (this.compact) this.onOpenSidebar(); else this.onRestoreSidebar(); },
-      onConnect: () => this.actions.onRemoteHome.connectWorkspace(),
-      onOpen: (session: RemoteSession) => this.openSession(session)
+      onConnect: () => this.actions.onRemoteHome.connectWorkspace()
     }).layoutWeight(1)
   }
 

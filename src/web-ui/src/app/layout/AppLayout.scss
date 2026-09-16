@@ -29,6 +29,11 @@ html, body {
   overflow: hidden;
 }
 
+html[data-openbitfun-native-material='sidebar'],
+html[data-openbitfun-native-material='sidebar'] body {
+  background: transparent;
+}
+
 // ==================== Main layout container ====================
 .openbitfun-app-layout {
   position: relative;
@@ -62,6 +67,10 @@ html, body {
   }
 
   &[data-openbitfun-background-media='video'] {
+    background: transparent;
+  }
+
+  :root[data-openbitfun-native-material='sidebar'] &:has(.openbitfun-workspace-body) {
     background: transparent;
   }
 
@@ -114,7 +123,7 @@ html, body {
   width: 100%;
   margin-top: 0;
   overflow: hidden;
-  background: var(--openbitfun-color-surface-scene);
+  background: transparent;
 }
 
 .openbitfun-app-layout--toolbar-mode > [data-openbitfun-product-component='toolbar-mode'][data-openbitfun-product-part='root'] {

@@ -3,9 +3,6 @@ import { MobileStatus } from '@openbitfun/ui/mobile';
 import PairingForm from '../components/PairingForm';
 import { accountDeviceIdFromHash, currentRelayUrl } from '../services/pairingLink';
 import { useI18n } from '../i18n';
-import { useTheme } from '../theme';
-import logoMarkDark from '../assets/openbitfun-mark-dark.png';
-import logoMarkLight from '../assets/openbitfun-mark-light.png';
 import { CloudAccountClient, type CloudAccountSession } from '../services/CloudAccountClient';
 import {
   BrowserAccountChangedError, BrowserAccountStorageError, getBrowserAccountStore, releaseBrowserAccount,
@@ -26,7 +23,6 @@ function routeKey(): string { return `${window.location.pathname}${window.locati
 
 const PairingPageContent: React.FC<PairingPageProps> = ({ onPaired }) => {
   const { t } = useI18n();
-  const { isDark } = useTheme();
   const relayUrl = currentRelayUrl();
   const accountStore = getBrowserAccountStore(relayUrl);
   const [restoring, setRestoring] = useState(true);
@@ -113,9 +109,16 @@ const PairingPageContent: React.FC<PairingPageProps> = ({ onPaired }) => {
 
   const signIn = async () => {
     if (pending.current || connected.current || restoring) return;
-    const authWindow = window.open('about:blank', '_blank');
+    // Open synchronously in the user gesture so the browser permits the popup.
+    const width = Math.min(480, window.screen.availWidth);
+    const height = Math.min(720, window.screen.availHeight);
+    const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+    const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
+    const authWindow = window.open('about:blank', '_blank',
+      `popup=yes,width=${width},height=${height},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`);
     if (!authWindow) { setError(t('pairing.allowSignInPopup')); return; }
-    authWindow.opener = null;
+    // Keep the opener relationship: Chrome otherwise refuses cross-origin close()
+    // and focus(). CloudAccountClient only navigates to the trusted auth endpoints.
     popup.current = authWindow;
     const attempt = ++generation.current;
     const controller = new AbortController();
@@ -168,12 +171,15 @@ const PairingPageContent: React.FC<PairingPageProps> = ({ onPaired }) => {
 
   return <div className="pairing-page"><div className="pairing-page__shell">
     <div className="pairing-page__brand">
-      <img src={isDark ? logoMarkLight : logoMarkDark} alt="" width="28" height="28" />
+      <img src={`${import.meta.env.BASE_URL}brand/openbitfun-app-icon.png`} alt="" width="40" height="40" />
       <span>OpenBitFun</span>
     </div>
     <section className="pairing-page__panel">
       {restoring ? <MobileStatus loading title={t('pairing.restoringAccount')} />
-        : <PairingForm busy={busy} error={error} onSignIn={() => void signIn()} onCancel={cancel} />}
+        : <PairingForm busy={busy} error={error} onSignIn={() => void signIn()} onCancel={cancel} onFocus={() => {
+          if (popup.current && !popup.current.closed) popup.current.focus();
+          else { cancel(); void signIn(); }
+        }} />}
     </section>
   </div></div>;
 };

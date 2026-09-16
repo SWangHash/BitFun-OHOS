@@ -48,6 +48,13 @@ function repositoryPath(root, path) {
   return result;
 }
 
+// This crates.io source is patched only to select the product TLS provider.
+// It is an external dependency, not an OpenBitFun runtime owner. Resolved
+// feature checks below still include it and its full dependency closure.
+function isVendoredExternalManifest(root, manifestPath) {
+  return repositoryPath(root, manifestPath) === 'third_party/eioc/Cargo.toml';
+}
+
 function layerForManifest(manifestPath, { root, crateLayoutRules }) {
   const repoManifestPath = repositoryPath(root, manifestPath);
   if (repoManifestPath === null) {
@@ -160,7 +167,7 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
 const SERVICES_CORE_TOKIO_FEATURES = new Map([
   ['credential-vault', ['fs', 'io-util', 'rt']],
   ['diff', ['rt', 'time']],
-  ['filesystem', ['fs', 'rt']],
+  ['filesystem', ['fs', 'rt', 'sync']],
   ['json-io', ['fs', 'rt', 'sync', 'time']],
   ['local-storage', ['fs', 'rt', 'sync', 'time']],
   ['permission', ['rt']],
@@ -169,6 +176,7 @@ const SERVICES_CORE_TOKIO_FEATURES = new Map([
   ['workspace-instructions', ['fs', 'io-util', 'rt']],
   ['workspace-text-runtime', ['rt']],
   ['workspace-runtime', ['fs', 'io-util', 'process', 'rt', 'sync', 'time']],
+  ['workspace-transfer', ['fs', 'io-util', 'rt', 'sync']],
 ]);
 const SERVICES_CORE_BASE_TOKIO_FEATURES = [];
 const SERVICES_INTEGRATIONS_TOKIO_AGGREGATES = new Set(['product-full']);
@@ -531,6 +539,13 @@ const THIRD_PARTY_CAPABILITY_PROFILES = new Map([
   ['image', {
     label: 'Image',
     packages: new Map([
+      ['openbitfun-services-core', dependencyProfile([], {
+        optional: true,
+        useDefaultFeatures: false,
+        ownerFeatureCapabilities: new Map([
+          ['pet-packages', ['gif', 'jpeg', 'png', 'webp']],
+        ]),
+      })],
       ['openbitfun-cli', dependencyProfile(['gif', 'jpeg', 'png', 'webp'], {
         useDefaultFeatures: false,
       })],
@@ -538,7 +553,9 @@ const THIRD_PARTY_CAPABILITY_PROFILES = new Map([
         optional: true,
         useDefaultFeatures: false,
       })],
-      ['openbitfun-desktop', dependencyProfile(['jpeg', 'png'], {
+      // Desktop owns bounded controller-local drag thumbnail decoding.
+      // Keep only its raster input formats and PNG/JPEG output codecs.
+      ['openbitfun-desktop', dependencyProfile(['bmp', 'gif', 'jpeg', 'png', 'webp'], {
         useDefaultFeatures: false,
       })],
       ['openbitfun-miniapp-market-service', dependencyProfile(['jpeg', 'png', 'webp'], {
@@ -564,7 +581,9 @@ const THIRD_PARTY_CAPABILITY_PROFILES = new Map([
   ['tokio-tungstenite', {
     label: 'Tokio Tungstenite',
     packages: new Map([
-      ['openbitfun-core', dependencyProfile([], { optional: true })],
+      ['openbitfun-core', { ...dependencyProfile([], { optional: true }),
+        devProfile: dependencyProfile([], { kind: 'dev' }),
+      }],
       // Loopback WebSocket lifecycle regressions only; the relay runtime is
       // an Axum server and does not acquire a TLS/client capability.
       ['openbitfun-relay-service', dependencyProfile(['connect', 'handshake'], {
@@ -719,6 +738,14 @@ function featureOwnedDependencyViolations(pkg, dependencyName, label, profile) {
 
 function thirdPartyDependencyProfileViolations(pkg, dependencyName, policy, profile) {
   const violations = [];
+  // A separately reviewed test client must not broaden the runtime edge.
+  if (profile.devProfile) {
+    const development = (pkg.dependencies ?? []).filter(dep => dep.name === dependencyName && dep.kind === 'dev');
+    if (development.length) violations.push(...thirdPartyDependencyProfileViolations(
+      { ...pkg, dependencies: development, features: {} }, dependencyName, policy, profile.devProfile,
+    ));
+    pkg = { ...pkg, dependencies: (pkg.dependencies ?? []).filter(dep => dep.name !== dependencyName || dep.kind !== 'dev') };
+  }
   const dependencies = (pkg.dependencies ?? []).filter(
     (dependency) => dependency.name === dependencyName,
   );
@@ -2481,7 +2508,8 @@ export function discoverCargoManifestPaths(root) {
         }
         continue;
       }
-      if (entry.isFile() && entry.name === 'Cargo.toml') {
+      if (entry.isFile() && entry.name === 'Cargo.toml'
+        && !isVendoredExternalManifest(root, join(directory, entry.name))) {
         manifests.push(join(directory, entry.name));
       }
     }
@@ -2620,6 +2648,10 @@ export function collectCargoMetadataGraph({
         continue;
       }
       const packageManifestKey = normalizedPath(pkg.manifest_path);
+      if (isVendoredExternalManifest(root, pkg.manifest_path)
+        && pkg.name === 'eioc' && pkg.version === '0.5.0' && !workspaceMemberIds.has(pkg.id)) {
+        continue;
+      }
       if (workspaceMemberIds.has(pkg.id)) {
         coveredManifests.add(packageManifestKey);
       }

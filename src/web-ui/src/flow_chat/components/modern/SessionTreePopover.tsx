@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bot, MessageSquare, Square } from 'lucide-react';
+import { MessageSquare, Square } from 'lucide-react';
 import { OverflowText, Spinner, Tooltip } from '@openbitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { sessionAPI, type SessionLineageSnapshot } from '@/infrastructure/api/service-api/SessionAPI';
@@ -665,7 +665,7 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
           disabled={!sessionId}
           data-testid="flowchat-header-session-tree"
           icon={<span className="session-tree-popover__trigger-inner">
-            <Bot size={14} />
+            <Icon name="user" size="sm" />
             {hasActiveDescendants ? (
               <span className="session-tree-popover__status-dot" aria-hidden="true" />
             ) : null}

@@ -98,7 +98,10 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(cfg.listen_addr).await?;
     info!("Relay server listening on {}", cfg.listen_addr);
-    info!("Device WebSocket endpoint: ws://{}/ws", cfg.listen_addr);
+    info!(
+        "Realtime Socket.IO endpoint: ws://{}/v1/updates",
+        cfg.listen_addr
+    );
 
     axum::serve(
         listener,
@@ -165,7 +168,7 @@ mod tests {
         }
         for path in [
             "/health",
-            "/ws",
+            "/v1/updates",
             "/api/devices",
             "/api/auth/login",
             "/privacy",

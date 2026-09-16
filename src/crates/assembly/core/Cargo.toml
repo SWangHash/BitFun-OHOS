@@ -164,6 +164,7 @@ product-full = [
     "diff",
     "subscription-auth",
     "i18n-runtime",
+    "local-model-runtime",
     "model-catalog",
     "mcp-runtime",
     "remote-connect",
@@ -307,7 +308,13 @@ mcp-runtime = [
     "openbitfun-services-integrations/mcp",
     "tokio/rt-multi-thread",
 ]
+# Local (Ollama-compatible) model-service client; the only owner of this
+# capability's HTTP dependency outside the MCP bridge.
+local-model-runtime = [
+    "dep:reqwest",
+]
 remote-connect = [
+    "openbitfun-services-core/workspace-transfer",
     "agent-runtime",
     "git",
     "model-catalog",
@@ -492,9 +499,11 @@ ssh-remote = [
 ]
 
 [dev-dependencies]
+# Loopback Socket.IO fixture for remote controller interaction tests.
+tokio-tungstenite = { workspace = true }
 openbitfun-runtime-services = { path = "../../execution/runtime-services", features = ["test-support"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [[test]]
 name = "git_contracts"

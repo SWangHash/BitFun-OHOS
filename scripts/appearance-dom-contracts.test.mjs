@@ -1,11 +1,29 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ts from 'typescript';
-import { collectForwardedTabProps, findDomAttribute } from './appearance-dom-contracts.mjs';
+import { collectForwardedTabProps, collectForwardedOverlayProps, findDomAttribute } from './appearance-dom-contracts.mjs';
 
 function collect(source) {
   return [...collectForwardedTabProps(ts.createSourceFile('fixture.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX))];
 }
+
+test('Dialog overlay props prove only forwarded product markers, not overridden library markers', () => {
+  const parse = source => [...collectForwardedOverlayProps(ts.createSourceFile('fixture.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX))];
+  for (const component of ['Dialog', 'Sheet']) {
+    const [node] = parse(`import { ${component} as Surface } from '@openbitfun/ui'; <Surface overlayProps={{'data-openbitfun-product-part': 'lightbox', 'data-openbitfun-component': 'fake', 'data-state': 'fake'}} />;`);
+    assert.equal(findDomAttribute(node, 'data-openbitfun-product-part').initializer.text, 'lightbox');
+    assert.equal(findDomAttribute(node, 'data-openbitfun-component'), undefined);
+    assert.equal(findDomAttribute(node, 'data-state'), undefined);
+  }
+  for (const source of [
+    `import { Dialog } from './fake'; <Dialog overlayProps={{part: 'fake'}} />;`,
+    `import { Button } from '@openbitfun/ui'; <Button overlayProps={{part: 'fake'}} />;`,
+    `import { Dialog } from '@openbitfun/ui'; <Dialog other={{part: 'fake'}} />;`,
+    `import { Dialog } from '@openbitfun/ui'; <Dialog overlayProps={{part: 'fake', ...unknown}} />;`,
+    `import { Dialog } from '@openbitfun/ui'; <Dialog overlayProps={{part: 'fake'}} {...unknown} />;`,
+    `const unused = {overlayProps: {part: 'fake'}};`,
+  ]) assert.equal(parse(source).length, 0, source);
+});
 
 test('TabGroup literal and mapped items expose the real native tab attributes', () => {
   for (const items of [

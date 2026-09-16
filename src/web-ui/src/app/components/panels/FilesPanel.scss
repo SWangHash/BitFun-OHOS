@@ -238,7 +238,7 @@
     min-width: 0;
   }
 
-  &__search-mode {
+  &__search-modes > [data-openbitfun-part="segment"] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -263,7 +263,7 @@
       color: var(--openbitfun-color-content-secondary);
     }
 
-    &.active {
+    &[aria-pressed="true"] {
       background: var(--openbitfun-color-action-secondary-background);
       color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 80%, transparent);
 
@@ -658,5 +658,13 @@
   .openbitfun-files-panel__loading-spinner {
     animation: none;
     transform: none;
+  }
+}
+
+.openbitfun-files-panel__search-modes[data-openbitfun-component='segmented-control'] {
+  padding: 0;
+  background: transparent;
+  > [data-openbitfun-part='segment'] {
+    block-size: 22px;
   }
 }

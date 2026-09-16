@@ -3,6 +3,7 @@
  */
 
 import { getTransportAdapter } from '../adapters';
+import { api } from './ApiClient';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('RemoteConnectAPI');
@@ -423,6 +424,37 @@ class RemoteConnectAPIService {
       log.error('accountDeleteDevice failed', e);
       throw e;
     }
+  }
+
+  onSessionGap(callback: (event: { sessionId: string; reason: string }) => void): () => void {
+    return api.listen('relay://session-gap', callback);
+  }
+
+  onSessionRecord(callback: (event: unknown) => void): () => void {
+    return api.listen('session-record', callback);
+  }
+
+  onSessionInteractionChanged(callback: (event: { sessionId: string; userQuestionsRevision: number }) => void): () => void {
+    return api.listen('session-interaction-changed', callback);
+  }
+
+  onSessionReady(callback: (event: { sessionId: string; hasMore: boolean; oldestSeq: number; cursor: number }) => void): () => void {
+    return api.listen('relay://session-ready', callback);
+  }
+
+  onSessionSyncError(callback: (event: { sessionId: string; targetDeviceId: string; message: string }) => void): () => void {
+    return api.listen('account://session-sync-error', callback);
+  }
+
+  async loadOlderSession(subscriptionId: string): Promise<void> {
+    return this.adapter.request<void>('account_load_older_session', { request: { subscription_id: subscriptionId } });
+  }
+
+  async subscribeSession(targetDeviceId: string, sessionId: string): Promise<string> {
+    return this.adapter.request<string>('account_subscribe_session', { request: { target_device_id: targetDeviceId, session_id: sessionId } });
+  }
+  async unsubscribeSession(subscriptionId: string): Promise<void> {
+    return this.adapter.request<void>('account_unsubscribe_session', { request: { subscription_id: subscriptionId } });
   }
 
   async accountDeviceRpc(

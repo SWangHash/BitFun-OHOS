@@ -75,7 +75,7 @@ class MobileScreenTest {
             composeRule.onNodeWithText(text(R.string.welcome_login)).assertIsDisplayed()
             composeRule.onNodeWithText(text(R.string.welcome_scan)).assertIsDisplayed()
             composeRule.onNodeWithText(text(R.string.miniapps_title)).performClick()
-            composeRule.onNodeWithText(text(R.string.miniapps_close)).assertIsDisplayed().performClick()
+            composeRule.onNodeWithContentDescription(text(R.string.miniapps_back)).assertIsDisplayed().performClick()
             composeRule.onNodeWithText(text(R.string.welcome_login)).assertIsDisplayed()
             return
         }

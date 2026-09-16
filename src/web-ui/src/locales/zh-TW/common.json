@@ -55,8 +55,8 @@
     "modeCoder": "Coder",
     "switchToCowork": "切換到 Cowork 模式",
     "switchToCoder": "切換到 Coder 模式",
-    "hideAgentic": "隱藏 Agent",
-    "activateAgentic": "激活 Agent",
+    "hideAgentic": "隱藏智能體",
+    "activateAgentic": "激活智能體",
     "switchWorkspace": "切換工作區",
     "recentWorkspaces": "最近項目",
     "noRecentWorkspaces": "暫無最近項目",
@@ -92,7 +92,7 @@
       "persona": "智能成員 — 展開查看基於角色和記憶的成員會話",
       "todos": "任務看板 — 管理全部任務",
       "longTermTracking": "長期跟蹤 — 持續任務與長期對話",
-      "agents": "它能調用哪些 Agent",
+      "agents": "它能調用哪些智能體",
       "skills": "它懂什麼專項知識 — 技能知識檔案",
       "ecosystemCompatibility": "生態兼容 — 管理其他 AI 應用的兼容能力與擴展",
       "ecosystemCompatibilityUnseen": "生態兼容 — 發現了新的兼容應用",
@@ -227,7 +227,7 @@
       "unavailable": "無法取得終端機狀態，請重試",
       "actionFailed": "終端機操作失敗：{{error}}",
       "manual": "我的",
-      "agent": "Agent",
+      "agent": "智能體",
       "status": {
         "running": "$t(shared:statuses.running)",
         "saved": "已儲存",
@@ -242,7 +242,7 @@
       "title": "Shell",
       "views": {
         "manual": "我的",
-        "agent": "Agent"
+        "agent": "智能體"
       },
       "actions": {
         "newTerminal": "新增終端",
@@ -265,7 +265,7 @@
       "empty": {
         "all": "暫無終端",
         "manual": "還沒有用戶終端",
-        "agent": "還沒有 Agent 終端",
+        "agent": "還沒有智能體終端",
         "quickNew": "快速新增"
       }
     },
@@ -348,7 +348,7 @@
         "source": {
           "label": "來源",
           "openbitfun": "$t(shared:product.name)",
-          "external": "外部 Agent"
+          "external": "外部智能體"
         },
         "archived": "封存會話",
         "collapseAll": "全部摺疊",
@@ -405,7 +405,7 @@
       "ariaInputResolved": "會話已不再等待輸入",
       "ariaInputResolvedRemaining": "會話 '{{name}}' 已收到輸入。還有 {{count}} 個會話等待中。",
       "badgeBackgroundSubagents": "後台 {{count}}",
-      "backgroundSubagentsRunning": "{{count}} 個背景子 Agent 運行中",
+      "backgroundSubagentsRunning": "{{count}} 個背景子智能體運行中",
       "needProjectWorkspaceForSession": "請先開啟或新增項目工作區，再新增項目會話。",
       "manage": "批量管理會話",
       "batchManageDescription": "選擇此工作區中的會話，然後批量歸檔或刪除。",
@@ -464,7 +464,7 @@
       "fields": {
         "workspacePath": "工作區路徑",
         "session": "會話",
-        "agentType": "Agent 類型",
+        "agentType": "智能體類型",
         "name": "任務名稱",
         "enabled": "啟用狀態",
         "enabledHint": "啟用該任務",
@@ -484,7 +484,7 @@
         "name": "例如：每日全球新聞簡報",
         "anchorMs": "留空則使用建立時刻",
         "timezone": "例如：Asia/Shanghai",
-        "prompt": "請輸入定時觸發時發送給 Agent 的內容"
+        "prompt": "請輸入定時觸發時發送給智能體的內容"
       },
       "hints": {
         "cronExpr": "Cron 格式：分 時 日 月 週，例如 0 8 * * * 表示每天 08:00。"
@@ -664,7 +664,7 @@
     "agents": {
       "allAgents": "全部子智能體",
       "newAgent": "新增子智能體",
-      "agentsOverview": "Agent 總覽"
+      "agentsOverview": "智能體總覽"
     },
     "skills": {
       "allSkills": "全部技能",
@@ -738,6 +738,10 @@
     "select": "選擇此目錄"
   },
   "deviceOverview": {
+    "devicesAndConnections": "裝置與連線",
+    "connectDevice": "連線至此裝置",
+    "previousDevice": "上一台裝置",
+    "nextDevice": "下一台裝置",
     "title": "裝置狀態",
     "thisDevice": "這台裝置",
     "thisWindows": "這台 Windows",
@@ -793,7 +797,7 @@
     "usernamePlaceholder": "請輸入帳號",
     "passwordPlaceholder": "請輸入密碼",
     "authServerPlaceholder": "https://auth.example.com",
-    "login": "使用 GitHub 登入",
+    "login": "使用信箱或 GitHub 登入",
     "cancel": "取消",
     "emptyFields": "請填寫所有欄位",
     "invalidCredentialsLength": "帳號或密碼過長",
@@ -801,7 +805,7 @@
     "insecureServerTitle": "伺服器連線未加密",
     "insecureServerConfirm": "此伺服器使用未加密的 HTTP，網路攻擊者可能截取登入工作階段。仍要繼續嗎？",
     "continueInsecure": "仍要繼續",
-    "securityNote": "在瀏覽器中透過 GitHub 授權 OpenBitFun。裝置間訊息使用端對端加密。",
+    "securityNote": "在瀏覽器中透過 OpenBitFun 授權 OpenBitFun。裝置間訊息使用端對端加密。",
     "showPassword": "顯示密碼",
     "hidePassword": "隱藏密碼",
     "loginSuccess": "登入成功：{{user_id}}",
@@ -888,6 +892,7 @@
     "syncPhaseExportingSessions": "正在備份工作階段 {{current}}/{{total}}",
     "copyServerUrl": "複製伺服器位址",
     "copyServerFailed": "無法複製伺服器位址，請檢查剪貼簿權限後重試。",
+    "reopen": "重新開啟登入頁面",
     "loginValueProp": "登入以連結你的多台裝置，並互相遠端控制。",
     "linkedDevices": "已關聯裝置"
   },
@@ -991,12 +996,12 @@
     "centerTitle": "裝置與連線",
     "overviewIntro": "管理你的裝置，以及接入目前工作區的連線。",
     "myDevicesTitle": "我的裝置",
-    "accountDevicesTitle": "GitHub 帳號與裝置",
+    "accountDevicesTitle": "OpenBitFun 帳號與裝置",
     "myDevicesDescription": "連接線上裝置，遠端操作對端的 OpenBitFun。",
     "accountSignedIn": "已登入",
     "accountSignedOut": "未登入",
     "connectThisDeviceTitle": "連線至此裝置",
-    "connectThisDeviceDescription": "使用同一 GitHub 帳號登入後連線",
+    "connectThisDeviceDescription": "使用同一 OpenBitFun 帳號登入後連線",
     "mobileBrowserTitle": "手機或瀏覽器",
     "mobileBrowserDescription": "在手機或瀏覽器中下發任務。",
     "chatAppsTitle": "聊天應用程式",
@@ -1012,7 +1017,7 @@
     "connecting": "連接中...",
     "disconnect": "斷開連接",
     "cancel": "取消",
-    "scanHint": "掃描 QR Code 後，使用相同 GitHub 帳號登入。",
+    "scanHint": "掃描 QR Code 後，使用相同 OpenBitFun 帳號登入。",
     "botHint": "將配對碼發送給機器人完成配對",
     "connectedHint": "移動設備已連接，可以關閉此對話框",
     "connectedUserId": "用戶 ID",
@@ -1081,13 +1086,14 @@
     "disclaimerKeyRisks": "核心風險",
     "disclaimerFullDetails": "檢視完整的安全、隱私、網路與合規說明",
     "disclaimerItemGeneralRisk": "遠端操作與任務執行可能讀取或修改所選裝置和工作區中的檔案、執行命令。請核對目標與權限；錯誤操作、功能缺陷或連線異常可能造成資料遺失等損失。",
-    "disclaimerItemSecurity": "裝置、手機和瀏覽器透過同一 GitHub 帳號連線；聊天應用透過各自的授權與配對流程接入。請只在可信裝置上登入，並僅向可信人員開放控制權限。",
+    "disclaimerItemSecurity": "裝置、手機和瀏覽器透過同一 OpenBitFun 帳號連線；聊天應用透過各自的授權與配對流程接入。請只在可信裝置上登入，並僅向可信人員開放控制權限。",
     "disclaimerItemEncryption": "透過官方中繼或區域網路中繼傳輸的裝置間控制訊息與任務資料採用端對端加密。帳號識別碼、裝置名稱、上線狀態和連線位址等中繼資料不屬於訊息密文；聊天應用通道也不受這層端對端加密保護。",
     "disclaimerItemOpenSource": "OpenBitFun 遠程連接的加密實現完全開源，你可以自行審計源碼以驗證安全性。",
     "disclaimerItemPrivacy": "任務內容、附件和執行結果可能包含敏感資訊，並顯示在連線端或聊天記錄中。執行裝置的日誌、瀏覽器以及接入的第三方服務也可能保留相關資料，請按需控制傳送內容與存取權限。",
     "disclaimerItemDataUsage": "OpenBitFun 不會將你的遠端連線業務內容用於訓練或商業化使用；你選擇接入的模型服務和聊天平台（如飛書、Telegram、微信）可能按各自條款處理資料。",
-    "disclaimerItemCredentials": "請妥善保護 GitHub 帳號、各裝置與瀏覽器的登入憑證，以及聊天應用的 Token、App Secret 等接入憑證。憑證外洩或裝置失竊可能導致他人下發任務或存取資料。",
-    "disclaimerItemQrCode": "連線 QR 碼和連結包含中繼位址與目標裝置識別碼，開啟後仍需使用同一 GitHub 帳號登入。請避免向無關人員傳播，並在登入與連線前核對位址與目標裝置。",
+    "disclaimerItemCredentials": "請妥善保護 OpenBitFun 帳號、各裝置與瀏覽器的登入憑證，以及聊天應用的 Token、App Secret 等接入憑證。憑證外洩或裝置失竊可能導致他人下發任務或存取資料。",
+    "disclaimerItemQrCode": "連線 QR 碼和連結包含中繼位址與目標裝置識別碼，開啟後仍需使用同一 OpenBitFun 帳號登入。請避免向無關人員傳播，並在登入與連線前核對位址與目標裝置。",
+    "disclaimerItemRelay": "官方中繼與區域網路中繼用於連線和轉發訊息，不代替執行裝置執行任務。執行裝置需要保持上線；關閉連線視窗或取消邀請不會自動中斷已建立的帳號連線，請在連線管理中主動中斷。",
     "disclaimerItemNetwork": "區域網路連線需要裝置之間能夠互相存取；路由器隔離、防火牆和代理設定可能阻止連線。官方中繼還依賴網際網路與服務可用性，網路變化可能造成中斷或延遲。",
     "disclaimerItemBot": "聊天應用配對碼用於建立與執行裝置的連線，配對後可透過聊天應用下發任務。請勿向無關人員洩露配對碼，並注意聊天帳號、群組成員及平台權限設定。",
     "disclaimerItemBotPersistence": "聊天應用的接入憑證和配對資訊會儲存在執行裝置上，以便重新啟動後恢復連線。請保護該裝置及其設定檔；無需繼續使用時，請主動中斷連線。",
@@ -1108,7 +1114,7 @@
     "copyCommit": "複製提交雜湊",
     "dialogTitle": "關於 OpenBitFun",
     "brandStatement": "AGENTS\nFOR A MORE\nOPEN WORLD",
-    "tagline": "智慧體運行環境 · Agent Runtime",
+    "tagline": "智能體執行環境",
     "details": "版本與構建資訊",
     "version": "版本 {{version}}",
     "versionLabel": "版本",
@@ -1571,7 +1577,7 @@
       },
       "team": {
         "title": "你的 AI 團隊",
-        "description": "為不同場景設定 Code、Cowork 和更多 Agent，讓它們分工協作，完成複雜任務。"
+        "description": "為不同場景設定 Code、Cowork 和更多智能體，讓它們分工協作，完成複雜任務。"
       },
       "assistant": {
         "title": "助理會持續成長",
@@ -1722,8 +1728,8 @@
       "containerShell": "容器 Shell",
       "containerUser": "容器使用者",
       "optional": "選填",
-      "remoteDockerHint": "先透過 SSH 到達 Docker 主機；終端、Agent 指令與工作區檔案操作接著都在此容器內執行。",
-      "localDockerHint": "使用本機 Docker CLI；終端、Agent 指令與工作區檔案操作都在此容器內執行。",
+      "remoteDockerHint": "先透過 SSH 到達 Docker 主機；終端、智能體指令與工作區檔案操作接著都在此容器內執行。",
+      "localDockerHint": "使用本機 Docker CLI；終端、智能體指令與工作區檔案操作都在此容器內執行。",
       "containerSshdHint": "上方主機、連接埠、使用者與驗證資訊必須直接指向容器內的 sshd。",
       "host": "主機地址",
       "port": "端口",
@@ -1734,7 +1740,7 @@
       "authMethod": "認證方式",
       "password": "密碼",
       "privateKey": "私鑰",
-      "sshAgent": "SSH Agent",
+      "sshAgent": "SSH 金鑰代理",
       "keyboardInteractive": "鍵盤互動驗證",
       "privateKeyPath": "私鑰檔案路徑",
       "certificatePath": "OpenSSH 憑證",
@@ -1747,8 +1753,8 @@
       "passphraseOptional": "留空表示無密碼短語",
       "showPassword": "顯示密碼",
       "hidePassword": "隱藏密碼",
-      "agentFingerprint": "Agent 金鑰指紋",
-      "agentFallbackKey": "Agent 無法使用時的備用私鑰",
+      "agentFingerprint": "金鑰代理的金鑰指紋",
+      "agentFallbackKey": "金鑰代理無法使用時的備用私鑰",
       "challengePassword": "互動驗證密碼",
       "verificationCode": "驗證碼 / OTP",
       "challengeResponseRequired": "鍵盤互動驗證至少需要一個回應",

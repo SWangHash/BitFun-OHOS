@@ -35,6 +35,8 @@ kotlin {
             // ContentNegotiation, so the wire format cannot drift with whatever
             // converters the surrounding app installs on its own client.
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.websockets)
+            implementation(libs.socketio.codec)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

@@ -17,25 +17,25 @@ Create and manage persistent AI assistants, define their identity and persona, c
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 浏览已有助理、创建新助理并查看每个助理的身份与能力概览
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 浏览已有助理、创建新助理并查看每个助理的身份与能力概览
   - Browse existing assistants, create a new one, and review each assistant's identity and capability summary
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 设为主助理、删除非主助理，或将助理工作区重置为默认状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 设为主助理、删除非主助理，或将助理工作区重置为默认状态
   - Set the primary assistant, delete non-primary assistants, or reset an assistant workspace to defaults
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 编辑助理名称、角色类型和气质，并选择官方头像、Emoji 或自定义头像字符
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 编辑助理名称、角色类型和气质，并选择官方头像、Emoji 或自定义头像字符
   - Edit an assistant's name, creature type, and vibe, then choose an official avatar, emoji, or custom avatar character
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 读取和编辑 IDENTITY.md、SOUL.md 与 USER.md，并自动保存 Markdown 正文和 Frontmatter
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 读取和编辑 IDENTITY.md、SOUL.md 与 USER.md，并自动保存 Markdown 正文和 Frontmatter
   - Read and edit IDENTITY.md, SOUL.md, and USER.md with autosaved Markdown body and frontmatter
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为新助理选择默认 Skills，识别用户级与项目级来源、遮蔽关系和当前可用状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为新助理选择默认 Skills，识别用户级与项目级来源、遮蔽关系和当前可用状态
   - Choose default Skills for new assistants while seeing user/project sources, shadowing, and availability
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 逐个或批量启用默认内置工具，并查看说明、只读或可执行属性及产品默认状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 逐个或批量启用默认内置工具，并查看说明、只读或可执行属性及产品默认状态
   - Enable default built-in tools individually or in groups and inspect descriptions, read-only or executable access, and product defaults
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按 MCP 服务器查看连接状态、工具详情与传输信息，并为新助理启用整个服务或单个工具
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按 MCP 服务器查看连接状态、工具详情与传输信息，并为新助理启用整个服务或单个工具
   - Inspect MCP server status, tool details, and transport, then enable a whole server or individual tools for new assistants
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按 Skills、内置工具或 MCP 分类搜索，筛选启用、停用、已更改或不可用项，查看详情并恢复产品默认值
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按 Skills、内置工具或 MCP 分类搜索，筛选启用、停用、已更改或不可用项，查看详情并恢复产品默认值
   - Search Skills, built-in tools, or MCP entries; filter enabled, disabled, changed, or unavailable items; inspect details; and restore product defaults
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 从助理卡片新建会话，或在助理详情中选择模型、输入消息并查看该助理的历史会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 从助理卡片新建会话，或在助理详情中选择模型、输入消息并查看该助理的历史会话
   - Start a session from an assistant card, or choose a model, send a message, and browse that assistant's sessions from its detail page
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看和管理仅属于当前助理工作区的定时会话与自动任务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看和管理仅属于当前助理工作区的定时会话与自动任务
   - Review and manage scheduled sessions and automated jobs scoped to the current assistant workspace
 
 ## 怎么用 / How to use it
@@ -49,7 +49,7 @@ Create and manage persistent AI assistants, define their identity and persona, c
 
 入口 / Entry: OpenBitFun 对应场景
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ Create and manage persistent AI assistants, define their identity and persona, c
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开我的个人助理”
   - “Open my personal assistants”
@@ -70,6 +70,6 @@ Create and manage persistent AI assistants, define their identity and persona, c
 - “我想修改主助理的人设”
   - “I want to edit my primary assistant's persona”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

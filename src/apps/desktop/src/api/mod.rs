@@ -10,7 +10,9 @@ pub mod browser_api;
 pub mod browser_control_api;
 pub mod browser_file_drop_api;
 pub mod btw_api;
-#[cfg(not(target_env = "ohos"))]
+// Canvas commands compile on every target: the canvas service stack is part of
+// the desktop dependency graph for OHOS builds too (canvas-runtime is not
+// target-gated), and the upstream frontend registers these invoke handlers.
 pub mod canvas_api;
 pub mod clipboard_file_api;
 pub mod commands;
@@ -29,11 +31,13 @@ pub mod event_coalescer;
 pub mod external_hooks_api;
 pub mod external_sources_api;
 pub mod feedback_api;
+pub mod file_drop_preview_api;
 pub mod git_agent_api;
 pub mod git_api;
 pub mod html_preview_api;
 pub mod i18n_api;
 pub mod insights_api;
+pub mod local_file_download;
 pub mod market_image_api;
 pub mod matrix_skill_api;
 pub mod mcp_api;

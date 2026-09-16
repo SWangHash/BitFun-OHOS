@@ -1,3 +1,5 @@
+import { downloadRuntimeFile } from '../services/RuntimeFileDownload';
+import { PermissionMailbox } from '../components/PermissionMailbox';
 import { QuestionInteractionContext } from "../components/ChatAskQuestionCard";
 import { ChevronDown as LucideChevronDown } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
@@ -8,7 +10,7 @@ import {
   isRemoteControlTargetChangedError,
   RemoteControlTargetChangedError,
   RemoteSessionManager,
-  SessionPoller,
+  SessionSynchronizer,
   type PollResponse,
   type ChatMessage,
   type RemoteModelCatalog,
@@ -107,7 +109,32 @@ const ChatPage: React.FC<ChatPageProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
-  const pollerRef = useRef<SessionPoller | null>(null);
+  const [composerHeight, setComposerHeight] = useState(56);
+
+  useLayoutEffect(() => {
+    const bar = inputBarRef.current;
+    if (!bar) return;
+    const measure = () => setComposerHeight(Math.ceil(bar.getBoundingClientRect().height));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const editor = inputRef.current;
+    if (!editor) return;
+    const resize = () => {
+      editor.style.height = 'auto';
+      editor.style.height = `${editor.scrollHeight}px`;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [input, inputExpanded, wideLayout]);
+
+  const [mailboxInvalidation, setMailboxInvalidation] = useState(0);
+  const streamRef = useRef<SessionSynchronizer | null>(null);
   const messagesRequestSeqRef = useRef(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -218,15 +245,15 @@ const ChatPage: React.FC<ChatPageProps> = ({
         clearTimeout(msgToastTimerRef.current);
         msgToastTimerRef.current = undefined;
       }
-      pollerRef.current?.stop();
-      pollerRef.current = null;
+      streamRef.current?.stop();
+      streamRef.current = null;
     }
     committedChatTargetRef.current = { sessionMgr, sessionId, epoch: controlTargetEpoch };
     return () => {
       owner.active = false;
       messagesRequestSeqRef.current += 1;
       modelCatalogRequestSeqRef.current += 1;
-      pollerRef.current?.stop();
+      streamRef.current?.stop();
     };
   }, [controlTargetEpoch, sessionId, sessionMgr, setActiveTurn, setMessages]);
 
@@ -261,13 +288,13 @@ const ChatPage: React.FC<ChatPageProps> = ({
     }
   }, [captureChatTargetEpoch, isChatTargetCurrent, sessionMgr, setError]);
 
-  const handleApproveTool = useCallback(async (toolId: string) => {
+  const handleApproveTool = useCallback(async (toolId: string, updatedInput?: Record<string, unknown>) => {
     const targetEpoch = captureChatTargetEpoch();
     if (targetEpoch === null) throw new RemoteControlTargetChangedError();
     try {
-      await sessionMgr.confirmTool(toolId);
+      await sessionMgr.confirmTool(toolId, updatedInput);
       if (!isChatTargetCurrent(targetEpoch)) throw new RemoteControlTargetChangedError();
-      pollerRef.current?.nudge();
+      streamRef.current?.nudge();
     } catch (err) {
       reportRemoteSessionError(err, setError);
       throw err;
@@ -280,7 +307,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     try {
       await sessionMgr.rejectTool(toolId, t('chat.rejectedByUser'));
       if (!isChatTargetCurrent(targetEpoch)) throw new RemoteControlTargetChangedError();
-      pollerRef.current?.nudge();
+      streamRef.current?.nudge();
     } catch (err) {
       reportRemoteSessionError(err, setError);
       throw err;
@@ -339,31 +366,11 @@ const ChatPage: React.FC<ChatPageProps> = ({
     const targetEpoch = captureChatTargetEpoch();
     if (targetEpoch === null) return;
     try {
-      const { name, contentBase64, mimeType } = await sessionMgr.readFile(
-        filePath,
-        sessionId,
-        (downloaded, total) => {
-          if (isChatTargetCurrent(targetEpoch)) onProgress?.(downloaded, total);
-        },
-      );
-      if (!isChatTargetCurrent(targetEpoch)) return;
-      const byteCharacters = atob(contentBase64);
-      const byteNumbers = new Uint8Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const blob = new Blob([byteNumbers], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      await downloadRuntimeFile(sessionMgr, filePath, {
+        sessionId, isCurrent: () => isChatTargetCurrent(targetEpoch), onProgress,
+      });
     } catch (err) {
-      // Use the backend's message directly; it's already user-readable.
-      reportRemoteSessionError(err, setError);
+      if (isChatTargetCurrent(targetEpoch)) reportRemoteSessionError(err, setError);
       throw err;
     }
   }, [captureChatTargetEpoch, isChatTargetCurrent, sessionId, sessionMgr, setError]);
@@ -512,22 +519,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     try {
       isLoadingMoreRef.current = true;
       setIsLoadingMore(true);
-      const resp = await sessionMgr.getSessionMessages(sessionId, 50, beforeId);
-      if (
-        requestSeq !== messagesRequestSeqRef.current
-        || !isChatTargetCurrent(targetEpoch)
-      ) return;
-      if (beforeId) {
-        const currentMsgs = getMessages(sessionId);
-        const nextMessages = [...resp.messages, ...currentMsgs];
-        setMessages(sessionId, nextMessages);
-        remoteCache.saveTranscript(cacheScope, sessionId, nextMessages, resp.has_more);
-      } else {
-        setMessages(sessionId, resp.messages);
-        remoteCache.saveTranscript(cacheScope, sessionId, resp.messages, resp.has_more);
-      }
-      setHasMore(resp.has_more);
-      hasMoreRef.current = resp.has_more;
+      await streamRef.current?.loadOlder();
     } catch (e: any) {
       if (
         requestSeq === messagesRequestSeqRef.current
@@ -611,7 +603,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     try {
       await sessionMgr.sendMessage(sessionId, text, sessionAgentType, imageContexts);
       if (!isChatTargetCurrent(targetEpoch)) return;
-      pollerRef.current?.nudge();
+      streamRef.current?.nudge();
     } catch (e: any) {
       reportRemoteSessionError(e, setError);
     }
@@ -680,7 +672,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // Initial load + start poller
+  // Initial hydrate and durable stream subscription
   const initialScrollDone = useRef(false);
   const pendingInitialScroll = useRef(false);
   const chatInitSeqRef = useRef(0);
@@ -719,13 +711,13 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
       // Always reconcile with the authoritative host. The cached transcript is
       // only an immediate paint and remains isolated to this account/device.
-      await loadMessages();
+      // Durable records reconcile the cached view through the same stream.
       const initialCatalog = await catalogPromise;
       if (!isInitCurrent()) return;
       const initialMsgCount = useMobileStore.getState().getMessages(sessionId).length;
       pendingInitialScroll.current = true;
 
-      const poller = new SessionPoller(sessionMgr, sessionId, (resp: PollResponse) => {
+      const synchronizer = new SessionSynchronizer(sessionMgr, sessionId, (resp: PollResponse) => {
         if (!isInitCurrent()) return;
         if (resp.message_snapshot) {
           // Completion can grow the content of an already-counted assistant
@@ -748,20 +740,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
           );
         }
 
-        // Detect count mismatch (messages inserted in the middle due to
-        // persistence race).  When the local count doesn't match the server
-        // total, do a full reload to pick up all messages.
-        if (resp.total_msg_count != null) {
-          const localCount = useMobileStore.getState().getMessages(sessionId).length;
-          if (localCount !== resp.total_msg_count) {
-            sessionMgr.getSessionMessages(sessionId, 200).then(fresh => {
-              if (!isInitCurrent()) return;
-              useMobileStore.getState().setMessages(sessionId, fresh.messages);
-              remoteCache.saveTranscript(cacheScope, sessionId, fresh.messages, fresh.has_more);
-            }).catch(() => {});
-          }
-        }
-
         if (resp.title) {
           setLiveTitle(resp.title);
           updateSessionName(sessionId, resp.title);
@@ -775,18 +753,18 @@ const ChatPage: React.FC<ChatPageProps> = ({
           ));
         }
         setActiveTurn(resp.active_turn ?? null);
-      }, initialCatalog?.version || 0);
+      }, initialCatalog?.version || 0, history => { if(isInitCurrent()){setHasMore(history.hasMore);hasMoreRef.current=history.hasMore;} }, () => { if(isInitCurrent())setMailboxInvalidation(value=>value+1); });
 
-      poller.start(initialMsgCount);
-      pollerRef.current = poller;
+      synchronizer.start(initialMsgCount);
+      streamRef.current = synchronizer;
     };
     void initialize();
 
     return () => {
       cancelled = true;
       if (chatInitSeqRef.current === initSeq) chatInitSeqRef.current += 1;
-      pollerRef.current?.stop();
-      pollerRef.current = null;
+      streamRef.current?.stop();
+      streamRef.current = null;
       setActiveTurn(null);
     };
   }, [
@@ -908,7 +886,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
       setInput(current => current === input ? '' : current);
       setPendingImages(current => current.filter(image => !imgs.includes(image)));
       if (!wasStreaming && draftUnchanged) setInputExpanded(false);
-      pollerRef.current?.nudge();
+      streamRef.current?.nudge();
       if (wasStreaming) {
         setInfoToast(t('chat.messageQueued'));
       }
@@ -1018,7 +996,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
   const displayName = liveTitle || sessionName || t('chat.session');
 
   return (
-    <div className={`chat-page${wideLayout ? ' chat-page--wide' : ''}`}>
+    <div className={`chat-page${wideLayout ? ' chat-page--wide' : ''}`} style={{ '--chat-composer-height': `${composerHeight}px` } as React.CSSProperties}>
       <ChatHeader
         deviceName={controlTarget ? controlTarget.deviceName || undefined : undefined}
         displayName={displayName}
@@ -1031,6 +1009,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         workspaceName={workspaceName}
       />
 
+      <PermissionMailbox key={`${sessionId}:${controlTargetEpoch}`} manager={sessionMgr} sessionId={sessionId} invalidation={mailboxInvalidation} />
       {/* Messages */}
       <div className="chat-page__messages" ref={messagesContainerRef} onScroll={handleScroll}>
         {isLoadingMore && (

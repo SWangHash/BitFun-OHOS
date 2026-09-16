@@ -39,6 +39,17 @@
     cursor: inherit;
   }
 
+  .root[data-appearance="native"] .control {
+    margin-block-start: 0;
+  }
+
+  .root[data-appearance="native"] .input {
+    position: static;
+    z-index: auto;
+    appearance: auto;
+    opacity: 1;
+  }
+
   .box {
     display: inline-flex;
     align-items: center;
@@ -63,7 +74,10 @@
   }
 
   .root[data-invalid="true"] .box { border-color: var(--openbitfun-color-status-danger-border); }
-  .root[data-disabled="true"] .box { background: var(--openbitfun-color-field-background); }
+  .root[data-disabled="true"] .box {
+    color: var(--openbitfun-color-content-disabled);
+    background: var(--openbitfun-color-field-background);
+  }
 
   .icon {
     inline-size: 100%;

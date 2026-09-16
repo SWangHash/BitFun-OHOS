@@ -6262,8 +6262,8 @@ export const requiredContentRules = [
         message: 'missing remote-connect QR compatibility export',
       },
       {
-        regex: /pub use relay_client::\{[\s\S]*\bConnectionState\b[\s\S]*\bRelayClient\b[\s\S]*\bRelayEvent\b[\s\S]*\bRelayMessage\b[\s\S]*\}/,
-        message: 'missing remote-connect relay compatibility export',
+        regex: /pub use relay_client::\{[\s\S]*\bConnectionState\b[\s\S]*\bRelayClient\b[\s\S]*\bRelayEvent\b[\s\S]*\}/,
+        message: 'missing shared account relay lifecycle export',
       },
       {
         regex: /\bpub struct RemoteSessionStateTracker\b/,

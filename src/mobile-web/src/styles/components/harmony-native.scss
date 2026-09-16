@@ -54,6 +54,8 @@
 }
 
 .remote-home__heading h2 {
+  width: 100%;
+  max-width: none;
   margin: 0;
   color: var(--openbitfun-color-content-primary);
   font-size: var(--openbitfun-type-flow-section-title-font-size);
@@ -214,8 +216,8 @@
   display: flex;
   align-items: center;
   width: 100%;
-  height: 50px;
-  min-height: 50px;
+  height: 76px;
+  min-height: 76px;
 }
 
 .harmony-sidebar__header h1 {
@@ -313,6 +315,10 @@
   height: var(--openbitfun-space-12);
 }
 
+.harmony-sidebar__device-row {
+  padding-right: 0;
+}
+
 .harmony-sidebar__device-row:disabled:not(.is-current) {
   opacity: 0.58;
 }
@@ -339,14 +345,14 @@
 }
 
 .harmony-sidebar__device-row.is-current .harmony-sidebar__row-label {
-  font-weight: var(--openbitfun-type-label-lg-font-weight);
+  font-weight: var(--openbitfun-type-label-selected-font-weight);
 }
 
 .harmony-sidebar__status {
   flex: 0 0 8px;
   width: 8px;
   height: 8px;
-  margin: 0 10px;
+  margin: 0 calc((var(--openbitfun-space-12) - 8px) / 2);
   border-radius: 50%;
   background: var(--openbitfun-color-content-muted);
 }
@@ -372,7 +378,7 @@
   flex: 0 0 14px;
   width: 14px;
   height: 14px;
-  margin: 0 7px;
+  margin: 0 calc((var(--openbitfun-space-12) - 14px) / 2);
 }
 
 .harmony-sidebar__section--workspaces {
@@ -385,7 +391,8 @@
 }
 
 .harmony-sidebar__workspace-row {
-  padding: 0 6px;
+  position: relative;
+  padding: 0 0 0 8px;
 }
 
 .harmony-sidebar__workspace-row.is-current .harmony-sidebar__folder-icon,
@@ -408,8 +415,9 @@
 .harmony-sidebar__workspace-disclosure {
   display: grid;
   place-items: center;
-  flex: 0 0 var(--openbitfun-space-12);
-  width: var(--openbitfun-space-12);
+  flex: 0 0 24px;
+  width: 24px;
+  min-inline-size: 24px;
   color: var(--openbitfun-color-content-secondary);
   transition: transform 160ms ease-out;
 }
@@ -421,9 +429,20 @@
 .harmony-sidebar__workspace-main {
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 1 1 0;
+  width: auto;
   min-width: 0;
   text-align: left;
+  border-radius: 0;
+
+  &,
+  &:hover,
+  &:active,
+  &:focus {
+    box-shadow: none;
+    transform: none;
+    background: transparent;
+  }
 }
 
 .harmony-sidebar__workspace-copy {
@@ -459,7 +478,7 @@
   align-items: center;
   width: 100%;
   min-height: 48px;
-  padding: 0 10px 0 38px;
+  padding: 0 10px 0 8px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -469,13 +488,17 @@
   text-align: left;
 }
 
+.harmony-sidebar__workspace-session {
+  padding-right: 0;
+}
+
 .harmony-sidebar__session-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  margin-right: 8px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
   color: var(--openbitfun-color-content-secondary);
 }
 
@@ -523,9 +546,7 @@
   line-height: var(--openbitfun-type-support-line-height);
 }
 
-.harmony-sidebar__more-row--nested {
-  padding-left: 38px;
-}
+
 
 .harmony-sidebar__section--conversations {
   margin-top: 16px;
@@ -585,7 +606,7 @@
   background: transparent;
 }
 
-.harmony-sidebar__new-chat,
+.harmony-sidebar__workspace-tools,
 .harmony-sidebar__settings {
   display: flex;
   align-items: center;
@@ -598,9 +619,11 @@
   box-shadow: 0 6px 14px color-mix(in srgb, var(--openbitfun-color-content-primary) 8%, transparent);
 }
 
-.harmony-sidebar__new-chat {
-  width: 98px;
-  gap: 9px;
+.harmony-sidebar__workspace-tools {
+  width: auto;
+  min-width: 96px;
+  padding-inline: 18px;
+  gap: 8px;
   border-radius: 23px;
   font-size: var(--openbitfun-type-body-lg-font-size);
   font-weight: var(--openbitfun-type-label-lg-font-weight);
@@ -794,16 +817,35 @@
   line-height: var(--openbitfun-type-modifier-leading-none-line-height);
 }
 
+.harmony-sidebar__settings-row--language {
+  height: 56px;
+  padding-block: 6px;
+}
+
+.harmony-sidebar__settings-languages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .harmony-sidebar__settings-language {
-  min-width: 48px;
-  height: 48px;
-  min-block-size: 48px;
-  padding: 0 8px;
+  width: 36px;
+  min-width: 36px;
+  min-inline-size: 36px;
+  height: 32px;
+  min-block-size: 32px;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
-  background: var(--harmony-soft);
+  border-radius: 8px;
+  background: transparent;
   color: var(--openbitfun-color-content-secondary);
   box-shadow: none;
+
+  &[aria-pressed='true'] {
+    background: var(--harmony-soft);
+    color: var(--openbitfun-color-content-primary);
+  }
 }
 
 .harmony-sidebar__settings-card--devices {
@@ -1378,8 +1420,8 @@
   }
 
   .chat-page--wide .chat-page__messages {
-    padding-right: max(28px, calc((100% - 760px) / 2));
-    padding-left: max(28px, calc((100% - 760px) / 2));
+    padding-right: 28px;
+    padding-left: 28px;
   }
 }
 
@@ -1446,4 +1488,71 @@
 .harmony-sidebar__account-avatar .mobile-account-avatar {
   width: 100%;
   height: 100%;
+}
+
+.harmony-sidebar__device-row .harmony-sidebar__row-label {
+  font-size: var(--openbitfun-type-body-md-font-size);
+}
+
+.harmony-sidebar__session-main .harmony-sidebar__row-label {
+  font-size: var(--openbitfun-type-body-sm-font-size);
+}
+
+.harmony-sidebar__workspace-session.is-current .harmony-sidebar__row-label {
+  font-weight: var(--openbitfun-type-label-selected-font-weight);
+}
+
+.harmony-sidebar__device-icon svg,
+.harmony-sidebar__folder-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.harmony-sidebar__session-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.harmony-sidebar__device-row,
+.harmony-sidebar__workspace-row,
+.harmony-sidebar__workspace-session {
+  padding-left: 0;
+}
+
+
+.harmony-sidebar__more-chevron { transform: rotate(90deg); }
+
+.harmony-sidebar__session-main,
+.harmony-sidebar__session-more {
+  &, &:hover, &:active, &:focus {
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    transform: none;
+  }
+}
+
+
+.harmony-sidebar__load-more {
+  flex: none;
+  height: 36px;
+  min-block-size: 36px;
+  color: var(--openbitfun-color-content-secondary);
+  .harmony-sidebar__row-label { font-size: var(--openbitfun-type-body-sm-font-size); }
+}
+
+.harmony-sidebar__workspace-session {
+  min-height: 38px;
+}
+.harmony-sidebar__workspace-session .harmony-sidebar__session-main,
+.harmony-sidebar__workspace-session .harmony-sidebar__session-more {
+  height: 38px;
+  min-block-size: 38px;
+}
+
+.chat-msg--assistant > [data-openbitfun-part="content"] {
+  width: 100%;
+  inline-size: 100%;
+  max-width: none;
+  max-inline-size: none;
 }

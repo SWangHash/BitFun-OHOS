@@ -9,6 +9,85 @@ import kotlin.test.assertTrue
 
 class MessageBlockPresentationTest {
     @Test
+    fun markedFlatChildrenBelongToTheirTaskNotTheMainTranscript() {
+        val task1 = item(tool = tool("task1", name = "Task", status = "running"))
+        val task2 = item(tool = tool("task2", name = "Task", status = "completed"))
+        val thought = item(type = "thinking", content = "Private reasoning").copy(isSubagent = true)
+        val childTool = item(tool = tool("read", status = "completed")).copy(isSubagent = true)
+        val childText = item(type = "text", content = "Subtask result").copy(isSubagent = true)
+        val blocks = messageBlocks(message(items = listOf(task1, thought, childTool, task2, childText,
+            item(type = "text", content = "Parent answer")), tools = listOf(childTool.tool!!)), true)
+        assertEquals(listOf("subagent", "subagent", "Parent answer"), blocks.map(::describe))
+        assertEquals(listOf("Private reasoning", "tools"), (blocks[0] as MessageBlock.Subagent).children.map(::describe))
+        assertEquals(listOf("Subtask result"), (blocks[1] as MessageBlock.Subagent).children.map(::describe))
+    }
+
+    @Test
+    fun legacyUnmarkedChildrenUseOnlyARunningTaskScope() {
+        for (status in listOf("running", "queued", "completed")) {
+            val blocks = messageBlocks(message(items = listOf(item(tool = tool("task", name = "Task", status = status)),
+                item(type = "thinking", content = "Legacy thinking"), item(tool = tool("read", status = "completed")))), true)
+            val task = blocks.first() as MessageBlock.Subagent
+            assertEquals(if (status == "completed") 0 else 2, task.children.size)
+        }
+    }
+
+    @Test
+    fun alreadyNestedMarkersRenderAsChildrenAndDoNotDuplicate() {
+        val nested = item(type = "thinking", content = "Nested").copy(isSubagent = true)
+        val task = messageBlocks(message(items = listOf(item(tool = tool("task", name = "Task", status = "running"),
+            subItems = listOf(nested)))), true).single() as MessageBlock.Subagent
+        assertTrue(task.children.single() is MessageBlock.Thinking)
+        val orphan = messageBlocks(message(items = listOf(nested)), true).single() as MessageBlock.Subagent
+        assertEquals("Nested", (orphan.children.single() as MessageBlock.Thinking).text,
+            "Partial legacy snapshots retain orphan content inside a collapsed branch")
+    }
+
+    @Test
+    fun subagentStatusPreservesHostVocabularyAndOwnActiveScope() {
+        for (status in listOf("running", "active", "preparing", "pending", "queued", "failed", "error", "timeout", "cancelled", "canceled", "rejected", "completed")) {
+            val blocks = messageBlocks(message(items = listOf(
+                item(type = "subagent", tool = tool("task", name = "Task", status = status)),
+                item(type = "thinking", content = "child").copy(isSubagent = true),
+                item(type = "text", content = "Parent continues"))), true)
+            val child = blocks.first() as MessageBlock.Subagent
+            val running = status in listOf("running", "active", "preparing", "pending", "queued")
+            assertEquals(status, child.status)
+            assertEquals(running, child.running)
+            assertEquals(running, (child.children.single() as MessageBlock.Thinking).streaming)
+        }
+    }
+
+    @Test
+    fun legacySubagentWithoutToolInheritsActiveScope() {
+        val payload = message(items = listOf(item(type = "subagent", content = "Legacy", subItems = listOf(item(type = "thinking", content = "Working")))))
+        assertTrue((messageBlocks(payload, true).single() as MessageBlock.Subagent).running)
+        assertEquals("completed", (messageBlocks(payload, false).single() as MessageBlock.Subagent).status)
+        val oldConstructor = MessageBlock.Subagent("id", "title", false, "", emptyList())
+        assertEquals("completed", oldConstructor.status)
+    }
+
+    @Test
+    fun legacyTaskTitleAliasesRemainReadable() {
+        for (key in listOf("description", "task", "title", "prompt", "message", "task_name", "taskName", "name", "content")) {
+            val child = messageBlocks(message(items = listOf(item(type = "tool", content = "Result",
+                tool = tool("task", name = "Task", status = "completed", inputPreview = """{"$key":"Inspect"}""")))), false).single() as MessageBlock.Subagent
+            assertEquals("Inspect", child.title)
+        }
+    }
+
+    @Test
+    fun taskDescriptionWinsOverResultAndDoesNotBecomeAnotherBody() {
+        val child = messageBlocks(message(items = listOf(item(type = "tool", content = "Finished",
+            tool = tool("task", name = "Task", status = "completed", inputPreview = """{"description":"**Audit security**"}""")))), false).single() as MessageBlock.Subagent
+        assertEquals("Audit security", child.title)
+        assertEquals("", child.text)
+        val legacy = messageBlocks(message(items = listOf(item(type = "subagent", content = "## Legacy title"))), false).single() as MessageBlock.Subagent
+        assertEquals("Legacy title", legacy.title)
+        assertEquals("", legacy.text)
+    }
+
+    @Test
     fun aPlainAnswerHasNoBlocksSoTheAppKeepsItsFlatPath() {
         val blocks = messageBlocks(message(text = "Done."), false)
 
@@ -101,7 +180,7 @@ class MessageBlockPresentationTest {
     }
 
     @Test
-    fun liveReasoningMovesBelowTheOutputItCameBefore() {
+    fun liveReasoningKeepsChronologicalOrderAndStableBlockIds() {
         val items = listOf(
             item(type = "thinking", content = "which file first"),
             item(type = "text", content = "Starting with the manifest."),
@@ -114,11 +193,40 @@ class MessageBlockPresentationTest {
             settled.map(::describe),
         )
 
-        // Streaming: the reasoning being written is the only part worth
-        // following, so it goes last and the round before it goes away.
         val live = messageBlocks(message(items = items), true)
-        assertEquals(listOf("Starting with the manifest.", "now the gradle file"), live.map(::describe))
+        assertEquals(settled.map(::describe), live.map(::describe))
+        assertEquals(settled.map { it.id }, live.map { it.id })
+        assertTrue(!(live.first() as MessageBlock.Thinking).streaming)
         assertTrue((live.last() as MessageBlock.Thinking).streaming)
+    }
+
+    @Test
+    fun answerAfterThinkingDoesNotMoveAboveItWhileStreaming() {
+        val thought = item(type = "thinking", content = "Consider the request.")
+        val before = messageBlocks(message(items = listOf(thought)), true)
+        val withAnswer = message(items = listOf(thought, item(type = "text", content = "Answer")))
+        val live = messageBlocks(withAnswer, true)
+        val done = messageBlocks(withAnswer, false)
+        assertEquals(listOf("Consider the request.", "Answer"), live.map(::describe))
+        assertEquals(before.first().id, live.first().id)
+        assertEquals(live.map { it.id }, done.map { it.id })
+        assertTrue(!(live.first() as MessageBlock.Thinking).streaming)
+        assertTrue((live.last() as MessageBlock.Text).streaming)
+    }
+
+    @Test
+    fun thinkingStaysBeforeToolsAndAnswerAcrossCompletion() {
+        val source = message(items = listOf(
+            item(type = "thinking", content = "Inspect first"),
+            item(tool = tool(id = "t-1", status = "completed")),
+            item(type = "text", content = "Result"),
+        ))
+        val live = messageBlocks(source, true)
+        val done = messageBlocks(source, false)
+        assertTrue(live[0] is MessageBlock.Thinking)
+        assertTrue(live[1] is MessageBlock.Tools)
+        assertTrue(live[2] is MessageBlock.Text)
+        assertEquals(live.map { it.id }, done.map { it.id })
     }
 
     @Test

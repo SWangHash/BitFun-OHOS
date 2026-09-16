@@ -11,35 +11,35 @@ title_en: "Mini Apps"
 
 > 功能 / Feature
 
-在 OpenBitFun 内安装、创建和运行轻量应用，让界面、数据与 Agent 工作流组合在一起。
+在 OpenBitFun 内安装、创建和运行轻量应用，让界面、数据与智能体工作流组合在一起。
 
 Install, create, and run lightweight apps inside OpenBitFun, combining UI, data, and agent workflows.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 查看、创建、编辑和删除已安装 Mini App
+- **智能体可直接控制 / Direct Agent control** · 查看、创建、编辑和删除已安装 Mini App
   - Inspect, create, update, and delete installed MiniApps
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 浏览市场、查看详情并安装或更新发布版本
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 浏览市场、查看详情并安装或更新发布版本
   - Browse the market, inspect listings, and install or update releases
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 登录市场账户并收藏、评分和查看已安装来源
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 登录市场账户并收藏、评分和查看已安装来源
   - Sign in to the market, favorite and rate apps, and inspect installed origins
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按路径或工作区授予权限，并在定制前审查权限差异
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按路径或工作区授予权限，并在定制前审查权限差异
   - Grant path or workspace access and review permission changes before customization
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 运行 Mini App Host 与 Worker，查看状态并停止后台 Worker
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 运行 Mini App Host 与 Worker，查看状态并停止后台 Worker
   - Run Mini App host and worker calls, inspect status, and stop background workers
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为正式应用和定制草稿分别读取与保存持久状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为正式应用和定制草稿分别读取与保存持久状态
   - Read and save persistent state separately for installed apps and customization drafts
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在 Mini App 中调用模型补全、聊天和专属 Agent 会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在 Mini App 中调用模型补全、聊天和专属智能体会话
   - Use model completion, chat, and dedicated agent sessions inside Mini Apps
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 创建定制草稿、实时预览，并应用、同步或丢弃修改
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 创建定制草稿、实时预览，并应用、同步或丢弃修改
   - Create customization drafts, preview them live, and apply, sync, or discard changes
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看版本历史并回滚到旧版本
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看版本历史并回滚到旧版本
   - Inspect version history and roll back to an earlier release
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `InitMiniApp` / `Read` / `Write` / `Edit` / `FinalizeMiniApp` · 让 Agent 初始化、编写并校验一个 Mini App
+- **由专用智能体工具控制 / Delegated Agent tool** · `InitMiniApp` / `Read` / `Write` / `Edit` / `FinalizeMiniApp` · 让智能体初始化、编写并校验一个 Mini App
   - Let an agent initialize, author, and validate a Mini App
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `PublishMiniApp` · 在用户明确要求时由 Agent 提交已完成的 Mini App 到市场审核
+- **由专用智能体工具控制 / Delegated Agent tool** · `PublishMiniApp` · 在用户明确要求时由智能体提交已完成的 Mini App 到市场审核
   - Let an agent submit a completed Mini App for market review when explicitly requested
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 撤回和审查市场发布，并可渲染幻灯片页面
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 撤回和审查市场发布，并可渲染幻灯片页面
   - Withdraw and review market releases, and render slide pages
 
 ## 怎么用 / How to use it
@@ -53,7 +53,7 @@ Install, create, and run lightweight apps inside OpenBitFun, combining UI, data,
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ Install, create, and run lightweight apps inside OpenBitFun, combining UI, data,
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Mini Apps”
   - “Open Mini Apps”
@@ -82,6 +82,6 @@ Install, create, and run lightweight apps inside OpenBitFun, combining UI, data,
 - “删除我指定的小应用”
   - “Delete the MiniApp I specify”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

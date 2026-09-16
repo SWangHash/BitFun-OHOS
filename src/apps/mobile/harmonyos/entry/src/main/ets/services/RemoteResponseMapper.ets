@@ -36,7 +36,9 @@ export class RemoteResponseMapper {
       hasWorkspace: response.has_workspace !== false && workspacePath.length > 0,
       gitBranch: response.git_branch || '',
       workspaceKind: response.workspace_kind || 'normal',
-      assistantId: response.assistant_id
+      assistantId: response.assistant_id,
+      remoteConnectionId: response.remote_connection_id,
+      remoteSshHost: response.remote_ssh_host
     };
   }
 
@@ -52,6 +54,7 @@ export class RemoteResponseMapper {
           item.updatedAt
         ]),
         remoteSshHost: item.remote_ssh_host,
+        remoteConnectionId: item.remote_connection_id,
         workspaceKind: item.workspace_kind || 'normal'
       };
       return workspace;

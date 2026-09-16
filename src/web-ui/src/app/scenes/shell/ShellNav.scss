@@ -409,3 +409,41 @@
     }
   }
 }
+
+.openbitfun-shell-nav__terminal-action[data-openbitfun-component='action-item'] {
+  width: 100%;
+  min-block-size: 0;
+  padding: 0;
+  gap: 0;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  align-items: flex-start;
+
+  > [data-openbitfun-part='trigger'] {
+    min-height: 32px;
+  }
+
+  > [data-openbitfun-part='trigger'] > [data-openbitfun-part='label'] {
+    display: block;
+    width: 100%;
+    font: inherit;
+  }
+
+  > [data-openbitfun-part='actions'] {
+    align-self: flex-start;
+    padding-top: 8px;
+  }
+}
+.openbitfun-shell-nav__terminal-item.has-cwd .openbitfun-shell-nav__terminal-action > [data-openbitfun-part='actions'] {
+  padding-top: 0;
+}
+.openbitfun-shell-nav__terminal-item:focus-within {
+  .openbitfun-shell-nav__terminal-close { display: inline-flex; }
+  .openbitfun-shell-nav__terminal-dot { display: none; }
+}
+
+.openbitfun-shell-nav__terminal-item:has(.openbitfun-shell-nav__terminal-action > [data-openbitfun-part='trigger']:focus-visible) {
+  outline: 2px solid var(--openbitfun-color-accent-default);
+  outline-offset: -1px;
+}

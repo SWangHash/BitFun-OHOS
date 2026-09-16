@@ -43,6 +43,7 @@ vi.mock('@openbitfun/ui', async (importOriginal) => ({
   NavigationPanelItem: (await importOriginal<typeof import('@openbitfun/ui')>()).NavigationPanelItem,
   DialogHeaderActions: (await importOriginal<typeof import('@openbitfun/ui')>()).DialogHeaderActions,
   Empty: (await importOriginal<typeof import('@openbitfun/ui')>()).Empty,
+  Disclosure: (await importOriginal<typeof import('@openbitfun/ui')>()).Disclosure,
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   OverflowText: ({ children, behavior: _behavior, marqueeActive: _marqueeActive, ...props }: any) => <span {...props}>{children}</span>,
@@ -432,6 +433,17 @@ describe('AppearanceMarketDialog', () => {
     expect(reviewTab?.getAttribute('aria-current')).toBe('page');
     expect(container.textContent).toContain('package.market.review.approve');
     expect(container.textContent).toContain('package.market.review.reject');
+    const manifest = container.querySelector<HTMLDetailsElement>('.appearance-market__review-manifest')!;
+    expect(manifest.getAttribute('data-openbitfun-component')).toBe('disclosure');
+    expect(manifest.open).toBe(false);
+    const preview = manifest.querySelector('pre')!;
+    expect(JSON.parse(preview.textContent!)).toEqual({ id: 'community.tokyo-night' });
+    await act(async () => manifest.querySelector('summary')!.click());
+    expect(manifest.open).toBe(true);
+    await act(async () => manifest.querySelector('summary')!.click());
+    expect(manifest.open).toBe(false);
+    expect(manifest.querySelector('pre')).toBe(preview);
+    expect(mocks.getReviewSubmission).toHaveBeenCalledTimes(1);
   });
 
   it.each([

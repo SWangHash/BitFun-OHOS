@@ -46,7 +46,7 @@
     "capabilities": {
       "ai": {
         "title": "AI 協作",
-        "description": "可按需調用 AI 或 Agent 完成任務"
+        "description": "可按需調用 AI 或智能體完成任務"
       },
       "workspace": {
         "title": "工作區協同",
@@ -123,6 +123,7 @@
       "waiting": "請在瀏覽器中完成授權，OpenBitFun 會自動更新登入狀態。",
       "cancel": "取消",
       "continue": "開啟 GitHub",
+      "reopen": "重新開啟登入頁面",
       "authorizing": "等待 GitHub 授權…"
     },
     "empty": "暫時沒有已發佈的小應用",
@@ -144,7 +145,7 @@
       "customizing": "自訂中",
       "local": "本機",
       "version": "v{{version}}",
-      "marketMeta": "作者 @{{owner}} · 評分 {{rating}} · {{downloads}} 次下載",
+      "marketMeta": "作者 {{owner}} · 評分 {{rating}} · {{downloads}} 次下載",
       "localMeta": "位於此裝置",
       "viewDetails": "查看「{{name}}」詳情",
       "showcaseAlt": "{{name}} 展示圖",
@@ -172,7 +173,7 @@
     "detail": {
       "loading": "載入詳情…",
       "reviewed": "人工審核",
-      "by": "作者 @{{owner}}",
+      "by": "作者 {{owner}}",
       "install": "安裝",
       "update": "更新",
       "installed": "已安裝",
@@ -196,7 +197,7 @@
       "shell": "執行命令：{{value}}",
       "net": "連網網域：{{value}}",
       "ai": "呼叫 AI",
-      "agent": "在可見工作階段中呼叫 Agent",
+      "agent": "在可見工作階段中呼叫智能體",
       "notifications": "系統通知",
       "dialog": "開啟系統對話框",
       "clipboardRead": "讀取剪貼簿",

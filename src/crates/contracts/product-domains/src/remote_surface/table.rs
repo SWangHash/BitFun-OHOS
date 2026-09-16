@@ -4,7 +4,7 @@
 //! sorted by id and kept one per line so that a new command has exactly one
 //! insertion point and a review diff shows exactly one row.
 //! `#[rustfmt::skip]` keeps that layout; `operations_are_sorted_and_unique`
-//! in `mod.rs` enforces the ordering.
+//! in `mod.rs` verifies lookup coverage; a const assertion also rejects invalid builds.
 //!
 //! Columns: id, remote workspace stance, peer stance, CLI peer host support.
 //! Desktop peer host support is derived (see `OperationDefinition::host_support`).
@@ -96,11 +96,14 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("account_github_poll",                                        Agnostic,    ControllerLocal,  REFUSED),
     op("account_github_start",                                       Agnostic,    ControllerLocal,  REFUSED),
     op("account_list_devices",                                       Agnostic,    ControllerLocal,  REFUSED),
+    op("account_load_older_session",                                 Agnostic,    ControllerLocal,  REFUSED),
     op("account_login",                                              Agnostic,    ControllerLocal,  REFUSED),
     op("account_logout",                                             Agnostic,    ControllerLocal,  REFUSED),
     op("account_online_devices",                                     Agnostic,    ControllerLocal,  REFUSED),
     op("account_status",                                             Agnostic,    ControllerLocal,  REFUSED),
+    op("account_subscribe_session",                                  Agnostic,    ControllerLocal,  REFUSED),
     op("account_token_expired",                                      Agnostic,    ControllerLocal,  REFUSED),
+    op("account_unsubscribe_session",                                Agnostic,    ControllerLocal,  REFUSED),
     op("acknowledge_external_ecosystems_command",                    Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("activate_session_goal",                                      Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("add_skill",                                                  Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
@@ -188,8 +191,8 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("delete_assistant_workspace",                                 Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("delete_cron_job",                                            Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("delete_custom_agent",                                        Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
-    op("delete_directory",                                           Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
-    op("delete_file",                                                Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
+    op("delete_directory",                                           Routed,      Proxied,          HANDLED),
+    op("delete_file",                                                Routed,      Proxied,          HANDLED),
     op("delete_mcp_server",                                          Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("delete_miniapp",                                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("delete_persisted_session",                                   Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
@@ -279,6 +282,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("get_external_hook_catalog",                                  Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_external_hook_import_snapshot",                          Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_external_source_control_snapshot",                       Unsupported, Proxied,          HANDLED),
+    op("get_external_source_discovery_snapshot",                     Unsupported, Proxied,          HANDLED),
     op("get_external_source_snapshot",                               Unsupported, Proxied,          HANDLED),
     op("get_file_change_history",                                    Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_file_diff",                                              Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
@@ -320,6 +324,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("get_runtime_logging_info",                                   Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_session_file_diff_stats",                                Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_session_files",                                          Unaudited,   Proxied,          HANDLED),
+    op("get_session_interaction_mailbox",                         Agnostic,    Proxied,          HANDLED),
     op("get_session_lineage",                                        Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_session_operations",                                     Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_session_permission_mode",                                Routed,      Proxied,          HANDLED),
@@ -402,7 +407,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("list_archived_sessions",                                     Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("list_background_command_activities",                         Unaudited,   Proxied,          SOFT_EMPTY_BACKGROUND_COMMANDS),
     op("list_cron_jobs",                                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
-    op("list_directory_files",                                       Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
+    op("list_directory_files",                                       Routed,      Proxied,          HANDLED),
     host_invoke_only("list_files",                                   Routed,      Proxied,          HANDLED),
     op("list_manageable_subagents",                                  Routed,      Proxied,          HANDLED),
     op("list_matrix_categories",                                     Agnostic,    ControllerLocal,  REFUSED),
@@ -433,6 +438,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("load_session_event_backfill",                                Agnostic,    Proxied,          HANDLED),
     op("load_session_turn_window",                                   Routed,      Proxied,          HANDLED),
     op("load_session_turns",                                         Unaudited,   Proxied,          HANDLED),
+    op("local_file_download",                                       Agnostic,    ControllerLocal,  REFUSED),
     op("logout_subscription_account",                                LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("mark_announcement_seen",                                     Agnostic,    ControllerLocal,  REFUSED),
     op("mark_openbitfun_control_surface_ready",                          Agnostic,    ControllerLocal,  REFUSED),
@@ -488,7 +494,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("never_show_announcement",                                    Agnostic,    ControllerLocal,  REFUSED),
     op("notify_cron_host_ready",                                     Unaudited,   Proxied,          SOFT_EMPTY_NO_CRON_HOST),
     op("open_html_file_in_browser",                                  LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
-    op("open_remote_workspace",                                      Routed,      Proxied,          CLI_NO_REMOTE_WORKSPACE_UI),
+    op("open_remote_workspace",                                      Routed,      Proxied,          HANDLED),
     op("open_workspace",                                             Routed,      Proxied,          HANDLED),
     op("page_create_open_link",                                      Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
     op("page_delete",                                                Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
@@ -516,7 +522,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("quick_commit_message",                                       Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("quit_app",                                                   LocalOnly,   ControllerLocal,  REFUSED),
     op("read_background_command_output",                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
-    op("read_file_content",                                          Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
+    op("read_file_content",                                          Routed,      Proxied,          HANDLED),
     op("read_mcp_resource",                                          Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("recover_interrupted_dialog_turn",                            LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("refresh_model_client",                                       Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
@@ -560,7 +566,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("remote_write_file",                                          Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("remove_project_permission_grant",                            Agnostic,    Proxied,          HANDLED),
     op("remove_recent_workspace",                                    Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
-    op("rename_file",                                                Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
+    op("rename_file",                                                Routed,      Proxied,          HANDLED),
     host_invoke_only("rename_session",                               Agnostic,    Proxied,          HANDLED),
     op("reorder_opened_workspaces",                                  Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("replace_mode_skill_selection",                               Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
@@ -628,7 +634,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("send_system_notification",                                   LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_acp_session_config_option",                              Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_acp_session_model",                                      Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
-    op("set_active_workspace",                                       Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
+    op("set_active_workspace",                                       Agnostic,    Proxied,          HANDLED),
     op("set_agent_profile_config",                                   Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_config",                                                 Unaudited,   Proxied,          HANDLED),
     op("set_external_mcp_server_decision_command",                   Unsupported, Proxied,          HANDLED),
@@ -641,6 +647,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("set_external_tool_conflict_choice_command",                  Unsupported, Proxied,          HANDLED),
     op("set_external_tool_target_decision_command",                  Unsupported, Proxied,          HANDLED),
     op("set_external_tool_targets_enabled_command",                  Unsupported, Proxied,          HANDLED),
+    op("set_file_drop_preview_target",                               LocalOnly,   ControllerLocal,  REFUSED),
     op("set_global_skill_disabled",                                  Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_macos_edit_menu_mode",                                   LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_main_window_transient_geometry",                         LocalOnly,   ControllerLocal,  REFUSED),
@@ -653,6 +660,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("set_session_memory_mode",                                    Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_session_thread_goal_status",                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("set_subagent_timeout",                                       Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
+    op("set_tray_unread_count",                                      LocalOnly,   ControllerLocal,  REFUSED),
     op("show_agent_companion_desktop_pet",                           LocalOnly,   ControllerLocal,  REFUSED),
     op("show_main_window",                                           LocalOnly,   ControllerLocal,  REFUSED),
     op("speech_append_audio_chunk",                                  LocalOnly,   ControllerLocal,  REFUSED),
@@ -685,7 +693,8 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("ssh_list_docker_containers",                                 Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
     op("ssh_list_port_forwards",                                     Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
     op("ssh_list_remote_listening_ports",                            Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("ssh_list_saved_connections",                                 Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
+    op("ssh_list_saved_connections",                                 Agnostic,    Proxied,          HANDLED),
+    op("ssh_list_wsl_distributions",                                 Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
     op("ssh_save_connection",                                        Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
     op("ssh_start_port_forward",                                     Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
     op("ssh_stop_port_forward",                                      Agnostic,    Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
@@ -708,20 +717,20 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("submit_mcp_interaction_response",                            Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("submit_user_answers",                                        Agnostic,    Proxied,          HANDLED),
     op("subscribe_permission_requests",                              Agnostic,    Proxied,          HANDLED),
-    op("terminal_ack",                                               Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_close",                                             Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_create",                                            Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_execute",                                           Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_get",                                               Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_get_history",                                       Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_get_shells",                                        LocalOnly,   Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_has_shell_integration",                             Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_list",                                              Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_resize",                                            Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_send_command",                                      Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_shutdown_all",                                      Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_signal",                                            Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
-    op("terminal_write",                                             Routed,      Proxied,          CLI_NO_DESKTOP_IDE_SURFACE),
+    op("terminal_ack",                                               Routed,      Proxied,          HANDLED),
+    op("terminal_close",                                             Routed,      Proxied,          HANDLED),
+    op("terminal_create",                                            Routed,      Proxied,          HANDLED),
+    op("terminal_execute",                                           Routed,      Proxied,          HANDLED),
+    op("terminal_get",                                               Routed,      Proxied,          HANDLED),
+    op("terminal_get_history",                                       Routed,      Proxied,          HANDLED),
+    op("terminal_get_shells",                                        LocalOnly,   Proxied,          HANDLED),
+    op("terminal_has_shell_integration",                             Routed,      Proxied,          HANDLED),
+    op("terminal_list",                                              Routed,      Proxied,          HANDLED),
+    op("terminal_resize",                                            Routed,      Proxied,          HANDLED),
+    op("terminal_send_command",                                      Routed,      Proxied,          HANDLED),
+    op("terminal_shutdown_all",                                      Routed,      Proxied,          HANDLED),
+    op("terminal_signal",                                            Routed,      Proxied,          HANDLED),
+    op("terminal_write",                                             Routed,      Proxied,          HANDLED),
     op("test_ai_config_connection",                                  Unaudited,   Proxied,          HANDLED),
     op("test_ai_connection",                                         Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("toggle_main_window_fullscreen",                              LocalOnly,   ControllerLocal,  REFUSED),
@@ -748,6 +757,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("validate_skill_path",                                        Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("validate_tool_input",                                        Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("webdriver_bridge_result",                                    Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
+    op("workspace_file_upload",                                     Routed,    Proxied,          HANDLED),
     op("worktree_bind_session",                                      Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("worktree_create",                                            Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("worktree_create_branch",                                     Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
@@ -756,5 +766,28 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("worktree_promote",                                           Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("worktree_recreate",                                          Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("worktree_remove",                                            Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
-    op("write_file_content",                                         Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
+    op("write_file_content",                                         Routed,      Proxied,          HANDLED),
 ];
+
+// Binary search is a production precondition, not merely a test expectation.
+// A new misplaced/duplicate row must fail every build before it can hide APIs.
+const _: () = {
+    let mut row = 1;
+    while row < OPERATIONS.len() {
+        let left = OPERATIONS[row - 1].id.as_bytes();
+        let right = OPERATIONS[row].id.as_bytes();
+        let mut byte = 0;
+        while byte < left.len() && byte < right.len() && left[byte] == right[byte] {
+            byte += 1;
+        }
+        let less = if byte == left.len() {
+            byte < right.len()
+        } else if byte == right.len() {
+            false
+        } else {
+            left[byte] < right[byte]
+        };
+        assert!(less, "Product Operation Registry must be sorted and unique");
+        row += 1;
+    }
+};

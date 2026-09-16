@@ -794,3 +794,51 @@
   font-size: var(--openbitfun-type-body-sm-font-size);
   line-height: var(--openbitfun-type-flow-body-line-height);
 }
+
+/* Transcript activity rows share one compact text column. */
+.chat-page__messages {
+  gap: 8px;
+  .chat-thinking > [data-openbitfun-part="trigger"] {
+    min-block-size: 36px;
+    padding: 6px 0 6px 24px;
+    gap: 8px;
+    font-size: var(--openbitfun-type-body-sm-font-size);
+  }
+  .chat-tool-card__row,
+  .chat-task-card__header,
+  .chat-todo-card__header {
+    min-height: 36px;
+    min-block-size: 36px;
+    padding: 0;
+    gap: 8px;
+  }
+  .chat-tool-details__trigger--inline {
+    min-block-size: 36px;
+    padding: 6px 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .chat-tool-card__icon,
+  .chat-task-card__icon,
+  .chat-todo-card__icon {
+    flex: 0 0 16px;
+    width: 16px;
+    margin: 0;
+  }
+  .chat-tool-card:not([data-prominent='true']),
+  .chat-task-card:not([data-prominent='true']) {
+    border-width: 0;
+    margin: 0;
+  }
+}
+
+.chat-page__messages .chat-thinking > [data-openbitfun-part="trigger"]:has([data-openbitfun-part="leading"]) {
+  padding-left: 0;
+  [data-openbitfun-part="leading"] {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+  }
+}

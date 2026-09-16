@@ -126,7 +126,8 @@ export class RemoteSessionViewModel {
     instruction: string,
     onRouteChat: (sessionId: string) => void,
     modelId: string,
-    workspacePath: string = ''
+    workspacePath: string = '',
+    remoteConnectionId?: string
   ): Promise<SessionSummary | undefined> {
     const created = await this.sessions.create(
       agentType,
@@ -151,7 +152,8 @@ export class RemoteSessionViewModel {
       },
       instruction,
       modelId,
-      workspacePath
+      workspacePath,
+      remoteConnectionId
     );
     if (created && (created.initialTurnId || '').length > 0) {
       // The first poll may have observed the newly allocated session before
@@ -169,7 +171,8 @@ export class RemoteSessionViewModel {
     agentType: string = 'code',
     onRouteChat: (sessionId: string) => void = this.hooks.onRouteChat,
     modelId: string = '',
-    routeBeforeCreate: boolean = true
+    routeBeforeCreate: boolean = true,
+    remoteConnectionId?: string
   ): Promise<void> {
     if (this.hooks.isBusy() || !this.hooks.remoteAvailable()) {
       return;
@@ -178,7 +181,7 @@ export class RemoteSessionViewModel {
     this.beginSessionCreation(onRouteChat, routeBeforeCreate);
     let created: SessionSummary | undefined;
     try {
-      created = await this.performCreateSession(agentType, instruction, onRouteChat, modelId, path);
+      created = await this.performCreateSession(agentType, instruction, onRouteChat, modelId, path, remoteConnectionId);
       if (!created && routeBeforeCreate) {
         this.restoreAfterFailedCreation(previousSession, onRouteChat);
       }
@@ -218,6 +221,7 @@ export class RemoteSessionViewModel {
       sessionId: session.sessionId,
       title: session.title,
       workspacePath: session.workspacePath,
+      remoteConnectionId: session.remoteConnectionId,
       agentType: session.agentType,
       initialTurnId: session.initialTurnId
     };

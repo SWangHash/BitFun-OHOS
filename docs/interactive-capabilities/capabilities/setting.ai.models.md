@@ -17,27 +17,27 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 添加、编辑和删除内置或自定义 AI 供应商
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 添加、编辑和删除内置或自定义 AI 供应商
   - Add, edit, and remove built-in or custom AI providers
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 配置 API Key、Base URL、请求格式和模型列表
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 配置 API Key、Base URL、请求格式和模型列表
   - Configure API keys, base URLs, request formats, and model lists
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 登录、刷新和退出 Codex、Antigravity、OpenCode Console（Zen）、Grok、Hermes 等账户
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 登录、刷新和退出 Codex、Antigravity、OpenCode Console（Zen）、Grok、Hermes 等账户
   - Sign in, refresh, and sign out of Codex, Antigravity, OpenCode Console (Zen), Grok, Hermes, and other accounts
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择主模型、快速模型以及图像理解、图像生成和语音识别模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择主模型、快速模型以及图像理解、图像生成和语音识别模型
   - Choose primary, fast, image-understanding, image-generation, and speech-recognition models
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为模型选择推理预设或自定义推理强度
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为模型选择推理预设或自定义推理强度
   - Choose reasoning presets or a custom reasoning effort per model
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 配置 AI 请求使用的网络代理与绕过规则
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 配置 AI 请求使用的网络代理与绕过规则
   - Configure network proxies and bypass rules for AI requests
-- **Agent 可直接控制 / Direct Agent control** · 设置或取消首 Token 等待和流式空闲超时
+- **智能体可直接控制 / Direct Agent control** · 设置或取消首 Token 等待和流式空闲超时
   - Set or disable time-to-first-token and streaming idle timeouts
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ListModels` · 让 Agent 查看当前配置下可用的模型
+- **由专用智能体工具控制 / Delegated Agent tool** · `ListModels` · 让智能体查看当前配置下可用的模型
   - Let an agent inspect models available under the current configuration
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看 models.dev 目录状态、手动刷新并定位本地缓存
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看 models.dev 目录状态、手动刷新并定位本地缓存
   - Inspect models.dev catalog status, refresh it manually, and reveal its local cache
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为供应商添加自定义 Header、请求体字段与 SSL 行为
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为供应商添加自定义 Header、请求体字段与 SSL 行为
   - Add custom headers, request-body fields, and SSL behavior per provider
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 保存前测试供应商或模型连接并刷新运行时客户端
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 保存前测试供应商或模型连接并刷新运行时客户端
   - Test provider or model connectivity before saving and refresh the runtime client
 
 ## 怎么用 / How to use it
@@ -51,7 +51,7 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
 | 首 Token 超时 / Time-to-first-token timeout | `integer` (1–86400) / `null` | 设置建立流式响应时等待首个有效 Token 的秒数；null 表示不限制。 | Set seconds to wait for the first effective streamed token; null disables the limit. |
 | 流式空闲超时 / Stream idle timeout | `integer` (1–86400) / `null` | 设置两个流式响应块之间允许空闲的秒数；null 表示不限制。 | Set seconds allowed between streamed response chunks; null disables the limit. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开模型设置”
   - “Open model settings”
@@ -73,6 +73,6 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
 - “我想检查代理设置”
   - “I want to inspect proxy settings”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

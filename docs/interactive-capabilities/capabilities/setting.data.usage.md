@@ -17,17 +17,17 @@ Inspect request counts, input and output tokens, cache hits, and estimated cost 
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按最近 24 小时、今天、本周、本月或全部时间查看用量
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按最近 24 小时、今天、本周、本月或全部时间查看用量
   - Review usage for the last 24 hours, today, this week, this month, or all time
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按小时或天切换趋势粒度
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按小时或天切换趋势粒度
   - Switch trend granularity between hourly and daily views
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按供应商、模型或搜索关键词筛选用量
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按供应商、模型或搜索关键词筛选用量
   - Filter usage by provider, model, or search text
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看请求数、总 Token、缓存 Token 与缓存命中率
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看请求数、总 Token、缓存 Token 与缓存命中率
   - View request count, total tokens, cached tokens, and cache-hit rate
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按模型、供应商组和请求端点比较分布
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按模型、供应商组和请求端点比较分布
   - Compare distributions by model, provider group, and request endpoint
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 分别查看输入、输出、缓存创建、缓存读取和命中率趋势
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 分别查看输入、输出、缓存创建、缓存读取和命中率趋势
   - Track input, output, cache creation, cache read, and hit-rate trends separately
 
 ## 怎么用 / How to use it
@@ -41,7 +41,7 @@ Inspect request counts, input and output tokens, cache hits, and estimated cost 
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -53,13 +53,13 @@ Inspect request counts, input and output tokens, cache hits, and estimated cost 
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Token 用量”
   - “Open Token usage”
 - “带我查看使用统计”
   - “Show me usage statistics”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

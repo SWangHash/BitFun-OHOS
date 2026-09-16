@@ -18,4 +18,23 @@ xcrun --sdk macosx swiftc \
   -o "$OUTPUT_DIR/account-failure-copy-tests"
 "$OUTPUT_DIR/account-failure-copy-tests"
 
+xcrun --sdk macosx swiftc \
+  "$IOS_DIR/OpenBitFun/Infrastructure/RemoteHomePresentation.swift" \
+  "$SCRIPT_DIR/RemoteHomePresentationTests.swift" \
+  -o "$OUTPUT_DIR/remote-home-presentation-tests"
+"$OUTPUT_DIR/remote-home-presentation-tests"
+
+
+xcrun --sdk macosx swiftc \
+  "$IOS_DIR/OpenBitFun/Infrastructure/StreamingTextState.swift" \
+  "$SCRIPT_DIR/StreamingTextStateTests.swift" \
+  -o "$OUTPUT_DIR/streaming-text-state-tests"
+"$OUTPUT_DIR/streaming-text-state-tests"
+
+xcrun --sdk macosx swiftc \
+  "$IOS_DIR/OpenBitFun/Presentation/Models/MobilePresentationModels.swift" \
+  "$SCRIPT_DIR/MobileProcessGroupTests.swift" \
+  -o "$OUTPUT_DIR/mobile-process-group-tests"
+"$OUTPUT_DIR/mobile-process-group-tests"
+
 printf '%s\n' 'iOS pure Swift focused tests passed.'

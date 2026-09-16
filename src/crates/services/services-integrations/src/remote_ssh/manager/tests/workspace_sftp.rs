@@ -744,3 +744,38 @@ async fn a_directory_waiter_detects_retirement_after_acquiring_the_lock() {
     assert_eq!(f.state.channels.load(Ordering::SeqCst), 2);
     assert_eq!(f.state.opened.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+#[ignore = "Set OPENBITFUN_TEST_SFTP_SERVER to the OpenSSH sftp-server executable"]
+async fn openssh_streaming_upload_create_is_exclusive_and_closes_handle() {
+    use tokio::io::AsyncWriteExt;
+    let executable = std::env::var("OPENBITFUN_TEST_SFTP_SERVER")
+        .expect("OpenSSH sftp-server executable required");
+    let f = Fixture::with_openssh(Some(executable)).await;
+    let path = f
+        ._dir
+        .path()
+        .join("upload.tmp")
+        .to_string_lossy()
+        .into_owned();
+    let mut writer = f
+        .manager
+        .open_workspace_file_write_new("sftp-test", &path)
+        .await
+        .unwrap();
+    let chunk = vec![29u8; 65536];
+    for _ in 0..32 {
+        writer.write_all(&chunk).await.unwrap();
+    }
+    writer.flush().await.unwrap();
+    writer.shutdown().await.unwrap();
+    drop(writer);
+    assert!(f
+        .manager
+        .open_workspace_file_write_new("sftp-test", &path)
+        .await
+        .is_err());
+    let data = f.manager.sftp_read("sftp-test", &path).await.unwrap();
+    assert_eq!(data.len(), chunk.len() * 32);
+    assert!(data.iter().all(|byte| *byte == 29));
+}

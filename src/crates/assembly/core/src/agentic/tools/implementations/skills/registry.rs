@@ -5,7 +5,8 @@
 use super::builtin::ensure_builtin_skills_installed;
 use super::mode_overrides::{
     load_disabled_mode_skills_local, load_disabled_mode_skills_remote,
-    load_globally_disabled_user_skills, load_user_mode_skill_overrides, UserModeSkillOverrides,
+    load_globally_disabled_project_skills, load_globally_disabled_user_skills,
+    load_user_mode_skill_overrides, UserModeSkillOverrides,
 };
 #[cfg(feature = "file-watch")]
 use super::source_cache::{LocalSkillWatchMonitor, LocalSkillWatchRoot, VersionedSnapshotCache};
@@ -111,6 +112,7 @@ mod implicit_invocation_policy_tests {
             allow_implicit_invocation,
             allow_user_invocation: true,
             argument_hint: None,
+            market_install_id: None,
         }
     }
 
@@ -648,12 +650,20 @@ impl SkillRegistry {
         SKILL_REGISTRY.get_or_init(Self::new)
     }
 
-    async fn globally_disabled_user_skill_keys() -> HashSet<String> {
-        load_globally_disabled_user_skills()
+    async fn globally_disabled_skill_keys(workspace_root: Option<&Path>) -> HashSet<String> {
+        let mut keys: HashSet<String> = load_globally_disabled_user_skills()
             .await
             .unwrap_or_default()
             .into_iter()
-            .collect()
+            .collect();
+        if let Some(root) = workspace_root {
+            keys.extend(
+                load_globally_disabled_project_skills(root)
+                    .await
+                    .unwrap_or_default(),
+            );
+        }
+        keys
     }
 
     fn filter_globally_disabled_candidates(
@@ -1485,15 +1495,14 @@ impl SkillRegistry {
 
     async fn apply_mode_filters_for_workspace(
         &self,
-        mut candidates: Vec<SkillCandidate>,
+        candidates: Vec<SkillCandidate>,
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
     ) -> Vec<SkillCandidate> {
-        // Discovery alone never publishes a skill into the native runtime.
-        // Approved plugin contributions are added by their owner below.
-        candidates.retain(|candidate| candidate.info.is_native());
+        // Static discovered Skills are directly usable; plugin contributions remain owner-controlled.
         #[cfg(feature = "opencode-plugin-host")]
-        {
+        let candidates = {
+            let mut candidates = candidates;
             let plugin_roots = crate::plugin_capability_publication::skill_roots_for_agent(
                 workspace_root,
                 agent_type,
@@ -1522,8 +1531,10 @@ impl SkillRegistry {
                     workspace_root.is_some(),
                 );
             }
-        }
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+            candidates
+        };
+        let globally_disabled_user_skills =
+            Self::globally_disabled_skill_keys(workspace_root).await;
         let candidates =
             Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
         let Some(mode_id) = agent_type.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -1548,13 +1559,12 @@ impl SkillRegistry {
 
     async fn apply_mode_filters_for_remote_workspace(
         &self,
-        mut candidates: Vec<SkillCandidate>,
+        candidates: Vec<SkillCandidate>,
         fs: &dyn WorkspaceFileSystem,
         remote_root: &str,
         agent_type: Option<&str>,
     ) -> Vec<SkillCandidate> {
-        candidates.retain(|candidate| candidate.info.is_native());
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+        let globally_disabled_user_skills = Self::globally_disabled_skill_keys(None).await;
         let candidates =
             Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
         let Some(mode_id) = agent_type.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -1579,11 +1589,8 @@ impl SkillRegistry {
         candidates: Vec<SkillCandidate>,
         agent_type: Option<&str>,
     ) -> OpenBitFunResult<SkillInfo> {
-        if let Some(error) = Self::unimported_skill_error(&candidates, skill_name) {
-            return Err(error);
-        }
         match resolve_default_hidden_builtin_for_explicit_invocation(
-            skill_name, candidates.into_iter().filter(|candidate| candidate.info.is_native()).collect(), agent_type,
+            skill_name, candidates, agent_type,
         ) {
             ExplicitSkillInvocationResolution::Found(info) => Ok(info),
             ExplicitSkillInvocationResolution::NotFound => Err(OpenBitFunError::tool(format!(
@@ -1599,26 +1606,6 @@ impl SkillRegistry {
         }
     }
 
-    fn unimported_skill_error(
-        candidates: &[SkillCandidate],
-        identifier: &str,
-    ) -> Option<OpenBitFunError> {
-        let matches = |candidate: &&SkillCandidate| {
-            candidate.info.key == identifier || candidate.info.name == identifier
-        };
-        if candidates
-            .iter()
-            .filter(matches)
-            .any(|candidate| candidate.info.is_native())
-        {
-            return None;
-        }
-        candidates.iter().find(matches).map(|candidate| OpenBitFunError::tool(format!(
-            "Skill '{}' is only discovered from '{}'; import it into OpenBitFun through Ecosystem Compatibility before invoking it.",
-            identifier, candidate.info.source_label
-        )))
-    }
-
     async fn find_skill_info_for_explicit_invocation_workspace(
         &self,
         skill_name: &str,
@@ -1628,7 +1615,8 @@ impl SkillRegistry {
         let candidates = self
             .scan_skill_candidates_for_workspace(workspace_root)
             .await;
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+        let globally_disabled_user_skills =
+            Self::globally_disabled_skill_keys(workspace_root).await;
         let candidates =
             Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
         let filtered = self
@@ -1656,7 +1644,7 @@ impl SkillRegistry {
         let candidates = self
             .scan_skill_candidates_for_remote_workspace(fs, remote_root)
             .await;
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+        let globally_disabled_user_skills = Self::globally_disabled_skill_keys(None).await;
         let candidates =
             Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
         let filtered = self
@@ -1823,11 +1811,7 @@ impl SkillRegistry {
         let scan = self
             .scan_skill_candidates_with_diagnostics_for_workspace(workspace_root)
             .await;
-        let candidates: Vec<_> = scan
-            .candidates
-            .into_iter()
-            .filter(|candidate| candidate.info.is_native())
-            .collect();
+        let candidates = scan.candidates;
         let all_skills = sort_skills(annotate_shadowed_skills(candidates.clone()));
         let user_overrides = load_user_mode_skill_overrides(mode_id)
             .await
@@ -1840,7 +1824,8 @@ impl SkillRegistry {
         };
         let disabled_project: HashSet<String> =
             normalize_skill_keys(disabled_project).into_iter().collect();
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+        let globally_disabled_user_skills =
+            Self::globally_disabled_skill_keys(workspace_root).await;
         let filtered = Self::filter_globally_disabled_candidates(
             filter_candidates_for_mode(candidates, mode_id, &user_overrides, &disabled_project),
             &globally_disabled_user_skills,
@@ -1880,11 +1865,7 @@ impl SkillRegistry {
         let scan = self
             .scan_skill_candidates_with_diagnostics_for_remote_workspace(fs, remote_root)
             .await;
-        let candidates: Vec<_> = scan
-            .candidates
-            .into_iter()
-            .filter(|candidate| candidate.info.is_native())
-            .collect();
+        let candidates = scan.candidates;
         let all_skills = sort_skills(annotate_shadowed_skills(candidates.clone()));
         let user_overrides = load_user_mode_skill_overrides(mode_id)
             .await
@@ -1894,7 +1875,7 @@ impl SkillRegistry {
             .unwrap_or_default();
         let disabled_project: HashSet<String> =
             normalize_skill_keys(disabled_project).into_iter().collect();
-        let globally_disabled_user_skills = Self::globally_disabled_user_skill_keys().await;
+        let globally_disabled_user_skills = Self::globally_disabled_skill_keys(None).await;
         let filtered = Self::filter_globally_disabled_candidates(
             filter_candidates_for_mode(candidates, mode_id, &user_overrides, &disabled_project),
             &globally_disabled_user_skills,
@@ -1980,7 +1961,6 @@ impl SkillRegistry {
         let candidates = self
             .scan_skill_candidates_for_workspace(workspace_root)
             .await;
-        let unimported = Self::unimported_skill_error(&candidates, skill_key);
         let filtered = self
             .apply_mode_filters_for_workspace(candidates, workspace_root, agent_type)
             .await;
@@ -1989,9 +1969,6 @@ impl SkillRegistry {
             .map(|candidate| candidate.info)
             .find(|skill| skill.key == skill_key)
             .ok_or_else(|| {
-                if let Some(error) = unimported {
-                    return error;
-                }
                 OpenBitFunError::tool(format!(
                     "Skill key '{}' was not found or is disabled for this mode",
                     skill_key
@@ -2063,7 +2040,6 @@ impl SkillRegistry {
         let candidates = self
             .scan_skill_candidates_for_remote_workspace(fs, remote_root)
             .await;
-        let unimported = Self::unimported_skill_error(&candidates, skill_key);
         let filtered = self
             .apply_mode_filters_for_remote_workspace(candidates, fs, remote_root, agent_type)
             .await;
@@ -2072,9 +2048,6 @@ impl SkillRegistry {
             .map(|candidate| candidate.info)
             .find(|skill| skill.key == skill_key)
             .ok_or_else(|| {
-                if let Some(error) = unimported {
-                    return error;
-                }
                 OpenBitFunError::tool(format!(
                     "Skill key '{}' was not found or is disabled for this mode",
                     skill_key

@@ -36,7 +36,6 @@ import { FlowChatStore } from '../../store/FlowChatStore';
 import {
   installPeerSessionRefresh,
   isSessionProjectionAttachable,
-  PEER_SESSION_REFRESH_INTERVAL_MS,
   requestPeerSessionRefresh,
   runtimeProjectionCaughtUp,
 } from './PeerSessionRefreshModule';
@@ -68,7 +67,7 @@ describe('PeerSessionRefreshModule', () => {
     vi.useRealTimers();
   });
 
-  it('refreshes immediately, periodically, and on an event-gap request', async () => {
+  it('hydrates once and repairs explicit gaps without periodic requests', async () => {
     const refreshPeerSessionSnapshot = vi.fn(async () => ({
       applied: false,
       backendState: 'Processing',
@@ -106,12 +105,12 @@ describe('PeerSessionRefreshModule', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(refreshPeerSessionSnapshot).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
-    expect(refreshPeerSessionSnapshot).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(refreshPeerSessionSnapshot).toHaveBeenCalledTimes(1);
 
     requestPeerSessionRefresh('session-1');
     await vi.advanceTimersByTimeAsync(0);
-    expect(refreshPeerSessionSnapshot).toHaveBeenCalledTimes(3);
+    expect(refreshPeerSessionSnapshot).toHaveBeenCalledTimes(2);
 
     cleanup();
   });
@@ -137,7 +136,7 @@ describe('PeerSessionRefreshModule', () => {
     } as any;
 
     const cleanup = installPeerSessionRefresh(context);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS * 2);
+    await vi.advanceTimersByTimeAsync(60_000 * 2);
 
     expect(refreshPeerSessionSnapshot).not.toHaveBeenCalled();
     cleanup();
@@ -214,7 +213,7 @@ describe('PeerSessionRefreshModule re-attach after a surface switch', () => {
 
     const cleanup = installPeerSessionRefresh(contextWithSnapshot(refresh));
     await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(refresh).toHaveBeenCalled();
     expect(stateMachineMock.transition).toHaveBeenCalled();
@@ -235,7 +234,7 @@ describe('PeerSessionRefreshModule re-attach after a surface switch', () => {
 
     const cleanup = installPeerSessionRefresh(contextWithSnapshot(refresh));
     await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(stateMachineMock.reset).not.toHaveBeenCalled();
@@ -308,7 +307,7 @@ describe('PeerSessionRefreshModule re-attach after a surface switch', () => {
     refresh.mockClear();
 
     documentStub.visibilityState = 'hidden';
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(refresh).not.toHaveBeenCalled();
 
     requestPeerSessionRefresh('session-1');
@@ -659,7 +658,7 @@ describe('PeerSessionRefreshModule dead subscription recovery', () => {
 
     const cleanup = installPeerSessionRefresh(context);
     await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(refreshPeerSessionSnapshot).toHaveBeenCalled();
     cleanup();
@@ -671,7 +670,7 @@ describe('PeerSessionRefreshModule dead subscription recovery', () => {
 
     const cleanup = installPeerSessionRefresh(context);
     await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(ensureLiveSubscription).toHaveBeenCalled();
     cleanup();
@@ -683,7 +682,7 @@ describe('PeerSessionRefreshModule dead subscription recovery', () => {
 
     const cleanup = installPeerSessionRefresh(context);
     await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(PEER_SESSION_REFRESH_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(ensureLiveSubscription).not.toHaveBeenCalled();
     cleanup();

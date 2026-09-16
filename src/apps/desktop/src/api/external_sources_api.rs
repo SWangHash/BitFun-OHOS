@@ -3,8 +3,8 @@
 use openbitfun_core::external_sources::{
     acknowledge_external_ecosystems, apply_external_source_control_action,
     choose_external_mcp_conflict, choose_external_subagent_conflict,
-    expand_external_prompt_command, external_source_location_for_host_action,
-    external_source_snapshot,
+    expand_external_prompt_command, external_source_discovery_snapshot,
+    external_source_location_for_host_action, external_source_snapshot,
     get_external_source_control_snapshot as core_get_external_source_control_snapshot,
     native_prompt_command_conflicts, set_external_mcp_server_decision,
     set_external_mcp_servers_enabled, set_external_prompt_command_conflict_choice,
@@ -14,11 +14,12 @@ use openbitfun_core::external_sources::{
     set_external_tool_targets_enabled, set_native_prompt_command_conflict_choice,
     unacknowledged_external_ecosystems, update_external_integration_policy,
     workspace_reference_snapshot, ExternalIntegrationPolicyMutation,
-    ExternalSourceControlRequestV1, ExternalSourceHostCapabilities, ExternalSourceOperationError,
-    ExternalSourceOperationErrorCode, ExternalSourceOperationResult, ExternalSourcePublicSnapshot,
-    ExternalSourceSurfaceSnapshotV1, ExternalSubagentModelBindingTarget,
-    NativePromptCommandConflictSnapshot, NativePromptCommandDescriptor,
-    PromptCommandInvocationOutcome, PromptCommandShellReviewDecision,
+    ExternalSourceControlRequestV1, ExternalSourceDiscoverySnapshotV1,
+    ExternalSourceHostCapabilities, ExternalSourceOperationError, ExternalSourceOperationErrorCode,
+    ExternalSourceOperationResult, ExternalSourcePublicSnapshot, ExternalSourceSurfaceSnapshotV1,
+    ExternalSubagentModelBindingTarget, NativePromptCommandConflictSnapshot,
+    NativePromptCommandDescriptor, PromptCommandInvocationOutcome,
+    PromptCommandShellReviewDecision,
 };
 use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
 use openbitfun_core::service::remote_ssh::workspace_state::{
@@ -474,6 +475,20 @@ pub async fn get_external_source_control_snapshot(
         ExternalSourceHostCapabilities::local_desktop(),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn get_external_source_discovery_snapshot(
+    request: ExternalSourceSnapshotRequest,
+) -> ExternalSourceOperationResult<ExternalSourceDiscoverySnapshotV1> {
+    let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
+    external_source_discovery_snapshot(
+        workspace,
+        request.force_refresh,
+        ExternalSourceHostCapabilities::local_desktop(),
+    )
+    .await
+    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]

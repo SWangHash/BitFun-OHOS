@@ -1,6 +1,6 @@
 {
-  "title": "ACP Agent",
-  "subtitle": "管理透過 ACP 連線的外部 Agent",
+  "title": "ACP 智能體",
+  "subtitle": "管理透過 ACP 連線的外部智能體",
   "views": {
     "local": "本機",
     "ssh": "SSH",
@@ -58,7 +58,7 @@
     "title": "安裝 {{name}} CLI？",
     "message": "目標主機：{{host}}。OpenBitFun 將執行「{{command}}」，把 npm 套件全域安裝到該主機；這會修改該主機的全域命令環境，並可能需要網路與寫入權限。",
     "localHost": "目前執行主機",
-    "packageUnknown": "無法確認此 Agent 的安裝套件，已取消安裝",
+    "packageUnknown": "無法確認此智能體的安裝套件，已取消安裝",
     "confirm": "在目標主機安裝"
   },
   "presets": {
@@ -69,9 +69,9 @@
     "codex": { "description": "透過官方 ACP 適配器連線" }
   },
   "registry": {
-    "title": "Agent 列表",
-    "searchPlaceholder": "搜尋 Agent...",
-    "filterLabel": "ACP Agent 篩選",
+    "title": "智能體列表",
+    "searchPlaceholder": "搜尋智能體...",
+    "filterLabel": "ACP 智能體篩選",
     "filters": {
       "all": "全部",
       "enabled": "已啟用",
@@ -104,20 +104,20 @@
     "configInvalidDetail": "目前 ACP 設定暫時無法直接使用。",
     "toolPath": "路徑",
     "toolVersion": "版本",
-    "empty": "沒有匹配的 ACP Agent"
+    "empty": "沒有匹配的 ACP 智能體"
   },
   "clients": {
-    "loading": "正在載入 ACP Agent…"
+    "loading": "正在載入 ACP 智能體…"
   },
   "remote": {
     "title": "SSH 伺服器",
-    "description": "檢測已儲存 SSH 伺服器上的 ACP Agent",
+    "description": "檢測已儲存 SSH 伺服器上的 ACP 智能體",
     "empty": "沒有已儲存的 SSH 伺服器",
     "emptyVisible": "沒有顯示中的 SSH 伺服器",
-    "noAgents": "請先新增 ACP Agent，再檢測遠端伺服器",
+    "noAgents": "請先新增 ACP 智能體，再檢測遠端伺服器",
     "refreshDetection": "重新整理檢測",
-    "hideConnection": "在 ACP Agents 中隱藏「{{name}}」",
-    "restoreConnection": "在 ACP Agents 中顯示「{{name}}」",
+    "hideConnection": "在 ACP 智能體中隱藏「{{name}}」",
+    "restoreConnection": "在 ACP 智能體中顯示「{{name}}」",
     "showHiddenConnections": "已隱藏的伺服器（{{count}}）",
     "hideHiddenConnections": "收起已隱藏的伺服器",
     "summary": "{{available}} / {{total}} 可用",
@@ -133,7 +133,7 @@
   "permissionMode": {
     "ask": "詢問",
     "allowOnce": "自動通過",
-    "legacyRejectWarning": "部分 Agent 的已儲存設定仍為「自動拒絕」，編輯器已將其替換為「詢問」。請儲存並套用目前選擇；儲存前，這些 Agent 仍會自動拒絕請求。",
+    "legacyRejectWarning": "部分智能體的已儲存設定仍為「自動拒絕」，編輯器已將其替換為「詢問」。請儲存並套用目前選擇；儲存前，這些智能體仍會自動拒絕請求。",
     "saveAndApply": "儲存並套用"
   },
   "requirements": {
@@ -150,9 +150,9 @@
   },
   "notifications": {
     "loadFailed": "載入 ACP 設定失敗",
-    "loadFailedLocked": "無法讀取 ACP 設定。為避免把現有 Agent 設定覆蓋為空，目前頁面已鎖定。",
+    "loadFailedLocked": "無法讀取 ACP 設定。為避免把現有智能體設定覆蓋為空，目前頁面已鎖定。",
     "saveSuccess": "ACP 設定已儲存",
-    "configAdded": "ACP Agent 設定已新增",
+    "configAdded": "ACP 智能體設定已新增",
     "configAddedManualCliRequired": "{{name}} 設定已新增。請手動安裝 {{command}} CLI，然後重新整理檢測。",
     "saveFailed": "儲存 ACP 設定失敗",
     "probeFailed": "檢測 ACP 依賴失敗",
@@ -167,11 +167,11 @@
     "installFailed": "安裝 ACP CLI 失敗",
     "configureSuccess": "ACP 適配器已就緒",
     "configureFailed": "設定 ACP 適配器失敗",
-    "downloadSuccess": "ACP Agent CLI 已下載",
-    "downloadFailed": "下載 ACP Agent CLI 失敗",
+    "downloadSuccess": "ACP 智能體 CLI 已下載",
+    "downloadFailed": "下載 ACP 智能體 CLI 失敗",
     "predownloadSuccess": "ACP 適配器已下載",
     "predownloadFailed": "下載 ACP 適配器失敗",
-    "connectionHidden": "已在 ACP Agents 中隱藏「{{name}}」",
-    "connectionRestored": "已在 ACP Agents 中顯示「{{name}}」"
+    "connectionHidden": "已在 ACP 智能體中隱藏「{{name}}」",
+    "connectionRestored": "已在 ACP 智能體中顯示「{{name}}」"
   }
 }

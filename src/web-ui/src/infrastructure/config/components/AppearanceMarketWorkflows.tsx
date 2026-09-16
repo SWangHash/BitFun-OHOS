@@ -1,4 +1,4 @@
-import { OverflowText, Button, Empty, Field, Icon, Input, Select, ScrollArea, Textarea } from '@openbitfun/ui';
+import { OverflowText, Button, Disclosure, Empty, Field, Icon, Input, Select, ScrollArea, Textarea } from '@openbitfun/ui';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Inbox, ShieldCheck } from 'lucide-react';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
@@ -579,12 +579,15 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                   <div><dt>{t('package.market.review.bundleHash')}</dt><dd>{reviewDetail.reviewBundleHash || t('package.market.review.unavailable')}</dd></div>
                 </dl>
                 {reviewDetail.manifest !== undefined && (
-                  <details className="appearance-market__review-manifest">
-                    <summary>{t('package.market.review.manifest')}</summary>
+                  <Disclosure
+                    presentation="native"
+                    className="appearance-market__review-manifest"
+                    summary={t('package.market.review.manifest')}
+                  >
                     <ScrollArea className="appearance-market__review-manifest-pre">
                       <pre>{JSON.stringify(reviewDetail.manifest, null, 2)}</pre>
                     </ScrollArea>
-                  </details>
+                  </Disclosure>
                 )}
                 <div
                   className="appearance-market__review-actions"

@@ -15,7 +15,7 @@ use tokio::sync::Semaphore;
 
 const BODY_MEMORY_BUDGET: usize = 512 * 1024 * 1024;
 const MAX_REQUESTS: usize = 2048;
-const MAX_RPC_BODY: usize = 48 * 1024 * 1024 + 64 * 1024;
+const MAX_API_BODY: usize = 48 * 1024 * 1024 + 64 * 1024;
 
 pub(crate) async fn admit(
     State(state): State<AppState>,
@@ -23,7 +23,10 @@ pub(crate) async fn admit(
     next: Next,
 ) -> Response {
     let path = request.uri().path();
-    if !path.starts_with("/api/") {
+    let session_api = path == "/v1/sessions"
+        || path.starts_with("/v1/sessions/")
+        || path.starts_with("/v3/sessions/");
+    if !path.starts_with("/api/") && !session_api {
         return next.run(request).await;
     }
     let peer = request
@@ -37,7 +40,7 @@ pub(crate) async fn admit(
     {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     }
-    if path.starts_with("/api/devices") {
+    if path.starts_with("/api/devices") || session_api {
         let auth = match crate::routes::devices::validate_user(&state, request.headers()).await {
             Ok(auth) => auth,
             Err(status) => return status.into_response(),
@@ -59,10 +62,12 @@ pub(crate) async fn admit(
     };
     let mut memory_permit = None;
     if request.method() == Method::POST {
-        let maximum = if path.starts_with("/api/auth/") {
+        let maximum = if session_api {
+            crate::realtime::store::MAX_BATCH_BYTES
+        } else if path.starts_with("/api/auth/") {
             16 * 1024
         } else {
-            MAX_RPC_BODY
+            MAX_API_BODY
         };
         let declared = request
             .headers()
@@ -101,6 +106,15 @@ pub(crate) async fn admit(
         }
         *request.body_mut() = axum::body::Body::from(bytes);
     }
+    if session_api && request.method() == Method::GET {
+        memory_permit =
+            match Arc::clone(MEMORY.get_or_init(|| Arc::new(Semaphore::new(BODY_MEMORY_BUDGET))))
+                .try_acquire_many_owned(1024 * 1024)
+            {
+                Ok(permit) => Some(permit),
+                Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+            };
+    }
     let result = tokio::time::timeout(Duration::from_secs(130), next.run(request)).await;
     let response = result.unwrap_or_else(|_| StatusCode::REQUEST_TIMEOUT.into_response());
     let (parts, body) = response.into_parts();
@@ -134,20 +148,27 @@ mod tests {
 
     #[tokio::test]
     async fn unauthenticated_rpc_is_rejected_before_reading_unbounded_body() {
-        let body = Body::from_stream(futures_util::stream::pending::<
-            Result<axum::body::Bytes, std::io::Error>,
-        >());
-        let request = Request::builder()
-            .method("POST")
-            .uri("/api/devices/desktop/rpc")
-            .body(body)
-            .unwrap();
-        let response =
-            tokio::time::timeout(Duration::from_secs(1), router().await.oneshot(request))
-                .await
-                .unwrap()
+        for path in [
+            "/v1/sessions",
+            "/v1/rpc/payloads",
+            "/v3/sessions/session/messages",
+        ] {
+            let body = Body::from_stream(futures_util::stream::pending::<
+                Result<axum::body::Bytes, std::io::Error>,
+            >());
+            let request = Request::builder()
+                .method("POST")
+                .uri(path)
+                .body(body)
                 .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            let response =
+                tokio::time::timeout(Duration::from_secs(1), router().await.oneshot(request))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            assert_eq!(response.headers().get("cache-control").unwrap(), "no-store");
+        }
     }
 
     #[tokio::test]

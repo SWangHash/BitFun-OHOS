@@ -1,5 +1,8 @@
 package com.openbitfun.mobile.core.feature.account
 
+import com.openbitfun.mobile.core.feature.relay.HostCatalogNotice
+import com.openbitfun.mobile.core.feature.relay.hostCatalogObserver
+import com.openbitfun.mobile.core.transport.RemoteSessionStreamTransport
 import com.openbitfun.mobile.core.feature.CoreLog
 import com.openbitfun.mobile.core.feature.session.RemoteSessionStore
 import com.openbitfun.mobile.core.feature.workspace.RemoteWorkspaceStore
@@ -16,6 +19,9 @@ import com.openbitfun.mobile.core.transport.TransportLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,6 +56,9 @@ internal interface AccountBackend {
     suspend fun profile(userId: String): com.openbitfun.mobile.core.transport.GitHubProfile? = null
 
     fun transport(session: AccountSessionData, targetDeviceId: String): RemoteCommandTransport
+    fun closeAccount() {}
+    fun resumeSessionStreams() {}
+    fun directoryChanges(session: AccountSessionData): Flow<Unit> = emptyFlow()
 }
 
 public class AccountStore internal constructor(
@@ -64,6 +73,21 @@ public class AccountStore internal constructor(
     public val state: StateFlow<AccountUiState> = _state.asStateFlow()
     private var session: AccountSessionData? = null
     private var selectedRelayUrl: String = com.openbitfun.mobile.core.transport.DEFAULT_CLOUD_RELAY_URL
+    private var catalogScope = CoroutineScope(scope.coroutineContext + kotlinx.coroutines.SupervisorJob())
+    private fun closeCatalogs() { catalogScope.coroutineContext[Job]?.cancel(); catalogObservers.clear() }
+    private val catalogObservers = mutableMapOf<String, Flow<HostCatalogNotice>>()
+    init { scope.coroutineContext[Job]?.invokeOnCompletion { closeCatalogs() } }
+    private fun catalogChanges(current: AccountSessionData, target: String): Flow<HostCatalogNotice> {
+        val store = persistence?.relayStreams ?: return emptyFlow()
+        if (catalogScope.coroutineContext[Job]?.isActive != true) catalogScope = CoroutineScope(scope.coroutineContext + kotlinx.coroutines.SupervisorJob())
+        return catalogObservers.getOrPut(current.userId + ":" + current.token + ":" + target) {
+            val source = backend.transport(current, target) as? RemoteSessionStreamTransport ?: return emptyFlow()
+            hostCatalogObserver(catalogScope, source, store)
+        }
+    }
+    private var directoryWork: Job? = null
+    private var directoryIdentity: Pair<String, String>? = null
+    private var directoryDirty = false
     private var work: Job? = null
     private var profileWork: Job? = null
     private var displayedProfile: AccountProfileRecord? = null
@@ -71,6 +95,8 @@ public class AccountStore internal constructor(
     private var profileAttempt: Pair<String, String>? = null
     /** Latest account membership snapshot, used to authorize explicit device stores. */
     private var controllableDevices: List<AccountDeviceUi> = emptyList()
+
+    public fun resumeSessionStreams() { backend.resumeSessionStreams() }
 
     public fun dispatch(intent: AccountIntent) {
         when (intent) {
@@ -103,7 +129,7 @@ public class AccountStore internal constructor(
             backend.transport(current, target),
             deviceKey = target,
             persistence = persistence,
-        )
+        ).also { it.bindCatalog(catalogChanges(current, target)) }
     }
 
     public fun createWorkspaceStore(scope: CoroutineScope): RemoteWorkspaceStore? {
@@ -115,7 +141,8 @@ public class AccountStore internal constructor(
             kotlinx.coroutines.Dispatchers.Default,
             target,
             persistence?.remoteWorkspaces,
-        )
+            persistence?.relayStreams,
+        ).also { it.bindCatalog(catalogChanges(current, target)) }
     }
 
     /**
@@ -132,7 +159,7 @@ public class AccountStore internal constructor(
             backend.transport(current, target),
             deviceKey = target,
             persistence = persistence,
-        )
+        ).also { it.bindCatalog(catalogChanges(current, target)) }
     }
 
     /** The explicit-device twin of [createWorkspaceStore]. */
@@ -145,7 +172,8 @@ public class AccountStore internal constructor(
             kotlinx.coroutines.Dispatchers.Default,
             target,
             persistence?.remoteWorkspaces,
-        )
+            persistence?.relayStreams,
+        ).also { it.bindCatalog(catalogChanges(current, target)) }
     }
 
     /**
@@ -160,6 +188,8 @@ public class AccountStore internal constructor(
     }
 
     public fun stop() {
+        closeCatalogs()
+        directoryWork?.cancel(); directoryIdentity = null
         profileWork?.cancel()
         work?.cancel()
         work = null
@@ -187,6 +217,14 @@ public class AccountStore internal constructor(
                     true,
                     AccountFailureStage.RESTORE,
                 )
+                return@launch
+            }
+            if (restored.relayUrl.trimEnd('/').startsWith("https://remote.openbitfun.com/v/") &&
+                restored.relayUrl.trimEnd('/') != AccountDefaults.CLOUD_RELAY_URL) {
+                // Relay tokens belong to their issuing database. Keep the old encrypted
+                // record/cache, but require a fresh login before using the new endpoint.
+                selectedRelayUrl = AccountDefaults.CLOUD_RELAY_URL
+                expireSession(AccountFailureReason.AUTHENTICATION, AccountFailureStage.AUTHENTICATION)
                 return@launch
             }
             session = restored
@@ -370,12 +408,13 @@ public class AccountStore internal constructor(
     private fun refreshDevices() {
         val current = session ?: return
         val ready = _state.value as? AccountUiState.Ready ?: return
-        if (ready.refreshing) return
+        if (ready.refreshing) { directoryDirty = true; return }
         work?.cancel()
         _state.value = ready.copy(refreshing = true, refreshFailure = null)
         work = scope.launch {
             try {
-                publishReady(current, backend.listDevices(current, deviceId))
+                val devices = backend.listDevices(current, deviceId)
+                if (session?.token == current.token && session?.relayUrl == current.relayUrl) publishReady(session!!, devices)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: CloudAccountException) {
@@ -386,11 +425,16 @@ public class AccountStore internal constructor(
                 }
             } catch (_: Throwable) {
                 _state.value = ready.copy(refreshing = false, refreshFailure = AccountFailureReason.NETWORK)
+            } finally {
+                if (directoryDirty && session?.token == current.token) { directoryDirty = false; refreshDevices() }
             }
         }
     }
 
     private fun logout() {
+        closeCatalogs()
+        directoryWork?.cancel(); directoryIdentity = null
+        backend.closeAccount()
         profileWork?.cancel()
         displayedProfile = null
         profileAttempt = null
@@ -414,6 +458,9 @@ public class AccountStore internal constructor(
     }
 
     private fun expireSession(reason: AccountFailureReason, stage: AccountFailureStage) {
+        closeCatalogs()
+        directoryWork?.cancel(); directoryIdentity = null
+        backend.closeAccount()
         session = null
         controllableDevices = emptyList()
         _state.value = AccountUiState.Failed(reason, false, stage)
@@ -425,6 +472,15 @@ public class AccountStore internal constructor(
      * different answers on two platforms.
      */
     private fun publishReady(current: AccountSessionData, devices: List<AccountDeviceUi>) {
+        val directoryKey = current.relayUrl to current.token
+        if (directoryIdentity != directoryKey) {
+            directoryWork?.cancel(); directoryIdentity = directoryKey
+            directoryWork = scope.launch {
+                try { backend.directoryChanges(current).collect { if (session?.token == current.token) refreshDevices() } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Throwable) { if (session?.token == current.token) refreshDevices() }
+            }
+        }
         controllableDevices = AccountDevicePolicy.controlTargets(devices, deviceId)
         _state.value = AccountUiState.Ready(
             userId = current.userId,
@@ -556,6 +612,10 @@ private class CloudBackend(
             targetDeviceName = null,
         )
     }
+
+    override fun directoryChanges(session: AccountSessionData): Flow<Unit> = client.deviceDirectoryChanges(session.relayUrl, session.toTransportSession())
+    override fun resumeSessionStreams() { client.resumeSessionStreams() }
+    override fun closeAccount() { client.closeAccount() }
 
     override suspend fun profile(userId: String): com.openbitfun.mobile.core.transport.GitHubProfile? = client.githubProfile(userId)
 

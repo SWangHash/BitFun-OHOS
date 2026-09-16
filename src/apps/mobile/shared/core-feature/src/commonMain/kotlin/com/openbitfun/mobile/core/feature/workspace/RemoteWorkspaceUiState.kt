@@ -106,7 +106,7 @@ public sealed interface RemoteFileDownloadUiState {
         public val target: FilePreviewTarget,
         public val name: String,
         public val mimeType: String,
-        public val bytes: ByteArray,
+        public val localReference: String,
     ) : RemoteFileDownloadUiState
     public data class Saved public constructor(
         public val target: FilePreviewTarget,
@@ -144,6 +144,10 @@ internal fun FilePreviewFailure.toKind(): FilePreviewFailureKind = when (reason)
     FilePreviewFailureReason.LOAD_FAILED -> FilePreviewFailureKind.LOAD_FAILED
 }
 
+public data class SavedRuntimeConnectionUiState public constructor(
+    public val id: String, public val name: String, public val host: String,
+)
+
 public sealed interface RemoteWorkspaceUiState {
     public data object Idle : RemoteWorkspaceUiState
     public data object Loading : RemoteWorkspaceUiState
@@ -158,7 +162,19 @@ public sealed interface RemoteWorkspaceUiState {
         public val loadFailure: Boolean,
         /** Live target capabilities; never inferred from a cached catalog. */
         public val hostCapabilities: List<String>,
+        public val savedConnections: List<SavedRuntimeConnectionUiState>,
+        public val savedConnectionsFailure: Boolean,
+        public val terminal: RuntimeTerminalUiState,
+        public val files: RuntimeFilesUiState,
+        public val directoryPicker: RuntimeFilesUiState,
     ) : RemoteWorkspaceUiState {
+        public constructor(workspaces: List<RecentWorkspace>, assistants: List<WorkspaceAssistant>, selected: SelectedWorkspace?, preview: RemoteFilePreviewUiState, busy: Boolean, download: RemoteFileDownloadUiState, loadFailure: Boolean, hostCapabilities: List<String>, savedConnections: List<SavedRuntimeConnectionUiState>, savedConnectionsFailure: Boolean, terminal: RuntimeTerminalUiState, files: RuntimeFilesUiState) : this(workspaces, assistants, selected, preview, busy, download, loadFailure, hostCapabilities, savedConnections, savedConnectionsFailure, terminal, files, RuntimeFilesUiState("", emptyList(), false, null, "", false, false))
+        public constructor(
+            workspaces: List<RecentWorkspace>, assistants: List<WorkspaceAssistant>, selected: SelectedWorkspace?,
+            preview: RemoteFilePreviewUiState, busy: Boolean, download: RemoteFileDownloadUiState,
+            loadFailure: Boolean, hostCapabilities: List<String>,
+        ) : this(workspaces, assistants, selected, preview, busy, download, loadFailure, hostCapabilities, emptyList(), false, RuntimeTerminalUiState(null, "", false, false), RuntimeFilesUiState("", emptyList(), false, null, "", false, false))
+
         public constructor(
             workspaces: List<RecentWorkspace>, assistants: List<WorkspaceAssistant>, selected: SelectedWorkspace?,
             preview: RemoteFilePreviewUiState, busy: Boolean, download: RemoteFileDownloadUiState, loadFailure: Boolean,
@@ -177,8 +193,27 @@ public sealed interface RemoteWorkspaceUiState {
 }
 
 public sealed interface RemoteWorkspaceIntent {
+    public data class ResizeTerminal(public val cols: Int, public val rows: Int) : RemoteWorkspaceIntent
+    public data class UploadFile(public val path: String, public val source: RuntimeUploadSource) : RemoteWorkspaceIntent
     public data object Load : RemoteWorkspaceIntent
-    public data class SelectWorkspace public constructor(public val path: String) : RemoteWorkspaceIntent
+    public data class OpenDeviceFiles(public val path: String, public val remoteConnectionId: String?) : RemoteWorkspaceIntent
+    public data class OpenDeviceTerminal(public val path: String, public val remoteConnectionId: String?) : RemoteWorkspaceIntent
+    public data class BrowseFiles(public val path: String, public val append: Boolean) : RemoteWorkspaceIntent
+    public data class ReadFile(public val path: String) : RemoteWorkspaceIntent
+    public data class SaveFile(public val content: String) : RemoteWorkspaceIntent
+    public data class BrowseWorkspaceDirectories(public val path: String, public val remoteConnectionId: String?, public val append: Boolean) : RemoteWorkspaceIntent
+    public data class SortFiles(public val sort: RuntimeFileSort) : RemoteWorkspaceIntent
+    public data object CloseFileEditor : RemoteWorkspaceIntent
+    public data class CreateFile(public val path: String) : RemoteWorkspaceIntent
+    public data class RenameFile(public val path: String) : RemoteWorkspaceIntent
+    public data object DeleteFile : RemoteWorkspaceIntent
+    public data class CreateDirectory(public val path: String) : RemoteWorkspaceIntent
+    public data object OpenTerminal : RemoteWorkspaceIntent
+    public data object CloseTerminal : RemoteWorkspaceIntent
+    public data class WriteTerminal(public val data: String) : RemoteWorkspaceIntent
+    public data class SelectWorkspace public constructor(public val path: String, public val remoteConnectionId: String?, public val remoteSshHost: String?) : RemoteWorkspaceIntent {
+        public constructor(path: String) : this(path, null, null)
+    }
     public data class SelectAssistant public constructor(public val path: String) : RemoteWorkspaceIntent
     public data class OpenFile public constructor(
         public val reference: String,

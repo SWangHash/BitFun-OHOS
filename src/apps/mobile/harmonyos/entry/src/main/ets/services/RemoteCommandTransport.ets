@@ -1,3 +1,4 @@
+import { DurableSessionCallbacks, DurableSessionStream } from './DurableSessionStream';
 import { CloudAccountClient, CloudAccountSession } from './CloudAccountClient';
 import { CommandStatusResponse, RemoteCommand } from '../model/RemoteModels';
 
@@ -6,10 +7,12 @@ export const INTERACTIVE_DIRECTORY_TIMEOUT_MS: number = 15000;
 
 export interface RemoteCommandTransport {
   send<T extends CommandStatusResponse>(command: RemoteCommand, timeoutMs?: number): Promise<T>;
+  subscribeSession?(logicalId: string, callbacks: DurableSessionCallbacks): DurableSessionStream;
   reset(): void;
 }
 
 export class AccountDeviceCommandTransport implements RemoteCommandTransport {
+  private streams: Set<DurableSessionStream> = new Set();
   private readonly client: CloudAccountClient;
   private readonly relayUrl: string;
   private readonly session: CloudAccountSession;
@@ -38,7 +41,16 @@ export class AccountDeviceCommandTransport implements RemoteCommandTransport {
     return this.client.deviceRpc<T>(this.relayUrl, this.session, this.targetDeviceId, command, timeoutMs);
   }
 
+  subscribeSession(logicalId: string, callbacks: DurableSessionCallbacks): DurableSessionStream {
+    this.streams.forEach((existing: DurableSessionStream) => { if (existing.isClosed()) this.streams.delete(existing); });
+    const stream = this.client.subscribeSession(this.relayUrl, this.session, this.targetDeviceId, logicalId, callbacks);
+    this.streams.add(stream);
+    return stream;
+  }
+
   reset(): void {
+    this.streams.forEach((stream: DurableSessionStream) => stream.close());
+    this.streams.clear();
     // Account credentials are owned by CloudAccountSessionStore, not by this transport.
   }
 }

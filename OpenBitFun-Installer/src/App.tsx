@@ -1,5 +1,9 @@
+import { useLayoutEffect, useRef } from 'react';
+import { DesignSystemProvider, Select } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { WindowControls } from './components/WindowControls';
+import { StepIndicator } from './components/StepIndicator';
+import appIcon from './assets/openbitfun-app-icon-16.png';
 import { LanguageSelect } from './pages/LanguageSelect';
 import { Options } from './pages/Options';
 import { ModelSetup } from './pages/ModelSetup';
@@ -7,21 +11,31 @@ import { ProgressPage } from './pages/Progress';
 import { ThemeSetup } from './pages/ThemeSetup';
 import { UninstallPage } from './pages/Uninstall';
 import { useInstaller } from './hooks/useInstaller';
-import { mapUiLanguageToAppLanguage, type InstallerUiLanguage } from './i18n/languages';
+import type { InstallStep } from './types/installer';
+import {
+  DEFAULT_INSTALLER_UI_LANGUAGE,
+  mapUiLanguageToAppLanguage,
+  resolveInstallerUiLanguage,
+  type InstallerUiLanguage,
+} from './i18n/languages';
 import { useSyncInstallerRootTheme } from './theme/installerThemeRuntime';
 import './styles/global.css';
-
-const STEP_NUMBERS: Record<string, number> = {
-  options: 2,
-  progress: 2,
-  model: 3,
-  theme: 4,
-};
 
 function App() {
   const installer = useInstaller();
   useSyncInstallerRootTheme(installer.options.themePreference);
   const { t, i18n } = useTranslation();
+  const pageRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const language = resolveInstallerUiLanguage(i18n.resolvedLanguage ?? i18n.language)
+      ?? DEFAULT_INSTALLER_UI_LANGUAGE;
+    document.documentElement.lang = mapUiLanguageToAppLanguage(language);
+  }, [i18n.language]);
+
+  useLayoutEffect(() => {
+    pageRef.current?.focus({ preventScroll: true });
+  }, [installer.step]);
 
   const handleLanguageSelect = (lang: InstallerUiLanguage) => {
     i18n.changeLanguage(lang);
@@ -30,14 +44,6 @@ function App() {
       appLanguage: mapUiLanguageToAppLanguage(lang),
     }));
     installer.next();
-  };
-
-  const STEP_TITLES: Record<string, string> = {
-    options: t('options.title'),
-    model: t('model.title'),
-    progress: t('progress.title'),
-    theme: t('themeSetup.title'),
-    uninstall: t('uninstall.title'),
   };
 
   const renderPage = () => {
@@ -58,6 +64,7 @@ function App() {
             onInstall={installer.install}
             isInstalling={installer.isInstalling}
             clearInstallError={installer.clearInstallError}
+            previewOnly={installer.previewOnly}
           />
         );
       case 'model':
@@ -67,8 +74,9 @@ function App() {
             setOptions={installer.setOptions}
             onSkip={installer.next}
             onTestConnection={installer.testModelConnection}
+            previewOnly={installer.previewOnly}
             onNext={async () => {
-              await installer.saveModelConfig();
+              if (!installer.previewOnly) await installer.saveModelConfig();
               installer.next();
             }}
           />
@@ -91,6 +99,7 @@ function App() {
             setOptions={installer.setOptions}
             onLaunch={installer.launchApp}
             onClose={installer.closeInstaller}
+            previewOnly={installer.previewOnly}
           />
         );
       case 'uninstall':
@@ -103,6 +112,7 @@ function App() {
             uninstallProgress={installer.uninstallProgress}
             onUninstall={installer.startUninstall}
             onClose={installer.closeInstaller}
+            previewOnly={installer.previewOnly}
           />
         );
       default:
@@ -110,52 +120,48 @@ function App() {
     }
   };
 
-  const isFullscreen = installer.step === 'lang' || installer.step === 'uninstall';
-  const stepNum = STEP_NUMBERS[installer.step];
-  const defaultTitle = t('shared.product.name');
-  const title = STEP_TITLES[installer.step] || defaultTitle;
-  const useSuccessStepColor = installer.installationCompleted;
-
   return (
-    <div className="installer-app">
-      <div className="titlebar" data-tauri-drag-region>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="titlebar-title">
-            {isFullscreen ? defaultTitle : (
-              <>
-                <span style={{ opacity: 0.4 }}>{stepNum} / 4</span>
-                <span style={{ margin: '0 6px', opacity: 0.2 }}>·</span>
-                <span>{title}</span>
-              </>
-            )}
-          </span>
+    <DesignSystemProvider
+      locale={i18n.language}
+      messages={{ noOptions: t('model.modelNoResults'), selectPlaceholder: t('model.selectProvider') }}
+    >
+      <div className="installer-app">
+        <div className="titlebar" data-tauri-drag-region>
+          <div className="titlebar-brand" data-tauri-drag-region>
+            <img src={appIcon} width={16} height={16} alt="" data-tauri-drag-region />
+            <span className="titlebar-title" data-tauri-drag-region>{t('shared.product.name')}</span>
+          </div>
+          {installer.previewOnly && (
+            <div className="installer-preview-controls">
+              <span>{t('preview.badge')}</span>
+              <Select
+                size="sm"
+                aria-label={t('preview.page')}
+                value={installer.step}
+                onValueChange={(value) => installer.goTo(value as InstallStep)}
+                options={[
+                  { value: 'lang', label: t('steps.language') },
+                  { value: 'options', label: t('options.title') },
+                  { value: 'progress', label: t('preview.progress') },
+                  { value: 'model', label: t('model.title') },
+                  { value: 'theme', label: t('themeSetup.title') },
+                  { value: 'uninstall', label: t('uninstall.title') },
+                ]}
+              />
+            </div>
+          )}
+          <WindowControls />
         </div>
-        <WindowControls />
-      </div>
 
-      {!isFullscreen && (
-        <div style={{
-          height: 1,
-          background: 'repeating-linear-gradient(90deg, var(--openbitfun-color-action-neutral-surface-pressed) 0 5px, transparent 5px 10px)',
-          position: 'relative',
-          flexShrink: 0,
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            width: `${((stepNum ?? 0) / 4) * 100}%`,
-            background: useSuccessStepColor
-              ? 'repeating-linear-gradient(90deg, var(--openbitfun-color-status-success-content) 0 5px, transparent 5px 10px)'
-              : 'repeating-linear-gradient(90deg, var(--openbitfun-color-accent-default) 0 5px, transparent 5px 10px)',
-            transition: 'width 400ms cubic-bezier(0.4, 0, 0.2, 1), background 300ms ease',
-          }} />
-        </div>
-      )}
+        {installer.step !== 'lang' && installer.step !== 'uninstall' && (
+          <StepIndicator step={installer.step} />
+        )}
 
-      <div className="installer-content">
-        {renderPage()}
+        <main className="installer-content" key={installer.step} ref={pageRef} tabIndex={-1}>
+          {renderPage()}
+        </main>
       </div>
-    </div>
+    </DesignSystemProvider>
   );
 }
 

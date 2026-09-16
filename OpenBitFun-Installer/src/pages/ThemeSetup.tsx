@@ -1,53 +1,36 @@
-import { Check as LucideCheck } from 'lucide-react';
+import { Button, Checkbox, PageHeader, Radio } from '@openbitfun/ui';
+import { ArrowUpRight, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { Checkbox } from '../components/Checkbox';
-import type { InstallOptions, ThemeId, ThemePreferenceId } from '../types/installer';
+import type { InstallOptions, ThemePreferenceId } from '../types/installer';
 import { SYSTEM_THEME_ID } from '../types/installer';
-import { THEMES, THEME_DISPLAY_ORDER, findInstallerThemeById } from '../theme/installerThemesData';
+import { THEMES, THEME_DISPLAY_ORDER } from '../theme/installerThemesData';
 
 interface ThemeSetupProps {
+  previewOnly?: boolean;
   options: InstallOptions;
   setOptions: React.Dispatch<React.SetStateAction<InstallOptions>>;
   onLaunch: () => Promise<void>;
   onClose: () => void;
 }
 
-export function ThemeSetup({ options, setOptions, onLaunch, onClose }: ThemeSetupProps) {
+export function ThemeSetup({ options, setOptions, onLaunch, onClose, previewOnly = false }: ThemeSetupProps) {
   const { t } = useTranslation();
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   const orderedThemes = [...THEMES].sort((a, b) => THEME_DISPLAY_ORDER.indexOf(a.id) - THEME_DISPLAY_ORDER.indexOf(b.id));
-  const lightPreview = findInstallerThemeById('openbitfun-light');
-  const darkPreview = findInstallerThemeById('openbitfun-dark');
 
   const selectTheme = (theme: ThemePreferenceId) => {
     setOptions((prev) => ({ ...prev, themePreference: theme }));
   };
 
-  const cardStyle = (active: boolean) => ({
-    width: '100%',
-    borderRadius: 12,
-    padding: 8,
-    background: active
-      ? 'color-mix(in srgb, var(--openbitfun-color-accent-default) 8%, transparent)'
-      : 'var(--openbitfun-color-surface-subtle)',
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'background 0.2s ease',
-    textAlign: 'left' as const,
-  });
-
-  const previewBaseStyle = {
-    height: 72,
-    borderRadius: 8,
-    overflow: 'hidden' as const,
-    marginBottom: 8,
-  };
-
   const handleFinish = async () => {
     if (isFinishing) return;
+    if (previewOnly) {
+      onClose();
+      return;
+    }
     setIsFinishing(true);
     setFinishError(null);
 
@@ -72,88 +55,63 @@ export function ThemeSetup({ options, setOptions, onLaunch, onClose }: ThemeSetu
   return (
     <div className="page-shell">
       <div className="page-scroll">
-        <div className="page-container page-container--center" style={{ maxWidth: 760 }}>
-          <p style={{
-            fontSize: 'var(--openbitfun-type-body-md-font-size)',
-            color: 'var(--openbitfun-color-content-secondary)',
-            marginBottom: 12,
-          }}>
-            {t('themeSetup.subtitle')}
-          </p>
+        <div className="page-container">
+          <PageHeader className="page-heading" title={t('themeSetup.title')} description={t('themeSetup.subtitle')} />
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))',
-              gap: 8,
-              marginBottom: 16,
-              width: '100%',
-            }}
-          >
-            <button
-              type="button"
-              style={cardStyle(options.themePreference === SYSTEM_THEME_ID)}
-              onClick={() => selectTheme(SYSTEM_THEME_ID)}
-            >
-              <div style={{ ...previewBaseStyle, display: 'flex' }}>
-                <div style={{ flex: 1, background: lightPreview.colors.background.primary }} />
-                <div style={{ flex: 1, background: darkPreview.colors.background.primary }} />
-              </div>
-              <div style={{ fontSize: 'var(--openbitfun-type-support-font-size)', color: 'var(--openbitfun-color-content-primary)' }}>
-                {t('themeSetup.followSystem')}
-              </div>
-            </button>
-
-            {orderedThemes.map((theme) => (
-              <button key={theme.id} type="button" style={cardStyle(options.themePreference === theme.id)} onClick={() => selectTheme(theme.id as ThemeId)}>
-                <div style={{ ...previewBaseStyle, background: theme.colors.background.primary }}>
-                  <div style={{ height: 16, background: theme.colors.background.secondary, opacity: 0.9 }} />
-                  <div style={{ display: 'flex', gap: 6, padding: 8 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 5, background: theme.colors.element.soft, opacity: 0.9 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ height: 5, width: '62%', background: theme.colors.text.muted, opacity: 0.5, borderRadius: 3, marginBottom: 5 }} />
-                      <div style={{ height: 5, width: '78%', background: theme.colors.accent, borderRadius: 3 }} />
-                    </div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 'var(--openbitfun-type-support-font-size)', color: 'var(--openbitfun-color-content-primary)' }}>
-                  {t(`themeSetup.themeNames.${theme.id}`, { defaultValue: theme.name })}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ width: '100%', marginBottom: 14 }}>
-            <Checkbox
-              checked={options.launchAfterInstall}
-              onChange={(checked) => setOptions((prev) => ({ ...prev, launchAfterInstall: checked }))}
-              label={t('options.launchAfterInstall')}
+          <fieldset className="theme-options" aria-label={t('themeSetup.title')} disabled={isFinishing}>
+            <Radio
+              className="theme-system"
+              name="installer-theme"
+              value={SYSTEM_THEME_ID}
+              checked={options.themePreference === SYSTEM_THEME_ID}
+              disabled={isFinishing}
+              label={t('themeSetup.followSystem')}
+              onCheckedChange={(checked) => { if (checked) selectTheme(SYSTEM_THEME_ID); }}
             />
-          </div>
-
-          {finishError && (
-            <div style={{
-              color: 'var(--openbitfun-color-status-danger-content)',
-              marginBottom: 12,
-              fontSize: 'var(--openbitfun-type-body-xs-font-size)',
-              width: '100%',
-            }}>
-              {finishError}
+            <div className="theme-grid">
+              {orderedThemes.map((theme) => (
+                <Radio
+                  className="theme-option"
+                  key={theme.id}
+                  name="installer-theme"
+                  value={theme.id}
+                  checked={options.themePreference === theme.id}
+                  disabled={isFinishing}
+                  onCheckedChange={(checked) => { if (checked) selectTheme(theme.id); }}
+                  label={
+                    <span className="theme-option__label">
+                      <span>{t(`themeSetup.themeNames.${theme.id}`, { defaultValue: theme.name })}</span>
+                      <span className="theme-palette" aria-hidden="true">
+                        <span style={{ background: theme.colors.background.primary }} />
+                        <span style={{ background: theme.colors.background.secondary }} />
+                        <span style={{ background: theme.colors.accent }} />
+                      </span>
+                    </span>
+                  }
+                />
+              ))}
             </div>
-          )}
+          </fieldset>
+
+          {finishError && <p className="finish-error status-danger" role="alert">{finishError}</p>}
         </div>
       </div>
 
-      <div className="page-footer page-footer--center">
-        <button
-          className="btn btn-success"
-          onClick={handleFinish}
+      <div className="page-footer page-footer--split">
+        <Checkbox
+          checked={options.launchAfterInstall}
           disabled={isFinishing}
-          style={{ minWidth: 120, justifyContent: 'center' }}
+          onCheckedChange={(checked) => setOptions((prev) => ({ ...prev, launchAfterInstall: checked }))}
+          label={t('options.launchAfterInstall')}
+        />
+        <Button
+          variant="primary"
+          trailingIcon={options.launchAfterInstall ? <ArrowUpRight /> : <Check />}
+          onClick={handleFinish}
+          loading={isFinishing}
         >
-          <LucideCheck width="14" height="14" aria-hidden="true" />
           {t('complete.finish')}
-        </button>
+        </Button>
       </div>
     </div>
   );

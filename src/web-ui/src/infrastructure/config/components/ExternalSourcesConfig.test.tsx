@@ -4,6 +4,10 @@ import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import ExternalSourcesConfig from './ExternalSourcesConfig';
+import { AppearanceCompiler } from '@/infrastructure/appearance/compiler/AppearanceCompiler';
+import { AppearanceRegistry } from '@/infrastructure/appearance/registry/AppearanceRegistry';
+import { APPEARANCE_SCHEMA_VERSION, type AppearancePackage } from '@/infrastructure/appearance/types';
+import { externalSourcesConfigAppearanceDescriptor } from './ExternalSourcesConfig.appearance';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -398,20 +402,20 @@ describe('ExternalSourcesConfig', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelectorAll('[data-openbitfun-part="appAttention"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-openbitfun-product-part="appAttention"]')).toHaveLength(1);
     const advanced = container.querySelector<HTMLDetailsElement>(
       '.openbitfun-external-sources-config__advanced',
     );
     expect(advanced?.open).toBe(false);
 
-    const openPermissions = container.querySelector<HTMLButtonElement>('[data-openbitfun-part="appAttention"]');
+    const openPermissions = container.querySelector<HTMLButtonElement>('[data-openbitfun-product-part="appAttention"]');
     await act(async () => {
       openPermissions?.click();
       await vi.runAllTimersAsync();
     });
     expect(advanced?.open).toBe(true);
     const matchingApplicationAction = container.querySelector(
-      '[data-openbitfun-part="toolCard"][data-external-attention="true"]'
+      '[data-openbitfun-product-part="toolCard"][data-external-attention="true"]'
         + '[data-external-ecosystem="opencode"]',
     );
     expect(matchingApplicationAction).not.toBeNull();
@@ -462,7 +466,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-part="applicationToggle"] input[type="checkbox"]',
+      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(false);
     await act(async () => applicationToggle?.click());
@@ -509,14 +513,14 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const disabledApplicationToggle = container.querySelector<HTMLElement>(
-      '[data-openbitfun-part="applicationToggle"]',
+      '[data-openbitfun-product-part="applicationToggle"]',
     );
     await act(async () => {
       disabledApplicationToggle?.click();
       await vi.runAllTimersAsync();
     });
 
-    const policyCard = container.querySelector<HTMLElement>('[data-openbitfun-part="policyCard"]');
+    const policyCard = container.querySelector<HTMLElement>('[data-openbitfun-product-part="policyCard"]');
     const masterSwitch = policyCard?.querySelector<HTMLInputElement>('input[type="checkbox"]');
     expect(scrolledElements).toContain(policyCard);
     expect(document.activeElement).toBe(masterSwitch);
@@ -598,7 +602,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     let applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-part="applicationToggle"] input[type="checkbox"]',
+      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(true);
     await act(async () => {
@@ -608,7 +612,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-part="applicationToggle"] input[type="checkbox"]',
+      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(false);
     await act(async () => {
@@ -1677,8 +1681,10 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('errors.loadFailed');
     expect(container.textContent).not.toContain('initial load failed');
     expect(container.textContent).not.toContain('sources.empty');
-    const initialNotice = container.querySelector('[data-openbitfun-part="notice"]');
+    const initialNotice = container.querySelector('[data-openbitfun-product-part="notice"]');
     expect(initialNotice?.getAttribute('role')).toBe('alert');
+    expect(initialNotice?.getAttribute('aria-live')).toBe('assertive');
+    expect(initialNotice?.getAttribute('data-openbitfun-component')).toBe('alert');
     expect(container.textContent).not.toContain('applications.advanced.title');
     const retry = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'recoveryActions.retry',
@@ -1727,6 +1733,34 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('errors.refreshFailed');
     expect(container.textContent).toContain('OpenCode project commands');
     expect(container.textContent).not.toContain('refresh failed');
+    const notice = container.querySelector('[data-openbitfun-product-part="notice"]');
+    expect(notice?.getAttribute('role')).toBe('status');
+    expect(notice?.getAttribute('aria-live')).toBe('polite');
+    expect(notice?.querySelector('[data-openbitfun-part="icon"]')).toBeNull();
+
+    const legacy: AppearancePackage = {
+      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      id: 'test.external-notice', name: 'External notice', version: '1.0.0', mode: 'dark',
+      components: { 'external-sources-config': { parts: {
+        notice: { base: { opacity: { kind: 'number', value: 0.8 } } },
+      } } },
+    };
+    const serialized = JSON.stringify(legacy);
+    const restored = JSON.parse(serialized) as AppearancePackage;
+    const appearance = new AppearanceCompiler(new AppearanceRegistry()
+      .registerComponent(externalSourcesConfigAppearanceDescriptor)).compile(restored, 1);
+    expect(JSON.stringify(restored)).toBe(serialized);
+    const selector = appearance.cssText.match(/:root[^{}]+(?=\{)/g)
+      ?.find(candidate => candidate.includes('[data-openbitfun-product-part="notice"]'))?.trim();
+    expect(selector).toBeDefined();
+    document.documentElement.setAttribute('data-openbitfun-appearance', appearance.id);
+    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(appearance.revision));
+    try {
+      expect(notice?.matches(selector!)).toBe(true);
+    } finally {
+      document.documentElement.removeAttribute('data-openbitfun-appearance');
+      document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+    }
   });
 
   it('describes OpenBitFun preference-storage diagnostics without blaming source files', async () => {
@@ -2936,6 +2970,8 @@ describe('ExternalSourcesConfig', () => {
       'details[data-external-attention="true"]',
     ) as HTMLDetailsElement;
     expect(firstDiagnostic.open).toBe(true);
+    expect(firstDiagnostic.getAttribute('data-openbitfun-component')).toBe('disclosure');
+    expect(firstDiagnostic.getAttribute('data-presentation')).toBe('native');
     expect(document.activeElement).toBe(firstDiagnostic.querySelector('summary'));
     expect(scrollIntoView).toHaveBeenCalled();
     expect(container.textContent).toContain('diagnostics.category.sourceIssue');

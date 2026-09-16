@@ -20,6 +20,10 @@ import {
 } from './askUserQuestionDraftStore';
 
 const apiMocks = vi.hoisted(() => ({
+  getSessionInteractionMailbox: vi.fn(async (sessionId: string) => ({sessionId, userQuestions:{revision:0,questions:[]}, permissions:{revision:0,requests:[]}})),
+  subscribeRelaySession: vi.fn(),
+  relayRecord: null as ((value: any) => void) | null,
+  relayReady: null as ((value: any) => void) | null,
   listSessions: vi.fn(),
   listSessionsPage: vi.fn(),
   loadSessionTurns: vi.fn(),
@@ -83,6 +87,7 @@ vi.mock('@/infrastructure/api/service-api/SessionAPI', () => ({
 
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
   agentAPI: {
+    getSessionInteractionMailbox: apiMocks.getSessionInteractionMailbox,
     cancelSession: apiMocks.cancelSession,
     deleteSession: apiMocks.deleteSession,
     restoreSession: apiMocks.restoreSession,
@@ -105,6 +110,12 @@ vi.mock('@/features/dispatch/dispatchApi', () => ({
 
 vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', () => ({
   remoteConnectAPI: {
+    onSessionInteractionChanged: () => () => {},
+  onSessionRecord: (listener: (value: any) => void) => { apiMocks.relayRecord = listener; return () => { apiMocks.relayRecord = null; }; },
+    onSessionReady: (listener: (value: any) => void) => { apiMocks.relayReady = listener; return () => { apiMocks.relayReady = null; }; },
+    onSessionSyncError: vi.fn(() => () => {}),
+    subscribeSession: apiMocks.subscribeRelaySession,
+    unsubscribeSession: vi.fn(async () => {}),
   },
 }));
 
@@ -7103,23 +7114,15 @@ describe('FlowChatStore device surfaces', () => {
     resetStore();
   });
 
-  // The capability record used to collapse every non-SSH host onto `'local'`,
-  // so one peer that rejects the command downgraded this machine's own history
-  // restore for the rest of the session.
-  it('keeps an unsupported restore command on the device that rejected it', async () => {
+  it('keeps a failed peer log isolated and never falls back to transcript RPC', async () => {
     activateSurface(PEER_SURFACE_ID);
     seedSession('peer-1');
-    apiMocks.restoreSessionView.mockRejectedValueOnce(
-      new Error('unknown command restore_session_view'),
-    );
-    apiMocks.restoreSessionWithTurns.mockResolvedValueOnce({
-      session: restoredSession('peer-1'),
-      turns: [restoredTurn('peer-1')],
-    });
-
-    await flowChatStore.loadSessionHistory('peer-1', '/repo/OpenBitFun');
-    expect(apiMocks.restoreSessionView).toHaveBeenCalledTimes(1);
-    expect(apiMocks.restoreSessionWithTurns).toHaveBeenCalledTimes(1);
+    apiMocks.subscribeRelaySession.mockRejectedValueOnce(new Error('Relay unavailable'));
+    await expect(flowChatStore.loadSessionHistory('peer-1', '/repo/OpenBitFun'))
+      .rejects.toThrow('Relay unavailable');
+    expect(apiMocks.restoreSessionView).not.toHaveBeenCalled();
+    expect(apiMocks.restoreSessionWithTurns).not.toHaveBeenCalled();
+    expect(flowChatStore.getState().sessions.get('peer-1')?.historyState).toBe('failed');
 
     activateSurface(LOCAL_SURFACE_ID);
     seedSession('local-1');
@@ -7128,14 +7131,73 @@ describe('FlowChatStore device surfaces', () => {
       turns: [restoredTurn('local-1')],
       contextRestoreState: 'ready',
     });
-
     await flowChatStore.loadSessionHistory('local-1', '/repo/OpenBitFun');
+    expect(apiMocks.restoreSessionView).toHaveBeenCalledOnce();
+    expect(apiMocks.restoreSessionWithTurns).not.toHaveBeenCalled();
+    expect(flowChatStore.getState().sessions.get('local-1')?.historyState).toBe('ready');
+  });
 
-    expect(apiMocks.restoreSessionView).toHaveBeenCalledTimes(2);
-    expect(apiMocks.restoreSessionWithTurns).toHaveBeenCalledTimes(1);
-    expect(flowChatStore.getState().sessions.get('local-1')).toMatchObject({
-      historyState: 'ready',
+  it('builds visible turn navigation from canonical records without treating storage gaps as ordinals', async () => {
+    activateSurface(PEER_SURFACE_ID);
+    seedSession('peer-log');
+    stateMachineManagerMock.getOrCreate.mockReturnValue({ acceptRuntimeStatus: vi.fn() });
+    apiMocks.subscribeRelaySession.mockImplementationOnce(async () => {
+      for (const index of [2, 11]) {
+        const { modelRounds: _rounds, ...turn } = createPersistedTurn(index, 'peer-log');
+        apiMocks.relayRecord?.({ sessionId: 'peer-log', id: `turn/${turn.turnId}`, revision: index + 1, turn });
+      }
+      apiMocks.relayReady?.({ sessionId: 'peer-log', hasMore: false, oldestSeq: 1, cursor: 2 });
+      return 'peer-log-subscription';
     });
+    await flowChatStore.loadSessionHistory('peer-log', '/runtime');
+    const session = flowChatStore.getState().sessions.get('peer-log');
+    expect(session?.turnCatalog?.entries.map(entry => [entry.ordinal, entry.storageTurnIndex]))
+      .toEqual([[0, 2], [1, 11]]);
+    const selected = await flowChatStore.loadSessionTurnWindow('peer-log', 1);
+    expect(selected.status).toBe('ready');
+    expect(selected.targetTurnId).toBe('turn-11');
+    expect(apiMocks.loadSessionTurnWindow).not.toHaveBeenCalled();
+    expect(apiMocks.restoreSessionView).not.toHaveBeenCalled();
+    expect(apiMocks.restoreSessionWithTurns).not.toHaveBeenCalled();
+  });
+
+  it('retains mailbox questions across canonical updates and clears them when the owning turn completes', async () => {
+    activateSurface(PEER_SURFACE_ID);
+    seedSession('peer-mailbox');
+    stateMachineManagerMock.getOrCreate.mockReturnValue({ acceptRuntimeStatus: vi.fn() });
+    const {modelRounds: _rounds, ...stored} = createPersistedTurn(0, 'peer-mailbox');
+    const turn = {...stored, status:'inprogress'};
+    apiMocks.getSessionInteractionMailbox.mockResolvedValueOnce({sessionId:'peer-mailbox', permissions:{revision:0,requests:[]}, userQuestions:{revision:1,questions:[{toolId:'question',sessionId:'peer-mailbox',dialogTurnId:'turn-0',modelRoundId:'round-q',questions:{questions:[{question:'Proceed?'}]},registeredAtMs:1}]}} as any);
+    apiMocks.subscribeRelaySession.mockImplementationOnce(async () => {
+      apiMocks.relayRecord?.({sessionId:'peer-mailbox',id:'turn/turn-0',revision:1,turn});
+      apiMocks.relayReady?.({sessionId:'peer-mailbox',hasMore:false,oldestSeq:1,cursor:1});
+      return 'mailbox-subscription';
+    });
+    await flowChatStore.loadRelaySessionHistory('peer-mailbox');
+    const tools = () => flowChatStore.getState().sessions.get('peer-mailbox')!.dialogTurns.flatMap(row=>row.modelRounds.flatMap(round=>round.items));
+    await vi.waitFor(()=>expect(tools().find(item=>item.id==='question')).toMatchObject({status:'waiting'}));
+    apiMocks.relayRecord?.({sessionId:'peer-mailbox',id:'turn/turn-0',revision:2,turn});
+    expect(tools().find(item=>item.id==='question')).toMatchObject({status:'waiting'});
+    apiMocks.relayRecord?.({sessionId:'peer-mailbox',id:'turn/turn-0',revision:3,turn:{...turn,status:'completed'}});
+    expect(tools().find(item=>item.id==='question')).toBeUndefined();
+  });
+
+  it('does not revive a question when a completed record races a mailbox response', async () => {
+    activateSurface(PEER_SURFACE_ID); seedSession('peer-mailbox-race');
+    stateMachineManagerMock.getOrCreate.mockReturnValue({ acceptRuntimeStatus: vi.fn() });
+    let resolveMailbox!: (value: any) => void;
+    apiMocks.getSessionInteractionMailbox.mockImplementationOnce(() => new Promise(resolve => {resolveMailbox=resolve;}));
+    const {modelRounds:_rounds,...stored}=createPersistedTurn(0,'peer-mailbox-race');
+    apiMocks.subscribeRelaySession.mockImplementationOnce(async()=>{
+      apiMocks.relayRecord?.({sessionId:'peer-mailbox-race',id:'turn/turn-0',revision:1,turn:{...stored,status:'inprogress'}});
+      apiMocks.relayReady?.({sessionId:'peer-mailbox-race',hasMore:false,oldestSeq:1,cursor:1}); return 'race-subscription';
+    });
+    await flowChatStore.loadRelaySessionHistory('peer-mailbox-race');
+    apiMocks.relayRecord?.({sessionId:'peer-mailbox-race',id:'turn/turn-0',revision:2,turn:stored});
+    resolveMailbox({sessionId:'peer-mailbox-race',permissions:{revision:0,requests:[]},userQuestions:{revision:1,questions:[{toolId:'question',sessionId:'peer-mailbox-race',dialogTurnId:'turn-0',questions:{questions:[]},registeredAtMs:1}]}});
+    await Promise.resolve(); await Promise.resolve();
+    expect(flowChatStore.getState().sessions.get('peer-mailbox-race')!.dialogTurns[0].status).toBe('completed');
+    expect(flowChatStore.getState().sessions.get('peer-mailbox-race')!.dialogTurns[0].modelRounds).toHaveLength(0);
   });
 
   it('keeps each device sessions across a switch away and back', async () => {

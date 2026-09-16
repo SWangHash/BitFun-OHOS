@@ -11,49 +11,49 @@ title_en: "Built-in browser"
 
 > 功能 / Feature
 
-在 OpenBitFun 内打开网页和本地服务；Agent 可直接读取页面、选择元素并点击、填写、滚动或截图。
+在 OpenBitFun 内打开网页和本地服务；智能体可直接读取页面、选择元素并点击、填写、滚动或截图。
 
 Open webpages and local services inside OpenBitFun, where an agent can inspect the page and select, click, fill, scroll, or capture elements directly.
 
 ## 完整功能清单 / Everything included
 
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 输入完整网址、本地域名或开发服务端口并在 OpenBitFun 内打开
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 输入完整网址、本地域名或开发服务端口并在 OpenBitFun 内打开
   - Open full URLs, local hostnames, or development-service ports inside OpenBitFun
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `WebSearch` / `WebFetch` · 让 Agent 搜索网页并按需读取指定页面正文
+- **由专用智能体工具控制 / Delegated Agent tool** · `WebSearch` / `WebFetch` · 让智能体搜索网页并按需读取指定页面正文
   - Let an agent search the web and fetch selected page content on demand
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 使用后退、前进和地址栏浏览页面历史
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 使用后退、前进和地址栏浏览页面历史
   - Navigate page history with Back, Forward, and the address bar
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 刷新页面，并同步当前 URL、加载状态与错误提示
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 刷新页面，并同步当前 URL、加载状态与错误提示
   - Reload pages and synchronize the current URL, loading state, and errors
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 既可作为独立浏览器场景，也可在会话旁的辅助面板中打开
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 既可作为独立浏览器场景，也可在会话旁的辅助面板中打开
   - Use the browser as a standalone scene or an auxiliary panel beside a session
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 启动元素选择器，悬停时高亮页面元素并显示标签、ID 和 Class
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 启动元素选择器，悬停时高亮页面元素并显示标签、ID 和 Class
   - Start the element picker to highlight hovered elements and show tag, ID, and class details
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 点击元素后捕获 CSS 路径、属性、文本和 HTML，并加入当前会话上下文
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 点击元素后捕获 CSS 路径、属性、文本和 HTML，并加入当前会话上下文
   - Click an element to capture its CSS path, attributes, text, and HTML into the current session context
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 再次点击选择按钮或按 Esc 取消元素选择并清理高亮
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 再次点击选择按钮或按 Esc 取消元素选择并清理高亮
   - Click the picker again or press Escape to cancel selection and remove overlays
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` / `Playbook` · 让 Agent 对内置网页执行快照、读取、点击、悬停、填写、按键、滚动、等待、脚本求值和截图
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` / `Playbook` · 让智能体对内置网页执行快照、读取、点击、悬停、填写、按键、滚动、等待、脚本求值和截图
   - Let an agent snapshot, read, click, hover, fill, press keys, scroll, wait, evaluate scripts, and capture the built-in page
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 内置 WebView 与外部 CDP 浏览器共用同一套 BrowserActions 参数、元素引用、结果与错误契约
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 内置 WebView 与外部 CDP 浏览器共用同一套 BrowserActions 参数、元素引用、结果与错误契约
   - Use one BrowserActions parameter, element-ref, result, and error contract across the built-in WebView and external CDP browsers
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 通过 target 选择内置或外部浏览器，并用 session_id、URL 或标题精确定位页面
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 通过 target 选择内置或外部浏览器，并用 session_id、URL 或标题精确定位页面
   - Choose the built-in or external browser with target and locate a page by session_id, URL, or title
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ControlHub` · 桌面端使用原生 WebView，Web 端回退到受限 iframe，并在当前页打开新窗口链接
+- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 桌面端使用原生 WebView，Web 端回退到受限 iframe，并在当前页打开新窗口链接
   - Use a native WebView on desktop, a sandboxed iframe on web, and open new-window links in place
 
 ## 怎么用 / How to use it
 
 1. 打开浏览器并输入网址或本地端口
    Open Browser and enter a URL or local port
-2. 直接告诉 Agent 要在页面上完成什么
+2. 直接告诉智能体要在页面上完成什么
    Tell the agent what to accomplish on the page
-3. Agent 先读取页面，再用元素引用执行操作
+3. 智能体先读取页面，再用元素引用执行操作
    The agent inspects the page, then acts through element refs
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -67,7 +67,7 @@ Open webpages and local services inside OpenBitFun, where an agent can inspect t
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “在内置浏览器打开这个网址，然后找到登录按钮”
   - “Open this URL in the built-in browser and find the sign-in button”
@@ -76,6 +76,6 @@ Open webpages and local services inside OpenBitFun, where an agent can inspect t
 - “用内置浏览器点开搜索结果并总结页面”
   - “Use the built-in browser to open the search result and summarize the page”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

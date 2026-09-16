@@ -557,7 +557,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn catalog_requires_import_preserves_claude_semantics_and_revokes_on_undo() {
+    async fn catalog_uses_discovered_claude_skill_and_restores_it_after_import_undo() {
         let temp = tempfile::tempdir().expect("temporary workspace");
         let skill_dir = temp
             .path()
@@ -572,11 +572,23 @@ mod tests {
         .expect("skill markdown");
         let context = local_tool_context(temp.path().to_path_buf());
         let source_key = "project::claude::code-review-claude";
-        assert!(review_capability_catalog(&context)
+        let source_descriptor = review_capability_catalog(&context)
             .await
-            .iter()
-            .all(|descriptor| !descriptor.key().contains("code-review-claude")));
-        assert!(load_review_skill(&context, source_key).await.is_err());
+            .into_iter()
+            .find(|descriptor| descriptor.key() == format!("skill:{source_key}"))
+            .expect("discovered Claude review skill descriptor");
+        let source_guidance = resolve_review_capability(
+            &context,
+            source_descriptor.key(),
+            source_descriptor.fingerprint(),
+        )
+        .await
+        .expect("resolved discovered Claude guidance");
+        assert_eq!(
+            source_guidance.guidance,
+            "Review $target for Claude compatibility."
+        );
+        assert!(!temp.path().join(".openbitfun/skills").exists());
         let imported = import_review_skill(temp.path(), source_key).await;
 
         let descriptor = review_capability_catalog(&context)
@@ -610,11 +622,36 @@ mod tests {
                 .await
                 .is_err()
         );
+        let restored_descriptor = review_capability_catalog(&context)
+            .await
+            .into_iter()
+            .find(|candidate| candidate.key() == source_descriptor.key())
+            .expect("source review skill restored after undo");
+        assert_eq!(restored_descriptor, source_descriptor);
+        assert_eq!(
+            resolve_review_capability(
+                &context,
+                source_descriptor.key(),
+                source_descriptor.fingerprint(),
+            )
+            .await
+            .expect("source guidance remains available"),
+            source_guidance
+        );
         assert!(skill_dir.join("SKILL.md").is_file());
     }
 
     #[tokio::test]
-    async fn resolve_rejects_skill_when_implicit_policy_changed_after_catalog() {
+    async fn resolve_rejects_discovered_skill_when_implicit_policy_changed_after_catalog() {
+        assert_implicit_policy_change_revokes_review_skill(false).await;
+    }
+
+    #[tokio::test]
+    async fn resolve_rejects_imported_skill_when_implicit_policy_changed_after_catalog() {
+        assert_implicit_policy_change_revokes_review_skill(true).await;
+    }
+
+    async fn assert_implicit_policy_change_revokes_review_skill(import_copy: bool) {
         let temp = tempfile::tempdir().expect("temporary workspace");
         let skill_dir = temp
             .path()
@@ -633,8 +670,13 @@ mod tests {
         )
         .expect("initial policy");
         let context = local_tool_context(temp.path().to_path_buf());
-        let imported =
-            import_review_skill(temp.path(), "project::codex::code-review-policy-change").await;
+        let effective_skill_dir = if import_copy {
+            let imported =
+                import_review_skill(temp.path(), "project::codex::code-review-policy-change").await;
+            PathBuf::from(imported.path)
+        } else {
+            skill_dir
+        };
         let descriptor = review_capability_catalog(&context)
             .await
             .into_iter()
@@ -647,9 +689,7 @@ mod tests {
         );
 
         std::fs::write(
-            PathBuf::from(&imported.path)
-                .join("agents")
-                .join("openai.yaml"),
+            effective_skill_dir.join("agents").join("openai.yaml"),
             "policy:\n  allow_implicit_invocation: false\n",
         )
         .expect("updated policy");

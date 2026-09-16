@@ -247,7 +247,7 @@ export struct ToolStatusList {
 
       if (this.isPendingConfirmation(tool)) {
         ToolConfirmationPanel({
-          toolId: tool.id || '',
+          toolId: tool.permission_request_id ? `permission:${tool.permission_request_id}` : tool.id || '',
           defaultInputText: this.defaultToolInputText(tool),
           hasEditableInput: this.hasEditableToolInput(tool),
           onApproveTool: this.onApproveTool,

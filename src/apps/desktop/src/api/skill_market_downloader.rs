@@ -590,10 +590,45 @@ mod tests {
     #[test]
     fn extract_subdir_from_tarball_rejects_traversal_entry() {
         // A malicious archive that places a `..` segment under the subdir.
-        let tarball = build_tarball(&[
-            ("repo-abc123/frontend-design/SKILL.md", "---\nname: x\n---\nbody"),
-            ("repo-abc123/frontend-design/../escape.md", "pwn"),
-        ]);
+        // tar::Builder refuses `..` paths, so the fixture appends that entry
+        // with a hand-written ustar header inside a single gzip member.
+        let mut tar_bytes: Vec<u8> = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut tar_bytes);
+            let mut header = tar::Header::new_gnu();
+            header.set_size("---\nname: x\n---\nbody".len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(
+                    &mut header,
+                    "repo-abc123/frontend-design/SKILL.md",
+                    std::io::Cursor::new("---\nname: x\n---\nbody".as_bytes()),
+                )
+                .expect("append file");
+            let path = "repo-abc123/frontend-design/../escape.md";
+            let contents = "pwn";
+            let mut raw = [0u8; 512];
+            raw[..path.len()].copy_from_slice(path.as_bytes());
+            let size_field = format!("{:011o}\0", contents.len());
+            raw[124..124 + 12].copy_from_slice(size_field.as_bytes());
+            for byte in raw[148..156].iter_mut() {
+                *byte = b' ';
+            }
+            let sum: u32 = raw.iter().map(|b| *b as u32).sum();
+            let checksum = format!("{:06o}\0 ", sum);
+            raw[148..156].copy_from_slice(checksum.as_bytes());
+            builder
+                .append(
+                    &mut tar::Header::from_byte_slice(&raw),
+                    std::io::Cursor::new(contents.as_bytes()),
+                )
+                .expect("append raw traversal entry");
+            builder.finish().expect("finish tar");
+        }
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::none());
+        std::io::Write::write_all(&mut gz, &tar_bytes).expect("write tar");
+        let tarball = gz.finish().expect("finish gzip");
         let tmp = tempfile::tempdir().expect("tempdir");
         let staging = tmp.path().join("staging");
         std::fs::create_dir_all(&staging).unwrap();

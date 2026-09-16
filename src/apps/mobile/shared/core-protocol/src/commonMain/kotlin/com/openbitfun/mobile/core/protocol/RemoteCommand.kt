@@ -56,6 +56,8 @@ public object RemotePermissionModeSerializer : KSerializer<RemotePermissionMode>
 @Serializable
 public data class RemoteCommand(
     @SerialName("cmd") val cmd: String,
+    @SerialName("command") val command: String? = null,
+    @SerialName("args") val args: JsonElement? = null,
     @SerialName("_request_id") val requestId: String? = null,
     @SerialName("session_id") val sessionId: String? = null,
     @SerialName("content") val content: String? = null,
@@ -64,11 +66,13 @@ public data class RemoteCommand(
     @SerialName("plan_name") val planName: String? = null,
     @SerialName("workspace_path") val workspacePath: String? = null,
     @SerialName("path") val path: String? = null,
+    @SerialName("remote_connection_id") val remoteConnectionId: String? = null,
+    @SerialName("remote_ssh_host") val remoteSshHost: String? = null,
     @SerialName("agent_type") val agentType: String? = null,
     @SerialName("session_name") val sessionName: String? = null,
     @SerialName("title") val title: String? = null,
     @SerialName("limit") val limit: Int? = null,
-    @SerialName("offset") val offset: Int? = null,
+    @SerialName("offset") val offset: Long? = null,
     @SerialName("query") val query: String? = null,
     @SerialName("before_message_id") val beforeMessageId: String? = null,
     @SerialName("since_version") val sinceVersion: Int? = null,

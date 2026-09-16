@@ -1,4 +1,5 @@
 import {
+  Brain as LucideBrain,
   Check as LucideCheck,
   ChevronDown as LucideChevronDown,
   ChevronRight as LucideChevronRight,
@@ -19,7 +20,7 @@ import ChatAskQuestionCard from './ChatAskQuestionCard';
 import { MarkdownContent } from './ChatMarkdown';
 import ChatToolApprovalActions, { isToolAwaitingApproval } from './ChatToolApprovalActions';
 
-type ToolApprovalHandler = (toolId: string) => Promise<void>;
+type ToolApprovalHandler = (toolId: string, updatedInput?: Record<string, unknown>) => Promise<void>;
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -90,7 +91,7 @@ export const ThinkingBlock: React.FC<{
     : t('chat.thoughtCharacters', { count: charCount });
 
   return (
-    <MobileDisclosure className={`chat-thinking ${streaming ? 'chat-thinking--streaming' : ''}`} onToggle={handleToggle} open={open} title={label}>
+    <MobileDisclosure className={`chat-thinking ${streaming ? 'chat-thinking--streaming' : ''}`} onToggle={handleToggle} open={open} title={label} leading={<LucideBrain size={16} aria-hidden="true" />}>
       <div className={`chat-thinking__expand-container ${open ? 'is-expanded' : ''}`}>
         <div className="chat-thinking__expand-inner">
           {thinking && (

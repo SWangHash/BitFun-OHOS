@@ -1,4 +1,4 @@
-import { AssistantEntry, RecentWorkspaceEntry, RemoteSession, WorkspaceInfo } from '../model/RemoteModels';
+import { SavedRuntimeConnection, AssistantEntry, RecentWorkspaceEntry, RemoteSession, WorkspaceInfo } from '../model/RemoteModels';
 import {
   CONCURRENT_WORKSPACE_LISTINGS,
   mapInConcurrentBatches,
@@ -23,8 +23,10 @@ export class RemoteWorkspaceCoordinator {
     return await this.repository.listAssistants();
   }
 
-  async switchWorkspace(path: string): Promise<WorkspaceInfo> {
-    return await this.repository.setWorkspace(path);
+  async savedConnections(): Promise<SavedRuntimeConnection[]> { return await this.repository.savedConnections(); }
+
+  async switchWorkspace(path: string, connectionId?: string): Promise<WorkspaceInfo> {
+    return await this.repository.setWorkspace(path, connectionId);
   }
 
   async switchAssistant(path: string): Promise<WorkspaceInfo> {

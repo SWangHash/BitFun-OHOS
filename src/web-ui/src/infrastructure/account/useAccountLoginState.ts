@@ -10,9 +10,9 @@ export interface AccountLoginState {
 
 export function useAccountLoginState(): AccountLoginState {
   const identity = useAccountIdentity();
-  const githubId = identity.me?.user.githubId;
+  const githubId = (identity.me?.user.accountId ?? identity.me?.user.githubId);
   const loggedIn = identity.status === 'signed-in' && githubId !== undefined;
-  const [device, setDevice] = useState<{ githubId: number; name: string | null } | null>(null);
+  const [device, setDevice] = useState<{ githubId: string | number; name: string | null } | null>(null);
   useEffect(() => {
     if (!loggedIn || githubId === undefined) return;
     let current = true;

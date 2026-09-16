@@ -124,7 +124,7 @@ const MiniAppSubmissionsView: React.FC<MiniAppSubmissionsViewProps> = ({ tabs })
     return stop;
     // Identity changes reload this account-owned workspace from the shared vault.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authResolved, me?.user.githubId]);
+  }, [authResolved, me?.user.accountId, me?.user.githubId]);
 
   function selectApp(app: MiniAppMeta) {
     setSelectedAppId(app.id);

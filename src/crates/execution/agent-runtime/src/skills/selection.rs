@@ -166,7 +166,7 @@ pub fn is_skill_globally_enabled(
     skill: &SkillInfo,
     globally_disabled_user_skills: &HashSet<String>,
 ) -> bool {
-    skill.level != SkillLocation::User || !globally_disabled_user_skills.contains(&skill.key)
+    !globally_disabled_user_skills.contains(&skill.key)
 }
 
 pub fn filter_candidates_for_mode(

@@ -1,7 +1,7 @@
 {
   "permission": {
     "title": "需要授權",
-    "subagentOwner": "{{subagent}} 子 Agent",
+    "subagentOwner": "{{subagent}} 子智能體",
     "responseFailed": "權限回覆未能送達，請重試。",
     "allowOnce": "允許一次",
     "allowAlways": "始終允許此範圍",
@@ -625,6 +625,9 @@
     "image": "圖片",
     "url": "URL",
     "dropToAdd": "放開即可新增",
+    "dropFilesHint": "將檔案和圖片新增至目前對話",
+    "dropFileCount": "{{fileCount}} 個檔案",
+    "dropPreviewUnavailable": "檔案預覽暫時無法使用，仍可放開新增檔案。",
     "dragHint": "拖放檔案到此處新增上下文"
   },
   "agent": {
@@ -728,21 +731,21 @@
       "fixedTooltip": "本工作階段使用 {{name}}，開始後已固定。",
       "compatibilityShort": "相容模式",
       "comingSoon": "開發中",
-      "comingSoonNotice": "「{{name}}」Harness 執行框架正在開發中。",
-      "legacySessionNotice": "該舊會話繼續使用原 Agent 執行模式；請新增會話使用 Agent Harness 執行框架。",
-      "sessionStartedNotice": "Harness 與主 Agent 在首輪開始前確定；如需切換，請新增會話。",
+      "comingSoonNotice": "「{{name}}」執行框架正在開發中。",
+      "legacySessionNotice": "該舊會話繼續使用原智能體執行模式；請新增會話使用智能體執行框架。",
+      "sessionStartedNotice": "執行框架與主智能體在首輪開始前確定；如需切換，請新增會話。",
       "newSessionConfirmation": {
         "title": "使用「{{name}}」建立新工作階段？",
         "message": "目前工作階段不會變更；新工作階段將使用「{{name}}」。",
         "confirm": "建立新工作階段"
       },
-      "unsupportedProfile": "不支援的 Harness（{{id}}）",
-      "unsupportedProfileNotice": "該工作階段使用目前版本無法執行的 {{id}}。請選擇受支援的 Harness。",
-      "profileChangeBusy": "請等待目前回合結束後再切換 Harness。",
-      "profileChangeOutcomeUnknown": "暫時無法確認 Harness 是否已切換，請重新整理工作階段後再重試。",
-      "profileUnavailable": "目前 OpenBitFun Host 不支援該 Harness。",
-      "profileChangeFailed": "切換 Harness 失敗，請重試。",
-      "rememberFailed": "Harness 已切換，但無法記住本次選擇。之後的新工作階段可能繼續使用原預設值。",
+      "unsupportedProfile": "不支援的執行框架（{{id}}）",
+      "unsupportedProfileNotice": "該工作階段使用目前版本無法執行的 {{id}}。請選擇受支援的執行框架。",
+      "profileChangeBusy": "請等待目前回合結束後再切換執行框架。",
+      "profileChangeOutcomeUnknown": "暫時無法確認執行框架是否已切換，請重新整理工作階段後再重試。",
+      "profileUnavailable": "目前 OpenBitFun Host 不支援該執行框架。",
+      "profileChangeFailed": "切換執行框架失敗，請重試。",
+      "rememberFailed": "執行框架已切換，但無法記住本次選擇。之後的新工作階段可能繼續使用原預設值。",
       "otherAgentsTitle": "智能體",
       "otherAgentsEmpty": "目前沒有可用的主智能體",
       "unavailable": "無法使用",
@@ -764,14 +767,14 @@
           "name": "$t(shared:agents.Creative)"
         }
       },
-      "activateStandard": "切換到標準 Harness"
+      "activateStandard": "切換到標準執行框架"
     },
     "agents": {
       "available": "可用",
       "needsChanges": "需要變更",
       "comingSoon": "開發中",
-      "comingSoonNotice": "直接呼叫「{{name}}」Agent 的能力正在開發中。",
-      "reviewUnavailable": "Review Agent 需要一個包含可審查變更的活動會話。",
+      "comingSoonNotice": "直接呼叫「{{name}}」智能體的能力正在開發中。",
+      "reviewUnavailable": "審查智能體需要一個包含可審查變更的活動會話。",
       "review": {
         "name": "Review"
       },
@@ -939,7 +942,7 @@
       "Claw": "個人助理模式：面向個人工作區和日常事務，使用獨立的助理上下文",
       "Cowork": "協作模式：先澄清再推進，輕量跟蹤進度，隨時驗證結果",
       "ComputerUse": "獨立電腦操作智能體：感知本機環境，操作應用、瀏覽器與系統介面",
-      "DeepResearch": "深度研究：並行派發多個子 Agent 同時調研不同章節，快速生成高質量研究報告",
+      "DeepResearch": "深度研究：並行派發多個子智能體同時調研不同章節，快速生成高質量研究報告",
       "Standard": "AI 主導執行，自動規劃和完成編碼任務，擁有完整的工具訪問能力",
       "Ultimate": "群體規劃模式：適合複雜任務，可能並行發起較多模型請求，從而增加 API 成本和供應商限流壓力"
     },
@@ -1386,28 +1389,28 @@
     "sessionOverview": "會話概覽",
     "sessionOverviewActive": "會話概覽，有活動正在進行",
     "sessionOverviewAgentsUnavailable": "目前沒有可用會話",
-    "sessionOverviewAgentsActive": "有 Agent 正在執行",
-    "sessionOverviewAgentsIdle": "查看 Agent 會話樹",
+    "sessionOverviewAgentsActive": "有智能體正在執行",
+    "sessionOverviewAgentsIdle": "查看智能體會話樹",
     "sessionOverviewBackgroundRunning": "{{count}} 個正在執行",
     "sessionOverviewBackgroundFinished": "{{count}} 個最近已結束",
     "sessionOverviewPullRequests": "開啟工作區拉取請求",
-    "agentTree": "Agents",
+    "agentTree": "智能體",
     "agentTreeDelete": "刪除會話",
     "agentTreeDeleteConfirm": "確定刪除「{{name}}」及其所有後代會話嗎？此操作無法復原。",
-    "agentTreeDeleteFailed": "刪除 Agent 會話分支失敗。",
-    "agentTreeDeleteUnsupported": "暫不支援單獨刪除離線派發任務中的 Agent。",
-    "agentTreeActiveOnly": "僅顯示活躍 Agent",
-    "agentTreeNoActive": "目前沒有活躍 Agent",
-    "agentTreeLoading": "正在載入 Agent 會話樹...",
-    "agentTreeEmpty": "目前會話沒有子 Agent",
-    "agentTreeLoadFailed": "無法載入 Agent 會話樹。",
+    "agentTreeDeleteFailed": "刪除智能體會話分支失敗。",
+    "agentTreeDeleteUnsupported": "暫不支援單獨刪除離線派發任務中的智能體。",
+    "agentTreeActiveOnly": "僅顯示活躍智能體",
+    "agentTreeNoActive": "目前沒有活躍智能體",
+    "agentTreeLoading": "正在載入智能體會話樹...",
+    "agentTreeEmpty": "目前會話沒有子智能體",
+    "agentTreeLoadFailed": "無法載入智能體會話樹。",
     "agentTreeRetry": "重試",
     "agentTreeExpand": "展開分支",
     "agentTreeCollapse": "收起分支",
-    "agentTreeActions": "Agent 會話操作",
+    "agentTreeActions": "智能體會話操作",
     "agentTreeCancel": "取消會話",
     "agentTreeCancelling": "正在取消會話",
-    "agentTreeCancelFailed": "取消 Agent 會話失敗。",
+    "agentTreeCancelFailed": "取消智能體會話失敗。",
     "agentTreeStatus": {
       "running": "$t(shared:statuses.running)",
       "finishing": "收尾中",
@@ -2007,13 +2010,13 @@
       "schemaLabel": "輸入 Schema"
     },
     "agentWait": {
-      "title": "等待子 Agent 完成",
+      "title": "等待子智能體完成",
       "completed": "已收到 {{count}} 個結果",
       "steered": "已提前結束等待",
       "timedOut": "等待期限已到；仍有 {{count}} 個任務在執行",
       "failed": "執行失敗",
       "failedWithError": "執行失敗：{{error}}",
-      "steeringHint": "可以傳送引導訊息提前結束等待並讓 Agent 處理新指示"
+      "steeringHint": "可以傳送引導訊息提前結束等待並讓智能體處理新指示"
     },
     "todoWrite": {
       "tasksCount": "{{count}} 項任務",
@@ -2176,7 +2179,7 @@
       "actionFailed": "會話操作失敗",
       "sessionId": "會話ID",
       "sessionName": "會話名稱",
-      "agentType": "Agent 類型",
+      "agentType": "智能體類型",
       "cancelStatus": "取消狀態",
       "cancelRequestedStatus": "已請求取消",
       "noActiveTurnStatus": "無活躍輪次",
@@ -2195,7 +2198,7 @@
       "messageAccepted": "消息已提交給 {{session}}",
       "sendFailed": "向 {{session}} 發送消息失敗",
       "targetSession": "目標會話",
-      "agentType": "Agent 類型",
+      "agentType": "智能體類型",
       "message": "消息內容"
     },
     "contextCompression": {
@@ -2772,7 +2775,7 @@
   },
   "turnCompletionNotice": {
     "reasonLabel": "結束原因",
-    "finalResponseProvided": "agent 已提供最終回覆。",
+    "finalResponseProvided": "智能體已提供最終回覆。",
     "repeatedToolFailures": {
       "title": "該輪因重複工具失敗而結束"
     },

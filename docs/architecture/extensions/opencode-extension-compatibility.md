@@ -7,7 +7,7 @@
 [`OC-E0` 至 `OC-E3`](../../plans/opencode-extension-compatibility-plan.md) 是历史实施阶段，当前跨生态发现、导入和使用范围以
 [当前支持声明与状态口径](external-ai-work-sources-design.md#当前支持声明与状态口径2026-09-13) 为准，
 package plugin 执行子集以 [Plugin Host 当前实现](plugin-runtime-design.md#7-当前实现) 为准。
-生态页“此页尚未接入发现”只描述该类别的目录入口；不表示独立 Plugin Host 未实现，也不由“支持发现”推断可执行。
+生态页“暂未支持”配合说明文案，只表示当前页面暂时无法查看该类别的内容；不表示独立 Plugin Host 未实现，也不由“可发现”推断可执行。
 
 | 主题 | 详细设计 |
 |---|---|

@@ -18,9 +18,14 @@ mod lan;
 mod page_upload;
 pub mod pairing;
 pub mod qr_generator;
+pub mod realtime_client;
+mod realtime_payload;
 pub mod relay_client;
 mod relay_http;
+pub mod session_log;
+pub mod session_records;
 pub mod session_store;
+pub mod session_subscriber;
 
 pub use chat_projection::{
     agent_input_attachment_from_remote_image_context, project_remote_chat_user,
@@ -59,9 +64,7 @@ pub use page_upload::{
 };
 pub use pairing::PairingState;
 pub use qr_generator::QrGenerator;
-pub use relay_client::{
-    ensure_rustls_crypto_provider, ConnectionState, RelayClient, RelayEvent, RelayMessage,
-};
+pub use relay_client::{ensure_rustls_crypto_provider, ConnectionState, RelayClient, RelayEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -857,15 +860,29 @@ where
         RemoteCommand::ReadFileChunk {
             path,
             session_id,
+            workspace_path,
+            remote_connection_id,
             offset,
             limit,
         } => {
             match host
-                .read_remote_file_chunk(path, session_id.as_deref(), *offset, *limit)
+                .read_remote_file_chunk(
+                    path,
+                    session_id.as_deref(),
+                    workspace_path.as_deref(),
+                    remote_connection_id.as_deref(),
+                    *offset,
+                    *limit,
+                )
                 .await
             {
                 Ok(Some(file)) => return remote_file_chunk_response(Ok(file)),
                 Err(error) => return remote_file_chunk_response(Err(error)),
+                Ok(None) if workspace_path.is_some() || remote_connection_id.is_some() => {
+                    return RemoteResponse::Error {
+                        message: "This host cannot resolve an explicit file workspace".into(),
+                    }
+                }
                 Ok(None) => {}
             }
             let workspace_root = host
@@ -876,10 +893,28 @@ where
                     .await,
             )
         }
-        RemoteCommand::GetFileInfo { path, session_id } => {
-            match host.remote_file_info(path, session_id.as_deref()).await {
+        RemoteCommand::GetFileInfo {
+            path,
+            session_id,
+            workspace_path,
+            remote_connection_id,
+        } => {
+            match host
+                .remote_file_info(
+                    path,
+                    session_id.as_deref(),
+                    workspace_path.as_deref(),
+                    remote_connection_id.as_deref(),
+                )
+                .await
+            {
                 Ok(Some(file)) => return remote_file_info_response(Ok(file)),
                 Err(error) => return remote_file_info_response(Err(error)),
+                Ok(None) if workspace_path.is_some() || remote_connection_id.is_some() => {
+                    return RemoteResponse::Error {
+                        message: "This host cannot resolve an explicit file workspace".into(),
+                    }
+                }
                 Ok(None) => {}
             }
             let workspace_root = host
@@ -1241,6 +1276,8 @@ where
 pub fn remote_session_created_response(session_id: impl Into<String>) -> RemoteResponse {
     RemoteResponse::SessionCreated {
         session_id: session_id.into(),
+        workspace_path: None,
+        remote_connection_id: None,
     }
 }
 
@@ -1392,17 +1429,20 @@ where
                     _ => "Remote Code Session",
                 });
 
-            let binding_workspace = if is_claw {
+            let explicit_workspace = workspace_path
+                .as_deref()
+                .map(str::trim)
+                .filter(|path| !path.is_empty() && *path != "/");
+            let use_default_assistant = is_claw && explicit_workspace.is_none();
+            let binding_workspace = if let Some(path) = explicit_workspace {
+                Some(path.to_owned())
+            } else if use_default_assistant {
                 match host.resolve_default_assistant_workspace_path().await {
                     Ok(path) => Some(path),
                     Err(message) => return RemoteResponse::Error { message },
                 }
             } else {
-                workspace_path
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|path| !path.is_empty() && *path != "/")
-                    .map(ToOwned::to_owned)
+                None
             };
 
             let Some(binding_workspace) = binding_workspace else {
@@ -1418,15 +1458,31 @@ where
             let request = build_remote_session_create_request(
                 session_name,
                 agent,
-                Some(binding_workspace),
+                Some(binding_workspace.clone()),
                 RemoteSessionWorkspaceIdentity::new(
-                    remote_connection_id.clone(),
-                    remote_ssh_host.clone(),
+                    if use_default_assistant {
+                        None
+                    } else {
+                        remote_connection_id.clone()
+                    },
+                    if use_default_assistant {
+                        None
+                    } else {
+                        remote_ssh_host.clone()
+                    },
                 ),
                 RemoteConnectSubmissionSource::Relay,
             );
             match host.create_session(request).await {
-                Ok(session_id) => remote_session_created_response(session_id),
+                Ok(session_id) => RemoteResponse::SessionCreated {
+                    session_id,
+                    workspace_path: Some(binding_workspace),
+                    remote_connection_id: if use_default_assistant {
+                        None
+                    } else {
+                        remote_connection_id.clone().filter(|id| !id.is_empty())
+                    },
+                },
                 Err(message) => RemoteResponse::Error { message },
             }
         }
@@ -1608,7 +1664,11 @@ where
 #[async_trait::async_trait]
 pub trait RemoteInteractionRuntimeHost: Send + Sync {
     async fn cancel_tool(&self, tool_id: &str, reason: String) -> Result<(), String>;
-    async fn confirm_tool(&self, tool_id: &str) -> Result<(), String>;
+    async fn confirm_tool(
+        &self,
+        tool_id: &str,
+        updated_input: Option<serde_json::Value>,
+    ) -> Result<(), String>;
     async fn reject_tool(&self, tool_id: &str, reason: String) -> Result<(), String>;
     async fn get_permission_mode(&self) -> Result<RemotePermissionMode, String>;
     async fn set_permission_mode(
@@ -1629,10 +1689,13 @@ where
     H: RemoteInteractionRuntimeHost + ?Sized,
 {
     match command {
-        RemoteCommand::ConfirmTool { tool_id } => remote_interaction_accepted_response(
+        RemoteCommand::ConfirmTool {
+            tool_id,
+            updated_input,
+        } => remote_interaction_accepted_response(
             "confirm_tool",
             tool_id.clone(),
-            host.confirm_tool(tool_id).await,
+            host.confirm_tool(tool_id, updated_input.clone()).await,
         ),
         RemoteCommand::RejectTool { tool_id, reason } => remote_interaction_accepted_response(
             "reject_tool",
@@ -2329,6 +2392,10 @@ pub struct RemoteControlClient {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub enum RemoteCommand {
+    /// Granted only over authenticated, pairwise-encrypted account routing.
+    GetSessionKey {
+        session_id: String,
+    },
     GetWorkspaceInfo,
     ListRecentWorkspaces,
     SetWorkspace {
@@ -2426,6 +2493,8 @@ pub enum RemoteCommand {
     },
     ConfirmTool {
         tool_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        updated_input: Option<serde_json::Value>,
     },
     RejectTool {
         tool_id: String,
@@ -2456,12 +2525,20 @@ pub enum RemoteCommand {
     ReadFileChunk {
         path: String,
         session_id: Option<String>,
+        #[serde(default)]
+        workspace_path: Option<String>,
+        #[serde(default)]
+        remote_connection_id: Option<String>,
         offset: u64,
         limit: u64,
     },
     GetFileInfo {
         path: String,
         session_id: Option<String>,
+        #[serde(default)]
+        workspace_path: Option<String>,
+        #[serde(default)]
+        remote_connection_id: Option<String>,
     },
     /// Provision a separate device through this authenticated controller.
     /// The target host owns token issuance and idempotent request handling.
@@ -2479,7 +2556,7 @@ pub enum RemoteCommand {
     // ── Device-to-device distributed control ──────────────────────────────
     //
     // These variants are carried *inside* an encrypted device-to-device
-    // payload (see `RelayMessage::DeviceMessage`). The relay never sees them
+    // payload (see the Socket.IO RPC envelope). The relay never sees them
     // in cleartext; the receiving device decrypts the outer envelope with the
     // account master_key, then deserializes the inner JSON into `RemoteCommand`.
     //
@@ -2525,6 +2602,11 @@ pub enum RemoteCommand {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum RemoteResponse {
+    SessionKey {
+        session_id: String,
+        relay_session_id: String,
+        key: String,
+    },
     WorkspaceInfo {
         has_workspace: bool,
         path: Option<String>,
@@ -2573,6 +2655,10 @@ pub enum RemoteResponse {
     },
     SessionCreated {
         session_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        workspace_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        remote_connection_id: Option<String>,
     },
     ModelCatalog {
         catalog: RemoteModelCatalog,
@@ -2914,9 +3000,11 @@ where
         ),
 
         // The authenticated host owns credential provisioning.
-        RemoteCommand::ProvisionPeerDevice { .. } => RemoteResponse::Error {
-            message: "Device provisioning is not available on this host".to_string(),
-        },
+        RemoteCommand::ProvisionPeerDevice { .. } | RemoteCommand::GetSessionKey { .. } => {
+            RemoteResponse::Error {
+                message: "Device provisioning is not available on this host".to_string(),
+            }
+        }
 
         RemoteCommand::SendSessionToDevice { .. }
         | RemoteCommand::ExecuteOnDevice { .. }
@@ -4397,6 +4485,8 @@ mod tests {
             created,
             RemoteResponse::SessionCreated {
                 session_id: "created-session".to_string(),
+                workspace_path: Some("/workspace/project".to_string()),
+                remote_connection_id: Some("conn-1".to_string()),
             }
         );
         let created_requests = host.created_requests.lock().unwrap();
@@ -4414,6 +4504,55 @@ mod tests {
             created_requests[0].remote_ssh_host.as_deref(),
             Some("host-1")
         );
+    }
+
+    #[tokio::test]
+    async fn claw_creation_preserves_explicit_workspace_and_scopes_default_to_local() {
+        let host = FakeSessionHost::default();
+        for explicit in [Some("/workspace/selected-assistant"), None] {
+            let response = handle_remote_session_command(
+                &host,
+                &RemoteCommand::CreateSession {
+                    agent_type: Some("Claw".into()),
+                    session_name: None,
+                    workspace_path: explicit.map(str::to_string),
+                    remote_connection_id: Some("other-workspace-ssh".into()),
+                    remote_ssh_host: Some("other-host".into()),
+                },
+            )
+            .await;
+            let RemoteResponse::SessionCreated {
+                workspace_path,
+                remote_connection_id,
+                ..
+            } = response
+            else {
+                panic!("creation failed");
+            };
+            assert_eq!(
+                workspace_path.as_deref(),
+                Some(explicit.unwrap_or("/workspace/assistant"))
+            );
+            assert_eq!(
+                remote_connection_id.as_deref(),
+                explicit.map(|_| "other-workspace-ssh")
+            );
+        }
+        let requests = host.created_requests.lock().unwrap();
+        assert_eq!(
+            requests[0].workspace_path.as_deref(),
+            Some("/workspace/selected-assistant")
+        );
+        assert_eq!(
+            requests[0].remote_connection_id.as_deref(),
+            Some("other-workspace-ssh")
+        );
+        assert_eq!(
+            requests[1].workspace_path.as_deref(),
+            Some("/workspace/assistant")
+        );
+        assert!(requests[1].remote_connection_id.is_none());
+        assert!(requests[1].remote_ssh_host.is_none());
     }
 
     #[tokio::test]
@@ -4944,42 +5083,5 @@ mod tests {
         });
         assert_eq!(tracker.session_state(), "idle");
         assert!(tracker.is_history_snapshot_required());
-    }
-
-    #[derive(Default)]
-    struct FakeInteractionHost;
-
-    #[async_trait::async_trait]
-    impl RemoteInteractionRuntimeHost for FakeInteractionHost {
-        async fn confirm_tool(&self, _tool_id: &str) -> Result<(), String> {
-            Ok(())
-        }
-
-        async fn reject_tool(&self, _tool_id: &str, _reason: String) -> Result<(), String> {
-            Ok(())
-        }
-
-        async fn get_permission_mode(&self) -> Result<RemotePermissionMode, String> {
-            Ok(RemotePermissionMode::Ask)
-        }
-
-        async fn set_permission_mode(
-            &self,
-            mode: RemotePermissionMode,
-        ) -> Result<RemotePermissionMode, String> {
-            Ok(mode)
-        }
-
-        async fn cancel_tool(&self, _tool_id: &str, _reason: String) -> Result<(), String> {
-            Ok(())
-        }
-
-        fn answer_question(
-            &self,
-            _tool_id: &str,
-            _answers: serde_json::Value,
-        ) -> Result<(), String> {
-            Ok(())
-        }
     }
 }

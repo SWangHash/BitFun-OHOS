@@ -7,7 +7,7 @@
   "signInRequired": "登录账号后即可管理已发布页面。",
   "signInHint": "页面保存在账号中继上，需要先登录账号才能访问。",
   "empty": "还没有发布过页面。",
-  "emptyHint": "让 Agent 创建一个 Page，之后可以在这里管理所有已保存版本。",
+  "emptyHint": "让智能体创建一个 Page，之后可以在这里管理所有已保存版本。",
   "status": {
     "deployed": "生产环境",
     "savedOnly": "仅保存",

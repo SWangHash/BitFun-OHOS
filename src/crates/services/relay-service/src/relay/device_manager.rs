@@ -273,6 +273,17 @@ impl DeviceManager {
     /// Promote the exact pending connection to the single active owner for
     /// `(user_id, device_id)`. Returns false if logout/delete already removed
     /// it while the final database lookup was in flight.
+    pub fn activate_pending(
+        &self,
+        user_id: &str,
+        device_id: &str,
+        auth_token: &str,
+        conn_id: ConnId,
+    ) -> bool {
+        self.activate_pending_inner(user_id, device_id, auth_token, conn_id, None)
+    }
+
+    #[cfg(test)]
     pub fn activate_pending_with_initial_message(
         &self,
         user_id: &str,
@@ -280,6 +291,17 @@ impl DeviceManager {
         auth_token: &str,
         conn_id: ConnId,
         initial_text: &str,
+    ) -> bool {
+        self.activate_pending_inner(user_id, device_id, auth_token, conn_id, Some(initial_text))
+    }
+
+    fn activate_pending_inner(
+        &self,
+        user_id: &str,
+        device_id: &str,
+        auth_token: &str,
+        conn_id: ConnId,
+        initial_text: Option<&str>,
     ) -> bool {
         let _presence_guard = self.lock_presence();
         let pending = self
@@ -294,12 +316,11 @@ impl DeviceManager {
             return false;
         };
 
-        // Queue AuthOk while the candidate is still invisible and while the
-        // same presence gate excludes snapshot broadcasts. Once membership is
-        // published below, every later DevicePresence is necessarily behind
-        // AuthOk in this socket's FIFO queue.
-        if !OutboundMessage::try_text(initial_text)
-            .is_some_and(|message| pending.tx.try_send(message).is_ok())
+        if pending.tx.is_closed()
+            || initial_text.is_some_and(|text| {
+                !OutboundMessage::try_text(text)
+                    .is_some_and(|message| pending.tx.try_send(message).is_ok())
+            })
         {
             let _ = pending.force_close_tx.send(true);
             return false;

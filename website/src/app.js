@@ -161,7 +161,7 @@ function header() {
 function footer() {
   return `
     <footer class="site-footer">
-      <p>${text('说明书、应用搜索和 Agent 控制共享同一份功能与设置目录。', 'The manual, in-app search, and agent control share one features-and-settings catalog.')}</p>
+      <p>${text('说明书、应用搜索和智能体控制共享同一份功能与设置目录。', 'The manual, in-app search, and agent control share one features-and-settings catalog.')}</p>
       <code>${state.catalog.digest.slice(0, 12)}</code>
     </footer>`;
 }
@@ -309,7 +309,7 @@ function renderIndex() {
             '<span>Use OpenBitFun—and</span><em>make it yours.</em>',
           )}</h1>
           <p class="hero-copy">${text(
-            '一本真正按“功能 + 设置”组织的使用说明书。搜中文或 English，找到后直接照着用，也可以把同一句话交给 Agent。',
+            '一本真正按“功能 + 设置”组织的使用说明书。搜中文或 English，找到后直接照着用，也可以把同一句话交给智能体。',
             'A practical manual organized around features and settings. Search in English or 中文, follow the guide, or say the same thing to an agent.',
           )}</p>
           <div class="hero-actions">
@@ -435,7 +435,7 @@ function operationCards(capability) {
 function optionRows(capability) {
   if (!capability.options.length) {
     return `<div class="manual-empty">${text(
-      '这个页面的配置需要在 OpenBitFun 界面中确认和完成。Agent 可以先替你打开到这里。',
+      '这个页面的配置需要在 OpenBitFun 界面中确认和完成。智能体可以先替你打开到这里。',
       'These controls require confirmation in the OpenBitFun interface. An agent can still open this page for you.',
     )}</div>`;
   }
@@ -448,7 +448,7 @@ function optionRows(capability) {
 }
 
 function itemControlLabel(item) {
-  if (item.control.kind === 'direct') return text('Agent 直接控制', 'Direct Agent control');
+  if (item.control.kind === 'direct') return text('智能体直接控制', 'Direct Agent control');
   if (item.control.kind === 'delegate') return text('专用工具控制', 'Delegated tool');
   if (item.control.kind === 'open') return text('需界面交互', 'Interaction required');
   return text('不支持', 'Unsupported');
@@ -490,7 +490,7 @@ function renderCapability(capability) {
             ${(capability.kind === 'feature' || capability.operations.length || capability.agentControl) ? `
               <section class="content-section manual-section">
                 <p class="section-label">DIRECT ACTIONS</p>
-                <h2>${text('Agent 可以直接执行', 'What an agent can execute')}</h2>
+                <h2>${text('智能体可以直接执行', 'What an agent can execute')}</h2>
                 ${operationCards(capability)}
               </section>` : ''}
 
@@ -503,7 +503,7 @@ function renderCapability(capability) {
 
             <section class="content-section manual-section">
               <p class="section-label">ASK AN AGENT</p>
-              <h2>${text('可以直接对 Agent 说', 'Try saying this to an agent')}</h2>
+              <h2>${text('可以直接对智能体说', 'Try saying this to an agent')}</h2>
               <div class="prompt-list">${examples.map((example) => `
                 <button type="button" data-copy-prompt="${escapeHtml(example)}"><span>“${escapeHtml(example)}”</span><small>${text('复制', 'Copy')}</small></button>`).join('')}</div>
             </section>
@@ -513,7 +513,7 @@ function renderCapability(capability) {
             <p class="section-label">AGENT READY</p>
             <h2>${text('不必记住入口', 'No menus to memorize')}</h2>
             <p>${text(
-              '和 Agent 说出你想做的事。目录会明确告诉它哪些可直接控制、哪些交给专用工具、哪些仍需你在界面确认。',
+              '和智能体说出你想做的事。目录会明确告诉它哪些可直接控制、哪些交给专用工具、哪些仍需你在界面确认。',
               'Tell an agent what you want. The catalog explicitly says what it can control directly, delegate to a specialist tool, or only open for your confirmation.',
             )}</p>
             <ol>

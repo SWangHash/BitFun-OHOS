@@ -2,6 +2,9 @@ import {
   forwardRef,
   useId,
   useState,
+  useEffect,
+  type ButtonHTMLAttributes,
+  type DetailsHTMLAttributes,
   type HTMLAttributes,
   type ReactNode,
 } from "react";
@@ -10,9 +13,19 @@ import { OverflowText } from "../../primitives/OverflowText";
 import { Icon } from "../Icon";
 import styles from "./Disclosure.module.css";
 
-export interface DisclosureProps
+type DisclosureTriggerProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-controls" | "aria-expanded" | "disabled" | "id" | "onClick" | "type">;
+
+interface CustomDisclosureProps
   extends Omit<HTMLAttributes<HTMLElement>, "children" | "onToggle" | "title"> {
+  presentation?: "custom";
   actions?: ReactNode;
+  /** Compose a header with independent controls using the supplied toggle attributes. */
+  renderHeader?: (triggerProps: DisclosureTriggerProps) => ReactNode;
+  contentClassName?: string;
+  contentInnerClassName?: string;
+  unmountOnClose?: boolean;
+  exitDurationMs?: number;
   children: ReactNode;
   defaultOpen?: boolean;
   description?: ReactNode;
@@ -23,11 +36,26 @@ export interface DisclosureProps
   summary: ReactNode;
 }
 
+interface NativeDisclosureProps
+  extends Omit<DetailsHTMLAttributes<HTMLDetailsElement>, "children" | "title"> {
+  /** Preserve browser details/summary semantics, including native toggle events. */
+  presentation: "native";
+  children: ReactNode;
+  summary: ReactNode;
+}
+
+export type DisclosureProps = CustomDisclosureProps | NativeDisclosureProps;
+
 type InertContentAttributes = HTMLAttributes<HTMLDivElement> & { inert?: "" };
 
-export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
+const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
   function Disclosure({
     actions,
+    renderHeader,
+    contentClassName,
+    contentInnerClassName,
+    unmountOnClose = false,
+    exitDurationMs = 180,
     children,
     className,
     defaultOpen = false,
@@ -36,6 +64,7 @@ export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
     leading,
     onOpenChange,
     open,
+    presentation: _presentation,
     summary,
     ...props
   }, ref) {
@@ -45,6 +74,14 @@ export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
     const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
     const resolvedOpen = open ?? uncontrolledOpen;
     const inertContentAttributes: InertContentAttributes = resolvedOpen ? {} : { inert: "" };
+
+    const [retained, setRetained] = useState(resolvedOpen);
+    useEffect(() => {
+      if (resolvedOpen) { setRetained(true); return; }
+      if (!retained) return;
+      const timer = setTimeout(() => setRetained(false), Math.max(0, exitDurationMs));
+      return () => clearTimeout(timer);
+    }, [resolvedOpen, retained, exitDurationMs]);
 
     function toggle() {
       if (disabled) return;
@@ -62,7 +99,14 @@ export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
         data-open={resolvedOpen ? "true" : "false"}
         ref={ref}
       >
-        <div className={styles.header} data-openbitfun-part="header">
+        {renderHeader ? renderHeader({
+          'aria-controls': contentId,
+          'aria-expanded': resolvedOpen,
+          disabled,
+          id: triggerId,
+          onClick: toggle,
+          type: 'button',
+        }) : <div className={styles.header} data-openbitfun-part="header">
           <button data-overflow-trigger
             aria-controls={contentId}
             aria-expanded={resolvedOpen}
@@ -92,21 +136,47 @@ export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
           {actions !== undefined && actions !== null && (
             <span className={styles.actions} data-openbitfun-part="actions">{actions}</span>
           )}
-        </div>
-        <div
+        </div>}
+        {(!unmountOnClose || resolvedOpen || retained) && <div
           {...inertContentAttributes}
           aria-hidden={!resolvedOpen}
           aria-labelledby={triggerId}
-          className={styles.content}
+          className={classNames(styles.content, contentClassName)}
+          data-open={resolvedOpen ? "true" : "false"}
           data-openbitfun-part="content"
           id={contentId}
           role="region"
         >
-          <div className={styles.contentInner} data-openbitfun-part="content-inner">
+          <div className={classNames(styles.contentInner, contentInnerClassName)} data-openbitfun-part="content-inner">
             {children}
           </div>
-        </div>
+        </div>}
       </section>
     );
+  },
+);
+
+export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
+  function Disclosure(props, ref) {
+    if (props.presentation === "native") {
+      const { children, className, presentation, summary, ...detailsProps } = props;
+      return (
+        <details
+          {...detailsProps}
+          className={classNames(styles.native, className)}
+          data-openbitfun-component="disclosure"
+          data-presentation={presentation}
+          ref={(element) => {
+            if (typeof ref === "function") ref(element);
+            else if (ref) ref.current = element;
+          }}
+        >
+          <summary data-openbitfun-part="summary">{summary}</summary>
+          {children}
+        </details>
+      );
+    }
+
+    return <CustomDisclosure {...props} ref={ref} />;
   },
 );

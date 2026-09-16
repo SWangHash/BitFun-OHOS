@@ -4,8 +4,12 @@
 
 pub mod factory;
 pub mod listing;
+#[cfg(feature = "ssh-remote")]
+pub mod path_operations;
 pub mod service;
 pub mod types;
+#[cfg(feature = "remote-connect")]
+pub mod upload;
 
 pub use factory::FileSystemServiceFactory;
 pub use listing::{
@@ -14,3 +18,5 @@ pub use listing::{
 };
 pub use service::FileSystemService;
 pub use types::{DirectoryScanResult, DirectoryStats, FileSearchOptions, FileSystemConfig};
+
+pub use openbitfun_services_core::filesystem::sort_directory_nodes;

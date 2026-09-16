@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  Button, Icon, IconButton, LoadingState, MenuPopover, OverflowText, ScrollArea, SearchField,
+  Button, Icon, IconButton, LoadingState, MenuPopover, OverflowText, ScrollArea,
   type MenuEntry,
 } from '@openbitfun/ui';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -17,6 +17,7 @@ import { skillGroupErrorMessage } from './skillGroupMessages';
 import './SkillGroupsView.scss';
 
 interface SkillGroupsViewProps {
+  searchQuery: string;
   skills: GroupableSkill[];
   collection: ReturnType<typeof useUserSkillGroups>;
   catalogReady: boolean;
@@ -39,10 +40,8 @@ function GroupActions({ label, items, disabled }: { label: string; items: MenuEn
   );
 }
 
-export default function SkillGroupsView({ skills, collection, catalogReady, catalogLoading, catalogIncomplete, onRefresh }: SkillGroupsViewProps) {
+export default function SkillGroupsView({ searchQuery, skills, collection, catalogReady, catalogLoading, catalogIncomplete, onRefresh }: SkillGroupsViewProps) {
   const { t, formatNumber } = useI18n('scenes/skills');
-  const { t: tComponents } = useI18n('components');
-  const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<SkillGroupDraft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const groups = useMemo(() => resolveSkillGroups(skills, collection.groups, {
@@ -52,7 +51,7 @@ export default function SkillGroupsView({ skills, collection, catalogReady, cata
     },
     other: '',
   }), [collection.groups, skills, t]);
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = searchQuery.trim().toLowerCase();
   const filtered = groups.filter(group => !normalizedQuery || [group.label, ...group.skills.map(skill => skill.name)]
     .some(value => value.toLowerCase().includes(normalizedQuery)));
   const userGroups = filtered.filter(group => group.kind === 'user');
@@ -175,9 +174,6 @@ export default function SkillGroupsView({ skills, collection, catalogReady, cata
         </Button>
       </header>
       <div className="skills-main__toolbar">
-        <SearchField className="skills-main__toolbar-search" value={query} onValueChange={setQuery}
-          size="sm" placeholder={t('groups.search')} aria-label={t('groups.search')}
-          clearLabel={query ? tComponents('search.clear') : undefined} onClear={query ? () => setQuery('') : undefined} />
         <IconButton aria-label={t('groups.refresh')} title={t('groups.refresh')} icon={<Icon name="refresh" />}
           size="sm" disabled={collection.saving || collection.loading || catalogLoading} onClick={onRefresh} />
       </div>

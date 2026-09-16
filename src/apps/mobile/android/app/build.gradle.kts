@@ -17,6 +17,7 @@ val hasReleaseSigning = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
+    sourceSets.getByName("main").assets.srcDir(file("../../../../shared/terminal/webview/generated"))
     namespace = "com.openbitfun.mobile.app"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
 
@@ -26,7 +27,7 @@ android {
         minSdk = libs.versions.androidMinSdk.get().toInt()
         targetSdk = libs.versions.androidTargetSdk.get().toInt()
         versionCode = 1
-        versionName = "1.0.0-beta"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

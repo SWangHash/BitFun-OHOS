@@ -1,3 +1,4 @@
+import { Input, Textarea, Button, IconButton } from '@openbitfun/ui';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CubeFocus as MarketLogo, GithubLogo, IconContext } from '@phosphor-icons/react';
 import {
@@ -29,6 +30,7 @@ import {
   CircleAlert as WarningCircle,
   X,
 } from 'lucide-react';
+import { AccountSignIn } from './AccountSignIn';
 import { downloadUrl, loginUrl, marketApi, MarketApiError } from './api';
 import { formatCompactNumber, formatMarketDate, formatMarketDateTime } from './format';
 import { GetOpenBitFunCta } from './GetOpenBitFunCta';
@@ -87,7 +89,7 @@ function navigate(path: string) {
 
 function App() {
   const path = window.location.pathname;
-  if (window.location.hostname === 'auth.openbitfun.com' || path === '/miniapp/auth/complete' || path === '/miniapp/auth/desktop-complete') {
+  if (window.location.hostname === 'auth.openbitfun.com' || path === '/miniapp/auth/sign-in' || path === '/miniapp/auth/complete' || path === '/miniapp/auth/desktop-complete') {
     return <GitHubIdentityPage complete={path.endsWith('complete')} />;
   }
   return <MarketApp />;
@@ -96,16 +98,9 @@ function App() {
 function GitHubIdentityPage({ complete }: { complete: boolean }) {
   const { t } = useLocale();
   useTheme();
-  useEffect(() => { document.title = `OpenBitFun · ${t('signIn')}`; }, [t]);
+  useEffect(() => { document.title = `OpenBitFun · ${t(complete ? 'authComplete' : 'signIn')}`; }, [complete, t]);
   return <IconContext.Provider value={{ size: 24, weight: 'regular' }}>
-    {complete ? <DesktopComplete t={t} /> : <main className="form-page">
-      <section className="auth-gate">
-        <GithubLogo size={40} aria-hidden="true" />
-        <h1>{t('signIn')}</h1>
-        <p>{t('authSharedIdentity')}</p>
-        <a className="button primary" href="/sign-in?returnTo=/miniapp/">{t('signIn')}</a>
-      </section>
-    </main>}
+    {complete ? <DesktopComplete t={t} /> : <AccountSignIn />}
   </IconContext.Provider>;
 }
 
@@ -215,7 +210,6 @@ function MarketApp() {
             <MarketLogo weight="duotone" aria-hidden="true" />
             <span>OpenBitFun MiniApp Market</span>
           </div>
-          <span className="footer-note">{t('footerNote')}</span>
           <a href={OPENBITFUN_HOME_URL} target="_blank" rel="noreferrer">
             {t('openbitfunHome')}
             <ArrowSquareOut size={18} aria-hidden="true" />
@@ -248,6 +242,9 @@ function Header({
   onLogout: () => Promise<void>;
 }) {
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
+  const accountLabel = me?.email ?? me?.user.login ?? '';
+
   const languageControlRef = useRef<HTMLDivElement>(null);
   const languageTriggerRef = useRef<HTMLButtonElement>(null);
   const activeLocale =
@@ -283,7 +280,7 @@ function Header({
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <button className="brand" onClick={() => navigate('/')} aria-label={t('market')}>
+        <Button labelBehavior="static" type="button" className="brand" onClick={() => navigate('/')} aria-label={t('market')}>
           <span className="brand-mark">
             <MarketLogo size={25} weight="duotone" aria-hidden="true" />
           </span>
@@ -291,46 +288,46 @@ function Header({
             <strong>OpenBitFun</strong>
             <span>{t('market')}</span>
           </span>
-        </button>
+        </Button>
         <nav aria-label={t('navigationLabel')}>
-          <button
+          <Button labelBehavior="static" type="button"
             className={routeIsActive('/') ? 'active' : undefined}
             aria-current={routeIsActive('/') ? 'page' : undefined}
             onClick={() => navigate('/')}
           >
             {t('discover')}
-          </button>
+          </Button>
           {config?.webSubmissionsEnabled && (
-            <button
+            <Button labelBehavior="static" type="button"
               className={routeIsActive('/submit') ? 'active' : undefined}
               aria-current={routeIsActive('/submit') ? 'page' : undefined}
               onClick={() => navigate('/submit')}
             >
               {t('submit')}
-            </button>
+            </Button>
           )}
           {me && (
-            <button
+            <Button labelBehavior="static" type="button"
               className={routeIsActive('/submissions') ? 'active' : undefined}
               aria-current={routeIsActive('/submissions') ? 'page' : undefined}
               onClick={() => navigate('/submissions')}
             >
               {t('submissions')}
-            </button>
+            </Button>
           )}
           {me?.isAdmin && (
-            <button
+            <Button labelBehavior="static" type="button"
               className={routeIsActive('/admin') ? 'active' : undefined}
               aria-current={routeIsActive('/admin') ? 'page' : undefined}
               onClick={() => navigate('/admin')}
             >
               {t('admin')}
-            </button>
+            </Button>
           )}
         </nav>
         <div className="topbar-actions">
           <div className="language-control" ref={languageControlRef}>
-            <button
+            <Button labelBehavior="static"
               ref={languageTriggerRef}
               className="header-control language-trigger"
               type="button"
@@ -347,7 +344,7 @@ function Header({
                 size={14}
                 aria-hidden="true"
               />
-            </button>
+            </Button>
             {languageMenuOpen && (
               <div
                 className="language-menu"
@@ -357,7 +354,7 @@ function Header({
               >
                 <span className="language-menu-label">{t('language')}</span>
                 {LOCALE_OPTIONS.map((localeOption) => (
-                  <button
+                  <Button labelBehavior="static"
                     key={localeOption.value}
                     className={localeOption.value === locale ? 'selected' : undefined}
                     type="button"
@@ -372,44 +369,47 @@ function Header({
                     {localeOption.value === locale && (
                       <Check size={16} aria-hidden="true" />
                     )}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
           </div>
-          <button
+          <IconButton
             className="header-control theme-toggle"
             type="button"
             aria-label={t(theme === 'dark' ? 'switchToLight' : 'switchToDark')}
             title={t(theme === 'dark' ? 'switchToLight' : 'switchToDark')}
             onClick={toggleTheme}
-          >
-            {theme === 'dark' ? (
+            icon={theme === 'dark' ? (
               <Sun size={18} aria-hidden="true" />
             ) : (
               <Moon size={18} aria-hidden="true" />
             )}
-          </button>
+          />
           {me ? (
             <div className="profile">
-              <img src={me.user.avatarUrl} alt="" />
-              <span>@{me.user.login}</span>
-              <button
+              <div className="profile-avatar" role="img" aria-label={accountLabel}>
+                {me.user.avatarUrl && failedAvatar !== me.user.avatarUrl
+                  ? <img src={me.user.avatarUrl} alt="" onError={() => setFailedAvatar(me.user.avatarUrl)} />
+                  : accountLabel.trim().charAt(0).toUpperCase() || '?'}
+              </div>
+              <span title={accountLabel}>{me.email ?? `@${me.user.login}`}</span>
+              <IconButton
                 className="icon-button"
                 onClick={() => void onLogout()}
                 aria-label={t('signOut')}
                 title={t('signOut')}
-              >
-                <SignOut size={18} aria-hidden="true" />
-              </button>
+                type="button"
+                icon={<SignOut size={18} aria-hidden="true" />}
+              />
             </div>
           ) : (
             <a
-              className={`button button-small ${config?.githubAuthConfigured === false ? 'disabled' : ''}`}
+              className={`button button-small ${(config?.githubAuthConfigured || config?.emailAuthConfigured) === false ? 'disabled' : ''}`}
               href={loginUrl(window.location.pathname)}
-              aria-disabled={config?.githubAuthConfigured === false}
+              aria-disabled={(config?.githubAuthConfigured || config?.emailAuthConfigured) === false}
               onClick={(event) => {
-                if (config?.githubAuthConfigured === false) event.preventDefault();
+                if ((config?.githubAuthConfigured || config?.emailAuthConfigured) === false) event.preventDefault();
               }}
             >
               <GithubLogo weight="bold" aria-hidden="true" />
@@ -516,7 +516,7 @@ function CatalogPage({
           <label className="search-field">
             <MagnifyingGlass size={18} aria-hidden="true" />
             <span className="sr-only">{t('search')}</span>
-            <input
+            <Input className="market-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('search')}
@@ -535,7 +535,7 @@ function CatalogPage({
         </div>
 
         <div className="category-tabs" aria-label={t('categoryLabel')}>
-          <button
+          <Button labelBehavior="static"
             type="button"
             className={category === '' ? 'active' : undefined}
             aria-pressed={category === ''}
@@ -543,9 +543,9 @@ function CatalogPage({
           >
             <Cube size={18} aria-hidden="true" />
             {t('allCategories')}
-          </button>
+          </Button>
           {(config?.categories || MARKET_CATEGORIES).map((item) => (
-            <button
+            <Button labelBehavior="static"
               type="button"
               key={item}
               className={category === item ? 'active' : undefined}
@@ -553,7 +553,7 @@ function CatalogPage({
               onClick={() => setCategory(item)}
             >
               {categoryLabel(item, t)}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -569,10 +569,10 @@ function CatalogPage({
               </span>
               <p>{t('empty')}</p>
               {config?.webSubmissionsEnabled ? (
-                <button className="button button-secondary" onClick={() => navigate('/submit')}>
+                <Button labelBehavior="static" type="button" className="button button-secondary" onClick={() => navigate('/submit')}>
                   <UploadSimple size={18} aria-hidden="true" />
                   {t('submit')}
-                </button>
+                </Button>
               ) : (
                 <span className="empty-state-hint">{t('desktopSubmissionHint')}</span>
               )}
@@ -584,10 +584,10 @@ function CatalogPage({
             ))}
         </div>
         {cursor && (
-          <button className="button button-secondary load-more" onClick={() => void load(cursor, true)}>
+          <Button labelBehavior="static" type="button" className="button button-secondary load-more" onClick={() => void load(cursor, true)}>
             {t('loadMore')}
             <ArrowRight size={18} aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </section>
     </main>
@@ -649,7 +649,7 @@ function AppCard({
           <div>
             <h2>{localized.name}</h2>
             <p className="owner">
-              {t('by')} @{app.owner.login}
+              {t('by')} {app.owner.githubId > 0 ? `@${app.owner.login}` : app.owner.login}
             </p>
           </div>
         </div>
@@ -733,24 +733,26 @@ function DetailPage({
   if (error) {
     return (
       <main className="narrow-page">
-        <button className="back-link" onClick={() => navigate('/')}>
+        <Button labelBehavior="static" type="button" className="back-link" onClick={() => navigate('/')}>
           <ArrowLeft size={18} aria-hidden="true" />
           {t('back')}
-        </button>
+        </Button>
         <Notice tone="error">{errorMessage(error, t)}</Notice>
       </main>
     );
   }
   if (!app) return <PageLoading t={t} />;
 
-  const owner = me?.user.githubId === app.owner.githubId;
+  const owner = !!me && (app.owner.accountId
+    ? me.user.accountId === app.owner.accountId
+    : app.owner.githubId > 0 && me.user.githubId === app.owner.githubId);
   const localized = localizedListing(app, locale);
   return (
     <main className="detail-page">
-      <button className="back-link" onClick={() => navigate('/')}>
+      <Button labelBehavior="static" type="button" className="back-link" onClick={() => navigate('/')}>
         <ArrowLeft size={18} aria-hidden="true" />
         {t('back')}
-      </button>
+      </Button>
       <section className="detail-hero">
         <div className="detail-copy">
           <span className="category-chip">{categoryLabel(app.category, t)}</span>
@@ -761,7 +763,7 @@ function DetailPage({
             <div>
               <h1>{localized.name}</h1>
               <p className="detail-owner">
-                <span>@{app.owner.login}</span>
+                <span>{app.owner.githubId > 0 ? `@${app.owner.login}` : app.owner.login}</span>
                 <span>{t('version')} {app.latestRelease}</span>
               </p>
             </div>
@@ -772,7 +774,7 @@ function DetailPage({
               <DownloadSimple size={18} aria-hidden="true" />
               {t('install')}
             </a>
-            <button
+            <Button labelBehavior="static" type="button"
               className={`button button-secondary ${app.isFavorited ? 'active' : ''}`}
               onClick={async () => {
                 if (!me) {
@@ -786,9 +788,9 @@ function DetailPage({
               <Heart size={18} fill={app.isFavorited ? 'currentColor' : 'none'} aria-hidden="true" />
               {app.isFavorited ? t('favorited') : t('favorite')}
               <small>{formatCompactNumber(app.favoriteCount, locale)}</small>
-            </button>
+            </Button>
             {owner && webSubmissionsEnabled && (
-              <button
+              <Button labelBehavior="static" type="button"
                 className="button button-secondary"
                 onClick={() =>
                   navigate(
@@ -798,13 +800,13 @@ function DetailPage({
               >
                 <UploadSimple size={18} aria-hidden="true" />
                 {t('submitUpdate')}
-              </button>
+              </Button>
             )}
           </div>
           <GetOpenBitFunCta placement="listing" t={t} />
           <div className="rating-control" aria-label={t('ratingLabel')}>
             {[1, 2, 3, 4, 5].map((value) => (
-              <button
+              <IconButton
                 key={value}
                 disabled={ratingBusy}
                 className={value <= (app.myRating || 0) ? 'selected' : ''}
@@ -830,9 +832,9 @@ function DetailPage({
                   }
                 }}
                 aria-label={`${value} ${t('stars')}`}
-              >
-                <Star size={18} fill={value <= (app.myRating || 0) ? 'currentColor' : 'none'} />
-              </button>
+                type="button"
+                icon={<Star size={18} fill={value <= (app.myRating || 0) ? 'currentColor' : 'none'} />}
+              />
             ))}
             <span>{app.ratingAverage.toFixed(1)} ({app.ratingCount})</span>
           </div>
@@ -900,7 +902,7 @@ function DetailPage({
             </span>
             <span>{release.yanked ? t('yankedLabel') : release.changelog}</span>
             {me?.isAdmin && !release.yanked && (
-              <button
+              <Button labelBehavior="static" type="button"
                 className="text-action danger-action"
                 disabled={!moderationReason.trim()}
                 onClick={async () => {
@@ -910,7 +912,7 @@ function DetailPage({
                 }}
               >
                 {t('yank')}
-              </button>
+              </Button>
             )}
           </div>
         ))}
@@ -918,12 +920,12 @@ function DetailPage({
           <div className="moderation-panel">
             <label>
               <span>{t('moderationReason')}</span>
-              <input
+              <Input className="market-input"
                 value={moderationReason}
                 onChange={(event) => setModerationReason(event.target.value)}
               />
             </label>
-            <button
+            <Button labelBehavior="static" type="button"
               className="button button-danger"
               disabled={!moderationReason.trim()}
               onClick={async () => {
@@ -932,7 +934,7 @@ function DetailPage({
               }}
             >
               {t('unpublish')}
-            </button>
+            </Button>
           </div>
         )}
       </section>
@@ -1053,16 +1055,16 @@ function SubmitPage({
           <legend>{t('listingSection')}</legend>
           <div className="form-grid">
             <Field label={t('slugLabel')}>
-              <input name="slug" required pattern="[a-z0-9][a-z0-9-]{2,62}" defaultValue={initialSlug} readOnly={Boolean(listingId)} />
+              <Input className="market-input" name="slug" required pattern="[a-z0-9][a-z0-9-]{2,62}" defaultValue={initialSlug} readOnly={Boolean(listingId)} />
             </Field>
             <Field label={t('releaseNumberLabel')}>
-              <input name="releaseNumber" type="number" min="1" required defaultValue={initialRelease} readOnly={Boolean(listingId)} />
+              <Input className="market-input" name="releaseNumber" type="number" min="1" required defaultValue={initialRelease} readOnly={Boolean(listingId)} />
             </Field>
             <Field label={t('nameLabel')}>
-              <input name="name" required maxLength={80} />
+              <Input className="market-input" name="name" required maxLength={80} />
             </Field>
             <Field label={t('iconLabel')}>
-              <input name="icon" defaultValue="✦" maxLength={8} />
+              <Input className="market-input" name="icon" defaultValue="✦" maxLength={8} />
             </Field>
             <Field label={t('categoryLabel')}>
               <select name="category" defaultValue="utilities">
@@ -1072,11 +1074,11 @@ function SubmitPage({
               </select>
             </Field>
             <Field label={t('tagsLabel')}>
-              <input name="tags" placeholder={t('tagsPlaceholder')} />
+              <Input className="market-input" name="tags" placeholder={t('tagsPlaceholder')} />
             </Field>
           </div>
           <Field label={t('descriptionLabel')}>
-            <textarea name="description" required maxLength={500} rows={3} />
+            <Textarea className="market-textarea" name="description" required maxLength={500} rows={3} />
           </Field>
         </fieldset>
 
@@ -1084,10 +1086,10 @@ function SubmitPage({
           <legend>{t('releaseSection')}</legend>
           <div className="form-grid">
             <Field label={t('minOpenBitFunVersionLabel')}>
-              <input name="minOpenBitFunVersion" required defaultValue="1.0.0" />
+              <Input className="market-input" name="minOpenBitFunVersion" required defaultValue="1.0.0" />
             </Field>
             <Field label={t('publicRepositoryOptional')}>
-              <input name="repositoryUrl" type="url" placeholder="https://github.com/…" />
+              <Input className="market-input" name="repositoryUrl" type="url" placeholder="https://github.com/…" />
             </Field>
             <Field label={t('licenseTypeLabel')}>
               <select name="licenseKind">
@@ -1096,11 +1098,11 @@ function SubmitPage({
               </select>
             </Field>
             <Field label={t('licenseLabel')}>
-              <input name="licenseValue" required defaultValue="MIT" />
+              <Input className="market-input" name="licenseValue" required defaultValue="MIT" />
             </Field>
           </div>
           <Field label={t('changelog')}>
-            <textarea name="changelog" required rows={4} />
+            <Textarea className="market-textarea" name="changelog" required rows={4} />
           </Field>
         </fieldset>
 
@@ -1124,10 +1126,10 @@ function SubmitPage({
           </div>
         </fieldset>
 
-        <button className="button submit-button" disabled={busy}>
+        <Button labelBehavior="static" type="submit" className="button submit-button" disabled={busy}>
           <Package size={18} aria-hidden="true" />
           {busy ? t('uploading') : t('publishForReview')}
-        </button>
+        </Button>
       </form>
     </main>
   );
@@ -1175,7 +1177,7 @@ function SubmissionsPage({
             action={
               webSubmissionsEnabled
               && (item.status === 'draft' || item.status === 'submitted') ? (
-                <button
+                <Button labelBehavior="static" type="button"
                   className="text-action danger-action"
                   onClick={async () => {
                     try {
@@ -1193,7 +1195,7 @@ function SubmissionsPage({
                   }}
                 >
                   {t('withdraw')}
-                </button>
+                </Button>
               ) : undefined
             }
           />
@@ -1205,10 +1207,10 @@ function SubmissionsPage({
             </span>
             <p>{t('noSubmissions')}</p>
             {webSubmissionsEnabled && (
-              <button className="button button-secondary" onClick={() => navigate('/submit')}>
+              <Button labelBehavior="static" type="button" className="button button-secondary" onClick={() => navigate('/submit')}>
                 <UploadSimple size={18} aria-hidden="true" />
                 {t('submit')}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -1296,7 +1298,7 @@ function AdminPage({
       <div className="review-layout">
         <div className="review-list">
           {items.map((item) => (
-            <button
+            <Button labelBehavior="static" type="button"
               key={item.submissionId}
               className={selected?.submission.submissionId === item.submissionId ? 'selected' : ''}
               onClick={async () => {
@@ -1320,7 +1322,7 @@ function AdminPage({
                   <span>v{item.releaseNumber}</span>
                 </small>
                 <small className="review-submission-meta">
-                  <span>{item.submitter ? `@${item.submitter.login}` : '—'}</span>
+                  <span>{item.submitter ? (item.submitter.githubId > 0 ? `@${item.submitter.login}` : item.submitter.login) : '—'}</span>
                   <span>
                     {item.submittedAt == null
                       ? '—'
@@ -1329,7 +1331,7 @@ function AdminPage({
                 </small>
               </span>
               <StatusBadge status={item.status} t={t} />
-            </button>
+            </Button>
           ))}
           {items.length === 0 && <p className="muted">{t('queueClear')}</p>}
         </div>
@@ -1354,7 +1356,7 @@ function AdminPage({
               <div className="review-evidence-grid">
                 <Fact
                   label={t('submitterLabel')}
-                  value={selected.submitter ? `@${selected.submitter.login}` : '—'}
+                  value={selected.submitter ? (selected.submitter.githubId > 0 ? `@${selected.submitter.login}` : selected.submitter.login) : '—'}
                 />
                 <Fact
                   label={t('submittedAtLabel')}
@@ -1413,22 +1415,22 @@ function AdminPage({
               </div>
               <div className="source-browser">
                 <div className="source-mode">
-                  <button
+                  <Button labelBehavior="static" type="button"
                     className={sourceMode === 'current' ? 'active' : ''}
                     onClick={() => setSourceMode('current')}
                   >
                     {t('currentSource')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button labelBehavior="static" type="button"
                     className={sourceMode === 'diff' ? 'active' : ''}
                     onClick={() => setSourceMode('diff')}
                   >
                     {t('sourceDiff')}
-                  </button>
+                  </Button>
                 </div>
                 <div className="source-tabs">
                   {Object.keys(selected.sourceDiffs).map((name) => (
-                    <button className={sourceName === name ? 'active' : ''} onClick={() => setSourceName(name)} key={name}>{name}</button>
+                    <Button labelBehavior="static" type="button" className={sourceName === name ? 'active' : ''} onClick={() => setSourceName(name)} key={name}>{name}</Button>
                   ))}
                 </div>
                 <pre className={sourceMode === 'diff' ? 'diff-view' : ''}>
@@ -1440,7 +1442,7 @@ function AdminPage({
                 </pre>
               </div>
               <div className="review-actions">
-                <button
+                <Button labelBehavior="static" type="button"
                   className="button"
                   onClick={async () => {
                     try {
@@ -1453,9 +1455,9 @@ function AdminPage({
                   }}
                 >
                   {t('approve')}
-                </button>
-                <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('rejectionReason')} />
-                <button
+                </Button>
+                <Input className="market-input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('rejectionReason')} />
+                <Button labelBehavior="static" type="button"
                   className="button button-danger"
                   disabled={!reason.trim()}
                   onClick={async () => {
@@ -1470,7 +1472,7 @@ function AdminPage({
                   }}
                 >
                   {t('reject')}
-                </button>
+                </Button>
               </div>
             </>
           )}

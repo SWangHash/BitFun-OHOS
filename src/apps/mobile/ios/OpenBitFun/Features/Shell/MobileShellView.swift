@@ -92,15 +92,12 @@ struct MobileShellView: View {
             }
         }
         .animation(.easeOut(duration: 0.18), value: model.toastMessage)
-        .fileExporter(
-            isPresented: $model.downloadExporterOpen,
-            document: MobileDownloadDocument(data: model.pendingDownload?.data ?? Data()),
-            contentType: model.pendingDownload.flatMap { UTType(mimeType: $0.mimeType) } ?? .data,
-            defaultFilename: model.pendingDownload?.name ?? "download"
-        ) { result in
-            switch result {
-            case .success: model.finishDownloadExport(success: true)
-            case .failure: model.finishDownloadExport(success: false)
+        .sheet(isPresented: $model.downloadExporterOpen) {
+            if let download = model.pendingDownload {
+                RuntimeDownloadExporter(url: download.localURL, name: download.name) { saved in
+                    guard model.pendingDownload?.localURL == download.localURL else { return }
+                    model.finishDownloadExport(success: saved)
+                }
             }
         }
 
@@ -336,12 +333,10 @@ struct MobileShellView: View {
             }
             if model.surface == .remote,
                model.remoteExpectedDeviceKey != nil,
-               model.connectionPhase != .connected {
-                ConnectionStatusBar(
-                    phase: model.connectionPhase,
-                    detail: model.coreErrorMessage,
-                    onRetry: model.verifyRemoteConnection
-                )
+               model.connectionPhase != .connected,
+               !model.remoteConversationLoading,
+               model.remoteSessionSelected || model.connectionPhase == .reconnecting || model.coreErrorMessage != nil {
+                RemoteConversationStatusBar(model: model)
             }
             if showsWelcomeHome {
                 WelcomeHomeView(model: model)
@@ -376,5 +371,25 @@ struct MobileShellView: View {
         if width > 0 {
             Rectangle().fill(OpenBitFunTheme.line).frame(width: width)
         }
+    }
+}
+
+
+private struct RuntimeDownloadExporter: UIViewControllerRepresentable {
+    let url: URL
+    let name: String
+    let finished: (Bool) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(finished) }
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let finished: (Bool) -> Void
+        init(_ finished: @escaping (Bool) -> Void) { self.finished = finished }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { finished(!urls.isEmpty) }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { finished(false) }
     }
 }

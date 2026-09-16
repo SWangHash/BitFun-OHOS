@@ -6,6 +6,8 @@ export const actionCardMeta = {
   maturity: "stable",
   name: "ActionCard",
   props: [
+    { name: "body", type: "ReactNode" },
+    { name: "triggerClassName", type: "string" },
     { name: "children", type: "ReactNode" },
     { name: "description", type: "ReactNode" },
     { name: "leading", type: "ReactNode" },

@@ -63,6 +63,8 @@ describe('mobile chat submission acknowledgement', () => {
       get controlTargetEpoch() { return epoch; },
       get controlTargetDeviceId() { return epoch === 0 ? 'device-a' : 'device-b'; },
       onControlTargetChange: (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); },
+      invokeHost: vi.fn().mockResolvedValue({ sessionId: 'fixture', permissions: { revision: 0, requests: [] }, userQuestions: { revision: 0, questions: [] } }),
+      subscribeSessionStream: vi.fn().mockResolvedValue({ close() {}, wake() {}, async loadOlder() {} }),
       getSessionMessages: vi.fn().mockResolvedValue({ messages: [], has_more: false }),
       getModelCatalog: vi.fn().mockResolvedValue({ version: 1, models: [], default_models: {}, session_model_id: 'auto' }),
       sendMessage,

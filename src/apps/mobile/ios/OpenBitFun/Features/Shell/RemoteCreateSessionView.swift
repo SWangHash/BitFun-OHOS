@@ -1,5 +1,7 @@
 import OpenBitFunMobileCore
 import SwiftUI
+import WebKit
+import UniformTypeIdentifiers
 import OSLog
 
 struct RemoteCreateSessionView: View {
@@ -11,6 +13,11 @@ struct RemoteCreateSessionView: View {
     @State private var harnessProfile = HarnessProfile.standard
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedWorkspacePath = ""
+    @State private var selectedWorkspaceConnectionId: String?
+    @State private var newWorkspacePath = ""
+    @State private var directoryVisible = false
+    @State private var directoryConnectionId: String?
+    @State private var savedConnectionId = ""
     @State private var selectedModelID: String?
     @State private var pickerKind: RemoteCreateSelectionKind? = ProcessInfo.processInfo.arguments.contains(
         "--remote-create-workspace-picker"
@@ -307,7 +314,8 @@ struct RemoteCreateSessionView: View {
                 title: "",
                 instruction: instruction,
                 modelID: selectedModelID,
-                workspacePath: selectedWorkspacePath.isEmpty ? nil : selectedWorkspacePath
+                workspacePath: selectedWorkspacePath.isEmpty ? nil : selectedWorkspacePath,
+                remoteConnectionId: selectedWorkspaceConnectionId
             )
         } else if model.workspaceLoadFailed {
             model.retryRemoteWorkspaces()
@@ -330,7 +338,8 @@ struct RemoteCreateSessionView: View {
                 title: "",
                 instruction: value,
                 modelID: selectedModelID,
-                workspacePath: selectedWorkspacePath.isEmpty ? nil : selectedWorkspacePath
+                workspacePath: selectedWorkspacePath.isEmpty ? nil : selectedWorkspacePath,
+                remoteConnectionId: selectedWorkspaceConnectionId
             )
             return
         }
@@ -366,6 +375,7 @@ struct RemoteCreateSessionView: View {
                             ) {
                                 pickerKind = nil
                                 selectedWorkspacePath = ""
+                                selectedWorkspaceConnectionId = nil
                                 model.selectRemoteDevice(device)
                             }
                         }
@@ -399,11 +409,32 @@ struct RemoteCreateSessionView: View {
                                 enabled: model.remoteCreateInteraction.canSelectWorkspace
                             ) {
                                 selectedWorkspacePath = ""
+                                selectedWorkspaceConnectionId = nil
                                 pickerKind = nil
-                                if let assistant = model.remoteAssistants.first {
-                                    model.selectRemoteAssistant(assistant)
-                                }
                             }
+                            VStack {
+                                TextField(model.localized("受控设备上的路径"), text: $newWorkspacePath)
+                                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                Picker(model.localized("已保存的 SSH 连接"), selection: $savedConnectionId) {
+                                    Text(model.localized("受控设备本机")).tag("")
+                                    ForEach(model.savedRuntimeConnections, id: \.id) { connection in
+                                        Text(connection.name).tag(connection.id)
+                                    }
+                                }
+                                if model.savedRuntimeConnectionsFailed {
+                                    Text(model.localized("无法加载已保存连接，请刷新重试。")).foregroundStyle(OpenBitFunTheme.muted)
+                                }
+                                Button(model.localized("Browse folders")) {
+                                    directoryConnectionId = savedConnectionId.isEmpty ? nil : savedConnectionId
+                                    model.browseRuntimeDirectories(newWorkspacePath.isEmpty ? "/" : newWorkspacePath, connectionId: directoryConnectionId)
+                                    directoryVisible = true
+                                }
+                                Button(model.localized("打开工作区")) {
+                                    model.openRemoteWorkspacePath(newWorkspacePath, connectionId: savedConnectionId.isEmpty ? nil : savedConnectionId)
+                                    pickerKind = nil
+                                }
+                                .disabled(newWorkspacePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.remoteCreateInteraction.canSelectWorkspace)
+                            }.padding()
                             ForEach(model.remoteWorkspaces) { workspace in
                                 selectionRow(
                                     kind: .workspace,
@@ -414,8 +445,8 @@ struct RemoteCreateSessionView: View {
                                     enabled: model.remoteCreateInteraction.canSelectWorkspace
                                 ) {
                                     selectedWorkspacePath = workspace.path
+                                    selectedWorkspaceConnectionId = workspace.remoteConnectionId
                                     pickerKind = nil
-                                    model.selectRemoteWorkspace(workspace)
                                 }
                             }
                         }
@@ -448,6 +479,29 @@ struct RemoteCreateSessionView: View {
             }
         }
         .background(OpenBitFunTheme.card)
+        .fullScreenCover(isPresented: $directoryVisible) {
+            NavigationStack {
+                VStack {
+                    if let state = model.runtimeDirectoryPicker {
+                        Text(state.directory).font(.caption).padding()
+                        if state.busy { ProgressView() }
+                        if state.failed { Text(model.localized("文件操作失败，请重试。")) }
+                        List {
+                            Button(model.localized("Parent folder")) { model.browseRuntimeDirectories((state.directory as NSString).deletingLastPathComponent.isEmpty ? "/" : (state.directory as NSString).deletingLastPathComponent, connectionId: directoryConnectionId) }.disabled(state.directory == "/" || state.busy)
+                            ForEach(state.entries.filter { $0.directory }, id: \.path) { entry in
+                                Button(entry.name) { model.browseRuntimeDirectories(entry.path, connectionId: directoryConnectionId) }.disabled(state.busy)
+                            }
+                            if state.hasMore { Button(model.localized("显示更多")) { model.browseRuntimeDirectories(state.directory, connectionId: directoryConnectionId, append: true) }.disabled(state.busy) }
+                        }
+                    }
+                }.navigationTitle(model.localized("Browse folders"))
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button(model.localized("返回")) { directoryVisible = false } }
+                        ToolbarItem(placement: .confirmationAction) { Button(model.localized("Choose this folder")) { newWorkspacePath = model.runtimeDirectoryPicker?.directory ?? ""; directoryVisible = false }.disabled(model.runtimeDirectoryPicker?.busy != false || model.runtimeDirectoryPicker?.failed == true) }
+                    }
+            }
+        }
+
     }
 
     private func selectionRow(
@@ -605,6 +659,263 @@ struct HarnessProfileLabel: View {
             Text(model.localized(profile == .minimal ? "极简" : (profile == .ultimate ? "极致" : "标准")))
                 .font(MobileDesignTypography.titleSmall.font)
                 .foregroundStyle(OpenBitFunTheme.ink)
+        }
+    }
+}
+
+
+private struct NativeRuntimeTerminalView: UIViewRepresentable {
+    let state: RuntimeTerminalUiState
+    let onInput: (String) -> Void
+    let onResize: (Int, Int) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(context.coordinator, name: "openbitfunTerminal")
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = context.coordinator
+        view.scrollView.isScrollEnabled = false
+        context.coordinator.view = view
+        if let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "generated") {
+            view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        }
+        return view
+    }
+    func updateUIView(_ view: WKWebView, context: Context) { context.coordinator.parent = self; context.coordinator.render(force: false) }
+    static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
+        coordinator.disposed = true
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "openbitfunTerminal")
+        view.stopLoading()
+    }
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        var parent: NativeRuntimeTerminalView
+        weak var view: WKWebView?
+        var disposed = false
+        var ready = false
+        var epoch: String?
+        var revision: Int64 = -1
+        init(_ parent: NativeRuntimeTerminalView) { self.parent = parent }
+        func render(force: Bool) {
+            let state = parent.state
+            guard ready, !disposed, let id = state.sessionId else { return }
+            guard force || epoch != id || revision != state.revision else { return }
+            let reset = force || epoch != id || state.reset || state.revision != revision + 1
+            let frame: [String: Any] = ["epoch": id, "revision": state.revision, "reset": reset, "data": reset ? state.output : state.chunk]
+            guard let data = try? JSONSerialization.data(withJSONObject: frame), let json = String(data: data, encoding: .utf8) else { return }
+            view?.evaluateJavaScript("window.OpenBitFunTerminal.accept(\(json))")
+            epoch = id; revision = state.revision
+        }
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard !disposed, let event = message.body as? [String: Any], let type = event["type"] as? String else { return }
+            switch type {
+            case "ready": ready = true; render(force: true)
+            case "resync": render(force: true)
+            case "input": if let data = event["data"] as? String { parent.onInput(data) }
+            case "resize": if let cols = event["cols"] as? Int, let rows = event["rows"] as? Int, cols > 0, rows > 0 { parent.onResize(cols, rows) }
+            default: break
+            }
+        }
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { webView.evaluateJavaScript("window.OpenBitFunTerminal.connect()") }
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            decisionHandler(navigationAction.request.url?.isFileURL == true ? .allow : .cancel)
+        }
+    }
+}
+
+private struct NativeRuntimeFileEditor: View {
+    @ObservedObject var model: MobileAppModel
+    @State private var content = ""
+    @State private var discard = false
+    @State private var rename = false
+    @State private var delete = false
+    @State private var renamePath = ""
+    private var dirty: Bool { content != (model.runtimeFiles?.content ?? "") }
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if let files = model.runtimeFiles {
+                    Text(files.file ?? "").font(.caption).frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                    if files.failed { Text(model.localized("文件操作失败，请重试。")) }
+                    NativeNumberedCodeEditor(text: $content, enabled: !files.busy).frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationTitle(((model.runtimeFiles?.file ?? "") as NSString).lastPathComponent)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(model.localized("返回")) { if dirty { discard = true } else { model.closeRuntimeFileEditor() } }.disabled(model.runtimeFiles?.busy == true) }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(model.localized("重命名打开的文件")) { renamePath = model.runtimeFiles?.file ?? ""; rename = true }
+                        Button(model.localized("删除打开的文件"), role: .destructive) { delete = true }
+                    } label: { Image(systemName: "ellipsis") }.disabled(dirty || model.runtimeFiles?.busy == true)
+                }
+                ToolbarItem(placement: .confirmationAction) { Button(model.localized("保存文件")) { model.saveRuntimeFile(content) }.disabled(!dirty || model.runtimeFiles?.busy == true) }
+            }
+            .onAppear { content = model.runtimeFiles?.content ?? "" }
+            .onChange(of: model.runtimeFiles?.content) { content = $0 ?? "" }
+            .alert(model.localized("重命名打开的文件"), isPresented: $rename) {
+                TextField(model.localized("文件路径"), text: $renamePath).autocorrectionDisabled().textInputAutocapitalization(.never)
+                Button(model.localized("重命名打开的文件")) { model.renameRuntimeFile(renamePath) }.disabled(renamePath.isEmpty)
+                Button(model.localized("取消"), role: .cancel) { }
+            }
+            .confirmationDialog(model.localized("删除打开的文件"), isPresented: $delete, titleVisibility: .visible) {
+                Button(model.localized("删除打开的文件"), role: .destructive) { model.deleteRuntimeFile() }
+                Button(model.localized("取消"), role: .cancel) { }
+            }
+            .confirmationDialog(model.localized("Discard unsaved changes?"), isPresented: $discard, titleVisibility: .visible) {
+                Button(model.localized("Discard"), role: .destructive) { model.closeRuntimeFileEditor() }
+                Button(model.localized("取消"), role: .cancel) { }
+            }
+        }.interactiveDismissDisabled(dirty || model.runtimeFiles?.busy == true)
+    }
+}
+
+/// UIKit owns selection, keyboard editing and scroll offsets; the gutter is presentation only.
+private struct NativeNumberedCodeEditor: UIViewRepresentable {
+    @Binding var text: String
+    let enabled: Bool
+    func makeUIView(context: Context) -> NumberedCodeEditorView {
+        let view = NumberedCodeEditorView()
+        view.changed = { text = $0 }
+        return view
+    }
+    func updateUIView(_ view: NumberedCodeEditorView, context: Context) {
+        view.changed = { text = $0 }
+        view.editor.isEditable = enabled
+        if view.editor.text != text { view.setContent(text) }
+    }
+}
+
+private final class NumberedCodeEditorView: UIView, UITextViewDelegate {
+    let editor = UITextView()
+    private let gutter = UITextView()
+    var changed: ((String) -> Void)?
+    private let codeFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+    private var lineCount = 0
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = 21; paragraph.maximumLineHeight = 21
+        for view in [editor, gutter] {
+            view.font = codeFont
+            view.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+            view.textContainer.lineFragmentPadding = 0
+            view.backgroundColor = UIColor(OpenBitFunTheme.card)
+            view.textColor = UIColor(OpenBitFunTheme.ink)
+            view.typingAttributes = [.font: codeFont, .paragraphStyle: paragraph]
+            view.isScrollEnabled = true
+            view.contentInsetAdjustmentBehavior = .never
+            addSubview(view)
+        }
+        gutter.isEditable = false; gutter.isSelectable = false; gutter.isUserInteractionEnabled = false
+        gutter.textColor = UIColor(OpenBitFunTheme.muted)
+        gutter.showsVerticalScrollIndicator = false; gutter.showsHorizontalScrollIndicator = false
+        editor.textContainer.widthTracksTextView = false
+        editor.textContainer.heightTracksTextView = false
+        editor.autocorrectionType = .no; editor.autocapitalizationType = .none
+        editor.smartQuotesType = .no; editor.smartDashesType = .no; editor.smartInsertDeleteType = .no
+        editor.delegate = self
+        updateLines()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let gutterWidth = max(52, CGFloat(String(max(lineCount, 1)).count) * codeFont.pointSize + 24)
+        gutter.frame = CGRect(x: 0, y: 0, width: gutterWidth, height: bounds.height)
+        editor.frame = CGRect(x: gutterWidth, y: 0, width: max(0, bounds.width - gutterWidth), height: bounds.height)
+        updateContainerWidth()
+    }
+    private func updateContainerWidth() {
+        let longest = editor.text.components(separatedBy: "\n").map { ($0 as NSString).size(withAttributes: [.font: codeFont]).width }.max() ?? 0
+        editor.textContainer.size = CGSize(width: max(editor.bounds.width - 24, longest + 32), height: .greatestFiniteMagnitude)
+    }
+    func setContent(_ content: String) {
+        let paragraph = NSMutableParagraphStyle(); paragraph.minimumLineHeight = 21; paragraph.maximumLineHeight = 21
+        editor.attributedText = NSAttributedString(string: content, attributes: [.font: codeFont, .paragraphStyle: paragraph, .foregroundColor: UIColor(OpenBitFunTheme.ink)])
+        editor.typingAttributes = [.font: codeFont, .paragraphStyle: paragraph, .foregroundColor: UIColor(OpenBitFunTheme.ink)]
+        updateLines()
+    }
+    func updateLines() {
+        let count = editor.text.components(separatedBy: "\n").count
+        if count != lineCount {
+            lineCount = count
+            let paragraph = NSMutableParagraphStyle(); paragraph.minimumLineHeight = 21; paragraph.maximumLineHeight = 21
+            gutter.attributedText = NSAttributedString(string: (1...max(count, 1)).map(String.init).joined(separator: "\n"), attributes: [.font: codeFont, .paragraphStyle: paragraph, .foregroundColor: UIColor(OpenBitFunTheme.muted)])
+        }
+        updateContainerWidth(); setNeedsLayout()
+    }
+    func textViewDidChange(_ textView: UITextView) { updateLines(); changed?(textView.text) }
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { gutter.contentOffset = CGPoint(x: 0, y: editor.contentOffset.y) }
+}
+
+struct NativeDeviceToolsView: View {
+    @ObservedObject var model: MobileAppModel
+    let terminal: Bool
+    let rootPath: String
+    let deviceKey: String?
+    let onBack: () -> Void
+    @State private var filePath = ""
+    @State private var uploadPicker = false
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if terminal {
+                    if let state = model.runtimeTerminal {
+                        if state.failed { Text(model.localized("终端请求失败。")) }
+                        if state.busy { ProgressView() }
+                        if state.sessionId != nil { NativeRuntimeTerminalView(state: state, onInput: model.writeRuntimeTerminal, onResize: model.resizeRuntimeTerminal).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                    }
+                } else {
+                    ScrollView {
+                            VStack {
+                                TextField(model.localized("文件路径"), text: $filePath).autocorrectionDisabled().textInputAutocapitalization(.never)
+                                Button(model.localized("浏览文件")) { model.browseRuntimeFiles(filePath) }
+                                if let files = model.runtimeFiles {
+                                    Menu(model.localized("Sort files")) {
+                                        Button(model.localized("Name: A–Z")) { model.sortRuntimeFiles(.nameAsc) }
+                                        Button(model.localized("Name: Z–A")) { model.sortRuntimeFiles(.nameDesc) }
+                                        Button(model.localized("Modified: newest first")) { model.sortRuntimeFiles(.modifiedDesc) }
+                                        Button(model.localized("Modified: oldest first")) { model.sortRuntimeFiles(.modifiedAsc) }
+                                    }
+                                    Button(model.localized("Parent folder")) { model.browseRuntimeFiles((files.directory as NSString).deletingLastPathComponent.isEmpty ? "/" : (files.directory as NSString).deletingLastPathComponent) }.disabled(files.directory == "/")
+                                    ForEach(files.entries, id: \.path) { entry in
+                                        Button(entry.name) {
+                                            if entry.directory { model.browseRuntimeFiles(entry.path) }
+                                            else { model.readRuntimeFile(entry.path) }
+                                        }
+                                        if !entry.directory {
+                                            Button(model.localized("下载")) { model.downloadWorkspaceFile(path: entry.path, label: entry.name) }
+                                        }
+                                    }
+                                    if files.hasMore { Button(model.localized("显示更多")) { model.browseRuntimeFiles(files.directory, append: true) } }
+                                    if files.failed { Text(model.localized("文件操作失败，请重试。")) }
+                                }
+                                Button(model.localized("Upload file")) { uploadPicker = true }.disabled(filePath.isEmpty)
+                                    .fileImporter(isPresented: $uploadPicker, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+                                        guard model.remoteExpectedDeviceKey == deviceKey else { return }
+                                        switch result {
+                                        case .success(let urls): if let url = urls.first { model.uploadRuntimeFile(filePath, url: url) }
+                                        case .failure: model.showToast(model.localized("Could not read the selected file. Choose a local file and retry."))
+                                        }
+                                    }
+                                Button(model.localized("新建文件")) { model.createRuntimeFile(filePath) }.disabled(filePath.isEmpty)
+                                if model.runtimeFiles?.file != nil {
+                                    Button(model.localized("重命名打开的文件")) { model.renameRuntimeFile(filePath) }.disabled(filePath.isEmpty)
+                                    Button(model.localized("删除打开的文件")) { model.deleteRuntimeFile() }
+                                }
+                                Button(model.localized("创建文件夹")) { model.createRuntimeDirectory(filePath) }
+                            }.padding().disabled(model.runtimeFiles?.busy == true)
+                    }
+                }
+            }.navigationTitle(model.localized(terminal ? "打开终端" : "浏览文件"))
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button(model.localized("返回"), action: onBack) }
+                    ToolbarItem(placement: .confirmationAction) { if terminal { Button(model.localized("关闭终端")) { model.closeRuntimeTerminal(); onBack() } } }
+                }
+                .onAppear { filePath = model.runtimeFiles?.directory ?? rootPath }
+                .onChange(of: model.runtimeFiles?.directory) { if !terminal, let directory = $0 { filePath = directory } }
+                .onChange(of: model.remoteExpectedDeviceKey) { if $0 != deviceKey { onBack() } }
+                .fullScreenCover(isPresented: Binding(get: { !terminal && model.runtimeFiles?.file != nil }, set: { if !$0 { model.closeRuntimeFileEditor() } })) { NativeRuntimeFileEditor(model: model) }
         }
     }
 }

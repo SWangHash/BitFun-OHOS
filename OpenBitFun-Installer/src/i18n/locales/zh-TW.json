@@ -15,7 +15,7 @@
     }
   },
   "options": {
-    "title": "選項",
+    "title": "安裝 OpenBitFun",
     "subtitle": "確認安裝位置與安裝偏好",
     "theme": "主題",
     "changeLanguage": "切換語言",
@@ -32,22 +32,21 @@
     "back": "返回",
     "install": "安裝",
     "installing": "準備中…",
-    "existingInstallTitle": "檢測到本機已安裝 OpenBitFun",
+    "existingInstallTitle": "已安裝 OpenBitFun，可在原位置更新或修復。",
     "existingInstallVersion": "已安裝版本：{{version}}",
     "existingInstallLocation": "安裝位置：{{path}}",
-    "existingInstallBinaryMissing": "該路徑下未找到主程式檔案，可先運行解除安裝程式或重新安裝。",
-    "existingInstallHint": "直接點擊「安裝」可在原位置升級或修復。若需先解除安裝，可點擊下方按鈕運行解除安裝程式。",
+    "existingInstallBinaryMissing": "偵測到安裝記錄，主程式缺失，可重新安裝修復。",
     "existingInstallRunUninstaller": "運行解除安裝程式"
   },
   "model": {
-    "title": "模型",
+    "title": "連接模型",
     "subtitle": "安裝完成，繼續設定模型與主題",
     "provider": "服務商",
     "config": "連接資訊",
     "modelName": "模型名稱（如 deepseek-v4-flash）",
     "skip": "稍後設定",
     "nextTheme": "下一步：主題",
-    "description": "管理預設模型、模型服務、訂閱帳戶、模型目錄與網路連線。",
+    "description": "管理預設模型、模型服務、訂閱帳戶、模型目錄與網路連線",
     "providerLabel": "選擇模型提供商",
     "selectProvider": "或選擇預設提供商",
     "customProvider": "自定義設定",
@@ -194,7 +193,10 @@
     "jsonInvalid": "JSON格式錯誤，請檢查語法",
     "jsonValid": "JSON格式有效",
     "modelNoResults": "沒有匹配的模型",
-    "skipSslVerify": "跳過SSL證書驗證"
+    "skipSslVerify": "跳過SSL證書驗證",
+    "setupDescription": "選擇服務商並填寫 API 金鑰，也可以進入應用程式後設定。",
+    "advancedSettings": "進階設定",
+    "endpointPreset": "服務端點"
   },
   "progress": {
     "title": "安裝中",
@@ -207,11 +209,15 @@
     "complete": "即將完成",
     "starting": "啟動中...",
     "failed": "安裝失敗",
-    "confirmContinue": "繼續完成設定"
+    "confirmContinue": "繼續完成設定",
+    "completed": "安裝完成",
+    "completedDescription": "OpenBitFun 已就緒，繼續選擇模型與外觀。",
+    "description": "正在為你準備好工作空間。",
+    "retry": "重試"
   },
   "themeSetup": {
-    "title": "主題與啟動",
-    "subtitle": "選擇首次啟動主題，然後開始使用",
+    "title": "選擇外觀",
+    "subtitle": "點選佈景主題即可預覽，之後也可以隨時更換。",
     "followSystem": "跟隨系統",
     "themeNames": {
       "openbitfun-dark": "暗色",
@@ -239,5 +245,26 @@
     "completed": "解除安裝已完成，可關閉視窗。",
     "cancel": "取消",
     "close": "關閉"
+  },
+  "welcome": {
+    "title": "選擇語言",
+    "description": "用於安裝過程與應用程式首次啟動。",
+    "version": "版本 {{version}}"
+  },
+  "steps": {
+    "label": "安裝步驟",
+    "language": "語言",
+    "install": "安裝",
+    "model": "模型",
+    "theme": "外觀"
+  },
+  "window": {
+    "minimize": "最小化",
+    "close": "關閉"
+  },
+  "preview": {
+    "badge": "介面預覽 · 不執行安裝",
+    "page": "預覽頁面",
+    "progress": "安裝進度"
   }
 }

@@ -1,4 +1,8 @@
 @layer openbitfun.components {
+  .native {
+    min-inline-size: 0;
+  }
+
   .root {
     min-inline-size: 0;
     color: var(--openbitfun-color-action-neutral-content);

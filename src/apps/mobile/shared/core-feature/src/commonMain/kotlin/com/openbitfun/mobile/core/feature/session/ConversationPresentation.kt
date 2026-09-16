@@ -165,6 +165,8 @@ public data class ConversationRow public constructor(
     public val showRetry: Boolean,
     /** A user-visible assistant failure returned by the desktop. */
     public val error: String?,
+    /** This is the current turn, including its finalizing snapshot before persistence. */
+    public val live: Boolean,
 )
 
 /**
@@ -205,6 +207,7 @@ public fun ChatTimelineState.conversationRows(): List<ConversationRow> =
             images = message?.images.orEmpty().map { ConversationImage(it.name, it.dataUrl) },
             tools = message?.let(::toolCards).orEmpty(),
             blocks = message?.let { messageBlocks(it, item.isStreaming) }.orEmpty(),
+            live = item.type == ChatTimelineItemType.ASSISTANT_LIVE_TURN,
             streaming = item.isStreaming,
             typing = message?.let { isTyping(it, item.isStreaming) } == true,
             pending = item.type == ChatTimelineItemType.OPTIMISTIC_USER_MESSAGE,

@@ -18,14 +18,14 @@ tauri-build = { workspace = true }
 serde_json = { workspace = true }
 
 [dependencies]
+openbitfun-services-core = { path = "../../crates/services/services-core", features = ["pet-packages", "screen-capture"] }
 # Internal crates
 openbitfun-core = { path = "../../crates/assembly/core", features = ["product-full"] }
 openbitfun-relay-service = { path = "../../crates/services/relay-service" }
 openbitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features = ["agent-runtime"] }
 openbitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }
 openbitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["appearance-market"] }
-openbitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "speech", "speech-realtime", "feedback", "privacy"] }
-openbitfun-services-core = { path = "../../crates/services/services-core", features = ["screen-capture"] }
+openbitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "remote-ssh-concrete", "speech", "speech-realtime", "feedback", "privacy"] }
 openbitfun-core-types = { path = "../../crates/contracts/core-types" }
 openbitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token"] }
 openbitfun-transport = { path = "../../crates/adapters/transport", features = ["tauri-adapter"] }
@@ -81,7 +81,8 @@ tower-http = { workspace = true, features = ["fs"] }
 sha1 = { workspace = true }
 sha2 = { workspace = true }
 minisign-verify = { workspace = true }
-image = { workspace = true, features = ["jpeg", "png"] }
+# Controller-local drag thumbnails decode these formats; other files use UI icons.
+image = { workspace = true, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 resvg = { workspace = true }
 arboard = "3"
 tempfile = { workspace = true }
@@ -122,6 +123,8 @@ windows = { workspace = true, features = [
   "Win32_Graphics_Dxgi_Common",
   "Win32_Graphics_Gdi",
   "Win32_Storage_FileSystem",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemServices",
   "Win32_Storage_Xps",
   "Win32_System_Com",
   "Win32_System_Ole",
@@ -131,10 +134,16 @@ windows = { workspace = true, features = [
   "Win32_System_WinRT_Graphics",
   "Win32_System_WinRT_Graphics_Capture",
   "Win32_UI_Accessibility",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }
 windows-core = { workspace = true }
 webview2-com = { workspace = true }
+
+[target.'cfg(windows)'.dev-dependencies]
+# Real Shell IDataObject fixtures for native drag-image lifecycle regressions.
+windows = { workspace = true, features = ["Win32_UI_Shell_Common"] }
 
 [features]
 default = []

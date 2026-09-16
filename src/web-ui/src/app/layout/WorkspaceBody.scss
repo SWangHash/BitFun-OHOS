@@ -15,6 +15,11 @@ $_resize-target-width: 6px;
 
   @include shell-surfaces.sidebar-background;
 
+  :root[data-openbitfun-native-material='sidebar'] &,
+  .openbitfun-app-layout[data-openbitfun-background-media='video'] & {
+    background: transparent;
+  }
+
   position: relative;
   isolation: isolate;
   display: flex;
@@ -29,9 +34,18 @@ $_resize-target-width: 6px;
   gap: 0;
 }
 
-.openbitfun-workspace-body__nav-area {
-  @include shell-surfaces.sidebar-background;
+.openbitfun-workspace-body__material {
+  @include shell-surfaces.sidebar-glass;
 
+  // A single background continues through the scene's exposed rounded corners.
+  // Keeping its filter off the layout containers preserves fixed menu geometry.
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.openbitfun-workspace-body__nav-area {
   position: relative;
   z-index: 3;
   display: flex;
@@ -41,6 +55,39 @@ $_resize-target-width: 6px;
   min-width: 0;
   height: 100%;
   overflow: visible;
+
+  > .openbitfun-nav-bar,
+  > .openbitfun-nav-panel,
+  .openbitfun-nav-panel__brand-header,
+  .openbitfun-nav-panel__sticky-section-header,
+  .openbitfun-nav-panel__content:not(.is-split-open) .openbitfun-nav-panel__layer--scene,
+  .openbitfun-nav-panel [data-openbitfun-component='navigation-panel'] {
+    background: transparent;
+  }
+
+  // Settings and other scene navigation share the same material as MainNav.
+  [data-openbitfun-component='search-field'] > [data-openbitfun-component='input'] {
+    @include shell-surfaces.sidebar-overlay(var(--openbitfun-color-field-background));
+
+    &:hover,
+    &:focus-within {
+      @include shell-surfaces.sidebar-overlay(var(--openbitfun-color-field-background-hover), 28%);
+    }
+  }
+
+  // Keep the gear on the shared material, including IconButton's ::before
+  // surface. Icon color and the keyboard focus ring provide interaction feedback.
+  .openbitfun-nav-panel__footer-btn--icon {
+    &,
+    &:is(:hover, :active, .is-active, .is-hover-open) {
+      background: transparent;
+    }
+
+    &::before,
+    &:is(:hover, :active, .is-active, .is-hover-open)::before {
+      background: transparent;
+    }
+  }
 
   &.is-collapsed {
     flex-basis: 0;

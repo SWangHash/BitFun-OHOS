@@ -133,6 +133,7 @@ export class AccountIdentityService {
   private initializePromise: Promise<void> | null = null;
   private refreshPromise: Promise<MarketMe | null> | null = null;
   private authPromise: Promise<MarketMe> | null = null;
+  private authorizationUrl: string | null = null;
   private authGeneration = 0;
   private identityGeneration = 0;
   private stopSync: (() => void) | null = null;
@@ -230,7 +231,10 @@ export class AccountIdentityService {
         throw failure;
       })
       .finally(() => {
-        if (this.authPromise === operation) this.authPromise = null;
+        if (this.authPromise === operation) {
+          this.authPromise = null;
+          this.authorizationUrl = null;
+        }
       });
     this.authPromise = operation;
     return operation;
@@ -239,12 +243,32 @@ export class AccountIdentityService {
   cancelSignIn(): void {
     if (this.snapshot.status !== 'authorizing') return;
     this.authGeneration += 1;
+    this.authPromise = null;
+    this.authorizationUrl = null;
     this.invalidateRefresh();
     this.setSnapshot({
       resolved: true,
       status: this.snapshot.me ? 'signed-in' : 'signed-out',
       me: this.snapshot.me,
     });
+  }
+
+  private async openAuthorizationPage(url: string): Promise<void> {
+    const page = new URL(url);
+    // A fragment is not part of the HTTP cache key. Give each browser opening
+    // a fresh URL so previously cached sign-in HTML cannot constrain the form.
+    if (page.origin === 'https://auth.openbitfun.com') {
+      page.searchParams.set('_auth', createId());
+    }
+    await this.dependencies.openExternal(page.href);
+  }
+
+  async reopenSignIn(): Promise<void> {
+    // The OS browser opener cannot observe external tab closure. Keep a visible
+    // recovery action while polling instead of permanently disabling sign-in.
+    if (this.snapshot.status === 'authorizing' && this.authorizationUrl) {
+      await this.openAuthorizationPage(this.authorizationUrl);
+    }
   }
 
   async logout(): Promise<void> {
@@ -258,6 +282,8 @@ export class AccountIdentityService {
 
   dispose(): void {
     this.authGeneration += 1;
+    this.authPromise = null;
+    this.authorizationUrl = null;
     this.invalidateRefresh();
     this.stopSync?.();
     this.stopSync = null;
@@ -271,7 +297,12 @@ export class AccountIdentityService {
   private async runSignIn(generation: number): Promise<MarketMe> {
     const transaction = await this.dependencies.api.authStart();
     this.ensureCurrentAuth(generation);
-    await this.dependencies.openExternal(transaction.authorizationUrl);
+    const authorizationUrl = new URL(transaction.authorizationUrl);
+    if (authorizationUrl.origin === 'https://auth.openbitfun.com' && typeof document !== 'undefined') {
+      authorizationUrl.searchParams.set('locale', document.documentElement.lang || 'en-US');
+    }
+    this.authorizationUrl = authorizationUrl.href;
+    await this.openAuthorizationPage(this.authorizationUrl);
     const deadline = transaction.expiresAt * 1000;
     while (this.dependencies.now() < deadline) {
       await this.dependencies.sleep(Math.max(1, transaction.pollIntervalSeconds) * 1000);
@@ -357,7 +388,7 @@ function asAccountIdentityError(error: unknown): AccountIdentityError {
 }
 
 function identityKey(me: MarketMe | null): string {
-  return me ? `${me.user.githubId}:${me.user.login}` : '';
+  return me ? `${me.user.accountId || me.user.githubId}:${me.user.login}` : '';
 }
 
 export const accountIdentityService = new AccountIdentityService();

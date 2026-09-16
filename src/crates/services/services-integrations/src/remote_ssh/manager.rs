@@ -4905,6 +4905,12 @@ impl SSHConnectionManager {
             .is_some_and(|config| config.uses_local_docker())
     }
 
+    pub async fn is_shell_workspace(&self, connection_id: &str) -> bool {
+        self.get_effective_connection_config(connection_id)
+            .await
+            .is_some_and(|config| config.uses_shell_filesystem())
+    }
+
     pub async fn is_container_workspace(&self, connection_id: &str) -> bool {
         self.get_effective_connection_config(connection_id)
             .await
@@ -5004,6 +5010,42 @@ impl SSHConnectionManager {
     ) -> anyhow::Result<Vec<u8>> {
         self.container_read_file_with_progress(connection_id, path, &mut |_, _| true)
             .await
+    }
+
+    pub async fn open_workspace_file_write_new(
+        &self,
+        connection_id: &str,
+        path: &str,
+    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+        let path = self.resolve_sftp_path(connection_id, path).await?;
+        if self.is_shell_workspace(connection_id).await {
+            anyhow::bail!("Streaming upload requires an SFTP workspace provider");
+        }
+        let sftp = self.get_sftp(connection_id).await?;
+        Ok(Box::new(sftp.create_new(&path).await?))
+    }
+
+    pub async fn atomic_replace_workspace_file(
+        &self,
+        connection_id: &str,
+        from: &str,
+        to: &str,
+    ) -> anyhow::Result<()> {
+        let from = self.resolve_sftp_path(connection_id, from).await?;
+        let to = self.resolve_sftp_path(connection_id, to).await?;
+        if from.rsplit_once('/').map(|p| p.0) != to.rsplit_once('/').map(|p| p.0) {
+            anyhow::bail!("Atomic replacement requires a same-directory staged file");
+        }
+        let command = format!(
+            "test ! -d {1} && mv -f -- {0} {1}",
+            crate::remote_ssh::shell::quote_arg(&from),
+            crate::remote_ssh::shell::quote_arg(&to)
+        );
+        let (_, stderr, code) = self.execute_command(connection_id, &command).await?;
+        if code != 0 {
+            anyhow::bail!("Remote atomic replacement failed: {stderr}");
+        }
+        Ok(())
     }
 
     pub async fn open_workspace_file_read(

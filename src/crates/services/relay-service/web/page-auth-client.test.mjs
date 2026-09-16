@@ -27,7 +27,7 @@ async function runLogin({ state, status = 'approved', authorizationUrl = 'https:
     fetch: async (url, options) => {
       const body = JSON.parse(options.body);
       calls.push({ url, body });
-      if (url.endsWith('/github/start')) return { ok: true, json: async () => ({ transactionId: 'txn', transactionSecret: 'secret', authorizationUrl, expiresAt: Date.now() / 1000 + 60, pollIntervalSeconds: 3 }) };
+      if (url.endsWith('/github/start?methods=all')) return { ok: true, json: async () => ({ transactionId: 'txn', transactionSecret: 'secret', authorizationUrl, expiresAt: Date.now() / 1000 + 60, pollIntervalSeconds: 3 }) };
       if (url.endsWith('/github/poll')) return { ok: true, json: async () => ({ status, tokens: status === 'approved' ? { accessToken: 'verified-account-token' } : undefined }) };
       if (url.endsWith('/page-auth/login')) return { ok: true, json: async () => ({ redirect_to: state ? 'https://pages.example/callback?code=one-time' : '/p/alice/demo?q=1' }) };
       throw new Error(`Unexpected URL ${url}`);
@@ -53,6 +53,14 @@ test('isolated Page sign-in retains the one-time login state and callback origin
   const result = await runLogin({ state: 'login-state' });
   assert.deepEqual(result.calls[2].body, { access_token: 'verified-account-token', state: 'login-state' });
   assert.equal(result.redirect, 'https://pages.example/callback?code=one-time');
+});
+
+test('email sign-in carries the browser locale without changing the authorization ticket', async () => {
+  const result = await runLogin({ authorizationUrl: 'https://auth.openbitfun.com/sign-in#ticket=original-ticket' });
+  const opened = new URL(result.opened);
+  assert.equal(opened.searchParams.get('locale'), 'en');
+  assert.equal(opened.hash, '#ticket=original-ticket');
+  assert.equal(result.calls[2].body.access_token, 'verified-account-token');
 });
 
 test('failed authorization or an untrusted OAuth URL never submits Page access', async () => {

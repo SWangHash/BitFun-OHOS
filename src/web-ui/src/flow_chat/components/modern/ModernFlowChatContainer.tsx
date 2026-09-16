@@ -1955,6 +1955,32 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       }
 
       const session = flowChatStore.getState().sessions.get(sessionId);
+      if (getActiveSurfaceScope().surfaceId !== 'local' && !presentation) {
+        if (direction === 'after' || session?.isPartial === false) return 'exhausted';
+        const scope = getActiveSurfaceScope();
+        setHistoryBoundaryState(previous => ({ ...previous, [direction]: 'loading' }));
+        try {
+          const prepared = await options?.prepareViewportForPresentationCommit?.();
+          if (prepared === false || !scope.isCurrent() || activeSessionIdRef.current !== sessionId) {
+            options?.cancelViewportPresentationCommit?.();
+            return 'cancelled';
+          }
+          const loaded = await flowChatStore.loadOlderRelaySessionHistory(sessionId);
+          if (!scope.isCurrent() || activeSessionIdRef.current !== sessionId) return 'cancelled';
+          return loaded ? 'applied' : 'exhausted';
+        } catch (error) {
+          options?.cancelViewportPresentationCommit?.();
+          if (isSurfaceChangedError(error)) return 'cancelled';
+          log.error('Relay history page failed', { sessionId, error });
+          if (scope.isCurrent()) setHistoryBoundaryState(previous => ({ ...previous, [direction]: 'error' }));
+          return 'not-ready';
+        } finally {
+          if (scope.isCurrent() && activeSessionIdRef.current === sessionId) {
+            setHistoryBoundaryState(previous => previous[direction] === 'error'
+              ? previous : { ...previous, [direction]: 'idle' });
+          }
+        }
+      }
       const historyView = flowChatStore.getSessionHistoryViewState(sessionId);
       const totalTurnCount = Math.max(
         historyView?.catalog?.totalTurnCount ?? 0,

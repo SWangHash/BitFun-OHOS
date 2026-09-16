@@ -17,19 +17,19 @@ Review changes and pull-request context, inspect CI logs, generate commit messag
 
 ## 完整功能清单 / Everything included
 
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ReviewPlatform` · 读取仓库、分支、工作区快照和评审目标
+- **由专用智能体工具控制 / Delegated Agent tool** · `ReviewPlatform` · 读取仓库、分支、工作区快照和评审目标
   - Load repository, branch, workspace snapshot, and review-target context
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ReviewPlatform` · 查看 Pull Request 详情、分页内容与关联改动
+- **由专用智能体工具控制 / Delegated Agent tool** · `ReviewPlatform` · 查看 Pull Request 详情、分页内容与关联改动
   - Inspect pull-request details, paged content, and related changes
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ReviewPlatform` · 读取 Pull Request 的 CI 运行日志
+- **由专用智能体工具控制 / Delegated Agent tool** · `ReviewPlatform` · 读取 Pull Request 的 CI 运行日志
   - Read CI run logs for a pull request
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 读取关联 Issue 的标题、描述与上下文
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 读取关联 Issue 的标题、描述与上下文
   - Read the title, body, and context of linked issues
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ReviewPlatform` · 保存或清除评审平台访问令牌
+- **由专用智能体工具控制 / Delegated Agent tool** · `ReviewPlatform` · 保存或清除评审平台访问令牌
   - Store or clear review-platform access tokens
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 预览、生成或快速采用提交信息
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 预览、生成或快速采用提交信息
   - Preview, generate, or quickly apply a commit message
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `LaunchReviewAgent` / `submit_code_review` · 针对工作区、提交或 PR 发起 Deep Review 并汇总结构化评审
+- **由专用智能体工具控制 / Delegated Agent tool** · `LaunchReviewAgent` / `submit_code_review` · 针对工作区、提交或 PR 发起 Deep Review 并汇总结构化评审
   - Run Deep Review against a workspace, commit, or pull request and consolidate a structured review
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Review changes and pull-request context, inspect CI logs, generate commit messag
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -55,13 +55,13 @@ Review changes and pull-request context, inspect CI logs, generate commit messag
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开文件面板，我要评审当前改动”
   - “Open Files so I can review the current changes”
 - “带我查看 Pull Request 相关能力”
   - “Take me to the pull-request workflow”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

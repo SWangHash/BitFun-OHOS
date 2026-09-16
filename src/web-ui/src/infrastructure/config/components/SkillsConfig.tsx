@@ -16,7 +16,6 @@ import type { SkillInfo, SkillLevel, SkillMarketItem, SkillValidationResult } fr
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
-  isOpenBitFunManagedSkill,
   getSkillSourceLabel,
 } from '../skillSourcePresentation';
 import { workspaceAPI } from '../../api/service-api/WorkspaceAPI';
@@ -73,7 +72,7 @@ const SkillsConfig: React.FC = () => {
       if (requestId !== loadRequestIdRef.current) {
         return;
       }
-      setSkills(skillsList.filter(isOpenBitFunManagedSkill));
+      setSkills(skillsList);
     } catch (err) {
       if (requestId !== loadRequestIdRef.current) {
         return;

@@ -1035,6 +1035,10 @@ pub struct AIConfig {
     #[serde(default = "default_enable_deferred_tool_loading")]
     pub enable_deferred_tool_loading: bool,
 
+    /// Speculatively summarize context before automatic compression is required.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub enable_context_compression_prefetch: bool,
+
     /// Allows broad JSON repair for non-Write tool arguments only after a
     /// provider confirms a normal tool-use completion.
     #[serde(default = "default_true")]
@@ -1362,13 +1366,17 @@ pub struct AgentProfileConfig {
     pub extensions: serde_json::Map<String, serde_json::Value>,
 }
 
-/// User-level Skill configuration shared by every agent profile.
+/// Skill availability configuration shared by every agent profile.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct SkillSettingsConfig {
     /// User-level Skill keys disabled for every agent profile.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub globally_disabled_user_skills: Vec<String>,
+    /// Project-level Skill keys, scoped to canonical local workspace roots.
+    /// Remote workspace policy must be owned by its serving filesystem, not this local map.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub globally_disabled_project_skills: HashMap<String, Vec<String>>,
 }
 
 /// API view of a mode configuration.
@@ -1387,6 +1395,10 @@ pub struct AgentProfileView {
 
 fn default_true() -> bool {
     true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 /// Default streaming idle timeout between chunks.
@@ -1915,6 +1927,7 @@ impl Default for AIConfig {
             stream_ttft_timeout_secs: default_stream_ttft_timeout(),
             tool_execution_timeout_secs: default_tool_execution_timeout(),
             enable_deferred_tool_loading: default_enable_deferred_tool_loading(),
+            enable_context_compression_prefetch: true,
             allow_tool_json_repair: true,
             computer_use_enabled: false,
             browser_control_preferred_browser: String::new(),
@@ -2097,6 +2110,34 @@ impl AIModelConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn global_skill_settings_keep_legacy_values_and_project_scope_on_round_trip() {
+        let legacy = r#"{"globally_disabled_user_skills":["user::home.agents::review"]}"#;
+        let mut settings: super::SkillSettingsConfig = serde_json::from_str(legacy).unwrap();
+        assert!(settings.globally_disabled_project_skills.is_empty());
+        assert_eq!(
+            serde_json::to_value(&settings).unwrap(),
+            serde_json::from_str::<serde_json::Value>(legacy).unwrap()
+        );
+        settings.globally_disabled_project_skills.insert(
+            "/workspace/a".into(),
+            vec!["project::agents::review".into()],
+        );
+        let restored: super::SkillSettingsConfig =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(
+            restored.globally_disabled_user_skills,
+            ["user::home.agents::review"]
+        );
+        assert_eq!(
+            restored.globally_disabled_project_skills["/workspace/a"],
+            ["project::agents::review"]
+        );
+        assert!(!restored
+            .globally_disabled_project_skills
+            .contains_key("/workspace/b"));
+    }
+
     #[test]
     fn companion_pet_legacy_selection_round_trip_preserves_missing_version() {
         let legacy = serde_json::json!({
@@ -2860,6 +2901,7 @@ mod tests {
         assert_eq!(config.stream_idle_timeout_secs, Some(600));
         assert_eq!(config.stream_ttft_timeout_secs, Some(600));
         assert!(config.enable_deferred_tool_loading);
+        assert!(config.enable_context_compression_prefetch);
         assert!(config.allow_tool_json_repair);
         assert_eq!(config.subagent_max_concurrency, 5);
         assert_eq!(config.swarm_max_concurrency, 16);
@@ -2902,6 +2944,33 @@ mod tests {
             config.agent_model_defaults.subagents.fork,
             SubagentModelSelection::Inherit
         );
+    }
+
+    #[test]
+    fn compression_prefetch_defaults_on_omits_default_and_preserves_opt_out() {
+        let old: AIConfig = serde_json::from_value(serde_json::json!({"max_rounds": 42})).unwrap();
+        assert!(old.enable_context_compression_prefetch);
+        let mut payload = serde_json::to_value(&old).unwrap();
+        assert!(payload.get("enable_context_compression_prefetch").is_none());
+        payload["enable_context_compression_prefetch"] = serde_json::json!(true);
+        let enabled: AIConfig = serde_json::from_value(payload).unwrap();
+        assert!(enabled.enable_context_compression_prefetch);
+        assert!(serde_json::to_value(&enabled)
+            .unwrap()
+            .get("enable_context_compression_prefetch")
+            .is_none());
+        let reloaded: AIConfig =
+            serde_json::from_value(serde_json::to_value(enabled).unwrap()).unwrap();
+        assert!(reloaded.enable_context_compression_prefetch);
+        assert_eq!(reloaded.max_rounds, 42);
+        let disabled: AIConfig = serde_json::from_value(serde_json::json!({
+            "enable_context_compression_prefetch": false
+        }))
+        .unwrap();
+        let payload = serde_json::to_value(disabled).unwrap();
+        assert_eq!(payload["enable_context_compression_prefetch"], false);
+        let reloaded: AIConfig = serde_json::from_value(payload).unwrap();
+        assert!(!reloaded.enable_context_compression_prefetch);
     }
 
     #[test]

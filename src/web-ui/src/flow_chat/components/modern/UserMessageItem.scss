@@ -418,3 +418,26 @@
     animation: none;
   }
 }
+
+.user-message-item__lightbox[data-openbitfun-component='dialog'] {
+  padding: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.user-message-item__lightbox-surface[data-openbitfun-component='dialog'] {
+  width: 100%;
+  height: 100%;
+  max-inline-size: none;
+  max-block-size: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+.user-message-item__lightbox-close[data-openbitfun-component='icon-button'] {
+  &::before { content: none; }
+  > [data-openbitfun-part='icon'] { display: contents; }
+}

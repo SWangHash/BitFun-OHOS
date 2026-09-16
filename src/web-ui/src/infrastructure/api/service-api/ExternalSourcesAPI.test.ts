@@ -67,6 +67,58 @@ describe('ExternalSourcesAPI', () => {
     adapterMocks.isConnected.mockReturnValue(true);
   });
 
+  const discovery = () => ({
+    schemaVersion: 1, automaticDiscovery: true, canChangeAutomaticDiscovery: true,
+    hasScanned: true, preferenceRevision: 9, discoverableCapabilities: { codex: ['mcp'] },
+    catalog: { ...surface({}).catalog, generation: 2, discoveryPending: false, sources: [], commands: [],
+      integrationPolicy: { status: 'compatible', effective: { enabled: false, ecosystems: {} }, registeredEcosystems: [] } },
+  });
+
+  it('negotiates independent catalog discovery while keeping runtime authorization off', async () => {
+    invokeMock.mockResolvedValue(discovery());
+    const result = await externalSourcesAPI.getDiscoverySnapshot(' /project ', true);
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('get_external_source_discovery_snapshot', {
+      request: { workspacePath: '/project', forceRefresh: true },
+    });
+    expect(result.discovery).toEqual({ enabled: true, canChange: true, hasScanned: true,
+      preferenceRevision: 9, discoverableCapabilities: { codex: ['mcp'] } });
+    expect(result.integrationPolicy.effective.enabled).toBe(false);
+  });
+
+  it('keeps old hosts viewable without exposing the new mutation', async () => {
+    invokeMock.mockRejectedValueOnce(new ExternalSourceApiError('incompatible_version', 'Unknown command', false))
+      .mockResolvedValueOnce(surface({ generation: 1 }));
+    const result = await externalSourcesAPI.getDiscoverySnapshot('/project');
+    expect(result.discovery).toBeUndefined();
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
+      'get_external_source_discovery_snapshot', 'get_external_source_control_snapshot',
+    ]);
+  });
+
+  it.each([null, { ...discovery(), automaticDiscovery: 'true' }, { ...discovery(), discoverableCapabilities: [] }])(
+    'reports malformed discovery responses without masking them with a legacy read', async (value) => {
+      invokeMock.mockResolvedValue(value);
+      await expect(externalSourcesAPI.getDiscoverySnapshot('/project')).rejects.toMatchObject({ code: 'invalid_response' });
+      expect(invokeMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([[' /project ', 'workspace', '/project'], ['  ', 'user', undefined]])(
+    'updates only discovery with normalized scope %s', async (workspace, scope, path) => {
+      invokeMock.mockResolvedValueOnce({}).mockResolvedValueOnce(discovery());
+      const runtimeChanged = vi.fn();
+      const unsubscribe = globalEventBus.on('mode:config:updated', runtimeChanged);
+      try {
+        await externalSourcesAPI.setAutomaticDiscovery(workspace, false, 8);
+        expect(runtimeChanged).not.toHaveBeenCalled();
+      } finally { unsubscribe(); }
+      expect(invokeMock).toHaveBeenNthCalledWith(1, 'update_external_integration_policy_command', {
+        request: { workspacePath: path, mutation: { expectedPreferenceRevision: 8, scope,
+          change: { operation: 'set_automatic_discovery', enabled: false } } },
+      });
+    },
+  );
+
   it('reads and acknowledges backend-owned ecosystem awareness', async () => {
     invokeMock
       .mockResolvedValueOnce({ unacknowledgedEcosystemIds: ['opencode', 'codex'] })

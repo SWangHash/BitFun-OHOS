@@ -33,15 +33,15 @@ use openbitfun_services_integrations::remote_connect::{
     resolve_remote_execution_image_contexts, resolve_remote_file_chunk_range,
     resolve_remote_workspace_path, should_send_remote_model_catalog, submit_remote_dialog,
     ActiveTurnSnapshot, ChatImageAttachment, ChatMessage, ChatMessageItem, ImageAttachment,
-    QrGenerator, RelayMessage, RemoteAssistantWorkspaceFacts, RemoteCancelDecision,
-    RemoteCancelRuntimeHost, RemoteCancelTaskRequest, RemoteChatHistoryRound,
-    RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall,
-    RemoteChatHistoryToolItem, RemoteChatHistoryTurn, RemoteCommand, RemoteCommandRuntimeHost,
-    RemoteConnectSubmissionSource, RemoteDefaultModelsConfig, RemoteDialogQueuePriority,
-    RemoteDialogResolvedSubmission, RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact,
-    RemoteDialogSteerOutcome, RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy,
-    RemoteDialogSubmissionRequest, RemoteDialogSubmitOutcome, RemoteDialogWorkspaceBinding,
-    RemoteImageContext, RemoteImageContextAdapter, RemoteModelCapabilityFact, RemoteModelCatalog,
+    QrGenerator, RemoteAssistantWorkspaceFacts, RemoteCancelDecision, RemoteCancelRuntimeHost,
+    RemoteCancelTaskRequest, RemoteChatHistoryRound, RemoteChatHistoryTextItem,
+    RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall, RemoteChatHistoryToolItem,
+    RemoteChatHistoryTurn, RemoteCommand, RemoteCommandRuntimeHost, RemoteConnectSubmissionSource,
+    RemoteDefaultModelsConfig, RemoteDialogQueuePriority, RemoteDialogResolvedSubmission,
+    RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact, RemoteDialogSteerOutcome,
+    RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy, RemoteDialogSubmissionRequest,
+    RemoteDialogSubmitOutcome, RemoteDialogWorkspaceBinding, RemoteImageContext,
+    RemoteImageContextAdapter, RemoteModelCapabilityFact, RemoteModelCatalog,
     RemoteModelCatalogFacts, RemoteModelConfig, RemoteModelFacts, RemoteRecentWorkspaceFacts,
     RemoteResponse, RemoteSessionMetadata, RemoteSessionModelSelection, RemoteSessionStateTracker,
     RemoteSessionTrackerHost, RemoteSessionTrackerRegistry, RemoteSessionWorkspaceIdentity,
@@ -57,7 +57,7 @@ use std::sync::{Arc, Mutex};
 #[test]
 fn relay_invitations_and_authentication_use_the_same_protocol_for_all_endpoints() {
     for endpoint in [
-        "https://remote.openbitfun.com/v/1.0.0",
+        "https://remote.openbitfun.com/v/1.0.1",
         "http://192.168.1.8:9700",
     ] {
         assert_eq!(
@@ -65,14 +65,14 @@ fn relay_invitations_and_authentication_use_the_same_protocol_for_all_endpoints(
             format!("{endpoint}/#/pair?did=desktop-1")
         );
     }
-    let message = RelayMessage::AuthConnect {
-        token: "test-token".into(),
-        device_name: "Desktop".into(),
-        device_kind: "desktop".into(),
-    };
+    use openbitfun_services_integrations::remote_connect::realtime_client::account_auth_payload;
     assert_eq!(
-        serde_json::to_value(message).unwrap()["type"],
-        "auth_connect"
+        account_auth_payload("test-token", true),
+        serde_json::json!({"token":"test-token","clientType":"machine-scoped"})
+    );
+    assert_eq!(
+        account_auth_payload("test-token", false),
+        serde_json::json!({"token":"test-token","clientType":"user-scoped"})
     );
 }
 
@@ -846,6 +846,8 @@ impl RemoteCommandRuntimeHost for RecordingCommandHost {
         self.events.lock().unwrap().push("session".to_string());
         RemoteResponse::SessionCreated {
             session_id: "session-created".to_string(),
+            workspace_path: None,
+            remote_connection_id: None,
         }
     }
 
@@ -1124,6 +1126,8 @@ async fn remote_connect_command_owner_preserves_cancel_and_group_routing() {
         &RemoteCommand::GetFileInfo {
             path: "README.md".to_string(),
             session_id: None,
+            workspace_path: None,
+            remote_connection_id: None,
         },
         RemoteConnectSubmissionSource::Relay,
     )
@@ -1742,6 +1746,8 @@ impl RemoteWorkspaceFileRuntimeHost for UnavailableSessionFileHost {
         &self,
         _: &str,
         session: Option<&str>,
+        _: Option<&str>,
+        _: Option<&str>,
         _: u64,
         _: u64,
     ) -> Result<Option<RemoteWorkspaceFileChunk>, String> {
@@ -1753,6 +1759,8 @@ impl RemoteWorkspaceFileRuntimeHost for UnavailableSessionFileHost {
         &self,
         _: &str,
         session: Option<&str>,
+        _: Option<&str>,
+        _: Option<&str>,
     ) -> Result<Option<RemoteWorkspaceFileInfo>, String> {
         assert_eq!(session, Some("remote-session"));
         Err("Session host is offline".into())
@@ -1773,13 +1781,72 @@ async fn remote_connect_file_provider_errors_never_fall_back_to_local_files() {
             session_id: session_id.clone(),
             offset: 0,
             limit: 3,
+            workspace_path: None,
+            remote_connection_id: None,
         },
-        RemoteCommand::GetFileInfo { path, session_id },
+        RemoteCommand::GetFileInfo {
+            path,
+            session_id,
+            workspace_path: None,
+            remote_connection_id: None,
+        },
     ] {
         assert_eq!(
             handle_remote_workspace_file_command(&UnavailableSessionFileHost, &command).await,
             RemoteResponse::Error {
                 message: "Session host is offline".into()
+            }
+        );
+    }
+}
+
+struct ExplicitFileWorkspaceHost;
+
+#[async_trait::async_trait]
+impl RemoteWorkspaceFileRuntimeHost for ExplicitFileWorkspaceHost {
+    async fn resolve_remote_file_workspace_root(&self, _: Option<&str>) -> Option<PathBuf> {
+        panic!("Explicit remote identity must never fall back to the selected local workspace")
+    }
+    async fn read_remote_file_chunk(
+        &self,
+        _: &str,
+        session: Option<&str>,
+        workspace: Option<&str>,
+        connection: Option<&str>,
+        _: u64,
+        _: u64,
+    ) -> Result<Option<RemoteWorkspaceFileChunk>, String> {
+        assert_eq!(session, None);
+        assert_eq!(workspace, Some("/captured/workspace"));
+        assert_eq!(connection, Some("saved-runtime-profile"));
+        Ok(None)
+    }
+    async fn remote_file_info(
+        &self,
+        _: &str,
+        session: Option<&str>,
+        workspace: Option<&str>,
+        connection: Option<&str>,
+    ) -> Result<Option<RemoteWorkspaceFileInfo>, String> {
+        assert_eq!(session, None);
+        assert_eq!(workspace, Some("/captured/workspace"));
+        assert_eq!(connection, Some("saved-runtime-profile"));
+        Ok(None)
+    }
+}
+
+#[tokio::test]
+async fn remote_connect_explicit_file_workspace_is_forwarded_without_local_fallback() {
+    for name in ["read_file_chunk", "get_file_info"] {
+        let command: RemoteCommand = serde_json::from_value(serde_json::json!({
+            "cmd": name, "path": "file.bin", "workspace_path": "/captured/workspace",
+            "remote_connection_id": "saved-runtime-profile", "offset": 0, "limit": 3
+        }))
+        .unwrap();
+        assert_eq!(
+            handle_remote_workspace_file_command(&ExplicitFileWorkspaceHost, &command).await,
+            RemoteResponse::Error {
+                message: "This host cannot resolve an explicit file workspace".into()
             }
         );
     }
@@ -2064,6 +2131,8 @@ fn remote_connect_session_response_helpers_own_pagination_and_timestamps() {
         remote_session_created_response("session-new"),
         RemoteResponse::SessionCreated {
             session_id: "session-new".to_string(),
+            workspace_path: None,
+            remote_connection_id: None,
         }
     );
     assert_eq!(

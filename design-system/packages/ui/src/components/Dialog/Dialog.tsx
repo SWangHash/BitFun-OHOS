@@ -60,6 +60,9 @@ function containsType(children: ReactNode, type: unknown): boolean {
 interface OverlaySurfaceProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   autoFocus?: boolean;
+  restoreFocus?: boolean;
+  portalTarget?: HTMLElement | null;
+  overlayProps?: HTMLAttributes<HTMLDivElement> & { [key: `data-${string}`]: string | number | boolean | undefined };
   children: ReactNode;
   closeOnEscape?: boolean;
   closeOnPointerOutside?: boolean;
@@ -81,6 +84,9 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
   autoFocus = true,
+  restoreFocus = true,
+  portalTarget,
+  overlayProps,
   children,
   className,
   closeOnEscape = true,
@@ -98,7 +104,7 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
   ...surfaceProps
 }, forwardedRef) {
   const designSystem = useDesignSystem();
-  const resolvedPortalHost = resolvePortalTarget(designSystem.portalHost);
+  const resolvedPortalHost = resolvePortalTarget(portalTarget ?? designSystem.portalHost);
   const ownerDocument = resolvedPortalHost?.ownerDocument
     ?? (typeof document === "undefined" ? null : document);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -153,6 +159,7 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
     initialFocusRef,
     ownerDocument,
     trapFocus,
+    restoreFocus,
   });
   useScrollLock((open || present) && preventScroll, ownerDocument);
 
@@ -162,7 +169,8 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
   return (
     <Portal target={resolvedPortalHost}>
       <div
-        className={styles.overlay}
+        {...overlayProps}
+        className={classNames(styles.overlay, overlayProps?.className)}
         data-openbitfun-component={kind}
         data-openbitfun-part="overlay"
         data-openbitfun-native-webview-occlusion

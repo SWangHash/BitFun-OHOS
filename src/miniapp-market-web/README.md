@@ -115,6 +115,7 @@ cargo run -p openbitfun-miniapp-market-server
 终端二启动 Vite：
 
 ```bash
+pnpm --dir design-system run build:packages # 首次运行或共享主题/UI 包变更后执行
 pnpm run dev:miniapp-market
 ```
 

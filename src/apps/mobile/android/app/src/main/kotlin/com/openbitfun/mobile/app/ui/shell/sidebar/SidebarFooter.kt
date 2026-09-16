@@ -43,7 +43,7 @@ internal const val SIDEBAR_SETTINGS_TEST_TAG: String = "app-sidebar-settings"
  */
 @Composable
 internal fun SidebarAuthenticatedFooter(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
-    val newChatLabel = stringResource(R.string.sidebar_add_connection)
+    val newChatLabel = stringResource(R.string.device_tools)
     Row(
         modifier = Modifier.fillMaxWidth().height(56.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -65,7 +65,7 @@ internal fun SidebarAuthenticatedFooter(onConnect: () -> Unit, onOpenSettings: (
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painterResource(R.drawable.ic_symbol_square_and_pencil),
+                painterResource(R.drawable.ic_symbol_folder),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(18.dp),

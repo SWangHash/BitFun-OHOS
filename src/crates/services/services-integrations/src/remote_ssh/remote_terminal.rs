@@ -31,6 +31,7 @@ pub struct RemoteTerminalSession {
     pub cols: u16,
     pub rows: u16,
     pub source: SessionSource,
+    pub replay: terminal_core::session::TerminalReplayHistory,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,11 +91,26 @@ impl RemoteTerminalManager {
         initial_cwd: Option<&str>,
         source: Option<SessionSource>,
     ) -> anyhow::Result<CreateSessionResult> {
-        let ssh_guard = self.ssh_manager.read().await;
-        let manager = ssh_guard.as_ref().context("SSH manager not initialized")?;
+        let manager = self
+            .ssh_manager
+            .read()
+            .await
+            .clone()
+            .context("SSH manager not initialized")?;
 
         let session_id = session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let name = name.unwrap_or_else(|| format!("Remote Terminal {}", &session_id[..8]));
+        if session_id.is_empty() || self.sessions.read().await.contains_key(&session_id) {
+            anyhow::bail!("Terminal session ID is empty or already exists");
+        }
+        if cols == 0 || rows == 0 {
+            anyhow::bail!("Terminal dimensions must be positive");
+        }
+        let name = name.unwrap_or_else(|| {
+            format!(
+                "Remote Terminal {}",
+                session_id.chars().take(8).collect::<String>()
+            )
+        });
 
         if manager.is_local_container_connection(connection_id).await {
             let cwd = if let Some(dir) = initial_cwd {
@@ -115,8 +131,7 @@ impl RemoteTerminalManager {
             let spec = manager
                 .local_container_shell_spec(connection_id, (cwd != "~").then_some(cwd.as_str()))
                 .await?
-                .ok_or_else(|| anyhow::anyhow!("Local container shell is unavailable"))?;
-            drop(ssh_guard);
+                .ok_or_else(|| anyhow::anyhow!("Local workspace shell is unavailable"))?;
             return self
                 .create_local_container_session(
                     session_id,
@@ -196,6 +211,7 @@ impl RemoteTerminalManager {
             cols,
             rows,
             source: source.unwrap_or_default(),
+            replay: Default::default(),
         };
 
         {
@@ -269,9 +285,15 @@ impl RemoteTerminalManager {
                     msg = channel.wait() => {
                         match msg {
                             Some(russh::ChannelMsg::Data { data }) => {
+                                if let Some(session) = task_sessions.write().await.get_mut(&task_session_id) {
+                                    session.replay.record_output(session.cols, session.rows, &String::from_utf8_lossy(&data));
+                                }
                                 let _ = output_tx.send(data.to_vec());
                             }
                             Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
+                                if let Some(session) = task_sessions.write().await.get_mut(&task_session_id) {
+                                    session.replay.record_output(session.cols, session.rows, &String::from_utf8_lossy(&data));
+                                }
                                 let _ = output_tx.send(data.to_vec());
                             }
                             Some(russh::ChannelMsg::Eof)
@@ -359,6 +381,7 @@ impl RemoteTerminalManager {
             cols,
             rows,
             source,
+            replay: Default::default(),
         };
         self.sessions
             .write()
@@ -397,6 +420,9 @@ impl RemoteTerminalManager {
                     event = events.recv() => {
                         match event {
                             Some(PtyEvent::Data(data)) => {
+                                if let Some(session) = task_sessions.write().await.get_mut(&session_id) {
+                                    session.replay.record_output(session.cols, session.rows, &String::from_utf8_lossy(&data));
+                                }
                                 let _ = output_tx.send(data);
                             }
                             Some(PtyEvent::Exit { .. }) | None => break,
@@ -416,6 +442,27 @@ impl RemoteTerminalManager {
 
     pub async fn get_session(&self, session_id: &str) -> Option<RemoteTerminalSession> {
         self.sessions.read().await.get(session_id).cloned()
+    }
+
+    pub async fn replay_cursor(&self, session_id: &str) -> Option<u64> {
+        self.sessions
+            .read()
+            .await
+            .get(session_id)
+            .map(|session| session.replay.cursor())
+    }
+
+    pub async fn replay_page(
+        &self,
+        session_id: &str,
+        after: u64,
+        max_bytes: usize,
+    ) -> Option<terminal_core::session::TerminalReplayPage> {
+        self.sessions.read().await.get(session_id).map(|session| {
+            session
+                .replay
+                .page(after, max_bytes, session.cols, session.rows)
+        })
     }
 
     pub async fn list_sessions(&self) -> Vec<RemoteTerminalSession> {
@@ -442,23 +489,82 @@ impl RemoteTerminalManager {
             .map_err(|_| anyhow::anyhow!("PTY task has exited"))
     }
 
-    pub async fn resize(&self, session_id: &str, cols: u16, rows: u16) -> anyhow::Result<()> {
-        {
-            let mut sessions = self.sessions.write().await;
-            if let Some(s) = sessions.get_mut(session_id) {
-                s.cols = cols;
-                s.rows = rows;
-            }
-        }
-        let cmd_tx = {
-            let handles = self.handles.read().await;
-            handles.get(session_id).map(|handle| handle.cmd_tx.clone())
+    /// Run a captured command on the session's SSH target and initial directory.
+    /// Interactive shell state is accessed through `write`, not a separate exec channel.
+    pub async fn execute(
+        &self,
+        session_id: &str,
+        command: &str,
+        timeout_ms: Option<u64>,
+    ) -> anyhow::Result<terminal_core::ExecuteCommandResponse> {
+        let session = self
+            .get_session(session_id)
+            .await
+            .context("Terminal session is unavailable")?;
+        let ssh = self
+            .ssh_manager
+            .read()
+            .await
+            .clone()
+            .context("SSH manager is unavailable")?;
+        let script = if session.cwd == "~" {
+            command.to_string()
+        } else {
+            format!(
+                "cd -- {} && {}",
+                crate::remote_ssh::shell_quote_posix(&session.cwd),
+                command
+            )
         };
-        if let Some(cmd_tx) = cmd_tx {
-            cmd_tx
-                .send(PtyCommand::Resize(cols as u32, rows as u32))
-                .await
-                .map_err(|_| anyhow::anyhow!("PTY task has exited"))?;
+        let result = ssh
+            .execute_command_with_options(
+                &session.connection_id,
+                &script,
+                crate::remote_ssh::types::SSHCommandOptions {
+                    timeout_ms,
+                    cancellation_token: None,
+                },
+            )
+            .await?;
+        if result.interrupted {
+            anyhow::bail!("Remote terminal command was interrupted; its effects may have occurred");
+        }
+        Ok(terminal_core::ExecuteCommandResponse {
+            command: command.to_string(),
+            command_id: uuid::Uuid::new_v4().to_string(),
+            output: if result.stderr.is_empty() {
+                result.stdout
+            } else {
+                format!("{}\n{}", result.stdout, result.stderr)
+            },
+            exit_code: (!result.timed_out).then_some(result.exit_code),
+            completion_reason: if result.timed_out {
+                terminal_core::CommandCompletionReason::TimedOut
+            } else {
+                terminal_core::CommandCompletionReason::Completed
+            },
+        })
+    }
+
+    pub async fn resize(&self, session_id: &str, cols: u16, rows: u16) -> anyhow::Result<()> {
+        if cols == 0 || rows == 0 {
+            anyhow::bail!("Terminal dimensions must be positive");
+        }
+        let sender = self
+            .handles
+            .read()
+            .await
+            .get(session_id)
+            .map(|handle| handle.cmd_tx.clone())
+            .context("Session not found or PTY not active")?;
+        sender
+            .send(PtyCommand::Resize(cols as u32, rows as u32))
+            .await
+            .map_err(|_| anyhow::anyhow!("PTY task has exited"))?;
+        if let Some(session) = self.sessions.write().await.get_mut(session_id) {
+            session.cols = cols;
+            session.rows = rows;
+            session.replay.record_resize(cols, rows);
         }
         Ok(())
     }

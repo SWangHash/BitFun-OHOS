@@ -24,6 +24,7 @@
       "../../crates/services/services-integrations/assets/models-dev.provenance.json": "third-party/models.dev/provenance.json"
     },
     "macOS": {
+      "entitlements": "Entitlements.plist",
       "dmg": {
         "background": "dmg/background.png",
         "windowSize": {

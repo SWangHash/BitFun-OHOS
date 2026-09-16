@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -132,8 +133,16 @@ private fun RemoteConnectedScreen(
     modifier: Modifier,
 ) {
     RemoteDownloadSaver(workspaceState, onWorkspaceIntent)
-    val conversation = (remoteState as? RemoteSessionUiState.Ready)?.takeIf {
-        requestedSessionId != null && it.selectedSessionId == requestedSessionId && it.timeline != null
+    val ready = remoteState as? RemoteSessionUiState.Ready
+    // Route immediately. A previous session snapshot must never stand in for the requested one.
+    val conversation = requestedSessionId?.takeIf { remoteState !is RemoteSessionUiState.Failed }?.let { requested ->
+        val matches = ready?.selectedSessionId == requested && ready.timeline?.sessionId == requested
+        if (matches) ready else RemoteSessionUiState.Ready(
+            sessions = ready?.sessions.orEmpty(), selectedSessionId = requested,
+            timeline = null, busy = true, permissionMode = null, permissionModeFailure = null,
+            query = "", agentFilter = com.openbitfun.mobile.core.feature.session.SessionAgentFilter.ALL,
+            hasMore = false, hasMoreMessages = false, modelCatalog = null,
+        )
     }
     if (conversation != null) {
         ConversationView(
@@ -174,6 +183,19 @@ private fun RemoteConnectedScreen(
             },
             modifier = modifier,
         )
+    } else if (requestedSessionId != null && remoteState is RemoteSessionUiState.Failed) {
+        Column(modifier.fillMaxSize()) {
+            RemoteShellHeader(onOpenSidebar, desktopName, onOpenRemoteSettings)
+            Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(stringResource(R.string.sessions_failed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = {
+                    onSessionIntent(com.openbitfun.mobile.core.feature.session.RemoteSessionIntent.Open(requestedSessionId))
+                }) { Text(stringResource(R.string.sessions_retry)) }
+                TextButton(onClick = onRemoteHome) { Text(stringResource(R.string.conversation_back)) }
+            }
+        }
     } else if (creatingSession) {
         CreateSessionRoute(
             sessionState = remoteState,
@@ -196,8 +218,8 @@ private fun RemoteConnectedScreen(
             onOpenSidebar = onOpenSidebar,
             onBrowse = onOpenSidebar,
             onOpen = { id ->
-                onSessionIntent(com.openbitfun.mobile.core.feature.session.RemoteSessionIntent.Open(id))
                 onOpenSession(id)
+                onSessionIntent(com.openbitfun.mobile.core.feature.session.RemoteSessionIntent.Open(id))
             },
             onOpenRemoteSettings = onOpenRemoteSettings,
             modifier = modifier,
@@ -343,6 +365,9 @@ internal fun RemoteWorkspacePanel(
     showPreview: Boolean = true,
 ) {
     var fileReference by rememberSaveable { mutableStateOf("") }
+    var directoryDialog by rememberSaveable { mutableStateOf(false) }
+    var workspacePath by rememberSaveable { mutableStateOf("") }
+    var savedConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
     Text(stringResource(R.string.workspace_title), style = MaterialTheme.typography.titleLarge)
     when (state) {
         RemoteWorkspaceUiState.Idle -> Unit
@@ -354,13 +379,30 @@ internal fun RemoteWorkspacePanel(
             }
         }
         is RemoteWorkspaceUiState.Ready -> {
+            if (directoryDialog) RuntimeDirectoryPickerDialog(state.directoryPicker, savedConnectionId, onIntent, { workspacePath = it; directoryDialog = false }, { directoryDialog = false })
             state.selected?.let { selected ->
                 Text(selected.name, style = MaterialTheme.typography.titleMedium)
                 if (selected.gitBranch.isNotEmpty()) Text(selected.gitBranch)
             }
+            OutlinedTextField(value = workspacePath, onValueChange = { workspacePath = it },
+                label = { Text(stringResource(R.string.workspace_target_path)) }, enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth())
+            TextButton(onClick = { directoryDialog = true; onIntent(RemoteWorkspaceIntent.BrowseWorkspaceDirectories(workspacePath.ifBlank { "/" }, savedConnectionId, false)) }, enabled = !state.busy) { Text(stringResource(R.string.workspace_choose_folder)) }
+            TextButton(onClick = { savedConnectionId = null }, enabled = !state.busy) {
+                Text(stringResource(R.string.workspace_target_device))
+            }
+            state.savedConnections.forEach { connection ->
+                TextButton(onClick = { savedConnectionId = connection.id }, enabled = !state.busy) {
+                    Text((if (savedConnectionId == connection.id) "✓ " else "") + connection.name)
+                }
+            }
+            if (state.savedConnectionsFailure) Text(stringResource(R.string.workspace_connections_failed), color = MaterialTheme.colorScheme.error)
+            TextButton(enabled = !state.busy && workspacePath.isNotBlank(), onClick = {
+                onIntent(RemoteWorkspaceIntent.SelectWorkspace(workspacePath, savedConnectionId, null))
+            }) { Text(stringResource(R.string.workspace_open_path)) }
             state.workspaces.forEach { workspace ->
                 TextButton(
-                    onClick = { onIntent(RemoteWorkspaceIntent.SelectWorkspace(workspace.path)) },
+                    onClick = { onIntent(RemoteWorkspaceIntent.SelectWorkspace(workspace.path, workspace.remoteConnectionId, workspace.remoteSshHost)) },
                     enabled = !state.busy && state.selected?.path != workspace.path,
                 ) { Text(workspace.displayName) }
             }

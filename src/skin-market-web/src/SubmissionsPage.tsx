@@ -1,3 +1,4 @@
+import { Button } from '@openbitfun/ui';
 import { GithubLogo } from '@phosphor-icons/react';
 import { RefreshCw as ArrowClockwise, Image, Package, CircleX as XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -114,10 +115,10 @@ export function SubmissionsPage({ account, accountResolved, locale, t }: Submiss
           <h1>{t('submissionsTitle')}</h1>
           <p>{t('submissionsIntro')}</p>
         </div>
-        <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
+        <Button labelBehavior="static" type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
           <ArrowClockwise size={18} aria-hidden="true" />
           {t('refresh')}
-        </button>
+        </Button>
       </header>
       {error && (
         <div className="workflow-error" role="alert">
@@ -167,14 +168,14 @@ export function SubmissionsPage({ account, accountResolved, locale, t }: Submiss
                   )}
                 </div>
                 {(submission.status === 'draft' || submission.status === 'submitted') && (
-                  <button
+                  <Button labelBehavior="static"
                     type="button"
                     className="text-button text-button--danger"
                     disabled={actingId === submission.submissionId}
                     onClick={() => void withdraw(submission)}
                   >
                     {actingId === submission.submissionId ? t('withdrawing') : t('withdraw')}
-                  </button>
+                  </Button>
                 )}
               </article>
             ))}

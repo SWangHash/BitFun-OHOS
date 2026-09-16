@@ -3,11 +3,13 @@ import { createTauriCommandError } from '../errors/TauriCommandError';
 
 export interface MarketUserSummary {
   githubId: number;
+  accountId?: string;
   login: string;
   avatarUrl: string;
 }
 
 export interface MarketMe {
+  email?: string;
   user: MarketUserSummary;
   isAdmin: boolean;
 }

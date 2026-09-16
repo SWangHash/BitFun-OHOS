@@ -4,7 +4,7 @@
 //! icon is always visible while the process is running; on macOS the icon appears
 //! in the macOS menu bar.
 //!
-//! Left-click  – toggles the main window (show / hide).
+//! Left-click  – shows and focuses the main window on macOS; toggles it elsewhere.
 //! Right-click – opens a context menu with:
 //!   • toggle desktop Agent companion pet (persisted via `app.ai_experience`)
 //!   • "Show OpenBitFun"
@@ -28,6 +28,7 @@ use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
 
 static TRAY_ICON: OnceLock<tauri::tray::TrayIcon> = OnceLock::new();
+static TRAY_UNREAD_COUNT: Mutex<u32> = Mutex::new(0);
 static TRAY_SETUP_LOCK: Mutex<()> = Mutex::new(());
 const TRAY_TRACE_CATEGORY: &str = "native_background";
 
@@ -195,9 +196,12 @@ pub fn setup_tray(
 
     let step_started = Instant::now();
     #[cfg(target_os = "macos")]
-    let icon = tauri::include_image!("icons/openbitfun-tray-template.png");
+    let icon = macos_tray_icon(false)?;
     #[cfg(not(target_os = "macos"))]
-    let icon = tauri::include_image!("icons/hicolor/32x32/apps/openbitfun-desktop.png");
+    let icon = app
+        .default_window_icon()
+        .ok_or("No default window icon")?
+        .clone();
     startup_trace.record_elapsed_step(TRAY_TRACE_CATEGORY, "setup_tray.icon", step_started);
 
     let step_started = Instant::now();
@@ -232,6 +236,9 @@ pub fn setup_tray(
             } = event
             {
                 let app = tray.app_handle().clone();
+                #[cfg(target_os = "macos")]
+                show_main_window(&app);
+                #[cfg(not(target_os = "macos"))]
                 toggle_main_window(&app);
                 tauri::async_runtime::spawn(async move {
                     rebuild_tray_menu(&app).await;
@@ -243,6 +250,10 @@ pub fn setup_tray(
 
     let step_started = Instant::now();
     let _ = TRAY_ICON.set(tray);
+    let count = TRAY_UNREAD_COUNT
+        .lock()
+        .map_err(|_| "Tray unread count lock poisoned")?;
+    apply_unread_count(*count)?;
     startup_trace.record_elapsed_step(TRAY_TRACE_CATEGORY, "setup_tray.store", step_started);
 
     let step_started = Instant::now();
@@ -263,6 +274,72 @@ pub fn setup_tray(
         step_started,
     );
 
+    Ok(())
+}
+
+/// Presentation state from the controller's session projection, never a peer mutation.
+pub fn set_unread_count(count: u32) -> Result<(), String> {
+    let mut current = TRAY_UNREAD_COUNT
+        .lock()
+        .map_err(|_| "Tray unread count lock poisoned")?;
+    *current = count;
+    apply_unread_count(count).map_err(|error| error.to_string())
+}
+
+/// Reserve space in the image layout instead of inserting whitespace into the title.
+/// tray-icon displays macOS images at 18 pt high; four extra points of trailing
+/// space bring the native image/title gap to approximately six points.
+#[cfg(target_os = "macos")]
+fn macos_tray_icon(has_unread: bool) -> Result<tauri::image::Image<'static>, image::ImageError> {
+    let mark = image::load_from_memory(include_bytes!(
+        "../../../../assets/brand/source/openbitfun-app-mark.png"
+    ))?
+    .into_rgba8();
+    // The solid source has a 51 px transparent border on its 512 px canvas.
+    // Remove that border symmetrically so the ring retains its proportions and
+    // fills the same 18 pt menu bar height as the previous mark. AppKit's
+    // template rendering uses alpha, so the source's gray shading stays out.
+    let mut mark = image::imageops::crop_imm(&mark, 51, 51, 410, 410).to_image();
+    // Add an inset copy to shrink the hole by about 10% without expanding the
+    // outer silhouette. This adds roughly 0.7 pt to the thin side walls at the
+    // native 18 pt display size, where the unmodified app mark looks too light.
+    let inset = image::imageops::resize(&mark, 370, 370, image::imageops::FilterType::Lanczos3);
+    image::imageops::overlay(&mut mark, &inset, 20, 20);
+    let mark = image::imageops::resize(&mark, 64, 64, image::imageops::FilterType::Lanczos3);
+    let (width, height) = mark.dimensions();
+    let image = if has_unread {
+        let trailing_space = (height * 4 + 9) / 18;
+        let mut canvas = image::RgbaImage::new(width + trailing_space, height);
+        image::imageops::replace(&mut canvas, &mark, 0, 0);
+        canvas
+    } else {
+        mark
+    };
+    let (width, height) = image.dimensions();
+    Ok(tauri::image::Image::new_owned(
+        image.into_raw(),
+        width,
+        height,
+    ))
+}
+
+fn apply_unread_count(count: u32) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    if let Some(tray) = TRAY_ICON.get() {
+        let title = if count == 0 {
+            String::new()
+        } else {
+            count.to_string()
+        };
+        let icon =
+            macos_tray_icon(count > 0).map_err(|error| tauri::Error::Anyhow(error.into()))?;
+        // Replacing an image with set_icon resets its template flag on macOS.
+        // Apply both together so startup and count updates retain system tinting.
+        tray.set_icon_with_as_template(Some(icon), true)?;
+        tray.set_title(Some(title))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = count;
     Ok(())
 }
 
@@ -289,6 +366,7 @@ pub fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         // Minimized windows may still be visible according to the OS. Never

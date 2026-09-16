@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,10 +102,33 @@ internal fun AccountLoginPage(
     onBack: () -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier,
+    openAuthorization: ((String) -> Unit)? = null,
 ) {
     val busy = state is AccountUiState.SigningIn || state is AccountUiState.Authorizing
-    val canSubmit = !busy
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].toLanguageTag()
+    val authorizationUrl = (state as? AccountUiState.Authorizing)?.authorizationUrl?.let { value ->
+        val uri = android.net.Uri.parse(value)
+        if (uri.scheme == "https" && uri.host == "auth.openbitfun.com") {
+            uri.buildUpon().appendQueryParameter("locale", locale).build().toString()
+        } else value
+    }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var launchedAuthorizationUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var launchFailed by rememberSaveable(authorizationUrl) { mutableStateOf(false) }
+    val launchAuthorization = {
+        authorizationUrl?.let { url ->
+            launchedAuthorizationUrl = url
+            launchFailed = runCatching {
+                if (openAuthorization != null) openAuthorization(url) else uriHandler.openUri(url)
+            }.isFailure
+        }
+        Unit
+    }
+    LaunchedEffect(authorizationUrl) {
+        if (authorizationUrl == null) launchedAuthorizationUrl = null
+        else if (launchedAuthorizationUrl != authorizationUrl) launchAuthorization()
+    }
+    val canSubmit = !busy || launchFailed
     Column(modifier.fillMaxWidth()) {
         ConnectionSheetHeader(onBack, uniformGlyph = true)
         Box(Modifier.weight(1f, fill = false).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -119,10 +143,9 @@ internal fun AccountLoginPage(
                     style = MaterialTheme.typography.bodyMedium.connectionSheetTextStyle(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp))
-                (state as? AccountUiState.Authorizing)?.let { authorization ->
-                    Button(onClick = { uriHandler.openUri(authorization.authorizationUrl) }) {
-                        Text(stringResource(R.string.account_open_github))
-                    }
+                if (launchFailed) {
+                    Text(stringResource(R.string.account_authorization_open_failed), color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall.connectionSheetTextStyle(), modifier = Modifier.padding(top = 12.dp))
                 }
                 (state as? AccountUiState.Failed)?.let { failure ->
                     Text(stringResource(failure.reason.messageRes()), color = MaterialTheme.colorScheme.error,
@@ -131,8 +154,13 @@ internal fun AccountLoginPage(
             }
         }
         ConnectionSheetFooter(
-            label = stringResource(if (busy) R.string.account_signing_in else R.string.account_login_title),
-            primary = true, elevated = false, enabled = canSubmit, onClick = onLogin,
+            label = stringResource(when {
+                launchFailed -> R.string.sessions_retry
+                busy -> R.string.account_signing_in
+                else -> R.string.account_login_title
+            }),
+            primary = true, elevated = false, enabled = canSubmit,
+            onClick = { if (launchFailed) launchAuthorization() else onLogin() },
         )
     }
 }

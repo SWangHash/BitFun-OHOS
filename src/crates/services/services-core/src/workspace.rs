@@ -19,6 +19,25 @@ pub struct LocalWorkspaceFs;
 
 #[async_trait]
 impl WorkspaceFileSystem for LocalWorkspaceFs {
+    async fn open_write_new(
+        &self,
+        path: &str,
+    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+        let file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .await?;
+        Ok(Box::new(file))
+    }
+    async fn atomic_replace(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        if Path::new(from).parent() != Path::new(to).parent() {
+            anyhow::bail!("Atomic replacement requires a same-directory staged file");
+        }
+        tokio::fs::rename(from, to).await?;
+        Ok(())
+    }
+
     async fn open_read(&self, path: &str) -> anyhow::Result<WorkspaceReader> {
         let file = tokio::fs::File::open(path).await?;
         if !file.metadata().await?.is_file() {

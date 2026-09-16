@@ -8,12 +8,7 @@ public enum class ToolApprovalEditSupport {
     UNSUPPORTED,
 }
 
-/**
- * Today the desktop confirm_tool accepts only tool_id, so edited tool approvals
- * are UNSUPPORTED. This flips to SUPPORTED when the peer advertises confirm_tool
- * edit support. Android UI reads this fact to decide whether to offer an edit
- * affordance.
- */
+/** Runtime approvals accept a JSON-object patch in updated_input. */
 public object ToolApprovalEditContract {
-    public val support: ToolApprovalEditSupport = ToolApprovalEditSupport.UNSUPPORTED
+    public val support: ToolApprovalEditSupport = ToolApprovalEditSupport.SUPPORTED
 }

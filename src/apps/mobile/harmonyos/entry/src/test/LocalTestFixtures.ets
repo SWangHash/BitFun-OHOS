@@ -1,3 +1,6 @@
+import { DurableSessionStream, DurableSessionCallbacks, DurableSessionEvent, DurableSessionSource, SessionKeyGrant } from '../main/ets/services/DurableSessionStream';
+import { SessionRecord } from '../main/ets/services/DurableSessionReducer';
+import { SavedRuntimeConnection } from '../main/ets/model/RemoteModels';
 import { describe, it, expect } from '@ohos/hypium';
 import { RemoteI18n } from '../main/ets/i18n/RemoteI18n';
 import { ChatSessionController, ChatSessionSnapshot } from '../main/ets/services/ChatSessionController';
@@ -158,6 +161,7 @@ export interface GeneralChatRecordedRequest {
 }
 
 export class FakeRemoteWorkspaceDataSource implements RemoteWorkspaceDataSource {
+  async savedConnections(): Promise<SavedRuntimeConnection[]> { return []; }
   recent: RecentWorkspaceEntry[] = [];
   sessionsByPath: Map<string, RemoteSession[]> = new Map<string, RemoteSession[]>();
   /** Paths whose listing rejects, for the workspace a desktop cannot read. */
@@ -693,6 +697,14 @@ export class FakeRemoteFileDownloadClient implements RemoteFileDownloadClient {
     size: 4096
   };
 
+  async streamFile(path: string, sessionId: string | undefined, onChunk: (bytes: Uint8Array, info: FileInfo) => Promise<void>, onProgress?: (downloaded: number, total: number) => void): Promise<FileInfo> {
+    this.readRequests.push(`${path}|${sessionId}`);
+    if (this.shouldFailRead) throw new Error('Expected download failure.');
+    await onChunk(new Uint8Array([1,2,3]), this.fileInfo);
+    if (onProgress) onProgress(this.fileInfo.size, this.fileInfo.size);
+    return this.fileInfo;
+  }
+
   async getFileInfo(path: string, sessionId?: string): Promise<FileInfo> {
     this.infoRequests.push(`${path}|${sessionId || ''}`);
     return this.fileInfo;
@@ -743,10 +755,10 @@ export class RemoteDownloadStatusRecord {
 export class FakeRemoteFileSaver implements RemoteFileSaver {
   savedNames: string[] = [];
 
-  async save(result: ReadFileResult): Promise<string> {
-    this.savedNames.push(result.name);
-    return `test://${result.name}`;
-  }
+  async begin(name: string): Promise<void> { this.savedNames.push(name); }
+  async write(_bytes: Uint8Array): Promise<void> {}
+  async finish(): Promise<string> { return `test://${this.savedNames[this.savedNames.length - 1]}`; }
+  async abort(): Promise<void> {}
 }
 
 export class FakeRemoteToolActionClient implements RemoteToolActionClient {
@@ -1352,4 +1364,30 @@ export class FakeGeneralChatConfigStore extends GeneralChatConfigStore {
     }
     return this.snapshotResult;
   }
+}
+
+export class FakeDurableSessionManager extends RemoteSessionManager {
+  callbacks?: DurableSessionCallbacks;
+  subscribeSession(logicalId: string, callbacks: DurableSessionCallbacks): DurableSessionStream {
+    this.callbacks = callbacks;
+    const source: DurableSessionSource = {
+      grant: () => new Promise<SessionKeyGrant>(() => {}),
+      read: async () => ({ messages: [], hasMore: false }),
+      decrypt: async (): Promise<DurableSessionEvent> => { throw new Error('Unexpected decrypt in lifecycle fixture'); },
+      onUpdate: () => () => {}, onReconnect: () => () => {}
+    };
+    return new DurableSessionStream(logicalId, source, callbacks);
+  }
+  async emit(event: DurableSessionEvent): Promise<void> {
+    await this.callbacks?.onEvent(event); await this.callbacks?.onCaughtUp();
+  }
+}
+export function durableRecord(sessionId: string, revision: number, text: string, status: string = 'inprogress'): DurableSessionEvent {
+  const record: SessionRecord = { sessionId: sessionId, id: 'item/text', revision: revision,
+    turn: { sessionId: sessionId, turnId: 'turn', turnIndex: 0, timestamp: 1,
+      userMessage: { id: 'user', content: 'question', timestamp: 1 }, status: status },
+    round: { id: 'round', turnId: 'turn', roundIndex: 0, timestamp: 2, status: status },
+    item: { type: 'text', data: { id: 'text', content: text, timestamp: 3 } }
+  };
+  return { session_id: sessionId, event: 'session-record', payload: record };
 }

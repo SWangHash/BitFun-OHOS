@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModeSkillInfo } from '@/infrastructure/config/types';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import { useResolvedModeSkills } from './useResolvedModeSkills';
 
 vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({
@@ -117,17 +118,33 @@ describe('useResolvedModeSkills', () => {
     expect(latest.failed).toBe(true);
   });
 
-  it('excludes external discovery returned by an older host and keeps native imported copies', async () => {
+  it('invalidates pending policy when a Skill switch changes and ignores its late response', async () => {
+    await render();
+    await act(async () => globalEventBus.emit('mode:config:updated'));
+    expect(requests).toHaveLength(2);
+    const disabled = [{ ...skills[0], globallyEnabled: false, selectedForRuntime: false }];
+    await act(async () => requests[1].resolve(disabled));
+    await act(async () => requests[0].resolve(skills));
+    expect(latest.skills).toEqual(disabled);
+    await render({ enabled: false });
+    await act(async () => globalEventBus.emit('mode:config:updated'));
+    expect(latest.skills).toEqual([]);
+    expect(requests).toHaveLength(2);
+    await render({ enabled: true });
+    expect(requests).toHaveLength(3);
+  });
+
+  it('includes resolved external sources alongside native imported copies', async () => {
     const external = ['claude-code', 'codex', 'cursor', 'opencode', 'agent-skills', 'deepseek-harness', 'pi'].map(sourceId => ({
       name: sourceId, key: sourceId, sourceId, effectiveEnabled: true, selectedForRuntime: true,
     } as ModeSkillInfo));
     const imported = { ...skills[0], sourceId: 'openbitfun', importOrigin: { sourceId: 'codex' } } as ModeSkillInfo;
     await render();
     await act(async () => requests[0].resolve([...external, imported]));
-    expect(latest.skills).toEqual([imported]);
+    expect(latest.skills).toEqual([...external, imported]);
     await render({ enabled: false });
     await render({ enabled: true });
     await act(async () => requests[1].resolve(external));
-    expect(latest.skills).toEqual([]);
+    expect(latest.skills).toEqual(external);
   });
 });

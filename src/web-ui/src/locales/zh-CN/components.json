@@ -534,7 +534,7 @@
     "windowFullscreenEnterHint": "按 {{shortcut}} 再次进入。"
   },
   "bottomBar": {
-    "sessions": "Agent 工作台",
+    "sessions": "智能体工作台",
     "files": "文件树",
     "terminal": "终端",
     "git": "Git",

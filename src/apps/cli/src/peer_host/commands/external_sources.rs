@@ -4,16 +4,16 @@ use std::path::PathBuf;
 
 use openbitfun_core::external_sources::{
     apply_external_source_control_action, choose_external_mcp_conflict,
-    choose_external_subagent_conflict, external_source_snapshot,
-    get_external_source_control_snapshot, set_external_mcp_server_decision,
-    set_external_mcp_servers_enabled, set_external_prompt_command_conflict_choice,
-    set_external_source_enabled, set_external_subagent_activation,
-    set_external_subagent_model_binding, set_external_subagents_enabled,
-    set_external_tool_conflict_choice, set_external_tool_target_decision,
-    set_external_tool_targets_enabled, update_external_integration_policy,
-    ExternalIntegrationPolicyMutation, ExternalSourceControlRequestV1,
-    ExternalSourceHostCapabilities, ExternalSourceOperationError, ExternalSourceOperationErrorCode,
-    ExternalSourceOperationResult, ExternalSourcePublicSnapshot,
+    choose_external_subagent_conflict, external_source_discovery_snapshot,
+    external_source_snapshot, get_external_source_control_snapshot,
+    set_external_mcp_server_decision, set_external_mcp_servers_enabled,
+    set_external_prompt_command_conflict_choice, set_external_source_enabled,
+    set_external_subagent_activation, set_external_subagent_model_binding,
+    set_external_subagents_enabled, set_external_tool_conflict_choice,
+    set_external_tool_target_decision, set_external_tool_targets_enabled,
+    update_external_integration_policy, ExternalIntegrationPolicyMutation,
+    ExternalSourceControlRequestV1, ExternalSourceHostCapabilities, ExternalSourceOperationError,
+    ExternalSourceOperationErrorCode, ExternalSourceOperationResult, ExternalSourcePublicSnapshot,
     ExternalSubagentModelBindingTarget,
 };
 use serde_json::Value;
@@ -118,27 +118,16 @@ pub(super) async fn workspace_root(
             "Workspace path is not available on this Host",
         )
     })?;
-    let current = state
-        .workspace_service
-        .get_current_workspace()
-        .await
-        .ok_or_else(|| {
-            ExternalSourceOperationError::new(
-                ExternalSourceOperationErrorCode::HostUnavailable,
-                "No workspace is open on the CLI Host",
-                true,
-            )
-        })?;
-    let current = current.root_path.canonicalize().map_err(|_| {
-        ExternalSourceOperationError::new(
-            ExternalSourceOperationErrorCode::HostUnavailable,
-            "The CLI Host workspace is not available",
-            true,
-        )
-    })?;
-    if current != requested {
+    let opened = state.workspace_service.get_opened_workspaces().await;
+    let known_local_workspace = opened.iter().any(|workspace| {
+        !matches!(
+            workspace.workspace_kind,
+            openbitfun_core::service::workspace::manager::WorkspaceKind::Remote
+        ) && workspace.root_path.canonicalize().ok().as_ref() == Some(&requested)
+    });
+    if !known_local_workspace {
         return Err(ExternalSourceOperationError::invalid_request(
-            "External compatibility is limited to the current Host workspace",
+            "External compatibility requires an opened local Host workspace",
         ));
     }
     Ok(Some(requested))
@@ -180,6 +169,22 @@ async fn dispatch_inner(
     let request = request_value(args);
     let workspace = workspace_root(state, request).await?;
     let workspace = workspace.as_deref();
+    if command == "get_external_source_discovery_snapshot" {
+        let snapshot = external_source_discovery_snapshot(
+            workspace,
+            optional_bool_field(request, "forceRefresh")?.unwrap_or(false),
+            ExternalSourceHostCapabilities::read_write(),
+        )
+        .await
+        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)?;
+        return serde_json::to_value(snapshot).map_err(|_| {
+            ExternalSourceOperationError::new(
+                ExternalSourceOperationErrorCode::Internal,
+                "External discovery response could not be encoded",
+                false,
+            )
+        });
+    }
     if command == "get_external_source_control_snapshot" {
         let snapshot = get_external_source_control_snapshot(
             workspace,

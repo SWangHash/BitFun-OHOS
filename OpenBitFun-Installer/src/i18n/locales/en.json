@@ -15,7 +15,7 @@
     }
   },
   "options": {
-    "title": "Options",
+    "title": "Install OpenBitFun",
     "subtitle": "Review install location and preferences",
     "theme": "Theme",
     "changeLanguage": "Change language",
@@ -32,15 +32,14 @@
     "back": "Back",
     "install": "Install",
     "installing": "Preparing…",
-    "existingInstallTitle": "Existing OpenBitFun installation detected",
+    "existingInstallTitle": "OpenBitFun is installed. You can update or repair it in place.",
     "existingInstallVersion": "Installed version: {{version}}",
     "existingInstallLocation": "Install location: {{path}}",
-    "existingInstallBinaryMissing": "The main application file was not found at that location. You can run the uninstaller first or reinstall.",
-    "existingInstallHint": "Click Install to upgrade or repair in place. To uninstall first, run the registered uninstaller below.",
+    "existingInstallBinaryMissing": "The installed app is missing. Reinstall to repair it.",
     "existingInstallRunUninstaller": "Run uninstaller"
   },
   "model": {
-    "title": "Model",
+    "title": "Connect a model",
     "subtitle": "Installation complete. Continue with model and theme setup",
     "provider": "Provider",
     "config": "Connection",
@@ -194,7 +193,10 @@
     "headerKey": "key",
     "headerValue": "value",
     "advancedShow": "Show advanced settings",
-    "advancedHide": "Hide advanced settings"
+    "advancedHide": "Hide advanced settings",
+    "setupDescription": "Add your provider and API key, or set up a model later in the app.",
+    "advancedSettings": "Advanced settings",
+    "endpointPreset": "API endpoint"
   },
   "progress": {
     "title": "Installing",
@@ -207,11 +209,15 @@
     "complete": "Finishing Up",
     "starting": "Starting...",
     "failed": "Installation Failed",
-    "confirmContinue": "Continue setup"
+    "confirmContinue": "Continue setup",
+    "completed": "Installation complete",
+    "completedDescription": "OpenBitFun is ready. Make it yours with a model and a theme.",
+    "description": "Setting up your workspace for what's next.",
+    "retry": "Try again"
   },
   "themeSetup": {
-    "title": "Theme & Launch",
-    "subtitle": "Choose your startup theme, then launch",
+    "title": "Make it yours",
+    "subtitle": "Select a theme to preview it. You can change it anytime.",
     "followSystem": "Match system",
     "themeNames": {
       "openbitfun-dark": "Dark",
@@ -239,5 +245,26 @@
     "completed": "Uninstall completed. You can close this window.",
     "cancel": "Cancel",
     "close": "Close"
+  },
+  "welcome": {
+    "title": "Choose your language",
+    "description": "Use this language for setup and your first launch.",
+    "version": "Version {{version}}"
+  },
+  "steps": {
+    "label": "Setup progress",
+    "language": "Language",
+    "install": "Install",
+    "model": "Model",
+    "theme": "Appearance"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "close": "Close"
+  },
+  "preview": {
+    "badge": "UI preview · no installation",
+    "page": "Preview page",
+    "progress": "Install progress"
   }
 }

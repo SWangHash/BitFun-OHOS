@@ -2787,6 +2787,7 @@ const ModelSettingsPage: React.FC = () => {
       <ConfigPageRow label={label} required align="center" wide>
         <Input
           data-testid="settings-model-api-key-input"
+          hideNativePasswordReveal
           invalid={showModelValidation && missingModelFields.apiKey}
           required
           type={showApiKey ? 'text' : 'password'}

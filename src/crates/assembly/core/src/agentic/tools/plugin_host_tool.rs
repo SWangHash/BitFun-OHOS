@@ -518,6 +518,12 @@ async fn handle_tool_ask(params: HookFunctionReverseAsk) -> PortResult<HookFunct
     };
     match outcome {
         openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
+            openbitfun_runtime_ports::PermissionReply::OnceWithInput { .. },
+        ) => Err(PortError::new(
+            PortErrorKind::Backend,
+            "Plugin-owned permission requests do not support edited input",
+        )),
+        openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
             openbitfun_runtime_ports::PermissionReply::Once,
         ) => Ok(HookFunctionReverseReply::Once),
         openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(

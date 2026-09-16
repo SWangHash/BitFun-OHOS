@@ -1,5 +1,7 @@
 import ts from 'typescript';
 
+const overlayPropNodes = new WeakSet();
+
 function unwrap(node) {
   while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
     || ts.isSatisfiesExpression(node))) node = node.expression;
@@ -52,10 +54,45 @@ export function collectForwardedTabProps(ast) {
 }
 
 export function findDomAttribute(node, name) {
+  if (overlayPropNodes.has(node) && [
+    'data-openbitfun-component', 'data-openbitfun-part',
+    'data-openbitfun-native-webview-occlusion', 'data-placement', 'data-state',
+  ].includes(name)) return undefined;
   // TabGroup writes these after the spread, so caller values are not DOM evidence.
   if (ts.isObjectLiteralExpression(node)
     && (name === 'data-openbitfun-part' || name === 'data-openbitfun-value')) return undefined;
   return ts.isObjectLiteralExpression(node)
     ? property(node, name)
     : node.attributes.properties.find(candidate => ts.isJsxAttribute(candidate) && candidate.name.text === name);
+}
+
+/** Literal overlay props are forwarded only by the published Dialog and Sheet. */
+export function collectForwardedOverlayProps(ast) {
+  const names = new Set();
+  for (const statement of ast.statements) {
+    if (!ts.isImportDeclaration(statement) || statement.moduleSpecifier.text !== '@openbitfun/ui') continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const binding of bindings.elements) {
+      if (['Dialog', 'Sheet'].includes((binding.propertyName ?? binding.name).text)) names.add(binding.name.text);
+    }
+  }
+  const forwarded = new Set();
+  function visit(node) {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+      && ts.isIdentifier(node.tagName) && names.has(node.tagName.text)
+      && !node.attributes.properties.some(ts.isJsxSpreadAttribute)) {
+      const attribute = findDomAttribute(node, 'overlayProps');
+      const expression = unwrap(attribute?.initializer && ts.isJsxExpression(attribute.initializer)
+        ? attribute.initializer.expression : undefined);
+      if (expression && ts.isObjectLiteralExpression(expression)
+        && !expression.properties.some(ts.isSpreadAssignment)) {
+        forwarded.add(expression);
+        overlayPropNodes.add(expression);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  return forwarded;
 }

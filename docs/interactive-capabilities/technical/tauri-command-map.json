@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "124222af073f8c5164b15b625723c0e3b81f0b200e41855cd343ef1f07d5f39b",
-  "commandCount": 648,
+  "catalogDigest": "5473331e06ecd4bfafbf9b547d48b4fe1561ccf69d86fdfde51ea10dc919531c",
+  "commandCount": 657,
   "coverage": {
-    "commandCount": 648,
-    "documentedCommandCount": 611,
-    "implementationCommandCount": 37,
-    "implementationDigest": "3c5e64b6ff16d55d95c2a6b4f77046be009a554b395b4a52bf8ed7c162ab1093"
+    "commandCount": 657,
+    "documentedCommandCount": 613,
+    "implementationCommandCount": 44,
+    "implementationDigest": "012cebbd8d7c908d8e4c0787f73a2fa5f43184c240e7fde68cb941667574ba8f"
   },
   "commands": [
     {
@@ -207,6 +207,20 @@
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
+      "id": "account_load_older_session",
+      "moduleId": "remote_connect",
+      "capabilityId": "feature.remote-connect",
+      "capabilityIds": [
+        "feature.remote-connect"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::remote_connect_api::account_load_older_session",
+      "sourceFile": "src/apps/desktop/src/api/remote_connect_api.rs",
+      "signature": "fn account_load_older_session(request: UnsubscribeSessionRequest) -> Result<(), String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
       "id": "account_login",
       "moduleId": "remote_connect",
       "capabilityId": "feature.remote-connect",
@@ -271,6 +285,20 @@
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
+      "id": "account_subscribe_session",
+      "moduleId": "remote_connect",
+      "capabilityId": "feature.remote-connect",
+      "capabilityIds": [
+        "feature.remote-connect"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::remote_connect_api::account_subscribe_session",
+      "sourceFile": "src/apps/desktop/src/api/remote_connect_api.rs",
+      "signature": "fn account_subscribe_session(request: SubscribeSessionRequest) -> Result<String, String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
       "id": "account_token_expired",
       "moduleId": "remote_connect",
       "capabilityId": "feature.remote-connect",
@@ -282,6 +310,20 @@
       "rustPath": "api::remote_connect_api::account_token_expired",
       "sourceFile": "src/apps/desktop/src/api/remote_connect_api.rs",
       "signature": "fn account_token_expired() -> bool",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
+    },
+    {
+      "id": "account_unsubscribe_session",
+      "moduleId": "remote_connect",
+      "capabilityId": "feature.remote-connect",
+      "capabilityIds": [
+        "feature.remote-connect"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::remote_connect_api::account_unsubscribe_session",
+      "sourceFile": "src/apps/desktop/src/api/remote_connect_api.rs",
+      "signature": "fn account_unsubscribe_session(request: UnsubscribeSessionRequest) -> Result<(), String>",
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
@@ -2897,6 +2939,22 @@
       "remoteWorkspacePolicy": "RemoteUnsupported"
     },
     {
+      "id": "get_external_source_discovery_snapshot",
+      "moduleId": "external_sources",
+      "capabilityId": "feature.ecosystem-compatibility",
+      "capabilityIds": [
+        "feature.ecosystem-compatibility"
+      ],
+      "documentedItemIds": [
+        "feature.ecosystem-compatibility:source-discovery"
+      ],
+      "visibility": "documented",
+      "rustPath": "get_external_source_discovery_snapshot",
+      "sourceFile": "src/apps/desktop/src/api/external_sources_api.rs",
+      "signature": "fn get_external_source_discovery_snapshot( request: ExternalSourceSnapshotRequest, ) -> ExternalSourceOperationResult<ExternalSourceDiscoverySnapshotV1>",
+      "remoteWorkspacePolicy": "RemoteUnsupported"
+    },
+    {
       "id": "get_external_source_snapshot",
       "moduleId": "external_sources",
       "capabilityId": "feature.ecosystem-compatibility",
@@ -3053,7 +3111,7 @@
       "visibility": "documented",
       "rustPath": "get_global_skill_settings",
       "sourceFile": "src/apps/desktop/src/api/skill_api.rs",
-      "signature": "fn get_global_skill_settings() -> Result<GlobalSkillSettingsResponse, String>",
+      "signature": "fn get_global_skill_settings( request: Option<GetGlobalSkillSettingsRequest>, ) -> Result<GlobalSkillSettingsResponse, String>",
       "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
@@ -3558,6 +3616,20 @@
       "sourceFile": "src/apps/desktop/src/api/snapshot_service.rs",
       "signature": "fn get_session_files( runtime: State<'_, DesktopRuntimeContext>, request: GetSessionFilesRequest, ) -> Result<Vec<String>, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
+    },
+    {
+      "id": "get_session_interaction_mailbox",
+      "moduleId": "agentic",
+      "capabilityId": "feature.ai-assistant",
+      "capabilityIds": [
+        "feature.ai-assistant"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::agentic_api::get_session_interaction_mailbox",
+      "sourceFile": "src/apps/desktop/src/api/agentic_api.rs",
+      "signature": "fn get_session_interaction_mailbox( runtime: State<'_, DesktopRuntimeContext>, request: SessionInteractionMailboxRequest, ) -> Result<SessionInteractionSnapshot, String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
       "id": "get_session_lineage",
@@ -4746,7 +4818,7 @@
       "visibility": "documented",
       "rustPath": "list_agent_companion_pets",
       "sourceFile": "src/apps/desktop/src/api/commands.rs",
-      "signature": "fn list_agent_companion_pets( state: State<'_, AppState>, ) -> Result<ListAgentCompanionPetsResponse, String>",
+      "signature": "fn list_agent_companion_pets( state: State<'_, AppState>, request: Option<ListAgentCompanionPetsRequest>, ) -> Result<ListAgentCompanionPetsResponse, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {
@@ -5231,6 +5303,20 @@
       "sourceFile": "src/apps/desktop/src/api/session_api.rs",
       "signature": "fn load_session_turns( request: LoadSessionTurnsRequest, runtime: State<'_, DesktopRuntimeContext>, startup_trace: State<'_, DesktopStartupTrace>, ) -> Result<Vec<DialogTurnData>, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
+    },
+    {
+      "id": "local_file_download",
+      "moduleId": "local_file_download",
+      "capabilityId": "feature.files-editor",
+      "capabilityIds": [
+        "feature.files-editor"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::local_file_download::local_file_download",
+      "sourceFile": "src/apps/desktop/src/api/local_file_download.rs",
+      "signature": "fn local_file_download( webview: tauri::Webview, request: LocalFileDownloadRequest, ) -> Result<LocalFileDownloadResponse, String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
       "id": "logout_subscription_account",
@@ -8516,6 +8602,22 @@
       "remoteWorkspacePolicy": "RemoteUnsupported"
     },
     {
+      "id": "set_file_drop_preview_target",
+      "moduleId": "file_drop_preview",
+      "capabilityId": "feature.files-editor",
+      "capabilityIds": [
+        "feature.files-editor"
+      ],
+      "documentedItemIds": [
+        "feature.files-editor:attachments"
+      ],
+      "visibility": "documented",
+      "rustPath": "api::file_drop_preview_api::set_file_drop_preview_target",
+      "sourceFile": "src/apps/desktop/src/api/file_drop_preview_api.rs",
+      "signature": "fn set_file_drop_preview_target( window: tauri::WebviewWindow, request: SetFileDropPreviewTargetRequest, ) -> Result<(), String>",
+      "remoteWorkspacePolicy": "LocalOnly"
+    },
+    {
       "id": "set_global_skill_disabled",
       "moduleId": "skill",
       "capabilityId": "feature.skills",
@@ -8704,6 +8806,20 @@
       "sourceFile": "src/apps/desktop/src/api/agentic_api.rs",
       "signature": "fn set_subagent_timeout( coordinator: State<'_, Arc<ConversationCoordinator>>, request: SetSubagentTimeoutRequest, ) -> Result<(), String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
+    },
+    {
+      "id": "set_tray_unread_count",
+      "moduleId": "system",
+      "capabilityId": "setting.application.general",
+      "capabilityIds": [
+        "setting.application.general"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::system_api::set_tray_unread_count",
+      "sourceFile": "src/apps/desktop/src/api/system_api.rs",
+      "signature": "fn set_tray_unread_count(request: SetTrayUnreadCountRequest) -> Result<(), String>",
+      "remoteWorkspacePolicy": "LocalOnly"
     },
     {
       "id": "show_agent_companion_desktop_pet",
@@ -9701,7 +9817,7 @@
       "visibility": "documented",
       "rustPath": "api::terminal_api::terminal_get_history",
       "sourceFile": "src/apps/desktop/src/api/terminal_api.rs",
-      "signature": "fn terminal_get_history( session_id: String, state: State<'_, TerminalState>, ) -> Result<GetHistoryResponse, String>",
+      "signature": "fn terminal_get_history( session_id: String, after_offset: Option<u64>, state: State<'_, TerminalState>, ) -> Result<GetHistoryResponse, String>",
       "remoteWorkspacePolicy": "RemoteRouted"
     },
     {
@@ -10246,6 +10362,20 @@
       "sourceFile": "src/apps/desktop/src/lib.rs",
       "signature": "fn webdriver_bridge_result(request: WebdriverBridgeResultRequest) -> Result<(), String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
+    },
+    {
+      "id": "workspace_file_upload",
+      "moduleId": "commands",
+      "capabilityId": "feature.projects",
+      "capabilityIds": [
+        "feature.projects"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "workspace_file_upload",
+      "sourceFile": "src/apps/desktop/src/api/commands.rs",
+      "signature": "fn workspace_file_upload( request: openbitfun_core::service::filesystem::upload::WorkspaceUploadRequest, ) -> Result<serde_json::Value, String>",
+      "remoteWorkspacePolicy": "RemoteRouted"
     },
     {
       "id": "worktree_bind_session",

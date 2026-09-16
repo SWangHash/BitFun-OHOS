@@ -95,6 +95,8 @@ pub struct RoundContext {
 #[derive(Debug, Clone)]
 pub struct RoundResult {
     pub assistant_message: Message,
+    /// Complete tool-call response already committed before tool execution.
+    pub assistant_message_committed: bool,
     pub tool_calls: Vec<crate::agentic::core::ToolCall>,
     pub tool_result_messages: Vec<Message>,
     pub has_more_rounds: bool,

@@ -1511,9 +1511,9 @@ function schemaLabel(schema) {
 }
 
 function itemControlLabel(item) {
-  if (item.control.kind === 'direct') return 'Agent 可直接控制 / Direct Agent control';
-  if (item.control.kind === 'delegate') return '由专用 Agent 工具控制 / Delegated Agent tool';
-  if (item.control.kind === 'open') return 'Agent 可定位入口，需交互完成 / Agent opens; interaction required';
+  if (item.control.kind === 'direct') return '智能体可直接控制 / Direct Agent control';
+  if (item.control.kind === 'delegate') return '由专用智能体工具控制 / Delegated Agent tool';
+  if (item.control.kind === 'open') return '智能体可定位入口，需交互完成 / Agent opens; interaction required';
   return '当前不支持 / Unsupported';
 }
 
@@ -1606,7 +1606,7 @@ ${steps}
 
 入口 / Entry: ${destinationText(capability.destination)}
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -1618,11 +1618,11 @@ ${operations}
 | --- | --- | --- | --- |
 ${options}
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 ${examples}
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.
 `;
@@ -1632,7 +1632,7 @@ function renderReadme(catalog, technicalMap) {
   return `${GENERATED_MARKER}
 # OpenBitFun 功能与设置目录 / OpenBitFun Features & Settings
 
-OpenBitFun Playbook 当前包含 **${catalog.counts.features} 个功能**和 **${catalog.counts.settings} 个设置页**，共 **${catalog.counts.userFacing} 个**用户可理解的条目、**${catalog.counts.documentedItems} 项**有源码证据的子能力。每个条目有独立 Markdown，并直接服务于说明书网站、OpenBitFun 全局搜索和 \`OpenBitFunControl\` Agent 工具。
+OpenBitFun Playbook 当前包含 **${catalog.counts.features} 个功能**和 **${catalog.counts.settings} 个设置页**，共 **${catalog.counts.userFacing} 个**用户可理解的条目、**${catalog.counts.documentedItems} 项**有源码证据的子能力。每个条目有独立 Markdown，并直接服务于说明书网站、OpenBitFun 全局搜索和 \`OpenBitFunControl\` 智能体工具。
 
 OpenBitFun Playbook currently contains **${catalog.counts.features} features**, **${catalog.counts.settings} settings pages**, and **${catalog.counts.documentedItems}** source-backed sub-capabilities across **${catalog.counts.userFacing}** user-facing entries. Every entry has its own Markdown page and directly powers the website, in-app global search, and the \`OpenBitFunControl\` agent tool.
 
@@ -1658,16 +1658,16 @@ OpenBitFun Playbook currently contains **${catalog.counts.features} features**, 
 - Generated per-item interaction audit: \`docs/interactive-capabilities/technical/product-control-open-audit.json\`
 - Generated low-level audit map: \`docs/interactive-capabilities/technical/tauri-command-map.json\`
 
-说明书、网站、搜索和 Agent 只看“功能 + 设置 + 子能力”。每项子能力都必须引用已注册 Tauri Command 或可解析的源码标记；这些证据不会进入公开目录。当前 **${technicalMap.commandCount}** 个 Tauri 命令只用于实现覆盖审计。产品 UI 交互源码会在生成和检查时扫描并校验，但不会保存成随普通 UI 改动频繁变化的版本化快照。
+说明书、网站、搜索和智能体只看“功能 + 设置 + 子能力”。每项子能力都必须引用已注册 Tauri Command 或可解析的源码标记；这些证据不会进入公开目录。当前 **${technicalMap.commandCount}** 个 Tauri 命令只用于实现覆盖审计。产品 UI 交互源码会在生成和检查时扫描并校验，但不会保存成随普通 UI 改动频繁变化的版本化快照。
 
 Docs, website, search, and agents see only features, settings, and documented sub-capabilities. Every sub-capability must reference a registered Tauri command or a resolvable source marker; evidence is stripped from public projections. The **${technicalMap.commandCount}** Tauri commands remain implementation-audit evidence only. Product UI interaction sources are scanned and validated during generation and checks, but are not stored as a versioned snapshot that churns with ordinary UI changes.
 
 ## 控制边界 / Control boundary
 
-- 每个子能力都明确标记为直接控制、委托给专用 Agent 工具、需交互打开或不支持；“打开页面”不会再被统计成“Agent 已控制”。当前覆盖：直接 **${catalog.counts.controlCoverage.direct}**、委托 **${catalog.counts.controlCoverage.delegated}**、需交互 **${catalog.counts.controlCoverage.interactive}**、不支持 **${catalog.counts.controlCoverage.unsupported}**。
-- 稳定行为声明为带 JSON 输入契约的 \`operations\` 或 \`options\`，并绑定原生产品控制 Provider；Agent 不接触原始 Tauri Command。
+- 每个子能力都明确标记为直接控制、委托给专用智能体工具、需交互打开或不支持；“打开页面”不会再被统计成“智能体已控制”。当前覆盖：直接 **${catalog.counts.controlCoverage.direct}**、委托 **${catalog.counts.controlCoverage.delegated}**、需交互 **${catalog.counts.controlCoverage.interactive}**、不支持 **${catalog.counts.controlCoverage.unsupported}**。
+- 稳定行为声明为带 JSON 输入契约的 \`operations\` 或 \`options\`，并绑定原生产品控制 Provider；智能体不接触原始 Tauri Command。
 - \`OpenBitFunControl list\` 和 \`search\` 都返回带 \`nextCursor\` 的精简分页结果；目录可持续增长，不靠固定总量上限。完整目录和 ${catalog.counts.documentedItems} 项子能力都不会写入 system prompt。
-- 目录发现与契约读取不依赖 React 或可见窗口。普通配置型 option 统一由 Product Assembly 的共享 ConfigService 执行器读、写并回读，因此 Desktop、CLI 与 Headless 表面走同一份实现；只有宿主原生 operation/provider option 和界面导航按表面注册适配器，缺失时必须明确返回不可用，禁止静默回退本机。只读 Agent 只能发现和读取目录。
+- 目录发现与契约读取不依赖 React 或可见窗口。普通配置型 option 统一由 Product Assembly 的共享 ConfigService 执行器读、写并回读，因此 Desktop、CLI 与 Headless 表面走同一份实现；只有宿主原生 operation/provider option 和界面导航按表面注册适配器，缺失时必须明确返回不可用，禁止静默回退本机。只读智能体只能发现和读取目录。
 
 - Every documented item is classified as direct control, delegated Agent control, interactive opening, or unsupported; opening a page is never counted as direct control. Current coverage is **${catalog.counts.controlCoverage.direct} direct**, **${catalog.counts.controlCoverage.delegated} delegated**, **${catalog.counts.controlCoverage.interactive} interactive**, and **${catalog.counts.controlCoverage.unsupported} unsupported**.
 - Stable behavior becomes a typed \`operation\` or \`option\` with a JSON input contract and a native product-control provider. Agents never receive raw Tauri commands.

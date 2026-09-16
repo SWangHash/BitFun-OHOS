@@ -11,37 +11,37 @@ title_en: "Execution & permissions"
 
 > 设置 / Setting
 
-管理 Agent 工具权限、并行度、超时、延迟加载、Computer Use 与浏览器控制。
+管理智能体工具权限、并行度、超时、延迟加载、Computer Use 与浏览器控制。
 
 Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer Use, and browser control.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择询问、自动批准或完全访问权限模式，并确认高风险警告
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择询问、自动批准或完全访问权限模式，并确认高风险警告
   - Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings
-- **Agent 可直接控制 / Direct Agent control** · 控制权限模式选择器是否显示在聊天输入框下方
+- **智能体可直接控制 / Direct Agent control** · 控制权限模式选择器是否显示在聊天输入框下方
   - Choose whether the permission-mode selector appears below the chat composer
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 创建、排序和保存全局或项目级 Allow、Ask、Deny 规则
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 创建、排序和保存全局或项目级 Allow、Ask、Deny 规则
   - Create, reorder, and save global or project-level Allow, Ask, and Deny rules
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看、撤销或清空项目中记住的权限授权与审计记录
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看、撤销或清空项目中记住的权限授权与审计记录
   - Review, revoke, or clear remembered project permission grants and audit records
-- **Agent 可直接控制 / Direct Agent control** · 按需延迟加载工具定义以减少 Agent 初始上下文
+- **智能体可直接控制 / Direct Agent control** · 按需延迟加载工具定义以减少智能体初始上下文
   - Deferred tool loading on demand to reduce initial agent context
-- **Agent 可直接控制 / Direct Agent control** · 设置子 Agent 与 Swarm 最大并发及安全、强制并行或串行策略
+- **智能体可直接控制 / Direct Agent control** · 设置子智能体与 Swarm 最大并发及安全、强制并行或串行策略
   - Set subagent and swarm concurrency plus safe-only, forced-parallel, or serial policy
-- **Agent 可直接控制 / Direct Agent control** · 设置或取消单次工具调用超时
+- **智能体可直接控制 / Direct Agent control** · 设置或取消单次工具调用超时
   - Set or disable the per-tool execution timeout
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 设置 Deep Review 最大并行评审者和队列等待时间
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 设置 Deep Review 最大并行评审者和队列等待时间
   - Set the maximum parallel Deep Review workers and queue wait time
-- **Agent 可直接控制 / Direct Agent control** · 启用或停用已获系统授权的 Computer Use
+- **智能体可直接控制 / Direct Agent control** · 启用或停用已获系统授权的 Computer Use
   - Enable or disable Computer Use after operating-system authorization
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看并请求辅助功能与屏幕录制权限
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看并请求辅助功能与屏幕录制权限
   - Inspect and request accessibility and screen-recording permissions
-- **Agent 可直接控制 / Direct Agent control** · 控制 OpenBitFun 启动时是否自动连接浏览器
+- **智能体可直接控制 / Direct Agent control** · 控制 OpenBitFun 启动时是否自动连接浏览器
   - Choose whether OpenBitFun reconnects browser control at startup
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 发现并选择浏览器、配置默认 CDP 或按需重启
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 发现并选择浏览器、配置默认 CDP 或按需重启
   - Discover and choose a browser, configure default CDP, or restart it when needed
-- **Agent 可直接控制 / Direct Agent control** · 控制是否在安全边界内修复模型生成的非法工具参数 JSON
+- **智能体可直接控制 / Direct Agent control** · 控制是否在安全边界内修复模型生成的非法工具参数 JSON
   - Choose whether malformed model-generated tool-argument JSON may be repaired within safety boundaries
 
 ## 怎么用 / How to use it
@@ -55,7 +55,7 @@ Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -66,24 +66,24 @@ Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
 | 显示权限模式选择器 / Show permission-mode selector | `boolean` | 在聊天输入框下方显示或隐藏权限模式快捷选择器。 | Show or hide the permission-mode shortcut below the chat composer. |
-| 延迟加载工具 / Deferred tool loading | `boolean` | 按需加载大型工具定义，减少 Agent 初始上下文。 | Load large tool definitions on demand to reduce initial agent context. |
-| 子 Agent 批量执行策略 / Subagent batch policy | `safe_only` / `force_parallel` / `serial` | 选择仅安全任务并行、强制并行或串行执行。 | Choose safe-only parallelism, forced parallelism, or serial execution. |
-| 子 Agent 最大并发 / Maximum subagent concurrency | `integer` (1–32) | 限制同时运行的子 Agent 数量。 | Limit the number of subagents that may run at once. |
+| 延迟加载工具 / Deferred tool loading | `boolean` | 按需加载大型工具定义，减少智能体初始上下文。 | Load large tool definitions on demand to reduce initial agent context. |
+| 子智能体批量执行策略 / Subagent batch policy | `safe_only` / `force_parallel` / `serial` | 选择仅安全任务并行、强制并行或串行执行。 | Choose safe-only parallelism, forced parallelism, or serial execution. |
+| 子智能体最大并发 / Maximum subagent concurrency | `integer` (1–32) | 限制同时运行的子智能体数量。 | Limit the number of subagents that may run at once. |
 | Swarm 最大并发 / Maximum swarm concurrency | `integer` (1–64) | 限制 Swarm 中同时执行的工作单元。 | Limit concurrent work units inside a swarm. |
 | 工具执行超时 / Tool execution timeout | `integer` (1–86400) / `null` | 单次工具调用的超时秒数。 | Timeout in seconds for one tool call. |
-| Computer Use 桌面控制 / Computer Use | `boolean` | 允许 Agent 使用已授权的桌面控制能力。 | Allow agents to use authorized desktop-control capabilities. |
+| Computer Use 桌面控制 / Computer Use | `boolean` | 允许智能体使用已授权的桌面控制能力。 | Allow agents to use authorized desktop-control capabilities. |
 | 启动时连接浏览器 / Connect browser on startup | `boolean` | OpenBitFun 启动后自动尝试连接浏览器控制。 | Automatically try to connect browser control after OpenBitFun starts. |
 | 工具参数 JSON 修复 / Tool-argument JSON repair | `boolean` | 允许在安全边界内修复模型生成的轻微 JSON 格式错误。 | Allow minor model-generated JSON formatting errors to be repaired within the safety boundary. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “启用 Computer Use”
   - “Enable Computer Use”
-- “把子 Agent 最大并发改为 8”
+- “把子智能体最大并发改为 8”
   - “Set maximum subagent concurrency to 8”
 - “打开权限设置”
   - “Open permission settings”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

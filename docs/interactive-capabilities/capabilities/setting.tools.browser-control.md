@@ -17,7 +17,7 @@ Choose a browser, inspect connection status, and configure CDP and startup conne
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择浏览器并查看、建立或断开 CDP 连接
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择浏览器并查看、建立或断开 CDP 连接
   - Choose a browser and inspect, establish, or disconnect its CDP connection
 
 ## 怎么用 / How to use it
@@ -31,7 +31,7 @@ Choose a browser, inspect connection status, and configure CDP and startup conne
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -43,13 +43,13 @@ Choose a browser, inspect connection status, and configure CDP and startup conne
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开浏览器控制设置”
   - “Open Browser Control settings”
 - “检查浏览器连接”
   - “Check the browser connection”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

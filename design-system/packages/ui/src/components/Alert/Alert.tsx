@@ -32,6 +32,7 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert({
   description,
   message,
   onClose,
+  role,
   showIcon = true,
   title,
   tone = "info",
@@ -43,12 +44,12 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert({
   return (
     <div
       {...props}
-      aria-live={ariaLive ?? (tone === "error" ? "assertive" : "polite")}
+      aria-live={ariaLive ?? (role === "status" ? "polite" : role === "alert" || tone === "error" ? "assertive" : "polite")}
       className={classNames(styles.root, className)}
       data-openbitfun-component="alert"
       data-openbitfun-tone={tone}
       ref={ref}
-      role="alert"
+      role={role ?? "alert"}
     >
       {showIcon && <span className={styles.icon} data-openbitfun-part="icon"><Icon name={toneIcons[tone]} size="sm" /></span>}
       <span className={styles.content} data-openbitfun-part="content">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { OverflowText, Button, Card, Icon, IconButton, Tooltip } from '@openbitfun/ui';
+import { Checkbox, OverflowText, Button, Card, Icon, IconButton, Tooltip } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { Activity, AlertTriangle, Database, FileText, Wrench, type LucideProps } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
@@ -451,15 +451,15 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
           )}
           <div className="session-usage-report-card__header-actions">
             <Tooltip content={t('usage.export.redactPathsHelp')}>
-              <label className="session-usage-report-card__export-option">
-                <input
-                  type="checkbox"
-                  checked={redactExportPaths}
-                  onChange={handleRedactExportPathsChange}
-                  aria-label={t('usage.export.redactPaths')}
-                />
-                <OverflowText>{t('usage.export.redactPaths')}</OverflowText>
-              </label>
+              <Checkbox
+                appearance="native"
+                size="sm"
+                className="session-usage-report-card__export-option"
+                checked={redactExportPaths}
+                onChange={handleRedactExportPathsChange}
+                aria-label={t('usage.export.redactPaths')}
+                label={<OverflowText>{t('usage.export.redactPaths')}</OverflowText>}
+              />
             </Tooltip>
             <Tooltip content={copied ? t('usage.actions.copied') : t('usage.actions.copyMarkdown')}>
               <IconButton

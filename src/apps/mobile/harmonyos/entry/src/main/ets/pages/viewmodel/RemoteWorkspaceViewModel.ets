@@ -56,8 +56,8 @@ export class RemoteWorkspaceViewModel {
     await this.loadAssistants();
   }
 
-  async selectWorkspace(path: string): Promise<boolean> {
-    return await this.select(path, false);
+  async selectWorkspace(path: string, connectionId?: string): Promise<boolean> {
+    return await this.select(path, false, connectionId);
   }
 
   async selectAssistant(path: string): Promise<boolean> {
@@ -72,6 +72,15 @@ export class RemoteWorkspaceViewModel {
     }
     this.hooks.onCatalogLoading(targetId);
     try {
+      this.pageState.savedConnections = [];
+      this.pageState.savedConnectionsTargetId = '';
+      try {
+        const saved = await this.coordinator.savedConnections();
+        if (targetId === this.hooks.remoteTargetId()) {
+          this.pageState.savedConnections = saved;
+          this.pageState.savedConnectionsTargetId = targetId;
+        }
+      } catch (error) { this.hooks.onConnectionFailure(error); }
       const recent = await this.coordinator.recentWorkspaces();
       if (!this.isCurrentCatalogLoad(loadVersion, targetId)) {
         return;
@@ -91,7 +100,8 @@ export class RemoteWorkspaceViewModel {
       });
       const allWorkspaces = recent.slice();
       assistantWorkspaces.forEach((item: RecentWorkspaceEntry) => {
-        if (!allWorkspaces.some((existing: RecentWorkspaceEntry) => existing.path === item.path)) {
+        if (!allWorkspaces.some((existing: RecentWorkspaceEntry) => existing.path === item.path &&
+          (existing.remoteConnectionId || '') === (item.remoteConnectionId || ''))) {
           allWorkspaces.push(item);
         }
       });
@@ -168,7 +178,7 @@ export class RemoteWorkspaceViewModel {
     }
   }
 
-  private async select(path: string, assistant: boolean): Promise<boolean> {
+  private async select(path: string, assistant: boolean, connectionId?: string): Promise<boolean> {
     if (this.hooks.isBusy() || path.trim().length === 0 || !this.hooks.isRemoteAvailable()) {
       return false;
     }
@@ -177,7 +187,7 @@ export class RemoteWorkspaceViewModel {
       this.hooks.onStatus(RemoteI18n.t(assistant ?
         'status.switchingAssistant' : 'status.switchingWorkspace'));
       const workspace = assistant ?
-        await this.coordinator.switchAssistant(path) : await this.coordinator.switchWorkspace(path);
+        await this.coordinator.switchAssistant(path) : await this.coordinator.switchWorkspace(path, connectionId);
       this.hooks.onWorkspaceSelected(workspace);
       this.pageState.closePickers();
       this.pageState.clear();

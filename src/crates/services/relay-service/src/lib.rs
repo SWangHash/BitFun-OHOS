@@ -11,6 +11,7 @@
 //!   - Published Page assets are managed via `WebAssetStore`
 
 mod identity;
+pub mod realtime;
 
 #[cfg(test)]
 mod account_transport_tests;
@@ -56,7 +57,11 @@ pub async fn relay_security_headers(
 ) -> axum::response::Response {
     use axum::http::{HeaderName, HeaderValue};
 
-    let no_store = request.uri().path() == "/health" || request.uri().path().starts_with("/api/");
+    let path = request.uri().path();
+    let no_store = path == "/health"
+        || path.starts_with("/api/")
+        || path.starts_with("/v1/")
+        || path.starts_with("/v3/");
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     for (name, value) in [
@@ -1181,9 +1186,9 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
             "/api/auth/provision-device",
             post(routes::auth::provision_device),
         )
-        .route("/ws", get(routes::websocket::websocket_handler))
         .merge(routes::devices::device_router())
-        .merge(routes::pages::pages_router())
+        .merge(routes::pages::pages_router());
+    let router = realtime::mount(router, state.clone())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             admission::admit,

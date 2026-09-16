@@ -1,6 +1,6 @@
 {
   "title": "網頁搜尋",
-  "subtitle": "選擇 Agent 連網查找資料時使用的搜尋服務",
+  "subtitle": "選擇智能體連網查找資料時使用的搜尋服務",
   "providers": {
     "exaMcpFree": "Exa MCP（免費）",
     "exaSearchApi": "Exa Search API",

@@ -1813,8 +1813,8 @@ mod tests {
             response.headers().get(tauri::http::header::CONTENT_TYPE),
             Some(&tauri::http::HeaderValue::from_static("text/css; charset=utf-8"))
         );
-        assert!(body.contains("--bf-color-surface-canvas"));
-        assert!(body.contains("--bf-color-status-danger-content"));
+        assert!(body.contains("--openbitfun-color-surface-canvas"));
+        assert!(body.contains("--openbitfun-color-status-danger-content"));
         assert!(!body.contains("--bf-appearance-token-"));
     }
 }

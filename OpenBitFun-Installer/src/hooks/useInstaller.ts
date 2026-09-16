@@ -17,6 +17,7 @@ import type {
 import { DEFAULT_OPTIONS } from '../types/installer';
 
 export interface UseInstallerReturn {
+  previewOnly: boolean;
   step: InstallStep;
   goTo: (step: InstallStep) => void;
   next: () => void;
@@ -50,9 +51,9 @@ export interface UseInstallerReturn {
 }
 
 const STEPS: InstallStep[] = ['lang', 'options', 'progress', 'model', 'theme'];
-const MOCK_INSTALL_FOR_DEBUG = import.meta.env.DEV && import.meta.env.VITE_MOCK_INSTALL === 'true';
 
 export function useInstaller(): UseInstallerReturn {
+  const [previewOnly, setPreviewOnly] = useState(false);
   const [step, setStep] = useState<InstallStep>('lang');
   const [options, setOptions] = useState<InstallOptions>(DEFAULT_OPTIONS);
   const [progress, setProgress] = useState<InstallProgress>({
@@ -87,6 +88,7 @@ export function useInstaller(): UseInstallerReturn {
       try {
         const context = await invoke<LaunchContext>('get_launch_context');
         if (!mounted) return;
+        setPreviewOnly(context.previewOnly === true);
         const uiLanguage = detectInstallerUiLanguage(context.appLanguage ?? null);
         await i18n.changeLanguage(uiLanguage);
         if (!mounted) return;
@@ -94,6 +96,11 @@ export function useInstaller(): UseInstallerReturn {
           ...prev,
           appLanguage: mapUiLanguageToAppLanguage(uiLanguage),
         }));
+        if (context.previewOnly) {
+          const path = await invoke<string>('get_default_install_path');
+          if (mounted) setOptions((prev) => ({ ...prev, installPath: path }));
+          return;
+        }
         if (context.mode === 'uninstall') {
           setIsUninstallMode(true);
           setStep('uninstall');
@@ -232,43 +239,6 @@ export function useInstaller(): UseInstallerReturn {
   const install = useCallback(async () => {
     setError(null);
 
-    if (MOCK_INSTALL_FOR_DEBUG) {
-      setIsInstalling(true);
-      setInstallationCompleted(false);
-      setCanConfirmProgress(false);
-      setStep('progress');
-      setProgress({ step: 'prepare', percent: 0, message: '' });
-
-      const durationMs = 5000;
-      const startedAt = Date.now();
-
-      await new Promise<void>((resolve) => {
-        const timer = window.setInterval(() => {
-          const elapsed = Date.now() - startedAt;
-          const ratio = Math.min(elapsed / durationMs, 1);
-          const percent = Math.round(ratio * 100);
-          const mockStep =
-            percent < 20 ? 'prepare' :
-            percent < 50 ? 'extract' :
-            percent < 75 ? 'config' :
-            percent < 100 ? 'complete' :
-            'complete';
-
-          setProgress({ step: mockStep, percent, message: '' });
-
-          if (ratio >= 1) {
-            window.clearInterval(timer);
-            resolve();
-          }
-        }, 100);
-      });
-
-      setIsInstalling(false);
-      setInstallationCompleted(true);
-      setCanConfirmProgress(true);
-      return;
-    }
-
     setIsInstalling(true);
     setInstallationCompleted(false);
     setCanConfirmProgress(false);
@@ -374,6 +344,7 @@ export function useInstaller(): UseInstallerReturn {
   }, [closeInstaller, isUninstalling, options.installPath]);
 
   return {
+    previewOnly,
     step, goTo, next, back,
     options, setOptions,
     progress, isInstalling, installationCompleted, error, diskSpace,

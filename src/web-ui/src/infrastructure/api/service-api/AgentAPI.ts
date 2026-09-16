@@ -1088,6 +1088,10 @@ export class AgentAPI {
     }
   }
 
+  async getSessionInteractionMailbox(sessionId: string): Promise<SessionInteractionSnapshot> {
+    return api.invoke<SessionInteractionSnapshot>('get_session_interaction_mailbox', { request: { sessionId } });
+  }
+
   async restoreSessionView(
     sessionId: string,
     workspacePath: string,

@@ -66,8 +66,8 @@ export function RemoteNetworkConnections({
       {(count > 0 || !invitation) && <div className="openbitfun-remote-connect__connections-content">
         <div className="openbitfun-remote-connect__connections-heading">
           <h4 title={t('remoteConnect.clientCountHint')}>{t('remoteConnect.connectedClients')}</h4>
-          <span role="status">
-            <StatusPill tone={count > 0 ? 'success' : 'neutral'}>{t('remoteConnect.clientCount', { count, formattedCount: formatNumber(count) })}</StatusPill>
+          <span role="status" aria-label={t('remoteConnect.clientCount', { count, formattedCount: formatNumber(count) })}>
+            <StatusPill tone={count > 0 ? 'success' : 'neutral'}>{formatNumber(count)}</StatusPill>
           </span>
         </div>
         {count > 0 && <ul className="openbitfun-remote-connect__connections-list" tabIndex={count > 3 ? 0 : undefined}>

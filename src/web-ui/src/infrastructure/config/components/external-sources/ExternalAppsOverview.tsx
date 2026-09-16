@@ -41,8 +41,8 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
         <div
           key={application.ecosystemId}
           className="openbitfun-external-sources-config__app-row"
-          data-openbitfun-component="external-sources-config"
-          data-openbitfun-part="application"
+          data-openbitfun-product-component="external-sources-config"
+          data-openbitfun-product-part="application"
           data-openbitfun-ecosystem={application.ecosystemId}
         >
           <OverflowText className="openbitfun-external-sources-config__app-name">
@@ -53,8 +53,8 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
               <button
                 type="button"
                 className="openbitfun-external-sources-config__app-attention"
-                data-openbitfun-component="external-sources-config"
-                data-openbitfun-part="appAttention"
+                data-openbitfun-product-component="external-sources-config"
+                data-openbitfun-product-part="appAttention"
                 aria-label={t('applications.openAdvanced', {
                   name: application.displayName,
                 })}
@@ -66,8 +66,8 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
           ) : null}
           <div
             className="openbitfun-external-sources-config__app-toggle"
-            data-openbitfun-component="external-sources-config"
-            data-openbitfun-part="applicationToggle"
+            data-openbitfun-product-component="external-sources-config"
+            data-openbitfun-product-part="applicationToggle"
             title={!policiesEnabled ? t('applications.enableInAdvanced') : undefined}
             role={!policiesEnabled ? 'button' : undefined}
             tabIndex={!policiesEnabled ? 0 : undefined}

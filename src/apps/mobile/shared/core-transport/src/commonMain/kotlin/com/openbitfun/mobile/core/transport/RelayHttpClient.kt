@@ -45,6 +45,7 @@ public fun relayHttpClient(): HttpClient = HttpClient { configureForRelay() }
 
 private fun HttpClientConfig<*>.configureForRelay() {
     expectSuccess = false
+    install(io.ktor.client.plugins.websocket.WebSockets) { maxFrameSize = 256 * 1024 }
     install(HttpTimeout) {
         connectTimeoutMillis = RELAY_CONNECT_TIMEOUT_MS
         requestTimeoutMillis = RELAY_DEFAULT_TIMEOUT_MS

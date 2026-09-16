@@ -225,7 +225,7 @@ struct SessionDetailsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    detailRow("Agent 类型", value: session.agentType.isEmpty ? model.localized("未知") : session.agentType)
+                    detailRow("智能体类型", value: session.agentType.isEmpty ? model.localized("未知") : session.agentType)
                     if let workspaceName = session.workspaceName, !workspaceName.isEmpty {
                         detailRow("工作区", value: workspaceName)
                     }

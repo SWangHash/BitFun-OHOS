@@ -1,3 +1,4 @@
+import { InvalidationSync } from '../../../shared/relay-transport/InvalidationSync';
 import {
   ChevronLeft as LucideChevronLeft,
   ChevronRight as LucideChevronRight,
@@ -74,6 +75,7 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
   const [identityReady, setIdentityReady] = useState(client.hasAccountIdentity);
   const [identityChecking, setIdentityChecking] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [directoryLoaded, setDirectoryLoaded] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -116,7 +118,7 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
     };
   }, []);
 
-  const refreshDevices = useCallback(async () => {
+  const readDevices = useCallback(async () => {
     if (!client.hasAccountIdentity) return;
     const requestId = ++devicesRequestRef.current;
     const isCurrent = () => (
@@ -127,6 +129,7 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
       const list = await client.listDevices();
       if (!isCurrent()) return;
       setDevices(list);
+      setDirectoryLoaded(true);
       setError(null);
       setIdentityReady(true);
     } catch (e: unknown) {
@@ -145,23 +148,25 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
     }
   }, [client, friendlyError]);
 
+  const directorySyncRef = useRef<InvalidationSync | null>(null);
+  const refreshDevices = useCallback(() => directorySyncRef.current?.invalidate() ?? Promise.resolve(), []);
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const init = async () => {
-      if (cancelled || !mountedRef.current) return;
-      setLoading(true);
-      await refreshDevices();
-      if (cancelled || !mountedRef.current) return;
-      setLoading(false);
-      timer = setInterval(refreshDevices, 30_000);
-    };
-    void init();
+    const directorySync = new InvalidationSync(readDevices);
+    directorySyncRef.current = directorySync;
+    const refresh = () => { if (document.visibilityState === 'visible') void refreshDevices(); };
+    const stopPresence = client.onDeviceDirectoryChanged(refresh);
+    document.addEventListener('visibilitychange', refresh);
+    setLoading(true);
+    void refreshDevices().finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      directorySync.stop();
+      if (directorySyncRef.current === directorySync) directorySyncRef.current = null;
+      stopPresence();
+      document.removeEventListener('visibilitychange', refresh);
     };
-  }, [refreshDevices]);
+  }, [client, readDevices, refreshDevices]);
 
   const handleManualRefresh = useCallback(async () => {
     if (loading || switchingId) return;
@@ -317,7 +322,7 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
       );
     }
 
-    if (loading && sortedDevices.length === 0) {
+    if (loading && !directoryLoaded && sortedDevices.length === 0) {
       return (
         <MobileStatus className="devices-page__loading" loading title={t('devices.loading')} />
       );
@@ -326,17 +331,27 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
     if (sortedDevices.length === 0) {
       // A failed directory request is not evidence that the account is empty.
       if (error) return null;
-      return <MobileStatus className="devices-page__empty" description={t('devices.noDevices')} />;
+      return <section className="devices-page__onboarding" aria-labelledby="devices-empty-title">
+        <div className="devices-page__onboarding-icon"><LucideMonitor size={28} aria-hidden="true" /></div>
+        <h2 id="devices-empty-title">{t('devices.emptyTitle')}</h2>
+        <p className="devices-page__onboarding-intro">{t('devices.emptyDescription')}</p>
+        <ol className="devices-page__steps">
+          <li><span aria-hidden="true">1</span><div><strong>{t('devices.emptyStepOne')}</strong><p>{t('devices.emptyStepOneDetail')}</p></div></li>
+          <li><span aria-hidden="true">2</span><div><strong>{t('devices.emptyStepTwo')}</strong><p>{t('devices.emptyStepTwoDetail')}</p></div></li>
+        </ol>
+        <MobileButton appearance="secondary" block leading={<RefreshIcon />} loading={loading} onClick={handleManualRefresh}>{t('devices.refresh')}</MobileButton>
+        <p className="devices-page__onboarding-note">{t('devices.emptyAutoRefresh')}</p>
+      </section>;
     }
 
     return renderDeviceList();
   };
 
   return (
-    <div className="devices-page">
+    <div className={`devices-page${identityReady && directoryLoaded && sortedDevices.length === 0 && !error ? ' devices-page--empty' : ''}`}>
       <MobilePageHeader
-        className="devices-page__header"
-        leading={accountLanding ? <MobileButton appearance="plain" size="sm" onClick={onBack}>{t('devices.signOut')}</MobileButton> : <MobileIconButton
+        className={`devices-page__header${accountLanding ? ' devices-page__header--account' : ''}`}
+        leading={accountLanding ? undefined : <MobileIconButton
           appearance="floating"
           className="devices-page__back-btn"
           icon={<BackIcon />}
@@ -345,9 +360,9 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
         />}
         title={t('devices.title')}
         actions={<>
-          {!accountLanding && onSignOut && <MobileButton appearance="plain" size="sm" onClick={onSignOut}>{t('devices.signOut')}</MobileButton>}
-          <MobileIconButton
-          appearance="floating"
+          {(accountLanding || onSignOut) && <MobileButton appearance="plain" size="sm" onClick={accountLanding ? onBack : onSignOut}>{t('devices.signOut')}</MobileButton>}
+          {(sortedDevices.length > 0 || error || !identityReady) && <MobileIconButton
+          appearance="plain"
           className="devices-page__refresh-btn"
           icon={<RefreshIcon />}
           loading={loading || identityChecking}
@@ -355,10 +370,10 @@ const DevicesPage: React.FC<Props> = ({ client, onBack, onDeviceSelected = onBac
           disabled={!!switchingId}
           aria-label={t('devices.refresh')}
           title={t('devices.refresh')}
-        /></>}
+        />}</>}
       />
 
-      {accountLanding && <p className="devices-page__description">{t('devices.accountReady')}</p>}
+      {accountLanding && sortedDevices.length > 0 && <p className="devices-page__description">{t('devices.accountReady')}</p>}
       {error && <MobileBanner className="devices-page__error" tone="danger">{error}</MobileBanner>}
 
       <div className="devices-page__body">

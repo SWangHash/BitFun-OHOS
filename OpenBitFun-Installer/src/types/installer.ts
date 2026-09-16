@@ -5,6 +5,7 @@ export type InstallStep = 'lang' | 'options' | 'model' | 'progress' | 'theme' | 
 
 export interface LaunchContext {
   mode: 'install' | 'uninstall';
+  previewOnly?: boolean;
   uninstallPath: string | null;
   appLanguage?: AppLanguage | null;
 }

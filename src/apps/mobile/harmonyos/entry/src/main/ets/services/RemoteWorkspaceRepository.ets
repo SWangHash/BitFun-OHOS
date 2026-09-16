@@ -1,9 +1,10 @@
-import { AssistantEntry, RecentWorkspaceEntry, RemoteSession, WorkspaceInfo } from '../model/RemoteModels';
+import { SavedRuntimeConnection, AssistantEntry, RecentWorkspaceEntry, RemoteSession, WorkspaceInfo } from '../model/RemoteModels';
 import { RemoteSessionManager } from './RemoteSessionManager';
 
 export interface RemoteWorkspaceDataSource {
+  savedConnections(): Promise<SavedRuntimeConnection[]>;
   listRecentWorkspaces(): Promise<RecentWorkspaceEntry[]>;
-  setWorkspace(path: string): Promise<WorkspaceInfo>;
+  setWorkspace(path: string, connectionId?: string): Promise<WorkspaceInfo>;
   listAssistants(): Promise<AssistantEntry[]>;
   setAssistant(path: string): Promise<WorkspaceInfo>;
   listSessionsForWorkspace(path: string, limit: number): Promise<RemoteSession[]>;
@@ -19,12 +20,14 @@ export class RemoteWorkspaceRepository implements RemoteWorkspaceDataSource {
     this.sessionManager = sessionManager;
   }
 
+  async savedConnections(): Promise<SavedRuntimeConnection[]> { return await this.sessionManager.savedConnections(); }
+
   async listRecentWorkspaces(): Promise<RecentWorkspaceEntry[]> {
     return await this.sessionManager.listRecentWorkspaces();
   }
 
-  async setWorkspace(path: string): Promise<WorkspaceInfo> {
-    await this.sessionManager.setWorkspace(path);
+  async setWorkspace(path: string, connectionId?: string): Promise<WorkspaceInfo> {
+    await this.sessionManager.setWorkspace(path, connectionId);
     return await this.sessionManager.getWorkspaceInfo();
   }
 

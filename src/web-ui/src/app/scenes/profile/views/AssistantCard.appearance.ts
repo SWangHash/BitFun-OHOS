@@ -4,8 +4,8 @@ export const assistantCardAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'assistant-card',
   parts: [
     { id: 'root' }, { id: 'main' }, { id: 'header' }, { id: 'avatar' },
-    { id: 'headerInfo' }, { id: 'name' }, { id: 'primaryBadge' }, { id: 'badges' },
-    { id: 'vibe' }, { id: 'footer' }, { id: 'setPrimary' }, { id: 'delete' },
+    { id: 'title' }, { id: 'name' }, { id: 'primaryBadge' }, { id: 'metadata' },
+    { id: 'vibe' }, { id: 'creature' }, { id: 'footer' }, { id: 'setPrimary' }, { id: 'delete' },
     { id: 'chevron' },
   ],
   facets: [{ id: 'primary', attribute: 'data-openbitfun-primary', values: ['true', 'false'] }],

@@ -435,7 +435,7 @@ function checkForbiddenNonOptionalManifestDeps(crateDir, forbiddenDeps, messageF
   const deps = parseManifestDependencies(readText(manifestPath).split(/\r?\n/));
   for (const dep of deps) {
     const forbidden = matchingForbiddenDependency(dep, forbiddenDeps);
-    if (!dep.optional && forbidden) {
+    if (dep.kind !== 'dev' && !dep.optional && forbidden) {
       failures.push({
         path: manifestPath,
         line: dep.line,

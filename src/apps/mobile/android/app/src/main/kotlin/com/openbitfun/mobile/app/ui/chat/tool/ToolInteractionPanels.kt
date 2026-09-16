@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
@@ -50,9 +51,17 @@ internal fun ToolConfirmationPanel(
     canApprove: Boolean,
     canReject: Boolean,
     enabled: Boolean,
-    onApprove: () -> Unit,
+    input: String,
+    onApprove: (String?) -> Unit,
     onReject: () -> Unit,
 ) {
+    var editing by remember(input) { mutableStateOf(false) }
+    var editedInput by remember(input) { mutableStateOf(input.ifBlank { "{}" }) }
+    val valid = !editing || runCatching { org.json.JSONObject(editedInput) }.isSuccess
+    if (canApprove) {
+        TextButton(onClick = { editing = !editing }, enabled = enabled) { Text(stringResource(R.string.tool_edit_approval)) }
+        if (editing) OutlinedTextField(value = editedInput, onValueChange = { editedInput = it }, isError = !valid, label = { Text(stringResource(R.string.tool_input)) }, modifier = Modifier.fillMaxWidth())
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -61,9 +70,9 @@ internal fun ToolConfirmationPanel(
             PillButton(
                 label = stringResource(R.string.tool_approve),
                 primary = true,
-                enabled = enabled,
+                enabled = enabled && valid,
                 compact = false,
-                onClick = onApprove,
+                onClick = { if (valid) onApprove(if (editing) editedInput else null) },
                 modifier = Modifier.weight(1f),
             )
         }

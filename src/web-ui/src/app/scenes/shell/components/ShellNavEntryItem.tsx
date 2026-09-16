@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bookmark } from 'lucide-react';
-import { OverflowText, Icon as CatalogIcon, Tooltip } from '@openbitfun/ui';
+import { NavigationPanelItem, OverflowText, Icon as CatalogIcon, Tooltip } from '@openbitfun/ui';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 import type { ShellEntry } from '../hooks/shellEntryTypes';
 
@@ -49,19 +49,12 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
 
   return (
     <div data-overflow-trigger
-      role="button"
-      tabIndex={0}
       className={[
         'openbitfun-shell-nav__terminal-item',
         isActive && 'is-active',
         displayCwd && 'has-cwd',
       ].filter(Boolean).join(' ')}
-      onClick={() => { void onOpen(entry); }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          void onOpen(entry);
-        }
-      }}
+      onClick={event => { if (event.target === event.currentTarget) void onOpen(entry); }}
       onContextMenu={(event) => {
         const menuItems = getEntryMenuItems(entry);
         if (menuItems.length === 0) {
@@ -74,52 +67,62 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
       data-command-id={entry.sessionId}
       data-command-status={entry.isRunning ? 'running' : 'stopped'}
     >
-      <div className="openbitfun-shell-nav__terminal-item-row">
-        <Tooltip content={entry.name} placement="right">
-          <span className="openbitfun-shell-nav__terminal-item-main">
-            {showSavedBadge ? (
-              <Bookmark size={14} className="openbitfun-shell-nav__terminal-icon openbitfun-shell-nav__terminal-icon--saved" />
-            ) : (
-              <CatalogIcon name="terminal" size="sm" className="openbitfun-shell-nav__terminal-icon" />
-            )}
+      <NavigationPanelItem
+        className="openbitfun-shell-nav__terminal-action"
+        selected={isActive}
+        labelBehavior="static"
+        onClick={() => { void onOpen(entry); }}
+        actionContent={(
+          <Tooltip content={quickAction.title} placement="right">
+            <button
+              aria-label={quickAction.title}
+              type="button"
+              className="openbitfun-shell-nav__terminal-close"
+              onClick={(event) => {
+                event.stopPropagation();
+                quickAction.onClick();
+              }}
+            >
+              {quickAction.icon}
+            </button>
+          </Tooltip>
+        )}
+      >
+        <span className="openbitfun-shell-nav__terminal-item-row">
+          <Tooltip content={entry.name} placement="right">
+            <span className="openbitfun-shell-nav__terminal-item-main">
+              {showSavedBadge ? (
+                <Bookmark size={14} className="openbitfun-shell-nav__terminal-icon openbitfun-shell-nav__terminal-icon--saved" />
+              ) : (
+                <CatalogIcon name="terminal" size="sm" className="openbitfun-shell-nav__terminal-icon" />
+              )}
 
-            <OverflowText className="openbitfun-shell-nav__terminal-label" data-testid="shell-command-text">{entry.name}</OverflowText>
+              <OverflowText className="openbitfun-shell-nav__terminal-label" data-testid="shell-command-text">{entry.name}</OverflowText>
 
-            {showSavedBadge ? (
-              <span className="openbitfun-shell-nav__saved-indicator">{savedBadgeLabel}</span>
-            ) : null}
+              {showSavedBadge ? (
+                <span className="openbitfun-shell-nav__saved-indicator">{savedBadgeLabel}</span>
+              ) : null}
 
-            {entry.startupCommand ? (
-              <span className="openbitfun-shell-nav__cmd-indicator">{startupCommandBadgeLabel}</span>
-            ) : null}
+              {entry.startupCommand ? (
+                <span className="openbitfun-shell-nav__cmd-indicator">{startupCommandBadgeLabel}</span>
+              ) : null}
 
-            <span
-              className={`openbitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`}
-              data-testid="shell-command-status"
-              data-command-status={entry.isRunning ? 'running' : 'stopped'}
-            />
-          </span>
-        </Tooltip>
+              <span
+                className={`openbitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`}
+                data-testid="shell-command-status"
+                data-command-status={entry.isRunning ? 'running' : 'stopped'}
+              />
+            </span>
+          </Tooltip>
 
-        <Tooltip content={quickAction.title} placement="right">
-          <button
-            type="button"
-            className="openbitfun-shell-nav__terminal-close"
-            onClick={(event) => {
-              event.stopPropagation();
-              quickAction.onClick();
-            }}
-          >
-            {quickAction.icon}
-          </button>
-        </Tooltip>
-      </div>
+        </span>
 
-      {displayCwd ? (
-        <span className="openbitfun-shell-nav__terminal-cwd" title={displayCwd}><OverflowText>
-          {displayCwd}
-        </OverflowText></span>
-      ) : null}
+        {displayCwd ? (
+          <span className="openbitfun-shell-nav__terminal-cwd" title={displayCwd}><OverflowText>
+            {displayCwd}
+          </OverflowText></span>
+        ) : null}
+      </NavigationPanelItem>
     </div>
   );
 };

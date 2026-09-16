@@ -1,8 +1,9 @@
 use openbitfun_product_domains::external_integration_policy::{
-    evaluate_external_integration_policy, external_integration_policy_snapshot,
-    ExternalEcosystemPolicy, ExternalEcosystemPolicyOverride, ExternalIntegrationAccess,
-    ExternalIntegrationCapabilityDescriptor, ExternalIntegrationEcosystemDescriptor,
-    ExternalIntegrationMode, ExternalIntegrationPolicyDocument, ExternalIntegrationPolicyOverride,
+    automatic_discovery_enabled, evaluate_external_integration_policy,
+    external_integration_policy_snapshot, ExternalEcosystemPolicy, ExternalEcosystemPolicyOverride,
+    ExternalIntegrationAccess, ExternalIntegrationCapabilityDescriptor,
+    ExternalIntegrationEcosystemDescriptor, ExternalIntegrationMode,
+    ExternalIntegrationPolicyDocument, ExternalIntegrationPolicyOverride,
     ExternalIntegrationPolicyStatus,
 };
 use openbitfun_product_domains::external_source_control::{
@@ -1523,6 +1524,83 @@ fn external_integration_policy_is_disabled_by_default() {
             ExternalIntegrationAccess::Disabled
         );
     }
+}
+
+#[test]
+fn automatic_discovery_inherits_legacy_preferences_without_changing_runtime_access() {
+    let raw = serde_json::json!({
+        "schemaMajor": 1,
+        "userDefaults": { "enabled": true },
+        "workspaceOverrides": { "project": { "enabled": false } }
+    });
+    let mut document: ExternalIntegrationPolicyDocument = serde_json::from_value(raw).unwrap();
+    assert!(automatic_discovery_enabled(&document, None));
+    assert!(!automatic_discovery_enabled(&document, Some("project")));
+    let before = evaluate_external_integration_policy(
+        &document,
+        Some("project"),
+        &test_external_integration_ecosystems(),
+    )
+    .unwrap();
+    document.user_defaults.automatic_discovery = Some(true);
+    assert!(automatic_discovery_enabled(&document, Some("project")));
+    document
+        .workspace_overrides
+        .get_mut("project")
+        .unwrap()
+        .automatic_discovery = Some(false);
+    assert!(!automatic_discovery_enabled(&document, Some("project")));
+    assert!(automatic_discovery_enabled(
+        &document,
+        Some("another-project")
+    ));
+    assert_eq!(
+        before,
+        evaluate_external_integration_policy(
+            &document,
+            Some("project"),
+            &test_external_integration_ecosystems()
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn automatic_discovery_survives_an_older_policy_read_modify_write_and_stays_out_of_legacy_wire_views(
+) {
+    // The previous release preserved unknown settings in its flattened map.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct LegacySettings {
+        enabled: bool,
+        #[serde(flatten)]
+        extensions: std::collections::BTreeMap<String, serde_json::Value>,
+    }
+    let mut document = ExternalIntegrationPolicyDocument::default();
+    document.user_defaults.automatic_discovery = Some(true);
+    document
+        .workspace_overrides
+        .entry("project".into())
+        .or_default()
+        .automatic_discovery = Some(false);
+    let mut raw = serde_json::to_value(&document).unwrap();
+    let mut legacy: LegacySettings = serde_json::from_value(raw["userDefaults"].clone()).unwrap();
+    legacy.enabled = true;
+    raw["userDefaults"] = serde_json::to_value(legacy).unwrap();
+    let restored: ExternalIntegrationPolicyDocument = serde_json::from_value(raw).unwrap();
+    assert!(restored.user_defaults.enabled);
+    assert!(automatic_discovery_enabled(&restored, None));
+    assert!(!automatic_discovery_enabled(&restored, Some("project")));
+    assert!(!restored.workspace_overrides["project"].is_empty());
+    let public = external_integration_policy_snapshot(
+        &restored,
+        Some("project"),
+        test_external_integration_ecosystems(),
+    )
+    .unwrap();
+    let public = serde_json::to_value(public).unwrap();
+    assert!(!public.to_string().contains("automaticDiscovery"));
+    let _: openbitfun_product_domains::external_integration_policy::ExternalIntegrationPolicySnapshot = serde_json::from_value(public).unwrap();
 }
 
 #[test]

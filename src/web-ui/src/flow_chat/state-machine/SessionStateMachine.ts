@@ -80,6 +80,32 @@ export class SessionStateMachineImpl {
     return this.context;
   }
 
+  /** Adopt host facts without executing controller-side transition effects. */
+  acceptRuntimeStatus(status: {
+    state: SessionExecutionState;
+    turnId: string | null;
+    roundId: string | null;
+    phase: ProcessingPhase | null;
+    pendingTools: string[];
+    error: string | null;
+  }): void {
+    const pendingTools = new Set(status.pendingTools);
+    if (this.currentState === status.state
+      && this.context.currentDialogTurnId === status.turnId
+      && this.context.currentModelRoundId === status.roundId
+      && this.context.processingPhase === status.phase
+      && this.context.errorMessage === status.error
+      && pendingTools.size === this.context.pendingToolConfirmations.size
+      && [...pendingTools].every(id => this.context.pendingToolConfirmations.has(id))) return;
+    this.currentState = status.state;
+    this.context = { ...this.context, taskId: this.sessionId,
+      currentDialogTurnId: status.turnId, currentModelRoundId: status.roundId,
+      processingPhase: status.phase, pendingToolConfirmations: pendingTools,
+      errorMessage: status.error, version: this.context.version + 1,
+      lastUpdateTime: Date.now(), backendSyncedAt: Date.now() };
+    this.notifyListeners();
+  }
+
   async transition(
     event: SessionExecutionEvent,
     payload?: any

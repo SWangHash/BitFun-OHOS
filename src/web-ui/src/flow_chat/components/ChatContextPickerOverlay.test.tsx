@@ -409,6 +409,30 @@ describe('ChatContextPicker overlay', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('renders the full skill catalog beyond ten entries and can select its last skill', async () => {
+    const skills = Array.from({ length: 24 }, (_, index) => ({
+      key: `skill-${index}`,
+      name: `skill-${String(index).padStart(2, '0')}`,
+      selectedForRuntime: true,
+    }));
+    const onSelectSkill = vi.fn();
+    await act(async () => root.render(
+      <Harness entryView="sources" skills={skills} onSelectSkill={onSelectSkill} />,
+    ));
+    await act(async () => option('skills')?.click());
+
+    const options = document.querySelectorAll('[data-openbitfun-context-kind="skill"]');
+    expect(options).toHaveLength(skills.length);
+    expect(options[23].textContent).toContain('skill-23');
+    await act(async () => document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }),
+    ));
+    await act(async () => document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    ));
+    expect(onSelectSkill).toHaveBeenCalledWith(skills[23]);
+  });
+
   it('runs the add-image action from the source level', async () => {
     const onAddImage = vi.fn();
     const onClose = vi.fn();

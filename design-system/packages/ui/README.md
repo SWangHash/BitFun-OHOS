@@ -296,10 +296,29 @@ surface elevation, responsive inline sizing, composer geometry, transparent
 floating action layout, and sheet accessibility. Product state, localized copy,
 routing, and device or session operations stay in the consuming application.
 
+`Checkbox appearance="native"` uses the visible browser checkbox, retaining its
+native focus, disabled, checked, indeterminate, and form semantics. The default
+`custom` presentation remains unchanged. Both presentations share sm/md/lg
+sizing and the same label and description slots; native colors belong to the
+browser, with optional consumer `accent-color` styling.
+
+`Alert` preserves an explicit `role` and `aria-live`. An explicit `status` is
+polite and an explicit `alert` is assertive unless `aria-live` overrides it.
+Omitting both retains the existing default: role alert, polite announcements
+except for error tone. Use `showIcon={false}` for text-only notices.
+
 `Disclosure` is the shared expandable-content primitive. It owns controlled or
 uncontrolled open state, trigger/region accessibility wiring, focus exclusion
 while collapsed, reduced-motion behavior, and independent header actions.
 Product copy and the revealed content remain consumer-owned.
+
+Use `Disclosure presentation="native"` when the browser must own the existing
+`details`/`summary` behavior. This mode renders a real details element, a direct
+summary child, and the supplied content without extra wrappers. It accepts native
+`open`, `name`, and `onToggle` attributes, and its ref points to that details
+element. Browser focus, marker, wrapping, and content lifetime are preserved;
+custom-mode `defaultOpen`, `onOpenChange`, `disabled`, and header slots do not
+apply. Omitting `presentation` retains the custom disclosure contract above.
 
 Sized icon slots in buttons, tabs, menu items and fields own their glyph geometry.
 Pass catalog `Icon` nodes through `leadingIcon`, `trailingIcon`, `icon` or the

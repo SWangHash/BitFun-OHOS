@@ -1420,8 +1420,12 @@ impl StartupPage {
                 });
                 use openbitfun_core::service::remote_connect::account_runtime::AccountLoginProgress;
                 match result {
-                    Ok(AccountLoginProgress::Authorization(authorization)) => self.login_form.set_authorization(authorization),
-                    Ok(AccountLoginProgress::Waiting) => self.login_form.set_status("Waiting for GitHub authorization. Complete it in your browser, then press Enter."),
+                    Ok(AccountLoginProgress::Authorization(authorization)) => {
+                        self.login_form.set_authorization(authorization)
+                    }
+                    Ok(AccountLoginProgress::Waiting) => self.login_form.set_status(
+                        "Waiting for sign-in. Complete it in your browser, then press Enter.",
+                    ),
                     Ok(AccountLoginProgress::Complete(login)) => {
                         self.status = Some(account_login_status_message(&login));
                         self.show_login_form();

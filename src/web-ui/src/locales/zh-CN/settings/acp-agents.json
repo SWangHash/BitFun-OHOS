@@ -1,6 +1,6 @@
 {
-  "title": "ACP Agent",
-  "subtitle": "管理通过 ACP 连接的外部 Agent",
+  "title": "ACP 智能体",
+  "subtitle": "管理通过 ACP 连接的外部智能体",
   "views": {
     "local": "本机",
     "ssh": "SSH",
@@ -58,7 +58,7 @@
     "title": "安装 {{name}} CLI？",
     "message": "目标主机：{{host}}。OpenBitFun 将执行“{{command}}”，把 npm 包全局安装到该主机；这会修改该主机的全局命令环境，并可能需要网络与写入权限。",
     "localHost": "当前执行主机",
-    "packageUnknown": "无法确认此 Agent 的安装包，已取消安装",
+    "packageUnknown": "无法确认此智能体的安装包，已取消安装",
     "confirm": "在目标主机安装"
   },
   "presets": {
@@ -69,9 +69,9 @@
     "codex": { "description": "通过官方 ACP 适配器连接" }
   },
   "registry": {
-    "title": "Agent 列表",
-    "searchPlaceholder": "搜索 Agent...",
-    "filterLabel": "ACP Agent 筛选",
+    "title": "智能体列表",
+    "searchPlaceholder": "搜索智能体...",
+    "filterLabel": "ACP 智能体筛选",
     "filters": {
       "all": "全部",
       "enabled": "已启用",
@@ -104,20 +104,20 @@
     "configInvalidDetail": "当前 ACP 配置暂时无法直接使用。",
     "toolPath": "路径",
     "toolVersion": "版本",
-    "empty": "没有匹配的 ACP Agent"
+    "empty": "没有匹配的 ACP 智能体"
   },
   "clients": {
-    "loading": "正在加载 ACP Agent…"
+    "loading": "正在加载 ACP 智能体…"
   },
   "remote": {
     "title": "SSH 服务器",
-    "description": "检测已保存 SSH 服务器上的 ACP Agent",
+    "description": "检测已保存 SSH 服务器上的 ACP 智能体",
     "empty": "没有已保存的 SSH 服务器",
     "emptyVisible": "没有显示中的 SSH 服务器",
-    "noAgents": "请先添加 ACP Agent，再检测远程服务器",
+    "noAgents": "请先添加 ACP 智能体，再检测远程服务器",
     "refreshDetection": "刷新检测",
-    "hideConnection": "在 ACP Agents 中隐藏「{{name}}」",
-    "restoreConnection": "在 ACP Agents 中显示「{{name}}」",
+    "hideConnection": "在 ACP 智能体中隐藏「{{name}}」",
+    "restoreConnection": "在 ACP 智能体中显示「{{name}}」",
     "showHiddenConnections": "已隐藏的服务器（{{count}}）",
     "hideHiddenConnections": "收起已隐藏的服务器",
     "summary": "{{available}} / {{total}} 可用",
@@ -133,7 +133,7 @@
   "permissionMode": {
     "ask": "询问",
     "allowOnce": "自动通过",
-    "legacyRejectWarning": "部分 Agent 的已保存设置仍为“自动拒绝”，编辑器已将其替换为“询问”。请保存并应用当前选择；保存前，这些 Agent 仍会自动拒绝请求。",
+    "legacyRejectWarning": "部分智能体的已保存设置仍为“自动拒绝”，编辑器已将其替换为“询问”。请保存并应用当前选择；保存前，这些智能体仍会自动拒绝请求。",
     "saveAndApply": "保存并应用"
   },
   "requirements": {
@@ -150,9 +150,9 @@
   },
   "notifications": {
     "loadFailed": "加载 ACP 配置失败",
-    "loadFailedLocked": "无法读取 ACP 配置。为避免把现有 Agent 配置覆盖为空，当前页面已锁定。",
+    "loadFailedLocked": "无法读取 ACP 配置。为避免把现有智能体配置覆盖为空，当前页面已锁定。",
     "saveSuccess": "ACP 配置已保存",
-    "configAdded": "ACP Agent 配置已添加",
+    "configAdded": "ACP 智能体配置已添加",
     "configAddedManualCliRequired": "{{name}} 配置已添加。请手动安装 {{command}} CLI，然后刷新检测。",
     "saveFailed": "保存 ACP 配置失败",
     "probeFailed": "检测 ACP 依赖失败",
@@ -167,11 +167,11 @@
     "installFailed": "安装 ACP CLI 失败",
     "configureSuccess": "ACP 适配器已就绪",
     "configureFailed": "配置 ACP 适配器失败",
-    "downloadSuccess": "ACP Agent CLI 已下载",
-    "downloadFailed": "下载 ACP Agent CLI 失败",
+    "downloadSuccess": "ACP 智能体 CLI 已下载",
+    "downloadFailed": "下载 ACP 智能体 CLI 失败",
     "predownloadSuccess": "ACP 适配器已下载",
     "predownloadFailed": "下载 ACP 适配器失败",
-    "connectionHidden": "已在 ACP Agents 中隐藏「{{name}}」",
-    "connectionRestored": "已在 ACP Agents 中显示「{{name}}」"
+    "connectionHidden": "已在 ACP 智能体中隐藏「{{name}}」",
+    "connectionRestored": "已在 ACP 智能体中显示「{{name}}」"
   }
 }

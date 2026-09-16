@@ -1,6 +1,6 @@
 {
   "name": "openbitfun-mobile-web",
-  "version": "1.0.0-beta",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,21 +16,29 @@
     "test:workspace-identity": "node --test tests/workspace-identity.test.mjs",
     "type-check": "tsc --noEmit",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:realtime-sync": "node --test tests/realtime-sync.test.mjs",
+    "test:session-stream-browser": "node --test tests/session-stream-browser.test.mjs",
+    "test:runtime-files": "node --test tests/runtime-file-upload.test.mjs tests/runtime-file-download.test.mjs",
+    "test:interaction-mailbox": "node --test tests/interaction-mailbox-browser.test.mjs",
+    "test:terminal-browser": "node --test tests/terminal-browser.test.mjs tests/native-terminal-renderer-browser.test.mjs"
   },
   "dependencies": {
-    "@openbitfun/theme-openbitfun": "workspace:^",
-    "@openbitfun/ui": "workspace:^",
     "@noble/ciphers": "^2.1.1",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
+    "@openbitfun/theme-openbitfun": "workspace:^",
+    "@openbitfun/ui": "workspace:^",
+    "@xterm/addon-fit": "0.12.0-beta.141",
+    "@xterm/xterm": "6.1.0-beta.141",
+    "lucide-react": "^0.541.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.6",
     "remark-gfm": "^4.0.1",
-    "zustand": "^5.0.10",
-    "lucide-react": "^0.541.0"
+    "socket.io-client": "4.8.3",
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

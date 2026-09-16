@@ -1,5 +1,8 @@
 package com.openbitfun.mobile.app.ui.chat
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import android.app.Activity
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -8,7 +11,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,12 +30,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import com.openbitfun.mobile.app.platform.prepareComposerImage
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -111,7 +122,15 @@ internal fun ConversationView(
     hostCapabilities: List<String> = emptyList(),
     attachmentOwner: String = "",
 ) {
-    val timeline = state.timeline
+    val timeline = state.timeline?.takeIf { it.sessionId == state.selectedSessionId }
+    var loadingVisible by remember(attachmentOwner, state.selectedSessionId) { mutableStateOf(false) }
+    LaunchedEffect(state.selectedSessionId, timeline == null) {
+        loadingVisible = false
+        if (timeline == null) {
+            kotlinx.coroutines.delay(140)
+            loadingVisible = true
+        }
+    }
     val activeTurn = timeline?.activeTurn
     val sessionId = state.selectedSessionId.orEmpty()
     val rows = remember(timeline) { timeline?.conversationRows().orEmpty() }
@@ -128,7 +147,15 @@ internal fun ConversationView(
     // The remote composer's single source of truth is the store's draft. Typing,
     // voice, and send all round-trip through `state.draft` so a half-written
     // message survives session switches and process restarts via DraftStore.
-    val draft = state.draft
+    var submittedDraft by remember(attachmentOwner, state.selectedSessionId) { mutableStateOf<String?>(null) }
+    val draft = if (submittedDraft == state.draft) "" else state.draft
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    // Only the submitted draft is hidden while awaiting acknowledgement. Failure restores it;
+    // subsequent typing belongs to the new draft and must never be cleared by the old send.
+    LaunchedEffect(state.busy, state.lastSentMessage) {
+        if (!state.busy) submittedDraft = null
+    }
     val attachments: com.openbitfun.mobile.app.viewmodel.ComposerAttachmentsViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
     val context = LocalContext.current
@@ -214,7 +241,7 @@ internal fun ConversationView(
                 modifier = Modifier,
             )
 
-            if (phase != ConnectionPhase.CONNECTED) {
+            if (phase != ConnectionPhase.CONNECTED && timeline != null) {
                 ChatStatusBar(
                     phase = phase,
                     canStop = activeTurn != null,
@@ -224,51 +251,55 @@ internal fun ConversationView(
                 )
             }
 
+            PermissionMailboxView(state.permissionMailbox, sessionId, onIntent)
             if (timeline == null) {
-                ConversationLoadingState(modifier = Modifier.weight(1f).fillMaxWidth())
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (loadingVisible) ConversationLoadingState(Modifier.fillMaxSize())
+                }
             } else if (visibleRows.isEmpty()) {
                 ConversationEmptyState(modifier = Modifier.weight(1f).fillMaxWidth())
             } else {
-                ConversationTimelineView(
-                    rows = visibleRows,
-                    hasMoreMessages = state.hasMoreMessages,
-                    onLoadOlder = { onIntent(RemoteSessionIntent.LoadOlderMessages) },
-                    enabled = !state.busy,
-                    onApproveTool = { toolId ->
-                        onIntent(RemoteSessionIntent.ApproveTool(sessionId, toolId))
-                    },
-                    onRejectTool = { toolId, reason ->
-                        onIntent(RemoteSessionIntent.RejectTool(sessionId, toolId, reason))
-                    },
-                    onCancelTool = { toolId, reason ->
-                        onIntent(RemoteSessionIntent.CancelTool(sessionId, toolId, reason))
-                    },
-                    onAnswerTool = { toolId, answer ->
-                        onIntent(RemoteSessionIntent.AnswerQuestion(sessionId, toolId, answer))
-                    },
-                    onAnswerToolStructured = { toolId, answers ->
-                        onIntent(AnswerStructuredQuestion(sessionId, toolId, answers))
-                    },
-                    onRetry = { row ->
-                        val retryImages = row.images.map { image ->
-                            images.firstOrNull { it.dataUrl == image.dataUrl } ?: ComposerImage(
-                                id = image.name,
-                                dataUrl = image.dataUrl,
-                                mimeType = image.dataUrl.substringAfter("data:").substringBefore(';'),
-                            )
-                        }
-                        onIntent(RemoteSessionIntent.SendMessage(sessionId, row.text, retryImages))
-                    },
-                    onOpenFile = onOpenFile,
-                    previewingRemotePath = previewingRemotePath,
-                    previewLoading = previewLoading,
-                    download = download,
-                    onDownloadFile = onDownloadFile,
-                    downloadEnabled = !state.busy && phase == ConnectionPhase.CONNECTED,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
+                key(attachmentOwner, sessionId) {
+                    ConversationTimelineView(
+                        rows = visibleRows,
+                        hasMoreMessages = state.hasMoreMessages,
+                        onLoadOlder = { onIntent(RemoteSessionIntent.LoadOlderMessages) },
+                        enabled = !state.busy,
+                        onApproveTool = { toolId, updatedInput ->
+                            onIntent(RemoteSessionIntent.ApproveTool(sessionId, toolId, updatedInput))
+                        },
+                        onRejectTool = { toolId, reason ->
+                            onIntent(RemoteSessionIntent.RejectTool(sessionId, toolId, reason))
+                        },
+                        onCancelTool = { toolId, reason ->
+                            onIntent(RemoteSessionIntent.CancelTool(sessionId, toolId, reason))
+                        },
+                        onAnswerTool = { toolId, answer ->
+                            onIntent(RemoteSessionIntent.AnswerQuestion(sessionId, toolId, answer))
+                        },
+                        onAnswerToolStructured = { toolId, answers ->
+                            onIntent(AnswerStructuredQuestion(sessionId, toolId, answers))
+                        },
+                        onRetry = { row ->
+                            val retryImages = row.images.map { image ->
+                                images.firstOrNull { it.dataUrl == image.dataUrl } ?: ComposerImage(
+                                    id = image.name,
+                                    dataUrl = image.dataUrl,
+                                    mimeType = image.dataUrl.substringAfter("data:").substringBefore(';'),
+                                )
+                            }
+                            onIntent(RemoteSessionIntent.SendMessage(sessionId, row.text, retryImages))
+                        },
+                        onOpenFile = onOpenFile,
+                        previewingRemotePath = previewingRemotePath,
+                        previewLoading = previewLoading,
+                        download = download,
+                        onDownloadFile = onDownloadFile,
+                        downloadEnabled = !state.busy && phase == ConnectionPhase.CONNECTED,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+                }
             }
-
             if (attachmentDraft.failed.value) {
                 TextButton(onClick = { attachmentDraft.retry() }) {
                     Text(stringResource(R.string.chat_attachment_recovery_failed))
@@ -286,7 +317,10 @@ internal fun ConversationView(
                 modelCatalogFailed = state.modelCatalogFailure != null,
                 capabilities = ChatComposerCapabilities.RemoteChat,
                 placeholder = stringResource(R.string.message_input_label),
-                onDraftChange = { onIntent(RemoteSessionIntent.UpdateDraft(it)) },
+                onDraftChange = {
+                    submittedDraft = null
+                    onIntent(RemoteSessionIntent.UpdateDraft(it))
+                },
                 onRemoveImage = { id -> images = images.filterNot { it.id == id } },
                 onOpenModels = { showSettings = true },
                 onSelectModel = { modelId ->
@@ -312,6 +346,9 @@ internal fun ConversationView(
                     )
                 },
                 onSend = {
+                    submittedDraft = draft
+                    keyboard?.hide()
+                    focusManager.clearFocus(force = true)
                     onIntent(
                         RemoteSessionIntent.SendMessage(
                             sessionId,
@@ -346,12 +383,58 @@ internal fun ConversationView(
 
 @Composable
 private fun ConversationLoadingState(modifier: Modifier) {
-    Column(
-        modifier = modifier.testTag(CONVERSATION_LOADING_TEST_TAG),
-        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator()
-        Text(text = stringResource(R.string.chat_empty_loading))
+    Column(modifier.testTag(CONVERSATION_LOADING_TEST_TAG).padding(horizontal = 22.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        listOf(0.72f to 78, 0.46f to 42, 0.84f to 112).forEachIndexed { index, (width, height) ->
+            Box(Modifier.fillMaxWidth(), contentAlignment = if (index == 1) androidx.compose.ui.Alignment.CenterEnd else androidx.compose.ui.Alignment.CenterStart) {
+                Column(Modifier.fillMaxWidth(width).height(height.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(0.74f, 0.92f, 0.58f).forEach { fraction ->
+                        Box(Modifier.fillMaxWidth(fraction).height(6.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(3.dp)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionMailboxView(state: com.openbitfun.mobile.core.feature.session.PermissionMailboxUiState, sessionId: String, onIntent: (RemoteSessionIntent) -> Unit) {
+    Column {
+        if (state.failed) Text(stringResource(R.string.permission_mailbox_failed))
+        if (state.failed) androidx.compose.material3.TextButton(onClick = { onIntent(RemoteSessionIntent.RefreshPermissionMailbox) }) {
+            Text(stringResource(R.string.sessions_retry))
+        }
+        state.questions.forEach { question ->
+        com.openbitfun.mobile.app.ui.chat.tool.ToolStatusList(listOf(question), enabled = !state.busy,
+            onApprove = { _, _ -> }, onReject = { _, _ -> },
+            onCancel = { id, reason -> onIntent(RemoteSessionIntent.CancelTool(sessionId, id, reason)) },
+            onAnswer = { id, answer -> onIntent(RemoteSessionIntent.AnswerQuestion(sessionId, id, answer)) },
+            onAnswerStructured = { id, answers -> onIntent(RemoteSessionIntent.AnswerStructuredQuestion(sessionId, id, answers)) },
+            onOpenFile = { _, _ -> }, modifier = Modifier.fillMaxWidth().pointerInput(question.id) {
+                awaitEachGesture { awaitFirstDown(requireUnconsumed = false); onIntent(RemoteSessionIntent.StartQuestionInteraction(question.id)) }
+            })
+        }
+        state.requests.forEach { request ->
+            androidx.compose.runtime.key(request.requestId) {
+                var edit by remember { mutableStateOf(false) }
+                var input by remember { mutableStateOf("{}") }
+                val valid = !edit || runCatching { org.json.JSONObject(input) }.isSuccess
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text(request.source.ifBlank { request.action })
+                    Text(request.action)
+                    Text(request.resources.joinToString("\n"))
+                    if (edit) androidx.compose.material3.OutlinedTextField(value = input, onValueChange = { input = it }, enabled = !state.busy,
+                        isError = !valid, modifier = Modifier.fillMaxWidth())
+                    androidx.compose.foundation.layout.Row {
+                        androidx.compose.material3.TextButton(onClick = { edit = !edit }, enabled = !state.busy) { Text(stringResource(R.string.tool_edit_approval)) }
+                        androidx.compose.material3.TextButton(onClick = { onIntent(RemoteSessionIntent.RespondPermission(request.requestId, true, if (edit) input else null)) }, enabled = !state.busy && valid) { Text(stringResource(R.string.tool_approve)) }
+                        androidx.compose.material3.TextButton(onClick = { onIntent(RemoteSessionIntent.RespondPermission(request.requestId, false, null)) }, enabled = !state.busy) { Text(stringResource(R.string.tool_reject)) }
+                    }
+                }
+            }
+        }
     }
 }

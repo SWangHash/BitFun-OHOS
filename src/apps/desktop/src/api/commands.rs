@@ -490,6 +490,10 @@ pub struct ReadFileContentPrefixRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ImportAgentCompanionPetPackageRequest {
     pub path: String,
+    #[serde(default)]
+    pub expected_fingerprint: Option<String>,
+    #[serde(default)]
+    pub builtin_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -498,23 +502,25 @@ pub struct DeleteAgentCompanionPetPackageRequest {
     pub package_path: String,
 }
 
-#[derive(Debug, Serialize)]
+pub use openbitfun_services_core::pet_packages::PetPackage as AgentCompanionPetPackageDto;
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentCompanionPetPackageDto {
-    pub id: String,
-    pub display_name: String,
-    pub description: Option<String>,
-    pub source: String,
-    pub package_path: String,
-    pub spritesheet_path: String,
-    pub spritesheet_mime_type: String,
-    pub sprite_version_number: u32,
+pub struct ListAgentCompanionPetsRequest {
+    #[serde(default)]
+    pub include_external: bool,
+    #[serde(default)]
+    pub builtin_import_version: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListAgentCompanionPetsResponse {
     pub pets: Vec<AgentCompanionPetPackageDto>,
+    pub import_operations_version: u32,
+    pub builtin_import_version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external: Option<openbitfun_services_core::pet_packages::PetCatalog>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -526,6 +532,8 @@ pub struct WriteFileContentRequest {
     pub content: String,
     #[serde(default, rename = "remoteConnectionId")]
     pub remote_connection_id: Option<String>,
+    #[serde(default, rename = "expectedHash")]
+    pub expected_hash: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -567,6 +575,10 @@ pub struct GetDirectoryChildrenPaginatedRequest {
     pub limit: Option<usize>,
     #[serde(default)]
     pub remote_connection_id: Option<String>,
+    #[serde(default)]
+    pub sort_by: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<String>,
 }
 
 pub type ExplorerGetFileTreeRequest = GetFileTreeRequest;
@@ -1261,6 +1273,35 @@ pub async fn open_remote_workspace(
     use openbitfun_core::service::remote_ssh::normalize_remote_workspace_path;
     use openbitfun_core::service::remote_ssh::workspace_state::remote_workspace_stable_id;
     use openbitfun_core::service::workspace::WorkspaceCreateOptions;
+
+    let ssh = state.get_ssh_manager_async().await?;
+    let saved = ssh
+        .get_saved_connections()
+        .await
+        .into_iter()
+        .find(|profile| profile.id == request.connection_id)
+        .ok_or("Remote workspace requires a connection saved on this host")?;
+    if request
+        .ssh_host
+        .as_deref()
+        .is_some_and(|host| !host.trim().is_empty() && host.trim() != saved.host)
+    {
+        return Err("SSH host identity does not match the saved connection".into());
+    }
+    if !request.remote_path.starts_with('/') || request.remote_path.contains('\0') {
+        return Err("Remote workspace path must be an absolute POSIX path".into());
+    }
+    ssh.ensure_connected(&request.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let files = state.get_remote_file_service_async().await?;
+    if !files
+        .is_dir(&request.connection_id, &request.remote_path)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        return Err("Remote workspace path is not a directory".into());
+    }
 
     let remote_path = normalize_remote_workspace_path(&request.remote_path);
 
@@ -2441,9 +2482,14 @@ async fn get_directory_children_paginated_response(
         .get_directory_contents_with_remote_hint(&request.path, preferred)
         .await
     {
-        Ok(nodes) => {
+        Ok(mut nodes) => {
+            openbitfun_core::service::filesystem::sort_directory_nodes(
+                &mut nodes,
+                request.sort_by.as_deref(),
+                request.sort_order.as_deref(),
+            )?;
             let total = nodes.len();
-            let has_more = total > offset + limit;
+            let has_more = total > offset.saturating_add(limit);
             let page_nodes: Vec<_> = nodes.into_iter().skip(offset).take(limit).collect();
 
             Ok(serde_json::json!({
@@ -2546,12 +2592,6 @@ pub async fn read_file_content(
     .await
 }
 
-struct PetPackageSource {
-    pet_json: Vec<u8>,
-    spritesheet_name: PathBuf,
-    spritesheet: Vec<u8>,
-}
-
 fn sanitize_pet_id(id: &str) -> String {
     let sanitized: String = id
         .chars()
@@ -2615,6 +2655,62 @@ mod pet_package_tests {
     use super::*;
 
     #[test]
+    fn legacy_pet_requests_keep_optional_review_fields() {
+        let old: ImportAgentCompanionPetPackageRequest =
+            serde_json::from_value(serde_json::json!({"path": "legacy-pet"})).unwrap();
+        assert!(old.expected_fingerprint.is_none());
+        assert!(old.builtin_id.is_none());
+        let request: ListAgentCompanionPetsRequest =
+            serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(!request.include_external);
+        assert!(request.builtin_import_version.is_none());
+    }
+
+    #[test]
+    fn bundled_pet_request_requires_review() {
+        let temp = tempfile::tempdir().unwrap();
+        let request =
+            serde_json::from_value(serde_json::json!({"path":"app.asar", "builtinId":"codex"}))
+                .unwrap();
+        assert!(import_pet_request(temp.path(), request)
+            .unwrap_err()
+            .contains("reviewed fingerprint"));
+    }
+
+    #[test]
+    #[ignore = "Imports installed Codex pets into an isolated temporary directory"]
+    fn installed_builtin_pets_can_be_previewed_and_imported() {
+        let temp = tempfile::tempdir().unwrap();
+        let sources =
+            openbitfun_core::external_sources::external_builtin_pet_sources("codex", None);
+        assert!(sources.diagnostics.is_empty(), "{:?}", sources.diagnostics);
+        assert!(!sources.pets.is_empty());
+        for source in sources.pets {
+            let identity = format!("codex:builtin:{}", source.id);
+            let candidate = openbitfun_services_core::pet_packages::candidate_from_bytes(
+                temp.path(),
+                &identity,
+                &source.archive_path,
+                &source.manifest,
+                source.image,
+            )
+            .unwrap();
+            assert!(candidate
+                .preview_data_url
+                .starts_with("data:image/png;base64,"));
+            let request = serde_json::from_value(serde_json::json!({
+                "path": source.archive_path, "builtinId":source.id, "expectedFingerprint":candidate.fingerprint,
+            })).unwrap();
+            let imported = import_pet_request(temp.path(), request).unwrap();
+            assert!(Path::new(&imported.spritesheet_path).is_file());
+            assert_eq!(
+                imported.sprite_version_number,
+                candidate.pet.sprite_version_number
+            );
+            println!("Validated bundled pet: {}", imported.display_name);
+        }
+    }
+    #[test]
     fn pet_manifest_versions_are_validated_and_exported() {
         for version in [None, Some(1), Some(2)] {
             let dir = tempfile::tempdir().unwrap();
@@ -2647,71 +2743,6 @@ mod pet_package_tests {
             assert!(load_pet_manifest_from_bytes(&serde_json::to_vec(&manifest).unwrap()).is_err());
         }
     }
-}
-
-fn load_pet_package_source(source_path: &Path) -> Result<PetPackageSource, String> {
-    if source_path.is_dir() {
-        let pet_json_path = source_path.join("pet.json");
-        let pet_json =
-            std::fs::read(&pet_json_path).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-        let (_, spritesheet_name) = load_pet_manifest_from_bytes(&pet_json)?;
-        let spritesheet_path = source_path.join(&spritesheet_name);
-        let spritesheet = std::fs::read(&spritesheet_path)
-            .map_err(|e| format!("Failed to read spritesheet: {}", e))?;
-        return Ok(PetPackageSource {
-            pet_json,
-            spritesheet_name,
-            spritesheet,
-        });
-    }
-
-    let file = std::fs::File::open(source_path)
-        .map_err(|e| format!("Failed to open pet zip package: {}", e))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read pet zip package: {}", e))?;
-
-    let mut manifest_index = None;
-    for index in 0..archive.len() {
-        let entry = archive
-            .by_index(index)
-            .map_err(|e| format!("Failed to inspect pet zip package: {}", e))?;
-        if Path::new(entry.name()).file_name().and_then(|n| n.to_str()) == Some("pet.json") {
-            manifest_index = Some(index);
-            break;
-        }
-    }
-    let manifest_index =
-        manifest_index.ok_or_else(|| "Pet package must contain pet.json".to_string())?;
-
-    let mut pet_json = Vec::new();
-    let manifest_name = {
-        let mut manifest_file = archive
-            .by_index(manifest_index)
-            .map_err(|e| format!("Failed to open pet.json in zip package: {}", e))?;
-        std::io::copy(&mut manifest_file, &mut pet_json)
-            .map_err(|e| format!("Failed to read pet.json from zip package: {}", e))?;
-        PathBuf::from(manifest_file.name())
-    };
-    let (_, spritesheet_name) = load_pet_manifest_from_bytes(&pet_json)?;
-    let spritesheet_zip_path = manifest_name
-        .parent()
-        .unwrap_or_else(|| Path::new(""))
-        .join(&spritesheet_name)
-        .to_string_lossy()
-        .replace('\\', "/");
-
-    let mut spritesheet = Vec::new();
-    let mut spritesheet_file = archive
-        .by_name(&spritesheet_zip_path)
-        .map_err(|e| format!("Failed to open spritesheet in zip package: {}", e))?;
-    std::io::copy(&mut spritesheet_file, &mut spritesheet)
-        .map_err(|e| format!("Failed to read spritesheet from zip package: {}", e))?;
-
-    Ok(PetPackageSource {
-        pet_json,
-        spritesheet_name,
-        spritesheet,
-    })
 }
 
 fn companion_user_packages_dir(state: &AppState) -> PathBuf {
@@ -2781,7 +2812,10 @@ fn scan_pet_package_dirs(root: &Path, source: &str) -> Vec<AgentCompanionPetPack
     let mut pets = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_dir() || !path.join("pet.json").is_file() {
+        if entry.file_name().to_string_lossy().starts_with('.')
+            || !entry.file_type().is_ok_and(|kind| kind.is_dir())
+            || !path.join("pet.json").is_file()
+        {
             continue;
         }
         match pet_package_dto_from_dir(&path, source) {
@@ -2800,15 +2834,63 @@ fn scan_pet_package_dirs(root: &Path, source: &str) -> Vec<AgentCompanionPetPack
 #[tauri::command]
 pub async fn list_agent_companion_pets(
     state: State<'_, AppState>,
+    request: Option<ListAgentCompanionPetsRequest>,
 ) -> Result<ListAgentCompanionPetsResponse, String> {
-    list_agent_companion_pets_impl(&state).await
+    let include_builtins = request
+        .as_ref()
+        .is_some_and(|r| r.builtin_import_version == Some(1));
+    let mut response = list_agent_companion_pets_impl(&state).await?;
+    if request.is_some_and(|r| r.include_external) {
+        let source_root = openbitfun_core::external_sources::external_pet_source_root("codex")
+            .ok_or("Pet source is unavailable")?;
+        let installed_root = companion_user_packages_dir(&state);
+        response.external = Some(
+            tokio::task::spawn_blocking(move || {
+                let mut catalog =
+                    openbitfun_services_core::pet_packages::catalog(&source_root, &installed_root);
+                if !include_builtins {
+                    return catalog;
+                }
+                let bundled =
+                    openbitfun_core::external_sources::external_builtin_pet_sources("codex", None);
+                catalog.diagnostics.extend(bundled.diagnostics);
+                for source in bundled.pets {
+                    let identity = format!("codex:builtin:{}", source.id);
+                    match openbitfun_services_core::pet_packages::candidate_from_bytes(
+                        &installed_root,
+                        &identity,
+                        &source.archive_path,
+                        &source.manifest,
+                        source.image,
+                    ) {
+                        Ok(mut candidate) => {
+                            candidate.builtin_id = Some(source.id);
+                            catalog.candidates.push(candidate);
+                        }
+                        Err(error) => catalog
+                            .diagnostics
+                            .push(format!("Codex built-in pet {}: {error}", source.id)),
+                    }
+                }
+                catalog
+            })
+            .await
+            .map_err(|e| e.to_string())?,
+        );
+    }
+    Ok(response)
 }
 
 pub(crate) async fn list_agent_companion_pets_impl(
     state: &AppState,
 ) -> Result<ListAgentCompanionPetsResponse, String> {
     let pets = scan_pet_package_dirs(&companion_user_packages_dir(&state), "user");
-    Ok(ListAgentCompanionPetsResponse { pets })
+    Ok(ListAgentCompanionPetsResponse {
+        pets,
+        import_operations_version: 1,
+        builtin_import_version: 1,
+        external: None,
+    })
 }
 
 #[tauri::command]
@@ -2816,85 +2898,56 @@ pub async fn import_agent_companion_pet_package(
     state: State<'_, AppState>,
     request: ImportAgentCompanionPetPackageRequest,
 ) -> Result<AgentCompanionPetPackageDto, String> {
-    import_agent_companion_pet_package_impl(&state, &request.path).await
+    let root = companion_user_packages_dir(&state);
+    tokio::task::spawn_blocking(move || import_pet_request(&root, request))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn import_pet_request(
+    root: &Path,
+    request: ImportAgentCompanionPetPackageRequest,
+) -> Result<AgentCompanionPetPackageDto, String> {
+    if let Some(id) = request.builtin_id {
+        let expected = request
+            .expected_fingerprint
+            .as_deref()
+            .ok_or("Built-in pet import requires a reviewed fingerprint")?;
+        let mut catalog =
+            openbitfun_core::external_sources::external_builtin_pet_sources("codex", Some(&id));
+        let source = catalog.pets.pop().ok_or_else(|| {
+            if catalog.diagnostics.is_empty() {
+                "Built-in pet is unavailable".to_string()
+            } else {
+                catalog.diagnostics.join("; ")
+            }
+        })?;
+        return openbitfun_services_core::pet_packages::import_bytes(
+            &root,
+            &format!("codex:builtin:{id}"),
+            &source.manifest,
+            source.image,
+            expected,
+        );
+    }
+    openbitfun_services_core::pet_packages::import(
+        &root,
+        Path::new(&request.path),
+        request.expected_fingerprint.as_deref(),
+    )
 }
 
 pub(crate) async fn import_agent_companion_pet_package_impl(
     state: &AppState,
     source_path: &str,
 ) -> Result<AgentCompanionPetPackageDto, String> {
-    let source_path = PathBuf::from(source_path);
-    let source = load_pet_package_source(&source_path)?;
-    let (pet_json, _) = load_pet_manifest_from_bytes(&source.pet_json)?;
-    let sprite_version_number = pet_sprite_version(&pet_json)?;
-
-    let raw_id = pet_json
-        .get("id")
-        .and_then(|value| value.as_str())
-        .unwrap_or("custom-pet");
-    let id = sanitize_pet_id(raw_id);
-    let display_name = pet_json
-        .get("displayName")
-        .and_then(|value| value.as_str())
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(raw_id)
-        .trim()
-        .to_string();
-    let description = pet_json
-        .get("description")
-        .and_then(|value| value.as_str())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-
-    let package_dir = state
-        .workspace_service
-        .path_manager()
-        .user_data_dir()
-        .join("agent-companions")
-        .join(format!("{}-{}", id, uuid::Uuid::new_v4().simple()));
-
-    std::fs::create_dir_all(&package_dir)
-        .map_err(|e| format!("Failed to create pet package directory: {}", e))?;
-
-    let spritesheet_file_name = source
-        .spritesheet_name
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("spritesheet.webp")
-        .to_string();
-    let spritesheet_path = package_dir.join(&spritesheet_file_name);
-
-    let mut normalized_manifest = pet_json;
-    if let Some(obj) = normalized_manifest.as_object_mut() {
-        obj.insert(
-            "spritesheetPath".to_string(),
-            serde_json::Value::String(spritesheet_file_name.clone()),
-        );
-    }
-
-    let manifest_bytes = serde_json::to_vec_pretty(&normalized_manifest)
-        .map_err(|e| format!("Failed to serialize pet.json: {}", e))?;
-    std::fs::write(package_dir.join("pet.json"), manifest_bytes)
-        .map_err(|e| format!("Failed to write pet.json: {}", e))?;
-    std::fs::write(&spritesheet_path, source.spritesheet)
-        .map_err(|e| format!("Failed to write spritesheet: {}", e))?;
-
-    info!(
-        "Imported Agent companion pet package '{}' into {}",
-        id,
-        package_dir.display()
-    );
-
-    Ok(AgentCompanionPetPackageDto {
-        id,
-        display_name,
-        description,
-        source: "user".to_string(),
-        package_path: package_dir.to_string_lossy().to_string(),
-        spritesheet_path: spritesheet_path.to_string_lossy().to_string(),
-        spritesheet_mime_type: spritesheet_mime_type(&spritesheet_file_name).to_string(),
-        sprite_version_number,
+    let root = companion_user_packages_dir(state);
+    let source_path = source_path.to_string();
+    tokio::task::spawn_blocking(move || {
+        openbitfun_services_core::pet_packages::import(&root, Path::new(&source_path), None)
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2922,7 +2975,7 @@ pub(crate) async fn delete_agent_companion_pet_package_impl(
         .canonicalize()
         .map_err(|e| format!("Pet package path not found: {}", e))?;
 
-    if !resolved.starts_with(&root) {
+    if resolved.parent() != Some(root.as_path()) {
         return Err(
             "Refusing to delete path outside imported Agent companion packages".to_string(),
         );
@@ -2946,13 +2999,39 @@ pub async fn write_file_content(
     state: State<'_, AppState>,
     request: WriteFileContentRequest,
 ) -> Result<(), String> {
-    write_text_file(
+    let target = resolve_desktop_path_target(
         &state,
         &request.file_path,
-        &request.content,
         request.remote_connection_id.as_deref(),
     )
-    .await
+    .await?;
+    use openbitfun_core::service::filesystem::path_operations::{
+        write_local_text_checked, write_text_checked,
+    };
+    match target {
+        DesktopPathTarget::Local { resolved_path, .. } => {
+            write_local_text_checked(
+                &state.filesystem_service,
+                &resolved_path.to_string_lossy(),
+                &request.content,
+                request.expected_hash.as_deref(),
+            )
+            .await
+        }
+        DesktopPathTarget::Remote {
+            requested_path,
+            entry,
+        } => {
+            write_text_checked(
+                &state.filesystem_service,
+                &requested_path,
+                &request.content,
+                Some(&entry.connection_id),
+                request.expected_hash.as_deref(),
+            )
+            .await
+        }
+    }
 }
 
 #[tauri::command]
@@ -5844,4 +5923,18 @@ pub async fn pause_local_model_download(
             Err(format!("Failed to pause model download: {}", e))
         }
     }
+}
+
+#[tauri::command]
+pub async fn workspace_file_upload(
+    request: openbitfun_core::service::filesystem::upload::WorkspaceUploadRequest,
+) -> Result<serde_json::Value, String> {
+    let account = crate::api::remote_connect_api::account_status()
+        .await?
+        .user_id
+        .ok_or("Sign in to use workspace transfers")?;
+    let status =
+        openbitfun_core::service::filesystem::upload::workspace_file_upload(account, request)
+            .await?;
+    serde_json::to_value(status).map_err(|error| error.to_string())
 }

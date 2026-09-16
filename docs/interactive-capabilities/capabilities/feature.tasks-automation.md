@@ -17,19 +17,19 @@ Track work in one task board and let scheduled jobs run at a chosen time or host
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按待处理、日历和已停用视图浏览任务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按待处理、日历和已停用视图浏览任务
   - Browse tasks in Pending, Calendar, and Inactive views
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Cron` · 创建、编辑、启用、停用和删除定时任务
+- **由专用智能体工具控制 / Delegated Agent tool** · `Cron` · 创建、编辑、启用、停用和删除定时任务
   - Create, edit, enable, disable, and delete scheduled jobs
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `GetTime` / `Cron` · 设置一次性、每日、每周或自定义 Cron 时间表
+- **由专用智能体工具控制 / Delegated Agent tool** · `GetTime` / `Cron` · 设置一次性、每日、每周或自定义 Cron 时间表
   - Choose one-time, daily, weekly, or custom cron schedules
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在日历中预览任务的下一次与后续运行时间
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在日历中预览任务的下一次与后续运行时间
   - Preview the next and future job occurrences on a calendar
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为任务选择 Agent、模型、工作模式和工作区
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为任务选择智能体、模型、工作模式和工作区
   - Choose the agent, model, work mode, and workspace for a job
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 把任务安排在当前主机或已连接的远程目标上运行
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 把任务安排在当前主机或已连接的远程目标上运行
   - Schedule jobs to run on the current host or a connected remote target
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看任务列表并等待桌面 Host 就绪后可靠执行
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看任务列表并等待桌面 Host 就绪后可靠执行
   - List jobs and wait for desktop-host readiness before reliable execution
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Track work in one task board and let scheduled jobs run at a chosen time or host
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -55,13 +55,13 @@ Track work in one task board and let scheduled jobs run at a chosen time or host
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开任务板”
   - “Open the task board”
 - “带我去看定时任务”
   - “Take me to scheduled jobs”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

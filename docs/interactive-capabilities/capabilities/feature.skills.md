@@ -11,29 +11,29 @@ title_en: "Skills"
 
 > 功能 / Feature
 
-为 Agent 安装和管理可复用的专业工作流，并控制哪些模式可以使用它们。
+为智能体安装和管理可复用的专业工作流，并控制哪些模式可以使用它们。
 
 Install and manage reusable expert workflows for agents, and control which modes can use them.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 统一查看用户级、项目级、本地和远程来源的已安装 Skills
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 统一查看用户级、项目级、本地和远程来源的已安装 Skills
   - Browse installed Skills from user, project, local, and remote sources in one catalog
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 浏览、搜索和刷新 Skill 市场
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 浏览、搜索和刷新 Skill 市场
   - Browse, search, and refresh the Skill market
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 把市场 Skill 下载到用户级或当前项目
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 把市场 Skill 下载到用户级或当前项目
   - Download a market Skill for the user or current project
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 校验本地 Skill 路径并添加到用户级或项目级
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 校验本地 Skill 路径并添加到用户级或项目级
   - Validate a local Skill path and add it at user or project scope
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 删除已安装的用户级或项目级 Skill
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 删除已安装的用户级或项目级 Skill
   - Remove an installed user-level or project-level Skill
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在全局范围启用或停用单个 Skill
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在全局范围启用或停用单个 Skill
   - Enable or disable an individual Skill globally
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按 Agent 模式选择 Skill 与 Skill 组，并可恢复默认选择
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按智能体模式选择 Skill 与 Skill 组，并可恢复默认选择
   - Choose Skills and skill groups per agent mode and restore defaults
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 识别同名 Skill 的用户级与项目级遮蔽优先级
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 识别同名 Skill 的用户级与项目级遮蔽优先级
   - Understand user-versus-project shadowing precedence for same-named Skills
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Skill` · 按需加载并执行当前 Agent 可见的 Skill
+- **由专用智能体工具控制 / Delegated Agent tool** · `Skill` · 按需加载并执行当前智能体可见的 Skill
   - Load and execute a Skill visible to the current agent on demand
 
 ## 怎么用 / How to use it
@@ -47,7 +47,7 @@ Install and manage reusable expert workflows for agents, and control which modes
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -59,13 +59,13 @@ Install and manage reusable expert workflows for agents, and control which modes
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Skills”
   - “Open Skills”
 - “带我去技能管理”
   - “Take me to skill management”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -17,9 +17,9 @@ Choose the default terminal shell and where new terminal panels open in a sessio
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 自动检测或指定默认终端 Shell
+- **智能体可直接控制 / Direct Agent control** · 自动检测或指定默认终端 Shell
   - Auto-detect or choose the default terminal shell
-- **Agent 可直接控制 / Direct Agent control** · 把终端面板放在右侧或底部
+- **智能体可直接控制 / Direct Agent control** · 把终端面板放在右侧或底部
   - Place the terminal panel on the right or at the bottom
 
 ## 怎么用 / How to use it
@@ -31,7 +31,7 @@ Choose the default terminal shell and where new terminal panels open in a sessio
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -44,13 +44,13 @@ Choose the default terminal shell and where new terminal panels open in a sessio
 | 默认终端 Shell / Default terminal shell | `string` | 设置 Shell 路径；空字符串表示自动检测。 | Set the shell path; an empty string enables automatic detection. |
 | 终端面板位置 / Terminal panel position | `right` / `bottom` | 把终端面板放在右侧或底部。 | Place the terminal panel on the right or at the bottom. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开终端设置”
   - “Open terminal settings”
 - “把终端面板放到底部”
   - “Move the terminal panel to the bottom”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

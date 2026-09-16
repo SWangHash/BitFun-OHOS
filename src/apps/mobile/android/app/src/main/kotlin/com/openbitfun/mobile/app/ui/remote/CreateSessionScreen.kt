@@ -154,6 +154,7 @@ internal fun CreateSessionScreen(
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
     var workspacePath by rememberSaveable { mutableStateOf("") }
+    var workspaceConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedModelId by rememberSaveable { mutableStateOf<String?>(null) }
     // Not saveable: an open sheet is a finger part-way through a gesture.
     var pickerKind by remember { mutableStateOf<CreateSelectionKind?>(null) }
@@ -169,28 +170,9 @@ internal fun CreateSessionScreen(
     val selectedModel = modelOptions.firstOrNull { it.id == selectedModelId }
         ?: modelOptions.firstOrNull { it.selected }
         ?: modelOptions.firstOrNull()
-    LaunchedEffect(ready?.selected?.kind, ready?.assistants, workspacePath) {
-        if (workspacePath.isEmpty() && ready?.selected?.kind != ASSISTANT_KIND) {
-            ready?.assistants?.firstOrNull()?.let {
-                onWorkspaceIntent(RemoteWorkspaceIntent.SelectAssistant(it.path))
-            }
-        }
-    }
-    val selectWorkspace: (String) -> Unit = { path ->
-        workspacePath = path
-        // Applied now rather than at send: `set_workspace` is a round trip to
-        // the desktop, so the settled selection can be shown while the draft is
-        // still being written. Chat selects the assistant workspace; projects
-        // select their concrete workspace.
-        if (path.isEmpty()) {
-            if (ready?.selected?.kind != ASSISTANT_KIND) {
-                ready?.assistants?.firstOrNull()?.let {
-                    onWorkspaceIntent(RemoteWorkspaceIntent.SelectAssistant(it.path))
-                }
-            }
-        } else {
-            onWorkspaceIntent(RemoteWorkspaceIntent.SelectWorkspace(path))
-        }
+    val selectWorkspace: (WorkspaceChoice?) -> Unit = { workspace ->
+        workspacePath = workspace?.path.orEmpty()
+        workspaceConnectionId = workspace?.remoteConnectionId
     }
 
     val voiceInput = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -299,7 +281,7 @@ internal fun CreateSessionScreen(
                     ) {
                         WorkspacePicker(
                         workspaces = ready?.workspaces.orEmpty().map {
-                            WorkspaceChoice(path = it.path, name = it.displayName)
+                            WorkspaceChoice(path = it.path, name = it.displayName, remoteConnectionId = it.remoteConnectionId)
                         },
                         selectedPath = workspacePath,
                         showHeader = false,
@@ -366,6 +348,8 @@ internal fun CreateSessionScreen(
                             title = "",
                             instruction = draft,
                             modelId = selectedModelId,
+                            workspacePath = workspacePath.takeIf { it.isNotBlank() },
+                            remoteConnectionId = workspaceConnectionId,
                         ),
                     )
                     draft = ""
@@ -380,7 +364,7 @@ internal fun CreateSessionScreen(
         ModalBottomSheet(onDismissRequest = { pickerKind = null }) {
             WorkspacePicker(
                 workspaces = ready?.workspaces.orEmpty().map {
-                    WorkspaceChoice(path = it.path, name = it.displayName)
+                    WorkspaceChoice(path = it.path, name = it.displayName, remoteConnectionId = it.remoteConnectionId)
                 },
                 selectedPath = workspacePath,
                 showHeader = true,
@@ -405,7 +389,7 @@ private const val ASSISTANT_KIND = "assistant"
  * The workspace domain type carries a kind and a timestamp the picker has no use
  * for, and the app layer cannot see `core-domain` anyway.
  */
-private data class WorkspaceChoice(val path: String, val name: String)
+private data class WorkspaceChoice(val path: String, val name: String, val remoteConnectionId: String?)
 
 /**
  * The tap target that puts the keyboard away.
@@ -505,7 +489,7 @@ private fun WorkspacePicker(
     selectedPath: String,
     showHeader: Boolean,
     onDismiss: () -> Unit,
-    onPick: (String) -> Unit,
+    onPick: (WorkspaceChoice?) -> Unit,
     modifier: Modifier,
 ) {
     Column(modifier = modifier) {
@@ -533,7 +517,7 @@ private fun WorkspacePicker(
             title = stringResource(R.string.create_chat),
             subtitle = "",
             selected = selectedPath.isEmpty(),
-            onClick = { onPick("") },
+            onClick = { onPick(null) },
         )
         if (workspaces.isEmpty()) {
             Text(
@@ -551,7 +535,7 @@ private fun WorkspacePicker(
                 // apart, and it is the only place the user can check.
                 subtitle = workspace.path,
                 selected = workspace.path == selectedPath,
-                onClick = { onPick(workspace.path) },
+                onClick = { onPick(workspace) },
             )
         }
     }

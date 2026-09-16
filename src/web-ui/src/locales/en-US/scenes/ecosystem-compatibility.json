@@ -17,8 +17,8 @@
     "remote": "Remote · {{name}}"
   },
   "groups": {
-    "connected": "Connected or discovered",
-    "available": "Available to add",
+    "identified": "Recognized",
+    "more": "More apps",
     "other": "Other"
   },
   "status": {
@@ -45,16 +45,7 @@
     "adapterRevision": "Adapter v{{revision}}",
     "acpRuntime": "ACP",
     "notDetected": "No configuration found",
-    "notAvailable": "Unavailable",
-    "checksLabel": "Updates & checks",
-    "checksSummary": "{{sourceCount}} config sources · {{assetCount}} items · {{runtimeCount}} ACP"
-  },
-  "governance": {
-    "openAction": "Discovery settings",
-    "closeAction": "Back to content",
-    "managerLabel": "External source governance",
-    "managerScope": "These controls apply to compatible sources on the current execution host. Product summaries remain read-only.",
-    "loadingManager": "Loading source governance…"
+    "notAvailable": "Unavailable"
   },
   "comingSoon": {
     "title": "In development",
@@ -87,15 +78,15 @@
     "states": {
       "ready": "Ready to import",
       "readyRename": "Ready · auto-rename",
-      "checking": "Checking",
+      "checking": "Finding content",
       "imported": "Imported",
-      "notDetected": "Not found",
+      "notDetected": "No content found",
       "unsupportedContext": "Cannot import in this environment",
       "unavailable": "Currently unavailable",
       "discoveryDisabled": "Discovery off",
-      "discoveryUnavailable": "Discovery unavailable",
-      "discoverySupported": "Discovery supported",
-      "discoveryUnsupported": "Discovery not integrated here",
+      "discoveryUnavailable": "Could not read",
+      "discoverySupported": "Discoverable",
+      "discoveryUnsupported": "Not yet supported",
       "discovered": "Discovered",
       "importUnsupported": "Import format unsupported by this host",
       "available": "Available through compatibility",
@@ -106,7 +97,8 @@
       "runtimeUnavailable": "Unavailable in this environment",
       "runtimeFailed": "Failed to load",
       "configurationChanged": "Configuration changed",
-      "unknown": "Usage not confirmed"
+      "unknown": "Usage not confirmed",
+      "notScanned": "Not scanned"
     },
     "importAction": "Import",
     "importingAction": "Importing",
@@ -118,7 +110,7 @@
       "stale": "The source changed. Review the latest state and try again.",
       "failed": "Failed to import {{name}}"
     },
-    "discoveryUnsupportedDescription": "This page does not yet discover {{type}} from {{name}}. See the relevant feature documentation for support in other entry points."
+    "discoveryUnsupportedDescription": "You can't view {{type}} from {{name}} here yet."
   },
   "run": {
     "title": "Use in OpenBitFun",
@@ -158,9 +150,8 @@
       }
     },
     "openManager": "Manage ACP agents",
-    "hideManager": "Hide ACP manager",
     "managerLabel": "ACP agent management",
-    "managerScope": "Install, enable, or adjust ACP agents below.",
+    "managerScope": "Install, enable, or adjust ACP agents for this ecosystem.",
     "loadingManager": "Loading ACP agent management…",
     "startSession": "New session",
     "starting": "Creating a {{name}} session…",
@@ -177,9 +168,16 @@
     }
   },
   "discovery": {
-    "disabledDescription": "External source discovery is turned off for the current scope. Open Sources & Safety to enable it; MCP configuration cannot be detected while it is off.",
+    "toggleLabel": "Automatic discovery",
+    "enabledDescription": "Automatically find settings and content from other agents and update this list. You choose what to import or enable.",
+    "disabledDescription": "Automatic discovery is paused and previous results are kept. You can still refresh manually, and connected features keep running.",
+    "workspaceScope": "Applies to all compatible apps in the current workspace.",
+    "userScope": "Applies to all compatible apps on the current host.",
+    "loadingDescription": "Reading automatic discovery status…",
+    "readOnlyDescription": "This host or settings version does not support changing automatic discovery.",
+    "saveFailed": "Could not save automatic discovery settings. Please retry.",
     "unavailableDescription": "Discovery could not complete. Check the source settings and diagnostics.",
-    "manageAction": "Discovery settings"
+    "workspaceLabel": "Current workspace"
   },
   "content": {
     "skillStale": "The Skill package changed. Cancel this confirmation and prepare a new preview before importing.",
@@ -191,7 +189,7 @@
     "batchPending": "Pending",
     "batchResultSummary": "Imported {{imported}} · Needs review {{unresolved}} · Skipped {{skipped}}",
     "title": "{{name}} content",
-    "description": "View discovery results, import requirements and usage status by type. Imported means a copy was saved; the relevant feature confirms whether it can be used.",
+    "description": "Browse external content and manage availability or imports.",
     "search": "Search this agent’s content",
     "all": "All content · {{count}} found",
     "importStatus": "Current status",
@@ -226,7 +224,7 @@
     "command": "Command / endpoint preview",
     "environmentKeys": "Environment variable names",
     "headerNames": "Header names",
-    "groupSummary": "{{count}} discovered · Expand to view",
+    "groupSummary": "{{count}} items found",
     "undo": "Undo import",
     "undoTitle": "Undo import into OpenBitFun",
     "undoWarning": "This removes the OpenBitFun copy, including changes made to it after import. The external agent’s original content is preserved and can be imported again.",
@@ -236,8 +234,7 @@
     "undoRuntimePending": "Removed the configuration for {{name}}, but its runtime has not updated. Check the OpenBitFun MCP manager.",
     "undoFailed": "Removal did not complete. The copy or configuration may have changed. Refresh, review, and confirm again.",
     "undoUnavailable": "This Skill’s imported copy could not be identified. Review and remove it in the OpenBitFun Skill manager.",
-    "expandCategory": "Expand {{type}}",
-    "collapseCategory": "Collapse {{type}}",
+    "viewCategory": "View {{type}}",
     "importAll": "Import all",
     "importCategory": "Import all",
     "batchTitle": "Confirm import",
@@ -277,6 +274,8 @@
     "renameNotice": "The copy will use “{{name}}” as its directory and invocation name. Existing Skills and external source files will remain unchanged.",
     "invalidImportName": "Enter an unused name with 1–100 letters, digits, hyphens or underscores.",
     "refresh": "Refresh",
+    "scan": "Scan",
+    "scanFailed": "Scan failed. Try again.",
     "batchProgress": "Processed {{completed}} / {{total}} items",
     "batchImporting": "Importing",
     "batchUndoing": "Undoing imports",
@@ -295,6 +294,9 @@
     },
     "hookDiscoveryOnly": "Static source and declaration preview only. This page cannot import or execute these hooks.",
     "skillImportUnsupported": "This host does not advertise import support for this format. Upgrade the host handling this source and retry.",
+    "itemCount": "{{count}} items",
+    "lastKnownResult": "Showing the last successfully read content.",
+    "mcpReviewDescription": "Review the source settings and existing copies before importing.",
     "instructions": {
       "description": "Instruction sources read by OpenBitFun. Startup documents and matching path rules are applied by the instruction reader; this inventory does not indicate what a particular session has already loaded.",
       "shared": "Shared workspace instructions",
@@ -308,6 +310,69 @@
       "unsupportedHost": "Instruction source discovery is not available on this host or remote workspace. Local sources are not substituted.",
       "partial": "Some instruction sources could not be read. The available sources are listed below.",
       "readOnly": "Read by the instruction reader"
+    },
+    "accounts": {
+      "description": "View subscription accounts connected in OpenBitFun.",
+      "providers": {
+        "codex": "Codex / ChatGPT",
+        "opencode": "OpenCode Console (Zen)"
+      },
+      "notes": {
+        "codex": "Connect your ChatGPT subscription and choose models in model settings.",
+        "opencode": "Connect OpenCode Zen and add models in model settings. Go uses an API key."
+      },
+      "states": {
+        "unsupportedHost": "Account connections are unavailable in this environment",
+        "loading": "Loading account status",
+        "failed": "Could not load account status. Refresh to retry.",
+        "unavailable": "This host does not offer this account connection",
+        "vaultUnavailable": "Credential storage is unavailable",
+        "reauthenticationRequired": "Sign in again",
+        "connected": "Connected in OpenBitFun",
+        "notConnected": "Not connected in OpenBitFun"
+      },
+      "manage": "Manage account and models",
+      "connect": "Sign in through model settings",
+      "labels": {
+        "unsupportedHost": "Unsupported",
+        "failed": "Load failed",
+        "unavailable": "Unavailable",
+        "vaultUnavailable": "Vault offline",
+        "reauthenticationRequired": "Sign in again",
+        "connected": "Connected",
+        "notConnected": "Not connected"
+      },
+      "refresh": "Refresh account status"
+    },
+    "pets": {
+      "builtinSource": "Codex built-in",
+      "customSource": "Codex custom",
+      "description": "Browse built-in and custom Codex pets, then import them to use in OpenBitFun.",
+      "partial": "Some pets could not be read. Check the source diagnostics below.",
+      "reviewTitle": "Import pet",
+      "reviewDescription": "Copy the reviewed pet package into OpenBitFun. You can select it after import; your current pet stays selected.",
+      "operationFailed": "The operation did not complete. The source or copy may have changed. Refresh and review again.",
+      "use": "Use this pet",
+      "states": {
+        "unsupported": "Unsupported",
+        "failed": "Load failed",
+        "partial": "Partly available",
+        "available": "Discovery supported",
+        "empty": "No pets found",
+        "copyModified": "Copy modified",
+        "sourceChanged": "Source changed",
+        "using": "In use",
+        "imported": "Imported",
+        "ready": "Ready to import"
+      }
+    },
+    "skills": {
+      "directUse": "Use Skills directly from their source directories, without importing or copying. Enabled by default; disabling blocks use in every mode. Project switches affect only this workspace.",
+      "unsupported": "This host does not support direct Skill availability management. Update the host or manage Skills in a local workspace.",
+      "availability": "Availability",
+      "toggle": "Enable {{name}}",
+      "updateFailed": "Could not update Skill availability. Try again.",
+      "sameName": "Another Skill has the same name. Source priority selects the default; use the full key to select this entry."
     }
   },
   "sourceSettings": {

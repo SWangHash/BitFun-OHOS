@@ -51,7 +51,7 @@
       color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
   }
 
-  .segment[aria-checked="true"] {
+  .segment:is([aria-checked="true"], [aria-pressed="true"]) {
     color: var(--openbitfun-color-content-primary);
     background: var(--openbitfun-color-surface-raised);
     font-weight: var(--openbitfun-type-label-selected-font-weight);
@@ -92,13 +92,13 @@
     border-radius: var(--openbitfun-radius-pill);
   }
 
-  .root[data-variant="pills"] .segment[aria-checked="true"] {
+  .root[data-variant="pills"] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
     border-color: var(--openbitfun-color-action-primary-background);
     color: var(--openbitfun-color-action-primary-content);
     background: var(--openbitfun-color-action-primary-background);
   }
 
-  .root[data-variant="pills"][data-tone="neutral"] .segment[aria-checked="true"] {
+  .root[data-variant="pills"][data-tone="neutral"] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
     border-color: var(--openbitfun-color-action-neutral-surface-pressed);
     color: var(--openbitfun-color-content-primary);
     background: var(--openbitfun-color-action-neutral-surface-pressed);
@@ -158,12 +158,12 @@
       outline: var(--openbitfun-border-width-default) solid ButtonText;
     }
 
-    .segment[aria-checked="true"] {
+    .segment:is([aria-checked="true"], [aria-pressed="true"]) {
       color: HighlightText;
       background: Highlight;
     }
 
-    .root[data-variant="pills"][data-tone] .segment[aria-checked="true"] {
+    .root[data-variant="pills"][data-tone] .segment:is([aria-checked="true"], [aria-pressed="true"]) {
       border-color: Highlight;
       color: HighlightText;
       background: Highlight;

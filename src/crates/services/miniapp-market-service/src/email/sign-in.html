@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="{{locale}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{subject}}</title>
+  <style>
+    @media only screen and (max-width: 480px) {
+      .outer { padding: 24px 12px !important; }
+      .content { padding: 28px 24px !important; }
+      .code { font-size: 28px !important; letter-spacing: 4px !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .canvas { background-color: #0e0e10 !important; }
+      .card { background-color: #1c1c1f !important; border-color: #404044 !important; }
+      .primary { color: #ededee !important; }
+      .secondary { color: #b0b0b0 !important; }
+      .codebox { background-color: #2f2f33 !important; border-color: #404044 !important; }
+      .divider { border-color: #404044 !important; }
+    }
+  </style>
+</head>
+<body class="canvas" style="margin:0;padding:0;background-color:#f8f8f9;-webkit-text-size-adjust:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{preview}}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr><td class="outer" align="center" style="padding:48px 16px;">
+      <!--[if mso]><table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+      <table class="card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e8e8e8;border-radius:16px;">
+        <tr><td class="content" style="padding:36px 40px 40px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td width="48" style="padding-right:12px;">
+                <a href="https://openbitfun.com" target="_blank" rel="noopener noreferrer" style="display:block;text-decoration:none;"><img src="cid:openbitfun-app-icon" width="48" height="48" alt="OpenBitFun" style="display:block;width:48px;height:48px;border:0;border-radius:10px;"></a>
+              </td>
+              <td class="primary" style="font-size:22px;line-height:28px;font-weight:650;letter-spacing:-0.5px;color:#1c1c1f;"><a class="primary" href="https://openbitfun.com" target="_blank" rel="noopener noreferrer" style="color:#1c1c1f;text-decoration:none;">OpenBitFun</a></td>
+            </tr>
+          </table>
+          <p style="margin:36px 0 12px;font-size:11px;line-height:16px;font-weight:600;letter-spacing:1.6px;color:#059cb0;">ACCOUNT · SIGN IN</p>
+          <h1 class="primary" style="margin:0;color:#1c1c1f;font-size:28px;line-height:40px;font-weight:600;letter-spacing:-0.6px;">{{heading}}</h1>
+          <p class="secondary" style="margin:12px 0 28px;color:#6a6a6a;font-size:15px;line-height:26px;">{{intro}}</p>
+          <table class="codebox" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f7f7f7;border:1px solid #e8e8e8;border-radius:12px;">
+            <tr><td align="center" style="padding:24px 12px 22px;">
+              <div class="primary code" style="color:#1c1c1f;font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;font-size:40px;font-weight:600;line-height:52px;letter-spacing:10px;white-space:nowrap;">{{code}}</div>
+              <p class="secondary" style="margin:10px 0 0;color:#6a6a6a;font-size:12px;line-height:20px;">{{expiry}}</p>
+            </td></tr>
+          </table>
+          <p class="secondary" style="margin:22px 0 0;color:#6a6a6a;font-size:13px;line-height:23px;">{{security}}</p>
+        </td></tr>
+      </table>
+      <p class="secondary" style="margin:20px 0 0;color:#6a6a6a;font-size:11px;line-height:20px;letter-spacing:0.2px;"><a class="secondary" href="https://openbitfun.com" target="_blank" rel="noopener noreferrer" style="color:#6a6a6a;text-decoration:none;">OpenBitFun</a> · {{footer}}</p>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>

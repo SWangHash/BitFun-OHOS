@@ -20,7 +20,13 @@ export function projectWorkspaceCatalog(
   const seen = new Set<string>();
   return {
     source,
-    workspaces: rows.filter((workspace) => {
+    workspaces: rows.map((workspace) => {
+      if (workspace.remote_connection_id || workspace.remote_ssh_host) return workspace;
+      const assistant = assistants.find(candidate => candidate.path === workspace.path);
+      return assistant?.name.trim()
+        ? { ...workspace, name: assistant.name, workspace_kind: 'assistant' as const }
+        : workspace;
+    }).filter((workspace) => {
       if (!workspace.path) return false;
       const key = workspaceIdentityKey(workspace);
       if (seen.has(key)) return false;

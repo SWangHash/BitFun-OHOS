@@ -1,5 +1,15 @@
 import React from 'react';
-import { OverflowText, Button, Card, Icon, IconButton, StatusPill, Tooltip } from '@openbitfun/ui';
+import {
+  Button,
+  Card,
+  CardFooter,
+  CardHeader,
+  Icon,
+  IconButton,
+  OverflowText,
+  StatusPill,
+  Tooltip,
+} from '@openbitfun/ui';
 
 import { useTranslation } from 'react-i18next';
 
@@ -39,19 +49,29 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
   const emoji = identity?.emoji?.trim() ?? '';
   const creature = identity?.creature?.trim() || '';
   const vibe = identity?.vibe?.trim() || '';
+  const isBusy = isDeleting || isStartingSession || isSettingPrimary;
+  const hasActions = Boolean(onNewSession || onSetPrimary || onDelete);
 
   return (
     <article
       data-openbitfun-component="assistant-card"
       data-openbitfun-part="root"
       data-openbitfun-primary={isPrimary ? 'true' : 'false'}
-      data-openbitfun-state={isDeleting || isStartingSession || isSettingPrimary ? 'busy' : undefined}
+      data-openbitfun-state={isBusy ? 'busy' : undefined}
       className={['assistant-card', (isDeleting || isSettingPrimary) && 'assistant-card--busy'].filter(Boolean).join(' ')}
       role="listitem"
       style={style}
     >
-      <Card className="assistant-card__surface" appearance="subtle" radius="md" clip>
-        <button data-overflow-trigger
+      <Card
+        className="assistant-card__surface"
+        appearance="subtle"
+        radius="md"
+        padding="md"
+        gap="sm"
+        clip
+        data-overflow-trigger
+      >
+        <button
           data-openbitfun-component="assistant-card"
           data-openbitfun-part="main"
           type="button"
@@ -59,8 +79,14 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
           onClick={onClick}
           aria-label={`${t('nursery.card.configure')}: ${name}`}
           disabled={isDeleting || isSettingPrimary}
-        >
-          <span className="assistant-card__header" data-openbitfun-component="assistant-card" data-openbitfun-part="header">
+        />
+
+        <CardHeader
+          align="center"
+          className="assistant-card__header"
+          data-openbitfun-component="assistant-card"
+          data-openbitfun-part="header"
+          leading={(
             <span className="assistant-card__avatar" data-openbitfun-component="assistant-card" data-openbitfun-part="avatar">
               <AssistantAvatar
                 presetId={avatar}
@@ -70,94 +96,99 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
                 size={44}
               />
             </span>
-            <span className="assistant-card__header-info" data-openbitfun-component="assistant-card" data-openbitfun-part="headerInfo">
-              <span className="assistant-card__title-row">
-                <OverflowText className="assistant-card__name" data-openbitfun-component="assistant-card" data-openbitfun-part="name">{name}</OverflowText>
-                {isPrimary && (
-                  <span className="assistant-card__primary-badge" data-openbitfun-component="assistant-card" data-openbitfun-part="primaryBadge">
-                    <StatusPill tone="neutral">{t('nursery.card.primaryBadge')}</StatusPill>
-                  </span>
-                )}
-              </span>
+          )}
+          title={(
+            <span className="assistant-card__title-row" data-openbitfun-component="assistant-card" data-openbitfun-part="title">
+              <OverflowText className="assistant-card__name" data-openbitfun-component="assistant-card" data-openbitfun-part="name">{name}</OverflowText>
+              {isPrimary && (
+                <span className="assistant-card__primary-badge" data-openbitfun-component="assistant-card" data-openbitfun-part="primaryBadge">
+                  <StatusPill tone="neutral">{t('nursery.card.primaryBadge')}</StatusPill>
+                </span>
+              )}
+            </span>
+          )}
+          description={(
+            <span className="assistant-card__metadata" data-openbitfun-component="assistant-card" data-openbitfun-part="metadata">
               {vibe ? (
-                <OverflowText lines={1} className="assistant-card__vibe" data-openbitfun-component="assistant-card" data-openbitfun-part="vibe">{vibe}</OverflowText>
+                <OverflowText className="assistant-card__vibe" data-openbitfun-component="assistant-card" data-openbitfun-part="vibe">{vibe}</OverflowText>
               ) : (
                 <OverflowText lines={1} className="assistant-card__vibe assistant-card__vibe--empty" data-openbitfun-component="assistant-card" data-openbitfun-part="vibe">
                   {t('nursery.card.noVibe')}
                 </OverflowText>
               )}
               {creature ? (
-                <span className="assistant-card__badges" data-openbitfun-component="assistant-card" data-openbitfun-part="badges">
-                  <StatusPill tone="neutral">{creature}</StatusPill>
-                </span>
+                <>
+                  <span className="assistant-card__metadata-separator" aria-hidden="true">·</span>
+                  <OverflowText className="assistant-card__creature" data-openbitfun-component="assistant-card" data-openbitfun-part="creature">
+                    {creature}
+                  </OverflowText>
+                </>
               ) : null}
             </span>
-            <Icon name="chevron-right" size="sm" data-openbitfun-component="assistant-card" data-openbitfun-part="chevron" className="assistant-card__chevron" aria-hidden="true" />
-          </span>
-        </button>
+          )}
+          actions={(
+            <Icon
+              name="chevron-right"
+              size="sm"
+              data-openbitfun-component="assistant-card"
+              data-openbitfun-part="chevron"
+              className="assistant-card__chevron"
+              aria-hidden="true"
+            />
+          )}
+        />
 
-        <footer className="assistant-card__footer" data-openbitfun-component="assistant-card" data-openbitfun-part="footer">
-          <Button
-            variant="outline"
-            size="sm"
-            leadingIcon={<Icon name="settings" size="sm" />}
-            trailingIcon={<Icon name="chevron-right" size="sm" />}
-            className="assistant-card__configure"
-            onClick={onClick}
-            disabled={isDeleting || isSettingPrimary}
-            aria-label={`${t('nursery.card.configure')}: ${name}`}
-          >
-            {t('nursery.card.configure')}
-          </Button>
-
-          <span className="assistant-card__session-actions">
-            {onNewSession ? (
-              <Button
-                variant="primary"
-                size="sm"
-                leadingIcon={<Icon name="side-chat" size="sm" />}
-                loading={isStartingSession}
-                onClick={onNewSession}
-                disabled={isStartingSession || isDeleting || isSettingPrimary}
-              >
-                {t(isStartingSession ? 'nursery.card.startingSession' : 'nursery.card.newSession')}
-              </Button>
-            ) : null}
-
-            <span className="assistant-card__footer-actions">
-              {onSetPrimary ? (
-                <Tooltip content={t('nursery.card.setPrimary')}>
-                  <IconButton
-                    data-openbitfun-component="assistant-card"
-                    data-openbitfun-part="setPrimary"
-                    size="sm"
-                    onClick={onSetPrimary}
-                    aria-label={t('nursery.card.setPrimary')}
-                    loading={isSettingPrimary}
-                    disabled={isDeleting || isStartingSession || isSettingPrimary}
-                    icon={<Icon name="pin" size="sm" aria-hidden="true" />}
-                  />
-                </Tooltip>
+        {hasActions ? (
+          <CardFooter align="end" className="assistant-card__footer" data-openbitfun-component="assistant-card" data-openbitfun-part="footer">
+            <span className="assistant-card__session-actions">
+              {onNewSession ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leadingIcon={<Icon name="side-chat" size="sm" />}
+                  loading={isStartingSession}
+                  onClick={onNewSession}
+                  disabled={isStartingSession || isDeleting || isSettingPrimary}
+                >
+                  {t(isStartingSession ? 'nursery.card.startingSession' : 'nursery.card.newSession')}
+                </Button>
               ) : null}
 
-              {onDelete ? (
-                <Tooltip content={t('nursery.card.delete')}>
-                  <IconButton
-                    data-openbitfun-component="assistant-card"
-                    data-openbitfun-part="delete"
-                    tone="danger"
-                    size="sm"
-                    onClick={onDelete}
-                    aria-label={t('nursery.card.delete')}
-                    loading={isDeleting}
-                    disabled={isDeleting || isStartingSession || isSettingPrimary}
-                    icon={<Icon name="delete" size="sm" aria-hidden="true" />}
-                  />
-                </Tooltip>
-              ) : null}
+              <span className="assistant-card__footer-actions">
+                {onSetPrimary ? (
+                  <Tooltip content={t('nursery.card.setPrimary')}>
+                    <IconButton
+                      data-openbitfun-component="assistant-card"
+                      data-openbitfun-part="setPrimary"
+                      size="sm"
+                      onClick={onSetPrimary}
+                      aria-label={t('nursery.card.setPrimary')}
+                      loading={isSettingPrimary}
+                      disabled={isDeleting || isStartingSession || isSettingPrimary}
+                      icon={<Icon name="pin" size="sm" aria-hidden="true" />}
+                    />
+                  </Tooltip>
+                ) : null}
+
+                {onDelete ? (
+                  <Tooltip content={t('nursery.card.delete')}>
+                    <IconButton
+                      data-openbitfun-component="assistant-card"
+                      data-openbitfun-part="delete"
+                      tone="danger"
+                      size="sm"
+                      onClick={onDelete}
+                      aria-label={t('nursery.card.delete')}
+                      loading={isDeleting}
+                      disabled={isDeleting || isStartingSession || isSettingPrimary}
+                      icon={<Icon name="delete" size="sm" aria-hidden="true" />}
+                    />
+                  </Tooltip>
+                ) : null}
+              </span>
             </span>
-          </span>
-        </footer>
+          </CardFooter>
+        ) : null}
       </Card>
     </article>
   );

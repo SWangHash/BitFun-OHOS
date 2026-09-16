@@ -6,6 +6,12 @@ export const disclosureMeta = {
   maturity: "stable",
   name: "Disclosure",
   props: [
+    { name: "renderHeader", type: "(triggerProps: DisclosureTriggerProps) => ReactNode" },
+    { name: "contentClassName", type: "string" },
+    { name: "contentInnerClassName", type: "string" },
+    { name: "unmountOnClose", type: "boolean", defaultValue: "false" },
+    { name: "exitDurationMs", type: "number", defaultValue: "180" },
+    { name: "presentation", type: "custom | native", defaultValue: "custom" },
     { name: "summary", type: "ReactNode" },
     { name: "children", type: "ReactNode" },
     { name: "leading", type: "ReactNode" },
@@ -15,6 +21,7 @@ export const disclosureMeta = {
     { defaultValue: "false", name: "defaultOpen", type: "boolean" },
     { defaultValue: "false", name: "disabled", type: "boolean" },
     { name: "onOpenChange", type: "(open: boolean) => void" },
+    { name: "onToggle", type: "ToggleEventHandler<HTMLDetailsElement> (native only)" },
   ],
   states: ["closed", "open", "hover", "focus-visible", "disabled"],
   tokens: [

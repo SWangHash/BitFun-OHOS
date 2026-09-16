@@ -1,3 +1,4 @@
+import { FakeDurableSessionManager, durableRecord } from './LocalTestFixtures';
 import { describe, it, expect } from '@ohos/hypium';
 import { RemoteI18n } from '../main/ets/i18n/RemoteI18n';
 import { RemoteControlSettingsPagePolicy } from '../main/ets/pages/policy/RemoteControlSettingsPagePolicy';
@@ -470,43 +471,18 @@ export default function lifecycleUnitTest() {
   });
 
   describe('RemoteChatPollingLifecycleController', () => {
-    it('starts the active remote chat poller and forwards snapshots', 0, async () => {
-      const manager = new FakePollSessionManager();
+    it('starts the active durable session subscription and forwards records', 0, async () => {
+      const manager = new FakeDurableSessionManager();
       const snapshots: ChatSessionSnapshot[] = [];
-      manager.results = [pollResult({
-        version: 5,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Updated Session',
-        newMessages: [chatMessage('message-5', 'assistant', 'Done')],
-        totalMessageCount: 5
-      })];
       const controller = new RemoteChatPollingLifecycleController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
+        onSnapshot: (snapshot: ChatSessionSnapshot) => { snapshots.push(snapshot); },
+        onError: (_error: Object) => {}, canPoll: () => true
       });
-
-      controller.startActiveSession({
-        sessionId: 'session-1',
-        cursor: {
-          pollVersion: 4,
-          knownMessageCount: 4,
-          knownModelCatalogVersion: 0
-        }
-      });
-      // Production defers the first idle poll briefly so rapid session
-      // selections coalesce. An explicit poll remains immediate.
-      await controller.pollNow();
+      controller.startActiveSession({ sessionId: 'session-1', cursor: { pollVersion: 0, knownMessageCount: 0, knownModelCatalogVersion: 0 } });
+      await manager.emit(durableRecord('session-1', 1, 'Done', 'completed'));
       controller.stop();
-
       expect(snapshots.length).assertEqual(1);
-      expect(snapshots[0].sessionId).assertEqual('session-1');
-      expect(snapshots[0].cursor.pollVersion).assertEqual(5);
-      expect(snapshots[0].cursor.knownMessageCount).assertEqual(5);
-      expect(snapshots[0].newMessages[0].id).assertEqual('message-5');
+      expect(snapshots[0].messageSnapshot?.[1].text).assertEqual('Done');
     });
 
     it('ignores empty active session starts', 0, async () => {

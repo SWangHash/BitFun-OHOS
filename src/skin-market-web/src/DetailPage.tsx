@@ -1,3 +1,4 @@
+import { Textarea, Button, Disclosure } from '@openbitfun/ui';
 import {
   ArrowLeft,
   ExternalLink as ArrowSquareOut,
@@ -99,7 +100,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
           {notFound ? (
             <a className="primary-button" href={catalogPath} onClick={navigate(catalogPath)}>{t('backToCatalog')}</a>
           ) : (
-            <button type="button" className="secondary-button" onClick={() => setRetryKey((value) => value + 1)}>{t('retry')}</button>
+            <Button labelBehavior="static" type="button" className="secondary-button" onClick={() => setRetryKey((value) => value + 1)}>{t('retry')}</Button>
           )}
         </div>
       </main>
@@ -226,7 +227,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
                 </div>
                 <label className="moderation-panel__reason" htmlFor="moderation-reason">
                   <span>{t('moderationReason')}</span>
-                  <textarea
+                  <Textarea className="market-textarea"
                     id="moderation-reason"
                     value={moderationReason}
                     maxLength={1000}
@@ -243,7 +244,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
                   </p>
                 ) : null}
                 <div className="moderation-panel__actions">
-                  <button
+                  <Button labelBehavior="static"
                     type="button"
                     className="secondary-button danger-button"
                     disabled={!trimmedModerationReason || Boolean(moderationBusy)}
@@ -251,7 +252,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
                   >
                     <Prohibit size={18} aria-hidden="true" />
                     {moderationBusy === detail.listingId ? t('unpublishingListing') : t('unpublishListing')}
-                  </button>
+                  </Button>
                 </div>
               </section>
             ) : null}
@@ -357,8 +358,7 @@ function ReleaseHistory({
         ))}
       </div>
       {older.length ? (
-        <details className="older-releases">
-          <summary>{t('olderReleases', { count: older.length })}</summary>
+        <Disclosure presentation="native" className="older-releases" summary={t('olderReleases', { count: older.length })}>
           <div className="release-list">
             {older.map((release) => (
               <ReleaseItem
@@ -374,7 +374,7 @@ function ReleaseHistory({
               />
             ))}
           </div>
-        </details>
+        </Disclosure>
       ) : null}
     </section>
   );
@@ -423,7 +423,7 @@ function ReleaseItem({
             {t('downloadVersion', { version: release.packageVersion })}
           </a>
           {isAdmin ? (
-            <button
+            <Button labelBehavior="static"
               type="button"
               className="release-yank-button"
               disabled={!moderationReasonReady || Boolean(moderationBusy)}
@@ -431,7 +431,7 @@ function ReleaseItem({
             >
               <Prohibit size={16} aria-hidden="true" />
               {moderationBusy === release.releaseId ? t('yankingRelease') : t('yankRelease')}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

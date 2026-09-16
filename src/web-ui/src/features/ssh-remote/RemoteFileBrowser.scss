@@ -551,3 +551,16 @@
     transition: none;
   }
 }
+
+.remote-file-browser__dialog-overlay[data-openbitfun-component='dialog'] {
+  padding: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+}
+.remote-file-browser__dialog[data-openbitfun-component='dialog'] {
+  display: block;
+  max-inline-size: 380px;
+  max-block-size: none;
+  animation: none;
+}

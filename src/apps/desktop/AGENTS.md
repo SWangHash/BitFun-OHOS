@@ -96,9 +96,21 @@ The `devtools` Cargo feature exists for debugging UI/UX in the desktop app. When
 
 ## Verification
 
+For macOS microphone signing metadata, run
+`plutil -lint src/apps/desktop/Info.plist src/apps/desktop/Entitlements.plist`
+and `node --test scripts/ci/verify-macos-microphone.test.mjs` on macOS.
+For metadata-only changes, these focused checks replace the Rust build/test commands below.
+Before distributing, run `bash scripts/ci/verify-macos-microphone.sh <signed-app-bundle>`
+(also required by the release signing verification), then verify microphone consent
+and recording in the signed app on macOS. Ad-hoc fixture tests do not prove TCC behavior.
+
 ```bash
 cargo check -p openbitfun-desktop && cargo test -p openbitfun-desktop
 ```
+
+For tray unread synchronization, run
+`pnpm --dir src/web-ui run test:run src/flow_chat/services/trayUnreadService.test.ts src/flow_chat/services/sessionNavStatusService.test.ts`
+and `cargo test -p openbitfun-desktop --lib remote_workspace_policy` after command changes.
 
 For shared GitHub sign-in and token redaction, use
 `cargo test -p openbitfun-desktop --lib api::account_identity_api::tests`.
@@ -111,6 +123,36 @@ For companion pet manifest versions and package metadata, use
 `cargo test -p openbitfun-desktop --lib api::commands::pet_package_tests`.
 For content-search routing and remote fallback protection, use
 `cargo test --locked -p openbitfun-desktop --lib api::search_api::tests`.
+For controller-local peer download staging, atomic replacement, and failed transfer cleanup,
+run `cargo test -p openbitfun-desktop --lib api::local_file_download::tests`.
+After changing its registration, also run
+`cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+
+For Windows external-file drag previews, run
+`cargo test --locked -p openbitfun-desktop --lib file_drop_preview_api` and
+`pnpm --dir src/web-ui run test:run src/infrastructure/files/useWindowsFileDropPreview.test.tsx src/app/scenes/session/FileDropPreviewCards.test.tsx`.
+After rebuilding Desktop, manually check Explorer drags with one image, more than
+four images, mixed file formats, Escape, leaving the pane, and a scene switch.
+Verify HTML text/tab/file-tree drags still work. The temporary OLE child only
+covers the active chat target during an external file drag; do not enable Wry's
+window-wide Windows handler as a replacement. After command registration changes,
+also run `cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+
+The layered receiver requires the compatibility declaration in
+`windows-app.manifest`; keep it wired through `build.rs` for dev and release.
+After changes to that contract, run
+`node --test scripts/desktop-tauri-build.test.mjs` and `cargo build -p openbitfun-desktop`.
+The focused native test creates and destroys 50 real, hidden receiver windows.
+The Shell regression also uses a real `IDataObject` and drag-image helpers to
+verify 20 takeovers leave no `SysDragImage`, and that the next target can restore
+the source image and clean it up on drop/cancel. `IDropTargetHelper::Show(false)`
+alone does not dismiss the modern layered image; end the Shell renderer session
+before displaying the custom preview, while keeping the OLE receiver active.
+If the Windows Tauri library test loader fails before running tests, embed the
+same desktop manifest into a temporary copy of the generated test executable
+using the Windows SDK `mt.exe`, then run the `file_drop_preview_api` filter on
+that copy. A Common Controls-only manifest cannot exercise layered children.
+
 For staged application-update cache and signature behavior, use
 `cargo test -p openbitfun-desktop --lib api::update_api::tests`.
 For peer system-info response compatibility, run
@@ -119,6 +161,9 @@ For window geometry recovery, legacy state compatibility, and snapshot persisten
 run `cargo test -p openbitfun-desktop --lib window_state_support::tests`.
 For the matching startup wiring contract, run
 `pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts`.
+For native sidebar material and appearance bootstrap, run
+`cargo test -p openbitfun-desktop --no-default-features --lib appearance::startup_appearance_tests`
+and `pnpm --dir src/web-ui run test:run src/infrastructure/appearance/adapters/ThemeTokenAppearanceAdapter.test.ts`.
 For embedded browser preview encoding and target correlation, run
 `cargo test -p openbitfun-desktop --lib api::browser_api::tests`.
 After browser command registration changes, also run

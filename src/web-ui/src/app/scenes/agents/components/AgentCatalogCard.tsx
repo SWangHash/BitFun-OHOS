@@ -19,7 +19,7 @@ const AgentCatalogCard: React.FC<AgentCatalogCardProps> = ({ agent, onOpenDetail
       appearance="subtle"
       radius="md"
       padding="md"
-      gap="md"
+      gap="sm"
       data-overflow-trigger
       role="button"
       tabIndex={0}

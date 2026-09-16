@@ -155,6 +155,14 @@ pub async fn resolve_desktop_path_target(
         });
     }
 
+    if preferred_remote_connection_id == Some("") {
+        return Ok(DesktopPathTarget::Local {
+            requested_path: raw_path.to_string(),
+            resolved_path: PathBuf::from(raw_path),
+            is_runtime_artifact: false,
+        });
+    }
+
     let explicit_connection_id = preferred_remote_connection_id
         .map(str::trim)
         .filter(|value| !value.is_empty());

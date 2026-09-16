@@ -20,6 +20,15 @@ struct AuthorizationRate {
     window: Instant,
     starts: u32,
     callbacks: u32,
+    email_sends: u32,
+    email_verifications: u32,
+}
+
+enum AuthorizationKind {
+    Start,
+    Callback,
+    EmailSend,
+    EmailVerify,
 }
 
 impl AuthorizationRate {
@@ -28,17 +37,20 @@ impl AuthorizationRate {
             window: Instant::now(),
             starts: 0,
             callbacks: 0,
+            email_sends: 0,
+            email_verifications: 0,
         }
     }
 
-    fn allow(&mut self, callback: bool) -> bool {
+    fn allow(&mut self, kind: AuthorizationKind) -> bool {
         if self.window.elapsed() >= Duration::from_secs(60) {
             *self = Self::new();
         }
-        let count = if callback {
-            &mut self.callbacks
-        } else {
-            &mut self.starts
+        let count = match kind {
+            AuthorizationKind::Start => &mut self.starts,
+            AuthorizationKind::Callback => &mut self.callbacks,
+            AuthorizationKind::EmailSend => &mut self.email_sends,
+            AuthorizationKind::EmailVerify => &mut self.email_verifications,
         };
         if *count >= STARTS_PER_MINUTE {
             return false;
@@ -48,7 +60,30 @@ impl AuthorizationRate {
     }
 }
 
-pub(crate) async fn admit(mut request: Request, next: Next) -> Response {
+pub(crate) async fn admit(request: Request, next: Next) -> Response {
+    let path = request
+        .uri()
+        .path()
+        .strip_prefix("/miniapp/api/v1")
+        .unwrap_or(request.uri().path());
+    if !path.starts_with("/auth/") {
+        return next.run(request).await;
+    }
+    let mut response = admit_auth(request, next).await;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+        .headers_mut()
+        .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+    response.headers_mut().insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
+}
+
+async fn admit_auth(mut request: Request, next: Next) -> Response {
     let path = request
         .uri()
         .path()
@@ -59,14 +94,25 @@ pub(crate) async fn admit(mut request: Request, next: Next) -> Response {
     }
     if matches!(
         path,
-        "/auth/github/start" | "/auth/desktop/start" | "/auth/github/callback"
+        "/auth/github/start"
+            | "/auth/desktop/start"
+            | "/auth/github/callback"
+            | "/auth/login/start"
+            | "/auth/login/github"
+            | "/auth/email/send"
+            | "/auth/email/verify"
     ) {
         static RATE: OnceLock<Mutex<AuthorizationRate>> = OnceLock::new();
         let allowed = RATE
             .get_or_init(|| Mutex::new(AuthorizationRate::new()))
             .lock()
             .unwrap_or_else(|error| error.into_inner())
-            .allow(path.ends_with("/callback"));
+            .allow(match path {
+                "/auth/github/callback" => AuthorizationKind::Callback,
+                "/auth/email/send" => AuthorizationKind::EmailSend,
+                "/auth/email/verify" => AuthorizationKind::EmailVerify,
+                _ => AuthorizationKind::Start,
+            });
         if !allowed {
             let mut response = MarketError::new(
                 StatusCode::TOO_MANY_REQUESTS,
@@ -140,12 +186,19 @@ mod tests {
     fn sign_in_start_flood_does_not_consume_callback_capacity() {
         let mut rate = AuthorizationRate::new();
         for _ in 0..STARTS_PER_MINUTE {
-            assert!(rate.allow(false));
+            assert!(rate.allow(AuthorizationKind::Start));
         }
-        assert!(!rate.allow(false));
-        assert!(rate.allow(true));
+        assert!(!rate.allow(AuthorizationKind::Start));
+        assert!(rate.allow(AuthorizationKind::Callback));
+        // Starting a flow must not spend the separate 300/min email allowance.
+        for _ in 0..STARTS_PER_MINUTE {
+            assert!(rate.allow(AuthorizationKind::EmailSend));
+        }
+        assert!(!rate.allow(AuthorizationKind::EmailSend));
+        assert!(rate.allow(AuthorizationKind::EmailVerify));
         rate.window = Instant::now() - Duration::from_secs(61);
-        assert!(rate.allow(false));
+        assert!(rate.allow(AuthorizationKind::Start));
+        assert!(rate.allow(AuthorizationKind::EmailSend));
     }
 
     #[tokio::test]
@@ -179,6 +232,12 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(response.status(), expected);
+            if path.starts_with("/auth/") {
+                assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(response.headers()[header::REFERRER_POLICY], "no-referrer");
+            } else {
+                assert!(!response.headers().contains_key(header::CACHE_CONTROL));
+            }
         }
     }
 }

@@ -148,6 +148,17 @@ enum RemoteAuthorityGate {
         return requestTargetKey == adapterTargetKey && requestEpoch == adapterEpoch
     }
 
+    static func filePreviewCallbackMatchesAuthority(
+        requestTargetKey: String?, requestEpoch: UInt64,
+        adapterTargetKey: String?, adapterEpoch: UInt64,
+        expectedStoreDeviceKey: String?, callbackDeviceKey: String?
+    ) -> Bool {
+        fileTransferCallbackMatchesAuthority(
+            requestTargetKey: requestTargetKey, requestEpoch: requestEpoch,
+            adapterTargetKey: adapterTargetKey, adapterEpoch: adapterEpoch
+        ) && expectedStoreDeviceKey == callbackDeviceKey
+    }
+
     static func exactInvalidationMatchesAuthority(
         expectedTargetKey: String,
         expectedEpoch: UInt64,
@@ -270,5 +281,14 @@ enum RemoteAuthorityGate {
             retainMarker: !authoritative,
             protectCommittedRowAndSelection: !authoritative
         )
+    }
+}
+
+enum ComposerSendSettlementPolicy {
+    static func shouldRestore(
+        sentSession: String, currentSession: String,
+        acknowledged: Bool, draftIsEmpty: Bool, attachmentsAreEmpty: Bool
+    ) -> Bool {
+        !acknowledged && sentSession == currentSession && draftIsEmpty && attachmentsAreEmpty
     }
 }

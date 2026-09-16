@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -27,10 +28,12 @@ internal fun RemoteDownloadSaver(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val current by rememberUpdatedState((state as? RemoteWorkspaceUiState.Ready)?.download as? RemoteFileDownloadUiState.AwaitingSave)
     var pending by remember { mutableStateOf<RemoteFileDownloadUiState.AwaitingSave?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val download = pending ?: return@rememberLauncherForActivityResult
         pending = null
+        if (current?.localReference != download.localReference) return@rememberLauncherForActivityResult
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
             onIntent(RemoteWorkspaceIntent.DownloadSaveFailed(download.target.path))
@@ -40,7 +43,14 @@ internal fun RemoteDownloadSaver(
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                        output.write(download.bytes)
+                        java.io.File(download.localReference).inputStream().use { input ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                check(current?.localReference == download.localReference) { "Download target changed" }
+                                val count = input.read(buffer); if (count < 0) break
+                                output.write(buffer, 0, count)
+                            }
+                        }
                     } ?: error("document destination is unavailable")
                 }
             }.isSuccess

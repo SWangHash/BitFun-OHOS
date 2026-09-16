@@ -68,7 +68,6 @@ impl ExternalAcpClient {
             readonly: false,
             subagent: Default::default(),
             permission_mode: AcpClientPermissionMode::Ask,
-            local_override: None,
         }
     }
 }

@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   decodeBase64FileChunk,
   isFilePermissionError,
+  writeAllToLocalFile,
+  readPeerFileChunks,
   isSafePeerTransferEntryName,
   isSourceFileMissingError,
   joinWorkspaceTargetPath,
@@ -121,5 +123,66 @@ describe("workspaceFileTransfer", () => {
         findNode,
       }),
     ).toBe("/tmp/project/src");
+  });
+});
+
+const native = vi.hoisted(() => ({ request: vi.fn() }));
+vi.mock("@/infrastructure/api/adapters", () => ({ getTransportAdapter: () => native, createTransportAdapter: () => native }));
+
+describe("atomic peer download sink", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    native.request.mockResolvedValue({ id: 7 });
+  });
+  async function* content() { yield new Uint8Array([1, 2, 3]); }
+  it("commits only after the full stream is validated", async () => {
+    const progress = vi.fn();
+    await writeAllToLocalFile("/external/existing.bin", content(), progress);
+    expect(native.request.mock.calls).toEqual([
+      ["local_file_download", {request: {action: "begin", destination: "/external/existing.bin"}}],
+      ["local_file_download", {request: {action: "write", id: 7, offset: 0, bytes: [1, 2, 3]}}],
+      ["local_file_download", {request: {action: "finish", id: 7, size: 3}}],
+    ]);
+    expect(progress).toHaveBeenCalledExactlyOnceWith(3);
+  });
+  it("cancels staging when the remote stream fails", async () => {
+    async function* broken() { yield new Uint8Array([1]); throw new Error("revision changed"); }
+    await expect(writeAllToLocalFile("/external/existing.bin", broken(), vi.fn())).rejects.toThrow("revision changed");
+    expect(native.request.mock.calls.map((call) => call[1].request.action)).toEqual(["begin", "write", "cancel"]);
+  });
+  it("preserves replacement errors even if cleanup reports the resource closed", async () => {
+    native.request.mockImplementation(async (_command, {request}) => {
+      if (request.action === "finish") throw new Error("permission denied");
+      if (request.action === "cancel") throw new Error("already closed");
+      return { id: 7 };
+    });
+    await expect(writeAllToLocalFile("/external/existing.bin", content(), vi.fn())).rejects.toThrow("permission denied");
+  });
+});
+
+describe("fixed peer download identity", () => {
+  it("retains the workspace and SSH identity on every request", async () => {
+    const requestPeerCommand = vi.fn()
+      .mockResolvedValueOnce({ resp: "file_info", size: 2 })
+      .mockResolvedValueOnce({ resp: "file_chunk", offset: 0, chunk_size: 1, total_size: 2, chunk_base64: "AQ==", revision: "r1" })
+      .mockResolvedValueOnce({ resp: "file_chunk", offset: 1, chunk_size: 1, total_size: 2, chunk_base64: "Ag==", revision: "r1" });
+    const adapter = { requestPeerCommand } as unknown as Parameters<typeof readPeerFileChunks>[0];
+    const bytes: number[] = [];
+    for await (const chunk of readPeerFileChunks(adapter, "/workspace/file", vi.fn(), {workspace_path: "/workspace", remote_connection_id: "saved-ssh"})) bytes.push(...chunk);
+    expect(bytes).toEqual([1, 2]);
+    for (const [request] of requestPeerCommand.mock.calls) {
+      expect(request).toMatchObject({path: "/workspace/file", workspace_path: "/workspace", remote_connection_id: "saved-ssh", session_id: null});
+    }
+  });
+
+  it("rejects changed revisions before installing mixed content", async () => {
+    const requestPeerCommand = vi.fn()
+      .mockResolvedValueOnce({ resp: "file_info", size: 2 })
+      .mockResolvedValueOnce({ resp: "file_chunk", offset: 0, chunk_size: 1, total_size: 2, chunk_base64: "AQ==", revision: "r1" })
+      .mockResolvedValueOnce({ resp: "file_chunk", offset: 1, chunk_size: 1, total_size: 2, chunk_base64: "Ag==", revision: "r2" });
+    const adapter = { requestPeerCommand } as unknown as Parameters<typeof readPeerFileChunks>[0];
+    const stream = readPeerFileChunks(adapter, "/workspace/file", vi.fn(), {workspace_path: "/workspace"});
+    await stream.next();
+    await expect(stream.next()).rejects.toThrow("changed during download");
   });
 });

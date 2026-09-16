@@ -4,6 +4,7 @@ import {
   Input,
   Textarea,
   Dialog,
+  Disclosure,
   DialogBody,
   DialogClose,
   DialogHeader,
@@ -362,12 +363,13 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                 {t('nav.workspaces.relatedPaths.dialog.externalDescription')}
               </div>
               {externalReferenceDiagnostics.length > 0 ? (
-                <details className="workspace-related-paths-dialog__diagnostics">
-                  <summary>
-                    {t('nav.workspaces.relatedPaths.dialog.externalDiagnostics', {
-                      count: externalReferenceDiagnostics.length,
-                    })}
-                  </summary>
+                <Disclosure
+                  presentation="native"
+                  className="workspace-related-paths-dialog__diagnostics"
+                  summary={t('nav.workspaces.relatedPaths.dialog.externalDiagnostics', {
+                    count: externalReferenceDiagnostics.length,
+                  })}
+                >
                   <ul>
                     {externalReferenceDiagnostics.map((diagnostic, index) => (
                       <li key={`${diagnostic.code}-${index}`}>
@@ -375,7 +377,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                       </li>
                     ))}
                   </ul>
-                </details>
+                </Disclosure>
               ) : null}
               {externalReferencesLoading ? (
                 <div className="workspace-related-paths-dialog__empty">

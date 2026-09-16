@@ -14,7 +14,7 @@ import { OverflowText,
   DialogTitle,
 } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Bot } from 'lucide-react';
+import { Archive } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
 import type { SessionMetadata } from '@/shared/types/session-history';
@@ -419,7 +419,7 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
                             <span data-openbitfun-component="workspace-session-batch-modal" data-openbitfun-part="rowContent" className="workspace-session-batch-modal__row-content">
                               <span className="workspace-session-batch-modal__row-icon">
                                 {sessionPresentation === 'assistant'
-                                  ? <Icon glyph={Bot} size="sm" />
+                                  ? <Icon name="user" size="sm" />
                                   : <Icon name="session" size="sm" />}
                               </span>
                               <span className="workspace-session-batch-modal__row-head">

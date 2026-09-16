@@ -9,6 +9,55 @@
   background: var(--openbitfun-color-surface-chrome);
 }
 
+@mixin sidebar-glass {
+  @include sidebar-background;
+
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, var(--openbitfun-color-surface-chrome) 75%, transparent);
+    -webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);
+    backdrop-filter: var(--openbitfun-effect-blur-medium);
+    box-shadow: var(--openbitfun-shadow-inner-highlight);
+  }
+
+  :root[data-openbitfun-native-material='sidebar'] & {
+    background: color-mix(in srgb, var(--openbitfun-color-surface-chrome) 75%, transparent);
+    // The OS blurs desktop pixels; a CSS backdrop only sees the webview.
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    &,
+    :root[data-openbitfun-native-material='sidebar'] & {
+      @include sidebar-background;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      box-shadow: none;
+    }
+  }
+
+  :root[data-contrast='high'] & {
+    @include sidebar-background;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+// Controls tint the shared material instead of covering it with another panel.
+// Keep accessibility fallbacks local so hover/selected states also stay solid.
+@mixin sidebar-overlay($surface, $opacity: 18%) {
+  background: color-mix(in srgb, #{$surface} $opacity, transparent);
+
+  :root[data-contrast='high'] & {
+    background: $surface;
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    background: $surface;
+  }
+}
+
 @mixin navigation-hover-feedback {
   background: var(--openbitfun-color-action-neutral-surface);
 }

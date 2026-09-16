@@ -135,6 +135,11 @@ export function AccountIdentityControls({
   };
 
   const signIn = async () => {
+    if (account.status === 'authorizing') {
+      try { await accountIdentityService.reopenSignIn(); }
+      catch (error) { notification.error(t('market.messages.authFailed', { error: String(error) })); }
+      return;
+    }
     startedHere.current = true;
     try {
       await accountIdentityService.signIn();
@@ -184,18 +189,20 @@ export function AccountIdentityControls({
             data-openbitfun-part="identityTrigger"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            aria-label={t('market.account.menuLabel', { login: account.me.user.login })}
+            aria-label={t('market.account.menuLabel', { login: account.me.email ?? account.me.user.login })}
             onClick={() => setMenuOpen(open => !open)}
           >
-            <Avatar size="sm" src={account.me.user.avatarUrl} alt={account.me.user.login} />
-            <OverflowText className="market-account-controls__identity-name">@{account.me.user.login}</OverflowText>
+            <Avatar key={account.me.email ?? account.me.user.login} size="sm" src={account.me.user.avatarUrl} alt={account.me.email ?? account.me.user.login} aria-label={account.me.email ?? account.me.user.login}>
+              {(account.me.email ?? account.me.user.login).trim().charAt(0).toUpperCase() || <Icon name="user" />}
+            </Avatar>
+            <OverflowText className="market-account-controls__identity-name">{account.me.email ?? `@${account.me.user.login}`}</OverflowText>
             <Icon name="chevron-down" size="xs" aria-hidden="true" />
           </button>
           {menuOpen && createPortal(
             <Menu
               ref={menuPanelRef}
               className="market-account-controls__menu"
-              aria-label={t('market.account.menuLabel', { login: account.me.user.login })}
+              aria-label={t('market.account.menuLabel', { login: account.me.email ?? account.me.user.login })}
               style={{
                 top: `${menuPosition?.top ?? 0}px`,
                 left: `${menuPosition?.left ?? 0}px`,
@@ -207,9 +214,11 @@ export function AccountIdentityControls({
                 data-openbitfun-component="market-account-controls"
                 data-openbitfun-part="profile"
               >
-                <Avatar size="md" src={account.me.user.avatarUrl} alt={account.me.user.login} />
+                <Avatar key={account.me.email ?? account.me.user.login} size="md" src={account.me.user.avatarUrl} alt={account.me.email ?? account.me.user.login} aria-label={account.me.email ?? account.me.user.login}>
+              {(account.me.email ?? account.me.user.login).trim().charAt(0).toUpperCase() || <Icon name="user" />}
+            </Avatar>
                 <div>
-                  <strong><OverflowText>@{account.me.user.login}</OverflowText></strong>
+                  <strong><OverflowText>{account.me.email ?? `@${account.me.user.login}`}</OverflowText></strong>
                   <OverflowText>{t('market.account.githubAccount')}</OverflowText>
                 </div>
               </div>
@@ -227,7 +236,7 @@ export function AccountIdentityControls({
         <Button
           size="sm"
           variant="outline"
-          disabled={!account.resolved || account.status === 'authorizing'}
+          disabled={!account.resolved}
           onClick={() => setLoginOpen(true)}
         >
           {!account.resolved || account.status === 'authorizing'
@@ -294,14 +303,13 @@ export function AccountIdentityControls({
             </Button>
             <Button
               variant="primary"
-              disabled={account.status === 'authorizing'}
               onClick={() => void signIn()}
             >
               {account.status === 'authorizing'
                 ? <Loader2 size={14} className="market-account-controls__spinner" />
                 : <Github size={14} />}
               {account.status === 'authorizing'
-                ? t('market.account.authorizing')
+                ? t('market.account.reopen')
                 : t('market.account.continue')}
             </Button>
           </div>

@@ -21,6 +21,16 @@ const FAILED_BUILD = { status: 1 };
 const DMG_ARGS = ['--target', 'x86_64-apple-darwin', '--bundles', 'app,dmg'];
 const ROOT = join(import.meta.dirname, '..');
 
+test('Windows desktop manifest opts into layered child windows and preserves common controls', () => {
+  const desktop = join(ROOT, 'src', 'apps', 'desktop');
+  const manifest = readFileSync(join(desktop, 'windows-app.manifest'), 'utf8');
+  const build = readFileSync(join(desktop, 'build.rs'), 'utf8');
+  assert.match(build, /app_manifest\(include_str!\("windows-app\.manifest"\)\)/);
+  assert.match(build, /rerun-if-changed=windows-app\.manifest/);
+  assert.match(manifest, /name="Microsoft\.Windows\.Common-Controls"[\s\S]*?version="6\.0\.0\.0"/);
+  assert.match(manifest, /<compatibility xmlns="urn:schemas-microsoft-com:compatibility\.v1">[\s\S]*?<application>[\s\S]*?<supportedOS Id="\{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a\}"/);
+});
+
 test('Desktop packaging selects the Web font profile from its target triple', () => {
   const appleEnv = { [WEB_FONT_PROFILE_ENV]: HARMONY_BUNDLED_FONT_PROFILE };
   assert.equal(

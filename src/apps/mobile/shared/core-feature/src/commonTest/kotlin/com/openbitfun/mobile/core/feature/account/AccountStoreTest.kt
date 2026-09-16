@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.DeserializationStrategy
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -20,6 +21,39 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountStoreTest {
+    @Test fun directoryNotificationsRefreshMembershipWithoutAPeriodicPoll() = runTest {
+        val changes = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+        val backend = FakeAccountBackend().apply { directoryEvents = changes }
+        val store = AccountStore.create(this, backend, MemorySecureStore(), "phone-1", "Android")
+        store.dispatch(AccountIntent.Login); advanceUntilIdle()
+        val before = backend.listRequests
+        backend.desktop2Online = true; changes.emit(Unit); advanceUntilIdle()
+        assertEquals(before + 1, backend.listRequests)
+        assertTrue(assertIs<AccountUiState.Ready>(store.state.value).devices.single { it.id == "desktop-2" }.online)
+        advanceTimeBy(120_000); advanceUntilIdle()
+        assertEquals(before + 1, backend.listRequests)
+        store.stop(); changes.emit(Unit); advanceUntilIdle()
+        assertEquals(before + 1, backend.listRequests)
+    }
+
+    @Test fun oldOfficialRelayTokenIsRetainedButNeverSentToNewRelay() = runTest {
+        val secure = MemorySecureStore(); val backend = FakeAccountBackend()
+        val first = AccountStore.create(this, backend, secure, "phone-1", "Android")
+        first.dispatch(AccountIntent.Login); advanceUntilIdle()
+        val old = secure.read("github_device_session_v1")!!.decodeToString().replace(AccountDefaults.CLOUD_RELAY_URL, "https://remote.openbitfun.com/v/retired")
+        secure.write("github_device_session_v1", old.encodeToByteArray())
+        val requests = backend.listRequests
+        val restored = AccountStore.create(this, backend, secure, "phone-1", "Android")
+        restored.dispatch(AccountIntent.Restore); advanceUntilIdle()
+        val state = assertIs<AccountUiState.Failed>(restored.state.value)
+        assertEquals(AccountFailureReason.AUTHENTICATION, state.reason)
+        assertEquals(requests, backend.listRequests)
+        assertEquals(old, secure.read("github_device_session_v1")!!.decodeToString())
+        restored.dispatch(AccountIntent.Login); advanceUntilIdle()
+        assertEquals(AccountDefaults.CLOUD_RELAY_URL, backend.lastLoginRelay)
+        assertIs<AccountUiState.Ready>(restored.state.value)
+    }
+
     @Test
     fun enrichesExistingAccountAndRetainsIdentityAndCacheOffline() = runTest {
         val secure = MemorySecureStore()
@@ -512,7 +546,12 @@ private fun CloudAccountFailure.toExpectedReason(): AccountFailureReason = when 
 }
 
 private class FakeAccountBackend : AccountBackend {
+    var directoryEvents: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow()
+    override fun directoryChanges(session: AccountSessionData) = directoryEvents
+
     var userId = "user-id"
+    var listRequests = 0
+    var lastLoginRelay = ""
     var profileResult: com.openbitfun.mobile.core.transport.GitHubProfile? = null
     var profileLoads = 0
     override suspend fun profile(userId: String): com.openbitfun.mobile.core.transport.GitHubProfile? {
@@ -535,10 +574,11 @@ private class FakeAccountBackend : AccountBackend {
         deviceSecret: ByteArray,
         onAuthorization: (String) -> Unit,
     ): AccountSessionData {
+        lastLoginRelay = relayUrl
         loginThrowable?.let { throw it }
         failure?.let { throw CloudAccountException(it) }
         return AccountSessionData(
-            "https://remote.openbitfun.com/v/1.0.0",
+            "https://remote.openbitfun.com/v/1.0.1",
             "user",
             "token",
             userId,
@@ -549,6 +589,7 @@ private class FakeAccountBackend : AccountBackend {
     }
 
     override suspend fun listDevices(session: AccountSessionData, selfDeviceId: String): List<AccountDeviceUi> {
+        listRequests++
         listThrowable?.let { throw it }
         listFailure?.let { throw CloudAccountException(it) }
         // The shape the live account returns: this device, one of the user's

@@ -6,6 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
@@ -186,8 +190,23 @@ class ConversationViewTest {
     fun conversationWithNoTimelineShowsLoadingStateInsteadOfBlankSurface() {
         setConversationContent(state = { readyState() })
 
+        composeRule.mainClock.advanceTimeBy(200)
         composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.chat_empty_loading)).assertIsDisplayed()
+    }
+
+    @Test
+    fun loadingDefersSkeletonAndNeverShowsAConnectionStrip() {
+        composeRule.mainClock.autoAdvance = false
+        setConversationContent(
+            state = { readyState(sessionId = "pending").copy(busy = true) },
+            phase = ConnectionPhase.RECONNECTING,
+        )
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(CHAT_STATUS_BAR_TEST_TAG).assertDoesNotExist()
+        composeRule.mainClock.advanceTimeBy(200)
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(CHAT_STATUS_BAR_TEST_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -233,12 +252,13 @@ class ConversationViewTest {
     }
 
     @Test
-    fun sendUsesTheStoreDraftAndDoesNotFakeClearIt() {
+    fun acceptedSendClearsImmediatelyAndFailureRestoresDraft() {
         val intents = mutableListOf<RemoteSessionIntent>()
 
+        val state = mutableStateOf(readyState(sessionId = "s-code", draft = "send me"))
         setConversationContent(
-            state = { readyState(sessionId = "s-code", draft = "send me") },
-            onIntent = { intents += it },
+            state = { state.value },
+            onIntent = { intents += it; state.value = state.value.copy(busy = true) },
         )
 
         composeRule.onNodeWithTag(COMPOSER_SEND_TEST_TAG).performClick()
@@ -247,6 +267,11 @@ class ConversationViewTest {
             listOf<RemoteSessionIntent>(RemoteSessionIntent.SendMessage("s-code", "send me", null)),
             intents,
         )
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
+        )
+        composeRule.runOnIdle { state.value = state.value.copy(busy = false) }
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertTextEquals("send me")
     }
 
     @Test
@@ -298,13 +323,14 @@ class ConversationViewTest {
 
     private fun setConversationContent(
         state: () -> RemoteSessionUiState.Ready,
+        phase: ConnectionPhase = ConnectionPhase.CONNECTED,
         onIntent: (RemoteSessionIntent) -> Unit = {},
     ) {
         composeRule.setContent {
             OpenBitFunTheme(dark = false) {
                 ConversationView(
                     state = state(),
-                    phase = ConnectionPhase.CONNECTED,
+                    phase = phase,
                     settingsPlacement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0),
                     onBack = {},
                     onIntent = onIntent,
@@ -379,6 +405,7 @@ class ConversationViewTest {
         pending = false,
         showRetry = false,
         error = null,
+        live = false,
     )
 
     private fun string(resource: Int): String =

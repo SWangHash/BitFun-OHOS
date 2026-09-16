@@ -130,6 +130,9 @@ export struct WideConversationHost {
     Column() {
       Column() {
         AppSidebar({
+      toolLocations: this.remotePageState.savedConnectionsTargetId === this.remotePageState.controlTargetDeviceId ? this.remotePageState.savedConnections : [],
+      onWorkspaceTools: this.actions.onWorkspaceTools,
+      controlTargetDeviceId: this.remotePageState.controlTargetDeviceId,
           connectionState: this.remotePageState.connectionState,
           accountUserId: this.remotePageState.accountUserId,
           showCollapseButton: true,
@@ -166,9 +169,13 @@ export struct WideConversationHost {
   @Builder
   private WorkspaceMasterContent() {
     SidebarWorkspaceSection({
+      workspaceTools: this.remotePageState.workspaceTools,
+      onWorkspaceTools: this.actions.onWorkspaceTools,
       directoryState: this.deviceDirectoryState,
       sessions: this.remotePageState.visibleSessions(),
       recentWorkspaces: this.remotePageState.recentWorkspaces,
+      savedConnections: this.remotePageState.savedConnections,
+      savedConnectionsTargetId: this.remotePageState.savedConnectionsTargetId,
       workspaceName: this.remotePageState.workspaceName,
       workspacePath: this.remotePageState.workspacePath,
       workspaceKind: this.remotePageState.workspaceKind,
@@ -184,11 +191,11 @@ export struct WideConversationHost {
         REMOTE_CAPABILITY_HARNESS_PROFILES_V1),
       workspacePickerPlacement: this.sessionDetailsPlacement,
       onOpenSession: this.actions.onRemoteHome.openSessionInPlace,
-      onCreateInWorkspace: (deviceId: string, path: string, agentType: string) => {
-        this.actions.onRemoteHome.createInWorkspaceInPlace(path, agentType, deviceId);
+      onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string) => {
+        this.actions.onRemoteHome.createInWorkspaceInPlace(path, agentType, deviceId, connectionId);
       },
-      onOpenWorkspace: (deviceId: string, path: string) => {
-        this.actions.onRemoteHome.selectWorkspace(path, deviceId);
+      onOpenWorkspace: (deviceId: string, path: string, connectionId?: string) => {
+        this.actions.onRemoteHome.selectWorkspace(path, deviceId, connectionId);
       },
       onExpandWorkspace: async (deviceId: string, path: string): Promise<void> => {
         await this.actions.onRemoteHome.loadWorkspaceSessions(deviceId, path);

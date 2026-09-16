@@ -152,11 +152,13 @@ test('small icons retain a bright rim around the entire silhouette', async () =>
   }
 });
 
-test('desktop tray reuses the configured application icon', () => {
+test('desktop tray uses a macOS template and the application icon on other platforms', () => {
   const source = readFileSync('src/apps/desktop/src/tray.rs', 'utf8');
-  assert.match(source, /default_window_icon\(\)/);
+  assert.match(source, /#\[cfg\(target_os = "macos"\)\]\s*let icon = macos_tray_icon\(false\)\?/);
+  assert.match(source, /#\[cfg\(not\(target_os = "macos"\)\)\]\s*let icon = app\s*\.default_window_icon\(\)/);
   assert.doesNotMatch(source, /openbitfun-tray-template/);
-  assert.doesNotMatch(source, /icon_as_template/);
+  assert.match(source, /\.icon_as_template\(cfg!\(target_os = "macos"\)\)/);
+  assert.match(source, /tray\.set_icon_with_as_template\(Some\(icon\), true\)/);
 });
 
 test('browser entry points reference generated application favicons', () => {
@@ -203,4 +205,17 @@ test('ICNS canonicalization rejects malformed containers', () => {
 
   const truncated = createIcns([createChunk('ic07', Buffer.from('small'))]).subarray(0, -1);
   assert.throws(() => canonicalizeIcns(truncated), /Invalid ICNS length/);
+});
+
+test('verification email reuses the current mark and the OpenBitFun reference palette', () => {
+  const emailMark = readFileSync('src/miniapp-market-web/public/assets/openbitfun-email-app-icon.png');
+  assert.deepEqual(emailMark, readFileSync('src/web-ui/public/brand/openbitfun-app-icon.png'));
+  assert.deepEqual(emailMark, readFileSync('src/crates/services/miniapp-market-service/src/email/app-icon.png'));
+  const html = readFileSync('src/crates/services/miniapp-market-service/src/email/sign-in.html', 'utf8');
+  const tokens = JSON.parse(readFileSync('design-system/packages/theme-openbitfun/src/reference.tokens.json', 'utf8'));
+  const palette = new Set([...Object.values(tokens.ref.color.neutral), ...Object.values(tokens.ref.color.cyan)]
+    .map(token => token?.$value).filter(Boolean));
+  for (const [color] of html.matchAll(/#[0-9a-f]{6}\b/g)) assert.ok(palette.has(color), `Email color ${color} must come from the existing neutral/cyan palette`);
+  assert.match(html, /src="cid:openbitfun-app-icon"/);
+  assert.doesNotMatch(html, /<script|<form|data:image|\?[^\s]*\{\{code\}\}/i);
 });

@@ -91,12 +91,6 @@ vi.mock('./components/ToolGroupPicker', () => ({
 
 vi.mock('@openbitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@openbitfun/ui')>(),
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>{children}</button>
-  ),
-  IconButton: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>{children}</button>
-  ),
   Select: () => <div />,
   Switch: () => <input type="checkbox" readOnly />,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -108,7 +102,6 @@ vi.mock('@/infrastructure/confirm-dialog', async (importOriginal) => ({
 }));
 
 vi.mock('@/app/components', () => ({
-  GalleryDetailModal: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   GalleryEmpty: () => <div />,
   GalleryGrid: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   GalleryLayout: ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -215,6 +208,7 @@ describeWithJsdom('AgentsScene', () => {
     vi.stubGlobal('document', window.document);
     vi.stubGlobal('navigator', window.navigator);
     vi.stubGlobal('HTMLElement', window.HTMLElement);
+    vi.stubGlobal('Node', window.Node);
     vi.stubGlobal('MutationObserver', window.MutationObserver);
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -347,25 +341,42 @@ describeWithJsdom('AgentsScene', () => {
         ?.click();
     });
 
-    expect(container.querySelector('[data-testid="agent-detail-configuration"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="agent-detail-overview"]')).toBeNull();
-    expect(container.querySelector('.agent-card__detail-view-tabs')).toBeNull();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog?.getAttribute('aria-labelledby')).toBe(
+      document.querySelector('[data-testid="agent-detail-title"]')?.id,
+    );
+    expect(dialog?.querySelector('[role="tablist"]')).toBeTruthy();
+    expect(dialog?.querySelector('[data-testid="agent-detail-description"]')?.textContent)
+      .toBe(subagent.description);
+    expect(dialog?.querySelector('[data-testid="agent-detail-capabilities-section"]')).toBeNull();
 
-    const skillsTab = container.querySelector<HTMLButtonElement>('[data-detail-section="skills"]');
+    const skillsTab = dialog?.querySelector<HTMLButtonElement>('[data-detail-section="skills"]');
     expect(skillsTab).toBeTruthy();
 
     await act(async () => {
       skillsTab?.click();
     });
-    expect(container.querySelector('[data-testid="agent-detail-skill-summary"]')).toBeTruthy();
+    expect(dialog?.querySelector('[data-testid="agent-detail-skill-summary"]')).toBeTruthy();
+    expect(skillsTab?.getAttribute('aria-selected')).toBe('true');
+    expect(dialog?.querySelector('[role="tabpanel"]')?.id)
+      .toBe(skillsTab?.getAttribute('aria-controls'));
 
-    const manageButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+    const manageButton = Array.from(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])
       .find((button) => button.textContent === 'manage');
     expect(manageButton).toBeTruthy();
     await act(async () => {
       manageButton?.click();
     });
-    expect(container.querySelector('[data-testid="agent-detail-skill-groups"]')).toBeTruthy();
+    expect(dialog?.querySelector('[data-testid="agent-detail-skill-groups"]')).toBeTruthy();
+    const footer = dialog?.querySelector(':scope > footer');
+    expect(footer?.getAttribute('data-appearance')).toBe('floating');
+    expect(footer?.previousElementSibling?.getAttribute('role')).toBe('tabpanel');
+    const cancelButton = Array.from(footer?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => button.textContent === 'agentsOverview.cancel');
+    expect(cancelButton).toBeTruthy();
+    await act(async () => { cancelButton?.click(); });
+    expect(dialog?.querySelector('footer')).toBeNull();
+    expect(dialog?.querySelector('[data-testid="agent-detail-skill-summary"]')).toBeTruthy();
   });
 
   it('keeps MCP tools out of mode cards and tool details', async () => {
@@ -416,10 +427,10 @@ describeWithJsdom('AgentsScene', () => {
     });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-detail-section="tools"]')?.click();
+      document.querySelector<HTMLButtonElement>('[data-detail-section="tools"]')?.click();
     });
 
-    const summary = container.querySelector('[data-testid="agent-detail-tool-summary"]');
+    const summary = document.querySelector('[data-testid="agent-detail-tool-summary"]');
     expect(summary?.textContent).toBe('Read');
     expect(summary?.textContent).not.toContain('mcp__github__list_issues');
   });
@@ -465,13 +476,13 @@ describeWithJsdom('AgentsScene', () => {
         ?.click();
     });
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-detail-section="tools"]')
+      document.querySelector<HTMLButtonElement>('[data-detail-section="tools"]')
         ?.click();
     });
 
-    const status = container.querySelector('[data-testid="agent-detail-tools-catalog-status"]');
+    const status = document.querySelector('[data-testid="agent-detail-tools-catalog-status"]');
     expect(status?.textContent).toContain('agentsOverview.toolsUnsupported');
     // The tool summary picker must not render — the catalog is not available.
-    expect(container.querySelector('[data-testid="agent-detail-tool-summary"]')).toBeNull();
+    expect(document.querySelector('[data-testid="agent-detail-tool-summary"]')).toBeNull();
   });
 });

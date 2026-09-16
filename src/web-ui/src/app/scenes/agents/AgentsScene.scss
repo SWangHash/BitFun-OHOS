@@ -1,5 +1,5 @@
 // Keep controls aligned with their surfaces while retaining color and label motion.
-:is(.openbitfun-agents-scene, .agent-detail-modal) :is(button, [role='button']):active {
+:is(.openbitfun-agents-scene, .agent-detail-dialog) :is(button, [role='button']):active {
   scale: none;
 }
 
@@ -238,10 +238,6 @@
     transform: translate(-100%, -50%);
   }
 
-  &__subagent-model-select {
-    width: min(280px, 100%);
-    max-width: 100%;
-  }
 }
 
 @container agents-scene (max-width: 720px) {

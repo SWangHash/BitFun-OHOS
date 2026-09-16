@@ -5,11 +5,11 @@ export async function ensureAccountSession(
     accountLogin(): Promise<unknown>;
   },
   isCurrent: () => boolean,
-  githubId: number,
+  accountId: string | number,
 ): Promise<boolean> {
   if (!isCurrent()) return false;
   const status = await api.accountStatus();
   if (!isCurrent()) return false;
-  if (!status.logged_in || status.user_id !== String(githubId)) await api.accountLogin();
+  if (!status.logged_in || status.user_id !== String(accountId)) await api.accountLogin();
   return isCurrent();
 }

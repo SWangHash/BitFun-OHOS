@@ -10,6 +10,131 @@ import kotlin.test.assertTrue
 
 class ChatTimelineStoreTest {
     @Test
+    fun oneAliasPairAcknowledgesOnlyOneRepeatedLegacySend() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        store.appendOptimisticMessage(message("local-1", "user", "same"))
+        store.appendOptimisticMessage(message("local-2", "user", "same"))
+        val provisional = message("t-user", "user", "same").copy(turnId = "t")
+        store.mergePersistedMessages(listOf(provisional, provisional.copy(id = "durable")))
+        assertEquals(listOf("durable"), store.snapshot().persistedMessages.map { it.id })
+        assertEquals(listOf("local-2"), store.snapshot().optimisticMessages.map { it.id })
+    }
+
+    @Test
+    fun durableUserReplacesLiveTurnPlaceholderBeforeReplyEnds() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        val provisional = message("turn-live-user", "user", "hello").copy(turnId = "turn-live")
+        val durable = provisional.copy(id = "user_remote_123")
+        store.mergePersistedMessages(listOf(provisional))
+        store.setActiveTurn(message("active-turn-live", "assistant", "Thinking", "active").copy(turnId = "turn-live"))
+        store.mergePersistedMessages(listOf(durable))
+        assertEquals(listOf(durable), store.snapshot().persistedMessages)
+        assertEquals(1, store.project(false).count { it.message?.role == "user" })
+        assertTrue(store.snapshot().activeTurn != null)
+        store.mergePersistedMessages(listOf(provisional.copy(text = "stale")))
+        assertEquals(listOf(durable), store.snapshot().persistedMessages)
+        store.setPersistedMessages(listOf(provisional, durable))
+        assertEquals(listOf(durable), store.snapshot().persistedMessages)
+        store.setPersistedMessages(listOf(durable, provisional))
+        assertEquals(listOf(durable), store.snapshot().persistedMessages)
+    }
+
+    @Test
+    fun provisionalAliasReplayCannotConsumeAnotherIdenticalSend() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        val provisional = message("t-user", "user", "same").copy(turnId = "t")
+        store.setPersistedMessages(listOf(provisional.copy(id = "durable")))
+        store.appendOptimisticMessage(message("local-new", "user", "same"))
+        store.mergePersistedMessages(listOf(provisional))
+        assertEquals(listOf("local-new"), store.snapshot().optimisticMessages.map { it.id })
+    }
+
+    @Test
+    fun distinctDurableMessagesAndTurnsNeverCollapseByContent() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        val first = message("durable-1", "user", "same").copy(turnId = "t")
+        val second = first.copy(id = "durable-2")
+        val otherTurn = first.copy(id = "other-user", turnId = "other")
+        val legacy = first.copy(id = "t-user", turnId = null)
+        store.mergePersistedMessages(listOf(first, second, otherTurn, legacy))
+        assertEquals(listOf(first, second, otherTurn, legacy), store.snapshot().persistedMessages)
+    }
+
+    @Test
+    fun legacyTopLevelToolSnapshotsRetainMetadataAndDoNotRegress() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        val turn = message("active-t", "assistant", "", "active").copy(turnId = "t")
+        store.setActiveTurn(turn.copy(tools = listOf(
+            RemoteToolStatusResponse(id = "tool", name = "Task", status = "running", inputPreview = "Inspect"))))
+        store.setActiveTurn(turn.copy(tools = listOf(
+            RemoteToolStatusResponse(id = "tool", status = "completed", resultPreview = "Done"))))
+        store.setActiveTurn(turn.copy(tools = listOf(
+            RemoteToolStatusResponse(id = "tool", status = "running"))))
+        store.setActiveTurn(turn.copy(tools = emptyList()))
+        val tool = store.snapshot().activeTurn!!.tools!!.single()
+        assertEquals("Task", tool.name)
+        assertEquals("Inspect", tool.inputPreview)
+        assertEquals("completed", tool.status)
+        assertEquals("Done", tool.resultPreview)
+    }
+
+    @Test
+    fun delayedSendAckDoesNotResurrectCompletedReply() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        store.appendOptimisticMessage(message("local", "user", "hello").copy(turnId = "client"))
+        store.setPendingActiveTurn("local")
+        store.mergePersistedMessages(listOf(
+            message("user-final", "user", "hello").copy(turnId = "host"),
+            message("answer", "assistant", "Finished", "completed").copy(turnId = "host"),
+        ))
+        store.acknowledgeOptimisticTurn("local", "host")
+        store.setLocalActiveTurn("host")
+        assertNull(store.snapshot().activeTurn)
+        assertTrue(store.snapshot().optimisticMessages.isEmpty())
+        assertEquals(ChatSyncPhase.IDLE, store.snapshot().syncPhase)
+    }
+
+    @Test
+    fun turnAcknowledgementHandlesOldHostAndPollBeforeAckWithoutConsumingAnotherSend() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        store.appendOptimisticMessage(message("local-1", "user", "same").copy(turnId = "client-1"))
+        store.appendOptimisticMessage(message("local-2", "user", "same").copy(turnId = "client-2"))
+        store.mergePersistedMessages(listOf(message("server", "user", "same").copy(turnId = "host-1")))
+        assertEquals(2, store.snapshot().optimisticMessages.size)
+        store.acknowledgeOptimisticTurn("local-1", "host-1")
+        assertEquals(listOf("local-2"), store.snapshot().optimisticMessages.map { it.id })
+        store.acknowledgeOptimisticTurn("local-2", "host-2")
+        store.mergePersistedMessages(listOf(message("server-2", "user", "same").copy(turnId = "host-2")))
+        assertTrue(store.snapshot().optimisticMessages.isEmpty())
+    }
+
+    @Test
+    fun partialToolCompletionRetainsInvocationAndOutput() {
+        val store = ChatTimelineStore()
+        store.reset("s")
+        val running = RemoteToolStatusResponse(id = "tool", name = "Task", status = "running",
+            inputPreview = "Inspect files", stdout = "progress")
+        store.setActiveTurn(message("active-t", "assistant", "", "active").copy(
+            turnId = "t", items = listOf(ChatMessageItemResponse(type = "tool", tool = running))))
+        store.setActiveTurn(message("active-t", "assistant", "", "active").copy(
+            turnId = "t", items = listOf(ChatMessageItemResponse(type = "tool",
+                tool = RemoteToolStatusResponse(id = "tool", status = "completed", resultPreview = "done")))))
+        val tool = store.snapshot().activeTurn!!.items!!.single().tool!!
+        assertEquals("completed", tool.status)
+        assertEquals("Task", tool.name)
+        assertEquals("Inspect files", tool.inputPreview)
+        assertEquals("progress", tool.stdout)
+        assertEquals("done", tool.resultPreview)
+    }
+
+    @Test
     fun ownsOptimisticMergeAndActiveTurnCleanupRules() {
         val store = ChatTimelineStore()
         store.reset("session-1")

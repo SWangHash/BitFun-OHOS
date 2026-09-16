@@ -81,7 +81,7 @@ internal fun WelcomeHome(onLogin: () -> Unit, onScan: () -> Unit, signedIn: Bool
                 .padding(start = G.WelcomeGutter, end = G.WelcomeGutter, top = G.WelcomeGutter, bottom = G.WelcomeDockBottom), verticalArrangement = Arrangement.spacedBy(G.WelcomeButtonGap)) {
                 WelcomeAction(stringResource(if (signedIn) R.string.sidebar_connect_desktop else R.string.welcome_login), onLogin)
                 WelcomeAction(stringResource(R.string.welcome_scan), onScan, scan = true)
-                com.openbitfun.mobile.app.ui.miniapps.MiniAppsButton()
+                com.openbitfun.mobile.app.ui.miniapps.MiniAppsButton(contentColor = MobileDesignColors.Light.WelcomeButton)
             }
         }
     }

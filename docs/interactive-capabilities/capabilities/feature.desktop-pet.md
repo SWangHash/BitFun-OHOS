@@ -3,29 +3,29 @@
 id: feature.desktop-pet
 kind: feature
 category: application
-title_zh: "Agent 桌面伙伴"
+title_zh: "智能体桌面伙伴"
 title_en: "Agent desktop companion"
 ---
 
-# Agent 桌面伙伴 / Agent desktop companion
+# 智能体桌面伙伴 / Agent desktop companion
 
 > 功能 / Feature
 
-在桌面上显示 Agent 伙伴，并选择、导入或管理 Petdex 角色包。
+在桌面上显示智能体伙伴，并选择、导入或管理 Petdex 角色包。
 
 Show an agent companion on the desktop, and choose, import, or manage Petdex character packs.
 
 ## 完整功能清单 / Everything included
 
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 整体启用或停用 Agent 桌面伙伴
+- **由专用智能体工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 整体启用或停用智能体桌面伙伴
   - Enable or disable the agent desktop companion globally
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 查看并切换内置或已导入的 Petdex 角色
+- **由专用智能体工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 查看并切换内置或已导入的 Petdex 角色
   - Browse and switch among built-in or imported Petdex characters
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 从本地 Petdex 包导入并使用新的角色与动画
+- **由专用智能体工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 从本地 Petdex 包导入并使用新的角色与动画
   - Import and use a new character and animations from a local Petdex package
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 删除已导入的 Petdex 包并回退到可用角色
+- **由专用智能体工具控制 / Delegated Agent tool** · `OpenBitFunControl` · 删除已导入的 Petdex 包并回退到可用角色
   - Delete an imported Petdex package and fall back to an available character
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 显示、隐藏和调整独立桌面伙伴窗口大小，并可回到主窗口
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 显示、隐藏和调整独立桌面伙伴窗口大小，并可回到主窗口
   - Show, hide, and resize the desktop companion window, and return to the main window
 
 ## 怎么用 / How to use it
@@ -39,7 +39,7 @@ Show an agent companion on the desktop, and choose, import, or manage Petdex cha
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -53,13 +53,13 @@ Show an agent companion on the desktop, and choose, import, or manage Petdex cha
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开桌面宠物设置”
   - “Open desktop-pet settings”
-- “带我配置 Agent 伙伴”
+- “带我配置智能体伙伴”
   - “Take me to agent-companion setup”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -48,7 +48,12 @@ Mobile web is the browser-based remote control client for OpenBitFun desktop ses
 Run the focused mobile-web checks after changes:
 
 ```bash
+pnpm --dir src/mobile-web run test:runtime-files # streaming file sinks and resumable uploads
+pnpm --dir src/mobile-web run test:interaction-mailbox # independent question/permission owner
+pnpm --dir src/mobile-web run test:terminal-browser # real xterm keyboard, ANSI and native bridge
 pnpm --dir src/mobile-web run test:ui-components
+pnpm --dir src/mobile-web run test:session-stream-browser # real IndexedDB latest/backward pages and visibility catch-up
+pnpm --dir src/mobile-web run test:realtime-sync # ordered live updates, gap recovery, replica failures
 pnpm --dir src/mobile-web run test:account-login # account login without an online desktop
 pnpm --dir src/mobile-web run test:account-browser # real Chrome tabs, persistence, migration, races; simulated Relay
 pnpm --dir src/mobile-web run test:images # image preparation and upload limits
@@ -67,3 +72,9 @@ The browser suite uses an installed Chrome/Chromium (or
 `PUPPETEER_EXECUTABLE_PATH`) with disposable profiles. It never uses the user's
 browser profile or live GitHub credentials. See [README.md](README.md) for the
 account scope and the live-host verification flow.
+
+For browser file transfer sink backpressure, target switches, and partial-write aborts:
+
+```bash
+node --test src/mobile-web/tests/runtime-file-download.test.mjs src/mobile-web/tests/runtime-file-upload.test.mjs
+```

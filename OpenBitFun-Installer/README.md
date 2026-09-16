@@ -83,9 +83,10 @@ OpenBitFun-Installer/
 │   │   ├── ModelSetup.tsx     # Optional model provider setup
 │   │   └── ThemeSetup.tsx     # Theme preview + finish
 │   ├── components/
+│   │   ├── BrandMark.tsx     # Canonical fine-line brand artwork
+│   │   ├── StepIndicator.tsx # Read-only setup stages
 │   │   ├── WindowControls.tsx # Custom titlebar
-│   │   ├── Checkbox.tsx       # Styled checkbox
-│   │   └── ProgressBar.tsx    # Animated progress bar
+│   │   └── ProgressBar.tsx    # Accessible installation progress
 │   ├── hooks/
 │   │   └── useInstaller.ts    # Core installer state machine
 │   ├── styles/
@@ -143,6 +144,20 @@ Run the installer in development mode with hot reload:
 ```bash
 pnpm run tauri:dev
 ```
+
+### Native UI preview
+
+Run `pnpm run tauri:preview` to open the actual installer window with `--preview`.
+The titlebar page selector opens each existing UI page without running an
+installation. Theme and form changes stay in memory; Finish only closes the
+preview. No simulated progress or installation result is generated.
+
+The native invoke boundary permits only launch context, the default path,
+existing-installation detection, disk-space reads, and closing the window. All
+other installer commands are rejected, including path validation (which writes
+a probe file), installation, uninstallation, app launches, configuration writes,
+and model requests. Launch context also skips configuration-directory creation.
+This restriction is enforced by the native process even if the UI is modified.
 
 ### Uninstall Mode (Dev + Runtime)
 
@@ -219,6 +234,25 @@ src-tauri/target/release-fast/openbitfun-installer.exe
 Shared light/dark values come from `@openbitfun/theme-openbitfun`. Installer-only named presets live in
 [installerThemesData.ts](src/theme/installerThemesData.ts), and components consume only canonical
 `--openbitfun-*` variables projected by [installerThemeRuntime.ts](src/theme/installerThemeRuntime.ts).
+
+Buttons, inputs, fields, selectors, checkboxes, radio controls, page headers, and
+native scrollbar styling come from the public `@openbitfun/ui` package. The
+installer owns page layout and the install state binding. The `dev`, `build`, and
+`type-check` entrypoints prepare the public design-system packages first, so a
+clean checkout does not depend on pre-existing `dist` files.
+
+The titlebar uses the application icon. Welcome and progress surfaces use the
+canonical fine-line SVG from `assets/brand/source`. CSS masks follow the active
+theme's foreground, including explicit theme choices that differ from the OS
+setting. Theme choices use public radio controls with names and small color
+palettes, without logos or framed thumbnails. The full installer window updates
+on selection and serves as the live theme preview.
+
+Page hierarchy uses spacing and typography. Existing-installation detection is
+a short disclosure; version, location, and the uninstaller action stay inside
+its details. Model endpoint and protocol fields are grouped in an advanced
+disclosure, initially open for custom providers. Motion respects the system's
+reduced-motion preference.
 
 ### Adding Install Steps
 

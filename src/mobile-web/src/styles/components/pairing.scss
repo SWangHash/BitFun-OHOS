@@ -80,3 +80,29 @@
   .pairing-page { padding-inline: var(--size-gap-4); }
   .pairing-page__panel { padding: var(--size-gap-5); }
 }
+
+.pairing-page__symbol {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--size-gap-2);
+  border: 1px solid var(--openbitfun-color-border-subtle);
+  border-radius: var(--size-radius-lg);
+  color: var(--openbitfun-color-content-secondary);
+  background: var(--openbitfun-color-surface-tertiary);
+}
+.pairing-page__waiting {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-4);
+  margin-top: var(--size-gap-2);
+  border-radius: var(--size-radius-lg);
+  background: var(--openbitfun-color-surface-tertiary);
+  color: var(--openbitfun-color-content-secondary);
+  font-size: var(--openbitfun-type-body-md-font-size);
+  line-height: var(--openbitfun-type-body-md-line-height);
+  svg { flex-shrink: 0; }
+  p { margin: 0; }
+}

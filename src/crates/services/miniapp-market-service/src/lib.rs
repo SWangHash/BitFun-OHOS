@@ -5,6 +5,7 @@ mod auth;
 mod auth_admission;
 pub mod config;
 mod db;
+mod email_auth;
 mod error;
 mod package;
 mod request_id;
@@ -99,6 +100,20 @@ async fn normalize_payload_too_large(request: Request, next: Next) -> Response {
 async fn security_headers(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
+    // SPA HTML selects the versioned assets, so it must never survive a deploy
+    // in browser or intermediary caches. Hashed JS/CSS keep their own policy.
+    if headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("text/html"))
+    {
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store, max-age=0"),
+        );
+        headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+        headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    }
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
@@ -177,13 +192,22 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        for uri in ["/miniapp/", "/miniapp/admin"] {
+        for uri in [
+            "/miniapp/",
+            "/miniapp/admin",
+            "/miniapp/auth/sign-in",
+            "/miniapp/auth/complete",
+        ] {
             let response = app
                 .clone()
                 .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "no-store, max-age=0"
+            );
         }
 
         // Unknown API paths must not fall through to the SPA's index.html.

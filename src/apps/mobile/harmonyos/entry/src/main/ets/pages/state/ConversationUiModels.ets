@@ -53,6 +53,7 @@ export interface ConversationUiModelCatalog {
   session_model_id?: string;
 }
 export interface ConversationUiToolStatus {
+  permission_request_id?: string;
   id?: string;
   name?: string;
   status?: string;
@@ -205,6 +206,7 @@ export function toConversationUiSelectedImage(source: SelectedImageAttachment): 
 
 export function toConversationUiToolStatus(source: RemoteToolStatusResponse): ConversationUiToolStatus {
   return {
+    permission_request_id: source.permission_request_id,
     id: source.id,
     name: source.name,
     status: source.status,

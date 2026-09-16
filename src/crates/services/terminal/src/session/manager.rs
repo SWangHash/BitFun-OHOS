@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use futures::{Stream, StreamExt};
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, watch, RwLock};
 
 use crate::config::{ShellConfig, TerminalConfig};
 use crate::events::{TerminalEvent, TerminalEventEmitter};
@@ -191,6 +191,7 @@ pub struct SessionManager {
 
     /// Per-session output taps for real-time output streaming
     output_taps: Arc<DashMap<String, Vec<mpsc::Sender<Arc<str>>>>>,
+    replay_watchers: Arc<DashMap<String, watch::Sender<u64>>>,
 
     /// Persistent plain-text transcripts for manually created terminal sessions.
     transcript_recorder: Option<TranscriptRecorder>,
@@ -228,6 +229,7 @@ impl SessionManager {
             binding,
             scripts_manager,
             output_taps,
+            replay_watchers: Arc::new(DashMap::new()),
             transcript_recorder,
         };
 
@@ -267,6 +269,7 @@ impl SessionManager {
         let pty_to_session = self.pty_to_session.clone();
         let session_integrations = self.session_integrations.clone();
         let output_taps = self.output_taps.clone();
+        let replay_watchers = self.replay_watchers.clone();
         let transcript_recorder = self.transcript_recorder.clone();
 
         tokio::spawn(async move {
@@ -323,6 +326,9 @@ impl SessionManager {
                                     session.touch();
                                     // Record output to history for frontend recovery
                                     session.add_output(&data_str);
+                                    if let Some(watch) = replay_watchers.get(&session_id) {
+                                        watch.send_replace(session.replay_history.cursor());
+                                    }
                                     session.source == SessionSource::Manual
                                 } else {
                                     false
@@ -1439,6 +1445,28 @@ impl SessionManager {
         sessions.get(session_id).cloned()
     }
 
+    /// Cursor notifications must not clone the retained PTY history.
+    pub async fn replay_cursor(&self, session_id: &str) -> Option<u64> {
+        self.sessions
+            .read()
+            .await
+            .get(session_id)
+            .map(|session| session.replay_history.cursor())
+    }
+
+    pub async fn replay_page(
+        &self,
+        session_id: &str,
+        after: u64,
+        max_bytes: usize,
+    ) -> Option<super::TerminalReplayPage> {
+        self.sessions.read().await.get(session_id).map(|session| {
+            session
+                .replay_history
+                .page(after, max_bytes, session.cols, session.rows)
+        })
+    }
+
     /// List all sessions
     pub async fn list_sessions(&self) -> Vec<TerminalSession> {
         let sessions = self.sessions.read().await;
@@ -1553,6 +1581,7 @@ impl SessionManager {
 
         // Drop output taps so file-writing tasks can detect session end
         self.output_taps.remove(session_id);
+        self.replay_watchers.remove(session_id);
 
         // Remove session
         {
@@ -1629,6 +1658,15 @@ impl SessionManager {
         }
 
         self.pty_service.shutdown_all().await;
+    }
+
+    /// A slow replay observer retains the newest cursor without buffering PTY
+    /// bytes or dropping its subscription. Subscribe before creating a session.
+    pub fn subscribe_replay_cursor(&self, session_id: &str) -> watch::Receiver<u64> {
+        self.replay_watchers
+            .entry(session_id.to_string())
+            .or_insert_with(|| watch::channel(0).0)
+            .subscribe()
     }
 
     /// Subscribe to the raw PTY output of a specific session.

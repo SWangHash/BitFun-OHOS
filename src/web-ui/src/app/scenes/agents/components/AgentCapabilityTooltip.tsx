@@ -52,6 +52,7 @@ export const AgentCapabilityTooltip: React.FC<AgentCapabilityTooltipProps> = ({
         </div>
       )}
       placement={placement}
+      trigger="hover-focus"
       className="agent-capability-tooltip"
       interactive
     >

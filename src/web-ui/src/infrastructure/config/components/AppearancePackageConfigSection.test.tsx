@@ -247,7 +247,8 @@ describe('AppearancePackageConfigSection', () => {
         importedCard?.click();
         await Promise.resolve();
       });
-      expect(selectAppearanceMock).toHaveBeenCalledWith('sample.appearance');
+      expect(importedCard?.closest('[data-openbitfun-component="action-card"]')).not.toBeNull();
+      expect(selectAppearanceMock.mock.calls).toEqual([['openbitfun-light'], ['sample.appearance']]);
     } finally {
       act(() => root.unmount());
     }

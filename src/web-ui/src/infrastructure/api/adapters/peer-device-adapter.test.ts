@@ -267,97 +267,26 @@ describe('peerInvokePriorityFor', () => {
 });
 
 describe('PeerDeviceTransportAdapter queue', () => {
-  it('lets high-priority HostInvoke jump ahead of queued low-priority work', async () => {
-    const started: string[] = [];
-    const gate = createDeferred<void>();
-
+  it('orders one dispatch burst with control first without capping in-flight data requests', async () => {
+    const started: string[] = []; const gate = createDeferred<void>();
     const deviceRpc = vi.fn(async (_target: string, commandJson: string) => {
-      const parsed = JSON.parse(commandJson) as { command: string };
-      started.push(parsed.command);
-      if (parsed.command === 'git_is_repository') {
-        await gate.promise;
-      }
-      return JSON.stringify({
-        resp: 'host_invoke_result',
-        ok: true,
-        value: parsed.command === 'git_is_repository' ? true : { ok: true },
-      });
+      const parsed = JSON.parse(commandJson); started.push(parsed.command);
+      if (parsed.command === 'git_is_repository') await gate.promise;
+      return JSON.stringify({resp:'host_invoke_result',ok:true,value:true});
     });
-
-    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 1);
-    await adapter.connect();
-
-    const low1 = adapter.request('git_is_repository', { request: { repositoryPath: '/a' } });
-    const low2 = adapter.request('ssh_is_connected', { connectionId: 'ssh-x' });
-    // Allow the first low request to claim the single concurrency slot.
-    await Promise.resolve();
-    expect(started).toEqual(['git_is_repository']);
-
-    const high = adapter.request('restore_session_view', {
-      request: { sessionId: 's1' },
-    });
-    await Promise.resolve();
-    expect(adapter.getQueueDepthsForTest()).toEqual({
-      high: 1,
-      normal: 0,
-      low: 1,
-    });
-
-    gate.resolve();
-    await Promise.all([low1, high, low2]);
-
-    expect(started).toEqual([
-      'git_is_repository',
-      'restore_session_view',
-      'ssh_is_connected',
-    ]);
-  });
-
-  it('reserves one concurrency slot for terminal work', async () => {
-    const started: string[] = [];
-    const firstLowGate = createDeferred<void>();
-
-    const deviceRpc = vi.fn(async (_target: string, commandJson: string) => {
-      const parsed = JSON.parse(commandJson) as { command: string };
-      started.push(parsed.command);
-      if (parsed.command === 'git_is_repository') {
-        await firstLowGate.promise;
-      }
-      return JSON.stringify({
-        resp: 'host_invoke_result',
-        ok: true,
-        value: true,
-      });
-    });
-
-    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 2);
-    await adapter.connect();
-
-    const low1 = adapter.request('git_is_repository', {
-      request: { repositoryPath: '/a' },
-    });
-    const low2 = adapter.request('ssh_is_connected', { connectionId: 'ssh-x' });
-    await Promise.resolve();
-    expect(started).toEqual(['git_is_repository']);
-
-    const terminal = adapter.request('terminal_write', {
-      request: { sessionId: 't1', data: 'pwd\r' },
-    });
-    await terminal;
-    expect(started).toEqual(['git_is_repository', 'terminal_write']);
-
-    firstLowGate.resolve();
-    await Promise.all([low1, low2]);
-    expect(started).toEqual([
-      'git_is_repository',
-      'terminal_write',
-      'ssh_is_connected',
-    ]);
+    const adapter = new PeerDeviceTransportAdapter('peer-1',deviceRpc); await adapter.connect();
+    const background = Array.from({length:12},()=>adapter.request('git_is_repository',{request:{repositoryPath:'/runtime'}}));
+    const control = adapter.request('terminal_write',{request:{sessionId:'terminal',data:'x'}});
+    await control;
+    expect(started[0]).toBe('terminal_write');
+    expect(started.filter(command=>command==='git_is_repository')).toHaveLength(12);
+    expect(adapter.getActiveCountsForTest().low).toBe(12);
+    gate.resolve(); await Promise.all(background);
   });
 
   it.each(['cancel_tool', 'start_user_question_interaction', 'submit_user_answers'])('dispatches %s immediately when the non-high slot is busy', async (command) => {
-    // Interactive control must use the reserved slot while a normal mutation
-    // is blocked, including stopping an unattended question deadline.
+    // Interactive control is independent of a blocked normal mutation,
+    // including stopping an unattended question deadline.
     const started: string[] = [];
     const normalGate = createDeferred<void>();
 
@@ -374,11 +303,10 @@ describe('PeerDeviceTransportAdapter queue', () => {
       });
     });
 
-    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 2);
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {});
     await adapter.connect();
 
-    // One normal-priority mutation occupies the single non-high slot
-    // (maxConcurrent 2 → one slot reserved for high).
+    // A pending normal-priority mutation does not hold up control calls.
     const normal1 = adapter.request('set_config', { request: { path: 'a' } });
     await Promise.resolve();
     await Promise.resolve();
@@ -390,8 +318,7 @@ describe('PeerDeviceTransportAdapter queue', () => {
       low: 0,
     });
 
-    // Interrupt fires while the normal slot is busy. It must start on the
-    // reserved high slot without waiting for the mutation to finish.
+    // Interrupt must start without waiting for the mutation to finish.
     const cancel = adapter.request(command, { request: { toolUseId: 'tu-1', toolId: 'tu-1', sessionId: 'session-1' } });
     await Promise.resolve();
     await Promise.resolve();
@@ -735,14 +662,14 @@ describe('PeerDeviceTransportAdapter disposal', () => {
   it('settles queued requests instead of dropping them', async () => {
     const gate = createDeferred<string>();
     const deviceRpc = vi.fn(() => gate.promise);
-    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 1);
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {});
     await adapter.connect();
 
     const inFlight = captureOutcome(adapter.request('get_opened_workspaces', { request: {} }));
     const queued = captureOutcome(adapter.request('list_persisted_sessions_page', {
       request: { workspacePath: '/repo' },
     }));
-    expect(adapter.getQueueDepthsForTest().high).toBe(1);
+    expect(adapter.getQueueDepthsForTest().high).toBe(2);
 
     await adapter.disconnect();
     await flushMicrotasks();
@@ -762,10 +689,11 @@ describe('PeerDeviceTransportAdapter disposal', () => {
   it('keeps concurrency accounting correct across disposal', async () => {
     const gate = createDeferred<string>();
     const deviceRpc = vi.fn(() => gate.promise);
-    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {}, 2);
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {});
     await adapter.connect();
 
     const inFlight = captureOutcome(adapter.request('get_opened_workspaces', { request: {} }));
+    await Promise.resolve();
     expect(adapter.getActiveCountsForTest()).toMatchObject({ total: 1, high: 1 });
 
     await adapter.disconnect();
@@ -773,6 +701,7 @@ describe('PeerDeviceTransportAdapter disposal', () => {
     // The request still occupies its transport slot: rewriting the count to
     // zero underneath it made its later settle decrement a fresh count, so the
     // limiter believed it had a free slot it did not have.
+    await Promise.resolve();
     expect(adapter.getActiveCountsForTest()).toMatchObject({ total: 1, high: 1 });
 
     gate.resolve(hostInvokeOk([]));

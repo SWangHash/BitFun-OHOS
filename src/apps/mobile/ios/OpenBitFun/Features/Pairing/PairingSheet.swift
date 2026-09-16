@@ -8,7 +8,7 @@ struct PairingSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var step: Step = .intro
     @State private var pairingURL = MobileLaunchConfiguration.pairingAccountPreview
-        ? "https://remote.openbitfun.com/v/1.0.0/#/pair?did=preview-device"
+        ? "https://remote.openbitfun.com/v/1.0.1/#/pair?did=preview-device"
         : ""
     @State private var manualOpen = false
     @State private var scanError: String?
@@ -260,7 +260,7 @@ struct PairingSheet: View {
                         .foregroundStyle(OpenBitFunTheme.ink)
                     SignedOutConnectionActions(
                         scanTitle: model.localized("扫码连接电脑"),
-                        accountTitle: model.localized("使用 GitHub 登录"),
+                        accountTitle: model.localized("使用邮箱或 GitHub 登录"),
                         onScan: { scanError = nil; step = .scan },
                         onOpenAccount: model.openAccountFromPairing,
                         primaryScan: true,

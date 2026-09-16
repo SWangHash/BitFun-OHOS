@@ -364,6 +364,11 @@ export class SystemAPI {
     }
   }
 
+  /** Controller-local menu bar presentation, including when viewing a peer. */
+  async setTrayUnreadCount(count: number): Promise<void> {
+    await api.invoke('set_tray_unread_count', { request: { count } });
+  }
+
   /** Desktop only: initialize the system tray after the startup shell is visible. */
   async initializeTrayAfterStartup(): Promise<void> {
     try {

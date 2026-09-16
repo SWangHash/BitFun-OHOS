@@ -33,6 +33,7 @@ Language Select → Options → Progress → Model Setup → Theme Setup
 ```bash
 pnpm --dir OpenBitFun-Installer run installer:dev
 pnpm --dir OpenBitFun-Installer run tauri:dev
+pnpm --dir OpenBitFun-Installer run tauri:preview    # 原生界面预览，不执行安装
 pnpm --dir OpenBitFun-Installer run type-check
 pnpm --dir OpenBitFun-Installer run build            # React build / 复现 CI
 pnpm --dir OpenBitFun-Installer run installer:build  # 仅打包场景
@@ -47,6 +48,12 @@ pnpm run i18n:audit                                                   # 仅资�
 pnpm run i18n:generate && pnpm run i18n:contract:test && pnpm run i18n:audit
 pnpm --dir OpenBitFun-Installer run type-check                            # 前端 i18n/runtime
 cargo check --manifest-path OpenBitFun-Installer/src-tauri/Cargo.toml      # Tauri/Rust 改动
+```
+
+修改原生 `--preview` 命令边界时，运行聚焦策略测试：
+
+```bash
+cargo test --manifest-path OpenBitFun-Installer/src-tauri/Cargo.toml --lib preview::tests
 ```
 
 只有修改打包、payload、native bundling、安装/卸载流程、注册表、快捷方式或解压逻辑时，才运行完整安装器构建：

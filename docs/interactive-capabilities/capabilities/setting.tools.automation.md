@@ -11,27 +11,27 @@ title_en: "Quick actions & hooks"
 
 > 设置 / Setting
 
-自定义编码后的快捷操作，并配置在 Agent 生命周期事件上运行的 Hooks。
+自定义编码后的快捷操作，并配置在智能体生命周期事件上运行的 Hooks。
 
 Customize post-coding quick actions and configure hooks that run on agent lifecycle events.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 启用和调整内置的提交与创建 Pull Request 快捷操作
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 启用和调整内置的提交与创建 Pull Request 快捷操作
   - Enable and tune the built-in Commit and Create Pull Request quick actions
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 添加、编辑和删除自定义编码后快捷操作及 Prompt
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 添加、编辑和删除自定义编码后快捷操作及 Prompt
   - Add, edit, and delete custom post-coding quick actions and prompts
-- **Agent 可直接控制 / Direct Agent control** · 整体启用或停用 Agent 生命周期 Hooks
+- **智能体可直接控制 / Direct Agent control** · 整体启用或停用智能体生命周期 Hooks
   - Enable or disable agent lifecycle hooks globally
-- **Agent 可直接控制 / Direct Agent control** · 对可信仓库单独启用项目级 .openbitfun/config/hooks.json
+- **智能体可直接控制 / Direct Agent control** · 对可信仓库单独启用项目级 .openbitfun/config/hooks.json
   - Enable project-level .openbitfun/config/hooks.json separately for trusted repositories
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Glob` / `Read` / `Edit` · 定位用户级和项目级 Hooks 配置文件并在修改后即时生效
+- **由专用智能体工具控制 / Delegated Agent tool** · `Glob` / `Read` / `Edit` · 定位用户级和项目级 Hooks 配置文件并在修改后即时生效
   - Locate user and project hook configuration files and apply edits without restarting
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在会话、Agent、工具、权限和用户输入等 Codex Hook 事件上运行处理器
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在会话、智能体、工具、权限和用户输入等 Codex Hook 事件上运行处理器
   - Run handlers on Codex hook events for sessions, agents, tools, permissions, and user input
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看外部 AI 应用的只读 Hook 目录并选择导入项
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看外部 AI 应用的只读 Hook 目录并选择导入项
   - Inspect read-only external-AI hook catalogs and choose entries to import
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 预览、修改和应用 Hook 导入计划，并保留冲突诊断
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 预览、修改和应用 Hook 导入计划，并保留冲突诊断
   - Preview, edit, and apply hook import plans while retaining conflict diagnostics
 
 ## 怎么用 / How to use it
@@ -45,7 +45,7 @@ Customize post-coding quick actions and configure hooks that run on agent lifecy
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -55,16 +55,16 @@ Customize post-coding quick actions and configure hooks that run on agent lifecy
 
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
-| 启用 Hooks / Enable hooks | `boolean` | 允许已配置的 Agent 生命周期 Hooks 运行。 | Allow configured agent lifecycle hooks to run. |
+| 启用 Hooks / Enable hooks | `boolean` | 允许已配置的智能体生命周期 Hooks 运行。 | Allow configured agent lifecycle hooks to run. |
 | 启用项目 Hooks / Enable project hooks | `boolean` | 允许当前项目中的 Hooks 配置生效。 | Allow hook configuration from the current project. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Hooks 设置”
   - “Open Hooks settings”
 - “带我编辑编码后的快捷操作”
   - “Take me to post-coding quick actions”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -32,6 +32,16 @@ public object ToolInputPolicy {
      * Empty rather than the tool name — which is what the source falls back to —
      * so the app can drop the separator instead of printing `Read file · Read`.
      */
+    /** Full subtask title; truncation belongs to the native card's single-line layout. */
+    public fun taskTitle(tool: RemoteToolStatusResponse): String {
+        val payload = payload(tool)
+        for (key in TASK_TITLE_KEYS) {
+            payload?.text(key)?.let { return it }
+        }
+        val preview = ToolStatusPolicy.inputText(tool).trim()
+        return preview.takeUnless(::looksLikeJson).orEmpty()
+    }
+
     public fun summary(tool: RemoteToolStatusResponse): String {
         val payload = payload(tool)
         val fromPayload = summaryFromPayload(tool, payload)
@@ -115,6 +125,7 @@ public object ToolInputPolicy {
 
     private val WHITESPACE = Regex("\\s+")
     private val LINE_SUFFIX = Regex(":\\d+(?:-\\d+)?$")
+    private val TASK_TITLE_KEYS = listOf("description", "task", "title", "prompt", "message", "task_name", "taskName", "name", "content")
     private val TASK_KEYS = listOf("description", "task", "prompt", "content")
     private val TARGET_KEYS = listOf(
         "description",

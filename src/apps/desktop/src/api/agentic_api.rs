@@ -1032,6 +1032,8 @@ pub struct PermissionResponseRequest {
     pub request_id: String,
     pub reply: PermissionReplyKind,
     pub feedback: Option<String>,
+    #[serde(default)]
+    pub updated_input: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1411,14 +1413,36 @@ pub enum PermissionReplyKind {
     Reject,
 }
 
-fn permission_reply(request: PermissionResponseRequest) -> PermissionReply {
-    match request.reply {
+fn permission_reply(request: PermissionResponseRequest) -> Result<PermissionReply, String> {
+    if let Some(updated_input) = request.updated_input {
+        if !matches!(request.reply, PermissionReplyKind::Once) || !updated_input.is_object() {
+            return Err("Edited input requires a one-time approval and an object".to_string());
+        }
+        return Ok(PermissionReply::OnceWithInput { updated_input });
+    }
+    Ok(match request.reply {
         PermissionReplyKind::Once => PermissionReply::Once,
         PermissionReplyKind::Always => PermissionReply::Always,
         PermissionReplyKind::Reject => PermissionReply::Reject {
             feedback: request.feedback,
         },
-    }
+    })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInteractionMailboxRequest {
+    pub session_id: String,
+}
+
+#[tauri::command]
+pub fn get_session_interaction_mailbox(
+    runtime: State<'_, DesktopRuntimeContext>,
+    request: SessionInteractionMailboxRequest,
+) -> Result<SessionInteractionSnapshot, String> {
+    Ok(runtime
+        .session_application()
+        .session_interaction_snapshot(&request.session_id))
 }
 
 #[tauri::command]
@@ -1447,7 +1471,7 @@ pub async fn respond_permission(
     request: PermissionResponseRequest,
 ) -> Result<(), String> {
     let request_id = request.request_id.clone();
-    let reply = permission_reply(request);
+    let reply = permission_reply(request)?;
     runtime
         .agent_runtime()
         .respond_permission(&request_id, reply)
@@ -1461,7 +1485,7 @@ pub async fn respond_permission_batch(
     request: PermissionResponseRequest,
 ) -> Result<Vec<String>, String> {
     let request_id = request.request_id.clone();
-    let reply = permission_reply(request);
+    let reply = permission_reply(request)?;
     runtime
         .agent_runtime()
         .respond_permission_batch(&request_id, reply)
@@ -1617,7 +1641,6 @@ pub async fn create_session(
         }
     };
     request.project_workspace_path = Some(project_workspace_path.clone());
-    let wp = project_workspace_path.clone();
 
     let tracked_worktree_workspace_id = if resolved_execution_target.kind
         != SessionExecutionTargetKind::Local
@@ -1893,9 +1916,6 @@ pub async fn create_session(
             .await
             .map_err(|e| format!("Failed to persist Deep Review run manifest: {}", e))?;
     }
-
-    let session_id = session.session_id.clone();
-    // Notify auto-sync: new session created
 
     if let Some(target_evidence) = request.review_target_evidence {
         coordinator
@@ -4355,7 +4375,7 @@ mod tests {
         assert!(matches!(request.reply, PermissionReplyKind::Reject));
         assert_eq!(request.feedback.as_deref(), Some("Use a read-only path"));
         assert_eq!(
-            permission_reply(request),
+            permission_reply(request).expect("permission reply"),
             PermissionReply::Reject {
                 feedback: Some("Use a read-only path".to_string()),
             }

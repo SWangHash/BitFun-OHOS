@@ -67,7 +67,7 @@
     padding-bottom: var(--openbitfun-space-6);
     color: var(--openbitfun-color-content-secondary);
 
-    > svg { flex-shrink: 0; }
+    > :first-child { flex-shrink: 0; }
   }
 
   &__identity-copy {

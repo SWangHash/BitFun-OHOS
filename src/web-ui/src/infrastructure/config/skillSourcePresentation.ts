@@ -8,8 +8,8 @@ const SOURCE_LABEL_BY_ID: Record<string, string> = {
   codex: 'Codex',
   cursor: 'Cursor',
   opencode: 'OpenCode',
-  'agent-skills': 'Agent Skills',
-  agents: 'Agent Skills',
+  'agent-skills': '.agents',
+  agents: '.agents',
   'deepseek-harness': 'DeepSeek Harness',
   dsh: 'DeepSeek Harness',
   pi: 'PI',
@@ -31,6 +31,7 @@ export function getSkillSourceLabelFromIdentity(
   sourceSlot: string | undefined,
   fallbackLabel = 'Other source',
 ): string {
+  if (sourceId === 'agent-skills' || sourceSlot === 'agents' || sourceSlot === 'home.agents') return '.agents';
   return sourceLabel?.trim()
     || knownSourceLabel(sourceId)
     || knownSourceLabel(sourceSlot)
@@ -41,6 +42,7 @@ export function getSkillSourceLabel(
   skill: SkillInfo,
   fallbackLabel = 'Other source',
 ): string {
+  if (getSkillOriginSourceId(skill) === 'agent-skills') return '.agents';
   if (skill.importOrigin?.sourceId) return skill.importOrigin.sourceLabel
     || knownSourceLabel(skill.importOrigin.sourceId) || skill.importOrigin.sourceId;
   return getSkillSourceLabelFromIdentity(

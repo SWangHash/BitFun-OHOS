@@ -17,37 +17,37 @@ Work with AI in project context, create sessions, continue tasks, answer permiss
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 打开并新建一个 AI 会话
+- **智能体可直接控制 / Direct Agent control** · 打开并新建一个 AI 会话
   - Open and create a new AI session
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 重命名、归档、恢复、删除、分叉与导出会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 重命名、归档、恢复、删除、分叉与导出会话
   - Rename, archive, restore, delete, fork, and export sessions
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为会话选择模型、工作模式、记忆模式与权限模式
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为会话选择模型、工作模式、记忆模式与权限模式
   - Choose the model, work mode, memory mode, and permission mode per session
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `FrontendWorkbench` / `Read` / `Write` / `Edit` · 让创造模式扩展客户端界面与运行时能力
+- **由专用智能体工具控制 / Delegated Agent tool** · `FrontendWorkbench` / `Read` / `Write` / `Edit` · 让创造模式扩展客户端界面与运行时能力
   - Extend client UI and runtime capabilities in Creative mode
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 开始、引导、打断、取消或恢复一次 Agent 运行
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 开始、引导、打断、取消或恢复一次智能体运行
   - Start, steer, interrupt, cancel, or recover an agent turn
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看并逐个或批量回答等待中的权限请求
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看并逐个或批量回答等待中的权限请求
   - Review and answer pending permission requests individually or in a batch
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `SessionControl` / `SessionHistory` / `Read` / `Grep` · 分页加载、搜索和回填历史消息与会话内容
+- **由专用智能体工具控制 / Delegated Agent tool** · `SessionControl` / `SessionHistory` / `Read` / `Grep` · 分页加载、搜索和回填历史消息与会话内容
   - Page through, search, and backfill historical turns and session content
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `SessionControl` / `SessionMessage` · 让 Agent 创建、列出、取消、删除会话或向另一会话发送消息
+- **由专用智能体工具控制 / Delegated Agent tool** · `SessionControl` / `SessionMessage` · 让智能体创建、列出、取消、删除会话或向另一会话发送消息
   - Let an agent create, list, cancel, or delete sessions and send messages to another session
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在对话中通过 @ 选择当前模式可用的 MCP 服务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在对话中通过 @ 选择当前模式可用的 MCP 服务
   - Use @ in chat to select MCP servers available to the current mode
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看工具调用与后台命令，读取输出并继续输入或停止
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看工具调用与后台命令，读取输出并继续输入或停止
   - Inspect tool calls and background commands, read output, send input, or stop them
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `get_goal` / `create_goal` / `update_goal` · 查看、创建并完成或阻塞当前会话目标
+- **由专用智能体工具控制 / Delegated Agent tool** · `get_goal` / `create_goal` / `update_goal` · 查看、创建并完成或阻塞当前会话目标
   - Inspect, create, complete, or block the current session goal
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 编辑目标说明或清除当前会话目标
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 编辑目标说明或清除当前会话目标
   - Edit the goal objective or clear the current session goal
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `TodoWrite` / `AskUserQuestion` · 让 Agent 维护任务清单、生成实施计划并按需向用户提问
+- **由专用智能体工具控制 / Delegated Agent tool** · `TodoWrite` / `AskUserQuestion` · 让智能体维护任务清单、生成实施计划并按需向用户提问
   - Let an agent maintain a task list, produce an implementation plan, and ask the user when needed
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看单个会话的请求、Token 与成本用量报告
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看单个会话的请求、Token 与成本用量报告
   - View request, token, and cost usage for an individual session
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 重新加载会话上下文、运行 AGENTS.md 初始化并管理长期记忆
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 重新加载会话上下文、运行 AGENTS.md 初始化并管理长期记忆
   - Reload session context, initialize AGENTS.md, and manage long-term memory
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 使用 BTW 轻量问答与编辑器内联 AI，并可随时取消
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 使用 BTW 轻量问答与编辑器内联 AI，并可随时取消
   - Use lightweight BTW questions and inline editor AI, with cancellation
 
 ## 怎么用 / How to use it
@@ -61,7 +61,7 @@ Work with AI in project context, create sessions, continue tasks, answer permiss
 
 入口 / Entry: OpenBitFun 对应场景
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -73,13 +73,13 @@ Work with AI in project context, create sessions, continue tasks, answer permiss
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “新建一个会话，我们来排查这个构建错误”
   - “Start a new session so we can debug this build error”
 - “打开 AI 助手，我想继续刚才的任务”
   - “Open the AI assistant; I want to continue my previous task”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

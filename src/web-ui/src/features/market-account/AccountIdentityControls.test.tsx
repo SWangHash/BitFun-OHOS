@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     lastError: undefined,
   },
   signIn: vi.fn(),
+  reopenSignIn: vi.fn(),
   cancelSignIn: vi.fn(),
   logout: vi.fn(),
   success: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@/infrastructure/account-identity', () => ({
   },
   accountIdentityService: {
     signIn: mocks.signIn,
+    reopenSignIn: mocks.reopenSignIn,
     cancelSignIn: mocks.cancelSignIn,
     logout: mocks.logout,
   },
@@ -78,6 +80,7 @@ describe('AccountIdentityControls', () => {
       isAdmin: false,
     });
     mocks.cancelSignIn.mockReset();
+    mocks.reopenSignIn.mockReset().mockResolvedValue(undefined);
     mocks.logout.mockReset().mockResolvedValue(undefined);
     mocks.success.mockReset();
     mocks.error.mockReset();
@@ -103,6 +106,19 @@ describe('AccountIdentityControls', () => {
       .find(button => button.textContent?.includes('market.account.continue'));
     await act(async () => continueButton?.click());
     expect(mocks.signIn).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a reopen action available while an external authorization is pending', async () => {
+    mocks.account.status = 'authorizing';
+    await act(async () => root.render(<AccountIdentityControls />));
+    const trigger = [...container.querySelectorAll('button')].find(button => button.textContent?.includes('market.signIn'))!;
+    expect(trigger.disabled).toBe(false);
+    await act(async () => trigger.click());
+    const reopen = [...container.querySelectorAll('button')].find(button => button.textContent?.includes('market.account.reopen'))!;
+    expect(reopen.disabled).toBe(false);
+    await act(async () => reopen.click());
+    expect(mocks.reopenSignIn).toHaveBeenCalledOnce();
+    expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
   it('shows the shared avatar menu and logs out through the same account service', async () => {

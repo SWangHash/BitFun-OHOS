@@ -1,3 +1,4 @@
+import { WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
@@ -16,6 +17,7 @@ import { SidebarDirectoryPreviewPolicy } from '../policy/SidebarDirectoryPreview
 import { HarnessProfileMenu } from './HarnessProfileMenu';
 import {
   INK,
+  PAGE_BG,
   MUTED,
   SOFT,
   STATUS_SUCCESS,
@@ -30,6 +32,8 @@ import {
  */
 @ComponentV2
 struct SidebarWorkspaceGroup {
+  @Param connectionId: string = '';
+  @Event onWorkspaceTools: (intent: WorkspaceToolsIntent) => void = (_intent: WorkspaceToolsIntent) => {};
   @Param deviceId: string = '';
   @Param path: string = '';
   @Param name: string = '';
@@ -47,7 +51,7 @@ struct SidebarWorkspaceGroup {
   @Event onExpandWorkspace: (path: string) => Promise<void> = async (_path: string) => {};
   @Event onExpandedChange: (path: string, expanded: boolean) => void =
     (_path: string, _expanded: boolean) => {};
-  @Event onCreateInWorkspace: (path: string, agentType: string) => void =
+  @Event onCreateInWorkspace: (path: string, agentType: string, connectionId?: string) => void =
     (_path: string, _agentType: string) => {};
   @Event onOpenSession: (session: RemoteSession) => void = (_session: RemoteSession) => {};
   @Event onSessionActions: (session: RemoteSession) => void = (_session: RemoteSession) => {};
@@ -146,11 +150,7 @@ struct SidebarWorkspaceGroup {
         }
       })
       .onClick(() => {
-        if (this.supportsHarnessProfiles) {
-          this.showCreateMenu = !this.showCreateMenu;
-        } else {
-          this.onCreateInWorkspace(this.path, 'code');
-        }
+        this.showCreateMenu = !this.showCreateMenu;
       })
     }
     .width('100%')
@@ -162,12 +162,10 @@ struct SidebarWorkspaceGroup {
 
   @Builder
   private CreateModeMenu() {
-    HarnessProfileMenu({
-      onSelect: (agentType: string) => {
-        this.showCreateMenu = false;
-        this.onCreateInWorkspace(this.path, agentType);
-      }
-    })
+    HarnessProfileMenu({ showTitle: false, onSelect: (agentType: string) => {
+      this.showCreateMenu = false;
+      this.onCreateInWorkspace(this.path, agentType, this.connectionId);
+    } })
   }
 
   @Builder
@@ -323,6 +321,7 @@ struct SidebarWorkspaceGroup {
  */
 @ComponentV2
 export struct SidebarDeviceGroup {
+  @Event onWorkspaceTools: (intent: WorkspaceToolsIntent) => void = (_intent: WorkspaceToolsIntent) => {};
   @Param device: DeviceDirectoryEntry = new DeviceDirectoryEntry();
   @Param directoryState: DeviceDirectoryState = new DeviceDirectoryState();
   @Param sessions: RemoteSession[] = [];
@@ -340,7 +339,7 @@ export struct SidebarDeviceGroup {
   @Event onRetry: () => void = () => {};
   @Event onOpenSession: (session: RemoteSession) => void = (_session: RemoteSession) => {};
   @Event onSessionActions: (session: RemoteSession) => void = (_session: RemoteSession) => {};
-  @Event onCreateInWorkspace: (path: string, agentType: string) => void =
+  @Event onCreateInWorkspace: (path: string, agentType: string, connectionId?: string) => void =
     (_path: string, _agentType: string) => {};
   @Event onOpenWorkspace: (path: string) => void = (_path: string) => {};
   @Event onExpandWorkspace: (path: string) => Promise<void> = async (_path: string) => {};
@@ -368,6 +367,8 @@ export struct SidebarDeviceGroup {
         } else {
           ForEach(this.visibleWorkspaceEntries(), (entry: RecentWorkspaceEntry) => {
             SidebarWorkspaceGroup({
+              connectionId: entry.remoteConnectionId || '',
+              onWorkspaceTools: this.onWorkspaceTools,
               deviceId: this.device.deviceId,
               path: entry.path,
               name: entry.remoteSshHost?.trim() ? `${entry.name} · ${entry.remoteSshHost.trim()}` : entry.name,

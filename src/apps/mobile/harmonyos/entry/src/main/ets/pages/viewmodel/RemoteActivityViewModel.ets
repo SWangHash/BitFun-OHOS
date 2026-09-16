@@ -16,6 +16,8 @@ export interface RemoteActivityViewModelHooks {
   readonly onConnectionState: (state: string) => void;
   readonly onStatus: (status: string) => void;
   readonly onConnectionError: (err: Object) => Promise<boolean>;
+  readonly onObserveCatalog?: () => void;
+  readonly onStopCatalog?: () => void;
   readonly onStartPolling: () => void;
   readonly onStopPolling: () => void;
   readonly onPoll: () => Promise<void>;
@@ -23,7 +25,7 @@ export interface RemoteActivityViewModelHooks {
   readonly onRestoreSession: (session: SessionSummary) => Promise<void>;
 }
 
-/** Owns foreground recovery, heartbeat health checks, and idempotent resume cancellation. */
+/** Owns foreground recovery, host catalog observation, and idempotent resume cancellation. */
 export class RemoteActivityViewModel {
   private readonly activity: RemoteActivityLifecycleController;
   private readonly connection: RemoteConnectionCoordinator;
@@ -44,26 +46,18 @@ export class RemoteActivityViewModel {
   }
 
   startHeartbeat(): void {
-    this.activity.startHeartbeat();
+    // Engine.IO owns heartbeat/reconnect; a second periodic host RPC is redundant.
+    this.activity.stopHeartbeat();
+    this.hooks.onObserveCatalog?.();
   }
 
   stopHeartbeat(): void {
     this.activity.stopHeartbeat();
+    this.hooks.onStopCatalog?.();
   }
 
-  /**
-   * A health check while the link is up, a recovery probe once it is not.
-   *
-   * A failed ping used to park the connection in `failed` and stop the
-   * heartbeat with it. Nothing survived that: the poller was stopped too, and
-   * `failed` disables every remote action, so a desktop that blinked out for a
-   * moment left the phone dead until the user backgrounded and refocused the
-   * app. The heartbeat is the only thing still ticking at that point, which
-   * makes it the only thing that can notice the desktop coming back — so it
-   * keeps ticking, and the first ping that answers puts the session back on the
-   * wire. Ticks are serialised by the heartbeat itself, and a ping is cheap
-   * enough to repeat every interval for as long as the drop lasts.
-   */
+  /** Explicit foreground/target recovery probe. Engine.IO and presence events
+   * own connection monitoring; this method is not scheduled on an interval. */
   async checkConnectionHealth(): Promise<void> {
     if (this.hooks.isBusy() || this.recovering || !this.hooks.hasRemoteBinding()) {
       return;

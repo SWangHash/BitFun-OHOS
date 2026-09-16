@@ -93,42 +93,32 @@ rendered, local included.
 
 ### Running-Turn attachment
 
-The live WebView/DeviceEvent broadcast is a low-latency delivery path, not the
-owner of a running Turn. Desktop and CLI Peer Runtime Hosts keep a materialized
-projection of each eligible current Turn even when no client is subscribed. Events enter
-that projection after the host's ordering/coalescing boundary and receive a
-per-Session monotonic cursor plus a Runtime-process `streamId`. Text and
-thinking chunks are materialized without collapsing segments across tool
-boundaries; noisy tool progress is compacted.
+Desktop and CLI own a durable session journal independently of attached
+controllers. The publisher emits `session-record` updates carrying the existing
+persisted Turn, ModelRound and item contracts, stable record IDs, revisions and
+tombstones. Controllers merge the highest revision for each identity; an older
+child record cannot regress a completed parent. Text, thinking and tool-body
+content have this one authority. Permission and other control events remain
+separate from transcript content.
 
-`restore_session_view` returns this additive `runtimeEventSnapshot`; the CLI
-Peer Host applies its existing Peer-owned-Turn filter before recording or
-returning the projection. The persisted Session record of an executing Turn is
-a lagging checkpoint, not the live projection: `loadSessionHistory` and
-`refreshPeerSessionSnapshot` must not paint that checkpoint's in-progress
-tool rows. A restore that races a live store update must still return the
-journal so attach can replay. Delivery of a live event to a product listener
-is not acceptance — a dropped ToolEvent / TextChunk marks the projection
-stale so the next attach replays instead of treating the cursor as current.
-`finish()` covers those cursors only after the painted projection has caught
-up with journal terminal tools; a matching cursor alone is not enough.
-Overlapping attach transfers the in-flight fence rather than delivering it
-onto a state machine that is about to reset. Hidden-document and
-fresh-TextChunk liveness skips apply only to the 3s poll, not to a dirty
-projection. During an attach, the frontend fences live events for
-`(DeviceSurfaceId, SessionId)`,
-replays the snapshot into an empty current-Turn projection, and then releases
-only events newer than the snapshot cursor. A different `streamId` is a new
-Runtime process and its cursors are never compared with the old stream. The
-Surface epoch rejects a response from a device that is no longer rendered.
-This makes attach independent of client-written intermediate checkpoints and
-closes the snapshot/live race without restarting, cancelling, or moving the
-Turn. Older Hosts may omit the field and use the persisted-snapshot fallback.
-Controller presence is an admission boundary, not the lifetime owner: after a
-Peer Host accepts a Turn, that Host continues executing and materializing it
-while zero controllers are attached. A later controller attaches to the same
-Runtime projection; controller loss alone must not cancel or interrupt the
-Turn. Actual host event-stream loss remains a fail-closed continuity error.
+`SessionSubscriber` and `SessionStream` initially load the latest bounded page,
+complete any fragment crossing the page boundary, and replay older pages through
+the same replica. Contiguous WebSocket records are applied directly; reconnects
+and sequence gaps fetch only the missing range. Backward pagination does not
+move the forward receive cursor. The Surface epoch rejects records and responses
+from a device that is no longer rendered. Desktop `RelaySessionHistory` owns the
+subscription across initial loading, realtime delivery and older-page prefetch.
+
+Remote session loading does not combine a full `restore_session_view` response
+with token deltas, and the former 3s reconciliation poll is not a Relay history
+source. Local/non-Relay runtime surfaces still use their existing materialized
+projection, event backfill and restore APIs; those local owners have not been
+removed by the Relay migration.
+
+Controller presence admits a control request; it does not own an accepted Turn.
+A disconnected controller leaves the Runtime, pending questions, permission
+mailbox and journal alive. Source lag or a journal publication failure is
+reported as a continuity gap; observer failure does not cancel accepted work.
 
 ### Blocking-interaction reattachment
 
@@ -136,10 +126,17 @@ A push event is a notification, not the owner of an interaction that can block
 an Agent turn. The owning Runtime keeps every native `AskUserQuestion` and
 interactive permission request in a live mailbox until it is answered or
 cancelled; an `AskUserQuestion` registration is also removed if its owning Tool
-future is dropped. `restore_session_view` returns an additive
-`interactionSnapshot` containing the Session-filtered mailbox and monotonic
-revisions. Desktop and CLI Peer Hosts expose the same field; older Hosts may
-omit it and remain on the event-only compatibility path.
+future is dropped. `get_session_interaction_mailbox` takes `{request:{sessionId}}`
+and returns the existing `SessionInteractionSnapshot` contract: session-filtered
+`userQuestions` and `permissions`, each with its monotonic revision. Desktop and
+CLI expose the same small operation. Controllers read it on initial attachment
+and reconnect independently of the durable transcript log; steady control events
+update the presentation without repeatedly loading either mailbox or history.
+Native question registration, answer, cancellation, timeout, and owning-future
+drop also advance the Runtime mailbox watch. Hosts publish the coalesced
+`session-interaction-changed` invalidation through the durable session stream;
+controllers then refresh only the small mailbox. The watch retains the latest
+revision rather than queueing question payloads on the Tool execution path.
 
 The frontend projects that mailbox into the active Surface container. Permission
 requests are retained for inactive Surfaces by source device, while missed
@@ -261,7 +258,7 @@ FS) and must not be mixed with Peer Device Mode.
   keep working. `Disconnect` in the switcher is the separate, explicit action
   that ends a peer's control link and discards that peer's cached Surface state
   on the controller. It does not cancel a Turn the peer has already accepted;
-  reconnecting later reattaches to the Host-owned Runtime projection. Pending
+  reconnecting later reattaches to the Host-owned durable session journal. Pending
   controller-only interactions still follow their owner's mailbox or fail-closed
   policy.
 - Local-only commands (window chrome, updater, account login/logout, peer
@@ -278,110 +275,66 @@ FS) and must not be mixed with Peer Device Mode.
 
 ## Transport
 
-- The shared `services-integrations::remote_connect::relay_client` owns one
-  cancellable connection task. Its read and write futures remain full-duplex,
-  while heartbeat, dial, write deadlines and reconnect belong to that same
-  lifetime. Disconnect joins cancellation; replacing or dropping the client
-  retires the old socket and its reconnect attempts. A generation fence prevents
-  an old connection from publishing state into its replacement. Initial dial
-  failure returns to `Disconnected`. Reconnect verifies the selected Relay account and device context before
-  admitting new outgoing commands. Anonymous room contexts are not supported.
-  The outgoing queue holds at most 64 messages and reports saturation explicitly;
-  its failed-socket contents are never replayed. Dial/write deadlines are 15s,
-  heartbeat cadence is 30s, with due heartbeats taking priority over queued
-  commands, and inbound idle detection is 75s. These transport
-  facts do not imply authentication success or application-level acceptance.
-- Mobile delegated-auth recovery retries only a real Relay HTTP 401. An
-  authenticated, encrypted host error mentioning `Unauthorized` or an upstream
-  `HTTP 401` is an application result and must not cause a second mutation.
-  Account-generation fences still apply before and after credential refresh.
-- Controller: `PeerDeviceTransportAdapter` wraps product `invoke` as
-  `RemoteCommand::HostInvoke` over `account_device_rpc`.
-- HostInvoke on the controller is **priority-queued** with four requests in
-  flight. Session restore / session-list / dialog / workspace-startup commands
-  outrank background `git_*` / `ssh_*` / `search_*` / FS / canvas /
-  editor RPCs so hydrate is not starved into relay HTTP 504s. Terminal commands
-  are always interactive priority, and one slot is kept free from normal and
-  low-priority work so input cannot be trapped behind slow polling requests.
-- Idempotent read HostInvokes use a 10s per-attempt deadline and at most four
-  exponential-backoff retries. Mutating commands use a 30s deadline and are
-  not replayed unless both ends share an explicit idempotency contract.
-  `start_dialog_turn` and `start_acp_dialog_turn` use their stable
-  `(sessionId, turnId)` identity for bounded retry: the controller reuses the
-  exact payload, while the host coalesces concurrent attempts and caches the
-  completed result for the retry window. The controller enables this exception
-  only when the initial `peer_mode_ping` advertises
-  `idempotent_dialog_submit`, so mixed-version peers remain single-shot.
-  Other mutations remain single-shot because a timed-out outcome is unknown.
-  Identity-based Session rollback is sent only when `peer_mode_ping` advertises
-  `targeted_session_rollback`; older peers fail explicitly and never fall back
-  to controller-local files, history, or the removed numeric rollback command.
-  The desktop `account_device_rpc` command enforces the requested deadline
-  around the native HTTP future; the controller's Promise deadline is not
-  merely a UI timer. Failed session-list loads leave the spinner and expose an
-  explicit retry action.
-- While Peer Mode is active, background noise is reduced further:
-  - controller-local SSH heartbeats and remote-workspace auto-reconnect pause
-  - Git / FilesPanel window-focus refresh pauses
-  - editor disk sync poll slows to 15s (from 1s)
-  - canvas snapshot poll slows to 15s (from 2s)
-  - workspace search-index poll slows to 30s idle / 5s active
-- Peer: decrypt → allow/deny → execute on the peer host:
-  - Desktop: webview bridge `peer-host-invoke://request` → same Tauri handlers
-    as local UI → `peer_host_invoke_complete`
-  - CLI: the invocation-scoped CLI product runtime handles dialog submit/cancel
-    through the Agent Runtime SDK and session/snapshot gaps through one Core
-    compatibility facade — no webview and no second scheduler, persistence
-    manager, or event queue. Desktop-only surfaces (MiniApp / cron / ACP list)
-    return empty or no-op so hydrate does not fail.
-- Events: peer agentic projection (and other product events such as terminal /
-  FS / MCP interaction) fan-out as `RemoteCommand::DeviceEvent` to attached
-  controllers; controller re-emits the same event names locally. This includes
-  SSH-backed remote PTY Ready / Data / Exit events created on B, not only B's
-  local terminal service events.
-- Relay DeviceEvent delivery itself has no ACK/replay contract. The active chat
-  therefore attaches immediately when the selected Session becomes hydrated,
-  after Surface/visibility changes, and after a detected data gap. The Peer
-  Host's `runtimeEventSnapshot` plus `(streamId, cursor)` is the resumable
-  current-Turn contract: live events are fenced while the snapshot is in
-  flight, the materialized Turn is replayed, and only later cursors are
-  released. The 3s reconciliation remains a liveness retry and an older-Host
-  persisted-snapshot fallback, not the source of Turn continuity. The host
-  still overlays its authoritative in-memory Session state so an executing
-  Turn is not misclassified as interrupted history. Native blocking
-  interactions are reconciled from the Runtime-owned `interactionSnapshot`
-  after event replay, because a Turn can wait indefinitely without emitting
-  another text chunk or producing a newer persisted checkpoint.
-- CLI Peer Host forwards only turns submitted through Peer Host and linked
-  child turns. A background-result follow-up inherits ownership only when its
-  Core-internal metadata identifies the exact tracked parent and source child
-  turns; if an unrelated turn is running in the same session, the result queues
-  behind it without losing Peer ownership. Completed source lineage uses a
-  bounded, one-shot tombstone while delivery waits on session serialization;
-  session drain or event-stream interruption clears it. Peer Host
-  requires an attached controller before submit and binds tool confirmation to
-  the exact observed tool and turn. Confirmable Peer tools always wait for the
-  controller even when the host's global policy skips confirmation, so an Agent
-  pauses until the controller responds; exact background-result follow-ups
-  retain this Peer-only confirmation requirement. The host keeps tracked Turns
-  running when the last controller detaches or goes offline and continues
-  materializing their Runtime projection for a later attach. Actual agent-event
-  subscription lag or closure remains a continuity failure: it cancels tracked
-  Turns and projects the existing dialog-turn-failed terminal event. Terminal
-  ownership remains tracked until the event reaches the delivery attempt, and a
-  closed local delivery queue uses the same direct DeviceEvent path. Delivery
-  targets are captured when an event is queued and rechecked against the
-  currently attached set before each send. A per-target delivery lease serializes
-  detach or offline removal with the local Relay enqueue attempt. An explicit
-  disconnect still restores the local controller UI and reports a warning when
-  the host does not confirm attachment teardown; that uncertainty concerns the
-  control link and controller-scoped interaction cleanup, not cancellation of
-  Host-accepted work. This boundary does not change the Relay envelope or add
-  ACK or replay.
-- Relay `POST /api/devices/:id/rpc` still permits up to **120s** for generic
-  callers. Peer controllers normally cancel earlier through their per-command
-  10s/30s deadlines; reverse proxies must still accommodate any other caller
-  that relies on the Relay maximum.
+- One account-scoped Socket.IO connection owns RPC acknowledgements, method
+  registration, presence and session updates. Rust `relay_client` supplies account
+  epochs and lifecycle cancellation around `realtime_client`; TypeScript uses
+  `AccountRealtime`. Replacing an account retires its socket and pending replies.
+  Transient disconnection does not destroy the Runtime's tasks or journals.
+- Relay `rpc-call` routes to the authenticated target's registered method and
+  carries the caller's deadline (120s when omitted). The server checks account
+  membership before routing. Missing acknowledgement after dispatch is an unknown
+  mutation outcome; a replacement socket is not grounds to execute it again.
+  Socket.IO server ping interval is 15s, ping timeout 45s, and connect timeout
+  15s. These transport facts do not establish Runtime readiness.
+- Relay admission reserves estimated in-flight RPC memory, with 16MiB per account
+  and 64MiB globally. Exhaustion rejects the call explicitly before submission.
+  Large encrypted RPC payloads use the separate HTTP bulk lane; TypeScript
+  `RpcPayload` inlines up to 128KiB and bounds one transfer block at 64MiB.
+  File upload uses bounded chunks rather than increasing the whole-file envelope.
+  Each upload action carries the captured `workspacePath` and saved SSH
+  `remoteConnectionId` (absent/empty denotes local), or a session identity.
+  The runtime binds transfer state to account, provider, and workspace root;
+  changing the selected workspace cannot redirect an in-flight upload.
+  The Relay stores ciphertext, not decrypted workspace content or credentials.
+- Desktop `PeerDeviceTransportAdapter` orders each pending dispatch burst as
+  interactive, normal, then background work. It does not maintain an independent
+  in-flight count limit or reserved slot. Actual admission belongs to the Relay
+  memory budget. Its read and mutation deadlines use the same 120s
+  `DEFAULT_RPC_TIMEOUT_MS` contract as `AccountRealtime`; explicit caller
+  deadlines continue to flow to the native transport and server. Retryable reads
+  retain bounded exponential-backoff recovery. Explicitly idempotent dialog
+  submissions reuse their stable session/turn identity; ordinary mutations remain
+  single-shot because a missing acknowledgement is an unknown outcome.
+- Mobile delegated-auth recovery retries only a Relay HTTP 401. A decrypted host
+  application error mentioning an upstream 401 must not repeat a mutation.
+  Captured account and target identities fence credential refresh and delivery.
+- Controller product operations use `RemoteCommand::HostInvoke` and the Product
+  Operation Registry. Desktop dispatches through its Tauri bridge; CLI uses
+  boxed, invocation-scoped portable handlers. Unsupported operations return an
+  explicit reason. CLI has real workspace, file and terminal providers rather
+  than treating the absence of a desktop IDE as absence of these capabilities.
+- Canonical session content travels through the durable encrypted journal, not
+  per-controller `DeviceEvent` fan-out. Remaining device events carry ancillary
+  product/control notifications. Their loss cannot become the authority for
+  transcript content or cancel a running Turn. Both direct record updates and
+  journal catch-up feed the same stable-ID replica.
+- `get_session_interaction_mailbox` restores revisioned questions and permissions
+  on attach/reconnect. Runtime question changes produce a coalesced
+  `session-interaction-changed` journal event; controllers then read only that
+  small mailbox. Surface/event fences prevent stale responses from reviving
+  completed interactions. Answers still go to the existing Runtime owner.
+- PTY execution and bounded replay history belong to the target, including saved
+  SSH workspaces. Local CLI publishes coalesced cursor notifications from a
+  watch channel, so a slow observer cannot exhaust a raw-output tap and silently
+  lose its subscription. SSH notification consumers tolerate broadcast lag and
+  read the retained cursor. Controllers fetch bounded replay pages and render
+  them in their terminal surface. Account retirement stops that publisher's
+  notification observers without terminating the PTY.
+- During Peer Mode, controller-local SSH maintenance and selected background
+  editor/Git/search refreshes retain their existing noise-reduction policy.
+  These UI refresh policies are separate from durable session synchronization.
+  Explicit detach restores the controller shell; uncertainty about attachment
+  teardown does not cancel Host-accepted work.
 
 ## Workspace directory picking
 
@@ -410,6 +363,31 @@ create the corresponding tree on A. Never forward A's selected destination to
 B through `export_local_file_to_path`; paths and permissions are host-specific
 and may represent a different operating system.
 
+Session attachments bind file reads to the session workspace. Downloads without
+an associated session capture `workspace_path` and the runtime's saved
+`remote_connection_id` once and carry them on every metadata/chunk request.
+The runtime resolves that explicit provider and rejects missing identities or
+unknown saved profiles; changing its selected workspace cannot redirect an
+in-flight download to a same-named local file. The legacy filesystem/terminal
+HostInvoke adapters distinguish an explicit empty connection id (runtime-local)
+from an omitted identity (native runtime path inference). Workspace menu actions
+send the selected workspace identity; local and SSH roots with identical paths
+must not select each other's provider. Controllers await each bounded
+chunk write and verify offset, size, and file revision before accepting more.
+A failed or cancelled native save is not reported as a completed destination. Desktop peer downloads use the controller-local
+`local_file_download` sink: the native adapter checks the save dialog's destination
+scope, creates private sibling staging, validates write offsets, and atomically
+replaces the target only after the complete stream passes validation. Cancel and
+failure discard staging; they never truncate or remove an existing destination.
+The webview resource owns the sink, and no parent-directory permission is added.
+
+
+Host directory observers subscribe once to the encrypted `@host/catalog`
+stream. `host-catalog-changed` invalidates session/workspace lists; initial
+attachment, reconnect, and foreground recovery coalesce directory refreshes.
+Revision values are invalidations, not cross-process clocks. Device presence
+comes from the account WebSocket, without a second periodic directory RPC.
+
 ## Ownership
 
 - Command policy and peer capabilities (all surfaces):
@@ -419,12 +397,7 @@ and may represent a different operating system.
 - CLI host invoke / fan-out: `src/apps/cli/src/peer_host/` (Core registry; no
   webview bridge). Device routing in `src/apps/cli/src/account.rs` special-cases
   `HostInvoke` / `DeviceEvent`. Same machine Desktop+CLI share one `device_id`;
-  last `AuthConnect` wins.
-- Shared account settings sync engine:
-  `src/crates/assembly/core/src/service/remote_connect/settings_sync.rs`
-  (debounced push, 30s pull, persisted cursor); app wiring in
-  `src/apps/desktop/src/api/remote_connect_api.rs` and
-  `src/apps/cli/src/account_sync.rs`.
+  the authenticated connection epoch retires the previous connection.
 - Frontend mode + transport: `src/web-ui/src/infrastructure/peer-device/`,
   `adapters/peer-device-adapter.ts`
 - Surface routing / switcher: `deviceSurfaceRouting.ts`,

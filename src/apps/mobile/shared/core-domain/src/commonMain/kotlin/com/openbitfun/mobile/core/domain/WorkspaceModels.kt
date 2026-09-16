@@ -6,9 +6,12 @@ public data class RecentWorkspace public constructor(
     public val lastOpened: String,
     public val kind: String,
     public val remoteSshHost: String?,
+    public val remoteConnectionId: String?,
 ) {
     public constructor(path: String, name: String, lastOpened: String, kind: String) :
-        this(path, name, lastOpened, kind, null)
+        this(path, name, lastOpened, kind, null, null)
+    public constructor(path: String, name: String, lastOpened: String, kind: String, remoteSshHost: String?) :
+        this(path, name, lastOpened, kind, remoteSshHost, null)
     public val displayName: String
         get() = remoteSshHost?.trim()?.takeIf { it.isNotEmpty() }?.let { "$name · $it" } ?: name
 }
@@ -25,4 +28,9 @@ public data class SelectedWorkspace public constructor(
     public val gitBranch: String,
     public val kind: String,
     public val assistantId: String?,
-)
+    public val remoteConnectionId: String?,
+    public val remoteSshHost: String?,
+) {
+    public constructor(path: String, name: String, gitBranch: String, kind: String, assistantId: String?) :
+        this(path, name, gitBranch, kind, assistantId, null, null)
+}

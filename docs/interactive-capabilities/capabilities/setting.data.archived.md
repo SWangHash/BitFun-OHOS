@@ -17,15 +17,15 @@ Find, restore, or permanently delete archived sessions and manage long-term conv
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按工作区浏览分页归档会话及其元数据
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按工作区浏览分页归档会话及其元数据
   - Browse paged archived sessions and metadata by workspace
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按标题、内容和工作区搜索已归档会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按标题、内容和工作区搜索已归档会话
   - Search archived sessions by title, content, and workspace
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 恢复会话、轮次和原工作区视图并取消归档
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 恢复会话、轮次和原工作区视图并取消归档
   - Restore a session, its turns, and original workspace view, then unarchive it
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 明确确认后永久删除选中的归档会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 明确确认后永久删除选中的归档会话
   - Permanently delete a selected archived session after explicit confirmation
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 明确确认后永久删除全部归档会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 明确确认后永久删除全部归档会话
   - Permanently delete all archived sessions after explicit confirmation
 
 ## 怎么用 / How to use it
@@ -39,7 +39,7 @@ Find, restore, or permanently delete archived sessions and manage long-term conv
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -51,13 +51,13 @@ Find, restore, or permanently delete archived sessions and manage long-term conv
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开已归档会话”
   - “Open archived sessions”
 - “带我恢复一个旧会话”
   - “Take me to restore an old session”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

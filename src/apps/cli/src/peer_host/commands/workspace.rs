@@ -49,6 +49,24 @@ pub(crate) async fn get_current_workspace(state: &PeerHostState) -> Result<Value
         .unwrap_or(Value::Null))
 }
 
+pub(crate) async fn set_active_workspace(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let workspace_id = get_string(request_value(args), "workspaceId")?;
+    state
+        .workspace_service
+        .set_active_workspace(&workspace_id)
+        .await
+        .map_err(|error| format!("Failed to activate workspace: {error}"))?;
+    let workspace = state
+        .workspace_service
+        .get_current_workspace()
+        .await
+        .ok_or_else(|| "Active workspace not found after switching".to_string())?;
+    Ok(workspace_info_to_json(&workspace))
+}
+
 pub(crate) async fn open_workspace(state: &PeerHostState, args: &Value) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
@@ -78,6 +96,29 @@ pub(crate) async fn open_workspace(state: &PeerHostState, args: &Value) -> Resul
     Ok(workspace_info_to_json(&info))
 }
 
+pub(crate) async fn open_remote_workspace(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let path = get_string(request, "remotePath")?;
+    let connection_id = get_string(request, "connectionId")?;
+    let host = crate::peer_host::args::optional_string(request, "sshHost");
+    let coordinator = openbitfun_core::agentic::coordination::get_global_coordinator()
+        .ok_or("Conversation coordinator is unavailable")?;
+    let info = coordinator
+        .open_workspace_with_runtime_ownership(
+            &state.workspace_service,
+            PathBuf::from(path),
+            Some(&connection_id),
+            host.as_deref(),
+            "peer workspace open",
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(workspace_info_to_json(&info))
+}
+
 pub(crate) async fn reload_config() -> Result<Value, String> {
     openbitfun_core::service::config::reload_global_config()
         .await
@@ -92,4 +133,15 @@ pub(crate) async fn cleanup_invalid_workspaces(state: &PeerHostState) -> Result<
         .await
         .map_err(|e| format!("Failed to cleanup invalid workspaces: {e}"))?;
     Ok(json!(removed))
+}
+
+pub(crate) async fn ssh_list_saved_connections() -> Result<Value, String> {
+    let state =
+        openbitfun_core::service::remote_ssh::workspace_state::ensure_saved_connection_services()
+            .await?;
+    let ssh = state
+        .get_ssh_manager()
+        .await
+        .ok_or("SSH manager is unavailable")?;
+    serde_json::to_value(ssh.get_saved_connections().await).map_err(|e| e.to_string())
 }

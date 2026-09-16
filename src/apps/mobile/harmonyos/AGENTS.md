@@ -69,6 +69,7 @@ through `LocaleController`. Do not import Web UI or mobile-web locale catalogs.
 The current local HarmonyOS verification loop is:
 
 ```bash
+node --test tools/tests/*.test.cjs  # session fragment, cursor, reconnect and identity checks
 node --test miniapps/*.test.cjs  # bundled sources, browser bridge, and local storage compatibility
 source scripts/ohos-env.sh
 "$HVIGORW" --mode module -p product=default -p module=entry@default assembleHap --no-daemon
@@ -116,3 +117,14 @@ source scripts/ohos-env.sh
 - Use existing semantic colors from `Theme.ets`; do not hard-code a light-only foreground or surface color.
 - For changes to navigation controls, menus, or responsive presentation, verify compact and wide behavior, light and dark theme legibility, and capture a real-device screenshot before completion when a device is connected.
 - Run the smallest matching HarmonyOS build/check plus `pnpm run theme:color-audit:all` for theme or color-related changes.
+
+For the bundled native file editor renderer (read-only mode, horizontal lines,
+line-number scroll alignment, and edit bridge), run from the repository root:
+
+```bash
+node --test src/mobile-web/tests/harmony-file-editor-browser.test.mjs
+node --test src/apps/mobile/harmonyos/tools/tests/workspace-editor.test.cjs
+```
+
+The Chrome renderer test does not replace Harmony device-level keyboard and
+sheet-layout checks.

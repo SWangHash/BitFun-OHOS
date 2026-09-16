@@ -144,7 +144,7 @@ const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
             {owner ? (
               <span className="miniapp-library-row__meta-item miniapp-library-row__meta-item--owner">
                 <UserRound size={13} strokeWidth={1.8} aria-hidden="true" />
-                <OverflowText>@{owner}</OverflowText>
+                <OverflowText>{owner.includes('@') ? owner : `@${owner}`}</OverflowText>
               </span>
             ) : null}
             {rating ? (

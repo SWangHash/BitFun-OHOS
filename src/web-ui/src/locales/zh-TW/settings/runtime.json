@@ -1,17 +1,17 @@
 {
   "defaultHarness": {
-    "title": "預設 Agent Harness",
-    "description": "設定一般新工作階段如何選擇 Harness。助理、ACP 與明確指定模式的工作階段不受影響。",
+    "title": "預設智能體執行框架",
+    "description": "設定一般新工作階段如何選擇執行框架。助理、ACP 與明確指定模式的工作階段不受影響。",
     "strategy": "預設方式",
     "followLast": "跟隨上一次選擇",
     "fixed": "固定預設模式",
-    "followLastDescription": "新工作階段沿用最近一次在 ChatInput 主動選擇的 Harness。目前記憶：{{name}}。",
-    "followLastEmptyDescription": "尚未記住 Harness 選擇；在 ChatInput 主動選擇前，新工作階段使用 {{name}}。",
-    "fixedDescription": "新工作階段一律使用指定 Harness；目前工作階段不會變更。",
-    "fixedMode": "預設 Harness",
+    "followLastDescription": "新工作階段沿用最近一次在 ChatInput 主動選擇的執行框架。目前記憶：{{name}}。",
+    "followLastEmptyDescription": "尚未記住執行框架選擇；在 ChatInput 主動選擇前，新工作階段使用 {{name}}。",
+    "fixedDescription": "新工作階段一律使用指定執行框架；目前工作階段不會變更。",
+    "fixedMode": "預設執行框架",
     "fixedModeDescription": "僅用於未明確指定模式的一般新工作階段。",
     "compatibilityMode": "{{id}}（相容設定）",
-    "loadFailed": "無法讀取預設 Harness 設定。為避免覆蓋現有設定，此設定已鎖定。"
+    "loadFailed": "無法讀取預設執行框架設定。為避免覆蓋現有設定，此設定已鎖定。"
   },
   "features": {
     "pet": {
@@ -70,7 +70,7 @@
     "globalRulesDescription": "為所有工作區設定通用的允許、詢問或拒絕規則。",
     "manageGlobalRules": "管理規則",
     "globalRulesDialogTitle": "全域工具權限規則",
-    "globalRulesDialogDescription": "這些使用者級規則會套用至所有工作區。後續專案和 Agent 規則可以覆蓋它們；產品強制限制始終優先。",
+    "globalRulesDialogDescription": "這些使用者級規則會套用至所有工作區。後續專案和智能體規則可以覆蓋它們；產品強制限制始終優先。",
     "globalRulesTitle": "自訂全域規則",
     "globalRulesEmpty": "尚未設定自訂全域規則。目前權限模式仍會生效。",
     "addGlobalRule": "新增規則",

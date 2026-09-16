@@ -6,8 +6,8 @@
  */
 
 import React, { useCallback, memo, useEffect, useRef, useState } from 'react';
-import { Icon } from '@openbitfun/ui';
-import { useI18n } from '@/infrastructure/i18n';
+import { ChatFileDropOverlay } from './ChatFileDropOverlay';
+import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
 import { ModernFlowChatContainer as FlowChatContainer } from '../../../flow_chat/components/modern/ModernFlowChatContainer';
 import { ChatInput } from '../../../flow_chat/components/ChatInput';
 import type { ChatInputRegistration } from '../../../flow_chat/components/chatInputRegistration';
@@ -60,7 +60,11 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
   const addTab = useCanvasStore(state => state.addTab);
   const fileDropTargetRef = useRef<HTMLDivElement>(null);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
-  const { t } = useI18n('flow-chat');
+  const [filePreview, setFilePreview] = useState<FileDropPreview | null>(null);
+  const fileDragPosition = useRef<FileDropPosition | null>(null);
+  const updateFileDragPosition = useCallback((position: FileDropPosition | null) => {
+    fileDragPosition.current = position;
+  }, []);
   const deferredTaskDetailTimersRef = useRef<number[]>([]);
   const deferredTaskDetailIdleCallbacksRef = useRef<number[]>([]);
 
@@ -184,18 +188,14 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
         <ChatInput
           fileDropTargetRef={fileDropTargetRef}
           onFileDragOverChange={setIsFileDragOver}
+          onFileDragPreviewChange={setFilePreview}
+          onFileDragPositionChange={updateFileDragPosition}
           isSceneActive={isSceneActive}
           registration={chatInputRegistration}
         />
       )}
       {showChatInput && isSceneActive && isFileDragOver && (
-        <div className="openbitfun-chat-pane__drop-overlay" role="status"
-          data-testid="chat-pane-drop-overlay">
-          <span className="openbitfun-chat-pane__drop-hint">
-            <Icon name="upload" size="md" />
-            {t('context.dropToAdd')}
-          </span>
-        </div>
+        <ChatFileDropOverlay preview={filePreview} positionRef={fileDragPosition} />
       )}
     </div>
   );

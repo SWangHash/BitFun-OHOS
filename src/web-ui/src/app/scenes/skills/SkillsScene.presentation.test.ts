@@ -42,6 +42,19 @@ describe('Skills scene presentation', () => {
     expect(stylesheet).toContain('font-size: var(--openbitfun-type-heading-dialog-font-size);');
   });
 
+  it('presents add skill as the same compact primary action used to create an agent', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const actionStart = source.indexOf('className="skills-content-header__action"');
+    const actionEnd = source.indexOf('</Button>', actionStart);
+    const action = source.slice(actionStart, actionEnd);
+
+    expect(actionStart).toBeGreaterThan(-1);
+    expect(action).toContain('variant="primary"');
+    expect(action).toContain('size="sm"');
+    expect(action).toContain('leadingIcon={<Icon name="plus" size="sm" />}');
+    expect(action).toContain("{t('toolbar.addTooltip')}");
+  });
+
   it('lets the skills page inherit the surrounding scene surface', () => {
     const stylesheet = readSibling('./SkillsScene.scss');
     const listStylesheet = readSibling('./components/_SkillsList.scss');

@@ -6,6 +6,8 @@ export const actionItemMeta = {
   maturity: "stable",
   name: "ActionItem",
   props: [
+    { name: "actionContent", type: "ReactNode" },
+    { name: "triggerClassName", type: "string" },
     { defaultValue: "overflow", name: "labelBehavior", type: "overflow | static" },
     { name: "children", type: "ReactNode" },
     { name: "leading", type: "ReactNode" },

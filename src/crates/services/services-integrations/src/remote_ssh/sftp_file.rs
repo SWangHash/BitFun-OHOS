@@ -48,18 +48,18 @@ impl ManagedSftpSession {
     }
 
     pub(super) async fn open(self: &Arc<Self>, path: &str) -> Result<ManagedSftpFile, Error> {
-        self.open_owned(path, false).await
+        self.open_owned(path, 0).await
     }
 
     pub(super) async fn create(self: &Arc<Self>, path: &str) -> Result<ManagedSftpFile, Error> {
-        self.open_owned(path, true).await
+        self.open_owned(path, 1).await
     }
 
-    async fn open_owned(
-        self: &Arc<Self>,
-        path: &str,
-        create: bool,
-    ) -> Result<ManagedSftpFile, Error> {
+    pub(super) async fn create_new(self: &Arc<Self>, path: &str) -> Result<ManagedSftpFile, Error> {
+        self.open_owned(path, 2).await
+    }
+
+    async fn open_owned(self: &Arc<Self>, path: &str, mode: u8) -> Result<ManagedSftpFile, Error> {
         let session = self.clone();
         let path = path.to_owned();
         let (send, receive) = tokio::sync::oneshot::channel();
@@ -69,7 +69,16 @@ impl ManagedSftpSession {
             if send.is_closed() {
                 return;
             }
-            let result = if create {
+            let result = if mode == 2 {
+                use russh_sftp::protocol::OpenFlags;
+                session
+                    .session
+                    .open_with_flags(
+                        path,
+                        OpenFlags::CREATE | OpenFlags::EXCLUDE | OpenFlags::WRITE,
+                    )
+                    .await
+            } else if mode == 1 {
                 session.session.create(path).await
             } else {
                 session.session.open(path).await

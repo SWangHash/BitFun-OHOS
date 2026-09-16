@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { AccountRealtime } from '../../../../../shared/relay-transport/AccountRealtime';
 import { AccountIdentityChangedError, RelayHttpClient } from '../../../../../mobile-web/src/services/RelayHttpClient';
 import { deriveDeviceMessageKey, encrypt, toB64, generateKeyPair } from '../../../../../mobile-web/src/services/E2EEncryption';
 
@@ -6,9 +7,9 @@ const identity = (userId = 'user-a') => ({ token: `token-${userId}`, userId, dev
 const peerPublicKey = (await generateKeyPair()).publicKey;
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 beforeEach(() => { vi.stubGlobal('window', globalThis); });
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
-describe.each(['https://remote.openbitfun.com/v/1.0.0', 'http://192.168.1.9:9700'])('account device routing on %s', (relayUrl) => {
+describe.each(['https://remote.openbitfun.com/v/1.0.1', 'http://192.168.1.9:9700'])('account device routing on %s', (relayUrl) => {
   it('rejects an unauthenticated constructor and sends nothing after logout', async () => {
     expect(() => new RelayHttpClient(relayUrl, { ...identity(), token: '' })).toThrow();
     const client = new RelayHttpClient(relayUrl, identity());
@@ -46,8 +47,12 @@ describe.each(['https://remote.openbitfun.com/v/1.0.0', 'http://192.168.1.9:9700
       ? Response.json({ device_id: 'desktop', public_key: toB64(peerPublicKey) })
       : Response.json({ encrypted_data: encrypted.data, nonce: encrypted.nonce }));
     vi.stubGlobal('fetch', fetch);
+    const rpc = vi.spyOn(AccountRealtime.prototype, 'call').mockResolvedValue({ encrypted_data: encrypted.data, nonce: encrypted.nonce });
     await expect(client.sendDeviceRpc('desktop', { cmd: 'cancel_task' })).rejects.toThrow(message);
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(client.accountUserId).toBe('user-a');
+    client.resetConnectionIdentity();
     expect(fetch.mock.calls[0][0]).toBe(`${relayUrl}/api/devices/desktop/key`);
   });
   it('does not post a command after the target changes during key lookup', async () => {

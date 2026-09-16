@@ -1,3 +1,4 @@
+export interface RuntimeFileLocation { path: string; remoteConnectionId?: string; }
 
 
 export class EncryptedPayload {
@@ -6,6 +7,8 @@ export class EncryptedPayload {
 }
 
 export interface WorkspaceInfo {
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
   path: string;
   name: string;
   hasWorkspace: boolean;
@@ -23,6 +26,7 @@ export interface InitialSyncResult {
 }
 
 export interface RecentWorkspaceEntry {
+  remoteConnectionId?: string;
   remoteSshHost?: string;
   path: string;
   name: string;
@@ -63,6 +67,7 @@ export interface ChatMessage {
 }
 
 export interface SessionSummary {
+  remoteConnectionId?: string;
   sessionId: string;
   title: string;
   workspacePath: string;
@@ -71,6 +76,7 @@ export interface SessionSummary {
 }
 
 export interface CreateSessionOptions {
+  remoteConnectionId?: string;
   agentType: string;
   title: string;
   instruction: string;
@@ -95,7 +101,13 @@ export interface ChallengeCommand {
   password?: string;
 }
 
+export interface SavedRuntimeConnection { id: string; name: string; host: string; }
+export interface SavedRuntimeConnectionsResponse extends CommandStatusResponse { ok: boolean; value?: SavedRuntimeConnection[]; error?: string; }
+
 export interface RemoteCommand {
+  command?: string;
+  args?: Object;
+  remote_connection_id?: string;
   cmd: string;
   _request_id?: string;
   session_id?: string;
@@ -117,6 +129,7 @@ export interface RemoteCommand {
   plan_file_path?: string;
   plan_name?: string;
   tool_id?: string;
+  updated_input?: Object;
   model_id?: string;
   reason?: string;
   mode?: RemotePermissionMode;
@@ -145,6 +158,8 @@ export interface PermissionModeResponse extends CommandStatusResponse {
 }
 
 export interface WorkspaceInfoResponse extends CommandStatusResponse {
+  remote_connection_id?: string;
+  remote_ssh_host?: string;
   has_workspace?: boolean;
   workspace_path?: string;
   workspace_name?: string;
@@ -157,6 +172,7 @@ export interface WorkspaceInfoResponse extends CommandStatusResponse {
 }
 
 export interface RecentWorkspaceEntryResponse {
+  remote_connection_id?: string;
   remote_ssh_host?: string;
   path?: string;
   name?: string;
@@ -272,6 +288,8 @@ export interface SessionListResult {
 }
 
 export interface CreateSessionResponse extends CommandStatusResponse {
+  workspace_path?: string;
+  remote_connection_id?: string;
   session_id?: string;
   id?: string;
   title?: string;
@@ -354,6 +372,7 @@ export interface SetSessionModelResponse extends CommandStatusResponse {
 }
 
 export interface RemoteToolStatusResponse {
+  permission_request_id?: string;
   id?: string;
   name?: string;
   status?: string;

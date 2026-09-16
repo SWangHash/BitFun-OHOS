@@ -134,11 +134,16 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "start_app" => Some(Arc::new(StartAppTool::new())),
             "hdc_log" => Some(Arc::new(HdcLogTool::new())),
             "arkts_knowledge_search" => Some(Arc::new(ArktsKnowledgeSearchTool::new())),
+            #[cfg(feature = "mcp-runtime")]
             "check_arkts_files" => Some(Arc::new(CheckArktsFilesTool::new())),
+            #[cfg(feature = "mcp-runtime")]
             "check_cpp_files" => Some(Arc::new(CheckCppFilesTool::new())),
             "switch_cwd" => Some(Arc::new(SwitchCwdTool::new())),
+            #[cfg(feature = "mcp-runtime")]
             "verify_ui" => Some(Arc::new(VerifyUiTool::new())),
+            #[cfg(feature = "mcp-runtime")]
             "get_ui_verification_log" => Some(Arc::new(GetUiVerificationLogTool::new())),
+            #[cfg(feature = "mcp-runtime")]
             "save_ui_screenshot" => Some(Arc::new(SaveUiScreenshotTool::new())),
             "OpenBitFunControl" => Some(Arc::new(OpenBitFunControlTool::new())),
             "Task" => Some(Arc::new(TaskTool::new())),

@@ -87,6 +87,10 @@
     display: none;
   }
 
+  .input[type="password"][data-hide-native-password-reveal="true"]::-ms-reveal {
+    display: none;
+  }
+
   .leading,
   .trailing {
     --openbitfun-opacity-icon-artwork: 1;

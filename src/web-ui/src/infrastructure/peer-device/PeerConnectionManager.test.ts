@@ -414,6 +414,8 @@ describe('PeerConnectionManager disposal', () => {
       request: { workspacePath: '/repo' },
     });
     const settled = pending.then(() => 'resolved', () => 'rejected');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rpc.commands()).toContain('list_persisted_sessions_page');
 
     await manager.dispose('peer-1');
 

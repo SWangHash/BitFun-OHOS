@@ -140,6 +140,13 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
       data-openbitfun-part="workspace"
       data-openbitfun-state={isNavCollapsed ? 'collapsed' : undefined}
     >
+      <div
+        className="openbitfun-workspace-body__material"
+        data-openbitfun-scene="workbench"
+        data-openbitfun-part="workspaceMaterial"
+        data-openbitfun-theme-scope="chrome"
+        aria-hidden="true"
+      />
       {isNavCollapsed && (
         <div className="openbitfun-workspace-body__collapsed-nav" data-openbitfun-scene="workbench" data-openbitfun-part="collapsedNav">
           <NavBar isCollapsed onExpandNav={toggleLeftPanel} onMaximize={onMaximize} />
@@ -153,6 +160,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
         style={isNavCollapsed ? undefined : { '--nav-width': `${navWidth}px` } as React.CSSProperties}
         data-openbitfun-scene="workbench"
         data-openbitfun-part="navArea"
+        data-openbitfun-theme-scope="chrome"
         data-openbitfun-state={isNavCollapsed ? 'collapsed' : undefined}
       >
         <NavBar onExpandNav={toggleLeftPanel} onMaximize={onMaximize} />

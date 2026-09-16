@@ -134,6 +134,9 @@
 
   &__export-option {
     display: inline-flex;
+    font-family: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
     align-items: center;
     gap: 4px;
     color: var(--openbitfun-color-content-secondary);
@@ -143,9 +146,6 @@
     cursor: pointer;
 
     input {
-      width: 12px;
-      height: 12px;
-      margin: 0;
       accent-color: var(--openbitfun-color-accent-default);
 
       &:focus-visible {
@@ -154,7 +154,7 @@
       }
     }
 
-    span:not([data-overflow-content]) {
+    > [data-openbitfun-part='content'] {
       max-width: 92px;
       overflow: hidden;
       white-space: nowrap;

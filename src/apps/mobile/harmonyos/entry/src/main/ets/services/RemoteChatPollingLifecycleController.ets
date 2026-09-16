@@ -38,6 +38,8 @@ export class RemoteChatPollingLifecycleController {
     this.controller.stop();
   }
 
+  loadOlder(): void { this.controller.loadOlder(); }
+
   nudge(): void {
     this.controller.nudge();
   }

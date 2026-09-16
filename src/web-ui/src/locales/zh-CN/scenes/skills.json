@@ -12,7 +12,7 @@
     },
     "categories": {
       "discover": "探索",
-      "installed": "已安装"
+      "installed": "技能库"
     },
     "items": {
       "market": "技能市场",
@@ -27,7 +27,7 @@
     "searchPlaceholder": "搜索已安装技能和市场技能..."
   },
   "installed": {
-    "titleAll": "已安装技能",
+    "titleAll": "技能库",
     "titleListAll": "全部技能",
     "subtitleAll": "管理所有已安装的用户级和项目级技能",
     "titleBuiltin": "内置技能",
@@ -51,11 +51,11 @@
     "groups": "技能分组"
   },
   "categories": {
-    "all": "查看所有已安装的技能，包含内置、用户和项目级。",
+    "all": "查看所有发现的技能，包含内置、用户级和项目级。",
     "builtin": "系统出厂自带的核心技能，不可删除。",
-    "user": "全局安装到当前账户的 OpenBitFun 用户级技能。",
-    "project": "当前工作区下的 OpenBitFun 项目级技能。",
-    "source": "从 {{source}} 导入的 OpenBitFun 副本，包含用户级及当前工作区的项目级技能。",
+    "user": "当前账户各来源目录中的用户级技能。",
+    "project": "当前工作区各来源目录中的项目级技能。",
+    "source": "来自 {{source}} 的技能，包含用户级及当前工作区的项目级技能。",
     "groups": "创建和整理可复用的技能分组。"
   },
   "section": {
@@ -277,7 +277,8 @@
     "enabled": "启用",
     "disabled": "禁用",
     "revealPathFailed": "无法在资源管理器中打开: {{error}}",
-    "nameConflict": "已安装同名技能 \"{{name}}\"，无法重复安装。请先卸载已有的同名技能后再安装。"
+    "nameConflict": "已安装同名技能 \"{{name}}\"，无法重复安装。请先卸载已有的同名技能后再安装。",
+"copyPathFailed": "复制路径失败: {{error}}"
   },
   "skillsCenter": "技能中心",
   "searchSkills": "搜索技能...",

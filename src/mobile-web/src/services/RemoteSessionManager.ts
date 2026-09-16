@@ -1,12 +1,10 @@
+import type { SessionStreamHandle, SessionHistoryState } from '../../../shared/relay-transport/SessionStream';
 import { translateAgentIdentityFields } from '../../../shared/agent-harness/wire';
 /**
  * Manages remote sessions by sending commands to the desktop via the relay.
- * All communication is request-response via RelayHttpClient (HTTP).
+ * Commands use the shared authenticated realtime RPC connection.
  *
- * Includes SessionPoller for incremental state synchronization:
- *   - Active tab: poll every 1 second
- *   - Inactive tab: poll every 5 seconds
- *   - On tab activation: immediate poll to catch up on missed changes
+ * Durable session events drive presentation synchronization.
  */
 
 import {
@@ -158,6 +156,9 @@ export interface ChatImageAttachment {
 }
 
 export interface ChatMessage {
+  turn_id?: string;
+  status?: string;
+  error?: string;
   id: string;
   role: string;
   content: string;
@@ -187,6 +188,8 @@ export interface RemoteToolStatus {
   start_ms?: number;
   input_preview?: string;
   tool_input?: any;
+  tool_output?: unknown;
+  error_preview?: string;
 }
 
 export interface PollResponse {
@@ -329,9 +332,7 @@ export class RemoteSessionManager {
       workspaces: RecentWorkspaceEntry[];
       opened_workspaces?: RecentWorkspaceEntry[] | null;
     }>({ cmd: 'list_recent_workspaces' }, target);
-    if (Array.isArray(resp.opened_workspaces)) return projectWorkspaceCatalog(resp);
-    // Older hosts only offer recent history. Preserve that fallback explicitly,
-    // and resolve assistant names through their existing supported command.
+    // Workspace catalogs carry directory labels; assistant identities own their display names.
     const { assistants } = await this.request<{ assistants: AssistantEntry[] }>(
       { cmd: 'list_assistants' }, target,
     );
@@ -358,6 +359,25 @@ export class RemoteSessionManager {
       remote_connection_id: options?.remoteConnectionId,
       remote_ssh_host: options?.remoteSshHost,
     });
+  }
+
+  async subscribeSessionStream(sessionId: string,
+    onEvent: (event: import('../../../shared/relay-transport/SessionCipher').SessionEvent) => void,
+    onError: (error: unknown) => void, onCaughtUp?: () => void, onHistoryState?: (state: SessionHistoryState) => void, onResumed?: () => void): Promise<SessionStreamHandle> {
+    const target = this.client.getControlTargetSnapshot();
+    const grant = await this.request<{ session_id: string; relay_session_id: string; key: string }>({ cmd: 'get_session_key', session_id: sessionId }, target);
+    this.ensureControlTargetCurrent(target);
+    if (grant.session_id !== sessionId) throw new Error('Session key grant does not match the requested stream');
+    return this.client.subscribeSessionStream(sessionId, grant.relay_session_id, grant.key, onEvent, onError, onCaughtUp, onHistoryState, onResumed);
+  }
+
+  /** Product operations execute on the controlled host, including its SSH adapter. */
+  async invokeHost<T>(command: string, request: Record<string, unknown>, structured = true): Promise<T> {
+    const response = await this.request<{ ok: boolean; value?: T; error?: string }>({
+      cmd: 'host_invoke', command, args: structured ? { request } : request,
+    });
+    if (!response.ok) throw new Error(response.error || `Host operation failed: ${command}`);
+    return response.value as T;
   }
 
   async listAssistants(): Promise<AssistantEntry[]> {
@@ -419,6 +439,7 @@ export class RemoteSessionManager {
     workspacePath?: string,
     identity?: RemoteWorkspaceIdentity,
   ): Promise<string> {
+    if (!workspacePath?.trim()) throw new Error('Workspace path is required to create a session');
     const resp = await this.request<{ resp: string; session_id: string }>({
       cmd: 'create_session',
       agent_type: agentType || undefined,
@@ -535,8 +556,8 @@ export class RemoteSessionManager {
     });
   }
 
-  async confirmTool(toolId: string): Promise<void> {
-    await this.request({ cmd: 'confirm_tool', tool_id: toolId });
+  async confirmTool(toolId: string, updatedInput?: Record<string, unknown>): Promise<void> {
+    await this.request({ cmd: 'confirm_tool', tool_id: toolId, updated_input: updatedInput });
   }
 
   async rejectTool(toolId: string, reason?: string): Promise<void> {
@@ -587,7 +608,7 @@ export class RemoteSessionManager {
 
   async ping(): Promise<void> {
     const controllerDeviceId = this.client.controllerDeviceId;
-    if (!controllerDeviceId) throw new Error('Sign in with GitHub to continue');
+    if (!controllerDeviceId) throw new Error('Sign in to continue');
     await this.request({ cmd: 'ping', client: getControlClientIdentity(controllerDeviceId) });
   }
 
@@ -596,7 +617,7 @@ export class RemoteSessionManager {
    * transferring its content.  Used to render file cards before the user
    * confirms a download.
    */
-  async getFileInfo(path: string, sessionId?: string): Promise<{
+  async getFileInfo(path: string, sessionId?: string, workspace?: { path: string; remoteConnectionId?: string }): Promise<{
     name: string;
     size: number;
     mimeType: string;
@@ -606,7 +627,8 @@ export class RemoteSessionManager {
       name: string;
       size: number;
       mime_type: string;
-    }>({ cmd: 'get_file_info', path, session_id: sessionId ?? undefined });
+    }>({ cmd: 'get_file_info', path, session_id: sessionId ?? undefined,
+      ...(sessionId ? {} : { workspace_path: workspace?.path, remote_connection_id: workspace?.remoteConnectionId }) });
     return {
       name: resp.name,
       size: resp.size,
@@ -617,24 +639,27 @@ export class RemoteSessionManager {
   /**
    * Read a workspace file using chunked transfer.
    *
-   * Downloads the file in bounded chunks, verifies and reassembles bytes, and
+   * Reads revision-checked bounded chunks into an awaited sink, and
    * calls `onProgress(downloaded, total)` after each chunk so the UI can
    * display a progress bar.
    */
-  async readFile(
+  async streamFile(
     path: string,
+    onChunk: (bytes: Uint8Array) => Promise<void>,
     sessionId?: string,
     onProgress?: (downloaded: number, total: number) => void,
     maxBytes?: number,
+    workspace?: { path: string; remoteConnectionId?: string },
   ): Promise<{
     name: string;
-    contentBase64: string;
     mimeType: string;
     size: number;
   }> {
+    if (!sessionId && !workspace?.path) throw new Error('A fixed runtime workspace is required for download');
+    const workspaceIdentity = sessionId ? {} : {workspace_path: workspace!.path, remote_connection_id: workspace!.remoteConnectionId};
     const CHUNK_SIZE = 3 * 1024 * 1024; // 3 MB per request
     let offset = 0;
-    const chunks: string[] = [];
+    let receivedFirstChunk = false;
     let fileName = '';
     let mimeType = '';
     let totalSize = 0;
@@ -654,6 +679,7 @@ export class RemoteSessionManager {
         mime_type: string;
       }>({
         cmd: 'read_file_chunk',
+        ...workspaceIdentity,
         path,
         session_id: sessionId ?? undefined,
         offset,
@@ -671,12 +697,14 @@ export class RemoteSessionManager {
       if (maxBytes !== undefined && resp.total_size > maxBytes) {
         throw new Error('File is too large for an inline preview. Download it to view.');
       }
-      if (chunks.length > 0 && (resp.total_size !== totalSize || resp.name !== fileName || resp.mime_type !== mimeType || resp.revision !== revision)) {
+      if (receivedFirstChunk && (resp.total_size !== totalSize || resp.name !== fileName || resp.mime_type !== mimeType || resp.revision !== revision)) {
         throw new Error('File changed during transfer. Please retry.');
       }
       const bytes = atob(resp.chunk_base64);
       if (bytes.length !== resp.chunk_size) throw new Error('File transfer byte count mismatch. Please retry.');
-      chunks.push(bytes);
+      await onChunk(Uint8Array.from(bytes, character => character.charCodeAt(0)));
+      this.ensureControlTargetCurrent(target);
+      receivedFirstChunk = true;
       fileName = resp.name;
       mimeType = resp.mime_type;
       totalSize = resp.total_size;
@@ -692,149 +720,27 @@ export class RemoteSessionManager {
 
     return {
       name: fileName,
-      contentBase64: btoa(chunks.join('')),
       mimeType,
       size: totalSize,
     };
   }
+
+  /** Inline previews only. Downloads should consume streamFile directly. */
+  async readFile(
+    path: string,
+    sessionId?: string,
+    onProgress?: (downloaded: number, total: number) => void,
+    maxBytes?: number,
+  ): Promise<{ name: string; contentBase64: string; mimeType: string; size: number }> {
+    const parts: string[] = [];
+    const metadata = await this.streamFile(path, async bytes => {
+      let part = '';
+      for (const byte of bytes) part += String.fromCharCode(byte);
+      parts.push(part);
+    }, sessionId, onProgress, maxBytes);
+    return { ...metadata, contentBase64: btoa(parts.join('')) };
+  }
+
 }
 
-// ── SessionPoller ─────────────────────────────────────────────────
-
-export class SessionPoller {
-  private intervalId: ReturnType<typeof setTimeout> | null = null;
-  private sinceVersion = 0;
-  private knownMsgCount = 0;
-  private sessionId: string;
-  private sessionMgr: RemoteSessionManager;
-  private onUpdate: (state: PollResponse) => void;
-  private polling = false;
-  private stopped = false;
-  private hasActiveTurn = false;
-  private knownModelCatalogVersion = 0;
-  private turnJustEndedAt: number | null = null;
-  private readonly TURN_JUST_ENDED_GRACE_PERIOD_MS = 5000;
-
-  constructor(
-    sessionMgr: RemoteSessionManager,
-    sessionId: string,
-    onUpdate: (state: PollResponse) => void,
-    initialModelCatalogVersion = 0,
-  ) {
-    this.sessionMgr = sessionMgr;
-    this.sessionId = sessionId;
-    this.onUpdate = onUpdate;
-    this.knownModelCatalogVersion = initialModelCatalogVersion;
-  }
-
-  start(initialMsgCount = 0) {
-    this.stopped = false;
-    this.knownMsgCount = initialMsgCount;
-    this.tick();
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
-  }
-
-  stop() {
-    this.stopped = true;
-    if (this.intervalId !== null) {
-      clearTimeout(this.intervalId);
-      this.intervalId = null;
-    }
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
-  }
-
-  resetCursors() {
-    this.sinceVersion = 0;
-    this.knownMsgCount = 0;
-  }
-
-  setKnownModelCatalogVersion(version: number) {
-    this.knownModelCatalogVersion = version;
-  }
-
-  /** Call after sending a message to immediately switch to fast polling. */
-  nudge() {
-    this.hasActiveTurn = true;
-    if (this.intervalId !== null) clearTimeout(this.intervalId);
-    this.tick();
-  }
-
-  private getInterval(): number {
-    if (document.visibilityState !== 'visible') return 5000;
-    
-    // Keep fast polling during the short grace period after a turn ends.
-    const now = Date.now();
-    if (this.turnJustEndedAt != null && (now - this.turnJustEndedAt) < this.TURN_JUST_ENDED_GRACE_PERIOD_MS) {
-      return 1000;
-    }
-    
-    return this.hasActiveTurn ? 1000 : 10000;
-  }
-
-  private scheduleNext() {
-    if (this.stopped) return;
-    if (this.intervalId !== null) clearTimeout(this.intervalId);
-    this.intervalId = setTimeout(() => this.tick(), this.getInterval());
-  }
-
-  private onVisibilityChange = () => {
-    if (this.stopped) return;
-    if (document.visibilityState === 'visible') {
-      if (this.intervalId !== null) clearTimeout(this.intervalId);
-      this.tick();
-    } else {
-      this.scheduleNext();
-    }
-  };
-
-  private async tick() {
-    if (this.stopped || this.polling) {
-      this.scheduleNext();
-      return;
-    }
-    this.polling = true;
-    try {
-      const resp = await this.sessionMgr.pollSession(
-        this.sessionId,
-        this.sinceVersion,
-        this.knownMsgCount,
-        this.knownModelCatalogVersion,
-      );
-      // Only update hasActiveTurn from responses that carry actual data.
-      // When changed=false the backend omits active_turn, so we must
-      // preserve the previous value to keep 1-second fast polling alive.
-      if (resp.changed) {
-        const wasActive = this.hasActiveTurn;
-        const isActiveNow = resp.active_turn != null && resp.active_turn.status === 'active';
-        this.hasActiveTurn = isActiveNow;
-        
-        // Start the grace period when active_turn just ended.
-        if (wasActive && !isActiveNow) {
-          this.turnJustEndedAt = Date.now();
-        }
-        
-        // Clear the grace period once new messages arrive.
-        if (
-          (resp.new_messages && resp.new_messages.length > 0)
-          || resp.message_snapshot
-        ) {
-          this.turnJustEndedAt = null;
-        }
-        
-        this.sinceVersion = resp.version;
-        if (resp.total_msg_count != null) {
-          this.knownMsgCount = resp.total_msg_count;
-        }
-        if (resp.model_catalog?.version != null) {
-          this.knownModelCatalogVersion = resp.model_catalog.version;
-        }
-        this.onUpdate(resp);
-      }
-    } catch (e) {
-      console.error('[Poller] poll error', e);
-    } finally {
-      this.polling = false;
-      this.scheduleNext();
-    }
-  }
-}
+export { SessionSynchronizer } from './SessionSynchronizer';

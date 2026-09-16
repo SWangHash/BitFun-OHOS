@@ -1,4 +1,4 @@
-import { Button, Textarea } from '@openbitfun/ui';
+import { ActionCard, Button, Textarea } from '@openbitfun/ui';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
@@ -68,22 +68,28 @@ export const DecisionExecutionGate: React.FC<DecisionExecutionGateProps> = ({
                     const isSelected = selectedOption === optionIndex;
                     const isRecommended = decision?.recommendation === optionIndex;
                     return (
-                      <button
+                      <ActionCard
                         key={optionIndex}
                         type="button"
-                        className={`deep-review-action-bar__decision-gate-option ${
+                        className="deep-review-action-bar__decision-gate-card"
+                        selected={isSelected}
+                        aria-pressed={isSelected}
+                        triggerClassName={`deep-review-action-bar__decision-gate-option ${
                           isSelected ? 'is-selected' : ''
                         } ${isRecommended ? 'is-recommended' : ''}`}
                         onClick={() => onSelectDecision(item.id, optionIndex)}
-                      >
-                        <span className="deep-review-action-bar__decision-gate-option-marker">
-                          {isSelected ? '\u25CF' : '\u25CB'}
-                        </span>
-                        <span className="deep-review-action-bar__decision-gate-option-text">
-                          {option}
-                          {isRecommended ? ` (${t('toolCards.codeReview.remediationActions.recommended')})` : ''}
-                        </span>
-                      </button>
+                        body={(
+                          <>
+                            <span className="deep-review-action-bar__decision-gate-option-marker">
+                              {isSelected ? '\u25CF' : '\u25CB'}
+                            </span>
+                            <span className="deep-review-action-bar__decision-gate-option-text">
+                              {option}
+                              {isRecommended ? ` (${t('toolCards.codeReview.remediationActions.recommended')})` : ''}
+                            </span>
+                          </>
+                        )}
+                      />
                     );
                   })}
                 </div>

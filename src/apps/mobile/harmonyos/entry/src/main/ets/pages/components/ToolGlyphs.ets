@@ -23,7 +23,7 @@ export struct ToolGlyph {
     if (this.kind === 'stack') return $r('sys.symbol.rectangle_stack');
     if (this.kind === 'question') return $r('sys.symbol.questionmark_circle');
     if (this.kind === 'todo') return $r('sys.symbol.list_checkmark');
-    if (this.kind === 'task') return $r('sys.symbol.robot');
+    if (this.kind === 'task') return $r('sys.symbol.person');
     if (this.kind === 'git') return $r('sys.symbol.arrow_triangle_merge');
     if (this.kind === 'delete') return $r('sys.symbol.trash');
     if (this.kind === 'diff') return $r('sys.symbol.doc_text_badge_magnifyingglass');

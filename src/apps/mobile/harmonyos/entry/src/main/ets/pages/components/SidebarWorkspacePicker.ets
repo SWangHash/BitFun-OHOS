@@ -1,21 +1,47 @@
+import { WorkspaceToolsState, WorkspaceToolsIntent, WorkspaceFileEntry } from '../state/WorkspaceToolsState';
 import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
-import { RecentWorkspaceEntry } from '../../model/RemoteModels';
+import { SavedRuntimeConnection, RecentWorkspaceEntry } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { CARD, INK, LINE, MUTED, PAGE_BG, SOFT } from './Theme';
 
 @ComponentV2
 export struct SidebarWorkspacePicker {
+  @Local browsing: boolean = false;
+  @Param tools: WorkspaceToolsState = new WorkspaceToolsState();
+  @Param canBrowse: boolean = false;
+  @Event onBrowse: (intent: WorkspaceToolsIntent) => void = (_intent: WorkspaceToolsIntent) => {};
+  @Local targetPath: string = '';
+  @Local connectionId: string = '';
+  @Param savedConnections: SavedRuntimeConnection[] = [];
   @Param deviceName: string = '';
   @Param workspaces: RecentWorkspaceEntry[] = [];
   @Param selectedWorkspacePath: string = '';
   @Param loading: boolean = false;
   @Event onClose: () => void = () => {};
-  @Event onSelectWorkspace: (path: string) => void = (_path: string) => {};
+  @Event onSelectWorkspace: (path: string, connectionId?: string) => void = (_path: string, _connectionId?: string) => {};
+
+  private connectionOptions(): SelectOption[] {
+    const options: SelectOption[] = [{ value: this.deviceName }];
+    this.savedConnections.forEach((connection: SavedRuntimeConnection) => { options.push({ value: connection.name }); });
+    return options;
+  }
 
   build() {
     Column() {
       this.Header()
       Divider().color(LINE)
+      TextInput({ text: this.targetPath, placeholder: RemoteI18n.t('sidebar.targetWorkspacePath') })
+        .onChange((value: string) => { this.targetPath = value; })
+        .enabled(!this.loading)
+      Select(this.connectionOptions())
+        .selected(0)
+        .onSelect((index: number) => { this.connectionId = index > 0 ? this.savedConnections[index - 1].id : ''; this.browsing = false; })
+      Button(RemoteI18n.t('workspaceTools.browse')).enabled(this.canBrowse && !this.tools.browseBusy)
+        .onClick(() => { this.browsing = true; this.onBrowse({ type: 'browse-workspace', path: this.targetPath || (this.connectionId.length === 0 ? this.selectedWorkspacePath : '') || '/', text: this.connectionId }); })
+      if (this.browsing) { this.FolderBrowser() }
+      Button(RemoteI18n.t('sidebar.openWorkspacePath'))
+        .enabled(!this.loading && this.targetPath.trim().length > 0)
+        .onClick(() => this.onSelectWorkspace(this.targetPath.trim(), this.connectionId.length > 0 ? this.connectionId : undefined))
       if (this.loading && this.workspaces.length === 0) {
         this.LoadingState()
       } else if (this.workspaces.length === 0) {
@@ -25,7 +51,7 @@ export struct SidebarWorkspacePicker {
           Column({ space: 4 }) {
             ForEach(this.workspaces, (workspace: RecentWorkspaceEntry) => {
               this.WorkspaceRow(workspace)
-            }, (workspace: RecentWorkspaceEntry): string => workspace.path)
+            }, (workspace: RecentWorkspaceEntry): string => `${workspace.remoteConnectionId || 'local'}:${workspace.path}`)
           }
           .width('100%')
           .padding({ top: 10, bottom: 18 })
@@ -39,6 +65,29 @@ export struct SidebarWorkspacePicker {
     .height('100%')
     .padding({ left: 18, right: 18, top: 10 })
     .backgroundColor(PAGE_BG)
+  }
+
+  @Builder
+  private FolderBrowser() {
+    Column({ space: 8 }) {
+      Text(this.tools.browseError || this.tools.browsePath).fontColor(MUTED).maxLines(2)
+      Row({ space: 8 }) {
+        Button(RemoteI18n.t('workspaceTools.up')).onClick(() => {
+          const current = this.tools.browsePath.replace(/\/+$/, '');
+          this.onBrowse({ type: 'browse-workspace', path: current.slice(0, current.lastIndexOf('/')) || '/', text: this.connectionId });
+        })
+        Button(RemoteI18n.t('workspaceTools.selectFolder')).onClick(() => { this.targetPath = this.tools.browsePath; this.browsing = false; })
+      }.enabled(!this.tools.browseBusy && this.tools.browsePath.length > 0)
+      List() {
+        ForEach(this.tools.browseEntries, (entry: WorkspaceFileEntry) => {
+          if (entry.isDirectory) {
+            ListItem() { Text(entry.name).fontColor(INK).padding(10).width('100%')
+              .onClick(() => this.onBrowse({ type: 'browse-workspace', path: entry.path, text: this.connectionId })) }
+          }
+        }, (entry: WorkspaceFileEntry): string => entry.path)
+        if (this.tools.browseHasMore) { ListItem() { Button(RemoteI18n.t('workspaceTools.more')).onClick(() => this.onBrowse({ type: 'browse-more', path: this.tools.browsePath, text: this.connectionId })) } }
+      }.height(200).enabled(!this.tools.browseBusy)
+    }.width('100%')
   }
 
   @Builder
@@ -119,7 +168,7 @@ export struct SidebarWorkspacePicker {
     .padding({ left: 10, right: 8 })
     .borderRadius(14)
     .backgroundColor(workspace.path === this.selectedWorkspacePath ? SOFT : PAGE_BG)
-    .onClick(() => this.onSelectWorkspace(workspace.path))
+    .onClick(() => this.onSelectWorkspace(workspace.path, workspace.remoteConnectionId))
   }
 
   @Builder

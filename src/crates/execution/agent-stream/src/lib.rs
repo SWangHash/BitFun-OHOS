@@ -4,6 +4,7 @@
 
 pub mod diagnostics;
 mod hidden_text;
+pub mod retry;
 pub mod tool_call_accumulator;
 mod unified;
 

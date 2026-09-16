@@ -11,6 +11,9 @@ name = "openbitfun_services_core"
 crate-type = ["rlib"]
 
 [dependencies]
+image = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["v4"], optional = true }
 anyhow = { workspace = true, optional = true }
 aes-gcm = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
@@ -57,7 +60,10 @@ libc = { workspace = true, optional = true }
 zbus-secret-service-keyring-store = { workspace = true, optional = true }
 
 [features]
+asar = []
+installed-apps = ["dep:windows", "windows/Win32_Foundation", "windows/Win32_System_Registry"]
 default = []
+pet-packages = ["dep:image", "image/png", "image/webp", "image/jpeg", "image/gif", "dep:zip", "dep:uuid", "dep:sha2", "dep:base64", "dep:dunce", "dep:fs2"]
 workspace-persistence = ["workspace-identity", "dep:openbitfun-core-types", "dep:openbitfun-runtime-ports", "dep:chrono"]
 coordination-store = ["dep:rusqlite"]
 session-event-format = ["dep:openbitfun-events"]
@@ -77,6 +83,7 @@ credential-vault = [
 diagnostics = ["dep:regex"]
 diff = ["dep:similar", "dep:tokio", "tokio/rt", "tokio/time"]
 filesystem = [
+    "tokio/sync",
     "dep:base64",
     "dep:chrono",
     "dep:ignore",
@@ -144,6 +151,17 @@ workspace-instructions = [
     "tokio/rt",
 ]
 markdown = ["dep:regex", "dep:serde_yaml"]
+workspace-transfer = [
+    "dep:anyhow",
+    "dep:openbitfun-runtime-ports",
+    "openbitfun-runtime-ports/workspace-ports",
+    "dep:sha2",
+    "dep:tokio",
+    "tokio/fs",
+    "tokio/io-util",
+    "tokio/rt",
+    "tokio/sync",
+]
 workspace-runtime = [
     "dep:anyhow",
     "dep:async-trait",

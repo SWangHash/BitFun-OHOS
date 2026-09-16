@@ -104,7 +104,11 @@ export const themeTokenAppearanceAdapter: AppearanceRendererAdapter<'theme-token
       style.textContent = scopeCss;
       document.head.appendChild(style);
     }
-    const background = `var(${ROOT_BACKGROUND_VARIABLE})`;
+    // Native material is advertised by the local desktop window bootstrap.
+    // Keep this independent of the active peer/runtime and of theme changes.
+    const background = document.documentElement.getAttribute('data-openbitfun-native-material') === 'sidebar'
+      ? 'transparent'
+      : `var(${ROOT_BACKGROUND_VARIABLE})`;
     rootStyle.backgroundColor = background;
     if (document.body) document.body.style.backgroundColor = background;
   },

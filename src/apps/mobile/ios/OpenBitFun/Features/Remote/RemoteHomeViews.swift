@@ -24,6 +24,46 @@ struct RemoteConnectedHomeView: View {
         if let onBrowse { onBrowse() }
         else { model.drawerOpen = true }
     }
+    private var presentation: RemoteHomePresentation {
+        RemoteHomePresentation.resolve(
+            signedIn: model.accountUser != nil,
+            hasTarget: model.remoteExpectedDeviceKey != nil,
+            connected: model.remoteConnected && model.connectionPhase == .connected,
+            reconnecting: model.connectionPhase == .reconnecting,
+            sessionsLoaded: model.remoteInitialSessionReady
+        )
+    }
+
+    @ViewBuilder
+    private var homeStatus: some View {
+        switch presentation {
+        case .chooseDevice:
+            Text(model.localized("选择设备和工作区，继续你的对话。"))
+                .font(.system(size: 13)).foregroundStyle(OpenBitFunTheme.muted)
+            homeButton("查看设备", action: browse)
+        case .pairDevice:
+            Text(model.localized("连接电脑后，继续你的对话。"))
+                .font(.system(size: 13)).foregroundStyle(OpenBitFunTheme.muted)
+            homeButton("连接电脑", action: model.connectRemote)
+        case .connecting, .loadingSessions:
+            homeButton("查看设备", action: browse)
+        case .unavailable:
+            // The shell's connection banner owns the error detail and retry action.
+            homeButton("查看设备", action: browse)
+        case .ready:
+            EmptyView()
+        }
+    }
+
+    private func homeButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(model.localized(title))
+                .font(.system(size: 15, weight: .medium))
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(OpenBitFunTheme.soft, in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(.plain).padding(.vertical, 16)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -35,17 +75,14 @@ struct RemoteConnectedHomeView: View {
                     .font(.system(size: MobileDesignGeometry.recentHomeTitleSize, weight: .medium))
                     .multilineTextAlignment(.center).frame(maxWidth: .infinity)
                     .padding(.top, 10).padding(.bottom, 32)
-                if model.remoteConversationLoading { ProgressView().padding(.bottom, 16) }
-                if !model.remoteConnected {
-                    Text(model.localized("连接电脑后，继续你的对话。"))
-                        .font(.system(size: 13)).foregroundStyle(OpenBitFunTheme.muted)
-                    Button(model.localized("连接电脑")) { model.connectRemote() }.padding(.vertical, 12)
+                homeStatus
+                if !recent.isEmpty || presentation == .ready {
+                    HStack {
+                        Text(model.localized("最近会话"))
+                        Spacer()
+                        Button(model.localized("全部会话"), action: browse)
+                    }.font(.system(size: 12)).foregroundStyle(OpenBitFunTheme.muted)
                 }
-                HStack {
-                    Text(model.localized("最近会话"))
-                    Spacer()
-                    Button(model.localized("全部会话"), action: browse)
-                }.font(.system(size: 12)).foregroundStyle(OpenBitFunTheme.muted)
                 ForEach(recent) { session in
                     Button {
                         if session.deviceKey != nil { model.selectDirectorySession(session) }
@@ -65,7 +102,7 @@ struct RemoteConnectedHomeView: View {
                     }.buttonStyle(.plain)
                     Rectangle().fill(OpenBitFunTheme.line).frame(height: 0.5)
                 }
-                if recent.isEmpty && !model.remoteConversationLoading {
+                if recent.isEmpty && presentation == .ready {
                     Text(model.localized("还没有可继续的对话"))
                         .font(.system(size: 13)).foregroundStyle(OpenBitFunTheme.muted).padding(.vertical, 18)
                 }
@@ -78,39 +115,50 @@ struct RemoteConnectedHomeView: View {
     }
 }
 
-struct ConnectionStatusBar: View {
-    let phase: ConnectionPhase
-    var detail: String?
-    let onRetry: () -> Void
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle().fill(phase == .reconnecting ? OpenBitFunTheme.muted : OpenBitFunTheme.statusDanger).frame(width: 8, height: 8)
-            Text(MobileLocalization.text(phase == .reconnecting ? "正在恢复连接" : "连接不可用"))
-                .font(.system(size: 13, weight: .medium))
-            Text(
-                detail ?? MobileLocalization.text(
-                    phase == .reconnecting ? "正在重新连接桌面端" : "请重新连接"
-                )
-            )
-                .font(.system(size: 12))
-                .foregroundStyle(OpenBitFunTheme.muted)
-            Spacer()
-            if phase == .disconnected {
-                Button(MobileLocalization.text("重试"), action: onRetry)
-                    .font(.system(size: 13, weight: .semibold))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(OpenBitFunTheme.accent)
-            }
-        }
-        .foregroundStyle(OpenBitFunTheme.ink)
-        .padding(.horizontal, 18)
-        .frame(height: 48)
-        .background(OpenBitFunTheme.soft)
+/// Matches HarmonyOS ChatStatusBar: page background, two hairlines, one status label.
+struct RemoteConversationStatusBar: View {
+    @ObservedObject var model: MobileAppModel
+
+    private var failed: Bool { model.connectionPhase == .disconnected && !(model.coreErrorMessage ?? "").isEmpty }
+    private var tone: Color { failed ? OpenBitFunTheme.statusDanger : OpenBitFunTheme.muted }
+    private var title: String {
+        model.localized(model.isSending ? "OpenBitFun 正在执行..." :
+            (model.connectionPhase == .reconnecting ? "正在恢复连接" : (failed ? "连接异常" : "已断开")))
+    }
+    private var detail: String {
+        model.coreErrorMessage ?? model.localized(model.connectionPhase == .reconnecting ?
+            "正在重新连接桌面端" : "请重新连接")
     }
 
-
+    var body: some View {
+        HStack(spacing: 10) {
+            if model.isSending { Color.clear.frame(width: 68) }
+            HStack(spacing: 7) {
+                Circle().fill(tone).frame(width: 8, height: 8)
+                Text(detail.isEmpty || detail == title ? title : "\(title) · \(detail)")
+                    .font(MobileDesignTypography.bodySmall.font)
+                    .foregroundStyle(model.isSending ? OpenBitFunTheme.muted : tone)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: model.isSending ? .center : .leading)
+            if model.isSending {
+                Button(model.localized("停止"), action: model.stopSending)
+                    .font(MobileDesignTypography.bodySmall.font)
+                    .foregroundStyle(OpenBitFunTheme.ink)
+                    .frame(width: 68, height: 34)
+                    .background(OpenBitFunTheme.soft, in: Capsule())
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .frame(height: 48)
+        .background(OpenBitFunTheme.page)
+        .overlay(alignment: .top) { OpenBitFunTheme.line.frame(height: 1) }
+        .overlay(alignment: .bottom) { OpenBitFunTheme.line.frame(height: 1) }
+        .accessibilityIdentifier("conversation.connectionStatus")
+    }
 }
-
 
 /// Signed-out home with a fixed contour mark and looping desktop phrases.
 struct WelcomeHomeView: View {

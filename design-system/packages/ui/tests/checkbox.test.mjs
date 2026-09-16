@@ -30,3 +30,22 @@ test("Checkbox exposes canonical sizes and states", () => {
   assert.match(markup, /data-invalid="true"/);
   assert.match(markup, /data-indeterminate="true"/);
 });
+
+test("Checkbox native presentation retains the input without a painted substitute", () => {
+  const markup = renderToStaticMarkup(createElement(Checkbox, {
+    appearance: "native", size: "sm", defaultChecked: true, disabled: true,
+    name: "redact", value: "yes", required: true, label: "Redact paths",
+  }));
+  assert.match(markup, /data-appearance="native"/);
+  assert.match(markup, /<input[^>]*type="checkbox"/);
+  assert.match(markup, /name="redact"/);
+  assert.match(markup, /value="yes"/);
+  assert.match(markup, /checked=""/);
+  assert.match(markup, /disabled=""/);
+  assert.match(markup, /required=""/);
+  assert.doesNotMatch(markup, /data-openbitfun-part="box"/);
+
+  const defaults = renderToStaticMarkup(createElement(Checkbox, { label: "Custom" }));
+  assert.match(defaults, /data-appearance="custom"/);
+  assert.match(defaults, /data-openbitfun-part="box"/);
+});

@@ -163,6 +163,10 @@ final class MobileCoreAdapter {
         let state = SkieSwiftStateFlow<AccountUiState>(account.state).value
         guard let ready = state as? AccountUiStateReady,
               ready.selectedDeviceId == id else { return }
+        // Selecting a persisted target can leave StateFlow unchanged. Publish
+        // the confirmed snapshot before binding stores so the UI exits switching
+        // even when no asynchronous account event is emitted.
+        onAccountState?(ready, accountGeneration)
         startAccountRemoteSessionIfNeeded(ready: ready, generation: accountGeneration)
     }
 
@@ -238,6 +242,13 @@ final class MobileCoreAdapter {
         resetRemoteStores()
     }
 
+    func startQuestionInteraction(_ toolID: String) { remoteSession?.dispatch(intent: RemoteSessionIntentStartQuestionInteraction(toolId: toolID)) }
+    func respondPermission(_ requestID: String, approve: Bool, updatedInput: String?) {
+        remoteSession?.dispatch(intent: RemoteSessionIntentRespondPermission(requestId: requestID, approve: approve, updatedInput: updatedInput))
+    }
+    func refreshPermissionMailbox() {
+        remoteSession?.dispatch(intent: RemoteSessionIntentRefreshPermissionMailbox.shared)
+    }
     func sendRemote(sessionID: String, content: String, images: [ComposerAttachment]) {
         remoteSession?.dispatch(
             intent: RemoteSessionIntentSendMessage(
@@ -258,9 +269,9 @@ final class MobileCoreAdapter {
         )
     }
 
-    func approveRemoteTool(sessionID: String, toolID: String) {
+    func approveRemoteTool(sessionID: String, toolID: String, updatedInput: String? = nil) {
         remoteSession?.dispatch(
-            intent: RemoteSessionIntentApproveTool(sessionId: sessionID, toolId: toolID)
+            intent: RemoteSessionIntentApproveTool(sessionId: sessionID, toolId: toolID, updatedInput: updatedInput)
         )
     }
 
@@ -314,7 +325,8 @@ final class MobileCoreAdapter {
         title: String,
         instruction: String,
         modelID: String?,
-        workspacePath: String? = nil
+        workspacePath: String? = nil,
+        remoteConnectionId: String? = nil
     ) {
         guard let remoteSession else {
             log.error("Remote create unavailable target_kind=\(self.remoteTargetKind(self.remoteTargetKey), privacy: .public)")
@@ -330,7 +342,8 @@ final class MobileCoreAdapter {
                 title: title,
                 instruction: instruction,
                 modelId: modelID,
-                workspacePath: workspacePath
+                workspacePath: workspacePath,
+                remoteConnectionId: remoteConnectionId
             )
         )
     }
@@ -395,8 +408,27 @@ final class MobileCoreAdapter {
         remoteSession?.dispatch(intent: RemoteSessionIntentSetPermissionMode(mode: mode))
     }
 
-    func selectRemoteWorkspace(path: String) {
-        remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentSelectWorkspace(path: path))
+    func resizeRuntimeTerminal(cols: Int, rows: Int) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentResizeTerminal(cols: Int32(cols), rows: Int32(rows))) }
+    func openDeviceFiles(_ path: String, connectionId: String?) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentOpenDeviceFiles(path: path, remoteConnectionId: connectionId)) }
+    func openDeviceTerminal(_ path: String, connectionId: String?) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentOpenDeviceTerminal(path: path, remoteConnectionId: connectionId)) }
+    func browseRuntimeDirectories(_ path: String, connectionId: String?, append: Bool) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentBrowseWorkspaceDirectories(path: path, remoteConnectionId: connectionId, append: append)) }
+    func sortRuntimeFiles(_ sort: RuntimeFileSort) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentSortFiles(sort: sort)) }
+    func closeRuntimeFileEditor() { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentCloseFileEditor.shared) }
+    func browseRuntimeFiles(_ path: String, append: Bool) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentBrowseFiles(path: path, append: append)) }
+    func readRuntimeFile(_ path: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentReadFile(path: path)) }
+    func saveRuntimeFile(_ content: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentSaveFile(content: content)) }
+    func uploadRuntimeFile(_ path: String, source: RuntimeUploadSource) { guard let remoteWorkspace else { source.close(); return }; remoteWorkspace.dispatch(intent: RemoteWorkspaceIntentUploadFile(path: path, source: source)) }
+    func createRuntimeFile(_ path: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentCreateFile(path: path)) }
+    func renameRuntimeFile(_ path: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentRenameFile(path: path)) }
+    func deleteRuntimeFile() { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentDeleteFile.shared) }
+    func createRuntimeDirectory(_ path: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentCreateDirectory(path: path)) }
+    func resumeSessionStreams() { account.resumeSessionStreams() }
+    func openRuntimeTerminal() { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentOpenTerminal.shared) }
+    func writeRuntimeTerminal(_ data: String) { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentWriteTerminal(data: data)) }
+    func closeRuntimeTerminal() { remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentCloseTerminal.shared) }
+
+    func selectRemoteWorkspace(path: String, remoteConnectionId: String? = nil, remoteSshHost: String? = nil) {
+        remoteWorkspace?.dispatch(intent: RemoteWorkspaceIntentSelectWorkspace(path: path, remoteConnectionId: remoteConnectionId, remoteSshHost: remoteSshHost))
     }
 
     func selectRemoteAssistant(path: String) {
@@ -429,6 +461,11 @@ final class MobileCoreAdapter {
         remoteTargetEpoch &+= 1
         return .invalidated(newEpoch: remoteTargetEpoch)
     }
+
+    // Workspace-store identities use the raw device ID, not the adapter's
+    // namespaced account/pairing target key.
+    var currentFilePreviewDeviceKey: String? { remoteWorkspace?.deviceKey }
+    var canOpenRemoteFile: Bool { remoteWorkspace != nil }
 
     @discardableResult
     func openRemoteFile(reference: String, label: String, sessionID: String, requestID: String) -> String? {
@@ -643,4 +680,31 @@ private extension ComposerAttachment {
     var coreImage: ComposerImage {
         ComposerImage(id: id, dataUrl: dataURL, mimeType: mimeType)
     }
+}
+
+
+final class IOSRuntimeUploadSource: RuntimeUploadSource {
+    private let url: URL
+    private let scoped: Bool
+    private let handle: FileHandle
+    let size: Int64
+    init(url: URL) throws {
+        self.url = url
+        scoped = url.startAccessingSecurityScopedResource()
+        do {
+            handle = try FileHandle(forReadingFrom: url)
+            size = Int64(try handle.seekToEnd())
+        } catch {
+            if scoped { url.stopAccessingSecurityScopedResource() }
+            throw error
+        }
+    }
+    func read(offset: Int64, length: Int32) throws -> KotlinByteArray {
+        try handle.seek(toOffset: UInt64(offset))
+        let data = try handle.read(upToCount: Int(length)) ?? Data()
+        let bytes = KotlinByteArray(size: Int32(data.count))
+        for (index, byte) in data.enumerated() { bytes.set(index: Int32(index), value: Int8(bitPattern: byte)) }
+        return bytes
+    }
+    func close() { try? handle.close(); if scoped { url.stopAccessingSecurityScopedResource() } }
 }

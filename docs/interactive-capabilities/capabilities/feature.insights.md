@@ -17,17 +17,17 @@ Turn session and project activity into readable insights about working patterns,
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 检查当前账户与会话是否已有可分析的洞察数据
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 检查当前账户与会话是否已有可分析的洞察数据
   - Check whether the current account and sessions contain analyzable insight data
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按所选日期范围和模型生成工作洞察报告
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按所选日期范围和模型生成工作洞察报告
   - Generate a work-insights report for a selected date range and model
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 取消正在运行的洞察生成任务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 取消正在运行的洞察生成任务
   - Cancel an in-progress insights generation job
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看最新报告或加载指定的历史报告
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看最新报告或加载指定的历史报告
   - Open the latest report or load a selected historical report
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 把工作活动与模型、Token 和缓存用量统计关联起来
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 把工作活动与模型、Token 和缓存用量统计关联起来
   - Relate work activity to model, token, and cache-usage statistics
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 回顾项目分布、工作时段、任务类型和协作习惯
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 回顾项目分布、工作时段、任务类型和协作习惯
   - Review project distribution, working hours, task types, and collaboration patterns
 
 ## 怎么用 / How to use it
@@ -41,7 +41,7 @@ Turn session and project activity into readable insights about working patterns,
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -53,13 +53,13 @@ Turn session and project activity into readable insights about working patterns,
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Insights”
   - “Open Insights”
 - “带我查看工作洞察”
   - “Show me my work insights”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

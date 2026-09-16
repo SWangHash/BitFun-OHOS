@@ -16,7 +16,7 @@
     max-width: 210px;
     min-height: 30px;
     padding: 3px var(--openbitfun-space-2) 3px 4px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 0;
     border-radius: var(--openbitfun-radius-base);
     background: var(--openbitfun-color-surface-panel);
     color: var(--openbitfun-color-content-secondary);
@@ -34,7 +34,6 @@
     }
 
     &:hover {
-      border-color: var(--openbitfun-color-border-default);
       background: var(--openbitfun-color-surface-subtle);
     }
 

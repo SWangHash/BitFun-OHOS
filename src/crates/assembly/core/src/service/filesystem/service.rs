@@ -23,9 +23,17 @@ async fn read_remote_directory_contents(
     path: &str,
     preferred_remote_connection_id: Option<&str>,
 ) -> Option<OpenBitFunResult<Vec<FileTreeNode>>> {
+    // Present empty identity is an explicit runtime-local scope, never path inference.
+    if preferred_remote_connection_id.is_some_and(|id| id.is_empty()) {
+        return None;
+    }
     let explicit_connection_id = preferred_remote_connection_id
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    #[cfg(feature = "ssh-remote")]
+    if let Some(connection_id) = explicit_connection_id {
+        return Some(read_saved_directory_contents(path, connection_id).await);
+    }
     let remote_entry = if let Some(connection_id) = explicit_connection_id {
         crate::service::remote_ssh::workspace_state::lookup_remote_connection_scoped(
             path,
@@ -62,24 +70,89 @@ async fn read_remote_directory_contents(
 
     Some(
         match file_service.read_dir(&entry.connection_id, path).await {
-            Ok(entries) => Ok(entries
-                .into_iter()
-                .filter(|entry| entry.name != "." && entry.name != "..")
-                .map(|entry| {
-                    FileTreeNode::new(
-                        entry.path.clone(),
-                        entry.name.clone(),
-                        entry.path,
-                        entry.is_dir,
-                    )
-                })
-                .collect()),
+            Ok(entries) => Ok(remote_directory_nodes(entries)),
             Err(error) => Err(OpenBitFunError::service(format!(
                 "Failed to read remote directory: {}",
                 error
             ))),
         },
     )
+}
+
+#[cfg(feature = "remote-workspace")]
+fn remote_directory_nodes(
+    entries: Vec<crate::service::remote_ssh::RemoteDirEntry>,
+) -> Vec<FileTreeNode> {
+    entries
+        .into_iter()
+        .filter(|entry| entry.name != "." && entry.name != "..")
+        .map(|entry| {
+            let mut node =
+                FileTreeNode::new(entry.path.clone(), entry.name, entry.path, entry.is_dir);
+            node.size = entry.size;
+            node.last_modified = entry
+                .modified
+                .and_then(|seconds| i64::try_from(seconds).ok())
+                .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
+                .map(|time| time.to_rfc3339());
+            node.is_symlink = Some(entry.is_symlink);
+            node.permissions = entry.permissions;
+            node
+        })
+        .collect()
+}
+
+#[cfg(feature = "ssh-remote")]
+async fn read_saved_directory_contents(
+    path: &str,
+    connection_id: &str,
+) -> OpenBitFunResult<Vec<FileTreeNode>> {
+    let state = crate::service::remote_ssh::workspace_state::ensure_saved_connection_services()
+        .await
+        .map_err(OpenBitFunError::service)?;
+    let ssh = state
+        .get_ssh_manager()
+        .await
+        .ok_or_else(|| OpenBitFunError::service("SSH manager is unavailable"))?;
+    let files = state
+        .get_file_service()
+        .await
+        .ok_or_else(|| OpenBitFunError::service("Remote file service is unavailable"))?;
+    read_saved_directory_with_provider(path, connection_id, &ssh, &files).await
+}
+
+#[cfg(feature = "ssh-remote")]
+async fn read_saved_directory_with_provider(
+    path: &str,
+    connection_id: &str,
+    ssh: &crate::service::remote_ssh::SSHConnectionManager,
+    files: &crate::service::remote_ssh::RemoteFileService,
+) -> OpenBitFunResult<Vec<FileTreeNode>> {
+    if !path.starts_with('/') || path.contains('\0') {
+        return Err(OpenBitFunError::service(
+            "Remote directory must be an absolute POSIX path",
+        ));
+    }
+    if !ssh
+        .get_saved_connections()
+        .await
+        .iter()
+        .any(|profile| profile.id == connection_id)
+    {
+        return Err(OpenBitFunError::service(
+            "Directory connection is not saved on this runtime; local fallback was not attempted",
+        ));
+    }
+    ssh.ensure_connected(connection_id)
+        .await
+        .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+    // A saved profile owns credentials, not a workspace root. Browsing must not
+    // register or select a workspace before the user chooses a directory.
+    let entries = files
+        .read_dir(connection_id, path)
+        .await
+        .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+    Ok(remote_directory_nodes(entries))
 }
 
 /// Without the `remote-workspace` feature there is no SSH provider to route
@@ -91,6 +164,10 @@ async fn read_remote_directory_contents(
     path: &str,
     preferred_remote_connection_id: Option<&str>,
 ) -> Option<OpenBitFunResult<Vec<FileTreeNode>>> {
+    // Present empty identity is an explicit runtime-local scope, never path inference.
+    if preferred_remote_connection_id.is_some_and(|id| id.is_empty()) {
+        return None;
+    }
     use crate::service::remote_ssh::workspace_state::{
         is_remote_path, remote_workspace_not_compiled_message,
     };
@@ -612,6 +689,37 @@ mod tests {
     use crate::service::remote_ssh::workspace_state::init_remote_workspace_manager;
 
     #[tokio::test]
+    async fn explicit_local_scope_does_not_follow_a_same_path_remote_workspace() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().to_string_lossy().to_string();
+        openbitfun_services_core::filesystem::FileSystemService::default()
+            .write_text_file(
+                &temp.path().join("local.txt").to_string_lossy(),
+                "local bytes",
+            )
+            .await
+            .unwrap();
+        let manager = init_remote_workspace_manager();
+        manager
+            .register_remote_workspace(
+                root.clone(),
+                "same-path-other-runtime".into(),
+                "Other provider".into(),
+                "test-host".into(),
+            )
+            .await;
+        let service = FileSystemService::default();
+        let nodes = service
+            .get_directory_contents_with_remote_hint(&root, Some(""))
+            .await
+            .unwrap();
+        assert!(nodes.iter().any(|node| node.name == "local.txt"));
+        manager
+            .unregister_remote_workspace("same-path-other-runtime", &root)
+            .await;
+    }
+
+    #[tokio::test]
     async fn registered_remote_path_without_file_provider_fails_closed() {
         let temp = tempfile::tempdir().expect("tempdir");
         let remote_root = temp.path().to_string_lossy().to_string();
@@ -675,5 +783,55 @@ mod tests {
             message.contains("local filesystem fallback was not attempted"),
             "unexpected error: {message}"
         );
+    }
+}
+
+#[cfg(all(test, feature = "ssh-remote"))]
+mod saved_directory_tests {
+    use super::*;
+    #[tokio::test]
+    async fn unknown_saved_profile_cannot_read_a_same_named_local_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        openbitfun_services_core::filesystem::FileSystemService::default()
+            .write_text_file(
+                &temp.path().join("private-local.txt").to_string_lossy(),
+                "local",
+            )
+            .await
+            .unwrap();
+        let ssh =
+            crate::service::remote_ssh::SSHConnectionManager::new(temp.path().join("profiles"));
+        let files = crate::service::remote_ssh::RemoteFileService::new(Arc::new(
+            tokio::sync::RwLock::new(Some(ssh.clone())),
+        ));
+        let error = read_saved_directory_with_provider(
+            &temp.path().to_string_lossy(),
+            "missing-saved-id",
+            &ssh,
+            &files,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("not saved on this runtime"));
+    }
+    #[test]
+    fn remote_directory_keeps_metadata_needed_for_runtime_sorting() {
+        let mut nodes = remote_directory_nodes(vec![crate::service::remote_ssh::RemoteDirEntry {
+            name: "large.txt".into(),
+            path: "/outside/registered/workspaces/large.txt".into(),
+            is_dir: false,
+            is_file: true,
+            is_symlink: true,
+            size: Some(200_000_000),
+            modified: Some(1_700_000_000),
+            permissions: Some("rw-------".into()),
+        }]);
+        let node = nodes.pop().unwrap();
+        assert_eq!(node.size, Some(200_000_000));
+        assert_eq!(
+            node.last_modified.as_deref(),
+            Some("2023-11-14T22:13:20+00:00")
+        );
+        assert_eq!(node.is_symlink, Some(true));
     }
 }

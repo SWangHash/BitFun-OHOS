@@ -50,6 +50,7 @@ export class ConversationCoreState {
       sessionId: session.sessionId,
       title: session.title,
       workspacePath: session.workspacePath,
+      remoteConnectionId: session.remoteConnectionId,
       agentType: this.defaultAgentType === 'chat' ? 'chat' : session.agentType,
       initialTurnId: session.initialTurnId
     };

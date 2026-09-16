@@ -497,3 +497,59 @@ API 的 Relay/客户端。两个市场各自的网页仍在所属 Compose 项目
 统一 callback 迁移时，先部署 auth 回调路由和服务配置，再在 GitHub OAuth App
 设置中添加上述精确 Redirect URI。设置更新前，新发起的登录暂时无法完成。
 旧市场 callback 路由作为 Cookie 会话完成端点保留，不扩大 Cookie Domain。
+
+## 邮箱验证码发布补充
+
+邮箱登录与 GitHub 登录是独立账号，不自动绑定或合并。部署前需同时验证身份服务、
+当前版本 Relay 和 Skin 身份消费者；保留旧 GitHub 数字账号及旧授权启动行为。
+客户端使用 `methods=all` 主动选择统一登录页，旧客户端继续走原 GitHub URL。
+
+SMTP 配置单独存放在 `/etc/openbitfun-miniapp-market/smtp.env`，root:root 0600，
+Compose 以可选 env_file 加载；不要将其复制到 checkout，也不要打印内容。
+使用现有企业邮箱的 SMTP 配置，变量参见后端 README。不要复制收件人列表、测试
+主题或 BCC 等与认证发信无关的配置。发件配置更新后需重建容器，核对
+`emailAuthConfigured=true`。真实收件验收只向操作者明确指定的地址发送。
+
+`/sign-in` 改为统一登录网页；auth vhost 仅新增 `/config` 和指定 login/email API，
+验证码完成后经一次性 grant 跳转至 market host 设置 Cookie。登录票据放在 fragment，
+Nginx 日志必须继续只记录 `$uri`，不能记录验证码 body 或 grant query。
+
+migration 0002 保留原用户 ID 和外键，但旧 binary 不认识邮箱用户；发布后不能把
+回退镜像当作数据库回滚。先完成两个市场的一致性备份和恢复演练，保留旧镜像，
+出现问题优先向前修复；不得未经确认恢复备份或丢弃新增用户。
+
+### 登录语言与验证码邮件
+
+各端打开 `https://auth.openbitfun.com/sign-in` 时通过 `locale` 查询参数传递当前界面语言。
+认证页优先使用该参数，其次使用已保存的语言和浏览器语言；别名遵循共享 i18n contract。
+发送验证码请求可携带 `locale`（`en-US`、`zh-CN` 或 `zh-TW`），邮件主题、HTML 和纯文本使用同一语言。
+旧客户端省略该字段或传入未知值时默认发送英文邮件，不影响验证码和令牌协议。
+
+### Same-host outbound SMTP relay
+
+完整维护流程见 [自建发信服务维护手册](../outbound-mail/README.md)。
+
+For a send-only Postfix relay on the auth server, set `SMTP_SECURITY=local`,
+`SMTP_HOST` to its literal loopback/private IPv4 address, `SMTP_PORT` to the
+private listener port, and `SMTP_USERNAME` to the sender address. Leave
+`SMTP_PASSWORD` unset. This explicit mode does not send credentials or use TLS;
+use it only over loopback or an isolated same-host Docker bridge. Public IPs,
+DNS names, and supplied passwords are rejected. Existing `ssl`/`starttls`
+configurations retain certificate validation and authenticated delivery.
+
+Bind Postfix only to loopback and the auth bridge gateway; restrict `mynetworks`
+to loopback and the auth container's exact address, with `permit_mynetworks,
+reject` relay/client restrictions. Recheck the container address after deployment.
+Do not expose SMTP through a public Docker port or WAF. Restrict envelope senders
+to the owned sender domain (for example, `*@openbitfun.com`), sign all its sender
+addresses with OpenDKIM, and keep `relayhost` empty for direct
+MX delivery. Enable opportunistic TLS for outbound delivery, persistent queues,
+and systemd startup ordering after Docker. Keep DKIM private keys and any SMTP
+configuration under root-controlled server paths, outside the repository.
+
+Before switching production auth, publish a matching A/PTR identity, add the
+outbound IP to the existing SPF record (never create a second SPF record), publish
+DKIM, and establish DMARC. Keep existing MX records when inbound email remains
+with another provider. Verify real delivery and recipient authentication headers;
+SMTP queue acceptance alone does not prove delivery to the inbox. Preserve the
+previous SMTP configuration for rollback until the new route is verified.

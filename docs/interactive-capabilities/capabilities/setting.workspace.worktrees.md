@@ -17,19 +17,19 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 了解隔离 Worktree，并配置其创建与清理默认值
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 了解隔离 Worktree，并配置其创建与清理默认值
   - Understand isolated worktrees and configure their creation and cleanup defaults
-- **Agent 可直接控制 / Direct Agent control** · 设置受管 Worktree 的统一根目录
+- **智能体可直接控制 / Direct Agent control** · 设置受管 Worktree 的统一根目录
   - Set the common root directory for managed worktrees
-- **Agent 可直接控制 / Direct Agent control** · 设置自动创建分支使用的名称前缀
+- **智能体可直接控制 / Direct Agent control** · 设置自动创建分支使用的名称前缀
   - Set the branch-name prefix used for automatically created branches
-- **Agent 可直接控制 / Direct Agent control** · 创建隔离工作区时选择是否复制当前未提交改动
+- **智能体可直接控制 / Direct Agent control** · 创建隔离工作区时选择是否复制当前未提交改动
   - Choose whether current uncommitted changes are copied into a new isolated workspace
-- **Agent 可直接控制 / Direct Agent control** · 启用自动清理并设置最多保留的受管 Worktree 数量
+- **智能体可直接控制 / Direct Agent control** · 启用自动清理并设置最多保留的受管 Worktree 数量
   - Enable automatic cleanup and set the maximum number of managed worktrees to retain
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Worktree` · 查看 Worktree 生命周期、脏状态、未发布提交与关联会话
+- **由专用智能体工具控制 / Delegated Agent tool** · `Worktree` · 查看 Worktree 生命周期、脏状态、未发布提交与关联会话
   - Inspect worktree lifecycle, dirty state, unpublished commits, and linked sessions
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 打开或恢复关联会话，并在保护检查后删除或强制删除 Worktree
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 打开或恢复关联会话，并在保护检查后删除或强制删除 Worktree
   - Open or restore linked sessions and delete or force-delete a worktree after protection checks
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -59,13 +59,13 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 | 自动清理 Worktree / Automatic worktree cleanup | `boolean` | 允许 OpenBitFun 自动清理超过保留上限的受管 Worktree。 | Allow OpenBitFun to prune managed worktrees beyond the retention limit. |
 | Worktree 保留上限 / Worktree retention limit | `integer` (1–100) | 设置自动清理前最多保留的受管 Worktree 数量。 | Set the maximum managed worktrees retained before cleanup. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Worktree 设置”
   - “Open Worktree settings”
 - “带我管理并行工作区”
   - “Take me to parallel-workspace management”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

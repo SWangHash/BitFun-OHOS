@@ -40,7 +40,7 @@ internal const val BUBBLE_TEST_TAG: String = "chat-bubble"
 internal fun ChatMessageBubble(
     row: ConversationRow,
     enabled: Boolean,
-    onApproveTool: (String) -> Unit,
+    onApproveTool: (String, String?) -> Unit,
     onRejectTool: (String, String) -> Unit,
     onCancelTool: (String, String) -> Unit,
     onAnswerTool: (String, String) -> Unit,

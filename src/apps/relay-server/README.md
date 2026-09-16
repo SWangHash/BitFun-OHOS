@@ -4,7 +4,7 @@ The official Relay connects devices signed in to the same GitHub identity.
 GitHub identity is shared with the marketplaces. Users sign in
 from OpenBitFun; they do not create a Relay account or deploy a server.
 
-The official endpoint is `https://remote.openbitfun.com/v/1.0.0`. This release is deployed with
+The official endpoint is `https://remote.openbitfun.com/v/1.0.1`. This release is deployed with
 its own process, database, assets, and reverse-proxy location. An existing
 `/relay` deployment remains on its existing binary and data directory.
 
@@ -43,7 +43,7 @@ Relay URL. A private Relay therefore needs a matching client build.
    and `src/mobile-web/src/services/pairingLink.ts`. Native clients have
    matching constants in KMP `core-transport/AccountDeviceLink.kt` and HarmonyOS
    `services/AccountDeviceLink.ets`; update the HarmonyOS account-link parser too.
-   Search for `https://remote.openbitfun.com/v/1.0.0` to verify every runtime
+   Search for `https://remote.openbitfun.com/v/1.0.1` to verify every runtime
    reference and corresponding test before building your distribution.
 3. Decide who owns identity. You can retain the official GitHub identity
    authority, or run the [shared identity service](../../../deploy/miniapp-market/README.md)
@@ -93,7 +93,7 @@ RELAY_PORT=9700 RELAY_DB_PATH=/var/lib/openbitfun-relay-v1/relay.db \
 ```
 
 Use the isolated [v1 Compose project](../../../deploy/relay-v1/README.md).
-Set `RELAY_LISTEN_ADDR=127.0.0.1:19700` with host networking so the service can
+Set `RELAY_LISTEN_ADDR=127.0.0.1:19701` with host networking so the service can
 verify the immediate loopback proxy peer. Invalid listener values fail startup.
 Expose only the TLS reverse proxy. Keep the database and asset paths distinct from older deployments.
 `relay-admin` supports listing and explicitly deleting accounts; GitHub login
@@ -156,8 +156,8 @@ observed source address, and the upstream port must be unreachable externally.
 The Relay trusts forwarded client IPs only from an immediate loopback peer.
 
 ```nginx
-location ^~ /v/1.0.0/ {
-    proxy_pass http://127.0.0.1:19700/;
+location ^~ /v/1.0.1/ {
+    proxy_pass http://127.0.0.1:19701/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -196,17 +196,23 @@ location and process.
 | `POST /api/auth/provision-device` | Authorized SSH host bootstrap |
 | `GET /api/devices` | Same-account device directory |
 | `GET /api/devices/{id}/key` | Same-account device public key |
-| `POST /api/devices/{id}/rpc` | Encrypted request/response forwarding |
-| `POST /api/devices/{id}/messages` | Authenticated device responses and same-account messages |
 | `DELETE /api/devices/{id}` | Explicit device removal and revocation |
-| `GET /ws` | Authenticated device presence and encrypted messages |
+| `GET /v1/updates` | Authenticated Socket.IO account, machine and session scopes |
+| `POST /v1/sessions`, `GET /v1/sessions/{id}` | Opaque session metadata |
+| `GET/POST /v3/sessions/{id}/messages` | Ordered encrypted session history and catch-up |
+| `POST /v1/rpc/payloads`, `GET /v1/rpc/payloads/{id}` | Account-scoped encrypted bulk RPC bodies |
 
-`auth_connect` verifies a device token before WebSocket routing is enabled.
-Devices receive requests over WebSocket and submit payloads through the HTTP
-`messages` endpoint, which reserves memory before buffering. Correlation replies
-must come from the expected account and device. Small legacy `device_message`
-envelopes remain recognized; attachment-sized WebSocket ingress is rejected.
-The versioned client and server must be deployed together for this transport.
+Realtime clients authenticate the namespace and wait for `auth-ok` before
+registering or calling methods. Machine-owned RPC methods route inside the
+same account; only the selected target socket can acknowledge a request.
+A lost acknowledgement reports an unknown outcome and never replays a mutation.
+Small encrypted messages travel over the live connection; larger RPC bodies use
+short-lived HTTP references. Session history uses durable records, independent
+of those temporary references. Continuous session sequences apply directly;
+missing sequences and reconnects use the same encrypted history API.
+
+The old `/ws`, HTTP device `rpc` and `messages` routes are retired. Deploy the
+new client and server together under a separate versioned relay prefix.
 
 ## Configuration
 

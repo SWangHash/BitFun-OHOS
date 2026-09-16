@@ -1,0 +1,13 @@
+// Checkbox owns selection, focus and disabled paint; the product owns spacing.
+.agent-capability-option {
+  display: inline-flex;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+
+  &__control {
+    align-items: center;
+    inline-size: 100%;
+    min-block-size: var(--openbitfun-control-height-sm);
+    padding: var(--openbitfun-space-2);
+  }
+}

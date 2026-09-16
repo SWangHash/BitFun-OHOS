@@ -1,13 +1,9 @@
-import {
-  ChevronLeft as LucideChevronLeft,
-  ChevronRight as LucideChevronRight,
-  Folder as LucideFolder,
-} from 'lucide-react';
+import { Button, Checkbox, Disclosure, Field, Input, PageHeader } from '@openbitfun/ui';
+import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Checkbox } from '../components/Checkbox';
 import { InstallErrorPanel } from '../components/InstallErrorPanel';
 import type {
   InstallOptions,
@@ -17,6 +13,7 @@ import type {
 } from '../types/installer';
 
 interface OptionsProps {
+  previewOnly?: boolean;
   options: InstallOptions;
   setOptions: React.Dispatch<React.SetStateAction<InstallOptions>>;
   diskSpace: DiskSpaceInfo | null;
@@ -42,6 +39,7 @@ export function Options({
   onInstall,
   isInstalling,
   clearInstallError,
+  previewOnly = false,
 }: OptionsProps) {
   const { t } = useTranslation();
 
@@ -76,158 +74,99 @@ export function Options({
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   };
 
-  const update = (key: keyof InstallOptions, value: boolean) => {
-    setOptions((prev) => ({ ...prev, [key]: value }));
-  };
-
   return (
     <div className="page-shell">
       <div className="page-scroll">
-        <div className="page-container page-container--center" style={{ maxWidth: 560 }}>
-          <div style={{
-            marginBottom: 8,
-            fontSize: 'var(--openbitfun-type-body-xs-font-size)',
-            color: 'var(--openbitfun-color-content-muted)',
-          }}>
-            {t('options.subtitle')}
-          </div>
-          {existingInstall?.detected ? (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: '12px 14px',
-                borderRadius: 10,
-                border: '1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 45%, transparent)',
-                background: 'color-mix(in srgb, var(--openbitfun-color-accent-default) 8%, transparent)',
-                fontSize: 'var(--openbitfun-type-body-xs-font-size)',
-                lineHeight: 'var(--openbitfun-type-support-line-height)',
-                color: 'var(--openbitfun-color-content-primary)',
-              }}
+        <div className="page-container">
+          <PageHeader className="page-heading" title={t('options.title')} />
+
+          {existingInstall?.detected && (
+            <Disclosure
+              className="existing-install"
+              summary={t(existingInstall.mainBinaryPresent ? 'options.existingInstallTitle' : 'options.existingInstallBinaryMissing')}
             >
-              <div style={{
-                fontWeight: 'var(--openbitfun-type-label-selected-font-weight)',
-                marginBottom: 8,
-              }}>{t('options.existingInstallTitle')}</div>
-              {existingInstall.displayVersion ? (
-                <div style={{ marginBottom: 4, wordBreak: 'break-all' }}>
-                  {t('options.existingInstallVersion', { version: existingInstall.displayVersion })}
-                </div>
-              ) : null}
-              {existingInstall.installLocation ? (
-                <div style={{ marginBottom: 8, wordBreak: 'break-all', opacity: 0.95 }}>
-                  {t('options.existingInstallLocation', { path: existingInstall.installLocation })}
-                </div>
-              ) : null}
-              {!existingInstall.mainBinaryPresent ? (
-                <div style={{ marginBottom: 8, color: 'var(--openbitfun-color-status-warning-content)' }}>
-                  {t('options.existingInstallBinaryMissing')}
-                </div>
-              ) : null}
-              <p style={{ margin: '0 0 10px', opacity: 0.88 }}>{t('options.existingInstallHint')}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {existingInstall.uninstallString ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ padding: '8px 12px', fontSize: 'var(--openbitfun-type-body-xs-font-size)' }}
-                    onClick={() => {
-                      void onLaunchRegisteredUninstaller();
-                    }}
-                  >
+              <div className="existing-install__details">
+                {existingInstall.displayVersion && (
+                  <p>{t('options.existingInstallVersion', { version: existingInstall.displayVersion })}</p>
+                )}
+                {existingInstall.installLocation && (
+                  <p className="selectable-path">{t('options.existingInstallLocation', { path: existingInstall.installLocation })}</p>
+                )}
+                {existingInstall.uninstallString && (
+                  <Button variant="text" size="sm" disabled={isInstalling || previewOnly} onClick={() => { void onLaunchRegisteredUninstaller(); }}>
                     {t('options.existingInstallRunUninstaller')}
-                  </button>
-                ) : null}
+                  </Button>
+                )}
               </div>
-            </div>
-          ) : null}
-          <div style={{ marginBottom: 20 }}>
-            <div className="section-label">
-              <LucideFolder width="14" height="14" stroke="currentColor" aria-hidden="true" />
-              {t('options.pathLabel')}
-            </div>
-            <div className="input-group">
-              <input
-                className="input"
-                type="text"
+            </Disclosure>
+          )}
+
+          <section className="install-location">
+            <Field
+              label={t('options.pathLabel')}
+              controlWidth="fill"
+              controlTrailing={
+                <Button variant="fill" disabled={isInstalling || previewOnly} onClick={handleBrowse}>{t('options.browse')}</Button>
+              }
+            >
+              <Input
+                size="md"
+                className="path-input"
                 value={options.installPath}
                 disabled={isInstalling}
-                onChange={(e) => {
-                  setOptions((prev) => ({ ...prev, installPath: e.target.value }));
+                invalid={!!error}
+                aria-describedby={diskSpace ? 'install-disk-space' : undefined}
+                onChange={(event) => {
+                  setOptions((prev) => ({ ...prev, installPath: event.target.value }));
                   clearInstallError();
                 }}
                 placeholder={t('options.pathPlaceholder')}
+                spellCheck={false}
               />
-              <button
-                className="btn"
-                type="button"
-                disabled={isInstalling}
-                onClick={handleBrowse}
-                style={{ padding: '10px 14px', flexShrink: 0 }}
-              >
-                {t('options.browse')}
-              </button>
-            </div>
+            </Field>
             {diskSpace && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 16,
-                  marginTop: 8,
-                  fontSize: 'var(--openbitfun-type-support-font-size)',
-                  color: 'var(--openbitfun-color-content-muted)',
-                  opacity: 0.7,
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div className="disk-space" id="install-disk-space">
                 <span>{t('options.required')}: {formatBytes(diskSpace.required)}</span>
                 <span>
-                  {t('options.available')}:{' '}
-                  {diskSpace.available < Number.MAX_SAFE_INTEGER ? formatBytes(diskSpace.available) : '-'}
+                  {t('options.available')}: {diskSpace.available < Number.MAX_SAFE_INTEGER ? formatBytes(diskSpace.available) : '—'}
                 </span>
-                {!diskSpace.sufficient && (
-                  <span style={{ color: 'var(--openbitfun-color-status-danger-content)' }}>{t('options.insufficientSpace')}</span>
-                )}
+                {!diskSpace.sufficient && <span className="status-danger">{t('options.insufficientSpace')}</span>}
               </div>
             )}
             {error && <InstallErrorPanel message={error} variant="options" />}
-          </div>
+          </section>
 
-          <div>
-            <div className="section-label">{t('options.optionsLabel')}</div>
-            <div className="checkbox-group stagger-children">
-              <Checkbox
-                checked={options.desktopShortcut}
-                onChange={(value) => update('desktopShortcut', value)}
-                label={t('options.desktopShortcut')}
-              />
-              <Checkbox
-                checked={options.startMenu}
-                onChange={(value) => update('startMenu', value)}
-                label={t('options.startMenu')}
-              />
-            </div>
-          </div>
+          <fieldset className="install-options">
+            <legend className="section-label">{t('options.optionsLabel')}</legend>
+            <Checkbox
+              checked={options.desktopShortcut}
+              disabled={isInstalling}
+              onCheckedChange={(checked) => setOptions((prev) => ({ ...prev, desktopShortcut: checked }))}
+              label={t('options.desktopShortcut')}
+            />
+            <Checkbox
+              checked={options.startMenu}
+              disabled={isInstalling}
+              onCheckedChange={(checked) => setOptions((prev) => ({ ...prev, startMenu: checked }))}
+              label={t('options.startMenu')}
+            />
+          </fieldset>
         </div>
       </div>
 
       <div className="page-footer page-footer--split">
-        <button className="btn btn-ghost" type="button" disabled={isInstalling} onClick={onBack}>
-          <LucideChevronLeft width="14" height="14" stroke="currentColor" aria-hidden="true" />
+        <Button variant="text" disabled={isInstalling} onClick={onBack}>
           {t('options.changeLanguage')}
-        </button>
-        <button
-          className="btn btn-primary"
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
+          trailingIcon={<ArrowRight />}
+          loading={isInstalling}
           onClick={() => { void onInstall(); }}
-          disabled={
-            !options.installPath
-            || (diskSpace !== null && !diskSpace.sufficient)
-            || isInstalling
-          }
+          disabled={previewOnly || !options.installPath || (diskSpace !== null && !diskSpace.sufficient)}
         >
           {isInstalling ? t('options.installing') : t('options.install')}
-          <LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </div>
   );

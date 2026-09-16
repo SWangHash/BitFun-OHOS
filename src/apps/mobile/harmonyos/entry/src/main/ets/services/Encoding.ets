@@ -15,6 +15,13 @@ import { OhosError } from './OhosError';
  * shows up directly as a blocked main thread.
  */
 export class Encoding {
+  static async sha256(text: string): Promise<string> {
+    const digest = cryptoFramework.createMd('SHA256');
+    await digest.update({ data: Encoding.utf8ToBytes(text) });
+    const result = await digest.digest();
+    return Array.from(result.data).map((value: number) => value.toString(16).padStart(2, '0')).join('');
+  }
+
   static utf8ToBytes(text: string): Uint8Array {
     try {
       return Encoding.copyBuffer(buffer.from(text, 'utf-8'));

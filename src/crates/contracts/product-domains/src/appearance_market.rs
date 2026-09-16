@@ -61,13 +61,7 @@ pub enum AppearancePackageMode {
     Dark,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppearanceMarketUserSummary {
-    pub github_id: i64,
-    pub login: String,
-    pub avatar_url: String,
-}
+pub use crate::account::GitHubUser as AppearanceMarketUserSummary;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

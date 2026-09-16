@@ -48,7 +48,8 @@ export class RemoteCommandFactory {
       cmd: 'create_session',
       agent_type: options.agentType,
       session_name: options.title.trim() || defaultTitle,
-      workspace_path: workspacePath
+      workspace_path: workspacePath || undefined,
+      remote_connection_id: workspacePath ? options.remoteConnectionId || '' : undefined
     };
   }
 
@@ -173,10 +174,11 @@ export class RemoteCommandFactory {
     };
   }
 
-  static confirmTool(toolId: string): RemoteCommand {
+  static confirmTool(toolId: string, updatedInput?: Object): RemoteCommand {
     return {
       cmd: 'confirm_tool',
-      tool_id: toolId
+      tool_id: toolId,
+      updated_input: updatedInput
     };
   }
 
