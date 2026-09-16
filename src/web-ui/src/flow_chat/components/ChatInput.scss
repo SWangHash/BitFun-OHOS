@@ -224,11 +224,11 @@
   height: 28px;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid transparent;
+  border: 1px solid var(--bf-appearance-token-btn-primary-border);
   border-radius: 50%;
-  background: rgba(var(--private-chat-input-send-surface-rgb), 0.96);
-  color: rgb(var(--private-chat-input-send-dark-icon-rgb));
-  box-shadow: none;
+  background: var(--bf-appearance-token-btn-primary-bg);
+  color: var(--bf-appearance-token-btn-primary-color);
+  box-shadow: var(--bf-appearance-token-btn-primary-shadow);
   flex: 0 0 28px;
   transition:
     background-color 150ms ease,
@@ -236,16 +236,10 @@
     transform 190ms cubic-bezier(0.18, 0.9, 0.3, 1.28);
 
   &:not(:disabled):hover {
-    border: 1px solid rgba(var(--bf-appearance-token-color-static-white-rgb), 0.52);
-    background: linear-gradient(
-      165deg,
-      var(--bf-appearance-token-color-static-white) 0%,
-      rgba(var(--private-chat-input-send-surface-hover-rgb), 0.99) 100%
-    );
-    color: rgb(var(--private-chat-input-send-dark-icon-strong-rgb));
-    box-shadow:
-      0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.32),
-      0 6px 14px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.28);
+    border-color: var(--bf-appearance-token-btn-primary-hover-border);
+    background: var(--bf-appearance-token-btn-primary-hover-bg);
+    color: var(--bf-appearance-token-btn-primary-hover-color);
+    box-shadow: var(--bf-appearance-token-btn-primary-hover-shadow);
     transform: scale(1.05);
   }
 
@@ -255,40 +249,10 @@
 
   &:disabled {
     border: 1px solid transparent;
-    background: rgba(var(--private-chat-input-send-surface-disabled-rgb), 0.18);
-    color: rgba(var(--private-chat-input-send-dark-icon-rgb), 0.38);
+    background: var(--bf-appearance-token-element-bg-soft);
+    color: var(--bf-appearance-token-color-text-muted);
     opacity: 1;
     box-shadow: none;
-  }
-}
-
-:root[data-bf-appearance-mode="light"] .bitfun-chat-input__voice-pill-send.icon-btn,
-.light .bitfun-chat-input__voice-pill-send.icon-btn {
-  &:not(:disabled) {
-    background: linear-gradient(
-      165deg,
-      rgb(var(--private-chat-input-send-inverse-surface-start-rgb)) 0%,
-      rgb(var(--private-chat-input-send-inverse-surface-end-rgb)) 100%
-    );
-    color: rgb(var(--private-chat-input-send-inverse-text-rgb));
-  }
-
-  &:hover:not(:disabled) {
-    border-color: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.58);
-    background: linear-gradient(
-      165deg,
-      rgb(var(--private-chat-input-send-inverse-hover-start-rgb)) 0%,
-      rgb(var(--private-chat-input-send-inverse-hover-end-rgb)) 100%
-    );
-    color: rgb(var(--private-chat-input-send-inverse-hover-text-rgb));
-    box-shadow:
-      0 0 0 1px rgba(var(--bf-appearance-token-color-static-white-rgb), 0.28),
-      0 6px 14px var(--bf-appearance-token-color-overlay-black-20);
-  }
-
-  &:disabled {
-    background: rgba(var(--private-chat-input-send-inverse-disabled-bg-rgb), 0.18);
-    color: rgba(var(--private-chat-input-send-inverse-disabled-text-rgb), 0.8);
   }
 }
 
@@ -336,31 +300,6 @@
   --private-chat-input-agent-plan-text-rgb: 180, 110, 0;
   --private-chat-input-agent-debug-bg-rgb: 249, 115, 22;
   --private-chat-input-agent-debug-text-rgb: 180, 83, 9;
-  --private-chat-input-send-dark-icon-rgb: 17, 17, 22;
-  --private-chat-input-send-dark-icon-strong-rgb: 5, 5, 8;
-  --private-chat-input-send-surface-rgb: 239, 241, 248;
-  --private-chat-input-send-surface-hover-rgb: 236, 239, 248;
-  --private-chat-input-send-surface-focus-start-rgb: 252, 253, 255;
-  --private-chat-input-send-surface-focus-end-rgb: 232, 235, 244;
-  --private-chat-input-send-surface-disabled-rgb: 246, 247, 250;
-  --private-chat-input-send-breathing-hover-glyph-rgb: 12, 13, 18;
-  --private-chat-input-send-inverse-surface-start-rgb: 21, 21, 28;
-  --private-chat-input-send-inverse-surface-end-rgb: 10, 10, 15;
-  --private-chat-input-send-inverse-text-rgb: 232, 234, 241;
-  --private-chat-input-send-inverse-hover-start-rgb: 41, 41, 52;
-  --private-chat-input-send-inverse-hover-end-rgb: 22, 22, 31;
-  --private-chat-input-send-inverse-hover-text-rgb: 250, 251, 255;
-  --private-chat-input-send-inverse-focus-start-rgb: 30, 30, 40;
-  --private-chat-input-send-inverse-focus-end-rgb: 18, 18, 25;
-  --private-chat-input-send-inverse-focus-text-rgb: 240, 242, 248;
-  --private-chat-input-send-inverse-disabled-bg-rgb: 10, 10, 14;
-  --private-chat-input-send-inverse-disabled-text-rgb: 24, 24, 34;
-  --private-chat-input-stop-inverse-glyph-start-rgb: 237, 237, 242;
-  --private-chat-input-stop-inverse-glyph-end-rgb: 200, 202, 212;
-  --private-chat-input-stop-inverse-hover-start-rgb: 36, 36, 47;
-  --private-chat-input-stop-inverse-hover-end-rgb: 20, 20, 30;
-  --private-chat-input-stop-inverse-hover-glyph-start-rgb: 244, 245, 250;
-  --private-chat-input-stop-inverse-hover-glyph-end-rgb: 216, 218, 228;
   --private-chat-input-queued-badge-ring-rgb: 18, 18, 28;
 
   width: 100%;
@@ -1884,8 +1823,8 @@
     flex: 0 0 auto;
   }
 
-  /* Send: same chrome language as stop — luminous disk + dark icon on dark UI,
-     charcoal disk + light icon on light UI. */
+  /* Send: same chrome language as stop — theme primary-button colors so each
+     appearance (and any imported skin) controls the disk and glyph. */
   &__send-button {
     position: relative;
     width: 20px;
@@ -1893,7 +1832,7 @@
     border-radius: 50%;
     border: none;
     background: var(--bf-appearance-token-color-overlay-white-08);
-    color: rgba(var(--private-chat-input-send-dark-icon-rgb), 0.55);
+    color: var(--bf-appearance-token-color-text-muted);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1904,54 +1843,43 @@
     flex-shrink: 0;
 
     &:not(:disabled) {
-      background: rgba(var(--private-chat-input-send-surface-rgb), 0.96);
-      border: 1px solid transparent;
-      color: rgb(var(--private-chat-input-send-dark-icon-rgb));
-      box-shadow: none;
+      background: var(--bf-appearance-token-btn-primary-bg);
+      border: 1px solid var(--bf-appearance-token-btn-primary-border);
+      color: var(--bf-appearance-token-btn-primary-color);
+      box-shadow: var(--bf-appearance-token-btn-primary-shadow);
     }
 
     &:hover:not(:disabled) {
       transform: scale(1.07);
       filter: none;
-      background: linear-gradient(
-        165deg,
-        var(--bf-appearance-token-color-static-white) 0%,
-        rgba(var(--private-chat-input-send-surface-hover-rgb), 0.99) 100%
-      );
-      border-color: rgba(var(--bf-appearance-token-color-static-white-rgb), 0.52);
-      color: rgb(var(--private-chat-input-send-dark-icon-strong-rgb));
-      box-shadow:
-        0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.32),
-        0 8px 18px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.32);
+      background: var(--bf-appearance-token-btn-primary-hover-bg);
+      border-color: var(--bf-appearance-token-btn-primary-hover-border);
+      color: var(--bf-appearance-token-btn-primary-hover-color);
+      box-shadow: var(--bf-appearance-token-btn-primary-hover-shadow);
     }
 
     .bitfun-chat-input__box:focus-within &:not(:disabled) {
       filter: none;
       transform: scale(1.05);
-      background: linear-gradient(
-        165deg,
-        rgba(var(--private-chat-input-send-surface-focus-start-rgb), 0.99) 0%,
-        rgba(var(--private-chat-input-send-surface-focus-end-rgb), 0.97) 100%
-      );
+      background: var(--bf-appearance-token-btn-primary-bg);
       border-color: var(--bf-appearance-token-border-prominent);
-      box-shadow:
-        0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.36),
-        0 3px 12px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.28);
+      box-shadow: var(--bf-appearance-token-btn-primary-shadow);
     }
 
     &:active:not(:disabled) {
       transform: scale(0.97);
       filter: none;
-      box-shadow:
-        0 0 0 1px var(--bf-appearance-token-color-overlay-black-40),
-        0 1px 3px var(--bf-appearance-token-color-overlay-black-20);
+      background: var(--bf-appearance-token-btn-primary-active-bg);
+      border-color: var(--bf-appearance-token-btn-primary-active-border);
+      color: var(--bf-appearance-token-btn-primary-active-color);
+      box-shadow: var(--bf-appearance-token-btn-primary-active-shadow);
     }
 
     &:disabled {
       cursor: default;
-      background: rgba(var(--private-chat-input-send-surface-disabled-rgb), 0.18);
+      background: var(--bf-appearance-token-element-bg-soft);
       border: none;
-      color: rgba(var(--private-chat-input-send-dark-icon-rgb), 0.38);
+      color: var(--bf-appearance-token-color-text-muted);
       opacity: 1;
       box-shadow: none;
       filter: saturate(0.65);
@@ -1988,20 +1916,9 @@
       &:hover .bitfun-chat-input__breathing-circle {
         transform: scale(1.07);
         filter: none;
-        background: linear-gradient(
-          165deg,
-          var(--bf-appearance-token-color-static-white) 0%,
-          rgba(var(--private-chat-input-send-surface-hover-rgb), 0.99) 100%
-        );
-        border-color: rgba(var(--bf-appearance-token-color-static-white-rgb), 0.52);
-        box-shadow:
-          0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.32),
-          0 8px 18px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.32);
-
-        &::after {
-          background: rgb(var(--private-chat-input-send-breathing-hover-glyph-rgb));
-          box-shadow: none;
-        }
+        background: var(--bf-appearance-token-btn-primary-hover-bg);
+        border-color: var(--bf-appearance-token-btn-primary-hover-border);
+        box-shadow: var(--bf-appearance-token-btn-primary-hover-shadow);
       }
     }
   }
@@ -2015,8 +1932,8 @@
     animation: bitfun-chat-input-spin 0.8s linear infinite;
   }
 
-  /* Stop: theme-inverted pause glyph — luminous disk + deep square on dark UI;
-     charcoal disk + soft square on light UI (matches contrast on each chrome). */
+  /* Stop: theme primary-button disk with an inverted pause glyph so the square
+     stays visible on both the disk and the surrounding chrome. */
   &__breathing-circle {
     position: relative;
     box-sizing: border-box;
@@ -2030,16 +1947,16 @@
     transition:
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
       opacity 120ms ease;
-    background: rgba(var(--private-chat-input-send-surface-rgb), 0.96);
-    border: 1px solid transparent;
-    box-shadow: none;
+    background: var(--bf-appearance-token-btn-primary-bg);
+    border: 1px solid var(--bf-appearance-token-btn-primary-border);
+    box-shadow: var(--bf-appearance-token-btn-primary-shadow);
 
     &::after {
       content: '';
       width: 9px;
       height: 9px;
       border-radius: 2px;
-      background: rgb(var(--private-chat-input-send-dark-icon-rgb));
+      background: var(--bf-appearance-token-color-bg-scene);
       box-shadow: none;
       transition:
         background 0.18s ease,
@@ -2048,101 +1965,9 @@
   }
 
   :root[data-bf-appearance-mode="light"] &,
-  :root[data-bf-appearance-mode="light"] &,
   .light & {
-    .bitfun-chat-input__send-button:not(.bitfun-chat-input__send-button--breathing) {
-      &:not(:disabled) {
-        background: linear-gradient(
-          165deg,
-          rgb(var(--private-chat-input-send-inverse-surface-start-rgb)) 0%,
-          rgb(var(--private-chat-input-send-inverse-surface-end-rgb)) 100%
-        );
-        border: 1px solid transparent;
-        color: rgb(var(--private-chat-input-send-inverse-text-rgb));
-        box-shadow: none;
-      }
-
-      &:hover:not(:disabled) {
-        filter: none;
-        transform: scale(1.07);
-        background: linear-gradient(
-          165deg,
-          rgb(var(--private-chat-input-send-inverse-hover-start-rgb)) 0%,
-          rgb(var(--private-chat-input-send-inverse-hover-end-rgb)) 100%
-        );
-        border-color: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.58);
-        color: rgb(var(--private-chat-input-send-inverse-hover-text-rgb));
-        box-shadow:
-          0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.16),
-          0 8px 20px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.22);
-      }
-
-      .bitfun-chat-input__box:focus-within &:not(:disabled) {
-        filter: none;
-        transform: scale(1.05);
-        background: linear-gradient(
-          165deg,
-          rgb(var(--private-chat-input-send-inverse-focus-start-rgb)) 0%,
-          rgb(var(--private-chat-input-send-inverse-focus-end-rgb)) 100%
-        );
-        border-color: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.52);
-        color: rgb(var(--private-chat-input-send-inverse-focus-text-rgb));
-        box-shadow:
-          0 0 0 1px rgba(var(--bf-appearance-token-color-static-black-rgb), 0.13),
-          0 4px 14px var(--bf-appearance-token-color-overlay-black-20);
-      }
-
-      &:disabled {
-        background: rgba(var(--private-chat-input-send-inverse-disabled-bg-rgb), 0.12);
-        border: none;
-        color: rgba(var(--private-chat-input-send-inverse-disabled-text-rgb), 0.28);
-        box-shadow: none;
-        filter: none;
-      }
-    }
-
-    .bitfun-chat-input__breathing-circle {
-      background: linear-gradient(
-        165deg,
-        rgb(var(--private-chat-input-send-inverse-surface-start-rgb)) 0%,
-        rgb(var(--private-chat-input-send-inverse-surface-end-rgb)) 100%
-      );
-      border: 1px solid transparent;
-      box-shadow: none;
-
-      &::after {
-        background: linear-gradient(
-          165deg,
-          rgb(var(--private-chat-input-stop-inverse-glyph-start-rgb)) 0%,
-          rgb(var(--private-chat-input-stop-inverse-glyph-end-rgb)) 100%
-        );
-        box-shadow: none;
-        transition:
-          background 0.18s ease,
-          box-shadow 0.18s ease;
-      }
-    }
-
-    .bitfun-chat-input__send-button--breathing:hover .bitfun-chat-input__breathing-circle {
-      transform: scale(1.07);
-      background: linear-gradient(
-        165deg,
-        rgb(var(--private-chat-input-stop-inverse-hover-start-rgb)) 0%,
-        rgb(var(--private-chat-input-stop-inverse-hover-end-rgb)) 100%
-      );
-      border-color: rgba(var(--bf-appearance-token-color-static-black-rgb), 0.55);
-      box-shadow:
-        0 0 0 1px var(--bf-appearance-token-color-overlay-black-15),
-        0 8px 20px var(--bf-appearance-token-color-overlay-black-20);
-
-      &::after {
-        background: linear-gradient(
-          165deg,
-          rgb(var(--private-chat-input-stop-inverse-hover-glyph-start-rgb)) 0%,
-          rgb(var(--private-chat-input-stop-inverse-hover-glyph-end-rgb)) 100%
-        );
-        box-shadow: none;
-      }
+    .bitfun-chat-input__breathing-circle::after {
+      background: var(--bf-appearance-token-color-static-white);
     }
   }
 

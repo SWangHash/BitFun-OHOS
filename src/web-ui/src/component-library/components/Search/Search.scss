@@ -281,6 +281,21 @@
 }
 
 
+/**
+ * Appearance switching suppresses transitions via `transition: none !important`
+ * rules on element trees (`... *`), but `*` cannot match pseudo-elements. The
+ * placeholder transition would otherwise keep animating color while the rest
+ * of the UI switches instantly.
+ */
+[data-bf-appearance-switching='true'] .search__wrapper,
+[data-bf-appearance-switching='true'] .search__wrapper *,
+[data-bf-appearance-switching='true'] .search__wrapper ::placeholder,
+[data-bf-appearance-switching='true'] .search__prefix,
+[data-bf-appearance-switching='true'] .search__prefix *,
+[data-bf-appearance-switching='true'] .search__icon {
+  transition: none !important;
+}
+
 @keyframes search-spin {
   to {
     transform: rotate(360deg);

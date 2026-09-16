@@ -209,6 +209,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }, []);
   
   const handleNewFile = useCallback(() => {
+    // Toolbar buttons live inside the filetree container, so focus stays in the
+    // filetree scope after a click; ensure the container itself is focused so
+    // filetree-scoped shortcuts keep firing even if no node holds focus.
+    containerRef.current?.focus();
     if (onNewFile) {
       const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
       if (parentPath) {
@@ -216,8 +220,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       }
     }
   }, [onNewFile, workspacePath, selectedFile, fileTree]);
-  
+
   const handleNewFolder = useCallback(() => {
+    containerRef.current?.focus();
     if (onNewFolder) {
       const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
       if (parentPath) {
@@ -225,8 +230,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       }
     }
   }, [onNewFolder, workspacePath, selectedFile, fileTree]);
-  
+
   const handleRefresh = useCallback(() => {
+    containerRef.current?.focus();
     if (onRefresh) {
       onRefresh();
     }
@@ -344,6 +350,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             <IconButton
               size="xs"
               variant="ghost"
+              // Keep focus on the file tree: stealing focus here would leave the
+              // filetree shortcut scope and disable tree shortcuts after a click.
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleNewFile}
               tooltip={withShortcut(t('fileTree.newFile'), NEW_FILE_SHORTCUT)}
               tooltipPlacement="bottom"
@@ -355,6 +364,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             <IconButton
               size="xs"
               variant="ghost"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleNewFolder}
               tooltip={withShortcut(t('fileTree.newFolder'), NEW_FOLDER_SHORTCUT)}
               tooltipPlacement="bottom"
@@ -366,6 +376,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             <IconButton
               size="xs"
               variant="ghost"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleRefresh}
               tooltip={withShortcut(t('fileTree.refresh'), REFRESH_SHORTCUT)}
               tooltipPlacement="bottom"
