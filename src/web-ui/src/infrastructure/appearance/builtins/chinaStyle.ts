@@ -12,7 +12,6 @@ import {
   createStandardSpacing,
   rgbFromHex,
   rgbaFromHex,
-  STATIC_BLACK,
   STATIC_WHITE,
 } from './paletteHelpers';
 
@@ -145,13 +144,13 @@ export const bitfunChinaStylePalette: AppearancePalette = {
 
       primary: {
         default: {
-          background: STATIC_BLACK,
+          background: CHINA_STYLE_BLUE,
           color: STATIC_WHITE,
           border: 'transparent',
           shadow: 'none',
         },
         hover: {
-          background: '#262626',
+          background: CHINA_STYLE_BLUE_HOVER,
           color: STATIC_WHITE,
           border: 'transparent',
           shadow: 'none',

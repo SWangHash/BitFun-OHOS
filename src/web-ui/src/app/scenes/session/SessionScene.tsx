@@ -161,7 +161,10 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     if (containerWidth <= 0) return newWidth;
     // NavPanel (240px) is outside SessionScene — only account for resizer + min chat width
     const reserved = PANEL_COMMON_CONFIG.RESIZER_WIDTH + PANEL_COMMON_CONFIG.MIN_CENTER_WIDTH;
-    const dynamicMax = containerWidth - reserved;
+    // Below the reserved minimum the dynamic max goes negative; a negative
+    // inline width is dropped by the browser and the pane falls back to its
+    // content width, which widens the overflow instead of shrinking it.
+    const dynamicMax = Math.max(0, containerWidth - reserved);
     const maxWidth = Math.min(RIGHT_PANEL_CONFIG.MAX_WIDTH, dynamicMax);
     return Math.min(maxWidth, Math.max(RIGHT_PANEL_CONFIG.COMPACT_WIDTH, newWidth));
   }, []);

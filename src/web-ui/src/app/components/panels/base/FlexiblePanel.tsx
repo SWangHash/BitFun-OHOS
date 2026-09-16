@@ -380,7 +380,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
 
       case 'image-viewer': {
         const imageViewerData = content.data || {};
-        
+
         return (
           <div className="bitfun-flexible-panel__image-viewer-container" data-bf-component="flexible-panel" data-bf-part="image">
             {renderLazyEditor(
@@ -388,6 +388,8 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                 filePath={imageViewerData.filePath || ''}
                 fileName={content.title}
                 workspacePath={workspacePath}
+                isActiveTab={isActive}
+                onFileMissingFromDiskChange={onFileMissingFromDiskChange}
                 className="bitfun-flexible-panel__image-viewer"
               />
             )}

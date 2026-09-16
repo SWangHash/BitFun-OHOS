@@ -52,9 +52,14 @@ const FileViewerNav: React.FC = () => {
         <span className="bitfun-file-viewer-nav__actions" data-bf-component="file-viewer-nav" data-bf-part="actions">
             {viewMode === 'tree' && explorerToolbar && (
               <>
+                {/* Keep focus on the file tree when clicking toolbar actions:
+                    these buttons live outside the filetree shortcut scope, so
+                    letting mousedown move focus would disable filetree-scoped
+                    shortcuts (F2 / Delete / Ctrl+N / F5 / ...) after the click. */}
                 <IconButton
                   size="xs"
                   variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={explorerToolbar.onNewFile}
                   tooltip={shortcutTooltip(tTools('fileTree.newFile'), 'filetree.newFile')}
                   tooltipPlacement="bottom"
@@ -64,6 +69,7 @@ const FileViewerNav: React.FC = () => {
                 <IconButton
                   size="xs"
                   variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={explorerToolbar.onNewFolder}
                   tooltip={shortcutTooltip(tTools('fileTree.newFolder'), 'filetree.newFolder')}
                   tooltipPlacement="bottom"
@@ -73,6 +79,7 @@ const FileViewerNav: React.FC = () => {
                 <IconButton
                   size="xs"
                   variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={explorerToolbar.onRefresh}
                   tooltip={shortcutTooltip(tTools('fileTree.refresh'), 'filetree.refresh')}
                   tooltipPlacement="bottom"
@@ -83,6 +90,7 @@ const FileViewerNav: React.FC = () => {
             )}
             <IconButton
               size="xs"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleToggleViewMode}
               tooltip={viewMode === 'tree' ? tFiles('actions.switchToSearch') : tFiles('actions.switchToTree')}
               tooltipPlacement="bottom"
