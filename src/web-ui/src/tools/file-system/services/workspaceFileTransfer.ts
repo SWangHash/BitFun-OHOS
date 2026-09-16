@@ -5,7 +5,7 @@
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { sshApi } from "@/features/ssh-remote/sshApi";
 import { workspaceAPI } from "@/infrastructure/api";
-import { getTransportAdapter } from "@/infrastructure/api/adapters";
+import { createTransportAdapter, getTransportAdapter } from "@/infrastructure/api/adapters";
 import {
   PeerDeviceTransportAdapter,
   type PeerDeviceCommandResponse,
@@ -72,6 +72,7 @@ interface PeerFileChunkResponse extends PeerDeviceCommandResponse {
   chunk_size: number;
   total_size: number;
   mime_type: string;
+  revision: string;
 }
 
 interface PeerDownloadEntry {
@@ -106,41 +107,41 @@ function currentPeerAdapter(): PeerDeviceTransportAdapter | null {
   return adapter instanceof PeerDeviceTransportAdapter ? adapter : null;
 }
 
-async function writeAllToLocalFile(
+export async function writeAllToLocalFile(
   destinationPath: string,
   chunks: AsyncIterable<Uint8Array>,
   onChunkWritten: (bytes: number) => void,
 ): Promise<void> {
-  const { open } = await import("@tauri-apps/plugin-fs");
-  const file = await open(destinationPath, {
-    write: true,
-    create: true,
-    truncate: true,
-  });
+  // The local sink must remain reachable for cleanup after peer logout.
+  const adapter = createTransportAdapter("tauri");
+  const send = (request: Record<string, unknown>) =>
+    adapter.request<{id: number}>("local_file_download", { request });
+  const { id } = await send({ action: "begin", destination: destinationPath });
+  let offset = 0;
   try {
     for await (const chunk of chunks) {
-      const written = await file.write(chunk);
-      if (written !== chunk.byteLength) {
-        throw new Error(
-          `Incomplete local file write (${written}/${chunk.byteLength} bytes)`,
-        );
-      }
-      onChunkWritten(written);
+      await send({ action: "write", id, offset, bytes: Array.from(chunk) });
+      offset += chunk.byteLength;
+      onChunkWritten(chunk.byteLength);
     }
-  } finally {
-    await file.close();
+    await send({ action: "finish", id, size: offset });
+  } catch (error) {
+    await send({ action: "cancel", id }).catch(() => undefined);
+    throw error;
   }
 }
 
-async function* readPeerFileChunks(
+export async function* readPeerFileChunks(
   adapter: PeerDeviceTransportAdapter,
   sourcePath: string,
   onFileSize: (size: number) => void,
+  identity: {workspace_path: string; remote_connection_id?: string},
 ): AsyncGenerator<Uint8Array, number> {
   const info = await adapter.requestPeerCommand<PeerFileInfoResponse>({
     cmd: "get_file_info",
     path: sourcePath,
     session_id: null,
+    ...identity,
   });
   if (info.resp !== "file_info" || !Number.isSafeInteger(info.size) || info.size < 0) {
     throw new Error(`Invalid peer file info response for '${sourcePath}'`);
@@ -148,11 +149,13 @@ async function* readPeerFileChunks(
   onFileSize(info.size);
 
   let offset = 0;
+  let revision: string | undefined;
   while (offset < info.size) {
     const response = await adapter.requestPeerCommand<PeerFileChunkResponse>({
       cmd: "read_file_chunk",
       path: sourcePath,
       session_id: null,
+      ...identity,
       offset,
       limit: PEER_FILE_CHUNK_BYTES,
     });
@@ -167,6 +170,10 @@ async function* readPeerFileChunks(
     ) {
       throw new Error(`Invalid peer file chunk response for '${sourcePath}'`);
     }
+    if (typeof response.revision !== "string" || !response.revision || (revision !== undefined && revision !== response.revision)) {
+      throw new Error("Peer file changed during download");
+    }
+    revision = response.revision;
     const bytes = decodeBase64FileChunk(response.chunk_base64);
     if (
       bytes.byteLength !== response.chunk_size ||
@@ -181,21 +188,10 @@ async function* readPeerFileChunks(
   return info.size;
 }
 
-async function* readPeerSshFile(
-  sourcePath: string,
-  remoteConnectionId: string | undefined,
-): AsyncGenerator<Uint8Array> {
-  const content = await workspaceAPI.readFileContent(
-    sourcePath,
-    "base64",
-    remoteConnectionId,
-  );
-  yield decodeBase64FileChunk(content);
-}
-
 async function collectPeerDirectoryEntries(
   sourceDirectory: string,
   destinationDirectory: string,
+  remoteConnectionId?: string,
 ): Promise<PeerDownloadEntry[]> {
   const { mkdir } = await import("@tauri-apps/plugin-fs");
   const pending = [{ source: sourceDirectory, destination: destinationDirectory }];
@@ -204,7 +200,7 @@ async function collectPeerDirectoryEntries(
   while (pending.length > 0) {
     const current = pending.shift()!;
     await mkdir(current.destination, { recursive: true });
-    const children = await workspaceAPI.getDirectoryChildren(current.source);
+    const children = await workspaceAPI.getDirectoryChildren(current.source, remoteConnectionId);
     for (const child of children) {
       if (!isSafePeerTransferEntryName(child.name)) {
         throw new Error(`Unsafe peer file name: '${child.name}'`);
@@ -238,8 +234,14 @@ async function downloadPeerWorkspacePathToDisk(
   isDirectory: boolean,
   onProgress: (state: TransferProgressState | null) => void,
 ): Promise<void> {
+  if (!workspace?.rootPath) throw new Error("A fixed peer workspace is required for download");
+  if (isRemoteWorkspace(workspace) && !workspace.connectionId) {
+    throw new Error(i18nService.t("panels/files:transfer.missingConnection"));
+  }
+  const identity = {workspace_path: workspace.rootPath,
+    remote_connection_id: isRemoteWorkspace(workspace) ? workspace.connectionId : undefined};
   const entries = isDirectory
-    ? await collectPeerDirectoryEntries(sourcePath, destinationPath)
+    ? await collectPeerDirectoryEntries(sourcePath, destinationPath, identity.remote_connection_id)
     : [{
         sourcePath,
         destinationPath,
@@ -260,9 +262,7 @@ async function downloadPeerWorkspacePathToDisk(
       bytesTotal += size - expectedEntrySize;
       expectedEntrySize = size;
     };
-    const chunks = isRemoteWorkspace(workspace)
-      ? readPeerSshFile(entry.sourcePath, workspace?.connectionId)
-      : readPeerFileChunks(adapter, entry.sourcePath, updateExpectedEntrySize);
+    const chunks = readPeerFileChunks(adapter, entry.sourcePath, updateExpectedEntrySize, identity);
     await writeAllToLocalFile(entry.destinationPath, chunks, (written) => {
       entryWritten += written;
       bytesTransferred = entryStart + entryWritten;
@@ -557,6 +557,7 @@ export async function downloadWorkspaceFileToDisk(
     const picked = await workspaceAPI.open_oh_file_dialog({
       title: i18nService.t("common:file.downloadSaveTitle"),
       directory: true,
+      recursive: true,
     });
     if (picked === null || Array.isArray(picked)) {
       return;

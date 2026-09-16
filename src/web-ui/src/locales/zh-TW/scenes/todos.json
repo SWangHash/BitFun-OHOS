@@ -92,7 +92,7 @@
     },
     "smartExecution": {
       "title": "智慧執行",
-      "description": "OpenBitFun 會在排定時間使用所選 Agent 與工作區內容執行任務。"
+      "description": "OpenBitFun 會在排定時間使用所選智能體與工作區內容執行任務。"
     },
     "advanced": {
       "title": "進階設定（選填）",
@@ -100,7 +100,7 @@
     },
     "fields": {
       "name": "名稱",
-      "agentType": "Agent 類型",
+      "agentType": "智能體類型",
       "scheduleKind": "排程類型",
       "at": "執行時間",
       "anchor": "起算時間（選填）",
@@ -117,7 +117,7 @@
       "agentType": "例如：Standard 或 Cowork",
       "anchor": "留空則以建立時間為準",
       "timezone": "例如：Asia/Taipei",
-      "prompt": "到點時希望 Agent 做什麼？"
+      "prompt": "到點時希望智能體做什麼？"
     },
     "hints": {
       "cronExpr": "欄位依序為：分 時 日 月 週。星期取值 1-7，其中 1 代表週日，因此 0 8 * * 2 表示每週一 08:00。",

@@ -131,16 +131,16 @@ export const useMobileStore = create<MobileStore>((set, get) => ({
     set((s) => {
       if (messages.length === 0) return s;
       const prev = s.messagesBySession[sessionId] || [];
-      const existingIds = new Set(prev.map((m) => m.id));
       const deleted = s.deletedMessageIds[sessionId];
-      const unique = messages.filter((m) => !existingIds.has(m.id) && !deleted?.has(m.id));
-      if (unique.length === 0) return s;
-      return {
-        messagesBySession: {
-          ...s.messagesBySession,
-          [sessionId]: [...prev, ...unique],
-        },
-      };
+      const next = [...prev];
+      for (const message of messages) {
+        if (deleted?.has(message.id)) continue;
+        const index = next.findIndex(existing => existing.id === message.id ||
+          (!!message.turn_id && existing.turn_id === message.turn_id && existing.role === message.role));
+        if (index < 0) next.push(message);
+        else next[index] = { ...next[index], ...message, id: next[index].id };
+      }
+      return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
     }),
   deleteMessage: (sessionId, messageId) =>
     set((s) => {

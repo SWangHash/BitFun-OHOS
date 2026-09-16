@@ -1,5 +1,14 @@
 package com.openbitfun.mobile.core.transport
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.MutableSharedFlow
+
 import com.openbitfun.mobile.core.crypto.CloudAccountCipher
 import com.openbitfun.mobile.core.crypto.DeviceIdentity
 import com.openbitfun.mobile.core.protocol.CommandStatus
@@ -25,13 +34,18 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.coroutines.CancellationException
 import kotlin.io.encoding.Base64
 import kotlin.uuid.Uuid
 import kotlin.uuid.ExperimentalUuidApi
 
-public const val DEFAULT_CLOUD_RELAY_URL: String = "https://remote.openbitfun.com/v/1.0.0"
+public const val DEFAULT_CLOUD_RELAY_URL: String = "https://remote.openbitfun.com/v/1.0.1"
 
 /** Device kinds the relay accepts; mirrors `relay-service/src/db.rs::DEVICE_KINDS`. */
 private const val DEVICE_KIND_DESKTOP = "desktop"
@@ -124,18 +138,56 @@ public class CloudAccountClient internal constructor(
     private val client: HttpClient,
     private val log: TransportLog = TransportLog.None,
     legacyMobileDeviceNames: Set<String> = emptySet(),
+    private val realtimeFactory: (HttpClient, String, String) -> AccountRpcConnection = ::AccountRealtime,
 ) {
+    private class Connection(val url: String, val token: String, val socket: AccountRpcConnection)
+    private val realtime = MutableStateFlow<Connection?>(null)
+
+    private fun connection(relayUrl: String, token: String): AccountRpcConnection {
+        val url = requireNotNull(normalizeAccountRelayUrl(relayUrl))
+        while (true) {
+            val current = realtime.value
+            if (current != null && current.url == url && current.token == token) return current.socket
+            val next = Connection(url, token, realtimeFactory(client, url, token))
+            if (realtime.compareAndSet(current, next)) {
+                current?.socket?.close()
+                return next.socket
+            }
+            next.socket.close()
+        }
+    }
+
+    /** Retain the closed binding so stale transports cannot reopen a signed-out account. */
+    private val historyReaders = mutableMapOf<String, Channel<CompletableDeferred<Unit>>>()
+    public suspend fun loadOlderSession(targetDeviceId: String, sessionId: String) {
+        val channel = historyReaders[targetDeviceId + ":" + sessionId] ?: error("Session is not subscribed")
+        val request = CompletableDeferred<Unit>()
+        channel.send(request)
+        request.await()
+    }
+    private val foregroundResumes = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    public fun resumeSessionStreams() { foregroundResumes.tryEmit(0L) }
+
+    /** Directory changes are invalidation hints, never a substitute for authenticated membership. */
+    public fun deviceDirectoryChanges(relayUrl: String, session: CloudAccountSession): kotlinx.coroutines.flow.Flow<Unit> {
+        val socket = connection(relayUrl, session.token)
+        return merge(socket.notifications.filter { it["type"]?.jsonPrimitive?.contentOrNull == "device-presence" }.map { Unit },
+            socket.connections.drop(1).map { Unit })
+    }
+
+    public fun closeAccount() { realtime.value?.socket?.close() }
+
     private val normalizedLegacyMobileDeviceNames =
         (KNOWN_NON_DESKTOP_DEVICE_NAMES + legacyMobileDeviceNames).mapTo(mutableSetOf()) {
             it.trim().lowercase()
         }
 
     public suspend fun startAuthorization(relayUrl: String): GitHubAuthorization = request(
-        relayUrl, "/api/auth/github/start", HttpMethod.Post,
+        relayUrl, "/api/auth/github/start?methods=all", HttpMethod.Post,
         JsonObject.serializer(), JsonObject(emptyMap()), GitHubAuthorization.serializer(), "", RELAY_DEFAULT_TIMEOUT_MS,
     ).also {
         val url = io.ktor.http.Url(it.authorizationUrl)
-        require(url.protocol.name == "https" && url.host == "github.com" && url.encodedPath == "/login/oauth/authorize" && url.port == 443 && url.user == null && url.password == null)
+        require(url.protocol.name == "https" && ((url.host == "github.com" && url.encodedPath == "/login/oauth/authorize") || (url.host == "auth.openbitfun.com" && url.encodedPath == "/sign-in")) && url.port == 443 && url.user == null && url.password == null)
     }
 
     public suspend fun pollAuthorization(relayUrl: String, start: GitHubAuthorization): GitHubAuthorizationPoll = request(
@@ -194,6 +246,33 @@ public class CloudAccountClient internal constructor(
             )
         }
 
+    /** Account-bound durable reader. The caller owns collection lifecycle and atomic replica storage. */
+    public suspend fun subscribeSession(
+        relayUrl: String, session: CloudAccountSession, targetDeviceId: String, sessionId: String,
+        replica: SessionStreamReplica, onError: (Throwable) -> Unit, onCaughtUp: () -> Unit,
+    ): kotlinx.coroutines.flow.Flow<JsonObject> {
+        val socket = connection(relayUrl, session.token)
+        val grant = deviceRpc(relayUrl, session, targetDeviceId,
+            RemoteCommand(cmd = "get_session_key", sessionId = sessionId), SessionKeyGrant.serializer(), RELAY_DEFAULT_TIMEOUT_MS)
+        check(grant.sessionId == sessionId) { "Session key grant binding mismatch" }
+        val historyKey = targetDeviceId + ":" + sessionId
+        val historyRequests = Channel<CompletableDeferred<Unit>>(Channel.RENDEZVOUS)
+        historyReaders[historyKey] = historyRequests
+        return sessionStream(sessionId, grant.key, grant.relaySessionId, socket.notifications, merge(socket.connections, foregroundResumes), replica,
+            readPage = { cursor ->
+                check(realtime.value?.socket === socket) { "Account changed" }
+                requestWithoutBody(relayUrl, "/v3/sessions/" + encodePathSegment(grant.relaySessionId) + "/messages?after_seq=" + cursor,
+                    HttpMethod.Get, StreamPage.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
+            }, readBefore = { before ->
+                check(realtime.value?.socket === socket) { "Account changed" }
+                requestWithoutBody(relayUrl, "/v3/sessions/" + encodePathSegment(grant.relaySessionId) + "/messages?before_seq=" + before + "&limit=100",
+                    HttpMethod.Get, StreamPage.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
+            }, olderRequests = historyRequests, onError = onError, onCaughtUp = onCaughtUp, prefetchOlder = sessionId != "@host/catalog").onCompletion {
+                if (historyReaders[historyKey] === historyRequests) historyReaders.remove(historyKey)
+                historyRequests.close()
+            }
+    }
+
     public suspend fun <T : CommandStatus> deviceRpc(
         relayUrl: String,
         session: CloudAccountSession,
@@ -204,6 +283,7 @@ public class CloudAccountClient internal constructor(
     ): T {
         val target = targetDeviceId.trim()
         if (target.isEmpty()) throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE)
+        val socket = connection(relayUrl, session.token)
         val peer = requestWithoutBody(relayUrl,
             "/api/devices/" + encodePathSegment(target) + "/key", HttpMethod.Get,
             DeviceKeyWire.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
@@ -211,16 +291,10 @@ public class CloudAccountClient internal constructor(
         val nonce = DeviceIdentity.randomBytes(12)
         val plain = RelayJson.encodeToString(RemoteCommand.serializer(), command).encodeToByteArray()
         val encrypted = CloudAccountCipher.encrypt(plain, messageKey, nonce)
-        val response = request(
-            relayUrl,
-            "/api/devices/" + encodePathSegment(target) + "/rpc",
-            HttpMethod.Post,
-            EncryptedPayload.serializer(),
-            EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce)),
-            EncryptedPayload.serializer(),
-            session.token,
-            timeoutMs,
-        )
+        val payload = EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce))
+        val response = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(),
+            socket.call(target,
+                RelayJson.encodeToJsonElement(EncryptedPayload.serializer(), payload), timeoutMs))
         val decoded = try {
             CloudAccountCipher.decrypt(
                 decode(response.encryptedData),
@@ -338,7 +412,13 @@ public class AccountDeviceCommandTransport public constructor(
     private val session: CloudAccountSession,
     private val targetDeviceId: String,
     private val log: TransportLog,
-) : RemoteCommandTransport {
+) : RemoteCommandTransport, RemoteSessionStreamTransport {
+    override fun wakeSessionStreams() { client.resumeSessionStreams() }
+    override suspend fun loadOlder(sessionId: String) { client.loadOlderSession(targetDeviceId, sessionId) }
+    override val streamIdentity: String get() = kotlinx.serialization.json.JsonArray(listOf(relayUrl, session.userId, targetDeviceId).map { kotlinx.serialization.json.JsonPrimitive(it) }).toString()
+    override suspend fun subscribe(sessionId: String, replica: SessionStreamReplica, onError: (Throwable) -> Unit, onCaughtUp: () -> Unit): kotlinx.coroutines.flow.Flow<JsonObject> =
+        client.subscribeSession(relayUrl, session, targetDeviceId, sessionId, replica, onError, onCaughtUp)
+
     public constructor(
         client: CloudAccountClient,
         relayUrl: String,
@@ -480,3 +560,12 @@ public data class GitHubProfile(
 ) {
     public val userId: String get() = id.toString()
 }
+
+@Serializable
+private data class SessionKeyGrant(
+    @SerialName("resp") override val resp: String? = null,
+    @SerialName("message") override val message: String? = null,
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("relay_session_id") val relaySessionId: String,
+    val key: String,
+) : CommandStatus

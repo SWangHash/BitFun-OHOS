@@ -271,3 +271,9 @@ before replacing either entrypoint.
 Use `doctor` for product/runtime assembly diagnostics and `health` for required
 capability registration. They do not claim that external Network, Git, or MCP
 services are currently reachable.
+
+Account sign-in opens the shared OpenBitFun page, where you can choose GitHub or
+an email verification code. Email sign-in creates an independent account without
+a password; it does not link to a GitHub account. Use the same method and account
+on every device you want to connect. A terminal without a browser can display the
+authorization URL for opening on another device.

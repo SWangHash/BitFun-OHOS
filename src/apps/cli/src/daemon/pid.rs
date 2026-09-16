@@ -9,10 +9,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 
 fn default_pid_file_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow!("cannot determine home directory"))?;
-    Ok(home
-        .join(openbitfun_core_types::product_identity::hidden_data_directory())
-        .join("cli_daemon.pid"))
+    let paths = openbitfun_core::infrastructure::PathManager::new()
+        .map_err(|error| anyhow!("resolve daemon storage: {error}"))?;
+    Ok(paths.product_home_dir().join("cli_daemon.pid"))
 }
 
 fn write_pid_file_to(path: &Path, pid: u32) -> Result<()> {

@@ -6,6 +6,38 @@ file-tool algorithms through Session-bound IO providers; search retains native
 acceleration with shared matching and reduction. The convergence section below
 describes this boundary and the remaining capability limits.
 
+## Controller and runtime ownership
+
+Desktop and CLI are full OpenBitFun runtime hosts. Mobile apps and mobile-web
+are controllers: they select a host and invoke its product operations through
+the authenticated relay. They do not become a task runtime, filesystem owner,
+SSH credential store, or terminal process host.
+
+The selected runtime owns tasks, sessions, workspaces, saved SSH connections,
+credentials, files, and PTYs. A controller may open a new directory on that
+runtime, or a new POSIX directory through one of that runtime's **saved** SSH
+connections. It selects the saved connection ID returned by the runtime; it
+cannot create an arbitrary SSH target or send a replacement host/credential.
+The runtime reconnects using its saved configuration and credential vault.
+Explicit connection identities must match exactly. Missing connections and
+credentials return an error and preserve saved data; they never select another
+host at the same path or fall back to the controller/local filesystem.
+
+Controller file editors pass `expectedHash` (SHA-256 of the UTF-8 bytes they
+read) to `write_file_content`. The portable target service checks the revision
+and writes under a per-target/path critical section, following Happy's
+`registerCommonHandlers` optimistic file-write contract. An empty hash requests
+creation only; omitting it preserves ordinary runtime write semantics. Conflict
+errors retain the editor buffer. The lock serializes participating runtime
+writes; it is not a filesystem transaction against unrelated external editors.
+
+Terminal output is retained by the PTY owner and read by monotonic byte cursor.
+Relay notifications announce that output is available; controllers catch up
+through bounded pages, detect evicted cursors explicitly, and do not repeatedly
+transfer a complete terminal buffer while idle. Desktop and CLI expose the same
+product operations; lack of a desktop window is not a reason to disable a
+portable runtime capability.
+
 ## Goals
 
 One saved target must have the same workspace semantics across:
@@ -446,3 +478,21 @@ measured compatible accelerator. Moving a remote shell builder into a wrapper
 without sharing its semantics does not satisfy the gate. Remote Control, Peer
 Device and Detached Dispatch remain separate scenarios requiring their own
 regression evidence.
+
+Workspace file uploads use `workspace_file_upload` with `begin`, `append`,
+`status`, `finish`, and `cancel` actions. The runtime selects the session/current
+workspace provider and binds the transfer to its account, connection identity,
+and workspace root. A caller-generated 32-byte random transfer ID makes begin
+idempotent; acknowledged offsets and duplicate-last-chunk hashes allow recovery
+without blindly replaying a mutation. Each chunk is at most 3 MiB and uses the
+existing encrypted relay bulk transport. Relay never receives plaintext file
+content.
+
+The services-core upload owner writes an exclusive temporary file beside the
+destination, hashes incrementally, and publishes only after final length/digest
+and optional `expectedHash` checks. Ordinary optimistic edits and upload commit
+share the same target/path lock through comparison and rename. Disconnecting an
+observer does not interrupt an accepted write; explicit account retirement
+invalidates upload epochs and cleans staging files. Current streaming writers
+support local files and SFTP workspaces; shell-only container providers answer
+unsupported rather than buffering the entire upload or writing locally.

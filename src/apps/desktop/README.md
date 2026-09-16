@@ -3,6 +3,21 @@
 For development commands, see [AGENTS.md](AGENTS.md) and the repository
 [contribution guide](../../../CONTRIBUTING.md).
 
+## macOS menu bar
+
+The menu bar uses the solid ring brand mark as a transparent template logo that follows the system's light
+and dark appearance. The number beside it counts sessions with unread completed,
+failed, or interrupted results in the current device's loaded session list.
+Transient and internal subagent sessions are excluded. Viewing the result in a
+focused conversation acknowledges it; the number disappears when none remain.
+Clicking the menu bar icon always shows and focuses the main window, including
+when it is already visible; repeated clicks never hide it. Opening the main
+window alone does not mark other conversations as read.
+
+When viewing a peer device or SSH workspace, the count follows the displayed
+sessions and updates the controller Mac's menu bar. It does not change the
+remote host's tray or execution state.
+
 ## Application updates
 
 Choose **Background download** in the new-version dialog to download and verify

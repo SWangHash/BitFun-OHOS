@@ -35,6 +35,11 @@
   &__chrome-actions &__actions {
     min-width: 0;
 
+    // Empty groups must not leave a gap when their optional content is absent.
+    &:empty {
+      display: none;
+    }
+
     &--left {
       // The chrome container owns the single 4px gap between action groups.
       margin-right: 0;

@@ -1,6 +1,6 @@
+import { subscribeHostCatalog } from '../services/HostCatalogSubscription';
 import {
   AppWindow as LucideAppWindow,
-  Bot as LucideBot,
   Check as LucideCheck,
   ChevronRight as LucideChevronRight,
   ChevronsUpDown as LucideChevronsUpDown,
@@ -11,6 +11,7 @@ import {
   LoaderCircle as LucideLoaderCircle,
   LogOut as LucideLogOut,
   MessageSquare as LucideMessageSquare,
+  MessageCircle as LucideMessageCircle,
   Monitor as LucideMonitor,
   Moon as LucideMoon,
   Plus as LucidePlus,
@@ -18,10 +19,11 @@ import {
   Search as LucideSearch,
   Server as LucideServer,
   Settings as LucideSettings,
-  SquarePen as LucideSquarePen,
   Sun as LucideSun,
   Terminal as LucideTerminal,
+  User as LucideUser,
   Users as LucideUsers,
+  Wrench as LucideWrench,
   X as LucideX,
 } from 'lucide-react';
 import { useGitHubAccountProfile } from '../hooks/useGitHubAccountProfile';
@@ -78,6 +80,7 @@ interface SessionListPageProps {
     agentType?: string,
   ) => void;
   onOpenWorkspace: () => void;
+  onOpenDeviceTools: () => void;
   onDisconnect: () => void;
   onOpenDevices?: () => void;
   onControlTargetChanged?: () => void;
@@ -235,7 +238,7 @@ const ProModeIcon = () => (
 );
 
 const AssistantModeIcon = () => (
-  <LucideBot width="32" height="32" stroke="currentColor" aria-hidden="true" />
+  <LucideUser width="32" height="32" stroke="currentColor" aria-hidden="true" />
 );
 
 const WorkspaceIcon = () => (
@@ -253,6 +256,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
   activeSessionId,
   onSelectSession,
   onOpenWorkspace,
+  onOpenDeviceTools,
   onDisconnect,
   onOpenDevices,
   onControlTargetChanged,
@@ -328,7 +332,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
   const [compactWorkspaceHasMore, setCompactWorkspaceHasMore] = useState<Record<string, boolean>>({});
   const [compactWorkspaceLoadingMore, setCompactWorkspaceLoadingMore] = useState<Set<string>>(() => new Set());
   const [compactVisibleSessionCounts, setCompactVisibleSessionCounts] = useState<Record<string, number>>({});
-  const [compactRecentVisibleCount, setCompactRecentVisibleCount] = useState(6);
   const [compactVisibleDeviceCount, setCompactVisibleDeviceCount] = useState(3);
   const [compactVisibleWorkspaceCount, setCompactVisibleWorkspaceCount] = useState(3);
   const [compactSettingsOpen, setCompactSettingsOpen] = useState(false);
@@ -562,7 +565,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
       setCompactWorkspaceHasMore({});
       setCompactWorkspaceLoadingMore(new Set());
       setCompactVisibleSessionCounts({});
-      setCompactRecentVisibleCount(6);
       setCompactVisibleDeviceCount(3);
       setCompactVisibleWorkspaceCount(3);
       setCompactSettingsOpen(false);
@@ -1014,7 +1016,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
         workspaceIdentity: identity,
         replaceWorkspace: true,
       });
-      onSelectSession(sessionId, t('sessions.remoteCodeSession'), true, agentType);
+      onSelectSession(sessionId, t(isClawAgent(agentType) ? 'sessions.remoteClawSession' : isCoworkAgent(agentType) ? 'sessions.remoteCoworkSession' : 'sessions.remoteCodeSession'), true, agentType);
     } catch (error: unknown) {
       if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(error)) {
         setError(String((error as { message?: string })?.message || error));
@@ -1271,7 +1273,12 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
           replaceWorkspace: searchQuery.trim().length === 0,
         });
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      if (requestSeq === listRequestSeqRef.current && isSessionListCurrent(targetEpoch)
+        && !isRemoteControlTargetChangedError(error)) {
+        setError(error instanceof Error ? error.message : String(error));
+      }
+    }
     finally {
       if (
         requestSeq === listRequestSeqRef.current
@@ -1281,22 +1288,35 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
         setLoadingMore(false);
       }
     }
-  }, [cacheScope, captureSessionListEpoch, currentAssistant?.path, displayMode, isSessionListCurrent, searchQuery, sessionMgr, setCurrentWorkspace, setSessions]);
+  }, [cacheScope, captureSessionListEpoch, currentAssistant?.path, displayMode, isSessionListCurrent, searchQuery, sessionMgr, setCurrentWorkspace, setError, setSessions]);
 
+  const catalogReadRef = useRef<() => Promise<void>>(async () => {});
+  catalogReadRef.current = async () => {
+    await Promise.all([refreshData(), loadWorkspaceList()]);
+  };
+  const catalogSubscriptionRef = useRef<ReturnType<typeof subscribeHostCatalog> | null>(null);
   useEffect(() => {
-    const poll = setInterval(() => {
-      void refreshData();
-      if (compact) void loadWorkspaceList();
-    }, 10000);
-    const refreshDirectory = () => {
-      if (compact && document.visibilityState === 'visible') void loadWorkspaceList();
+    if (targetInitializing) return;
+    const targetEpoch = captureSessionListEpoch();
+    if (targetEpoch === null) return;
+    const subscription = subscribeHostCatalog(sessionMgr, async () => {
+      if (isSessionListCurrent(targetEpoch)) await catalogReadRef.current();
+    }, (error) => {
+      if (isSessionListCurrent(targetEpoch) && !isRemoteControlTargetChangedError(error)) {
+        setError(error instanceof Error ? error.message : String(error));
+      }
+    });
+    catalogSubscriptionRef.current = subscription;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void subscription.refresh();
     };
-    document.addEventListener('visibilitychange', refreshDirectory);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      clearInterval(poll);
-      document.removeEventListener('visibilitychange', refreshDirectory);
+      subscription.close();
+      if (catalogSubscriptionRef.current === subscription) catalogSubscriptionRef.current = null;
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [compact, loadWorkspaceList, refreshData]);
+  }, [captureSessionListEpoch, controlTargetEpoch, isSessionListCurrent, sessionMgr, setError, targetInitializing]);
 
   useEffect(() => {
     const workspacePath = displayMode === 'assistant' ? currentAssistant?.path : currentWorkspace?.path;
@@ -1356,7 +1376,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
     if (pullDistance >= PULL_THRESHOLD) {
       setRefreshing(true);
       setPullDistance(PULL_THRESHOLD);
-      await refreshData();
+      await (catalogSubscriptionRef.current?.refresh() ?? refreshData());
       if (isSessionListCurrent(targetEpoch)) setRefreshing(false);
     }
     if (isSessionListCurrent(targetEpoch)) setPullDistance(0);
@@ -1384,36 +1404,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
     searchQuery,
   ]);
 
-  const handleLoadMoreRecent = useCallback(async () => {
-    if (compactRecentVisibleCount < sessions.length) {
-      setCompactRecentVisibleCount((count) => count + 6);
-      return;
-    }
-    const workspacePath = displayMode === 'assistant' ? currentAssistant?.path : currentWorkspace?.path;
-    const identity = displayMode === 'assistant'
-      ? undefined
-      : {
-          remoteConnectionId: currentWorkspace?.remote_connection_id,
-          remoteSshHost: currentWorkspace?.remote_ssh_host,
-        };
-    await loadNextPage(workspacePath, searchQuery, identity);
-    setCompactRecentVisibleCount((count) => count + 6);
-  }, [
-    compactRecentVisibleCount,
-    currentAssistant?.path,
-    currentWorkspace?.path,
-    currentWorkspace?.remote_connection_id,
-    currentWorkspace?.remote_ssh_host,
-    displayMode,
-    loadNextPage,
-    searchQuery,
-    sessions.length,
-  ]);
-
-  useEffect(() => {
-    setCompactRecentVisibleCount(6);
-  }, [searchQuery, controlTargetEpoch]);
-
   const handleCreate = useCallback(async (agentType: string) => {
     if (creating || targetInitializingRef.current) return;
     const targetEpoch = captureSessionListEpoch();
@@ -1429,6 +1419,10 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
             remoteConnectionId: currentWorkspace?.remote_connection_id,
             remoteSshHost: currentWorkspace?.remote_ssh_host,
       };
+      if (!workspacePath?.trim()) {
+        onOpenWorkspace();
+        return;
+      }
       const id = await sessionMgr.createSession(agentType, undefined, workspacePath, identity);
       if (!isSessionListCurrent(targetEpoch)) return;
       await loadFirstPage(workspacePath, searchQuery, identity);
@@ -1460,6 +1454,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
     searchQuery,
     sessionMgr,
     setError,
+    onOpenWorkspace,
     t,
   ]);
 
@@ -1532,9 +1527,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
 
   if (compact) {
     const query = searchQuery.trim().toLocaleLowerCase();
-    const visibleSessions = sessions.filter((session) => (
-      query.length === 0 || (session.name || '').toLocaleLowerCase().includes(query)
-    ));
     const compactWorkspaces = workspaceList;
     const activeDeviceId = client?.targetDeviceId
       ?? null;
@@ -1586,7 +1578,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
               <h2>{t('devices.title')}</h2>
               <span className="harmony-sidebar__heading-actions">
                 <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.refresh')} loading={compactDirectoryLoading} onClick={() => void loadCompactDirectory()} icon={<LucideRefreshCw className={compactDirectoryLoading ? 'is-spinning' : ''} width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
-                <MobileIconButton appearance="plain" size="sm" aria-label={t('devices.title')} onClick={onOpenDevices} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
               </span>
             </div>
             <div className="harmony-sidebar__rows">
@@ -1609,9 +1600,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                     {isSwitching
                       ? <span className="spinner harmony-sidebar__row-spinner"/>
                       : <span className={`harmony-sidebar__status${device.online ? ' is-online' : ''}`}/>}
-                    <span className={`harmony-sidebar__chevron${isCurrent ? ' is-expanded' : ''}`} aria-hidden="true">
-                      <LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />
-                    </span>
                   </MobileButton>
                 );
               })}
@@ -1641,11 +1629,11 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                 )}
                 {compactWorkspaces.slice(0, compactVisibleWorkspaceCount).map((workspace) => {
                   const key = compactWorkspaceKey(workspace);
-                  const expanded = compactExpandedWorkspaces.has(key);
+                  const expanded = query.length > 0 || compactExpandedWorkspaces.has(key);
                   const projectedSessions = sessions.filter((session) => (
                     sessionMatchesWorkspace(session, workspace, compactWorkspaces)
                   ));
-                  const workspaceSessions = compactWorkspaceSessions[key] ?? projectedSessions;
+                  const workspaceSessions = (compactWorkspaceSessions[key] ?? projectedSessions).filter(session => !query || (session.name || '').toLocaleLowerCase().includes(query));
                   const status = compactWorkspaceStatuses[key]
                     ?? (projectedSessions.length > 0 ? 'ready' : 'idle');
                   const visibleCount = compactVisibleSessionCounts[key] ?? 3;
@@ -1654,7 +1642,6 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                   return (
                     <div className="harmony-sidebar__workspace-group" key={key}>
                       <div className={`harmony-sidebar__workspace-row${current ? ' is-current' : ''}`}>
-                        <MobileIconButton appearance="plain" size="sm" className={`harmony-sidebar__workspace-disclosure${expanded ? ' is-expanded' : ''}`} onClick={() => void handleToggleCompactWorkspace(workspace)} aria-label={expanded ? t('common.close') : t('sessions.sessionHistory')} icon={<LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />} />
                         <MobileButton appearance="plain" block className="harmony-sidebar__workspace-main" onClick={() => void handleToggleCompactWorkspace(workspace)}>
                           <span className="harmony-sidebar__folder-icon" aria-hidden="true">
                             <LucideFolder width="21" height="21" stroke="currentColor" aria-hidden="true" />
@@ -1668,7 +1655,8 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                             )}
                           </span>
                         </MobileButton>
-                        <MobileIconButton appearance="plain" size="sm" className="harmony-sidebar__row-plus" onClick={() => requestHarnessCreate(workspace)} aria-label={t('shell.newChat')} disabled={creating} icon={<LucidePlus width="18" height="18" stroke="currentColor" aria-hidden="true" />} />
+                        <MobileIconButton appearance="plain" size="sm" className={`harmony-sidebar__workspace-disclosure${expanded ? ' is-expanded' : ''}`} onClick={() => void handleToggleCompactWorkspace(workspace)} aria-label={expanded ? t('common.close') : t('sessions.sessionHistory')} icon={<LucideChevronRight width="14" height="14" stroke="currentColor" aria-hidden="true" />} />
+                        <MobileIconButton appearance="plain" size="sm" className="harmony-sidebar__row-plus" onClick={() => requestHarnessCreate(workspace)} aria-label={`${workspace.name} · ${t('common.more')}`} disabled={creating} icon={<LucidePlus width="20" height="20" stroke="currentColor" aria-hidden="true" />} />
                       </div>
                       {expanded && (
                         <div className="harmony-sidebar__workspace-sessions">
@@ -1682,7 +1670,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                               onContextMenu={(event) => { event.preventDefault(); setMenuSession(session); }}
                             >
                               <MobileButton appearance="plain" block className="harmony-sidebar__session-main" onClick={(event) => handleSessionClick(session, event)}>
-                                <span className="harmony-sidebar__session-icon" aria-hidden="true"><SessionTypeIcon agentType={session.agent_type}/></span>
+                                <span className="harmony-sidebar__session-icon" aria-hidden="true"><LucideMessageCircle width="18" height="18" stroke="currentColor" /></span>
                                 <span className="harmony-sidebar__row-label">{session.name || t('sessions.untitledSession')}</span>
                               </MobileButton>
                               <MobileIconButton
@@ -1699,13 +1687,13 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                             <MobileButton
                               appearance="plain"
                               block
-                              className="harmony-sidebar__more-row harmony-sidebar__more-row--nested"
+                              className="harmony-sidebar__session-main harmony-sidebar__load-more"
                               onClick={() => void handleLoadMoreCompactWorkspace(workspace)}
                               disabled={compactWorkspaceLoadingMore.has(key)}
                             >
                               {compactWorkspaceLoadingMore.has(key)
                                 ? <><span className="spinner"/>{t('sessions.loadingMore')}</>
-                                : <><span>···</span>{t('shell.moreConversations', { count: Math.max(workspaceSessions.length - visibleCount, 1) })}</>}
+                                : <><span className="harmony-sidebar__session-icon" aria-hidden="true"><LucideChevronRight className="harmony-sidebar__more-chevron" width="14" height="14" /></span><span className="harmony-sidebar__row-label">{t('shell.expandMore')}</span></>}
                             </MobileButton>
                           )}
                         </div>
@@ -1721,58 +1709,13 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
               </div>
             </MobileSection>
           )}
-
-          <MobileSection className="harmony-sidebar__section harmony-sidebar__section--conversations">
-            <div className="harmony-sidebar__section-heading harmony-sidebar__section-heading--plain">
-              <h2>{t('shell.recentConversations')}</h2>
-            </div>
-            {visibleSessions.length === 0 ? (
-              <MobileStatus className="harmony-sidebar__empty" description={hasSearchQuery ? t('sessions.emptySearch') : t('sessions.noSessions')} />
-            ) : (
-              <div className="harmony-sidebar__rows">
-                {visibleSessions.slice(0, compactRecentVisibleCount).map((session) => (
-                  <div
-                    className={`harmony-sidebar__session-row${activeSessionId === session.session_id ? ' is-current' : ''}`}
-                    key={session.session_id}
-                    onContextMenu={(event) => { event.preventDefault(); setMenuSession(session); }}
-                  >
-                    <MobileButton appearance="plain" block className="harmony-sidebar__session-main" onClick={(event) => handleSessionClick(session, event)}>
-                      <span className="harmony-sidebar__session-icon" aria-hidden="true"><SessionTypeIcon agentType={session.agent_type}/></span>
-                      <span className="harmony-sidebar__row-label">{session.name || t('sessions.untitledSession')}</span>
-                    </MobileButton>
-                    <MobileIconButton
-                      appearance="plain"
-                      size="sm"
-                      className="harmony-sidebar__session-more"
-                      aria-label={t('sessions.sessionActions')}
-                      onClick={(event) => { event.stopPropagation(); setMenuSession(session); }}
-                      icon={<LucideEllipsis width="20" height="20" aria-hidden="true" />}
-                    />
-                  </div>
-                ))}
-                {(visibleSessions.length > compactRecentVisibleCount || hasMore) && (
-                  <MobileButton
-                    appearance="plain"
-                    block
-                    className="harmony-sidebar__more-row"
-                    onClick={() => void handleLoadMoreRecent()}
-                    disabled={loadingMore}
-                  >
-                    {loadingMore
-                      ? <><span className="spinner"/>{t('sessions.loadingMore')}</>
-                      : <><span>···</span>{t('shell.moreConversations', { count: Math.max(visibleSessions.length - compactRecentVisibleCount, 1) })}</>}
-                  </MobileButton>
-                )}
-              </div>
-            )}
-          </MobileSection>
         </div>
 
         <MobileFloatingActions
           className="harmony-sidebar__footer"
           leading={(
-            <MobileButton appearance="secondary" className="harmony-sidebar__new-chat" onClick={() => isProMode ? requestHarnessCreate() : void handleCreate('claw')} disabled={creating || targetInitializing} leading={<LucideSquarePen width="22" height="22" stroke="currentColor" aria-hidden="true" />}>
-              <span>{t('shell.newChat')}</span>
+            <MobileButton appearance="secondary" className="harmony-sidebar__workspace-tools" onClick={onOpenDeviceTools} disabled={creating || targetInitializing} leading={<LucideWrench width="20" height="20" stroke="currentColor" aria-hidden="true" />}>
+              <span>{t('workspace.tools')}</span>
             </MobileButton>
           )}
           trailing={(
@@ -1794,6 +1737,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
           isDark={isDark}
           onClose={() => setCompactSettingsOpen(false)}
           onDisconnectRequest={() => { setCompactSettingsOpen(false); setShowDisconnectConfirm(true); }}
+          onOpenDevices={onOpenDevices ? () => { setCompactSettingsOpen(false); onOpenDevices(); } : undefined}
           onSelectDevice={(device) => void handleSelectCompactDevice(device)}
           onToggleTheme={toggleTheme}
           open={compactSettingsOpen}

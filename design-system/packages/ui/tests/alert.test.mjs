@@ -19,3 +19,17 @@ test("Alert exposes semantic tone and public anatomy", () => {
   assert.match(markup, /data-openbitfun-part="message"/);
   assert.match(markup, /data-openbitfun-part="description"/);
 });
+
+test("Alert preserves explicit announcement roles and live priority", () => {
+  for (const [props, role, live] of [
+    [{}, "alert", "polite"],
+    [{ tone: "error" }, "alert", "assertive"],
+    [{ role: "status", tone: "error" }, "status", "polite"],
+    [{ role: "alert" }, "alert", "assertive"],
+    [{ role: "status", "aria-live": "off" }, "status", "off"],
+  ]) {
+    const markup = renderToStaticMarkup(createElement(Alert, { message: "Notice", ...props }));
+    assert.match(markup, new RegExp(`role="${role}"`));
+    assert.match(markup, new RegExp(`aria-live="${live}"`));
+  }
+});

@@ -1,7 +1,7 @@
 import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const taskDetailPanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
-  id: 'task-detail-panel',
+  componentAttribute: 'data-openbitfun-product-component', id: 'task-detail-panel',
   parts: [
     { id: 'root' }, { id: 'header' }, { id: 'content' }, { id: 'empty' },
     { id: 'errorBanner' }, { id: 'reviewer' }, { id: 'prompt' },

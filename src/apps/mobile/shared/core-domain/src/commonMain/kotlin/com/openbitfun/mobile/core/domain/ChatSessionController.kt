@@ -26,8 +26,9 @@ public interface ChatSessionControllerCallbacks {
 }
 
 /**
- * Polls the relay's active-turn snapshots and exposes transport-neutral state.
- * The controller owns only lifecycle and polling policy; [ChatTimelineStore]
+ * Refreshes session state after initialization or an explicit invalidation.
+ * Durable relay notifications drive invalidations; there is no periodic request loop.
+ * The controller owns lifecycle and coalescing; [ChatTimelineStore]
  * remains the reducer for messages and events.
  */
 public class ChatSessionController internal constructor(
@@ -39,6 +40,7 @@ public class ChatSessionController internal constructor(
     private var cursor: ChatSessionCursor = ChatSessionCursor(0, 0, 0)
     private var activeTurn: ChatMessage? = null
     private var polling = false
+    private var refreshPending = false
     private var stopped = true
     private var generation = 0
     private var hasActiveRunningTurn = false
@@ -50,6 +52,13 @@ public class ChatSessionController internal constructor(
     }
 
     public fun start(sessionId: String, cursor: ChatSessionCursor, activeTurn: ChatMessage?) {
+        attach(sessionId, cursor, activeTurn)
+        scheduleNext(0)
+    }
+
+    public fun attach(sessionId: String, cursor: ChatSessionCursor) { attach(sessionId, cursor, null) }
+
+    public fun attach(sessionId: String, cursor: ChatSessionCursor, activeTurn: ChatMessage?) {
         stop(false)
         this.sessionId = sessionId
         this.cursor = cursor.copy()
@@ -57,7 +66,6 @@ public class ChatSessionController internal constructor(
         hasActiveRunningTurn = isRunningTurn(this.activeTurn)
         turnJustEndedAt = 0
         stopped = false
-        scheduleNext(0)
     }
 
     public fun stop() {
@@ -69,6 +77,7 @@ public class ChatSessionController internal constructor(
         loopJob?.cancel()
         loopJob = null
         polling = false
+        refreshPending = false
         stopped = true
         hasActiveRunningTurn = false
         turnJustEndedAt = 0
@@ -83,7 +92,7 @@ public class ChatSessionController internal constructor(
         // the loop job is the coroutine running it — cancelling it here would
         // throw away the request and leave nothing to schedule the next one.
         // Its own `finally` reschedules, and now at the active interval.
-        if (polling) return
+        if (polling) { refreshPending = true; return }
         scheduleNext(0)
     }
 
@@ -111,6 +120,7 @@ public class ChatSessionController internal constructor(
         val requestSessionId = sessionId
         val requestCursor = cursor.copy()
         polling = true
+        refreshPending = false
         try {
             val result = poller.pollSession(
                 requestSessionId,
@@ -129,7 +139,7 @@ public class ChatSessionController internal constructor(
         } finally {
             if (isCurrentRequest(requestGeneration, requestSessionId)) {
                 polling = false
-                scheduleNext()
+                if (refreshPending) scheduleNext(0)
             }
         }
     }
@@ -187,7 +197,7 @@ public class ChatSessionController internal constructor(
         return result.sessionState.lowercase() == "idle" && active.status.lowercase() != "completed"
     }
 
-    private fun scheduleNext(delayMs: Long = pollIntervalMs()) {
+    private fun scheduleNext(delayMs: Long) {
         if (stopped || sessionId.isEmpty()) return
         loopJob?.cancel()
         val scheduledGeneration = generation
@@ -198,21 +208,12 @@ public class ChatSessionController internal constructor(
         }
     }
 
-    private fun pollIntervalMs(): Long {
-        if (turnJustEndedAt > 0 && nowMs() - turnJustEndedAt < TURN_ENDED_GRACE_MS) return SETTLE_INTERVAL_MS
-        turnJustEndedAt = 0
-        return if (hasActiveRunningTurn) ACTIVE_INTERVAL_MS else IDLE_INTERVAL_MS
-    }
-
     private fun isRunningTurn(turn: ChatMessage?): Boolean =
         turn != null && turn.id.isNotEmpty() && turn.status.lowercase() == "active"
 
     private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
     public companion object {
-        private const val ACTIVE_INTERVAL_MS = 350L
-        private const val SETTLE_INTERVAL_MS = 500L
-        private const val IDLE_INTERVAL_MS = 10_000L
         private const val TURN_ENDED_GRACE_MS = 5_000L
 
         public fun create(

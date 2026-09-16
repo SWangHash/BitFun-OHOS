@@ -91,7 +91,22 @@ pub struct SessionMetadataStore {
     json_store: JsonFileStore,
 }
 
+static SESSION_CATALOG_REVISION: OnceLock<tokio::sync::watch::Sender<u64>> = OnceLock::new();
+
 impl SessionMetadataStore {
+    /// Host-local invalidation only. Persisted metadata remains authoritative.
+    pub fn subscribe_catalog_changes() -> tokio::sync::watch::Receiver<u64> {
+        SESSION_CATALOG_REVISION
+            .get_or_init(|| tokio::sync::watch::channel(0).0)
+            .subscribe()
+    }
+
+    pub fn notify_catalog_changed() {
+        SESSION_CATALOG_REVISION
+            .get_or_init(|| tokio::sync::watch::channel(0).0)
+            .send_modify(|revision| *revision = revision.wrapping_add(1));
+    }
+
     pub fn new(sessions_root: impl Into<PathBuf>) -> Self {
         Self {
             layout: SessionStorageLayout::new(sessions_root),
@@ -470,7 +485,9 @@ impl SessionMetadataStore {
                 if metadata_file_created { 1 } else { 0 },
             )
             .await
-        }
+        }?;
+        Self::notify_catalog_changed();
+        Ok(())
     }
 
     async fn assign_workspace_session_number_locked(
@@ -555,7 +572,9 @@ impl SessionMetadataStore {
         }
 
         self.remove_index_entry_locked(session_id, if metadata_file_removed { -1 } else { 0 })
-            .await
+            .await?;
+        Self::notify_catalog_changed();
+        Ok(())
     }
 
     async fn ensure_session_dir(
@@ -581,6 +600,41 @@ fn current_unix_ms() -> u64 {
 mod tests {
     use super::*;
     use crate::session::{SessionStatus, StoredSessionIndexFile};
+
+    #[tokio::test]
+    async fn catalog_watch_tracks_committed_create_rename_and_delete() {
+        let root = tempfile::tempdir().unwrap();
+        let store = SessionMetadataStore::new(root.path());
+        let mut changes = SessionMetadataStore::subscribe_catalog_changes();
+        let mut record = metadata("catalog-watch", 1);
+        let before = *changes.borrow_and_update();
+        store.save_metadata(&record).await.unwrap();
+        assert!(*changes.borrow_and_update() > before);
+        let before = *changes.borrow_and_update();
+        record.session_name = "Renamed catalog entry".into();
+        store.save_metadata(&record).await.unwrap();
+        assert!(*changes.borrow_and_update() > before);
+        assert_eq!(
+            store
+                .load_metadata("catalog-watch")
+                .await
+                .unwrap()
+                .unwrap()
+                .session_name,
+            "Renamed catalog entry"
+        );
+        let before = *changes.borrow_and_update();
+        store
+            .delete_session_dir_and_index("catalog-watch")
+            .await
+            .unwrap();
+        assert!(*changes.borrow_and_update() > before);
+        assert!(store
+            .load_metadata("catalog-watch")
+            .await
+            .unwrap()
+            .is_none());
+    }
 
     fn default_title_metadata(id: &str, created_at: u64) -> SessionMetadata {
         let mut result = metadata(id, created_at);

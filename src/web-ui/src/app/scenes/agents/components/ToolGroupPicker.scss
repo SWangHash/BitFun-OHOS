@@ -54,8 +54,8 @@
   }
 
   &__token-grid {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
     gap: var(--openbitfun-space-2);
   }
 

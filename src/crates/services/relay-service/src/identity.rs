@@ -16,6 +16,8 @@ pub(crate) struct IdentityVerifier {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct VerifiedIdentity {
+    #[serde(default)]
+    pub account_id: Option<String>,
     pub github_id: i64,
     pub login: String,
 }
@@ -26,9 +28,19 @@ struct IdentityResponse {
 }
 
 impl IdentityVerifier {
-    pub(crate) async fn start_auth(&self) -> Result<serde_json::Value, StatusCode> {
-        self.auth_request("auth/desktop/start", serde_json::json!({}))
-            .await
+    pub(crate) async fn start_auth(
+        &self,
+        all_methods: bool,
+    ) -> Result<serde_json::Value, StatusCode> {
+        self.auth_request(
+            if all_methods {
+                "auth/desktop/start?methods=all"
+            } else {
+                "auth/desktop/start"
+            },
+            serde_json::json!({}),
+        )
+        .await
     }
 
     pub(crate) async fn poll_auth(
@@ -167,7 +179,7 @@ impl IdentityVerifier {
         let identity: IdentityResponse =
             serde_json::from_slice(&bytes).map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
         let user = identity.user;
-        if user.github_id <= 0
+        if user.identity_id().is_none()
             || user.login.is_empty()
             || user.login.len() > 100
             || !user
@@ -222,6 +234,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn email_identity_cannot_collide_with_a_legacy_github_account() {
+        let (client, task) = verifier(
+            StatusCode::OK,
+            r#"{"user":{"accountId":"email-123","githubId":0,"login":"member"}}"#,
+        )
+        .await;
+        let user = client.verify("account-token").await.unwrap();
+        assert_eq!(user.identity_id().as_deref(), Some("email-123"));
+        task.abort();
+        let (client, task) = verifier(
+            StatusCode::OK,
+            r#"{"user":{"accountId":"123","githubId":0,"login":"member"}}"#,
+        )
+        .await;
+        assert!(client.verify("account-token").await.is_err());
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn fails_closed_on_expired_tokens_unavailable_authority_and_invalid_profiles() {
         for (status, body, expected) in [
             (StatusCode::UNAUTHORIZED, "", StatusCode::UNAUTHORIZED),
@@ -255,4 +286,20 @@ fn identity_request_permit() -> Result<tokio::sync::OwnedSemaphorePermit, Status
     Arc::clone(REQUESTS.get_or_init(|| Arc::new(tokio::sync::Semaphore::new(64))))
         .try_acquire_owned()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
+}
+
+impl VerifiedIdentity {
+    pub(crate) fn identity_id(&self) -> Option<String> {
+        if self.github_id > 0 {
+            return Some(self.github_id.to_string());
+        }
+        self.account_id
+            .as_ref()
+            .filter(|id| {
+                id.starts_with("email-")
+                    && id.len() <= 64
+                    && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+            })
+            .cloned()
+    }
 }

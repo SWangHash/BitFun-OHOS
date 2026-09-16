@@ -165,9 +165,10 @@ export class ConversationController {
     path: string,
     agentType: string = 'code',
     inPlace: boolean = false,
-    deviceId: string = ''
+    deviceId: string = '',
+    remoteConnectionId?: string
   ): Promise<void> {
-    await this.createFlow.createRemoteSessionInWorkspace(path, agentType, inPlace, deviceId);
+    await this.createFlow.createRemoteSessionInWorkspace(path, agentType, inPlace, deviceId, remoteConnectionId);
   }
 
   async ensureRemoteControlTarget(deviceId?: string): Promise<void> {

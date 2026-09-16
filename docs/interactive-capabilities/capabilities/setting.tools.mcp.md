@@ -17,25 +17,25 @@ Add and manage Model Context Protocol servers, including tools, resources, promp
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 用表单或 JSON 查看和保存全部 MCP 服务器配置
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 用表单或 JSON 查看和保存全部 MCP 服务器配置
   - View and save all MCP server configuration through forms or JSON
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 添加本地进程、远程 HTTP/SSE 或容器 MCP 服务器
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 添加本地进程、远程 HTTP/SSE 或容器 MCP 服务器
   - Add local-process, remote HTTP/SSE, or container MCP servers
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 启动、停止、重启和删除单个 MCP 服务器
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 启动、停止、重启和删除单个 MCP 服务器
   - Start, stop, restart, and delete individual MCP servers
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看初始化、连接、健康、重连、鉴权和失败状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看初始化、连接、健康、重连、鉴权和失败状态
   - Inspect initialization, connection, health, reconnecting, authentication, and failure states
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 配置远程 Header/环境变量认证或清除已有凭据
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 配置远程 Header/环境变量认证或清除已有凭据
   - Configure remote header/environment authentication or clear stored credentials
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 发起、轮询、取消或重新连接远程 MCP OAuth
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 发起、轮询、取消或重新连接远程 MCP OAuth
   - Start, poll, cancel, or reconnect remote MCP OAuth
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ListMCPPrompts` / `GetMCPPrompt` · 列出 MCP Prompt 并读取带参数的指定 Prompt
+- **由专用智能体工具控制 / Delegated Agent tool** · `ListMCPPrompts` / `GetMCPPrompt` · 列出 MCP Prompt 并读取带参数的指定 Prompt
   - List MCP prompts and load a selected prompt with arguments
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看 MCP 工具清单并打开工具提供的 App/UI
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看 MCP 工具清单并打开工具提供的 App/UI
   - Inspect MCP tool catalogs and open tool-provided App/UI surfaces
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ListMCPResources` / `ReadMCPResource` · 列出并读取 MCP Resources
+- **由专用智能体工具控制 / Delegated Agent tool** · `ListMCPResources` / `ReadMCPResource` · 列出并读取 MCP Resources
   - List and read MCP resources
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 打开 MCP App/UI、双向发送消息并回答交互请求
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 打开 MCP App/UI、双向发送消息并回答交互请求
   - Open MCP App/UI surfaces, exchange messages, and answer interaction requests
 
 ## 怎么用 / How to use it
@@ -49,7 +49,7 @@ Add and manage Model Context Protocol servers, including tools, resources, promp
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -61,13 +61,13 @@ Add and manage Model Context Protocol servers, including tools, resources, promp
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 MCP 设置”
   - “Open MCP settings”
 - “带我管理 MCP 服务器”
   - “Take me to MCP server management”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

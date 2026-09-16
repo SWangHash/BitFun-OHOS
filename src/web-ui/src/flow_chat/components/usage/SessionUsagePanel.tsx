@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Activity, AlertTriangle, Database, FileText, GitCompare, ShieldCheck, Wrench, type LucideProps } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
-import { Button, OverflowText, TabGroup, Tooltip } from '@openbitfun/ui';
+import { Checkbox, Button, OverflowText, TabGroup, Tooltip } from '@openbitfun/ui';
 import { snapshotAPI } from '@/infrastructure/api';
 import type { SessionUsageReport } from '@/infrastructure/api/service-api/SessionAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -271,15 +271,15 @@ function UsageExportRedactionToggle({
   const { t } = useTranslation('flow-chat');
   return (
     <Tooltip content={t('usage.export.redactPathsHelp')}>
-      <label className={className}>
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onChange}
-          aria-label={t('usage.export.redactPaths')}
-        />
-        <span>{t('usage.export.redactPaths')}</span>
-      </label>
+      <Checkbox
+        appearance="native"
+        size="sm"
+        className={className}
+        checked={checked}
+        onChange={onChange}
+        aria-label={t('usage.export.redactPaths')}
+        label={t('usage.export.redactPaths')}
+      />
     </Tooltip>
   );
 }

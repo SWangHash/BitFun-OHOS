@@ -5,7 +5,7 @@
   "retry": "重試",
   "loadAreas": {
     "externalSources": "外部來源",
-    "acpClients": "ACP Agent"
+    "acpClients": "ACP 智能體"
   },
   "search": {
     "label": "搜尋兼容產品、協議或能力",
@@ -17,8 +17,8 @@
     "remote": "遠端 · {{name}}"
   },
   "groups": {
-    "connected": "已連接或發現",
-    "available": "可新增",
+    "identified": "已識別",
+    "more": "更多應用程式",
     "other": "其他"
   },
   "status": {
@@ -45,16 +45,7 @@
     "adapterRevision": "適配 v{{revision}}",
     "acpRuntime": "ACP",
     "notDetected": "目前未發現設定",
-    "notAvailable": "暫不可用",
-    "checksLabel": "更新與檢測",
-    "checksSummary": "{{sourceCount}} 個設定來源 · {{assetCount}} 項內容 · {{runtimeCount}} 個 ACP"
-  },
-  "governance": {
-    "openAction": "探索設定",
-    "closeAction": "返回內容",
-    "managerLabel": "外部來源治理",
-    "managerScope": "這些控制項作用於目前執行主機上的兼容來源；產品兼容概覽保持唯讀。",
-    "loadingManager": "正在載入來源治理…"
+    "notAvailable": "暫不可用"
   },
   "comingSoon": {
     "title": "開發中",
@@ -65,7 +56,7 @@
     "settings": "設定與偏好",
     "command": "命令",
     "tool": "工具",
-    "subagent": "子 Agent",
+    "subagent": "子智能體",
     "skill": "Skill",
     "mcp": "MCP",
     "hook": "Hooks",
@@ -87,15 +78,15 @@
     "states": {
       "ready": "可匯入",
       "readyRename": "可匯入 · 自動改名",
-      "checking": "正在檢查",
+      "checking": "正在尋找",
       "imported": "已匯入",
-      "notDetected": "未發現",
+      "notDetected": "未找到內容",
       "unsupportedContext": "目前環境無法匯入",
       "unavailable": "暫時無法匯入",
       "discoveryDisabled": "探索已關閉",
-      "discoveryUnavailable": "探索無法使用",
-      "discoverySupported": "支援探索",
-      "discoveryUnsupported": "此頁尚未接入探索",
+      "discoveryUnavailable": "讀取失敗",
+      "discoverySupported": "可探索",
+      "discoveryUnsupported": "尚未支援",
       "discovered": "已發現",
       "importUnsupported": "目前主機不支援此類匯入",
       "available": "可透過相容功能使用",
@@ -106,7 +97,8 @@
       "runtimeUnavailable": "目前環境無法使用",
       "runtimeFailed": "載入失敗",
       "configurationChanged": "設定已變更",
-      "unknown": "使用狀態未確認"
+      "unknown": "使用狀態未確認",
+      "notScanned": "尚未掃描"
     },
     "importAction": "匯入",
     "importingAction": "匯入中",
@@ -118,30 +110,30 @@
       "stale": "來源內容已更新，請確認最新狀態後重試",
       "failed": "匯入 {{name}} 失敗"
     },
-    "discoveryUnsupportedDescription": "此頁尚未接入 {{name}} 的{{type}}探索；其他入口的支援範圍請查看對應功能說明。"
+    "discoveryUnsupportedDescription": "暫時還無法在這裡檢視 {{name}} 的{{type}}。"
   },
   "run": {
     "title": "在 OpenBitFun 中使用",
-    "description": "可用 {{name}} 新增獨立工作階段，也可將它設為子 Agent，由主 Agent 在合適的任務中呼叫。",
+    "description": "可用 {{name}} 新增獨立工作階段，也可將它設為子智能體，由主智能體在合適的任務中呼叫。",
     "session": {
       "title": "建立獨立工作階段",
       "description": "由 {{name}} 獨立處理任務並持續對話。"
     },
     "subagent": {
-      "title": "設定為子 Agent",
+      "title": "設定為子智能體",
       "responsibilityFallback": "尚未填寫職責說明。",
       "bestForSummary": "適合：{{value}}",
       "bestForFallback": "尚未填寫適用任務",
       "configureAction": "配置",
       "editAction": "$t(shared:tools.edit)",
-      "editorTitle": "{{name}} 的子 Agent 設定",
-      "editorDescription": "這些說明會成為主 Agent 判斷是否以及何時呼叫它的依據。",
-      "enabledLabel": "允許主 Agent 呼叫",
+      "editorTitle": "{{name}} 的子智能體設定",
+      "editorDescription": "這些說明會成為主智能體判斷是否以及何時呼叫它的依據。",
+      "enabledLabel": "允許主智能體呼叫",
       "responsibilityLabel": "它負責什麼",
       "responsibilityPlaceholder": "例如：負責複雜程式碼實作、跨檔案修改和結果驗證",
       "bestForLabel": "它適合什麼任務",
       "bestForPlaceholder": "例如：大型重構、疑難問題定位、需要獨立上下文的實作任務",
-      "profileNote": "說明越具體，主 Agent 越容易在合適的任務中呼叫它。",
+      "profileNote": "說明越具體，主智能體越容易在合適的任務中呼叫它。",
       "saveAction": "儲存設定",
       "savingAction": "儲存中",
       "cancelAction": "取消",
@@ -153,21 +145,20 @@
         "unsupportedHost": "目前主機版本不支援"
       },
       "notifications": {
-        "saved": "已更新 {{name}} 的子 Agent 設定",
-        "failed": "儲存 {{name}} 的子 Agent 設定失敗"
+        "saved": "已更新 {{name}} 的子智能體設定",
+        "failed": "儲存 {{name}} 的子智能體設定失敗"
       }
     },
-    "openManager": "管理 ACP Agent",
-    "hideManager": "收起 ACP 管理",
-    "managerLabel": "ACP Agent 管理",
-    "managerScope": "在下方安裝、啟用或調整 ACP Agent。",
-    "loadingManager": "正在載入 ACP Agent 管理…",
+    "openManager": "管理 ACP 智能體",
+    "managerLabel": "ACP 智能體管理",
+    "managerScope": "安裝、啟用或調整目前生態的 ACP 智能體。",
+    "loadingManager": "正在載入 ACP 智能體管理…",
     "startSession": "新增工作階段",
     "starting": "正在建立 {{name}} 工作階段…",
     "workspaceRequired": "請先開啟一個工作區，再建立 ACP 工作階段。",
     "configurationRequired": "{{name}} 尚未就緒，請先檢查 ACP 設定。",
     "notConfiguredTitle": "{{name}} 尚未就緒",
-    "notConfiguredDescription": "安裝並啟用 {{name}} 後，即可在這裡新增工作階段或將它設定為子 Agent。",
+    "notConfiguredDescription": "安裝並啟用 {{name}} 後，即可在這裡新增工作階段或將它設定為子智能體。",
     "clientStatus": {
       "configured": "已設定",
       "starting": "正在啟動",
@@ -177,9 +168,16 @@
     }
   },
   "discovery": {
-    "disabledDescription": "目前範圍的外部來源探索已關閉。請在「來源與安全」中啟用；關閉時不會掃描其他 Agent 的 MCP 設定。",
+    "toggleLabel": "自動探索",
+    "enabledDescription": "自動尋找其他智能體的設定與內容，並更新此頁清單。由你選擇是否匯入或啟用。",
+    "disabledDescription": "暫停自動尋找，保留上次結果。你仍可手動重新整理，已接入的功能照常運作。",
+    "workspaceScope": "適用於目前工作區的所有相容產品。",
+    "userScope": "適用於目前主機的所有相容產品。",
+    "loadingDescription": "正在讀取自動探索狀態…",
+    "readOnlyDescription": "目前主機或設定版本暫不支援變更自動探索。",
+    "saveFailed": "無法儲存自動探索設定，請重試。",
     "unavailableDescription": "無法完成探索，請檢查來源設定和診斷資訊。",
-    "manageAction": "管理探索設定"
+    "workspaceLabel": "目前工作區"
   },
   "content": {
     "skillStale": "Skill 套件內容已變更。請取消本次確認，重新預覽後再匯入。",
@@ -191,8 +189,8 @@
     "batchPending": "等待處理",
     "batchResultSummary": "成功 {{imported}} 項 · 待確認 {{unresolved}} 項 · 跳過 {{skipped}} 項",
     "title": "{{name}} 的外部內容",
-    "description": "按類型查看探索結果、匯入條件與使用狀態。「已匯入」僅表示已儲存副本，使用狀態由對應功能確認。",
-    "search": "搜尋該 Agent 的內容",
+    "description": "查看外部內容，管理可用性與匯入。",
+    "search": "搜尋該智能體的內容",
     "all": "全部內容 · 已找到 {{count}} 項",
     "importStatus": "目前狀態",
     "view": "查看",
@@ -202,7 +200,7 @@
     "importedDescription": "已匯入副本，外部來源的後續變更不會自動同步。",
     "previewOnly": "此類內容暫不支援匯入，可在此查看現有的來源資訊。",
     "unsupportedContext": "目前主機或工作區暫不支援匯入，可繼續查看來源資訊。",
-    "sourceDisabled": "已在外部 Agent 中停用。外部啟用狀態不決定能否匯入，請重新整理匯入計畫查看可用性。",
+    "sourceDisabled": "已在外部智能體中停用。外部啟用狀態不決定能否匯入，請重新整理匯入計畫查看可用性。",
     "setupRequired": "宣告包含尚未解析的變數、憑證參照或暫不支援的欄位。請先完成設定；尚未複製任何內容。",
     "importUnavailable": "目前宣告不符合匯入條件，或匯入預覽暫時無法使用。可重新整理後重試。",
     "validationFailed": "來源 Skill 驗證未通過，未匯入任何內容。",
@@ -212,7 +210,7 @@
     "stale": "來源或目標已變更，請審閱更新後的預覽，再次確認。",
     "noMatches": "沒有符合條件的內容。",
     "confirmTitle": "確認匯入 OpenBitFun",
-    "copyWarning": "這會建立獨立的 OpenBitFun 副本，不修改外部 Agent 的檔案，後續變更不會自動同步。",
+    "copyWarning": "這會建立獨立的 OpenBitFun 副本，不修改外部智能體的檔案，後續變更不會自動同步。",
     "mcpTarget": "目標：OpenBitFun MCP / {{name}}。副本預設停用，啟停、登入、重新連線和工具權限由 OpenBitFun 管理，不複製外部宿主策略。",
     "targetScope": "匯入至",
     "userTarget": "OpenBitFun · 使用者層級 Skill",
@@ -226,18 +224,17 @@
     "command": "命令 / 位址預覽",
     "environmentKeys": "環境變數名稱",
     "headerNames": "請求標頭名稱",
-    "groupSummary": "已發現 {{count}} 項 · 展開查看",
+    "groupSummary": "已發現 {{count}} 項",
     "undo": "撤銷匯入",
     "undoTitle": "撤銷匯入 OpenBitFun",
-    "undoWarning": "將移除這個 OpenBitFun 副本，包括匯入後對副本所做的修改。外部 Agent 的原始內容不受影響，之後可以重新匯入。",
+    "undoWarning": "將移除這個 OpenBitFun 副本，包括匯入後對副本所做的修改。外部智能體的原始內容不受影響，之後可以重新匯入。",
     "undoTarget": "移除的副本：{{target}}",
     "confirmUndo": "確認撤銷",
     "undoSuccess": "已撤銷 {{name}} 的匯入。",
     "undoRuntimePending": "已移除 {{name}} 的設定，但執行狀態尚未更新，請在 OpenBitFun MCP 管理頁檢查。",
     "undoFailed": "撤銷未完成，副本或設定可能已變更。請重新整理後查看並確認。",
     "undoUnavailable": "無法確認該 Skill 的匯入副本，請在 OpenBitFun Skill 管理頁查看並移除。",
-    "expandCategory": "展開{{type}}",
-    "collapseCategory": "收起{{type}}",
+    "viewCategory": "查看{{type}}",
     "importAll": "一鍵匯入",
     "importCategory": "一鍵匯入",
     "batchTitle": "確認一鍵匯入",
@@ -277,6 +274,8 @@
     "renameNotice": "將以「{{name}}」作為副本目錄及呼叫名稱。既有 Skill 和外部來源檔案保持不變。",
     "invalidImportName": "請輸入未使用的名稱，使用 1–100 個英文字母、數字、短橫線或底線。",
     "refresh": "重新整理",
+    "scan": "掃描",
+    "scanFailed": "掃描失敗，請重試。",
     "batchProgress": "已處理 {{completed}} / {{total}} 項",
     "batchImporting": "正在匯入",
     "batchUndoing": "正在復原",
@@ -295,6 +294,9 @@
     },
     "hookDiscoveryOnly": "僅靜態查看 Hook 來源與宣告；此頁不支援匯入，也不會據此執行。",
     "skillImportUnsupported": "目前主機未提供此格式的匯入能力。請升級處理該來源的主機後重試。",
+    "itemCount": "{{count}} 項",
+    "lastKnownResult": "顯示上次成功讀取的內容。",
+    "mcpReviewDescription": "匯入前會檢查來源設定與現有副本。",
     "instructions": {
       "description": "OpenBitFun 讀取的指令來源。啟動指令與依路徑比對的規則由現有讀取器套用；此清單不表示某個工作階段已經載入這些內容。",
       "shared": "共用專案指令",
@@ -308,6 +310,69 @@
       "unsupportedHost": "目前主機或遠端工作區尚不支援查看指令來源，不會替用本機來源。",
       "partial": "部分指令來源讀取失敗，以下保留可讀取的來源。",
       "readOnly": "由指令讀取器套用"
+    },
+    "accounts": {
+      "description": "查看在 OpenBitFun 中接入的訂閱帳號。",
+      "providers": {
+        "codex": "Codex / ChatGPT",
+        "opencode": "OpenCode Console（Zen）"
+      },
+      "notes": {
+        "codex": "接入 ChatGPT 訂閱，在模型設定中選擇要使用的模型。",
+        "opencode": "接入 OpenCode Zen，在模型設定中新增模型；Go 使用 API Key 設定。"
+      },
+      "states": {
+        "unsupportedHost": "目前環境暫不支援帳號接入",
+        "loading": "正在讀取帳號狀態",
+        "failed": "帳號狀態讀取失敗，請重新整理後重試",
+        "unavailable": "目前主機未提供此帳號接入方式",
+        "vaultUnavailable": "憑證儲存暫不可用",
+        "reauthenticationRequired": "需要重新登入",
+        "connected": "已接入 OpenBitFun",
+        "notConnected": "尚未接入 OpenBitFun"
+      },
+      "manage": "管理帳號與模型",
+      "connect": "前往模型設定登入",
+      "labels": {
+        "unsupportedHost": "暫不支援",
+        "failed": "讀取失敗",
+        "unavailable": "暫不可用",
+        "vaultUnavailable": "憑證不可用",
+        "reauthenticationRequired": "需重新登入",
+        "connected": "已接入",
+        "notConnected": "未接入"
+      },
+      "refresh": "重新整理帳號狀態"
+    },
+    "pets": {
+      "builtinSource": "Codex 內建",
+      "customSource": "Codex 自訂",
+      "description": "查看 Codex 內建與自訂寵物，匯入後可在 OpenBitFun 中使用。",
+      "partial": "部分寵物無法讀取，請檢查下方來源診斷。",
+      "reviewTitle": "匯入寵物",
+      "reviewDescription": "將已預覽的寵物套件複製到 OpenBitFun。匯入後可單獨選擇使用，目前寵物保持不變。",
+      "operationFailed": "操作未完成，來源或副本可能已變更。請重新整理後再次確認。",
+      "use": "使用此寵物",
+      "states": {
+        "unsupported": "暫不支援",
+        "failed": "讀取失敗",
+        "partial": "部分可用",
+        "available": "支援探索",
+        "empty": "未發現寵物",
+        "copyModified": "副本已修改",
+        "sourceChanged": "來源已變更",
+        "using": "正在使用",
+        "imported": "已匯入",
+        "ready": "可匯入"
+      }
+    },
+    "skills": {
+      "directUse": "直接使用來源目錄中的 Skill，無需匯入或複製。預設開啟，關閉後所有模式均不可使用；專案級開關僅影響目前專案。",
+      "unsupported": "目前主機不支援直接管理 Skill 可用性，請升級主機或在本機工作區管理。",
+      "availability": "可用性",
+      "toggle": "啟用 {{name}}",
+      "updateFailed": "更新 Skill 開關失敗，請重試。",
+      "sameName": "存在同名 Skill，依來源優先順序選擇；可透過完整識別碼指定此項。"
     }
   },
   "sourceSettings": {
@@ -318,16 +383,16 @@
       "unavailable": "不可用"
     },
     "title": "{{name}} 探索設定",
-    "description": "探索設定與匯入互相獨立，此處只列出所選 Agent 的來源。",
+    "description": "探索設定與匯入互相獨立，此處只列出所選智能體的來源。",
     "master": "目前範圍的外部來源總開關",
-    "projectScope": "此設定套用至目前工作區。總開關影響此範圍內所有 Agent，並保留各自現有策略；不會匯入內容。",
-    "userScope": "此設定套用至本主機的使用者設定。總開關影響此範圍內所有 Agent，並保留各自現有策略；不會匯入內容。",
+    "projectScope": "此設定套用至目前工作區。總開關影響此範圍內所有智能體，並保留各自現有策略；不會匯入內容。",
+    "userScope": "此設定套用至本主機的使用者設定。總開關影響此範圍內所有智能體，並保留各自現有策略；不會匯入內容。",
     "mode": "{{name}} 的探索策略",
     "discoverOnly": "僅探索",
     "disabled": "關閉",
     "existingPolicy": "現有相容策略",
     "readOnly": "此主機不支援修改這些設定，或策略版本不相容。",
     "failed": "設定儲存失敗，請檢查最新狀態後再試。",
-    "empty": "目前快照中沒有此 Agent 的來源。"
+    "empty": "目前快照中沒有此智能體的來源。"
   }
 }

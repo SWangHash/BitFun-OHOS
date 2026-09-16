@@ -28,6 +28,17 @@ import type {
   InterruptedDialogTurnEvent,
 } from '@/infrastructure/api/service-api/AgentAPI';
 import { createLogger } from '@/shared/utils/logger';
+import { getActiveSurfaceId } from '@/infrastructure/peer-device/deviceSurface';
+
+/** Remote transcript content has one owner: the canonical session records.
+ * Tool approval events carry interaction facts, not transcript replacements. */
+function acceptsSurfaceEvent(eventName: string, payload: { toolEvent?: { event_type?: string } }): boolean {
+  if (getActiveSurfaceId() === 'local') return true;
+  if (eventName === 'agentic://text-chunk') return false;
+  if (eventName !== 'agentic://tool-event') return true;
+  return ['ConfirmationNeeded', 'Confirmed', 'Rejected', 'Cancelled']
+    .includes(payload.toolEvent?.event_type ?? '');
+}
 
 type UnlistenFn = () => void;
 
@@ -174,6 +185,7 @@ export class AgenticEventListener {
 
       if (callbacks.onTextChunk) {
         const unlisten = agentAPI.onTextChunk((event) => {
+          if (!acceptsSurfaceEvent('agentic://text-chunk', {})) return;
           callbacks.onTextChunk?.(event);
         });
         this.unlistenFunctions.push(unlisten);
@@ -181,6 +193,7 @@ export class AgenticEventListener {
 
       if (callbacks.onToolEvent) {
         const unlisten = agentAPI.onToolEvent((event) => {
+          if (!acceptsSurfaceEvent('agentic://tool-event', event)) return;
           callbacks.onToolEvent?.(event);
         });
         this.unlistenFunctions.push(unlisten);
@@ -363,6 +376,7 @@ export class AgenticEventListener {
       return false;
     }
 
+    if (!acceptsSurfaceEvent(eventName, payload)) return true;
     switch (eventName) {
       case 'agentic://session-created':
         callbacks.onSessionCreated?.(payload as AgenticEvent);

@@ -446,26 +446,37 @@
 
   &--compact {
     grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: var(--openbitfun-space-4);
+    padding: var(--openbitfun-space-6);
     text-align: center;
+
+    .openbitfun-remote-connect__pairing-visual {
+      padding: 0;
+    }
+
     .openbitfun-remote-connect__pairing-details {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  padding-block: var(--openbitfun-space-2);
-}
+      align-items: center;
+      gap: var(--openbitfun-space-3);
+      padding: 0;
+    }
+
     .openbitfun-remote-connect__pairing-status {
-  display: flex;
-  align-self: flex-start;
-  max-width: 100%;
-  margin-bottom: var(--openbitfun-space-4);
-}
+      align-self: center;
+      margin: 0;
+    }
+
+    .openbitfun-remote-connect__hint {
+      max-width: 36ch;
+      color: var(--openbitfun-color-content-secondary);
+    }
   }
 }
 
 .openbitfun-remote-connect__pairing-visual {
   display: flex;
+  flex-direction: column;
+  gap: var(--openbitfun-space-3);
   align-items: center;
   justify-content: center;
   min-width: 0;
@@ -561,15 +572,15 @@
 
 .openbitfun-remote-connect__pairing-code {
   max-width: 100%;
-  padding: var(--openbitfun-space-4);
+  padding: var(--openbitfun-space-3) var(--openbitfun-space-5);
   border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-radius-pill);
+  border-radius: var(--openbitfun-radius-base);
   background: var(--openbitfun-color-surface-canvas);
   color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-body-sm-font-family);
+  font-family: var(--openbitfun-type-code-md-font-family);
   font-size: var(--openbitfun-type-flow-section-title-font-size);
   font-weight: var(--openbitfun-type-label-selected-font-weight);
-  line-height: var(--openbitfun-type-body-sm-line-height);
+  line-height: var(--openbitfun-type-heading-dialog-line-height);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
   user-select: all;
@@ -1071,7 +1082,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--openbitfun-space-2);
 
   h4 {

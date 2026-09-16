@@ -86,11 +86,12 @@ export class CloudAccountClient {
     this.relayUrl = endpoint;
   }
   async authorize(popup: Window, signal: AbortSignal): Promise<string> {
-    const start = await requestJson<AuthStart>(this.relayUrl, '/api/auth/github/start', {});
+    const start = await requestJson<AuthStart>(this.relayUrl, '/api/auth/github/start?methods=all', {});
     const url = new URL(start.authorizationUrl);
-    if (url.origin !== 'https://github.com' || url.pathname !== '/login/oauth/authorize' || url.username || url.password) {
+    if (!((url.origin === 'https://github.com' && url.pathname === '/login/oauth/authorize') || (url.origin === 'https://auth.openbitfun.com' && url.pathname === '/sign-in')) || url.username || url.password) {
       throw new Error('Untrusted account authorization URL.');
     }
+    if (url.origin === 'https://auth.openbitfun.com') url.searchParams.set('locale', (typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'));
     if (signal.aborted) throw new Error('Sign-in cancelled.');
     popup.location.href = url.href;
     while (!signal.aborted && Date.now() < start.expiresAt * 1000) {
@@ -104,7 +105,7 @@ export class CloudAccountClient {
       if (result.status === 'authorized' && result.tokens?.accessToken) return result.tokens.accessToken;
       if (result.status === 'expired' || result.status === 'denied') break;
     }
-    throw new Error(signal.aborted ? 'Sign-in cancelled.' : 'GitHub sign-in expired. Try again.');
+    throw new Error(signal.aborted ? 'Sign-in cancelled.' : 'Sign-in expired. Try again.');
   }
 
   async login(accessToken: string, deviceId: string, browserPrivateKey: Uint8Array): Promise<CloudAccountSession> {

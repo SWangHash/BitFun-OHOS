@@ -1,4 +1,6 @@
+import { WorkspaceToolsState } from './WorkspaceToolsState';
 import {
+  SavedRuntimeConnection,
   AssistantEntry,
   ChatMessage,
   RecentWorkspaceEntry,
@@ -17,6 +19,7 @@ import { ConversationCoreState } from './ConversationCoreState';
  */
 @ObservedV2
 export class RemotePageState {
+  readonly workspaceTools: WorkspaceToolsState = new WorkspaceToolsState();
   @Trace conversation: ConversationCoreState = new ConversationCoreState('code');
   @Trace desktopName: string = '';
   @Trace desktopId: string = '';
@@ -40,6 +43,8 @@ export class RemotePageState {
   @Trace workspaceBranch: string = '';
   @Trace workspaceKind: string = 'normal';
   @Trace assistantId: string = '';
+  @Trace savedConnections: SavedRuntimeConnection[] = [];
+  @Trace savedConnectionsTargetId: string = '';
   @Trace recentWorkspaces: RecentWorkspaceEntry[] = [];
   @Trace assistants: AssistantEntry[] = [];
   @Trace showWorkspacePicker: boolean = false;
@@ -117,6 +122,11 @@ export class RemotePageState {
   }
 
   setControlTarget(type: string, deviceId: string, deviceName: string): void {
+    if (deviceId !== this.controlTargetDeviceId) {
+      this.workspaceTools.visible = false; this.workspaceTools.busy = false;
+      this.workspaceTools.entries = []; this.workspaceTools.content = '';
+      this.workspaceTools.output = ''; this.workspaceTools.terminalId = '';
+    }
     this.controlTargetType = type;
     this.controlTargetDeviceId = deviceId;
     this.controlTargetDeviceName = deviceName;

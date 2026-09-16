@@ -2,10 +2,6 @@
 //!
 //! Responsible only for transforming a session context into a compressed one.
 
-use super::fallback::{
-    build_structured_compression_summary_with_contract, CompressionFallbackOptions,
-    CompressionSummaryArtifact,
-};
 use crate::agentic::core::{
     render_system_reminder, CompressedTodoSnapshot, CompressionContract, CompressionEntry,
     CompressionPayload, InternalReminderKind, Message, MessageContent, MessageHelper, MessageRole,
@@ -16,43 +12,14 @@ use crate::util::errors::OpenBitFunResult;
 use log::{debug, trace};
 use std::borrow::Cow;
 
-/// Context compressor configuration
-#[derive(Debug, Clone)]
-pub struct CompressionConfig {
-    pub fallback_max_tokens_ratio: f32,
-    pub fallback_user_chars: usize,
-    pub fallback_assistant_chars: usize,
-    pub fallback_tool_arg_chars: usize,
-    pub fallback_tool_command_chars: usize,
-}
-
-impl Default for CompressionConfig {
-    fn default() -> Self {
-        Self {
-            fallback_max_tokens_ratio: 0.25,
-            fallback_user_chars: 1000,
-            fallback_assistant_chars: 1000,
-            fallback_tool_arg_chars: 100,
-            fallback_tool_command_chars: 100,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct TurnWithTokens {
-    messages: Vec<Message>,
-}
-
-impl TurnWithTokens {
-    fn new(messages: Vec<Message>) -> Self {
-        Self { messages }
-    }
+struct CompressionSummaryArtifact {
+    summary_text: String,
+    payload: CompressionPayload,
 }
 
 #[derive(Debug, Clone)]
 pub struct CompressionResult {
     pub messages: Vec<Message>,
-    pub has_model_summary: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -83,9 +50,8 @@ struct AtomicMessageUnit {
 }
 
 /// Stateless context compression service.
-pub struct ContextCompressor {
-    config: CompressionConfig,
-}
+#[derive(Default)]
+pub struct ContextCompressor {}
 
 impl ContextCompressor {
     pub const DEFAULT_RECENT_CONTEXT_TOKENS: usize = 10_000;
@@ -94,8 +60,8 @@ impl ContextCompressor {
     const COMPRESSION_CONTINUATION_REMINDER: &'static str =
         "This conversation was compacted. Re-establish the working state from the retained user messages, summary, and recent context. Continue any unfinished work; otherwise use this context for the user's next request. Do not ask the user to repeat information already retained here. If a required detail is missing and a pre-compaction transcript is available, inspect the relevant part before proceeding.";
 
-    pub fn new(config: CompressionConfig) -> Self {
-        Self { config }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn plan_compression(
@@ -372,24 +338,88 @@ impl ContextCompressor {
         (retained, retained_tokens)
     }
 
+    /// Refresh only the uncovered suffix. Pure appends are valid; rewritten
+    /// prefixes and boundaries inside an atomic tool exchange are not.
+    pub(crate) fn rebase_plan(
+        &self,
+        mut plan: CompressionPlan,
+        runtime_messages: &[Message],
+        current_turn_id: &str,
+    ) -> OpenBitFunResult<Option<CompressionPlan>> {
+        let conversation = Self::canonical_conversation(runtime_messages)
+            .cloned()
+            .collect::<Vec<_>>();
+        let cutoff = plan.summary_messages.len();
+        if !Self::has_message_id_prefix(
+            &conversation,
+            plan.summary_messages
+                .iter()
+                .map(|message| message.id.as_str()),
+        ) || (cutoff < conversation.len()
+            && !Self::atomic_message_units(&conversation)
+                .iter()
+                .any(|unit| unit.start == cutoff))
+        {
+            return Ok(None);
+        }
+        plan.recent_tail_messages = conversation[cutoff..].to_vec();
+        plan.recent_tail_tokens = plan
+            .recent_tail_messages
+            .iter()
+            .map(|message| message.estimate_tokens_with_reasoning(true))
+            .sum();
+        plan.current_turn_todo_checkpoint =
+            Self::latest_successful_todo_snapshot_for_turn(&conversation, current_turn_id)
+                .and_then(|(index, snapshot)| {
+                    (index < cutoff).then(|| CurrentTurnTodoCheckpoint {
+                        turn_id: current_turn_id.to_string(),
+                        snapshot,
+                    })
+                });
+        Ok(Some(plan))
+    }
+
+    /// Stable history is immutable by message identity: semantic replacement
+    /// must allocate a new ID. Append and non-semantic bookkeeping are allowed.
+    pub(crate) fn has_message_id_prefix<'a>(
+        messages: impl IntoIterator<Item = &'a Message>,
+        prefix_ids: impl IntoIterator<Item = &'a str>,
+    ) -> bool {
+        let mut messages = messages.into_iter();
+        prefix_ids
+            .into_iter()
+            .all(|id| messages.next().is_some_and(|message| message.id == id))
+    }
+
+    pub(crate) fn canonical_conversation(
+        runtime_messages: &[Message],
+    ) -> impl Iterator<Item = &Message> {
+        runtime_messages
+            .iter()
+            .filter(|message| {
+                !message
+                    .internal_reminder_kind()
+                    .is_some_and(InternalReminderKind::should_drop_during_compaction)
+            })
+            .skip_while(|message| message.role == MessageRole::System)
+    }
+
     pub fn compress_plan_with_contract(
         &self,
         session_id: &str,
-        context_window: usize,
         plan: CompressionPlan,
         contract: Option<CompressionContract>,
-        model_summary: Option<String>,
+        model_summary: String,
     ) -> OpenBitFunResult<CompressionResult> {
-        let turns = MessageHelper::group_messages_by_turns(plan.summary_messages);
-        let turns = turns.into_iter().map(TurnWithTokens::new).collect();
-        let mut summary_artifact = match model_summary {
-            Some(summary) => self.build_model_summary_artifact(summary, contract),
-            None => self.build_fallback_summary_artifact(turns, context_window, contract),
-        };
+        let summary = Self::normalize_model_summary_output(&model_summary).ok_or_else(|| {
+            crate::OpenBitFunError::AIClient(
+                "Context compression requires a non-empty model summary".to_string(),
+            )
+        })?;
+        let mut summary_artifact = self.build_model_summary_artifact(summary, contract);
         if let Some(checkpoint) = plan.current_turn_todo_checkpoint {
             Self::append_current_turn_todo_checkpoint(&mut summary_artifact, checkpoint);
         }
-        let has_model_summary = summary_artifact.used_model_summary;
         let summary_message = self.create_summary_message(summary_artifact);
         let mut messages = plan.retained_user_messages;
         messages.push(summary_message);
@@ -404,10 +434,7 @@ impl ContextCompressor {
             session_id,
             messages.len()
         );
-        Ok(CompressionResult {
-            messages,
-            has_model_summary,
-        })
+        Ok(CompressionResult { messages })
     }
 
     fn append_current_turn_todo_checkpoint(
@@ -493,7 +520,7 @@ impl ContextCompressor {
     }
 
     fn create_summary_message(&self, summary_artifact: CompressionSummaryArtifact) -> Message {
-        let boundary_text = Self::render_boundary_marker_text(summary_artifact.used_model_summary);
+        let boundary_text = Self::render_boundary_marker_text();
         let content = render_system_reminder(&format!(
             "{}\n\n{}",
             boundary_text, summary_artifact.summary_text
@@ -503,13 +530,8 @@ impl ContextCompressor {
             .with_compression_payload(summary_artifact.payload)
     }
 
-    fn render_boundary_marker_text(used_model_summary: bool) -> String {
-        let mut msg = "Some earlier user messages were retained verbatim, and the remaining earlier conversation has been summarized below. Use both as prior context."
-            .to_string();
-        if !used_model_summary {
-            msg.push_str(" This is a partial reconstructed record. Message text, tool arguments, task lists, and tool results may be truncated or omitted.");
-        }
-        msg
+    fn render_boundary_marker_text() -> &'static str {
+        "Some earlier user messages were retained verbatim, and the remaining earlier conversation has been summarized below. Use both as prior context."
     }
 
     fn render_transcript_reference_text(
@@ -552,34 +574,6 @@ impl ContextCompressor {
         CompressionSummaryArtifact {
             summary_text,
             payload,
-            used_model_summary: true,
-        }
-    }
-
-    fn build_fallback_summary_artifact(
-        &self,
-        turns_to_compress: Vec<TurnWithTokens>,
-        context_window: usize,
-        contract: Option<CompressionContract>,
-    ) -> CompressionSummaryArtifact {
-        build_structured_compression_summary_with_contract(
-            turns_to_compress
-                .into_iter()
-                .map(|turn| turn.messages)
-                .collect(),
-            &self.build_fallback_options(context_window),
-            contract,
-        )
-    }
-
-    fn build_fallback_options(&self, context_window: usize) -> CompressionFallbackOptions {
-        CompressionFallbackOptions {
-            max_tokens: ((context_window as f32 * self.config.fallback_max_tokens_ratio) as usize)
-                .max(256),
-            user_chars: self.config.fallback_user_chars,
-            assistant_chars: self.config.fallback_assistant_chars,
-            tool_arg_chars: self.config.fallback_tool_arg_chars,
-            tool_command_chars: self.config.fallback_tool_command_chars,
         }
     }
 
@@ -683,7 +677,7 @@ mod tests {
 
     #[test]
     fn recent_context_keeps_the_exact_suffix_that_fits_the_budget() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let current_user = Message::user("Current request".to_string());
         let current_assistant = Message::assistant("Current answer".to_string());
         let recent_target = current_user.estimate_tokens_with_reasoning(true)
@@ -709,7 +703,7 @@ mod tests {
 
     #[test]
     fn cutoff_can_split_a_turn_without_adding_an_anchor_or_boundary_reminder() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let current_user = Message::user("Continue the current task".to_string())
             .with_turn_id("turn-current".to_string());
         let retained_assistant = Message::assistant("Latest evidence".to_string())
@@ -740,13 +734,7 @@ mod tests {
             .any(|message| message.id == current_user.id));
 
         let result = compressor
-            .compress_plan_with_contract(
-                "session",
-                128_000,
-                plan,
-                None,
-                Some("Earlier work summary".to_string()),
-            )
+            .compress_plan_with_contract("session", plan, None, "Earlier work summary".to_string())
             .expect("compression succeeds");
         assert_eq!(result.messages.len(), 5);
         assert_eq!(result.messages[0].content.to_string(), "Older request");
@@ -769,7 +757,7 @@ mod tests {
 
     #[test]
     fn recent_context_never_splits_tool_results_from_their_assistant_call() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let assistant = Message::assistant_with_tools("Planning".to_string(), vec![todo_call()]);
         let result = todo_result();
         let messages = vec![
@@ -798,8 +786,127 @@ mod tests {
     }
 
     #[test]
+    fn compression_prefetch_rebase_refreshes_todo_and_rejects_rewritten_prefix() {
+        let compressor = ContextCompressor::new();
+        let old_todos =
+            serde_json::json!([{ "id": "task", "content": "Work", "status": "pending" }]);
+        let mut messages = vec![
+            Message::system("system".into()),
+            Message::user("Work".into()),
+            Message::assistant_with_tools(
+                "Plan".into(),
+                vec![todo_call_with("old", old_todos.clone())],
+            )
+            .with_turn_id("turn".into()),
+            todo_result_with("old", old_todos, false).with_turn_id("turn".into()),
+        ];
+        let plan = compressor
+            .plan_compression_for_turn("session", "turn", &messages, 128_000, 0)
+            .unwrap()
+            .unwrap();
+        assert!(plan.current_turn_todo_checkpoint.is_some());
+        let latest =
+            serde_json::json!([{ "id": "task", "content": "Work", "status": "completed" }]);
+        messages.push(
+            Message::assistant_with_tools(
+                "Done".into(),
+                vec![todo_call_with("new", latest.clone())],
+            )
+            .with_turn_id("turn".into()),
+        );
+        messages.push(todo_result_with("new", latest, false).with_turn_id("turn".into()));
+        let rebased = compressor
+            .rebase_plan(plan.clone(), &messages, "turn")
+            .unwrap()
+            .unwrap();
+        assert!(rebased.current_turn_todo_checkpoint.is_none());
+        assert_eq!(rebased.recent_tail_messages.len(), 2);
+        messages[1] = Message::user("Rewritten work".into());
+        assert!(compressor
+            .rebase_plan(plan, &messages, "turn")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn compression_message_id_prefix_checks_every_position() {
+        let original = vec![
+            Message::user("first".into()),
+            Message::assistant("second".into()),
+            Message::user("third".into()),
+        ];
+        let ids = original
+            .iter()
+            .map(|message| message.id.as_str())
+            .collect::<Vec<_>>();
+        let matches = |messages: &[Message]| {
+            ContextCompressor::has_message_id_prefix(messages, ids.iter().copied())
+        };
+        assert!(matches(&original));
+        let mut latest = original.clone();
+        latest.push(Message::assistant("appended".into()));
+        assert!(matches(&latest));
+        assert!(!matches(&latest[..2]));
+        latest[1] = Message::assistant("second".into());
+        assert!(
+            !matches(&latest),
+            "same length and last ID do not prove the prefix"
+        );
+        latest = original.clone();
+        latest.swap(0, 1);
+        assert!(!matches(&latest));
+        assert!(ContextCompressor::has_message_id_prefix(
+            &original,
+            std::iter::empty()
+        ));
+    }
+
+    #[test]
+    fn compression_rebase_ignores_nonsemantic_bookkeeping() {
+        let compressor = ContextCompressor::new();
+        let original = vec![
+            Message::system("system".into()),
+            Message::user("first".into()),
+            Message::assistant("second".into()),
+        ];
+        let plan = compressor
+            .plan_compression("session", &original, 128_000, 0)
+            .unwrap()
+            .unwrap();
+        let mut latest = original.clone();
+        latest[1].metadata.tokens = Some(99);
+        latest[1].timestamp = std::time::UNIX_EPOCH;
+        let tail = Message::assistant("appended".into());
+        latest.push(tail.clone());
+        let rebased = compressor
+            .rebase_plan(plan, &latest, "turn")
+            .unwrap()
+            .unwrap();
+        assert_eq!(rebased.recent_tail_messages.len(), 1);
+        assert_eq!(rebased.recent_tail_messages[0].id, tail.id);
+    }
+
+    #[test]
+    fn compression_prefetch_rebase_rejects_tool_result_crossing_boundary() {
+        let compressor = ContextCompressor::new();
+        let mut messages = vec![
+            Message::user("Work".into()),
+            Message::assistant_with_tools("Plan".into(), vec![todo_call()]),
+        ];
+        let plan = compressor
+            .plan_compression("session", &messages, 128_000, 0)
+            .unwrap()
+            .unwrap();
+        messages.push(todo_result());
+        assert!(compressor
+            .rebase_plan(plan, &messages, "turn")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
     fn current_turn_todo_outside_recent_tail_is_checkpointed() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let todos = serde_json::json!([
             {"id": "todo-1", "content": "Implement checkpoint", "status": "in_progress"},
             {"id": "todo-2", "content": "Run focused tests", "status": "pending"}
@@ -834,13 +941,7 @@ mod tests {
         assert_eq!(plan.recent_tail_messages[0].id, recent.id);
 
         let result = compressor
-            .compress_plan_with_contract(
-                "session",
-                128_000,
-                plan,
-                None,
-                Some("Earlier work summary".to_string()),
-            )
+            .compress_plan_with_contract("session", plan, None, "Earlier work summary".to_string())
             .expect("compression succeeds");
         let summary = result
             .messages
@@ -874,7 +975,7 @@ mod tests {
 
     #[test]
     fn historical_turn_todo_is_not_checkpointed_for_current_turn() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let todos = serde_json::json!([
             {"id": "old-todo", "content": "Historical task", "status": "pending"}
         ]);
@@ -907,7 +1008,7 @@ mod tests {
 
     #[test]
     fn current_turn_todo_already_in_recent_tail_is_not_duplicated() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let todos = serde_json::json!([
             {"id": "todo-tail", "content": "Stay in tail", "status": "in_progress"}
         ]);
@@ -940,7 +1041,7 @@ mod tests {
 
     #[test]
     fn current_turn_empty_todo_checkpoint_prevents_historical_state_resurrection() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let cleared_assistant = Message::assistant_with_tools(
             "Clearing completed work".to_string(),
             vec![todo_call_with("todo-clear", serde_json::json!([]))],
@@ -966,10 +1067,9 @@ mod tests {
         let result = compressor
             .compress_plan_with_contract(
                 "session",
-                128_000,
                 plan,
                 None,
-                Some("A historical task was pending.".to_string()),
+                "A historical task was pending.".to_string(),
             )
             .expect("compression succeeds");
         let summary = result
@@ -1000,7 +1100,7 @@ mod tests {
 
     #[test]
     fn failed_current_turn_todo_does_not_replace_the_last_successful_snapshot() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let successful_todos = serde_json::json!([
             {"id": "todo-good", "content": "Keep successful state", "status": "in_progress"}
         ]);
@@ -1052,7 +1152,7 @@ mod tests {
 
     #[test]
     fn current_turn_todo_checkpoint_survives_recompression_from_payload() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let prior_summary = Message::user(render_system_reminder("Earlier compressed context"))
             .with_semantic_kind(MessageSemanticKind::CompressionSummary)
             .with_compression_payload(CompressionPayload {
@@ -1099,7 +1199,7 @@ mod tests {
 
     #[test]
     fn increasing_the_budget_to_the_next_atomic_unit_moves_the_cutoff() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let messages = vec![
             Message::system("system".to_string()),
             Message::user("request".to_string()),
@@ -1128,7 +1228,7 @@ mod tests {
 
     #[test]
     fn compression_orders_retained_users_before_summary_and_recent_context() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let user1 = Message::user("user1".to_string());
         let user2 = Message::user("user2".to_string());
         let user3 = Message::user("user3".to_string());
@@ -1149,13 +1249,7 @@ mod tests {
             .expect("planning succeeds")
             .expect("plan exists");
         let mut result = compressor
-            .compress_plan_with_contract(
-                "session",
-                128_000,
-                plan,
-                None,
-                Some("Model summary".to_string()),
-            )
+            .compress_plan_with_contract("session", plan, None, "Model summary".to_string())
             .expect("compression succeeds");
 
         assert_eq!(result.messages.len(), 6);
@@ -1215,7 +1309,7 @@ mod tests {
 
     #[test]
     fn recompression_replaces_the_previous_continuation_reminder() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let old_reminder = Message::internal_reminder(
             InternalReminderKind::CompressionContinuation,
             "old continuation",
@@ -1244,13 +1338,7 @@ mod tests {
             .any(|message| message.id == old_reminder.id));
 
         let result = compressor
-            .compress_plan_with_contract(
-                "session",
-                128_000,
-                plan,
-                None,
-                Some("updated summary".to_string()),
-            )
+            .compress_plan_with_contract("session", plan, None, "updated summary".to_string())
             .expect("compression succeeds");
 
         assert_eq!(
@@ -1268,7 +1356,7 @@ mod tests {
 
     #[test]
     fn conditional_instruction_reminders_do_not_enter_any_compacted_context() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let summarized_reminder = Message::internal_reminder(
             InternalReminderKind::ConditionalInstructions,
             "older path rule",
@@ -1327,7 +1415,7 @@ mod tests {
 
     #[test]
     fn retained_user_token_budget_is_ten_percent_capped_at_twenty_thousand() {
-        let compressor = ContextCompressor::new(Default::default());
+        let compressor = ContextCompressor::new();
         let messages = vec![
             Message::system("system".to_string()),
             Message::user("older request".to_string()),
@@ -1376,80 +1464,6 @@ mod tests {
 
         assert!(retained.is_empty());
         assert_eq!(retained_tokens, 0);
-    }
-
-    #[test]
-    fn synthetic_summary_turn_payload_remains_atomic_on_recompression() {
-        let marker = Message::user(render_system_reminder(
-            "Earlier conversation was compressed.",
-        ))
-        .with_semantic_kind(MessageSemanticKind::CompressionBoundaryMarker);
-        let summary = Message::assistant("Summary text".to_string())
-            .with_semantic_kind(MessageSemanticKind::CompressionSummary)
-            .with_compression_payload(CompressionPayload::from_summary("Summary text".to_string()));
-
-        let summary_artifact =
-            crate::agentic::session::compression::fallback::build_structured_compression_summary(
-                vec![vec![marker, summary]],
-                &crate::agentic::session::compression::fallback::CompressionFallbackOptions {
-                    max_tokens: 10_000,
-                    user_chars: 120,
-                    assistant_chars: 120,
-                    tool_arg_chars: 80,
-                    tool_command_chars: 80,
-                },
-            );
-
-        assert!(matches!(
-            &summary_artifact.payload.entries[0],
-            CompressionEntry::ModelSummary { text } if text == "Summary text"
-        ));
-    }
-
-    #[test]
-    fn merged_compression_payload_remains_atomic_on_recompression() {
-        let compressor = ContextCompressor::new(Default::default());
-        let messages = vec![
-            Message::system("system".to_string()),
-            Message::user("Continue the refactor".to_string()),
-            Message::assistant("Work in progress".to_string()),
-            Message::user("Keep recent context".to_string()),
-            Message::assistant("Recent evidence".to_string()),
-        ];
-        let plan = compressor
-            .plan_compression("session", &messages, 8_000, 1)
-            .expect("planning succeeds")
-            .expect("plan exists");
-        let compressed = compressor
-            .compress_plan_with_contract(
-                "session",
-                8_000,
-                plan,
-                None,
-                Some("Model summary".to_string()),
-            )
-            .expect("compression succeeds");
-
-        let summary_artifact =
-            crate::agentic::session::compression::fallback::build_structured_compression_summary(
-                vec![compressed.messages],
-                &crate::agentic::session::compression::fallback::CompressionFallbackOptions {
-                    max_tokens: 10_000,
-                    user_chars: 120,
-                    assistant_chars: 120,
-                    tool_arg_chars: 80,
-                    tool_command_chars: 80,
-                },
-            );
-
-        assert!(summary_artifact
-            .payload
-            .entries
-            .iter()
-            .any(|entry| matches!(
-                entry,
-                CompressionEntry::ModelSummary { text } if text == "Model summary"
-            )));
     }
 
     #[test]

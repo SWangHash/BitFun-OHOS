@@ -232,7 +232,7 @@ async fn list_listings(
     let mut builder = QueryBuilder::<Sqlite>::new(
         "SELECT l.id AS listing_id, l.slug, r.release_number, r.draft_json,
                 r.package_meta_json, r.preview_sha256, r.published_at,
-                u.github_id, u.login, u.avatar_url,
+                u.account_id, u.github_id, u.login, u.avatar_url,
                 l.download_count
                   + (SELECT COUNT(*) FROM download_days d WHERE d.listing_id = l.id)
                     AS download_count
@@ -1251,7 +1251,7 @@ async fn listing_detail_by_slug(
     let row = sqlx::query(
         "SELECT l.id AS listing_id, l.slug, r.release_number, r.draft_json,
                 r.package_meta_json, r.preview_sha256, r.published_at,
-                u.github_id, u.login, u.avatar_url,
+                u.account_id, u.github_id, u.login, u.avatar_url,
                 l.download_count
                   + (SELECT COUNT(*) FROM download_days d WHERE d.listing_id = l.id)
                     AS download_count
@@ -1314,7 +1314,8 @@ fn summary_from_row(
         min_openbitfun_version: draft.min_openbitfun_version,
         required_capabilities: meta.required_capabilities,
         owner: AppearanceMarketUserSummary {
-            github_id: row.get("github_id"),
+            account_id: row.get("account_id"),
+            github_id: row.get::<Option<i64>, _>("github_id").unwrap_or_default(),
             login: row.get("login"),
             avatar_url: row.get("avatar_url"),
         },
@@ -1523,7 +1524,7 @@ async fn admin_submission_detail(
 ) -> SkinMarketResult<AppearanceAdminSubmissionDetail> {
     let row = sqlx::query(
         "SELECT s.manifest_json, s.package_sha256, s.preview_sha256, s.draft_json,
-                s.package_meta_json, u.github_id, u.login, u.avatar_url
+                s.package_meta_json, u.account_id, u.github_id, u.login, u.avatar_url
          FROM submissions s
          LEFT JOIN users u ON u.id = s.owner_user_id
          WHERE s.id = ?",
@@ -1564,12 +1565,16 @@ async fn admin_submission_detail(
         _ => None,
     };
     let submitter = row
-        .try_get::<Option<i64>, _>("github_id")
+        .try_get::<Option<String>, _>("login")
         .map_err(SkinMarketError::internal)?
-        .map(|github_id| {
+        .map(|login| {
             Ok::<_, SkinMarketError>(AppearanceMarketUserSummary {
-                github_id,
-                login: row.try_get("login").map_err(SkinMarketError::internal)?,
+                account_id: row.get("account_id"),
+                github_id: row
+                    .try_get::<Option<i64>, _>("github_id")
+                    .map_err(SkinMarketError::internal)?
+                    .unwrap_or_default(),
+                login,
                 avatar_url: row
                     .try_get("avatar_url")
                     .map_err(SkinMarketError::internal)?,

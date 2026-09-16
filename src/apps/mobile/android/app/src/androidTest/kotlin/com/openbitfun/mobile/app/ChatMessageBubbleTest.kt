@@ -90,7 +90,7 @@ class ChatMessageBubbleTest {
     }
 
     @Test
-    fun aRunningSubagentShowsItsChildrenByDefault() {
+    fun aRunningSubagentKeepsChildrenCollapsedUntilOpened() {
         composeRule.setContent {
             Bubble(
                 row(
@@ -108,6 +108,8 @@ class ChatMessageBubbleTest {
             )
         }
 
+        composeRule.onNodeWithText("Build step started.").assertDoesNotExist()
+        composeRule.onNodeWithText("Inspect the build").performClick()
         composeRule.onNodeWithText("Build step started.").assertIsDisplayed()
     }
 
@@ -152,6 +154,7 @@ class ChatMessageBubbleTest {
             Bubble(row(kind = ConversationRowKind.ASSISTANT, blocks = listOf(block)))
         }
 
+        composeRule.onNodeWithText("Inspect the build").performClick()
         composeRule.onNodeWithText("Initial step.").assertIsDisplayed()
         composeRule.onNodeWithText("Inspect the build").performClick()
         assertTrue(composeRule.onAllNodesWithText("Initial step.").fetchSemanticsNodes().isEmpty())
@@ -259,6 +262,7 @@ class ChatMessageBubbleTest {
         typing = typing,
         showRetry = showRetry,
         error = null,
+        live = false,
     )
 
     private fun runningTool(): ToolCard = ToolCard(

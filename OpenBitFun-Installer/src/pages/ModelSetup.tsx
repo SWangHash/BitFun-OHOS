@@ -1,5 +1,7 @@
+import { Button, Disclosure, Field, Input, PageHeader, Select, type SelectOption } from '@openbitfun/ui';
+import { ArrowRight } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createModelConfigFromTemplate,
@@ -16,13 +18,8 @@ import { previewRequestUrl, resolveRequestUrl } from '../utils/modelRequestUrl';
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
 const CUSTOM_MODEL_OPTION = '__custom_model__';
 
-interface SelectOption {
-  value: string;
-  label: string;
-  description?: string;
-}
-
 interface ModelSetupProps {
+  previewOnly?: boolean;
   options: InstallOptions;
   setOptions: React.Dispatch<React.SetStateAction<InstallOptions>>;
   onSkip: () => void;
@@ -30,101 +27,7 @@ interface ModelSetupProps {
   onTestConnection: (modelConfig: ModelConfig) => Promise<ConnectionTestResult>;
 }
 
-interface SimpleSelectProps {
-  value: string;
-  options: SelectOption[];
-  placeholder: string;
-  onChange: (value: string) => void;
-  onOpenChange?: (open: boolean) => void;
-  disabled?: boolean;
-}
-
-function SimpleSelect({
-  value,
-  options,
-  placeholder,
-  onChange,
-  onOpenChange,
-  disabled = false,
-}: SimpleSelectProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selected = useMemo(() => options.find((item) => item.value === value) || null, [options, value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        onOpenChange?.(false);
-      }
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open, onOpenChange]);
-
-  return (
-    <div className="openbitfun-select" ref={rootRef}>
-      <button
-        type="button"
-        disabled={disabled}
-        className={`openbitfun-select-trigger ${open ? 'openbitfun-select-trigger--open' : ''}`}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((prev) => {
-            const next = !prev;
-            if (next) onOpenChange?.(true);
-            else onOpenChange?.(false);
-            return next;
-          });
-        }}
-      >
-        <span className={`openbitfun-select-value ${selected ? '' : 'openbitfun-select-value--placeholder'}`}>
-          {selected?.label || placeholder}
-        </span>
-        <span className={`openbitfun-select-caret ${open ? 'openbitfun-select-caret--open' : ''}`} aria-hidden="true">
-          v
-        </span>
-      </button>
-
-      {open && (
-        <div className="openbitfun-select-menu" role="listbox">
-          {options.length > 0 ? (
-            options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`openbitfun-select-option ${option.value === value ? 'openbitfun-select-option--active' : ''}`}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                  onOpenChange?.(false);
-                }}
-              >
-                <span className="openbitfun-select-option-label">{option.label}</span>
-                {option.description && <span className="openbitfun-select-option-desc">{option.description}</span>}
-              </button>
-            ))
-          ) : (
-            <div className="openbitfun-select-empty">—</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="model-setup-row">
-      <div className="model-setup-row__label">{label}</div>
-      <div className="model-setup-row__control">{children}</div>
-    </div>
-  );
-}
-
-export function ModelSetup({ options, setOptions, onSkip, onNext, onTestConnection }: ModelSetupProps) {
+export function ModelSetup({ options, setOptions, onSkip, onNext, onTestConnection, previewOnly = false }: ModelSetupProps) {
   const { t } = useTranslation();
   const providers = useMemo(() => getOrderedProviders(), []);
   const current = options.modelConfig;
@@ -319,9 +222,9 @@ export function ModelSetup({ options, setOptions, onSkip, onNext, onTestConnecti
     if (!template?.baseUrlOptions?.length) return [];
     return template.baseUrlOptions.map((opt) => ({
       value: opt.url,
-      label: opt.url,
-      // Degrade to the key's last segment rather than the whole dotted path.
-      description: `${opt.format.toUpperCase()} · ${opt.noteKey ? t(opt.noteKey, { defaultValue: opt.noteKey.split('.').pop() }) : ''}`,
+      label: opt.noteKey
+        ? t(opt.noteKey, { defaultValue: opt.noteKey.split('.').pop() })
+        : opt.format.toUpperCase(),
     }));
   }, [template, t]);
 
@@ -384,113 +287,80 @@ export function ModelSetup({ options, setOptions, onSkip, onNext, onTestConnecti
   );
 
   return (
-    <div className="model-setup-page">
-      <div className="model-setup-scroll">
-        <div className="model-setup-container" style={{ animation: 'fadeIn 0.4s ease-out' }}>
-          <div className="model-setup-intro">{t('model.subtitle')}</div>
-          <div className="model-setup-desc">{t('model.description')}</div>
+    <div className="page-shell">
+      <div className="page-scroll">
+        <div className="page-container">
+          <PageHeader className="page-heading" title={t('model.title')} description={t('model.setupDescription')} />
+          <div className="model-fields">
+            <Field label={t('model.providerLabel')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+              <Select
+                value={selectedProviderId}
+                options={providerOptions}
+                placeholder={t('model.selectProvider')}
+                aria-label={t('model.providerLabel')}
+                onValueChange={(value) => handleProviderSelect(String(value))}
+              />
+            </Field>
 
-          <FieldRow label={t('model.providerLabel')}>
-            <SimpleSelect
-              value={selectedProviderId}
-              options={providerOptions}
-              placeholder={t('model.selectProvider')}
-              onChange={handleProviderSelect}
-            />
-          </FieldRow>
-
-          {template && <div className="model-setup-provider-desc">{t(template.descriptionKey)}</div>}
-
-          {!!selectedProviderId && (
-            <div className="model-setup-fields">
-              <FieldRow label={t('model.form.apiKey')}>
-                <div className="model-setup-inline">
-                  <input
-                    className="input"
+            {!!selectedProviderId && (
+              <>
+                <Field
+                  label={t('model.form.apiKey')}
+                  orientation="horizontal"
+                  labelWidth="sm"
+                  controlWidth="fill"
+                  controlTrailing={
+                    <Button
+                      size="sm"
+                      variant="text"
+                      aria-pressed={showApiKey}
+                      onClick={() => setShowApiKey((shown) => !shown)}
+                    >
+                      {showApiKey ? t('model.hideSecret') : t('model.showSecret')}
+                    </Button>
+                  }
+                >
+                  <Input
+                    size="md"
                     type={showApiKey ? 'text' : 'password'}
                     placeholder={t('model.form.apiKeyPlaceholder')}
                     value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value);
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
                       resetTestState();
                       resetRemoteDiscovery();
                     }}
                   />
-                  <button type="button" className="btn btn-ghost model-setup-secret-btn" onClick={() => setShowApiKey((s) => !s)}>
-                    {showApiKey ? t('model.hideSecret') : t('model.showSecret')}
-                  </button>
-                </div>
-              </FieldRow>
+                </Field>
 
-              <FieldRow label={t('model.form.baseUrl')}>
-                <div className="model-setup-stack">
-                  {baseUrlOptions.length > 0 ? (
-                    <SimpleSelect
-                      value={template?.baseUrlOptions?.some((o) => o.url === effectiveBaseUrl) ? effectiveBaseUrl : ''}
+                {baseUrlOptions.length > 0 && (
+                  <Field label={t('model.endpointPreset')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+                    <Select
+                      value={template?.baseUrlOptions?.some((option) => option.url === effectiveBaseUrl) ? effectiveBaseUrl : ''}
                       options={baseUrlOptions}
                       placeholder={t('model.baseUrlPlaceholder')}
-                      onChange={(next) => handleBaseUrlOptionSelect(next)}
+                      aria-label={t('model.endpointPreset')}
+                      onValueChange={(value) => handleBaseUrlOptionSelect(String(value))}
                     />
-                  ) : null}
-                  <input
-                    className="input"
-                    type="url"
-                    placeholder={template?.baseUrl || t('model.baseUrlPlaceholder')}
-                    value={baseUrl}
-                    onChange={(e) => {
-                      setBaseUrl(e.target.value);
-                      resetTestState();
-                      resetRemoteDiscovery();
-                      // Only a preset URL implies its format. A hand-typed proxy URL
-                      // keeps whatever the user picked, instead of snapping back to
-                      // the template default and mismatching the endpoint.
-                      const preset = template?.baseUrlOptions?.find((o) => o.url === e.target.value.trim());
-                      if (preset && !isCustomProvider) {
-                        setApiFormat(preset.format);
-                      }
-                    }}
-                  />
-                </div>
-              </FieldRow>
+                  </Field>
+                )}
 
-              {!!effectiveBaseUrl && (
-                <FieldRow label={t('model.form.resolvedUrlLabel').replace(/[:：]\s*$/, '').trim()}>
-                  <input className="input input--readonly" readOnly value={previewResolvedUrl} title={storedRequestUrlReadonly} />
-                </FieldRow>
-              )}
-
-              <FieldRow label={t('model.form.provider')}>
-                <SimpleSelect
-                  value={isCustomProvider ? customFormat : apiFormat}
-                  options={formatSelectOptions}
-                  placeholder={t('model.form.providerPlaceholder')}
-                  onChange={(next) => {
-                    const v = next as RequestFormatValue;
-                    if (isCustomProvider) setCustomFormat(v);
-                    else setApiFormat(v);
-                    resetTestState();
-                    resetRemoteDiscovery();
-                  }}
-                />
-              </FieldRow>
-
-              <FieldRow label={t('model.form.modelSelection')}>
-                {template ? (
-                  <div className="model-setup-stack">
-                    <SimpleSelect
+                {template && (
+                  <Field label={t('model.form.modelSelection')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+                    <Select
                       value={modelSelectionValue}
                       options={modelOptions}
                       placeholder={t('model.modelNameSelectPlaceholder')}
-                      disabled={isFetchingRemoteModels}
-                      onOpenChange={(open) => {
-                        if (open) void fetchRemoteModels();
-                      }}
-                      onChange={(next) => {
+                      aria-label={t('model.form.modelSelection')}
+                      aria-busy={isFetchingRemoteModels}
+                      onOpenChange={(open) => { if (open && !previewOnly && !isFetchingRemoteModels) void fetchRemoteModels(); }}
+                      onValueChange={(value) => {
+                        const next = String(value);
                         if (next === CUSTOM_MODEL_OPTION) {
                           setForceCustomModelInput(true);
-                          if (mergedModelIds.includes(modelName.trim())) {
-                            setModelName('');
-                          }
+                          if (mergedModelIds.includes(modelName.trim())) setModelName('');
                           resetTestState();
                           return;
                         }
@@ -499,54 +369,93 @@ export function ModelSetup({ options, setOptions, onSkip, onNext, onTestConnecti
                         resetTestState();
                       }}
                     />
-                    {(forceCustomModelInput || (modelName.trim() && !mergedModelIds.includes(modelName.trim()))) && (
-                      <input
-                        className="input"
-                        placeholder={t('model.modelNamePlaceholder')}
-                        value={modelName}
-                        onChange={(e) => {
-                          setModelName(e.target.value);
+                  </Field>
+                )}
+
+                {(!template || forceCustomModelInput || (modelName.trim() && !mergedModelIds.includes(modelName.trim()))) && (
+                  <Field label={t('model.form.modelName')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+                    <Input
+                      size="md"
+                      placeholder={t('model.modelNamePlaceholder')}
+                      value={modelName}
+                      spellCheck={false}
+                      onChange={(event) => {
+                        setModelName(event.target.value);
+                        resetTestState();
+                      }}
+                    />
+                  </Field>
+                )}
+                {modelFetchHint && <p className="model-fetch-hint" role="status">{modelFetchHint}</p>}
+                <Disclosure
+                  key={selectedProviderId}
+                  summary={t('model.advancedSettings')}
+                  defaultOpen={isCustomProvider}
+                >
+                  <div className="model-fields">
+                    <Field label={t('model.form.baseUrl')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+                      <Input
+                        size="md"
+                        type="url"
+                        placeholder={template?.baseUrl || t('model.baseUrlPlaceholder')}
+                        value={baseUrl}
+                        spellCheck={false}
+                        onChange={(event) => {
+                          setBaseUrl(event.target.value);
                           resetTestState();
+                          resetRemoteDiscovery();
+                          // Only preset URLs imply a format; custom proxy URLs keep the user's selection.
+                          const preset = template?.baseUrlOptions?.find((option) => option.url === event.target.value.trim());
+                          if (preset && !isCustomProvider) setApiFormat(preset.format);
                         }}
                       />
+                    </Field>
+
+                    <Field label={t('model.form.provider')} orientation="horizontal" labelWidth="sm" controlWidth="fill">
+                      <Select
+                        value={isCustomProvider ? customFormat : apiFormat}
+                        options={formatSelectOptions}
+                        placeholder={t('model.form.providerPlaceholder')}
+                        aria-label={t('model.form.provider')}
+                        onValueChange={(value) => {
+                          const format = value as RequestFormatValue;
+                          if (isCustomProvider) setCustomFormat(format);
+                          else setApiFormat(format);
+                          resetTestState();
+                          resetRemoteDiscovery();
+                        }}
+                      />
+                    </Field>
+
+                    {!!effectiveBaseUrl && (
+                      <details className="request-preview">
+                        <summary>{t('model.form.resolvedUrlLabel').replace(/[:：]\s*$/, '').trim()}</summary>
+                        <code title={storedRequestUrlReadonly}>{previewResolvedUrl}</code>
+                      </details>
                     )}
                   </div>
-                ) : (
-                  <input
-                    className="input"
-                    placeholder={t('model.modelNamePlaceholder')}
-                    value={modelName}
-                    onChange={(e) => {
-                      setModelName(e.target.value);
-                      resetTestState();
-                    }}
-                  />
-                )}
-              </FieldRow>
-
-              {modelFetchHint && <div className="model-setup-fetch-hint">{modelFetchHint}</div>}
-            </div>
-          )}
+                </Disclosure>
+              </>
+            )}
+          </div>
 
           {!!selectedProviderId && (
-            <div className="model-setup-test-row">
-              <button className="btn" disabled={!canTestConnection} onClick={handleTestConnection}>
+            <div className="model-test-row">
+              <Button variant="fill" size="sm" disabled={previewOnly || !canTestConnection} loading={testStatus === 'testing'} onClick={handleTestConnection}>
                 {testStatus === 'testing' ? t('model.testing') : t('model.testConnection')}
-              </button>
-              {testStatus === 'success' && <span className="model-setup-test-msg model-setup-test-msg--ok">{testMessage}</span>}
-              {testStatus === 'error' && <span className="model-setup-test-msg model-setup-test-msg--err">{testMessage}</span>}
+              </Button>
+              {testStatus === 'success' && <span className="status-success" role="status">{testMessage}</span>}
+              {testStatus === 'error' && <span className="status-danger" role="alert">{testMessage}</span>}
             </div>
           )}
         </div>
       </div>
 
-      <div className="model-setup-footer">
-        <button className="btn btn-ghost" onClick={onSkip}>
-          {t('model.skip')}
-        </button>
-        <button className="btn btn-primary" onClick={handleContinue} disabled={!canContinue || isSubmitting}>
+      <div className="page-footer page-footer--split">
+        <Button variant="text" disabled={isSubmitting} onClick={onSkip}>{t('model.skip')}</Button>
+        <Button variant="primary" trailingIcon={<ArrowRight />} onClick={handleContinue} disabled={!canContinue} loading={isSubmitting}>
           {t('model.nextTheme')}
-        </button>
+        </Button>
       </div>
     </div>
   );

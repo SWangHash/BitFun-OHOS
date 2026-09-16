@@ -1,13 +1,8 @@
 .agent-catalog-card {
   &__surface {
     width: 100%;
-    min-height: 168px;
     cursor: pointer;
-    border-color: var(--openbitfun-color-border-subtle);
-    background-clip: border-box;
-    transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
 
     &:hover {
       background-color: var(--openbitfun-color-surface-subtle);
@@ -23,15 +18,14 @@
     }
   }
 
-  &__header {
-    gap: var(--openbitfun-space-3);
-  }
-
   &__icon {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
-    min-height: calc(var(--openbitfun-type-heading-card-font-size) * var(--openbitfun-type-heading-card-line-height));
-    color: var(--openbitfun-color-content-secondary);
+
+    > span {
+      display: inline-flex;
+    }
   }
 
   &__title {
@@ -39,10 +33,35 @@
     min-width: 0;
   }
 
+  // CardHeader defaults to a content-sized title. This compound title needs the
+  // full header width so its text only shrinks when the card runs out of space.
+  &__header > [data-openbitfun-part='header-content'] > [data-openbitfun-part='title'] {
+    align-self: stretch;
+  }
+
   &__identity {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: var(--openbitfun-space-1);
+    min-width: 0;
     color: var(--openbitfun-color-content-muted);
+    font-family: var(--openbitfun-type-meta-font-family);
     font-size: var(--openbitfun-type-meta-font-size);
+    font-weight: var(--openbitfun-type-meta-font-weight);
     line-height: var(--openbitfun-type-meta-line-height);
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--openbitfun-space-3);
+    min-width: 0;
+  }
+
+  &__name {
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
   &__description {
@@ -52,6 +71,8 @@
 
   &__footer {
     flex-wrap: wrap;
+    row-gap: var(--openbitfun-space-2);
+    padding-block-start: var(--openbitfun-space-1);
   }
 
   &__metrics {
@@ -84,6 +105,7 @@
 
   &__status {
     display: inline-flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: var(--openbitfun-space-1);
     max-width: 100%;

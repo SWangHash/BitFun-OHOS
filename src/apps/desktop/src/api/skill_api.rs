@@ -17,9 +17,10 @@ use tokio::time::{timeout, Duration};
 
 use crate::api::app_state::AppState;
 use openbitfun_core::agentic::tools::implementations::skills::mode_overrides::{
-    clear_user_mode_skill_overrides, load_globally_disabled_user_skills,
-    load_project_mode_skills_document_local, project_mode_skills_path_for_remote,
-    save_project_mode_skills_document_local, set_disabled_mode_skills_in_document,
+    clear_user_mode_skill_overrides, load_globally_disabled_project_skills,
+    load_globally_disabled_user_skills, load_project_mode_skills_document_local,
+    project_mode_skills_path_for_remote, save_project_mode_skills_document_local,
+    set_disabled_mode_skills_in_document, set_global_project_skill_disabled,
     set_global_user_skill_disabled, set_mode_skill_disabled_in_document, set_user_mode_skill_state,
 };
 use openbitfun_core::agentic::tools::implementations::skills::registry::imports::{
@@ -214,12 +215,23 @@ pub struct ResetModeSkillSelectionRequest {
 pub struct SetGlobalSkillDisabledRequest {
     pub skill_key: String,
     pub disabled: bool,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalSkillSettingsResponse {
     pub globally_disabled_user_skill_keys: Vec<String>,
+    pub globally_disabled_project_skill_keys: Vec<String>,
+    pub direct_skill_management_version: u32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetGlobalSkillSettingsRequest {
+    #[serde(default)]
+    pub workspace_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -651,14 +663,43 @@ pub async fn get_skill_configs(
     Ok(response)
 }
 
-#[tauri::command]
-pub async fn get_global_skill_settings() -> Result<GlobalSkillSettingsResponse, String> {
+async fn skill_availability_settings(
+    workspace_path: Option<&str>,
+) -> Result<GlobalSkillSettingsResponse, String> {
     let globally_disabled_user_skill_keys = load_globally_disabled_user_skills()
         .await
-        .map_err(|error| format!("Failed to load global Skill settings: {}", error))?;
+        .map_err(|error| error.to_string())?;
+    let globally_disabled_project_skill_keys = match workspace_path {
+        Some(path) => {
+            if is_remote_path(path).await {
+                return Err(
+                    "Direct Skill availability management is not supported for remote workspaces"
+                        .into(),
+                );
+            }
+            load_globally_disabled_project_skills(Path::new(path))
+                .await
+                .map_err(|error| error.to_string())?
+        }
+        None => Vec::new(),
+    };
     Ok(GlobalSkillSettingsResponse {
         globally_disabled_user_skill_keys,
+        globally_disabled_project_skill_keys,
+        direct_skill_management_version: 1,
     })
+}
+
+#[tauri::command]
+pub async fn get_global_skill_settings(
+    request: Option<GetGlobalSkillSettingsRequest>,
+) -> Result<GlobalSkillSettingsResponse, String> {
+    skill_availability_settings(
+        request
+            .as_ref()
+            .and_then(|request| request.workspace_path.as_deref()),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -666,34 +707,40 @@ pub async fn set_global_skill_disabled(
     request: SetGlobalSkillDisabledRequest,
 ) -> Result<GlobalSkillSettingsResponse, String> {
     let skill_key = request.skill_key.trim();
-    if !skill_key.starts_with("user::") {
-        return Err("Global Skill availability only applies to user-level Skills".to_string());
+    let workspace = request.workspace_path.as_deref();
+    // Validate the serving scope before scanning or persisting any local state.
+    if let Some(path) = workspace {
+        if is_remote_path(path).await {
+            return Err(
+                "Direct Skill availability management is not supported for remote workspaces"
+                    .into(),
+            );
+        }
     }
-
     let known_skill = SkillRegistry::global()
-        .get_all_skills()
+        .get_all_skills_for_workspace(workspace.map(Path::new))
         .await
         .into_iter()
-        .any(|skill| skill.key == skill_key && skill.level == SkillLocation::User);
-    if !known_skill {
-        return Err(format!("User-level Skill '{}' was not found", skill_key));
+        .find(|skill| skill.key == skill_key)
+        .ok_or_else(|| format!("Skill '{}' was not found", skill_key))?;
+    match known_skill.level {
+        SkillLocation::User => {
+            set_global_user_skill_disabled(skill_key, request.disabled)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        SkillLocation::Project => {
+            let root = workspace
+                .ok_or_else(|| "Project Skill availability requires a workspace".to_string())?;
+            set_global_project_skill_disabled(Path::new(root), skill_key, request.disabled)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
     }
-
-    let globally_disabled_user_skill_keys =
-        set_global_user_skill_disabled(skill_key, request.disabled)
-            .await
-            .map_err(|error| format!("Failed to update global Skill settings: {}", error))?;
     if let Err(error) = openbitfun_core::service::config::reload_global_config().await {
-        log::warn!(
-            "Failed to reload global configuration after Skill availability update: skill_key={}, error={}",
-            skill_key,
-            error
-        );
+        log::warn!("Failed to reload configuration after Skill availability update: skill_key={}, error={}", skill_key, error);
     }
-
-    Ok(GlobalSkillSettingsResponse {
-        globally_disabled_user_skill_keys,
-    })
+    skill_availability_settings(workspace).await
 }
 
 #[tauri::command]
@@ -1283,6 +1330,38 @@ mod tests {
     use super::{await_remote_skill_discovery, can_delete_owned_skill};
     use std::future;
     use tokio::time::Duration;
+
+    #[test]
+    fn skill_availability_accepts_legacy_and_workspace_scoped_requests() {
+        let legacy =
+            serde_json::json!({ "skillKey": "user::home.agents::review", "disabled": true });
+        let request: super::SetGlobalSkillDisabledRequest =
+            serde_json::from_value(legacy.clone()).unwrap();
+        assert!(request.workspace_path.is_none());
+        assert!(request.disabled);
+        let mut scoped = legacy;
+        scoped["workspacePath"] = serde_json::json!("/workspace/a");
+        let request: super::SetGlobalSkillDisabledRequest = serde_json::from_value(scoped).unwrap();
+        assert_eq!(request.workspace_path.as_deref(), Some("/workspace/a"));
+        let request: super::GetGlobalSkillSettingsRequest =
+            serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(request.workspace_path.is_none());
+        let response = super::GlobalSkillSettingsResponse {
+            globally_disabled_user_skill_keys: vec!["user::home.agents::review".into()],
+            globally_disabled_project_skill_keys: vec!["project::agents::review".into()],
+            direct_skill_management_version: 1,
+        };
+        let value = serde_json::to_value(response).unwrap();
+        assert_eq!(value["directSkillManagementVersion"], 1);
+        assert_eq!(
+            value["globallyDisabledUserSkillKeys"][0],
+            "user::home.agents::review"
+        );
+        assert_eq!(
+            value["globallyDisabledProjectSkillKeys"][0],
+            "project::agents::review"
+        );
+    }
 
     #[test]
     fn skill_validation_reads_and_round_trips_legacy_payloads() {

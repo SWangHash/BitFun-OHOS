@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import type { ModeSkillInfo, SkillScanDiagnostic } from '@/infrastructure/config/types';
-import { isOpenBitFunManagedSkill } from '@/infrastructure/config/skillSourcePresentation';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('useResolvedModeSkills');
@@ -41,6 +41,16 @@ export function useResolvedModeSkills({
   }, []);
 
   useEffect(() => {
+    const invalidate = () => {
+      entryRef.current = null;
+      setSnapshot(null);
+      setRevision(value => value + 1);
+    };
+    globalEventBus.on('mode:config:updated', invalidate);
+    return () => { globalEventBus.off('mode:config:updated', invalidate); };
+  }, []);
+
+  useEffect(() => {
     if (entryRef.current?.key !== key) {
       entryRef.current = { key, skills: null, loading: false, failed: false };
     }
@@ -54,8 +64,8 @@ export function useResolvedModeSkills({
     setSnapshot({ ...entry });
     void configAPI.getModeSkillScanReport({ modeId, workspacePath: workspacePath || undefined })
       .then(report => {
-        // Older hosts can still return their full external discovery catalog.
-        entry.skills = report.skills.filter(isOpenBitFunManagedSkill);
+        // The host owns runtime selection and availability for every source.
+        entry.skills = report.skills;
         entry.diagnostics = report.diagnostics;
         entry.diagnosticsAvailable = report.diagnosticsAvailable;
       })

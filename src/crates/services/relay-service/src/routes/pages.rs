@@ -1320,14 +1320,14 @@ fn page_login_form_response(
     <div class="mark" aria-hidden="true">B</div>
     <p class="eyebrow">OPENBITFUN PAGE</p>
     <h1>登录后访问</h1>
-    <p>此页面受访问权限保护，请使用 GitHub 账号登录。</p>
-    <p class="secondary">This Page is protected. Sign in with your GitHub account.</p>
+    <p>此页面受访问权限保护，请使用邮箱或 GitHub 登录。</p>
+    <p class="secondary">This Page is protected. Sign in with your email or GitHub account.</p>
     <p class="access">{access_description}</p>
     <form data-page-login-form{login_state_attribute}>
       <p data-page-login-error class="error" role="alert" hidden></p>
-      <button data-page-login-submit class="submit" type="submit">使用 GitHub 登录 · Sign in with GitHub</button>
+      <button data-page-login-submit class="submit" type="submit">使用邮箱或 GitHub 登录 · Sign in with email or GitHub</button>
     </form>
-    <p class="note">使用 OpenBitFun 统一 GitHub 账号登录。</p>
+    <p class="note">使用 OpenBitFun 统一账号登录。</p>
     <noscript><p class="error">登录需要启用 JavaScript。 JavaScript is required to sign in.</p></noscript>
   </main>
   <script src="{client_script}" defer></script>

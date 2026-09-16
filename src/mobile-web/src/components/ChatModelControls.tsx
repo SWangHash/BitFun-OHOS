@@ -238,18 +238,6 @@ export const ModelSelectorPill: React.FC<{
           <MobileButton
             appearance="plain"
             block
-            className={`chat-model-selector__option${normalizedSelectedModelId === 'auto' ? ' is-selected' : ''}`}
-            type="button"
-            onClick={() => void handleSelect('auto')}
-          >
-            <span className="chat-model-selector__option-main">
-              <span className="chat-model-selector__option-name">{t('chat.modelAuto')}</span>
-              <span className="chat-model-selector__option-meta">{t('chat.modelAutoDesc')}</span>
-            </span>
-          </MobileButton>
-          <MobileButton
-            appearance="plain"
-            block
             className={`chat-model-selector__option${normalizedSelectedModelId === 'primary' ? ' is-selected' : ''}`}
             type="button"
             onClick={() => void handleSelect('primary')}

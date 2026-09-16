@@ -1,7 +1,7 @@
 import { Button, Card, Icon, NumberBadge, PageHeader, StatusPill } from '@openbitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, CircleAlert, LoaderCircle, Wrench } from 'lucide-react';
+import { CircleAlert, LoaderCircle, Wrench } from 'lucide-react';
 import {
   GalleryEmpty,
   GalleryLayout,
@@ -210,7 +210,7 @@ const NurseryGallery: React.FC = () => {
 
       <div className="gallery-zones" data-openbitfun-component="nursery-gallery" data-openbitfun-part="content">
         <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaults">
-          <Card className="nursery-defaults__surface" appearance="subtle" padding="md" radius="md">
+          <Card className="nursery-defaults__surface" appearance="subtle" padding="md" radius="md" gap="md">
             <div className="nursery-defaults__content" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaultsContent">
               <div className="nursery-defaults__title-row">
                 <h3 className="nursery-defaults__title" id="nursery-defaults-title">
@@ -253,7 +253,7 @@ const NurseryGallery: React.FC = () => {
             </div>
 
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="nursery-defaults__action"
               leadingIcon={<Icon name="settings" size="sm" />}
@@ -291,7 +291,7 @@ const NurseryGallery: React.FC = () => {
             />
           ) : sortedAssistantWorkspacesList.length === 0 ? (
             <GalleryEmpty
-              icon={{ glyph: Bot }}
+              icon={{ name: 'user' }}
               message={(
                 <>
                   <strong>{t('nursery.gallery.emptyTitle')}</strong>

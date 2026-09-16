@@ -6,6 +6,8 @@ export const segmentedControlMeta = {
   maturity: "stable",
   name: "SegmentedControl",
   props: [
+    { name: "interaction", type: "radio | buttons", defaultValue: "radio" },
+    { name: "labelBehavior", type: "overflow | static", defaultValue: "overflow" },
     { name: "options", type: "readonly SegmentedControlOption[]" },
     { name: "value", type: "string" },
     { name: "defaultValue", type: "string" },

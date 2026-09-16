@@ -123,6 +123,7 @@
       "waiting": "Finish authorization in the browser. OpenBitFun will update automatically.",
       "cancel": "Cancel",
       "continue": "Open GitHub",
+      "reopen": "Reopen sign-in page",
       "authorizing": "Waiting for GitHub…"
     },
     "empty": "No reviewed MiniApps have been published yet.",
@@ -144,7 +145,7 @@
       "customizing": "Customizing",
       "local": "Local",
       "version": "v{{version}}",
-      "marketMeta": "By @{{owner}} · {{rating}} rating · {{downloads}} downloads",
+      "marketMeta": "By {{owner}} · {{rating}} rating · {{downloads}} downloads",
       "localMeta": "On this device",
       "viewDetails": "View details for {{name}}",
       "showcaseAlt": "{{name}} showcase image",
@@ -172,7 +173,7 @@
     "detail": {
       "loading": "Loading details…",
       "reviewed": "Human reviewed",
-      "by": "By @{{owner}}",
+      "by": "By {{owner}}",
       "install": "Install",
       "update": "Update",
       "installed": "Installed",

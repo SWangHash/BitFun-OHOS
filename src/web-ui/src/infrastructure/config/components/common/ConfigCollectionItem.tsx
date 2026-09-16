@@ -1,7 +1,5 @@
 import React, { useId, useState } from 'react';
-import { OverflowText, Icon, IconButton } from '@openbitfun/ui';
-;
-import { RetainedMountBoundary } from '@/shared/presence';
+import { Disclosure, OverflowText, Icon, IconButton } from '@openbitfun/ui';
 import './ConfigCollectionItem.scss';
 
 export interface ConfigCollectionItemProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -35,11 +33,10 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
   ...rootProps
 }) => {
   const [internalExpanded, setInternalExpanded] = useState(false);
-  const labelId = useId();
-  const detailsId = useId();
   const isControlled = expandedProp !== undefined;
   const isExpanded = isControlled ? expandedProp : internalExpanded;
   const hasDetails = Boolean(details);
+  const labelId = useId();
 
   const toggleDetails = () => {
     if (!hasDetails || detailsDisabled) return;
@@ -69,73 +66,66 @@ export const ConfigCollectionItem: React.FC<ConfigCollectionItemProps> = ({
       data-openbitfun-part="collectionItem"
       {...rootProps}
     >
-      <div data-overflow-trigger
-        className={`openbitfun-config-page-row openbitfun-config-page-row--center openbitfun-collection-item__row ${
-          toggleOnRowClick && hasDetails && !detailsDisabled ? 'openbitfun-collection-item__row--toggleable' : ''
-        }`}
-        data-openbitfun-component="config"
-        data-openbitfun-part="collectionRow"
-        onClick={handleRowClick}
-      >
-        <div className="openbitfun-config-page-row__meta" data-openbitfun-component="config" data-openbitfun-part="collectionMeta">
-          <div
-            className={`openbitfun-config-page-row__label openbitfun-collection-item__label ${
-              badgePlacement === 'below' ? 'openbitfun-collection-item__label--stacked' : ''
+      <Disclosure
+        className="openbitfun-collection-item__disclosure"
+        summary={label}
+        open={hasDetails && isExpanded}
+        disabled={!hasDetails || detailsDisabled}
+        onOpenChange={toggleDetails}
+        unmountOnClose
+        exitDurationMs={180}
+        contentClassName="openbitfun-collection-item__details-collapse"
+        contentInnerClassName="openbitfun-collection-item__details-clip"
+        renderHeader={(triggerProps) => (
+          <div data-overflow-trigger
+            className={`openbitfun-config-page-row openbitfun-config-page-row--center openbitfun-collection-item__row ${
+              toggleOnRowClick && hasDetails && !detailsDisabled ? 'openbitfun-collection-item__row--toggleable' : ''
             }`}
+            data-openbitfun-component="config"
+            data-openbitfun-part="collectionRow"
+            onClick={handleRowClick}
           >
-            <OverflowText id={labelId} className="openbitfun-collection-item__name" data-openbitfun-component="config" data-openbitfun-part="collectionName">{label}</OverflowText>
-            {badge && (
-              <span
-                className={`openbitfun-collection-item__badges ${
-                  badgePlacement === 'below'
-                    ? 'openbitfun-collection-item__badges--stacked'
-                    : 'openbitfun-collection-item__badges--inline'
+            <div className="openbitfun-config-page-row__meta" data-openbitfun-component="config" data-openbitfun-part="collectionMeta">
+              <div
+                className={`openbitfun-config-page-row__label openbitfun-collection-item__label ${
+                  badgePlacement === 'below' ? 'openbitfun-collection-item__label--stacked' : ''
                 }`}
               >
-                {badge}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="openbitfun-config-page-row__control" data-openbitfun-component="config" data-openbitfun-part="collectionControl">
-          <div className="openbitfun-collection-item__control">
-            {control}
-            {hasDetails ? (
-              <IconButton
-                type="button"
-                className="openbitfun-collection-btn openbitfun-collection-item__details-toggle"
-                onClick={toggleDetails}
-                disabled={detailsDisabled}
-                aria-label={typeof label === 'string' ? label : ''}
-                aria-labelledby={labelId}
-                aria-expanded={isExpanded}
-                aria-controls={detailsId}
-                icon={<Icon name="chevron-down" size="sm" aria-hidden="true" />}
-              />
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {details ? (
-        <RetainedMountBoundary
-          present={isExpanded}
-          retainForMs={180}
-          minimumRetainMs={180}
-        >
-          <div
-            id={detailsId}
-            className="openbitfun-collection-item__details-collapse"
-            data-open={isExpanded ? 'true' : 'false'}
-            aria-hidden={!isExpanded}
-            {...(!isExpanded ? { inert: '' } : {})}
-          >
-            <div className="openbitfun-collection-item__details-clip">
-              <div className="openbitfun-collection-item__details" data-openbitfun-component="config" data-openbitfun-part="collectionDetails">{details}</div>
+                <OverflowText id={labelId} className="openbitfun-collection-item__name" data-openbitfun-component="config" data-openbitfun-part="collectionName">{label}</OverflowText>
+                {badge && (
+                  <span
+                    className={`openbitfun-collection-item__badges ${
+                      badgePlacement === 'below'
+                        ? 'openbitfun-collection-item__badges--stacked'
+                        : 'openbitfun-collection-item__badges--inline'
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="openbitfun-config-page-row__control" data-openbitfun-component="config" data-openbitfun-part="collectionControl">
+              <div className="openbitfun-collection-item__control">
+                {control}
+                {hasDetails ? (
+                  <IconButton
+                    type="button"
+                    className="openbitfun-collection-btn openbitfun-collection-item__details-toggle"
+                    disabled={detailsDisabled}
+                    aria-label={typeof label === 'string' ? label : ''}
+                    aria-labelledby={labelId}
+                    {...triggerProps}
+                    icon={<Icon name="chevron-down" size="sm" aria-hidden="true" />}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
-        </RetainedMountBoundary>
-      ) : null}
+        )}
+      >
+        <div className="openbitfun-collection-item__details" data-openbitfun-component="config" data-openbitfun-part="collectionDetails">{details}</div>
+      </Disclosure>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import { collectForwardedTabProps, findDomAttribute } from './appearance-dom-contracts.mjs';
+import { collectForwardedTabProps, collectForwardedOverlayProps, findDomAttribute } from './appearance-dom-contracts.mjs';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.join(repoRoot, 'src', 'web-ui', 'src');
@@ -487,9 +487,9 @@ const domContractSources = [
 
 for (const [file, source, strictContractOwnership] of domContractSources) {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const forwardedTabProps = collectForwardedTabProps(ast);
+  const forwardedProps = new Set([...collectForwardedTabProps(ast), ...collectForwardedOverlayProps(ast)]);
   const visit = node => {
-    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node) || forwardedTabProps.has(node)) {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node) || forwardedProps.has(node)) {
       const component = jsxAttribute(node, 'data-openbitfun-component');
       const productComponent = jsxAttribute(node, 'data-openbitfun-product-component');
       const scene = jsxAttribute(node, 'data-openbitfun-scene');

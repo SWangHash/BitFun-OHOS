@@ -179,6 +179,10 @@ impl Default for ExternalEcosystemPolicy {
 #[derive(Default)]
 pub struct ExternalIntegrationPolicySettings {
     pub enabled: bool,
+    /// Catalog discovery is independent of runtime authorization. Older installs
+    /// inherit their previous integration preference until explicitly changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub automatic_discovery: Option<bool>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ecosystems: BTreeMap<EcosystemId, ExternalEcosystemPolicy>,
     /// Preserves fields introduced by a newer minor schema during read-modify-write.
@@ -203,6 +207,8 @@ pub struct ExternalEcosystemPolicyOverride {
 pub struct ExternalIntegrationPolicyOverride {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub automatic_discovery: Option<bool>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ecosystems: BTreeMap<EcosystemId, ExternalEcosystemPolicyOverride>,
     /// Preserves fields introduced by a newer minor schema during read-modify-write.
@@ -212,7 +218,10 @@ pub struct ExternalIntegrationPolicyOverride {
 
 impl ExternalIntegrationPolicyOverride {
     pub fn is_empty(&self) -> bool {
-        self.enabled.is_none() && self.ecosystems.is_empty() && self.extensions.is_empty()
+        self.enabled.is_none()
+            && self.automatic_discovery.is_none()
+            && self.ecosystems.is_empty()
+            && self.extensions.is_empty()
     }
 }
 
@@ -242,6 +251,23 @@ impl Default for ExternalIntegrationPolicyDocument {
             extensions: BTreeMap::new(),
         }
     }
+}
+
+/// Missing discovery preferences retain the legacy opt-in without granting any
+/// new execution permissions. Explicit discovery preferences inherit separately.
+pub fn automatic_discovery_enabled(
+    document: &ExternalIntegrationPolicyDocument,
+    workspace_key: Option<&str>,
+) -> bool {
+    let workspace = workspace_key.and_then(|key| document.workspace_overrides.get(key));
+    workspace
+        .and_then(|settings| settings.automatic_discovery)
+        .or(document.user_defaults.automatic_discovery)
+        .unwrap_or_else(|| {
+            workspace
+                .and_then(|settings| settings.enabled)
+                .unwrap_or(document.user_defaults.enabled)
+        })
 }
 
 /// Capability defaults are registered by product assembly so policy evaluation
@@ -460,6 +486,9 @@ pub enum ExternalIntegrationPolicyScope {
 )]
 #[non_exhaustive]
 pub enum ExternalIntegrationPolicyOperation {
+    SetAutomaticDiscovery {
+        enabled: bool,
+    },
     SetEnabled {
         enabled: bool,
     },

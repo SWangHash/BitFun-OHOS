@@ -198,7 +198,15 @@ extension MobileAppModel {
         accountGeneration = generation
         accountBusy = state is AccountUiStateSigningIn || state is AccountUiStateAuthorizing
         let previousAuthorizationURL = accountAuthorizationURL
-        accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { URL(string: $0.authorizationUrl) }
+        accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { authorization in
+            guard var components = URLComponents(string: authorization.authorizationUrl) else { return nil }
+            if components.scheme == "https", components.host == "auth.openbitfun.com" {
+                var items = (components.queryItems ?? []).filter { $0.name != "locale" }
+                items.append(URLQueryItem(name: "locale", value: appLanguage.rawValue))
+                components.queryItems = items
+            }
+            return components.url
+        }
         if accountSheetOpen, let url = accountAuthorizationURL, url != previousAuthorizationURL {
             openAccountAuthorization()
         }

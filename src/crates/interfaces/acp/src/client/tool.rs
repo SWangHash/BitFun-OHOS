@@ -190,7 +190,6 @@ mod tests {
                 best_for: Some("Cross-file refactors".to_string()),
             },
             permission_mode: AcpClientPermissionMode::Ask,
-            local_override: None,
         };
 
         let definition = acp_external_agent_definition_for_config("codex", &config);

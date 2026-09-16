@@ -5,3 +5,11 @@
 - Preserve native Codex event and handler names. Map only reviewed OpenBitFun Hook points; report every other event as native-only.
 - Preserve Codex configuration-layer and field-overlay semantics inside each typed provider. Unknown behavior fields must block explicitly; do not invent Codex Command or standalone Tool sources.
 - Do not depend on another ecosystem adapter. Shared product behavior belongs in contracts or assembly.
+
+## Pet source verification
+
+```bash
+cargo test -p openbitfun-codex-adapter --lib pet_source
+# Optional read-only verification on a host with the Codex desktop app installed:
+cargo test -p openbitfun-codex-adapter --lib installed_builtin_pet_catalog -- --ignored --nocapture
+```

@@ -2,10 +2,9 @@
 
 use super::device_crypto;
 use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 use crate::remote_connect::device::DeviceIdentity;
 use crate::remote_connect::relay_http::{
@@ -14,13 +13,30 @@ use crate::remote_connect::relay_http::{
 
 pub const MASTER_KEY_LEN: usize = 32;
 
+/// A retired official deployment has its own credential database. Authenticate
+/// with the new deployment instead of replaying its token or deleting the record.
+pub fn is_retired_official_relay(value: &str) -> bool {
+    reqwest::Url::parse(value).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url.host_str() == Some("remote.openbitfun.com")
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.port().is_none()
+            && url.path().trim_end_matches('/') == "/v/1.0.0"
+            && url.query().is_none()
+            && url.fragment().is_none()
+    })
+}
+
 /// Device-scoped relay credentials and a locally owned X25519 private key.
 #[derive(Clone)]
 pub struct AccountSession {
     pub token: String,
+    updates: tokio::sync::broadcast::Sender<Option<(String, serde_json::Value)>>,
     pub user_id: String,
     pub master_key: [u8; MASTER_KEY_LEN],
-    peer_keys: Arc<Mutex<HashMap<String, [u8; 32]>>>,
+    peer_keys: Arc<Mutex<HashMap<String, Arc<OnceCell<[u8; 32]>>>>>,
+    transports: Arc<Mutex<HashMap<String, Arc<OnceCell<Arc<super::relay_client::RelayClient>>>>>>,
 }
 
 impl std::fmt::Debug for AccountSession {
@@ -35,10 +51,19 @@ impl AccountSession {
     pub fn new(token: String, user_id: String, device_secret: [u8; 32]) -> Self {
         Self {
             token,
+            updates: tokio::sync::broadcast::channel(64).0,
             user_id,
             master_key: device_secret,
             peer_keys: Arc::new(Mutex::new(HashMap::new())),
+            transports: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Notifications are hints; receiver lag means catch up all subscribed logs.
+    pub fn session_updates(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<Option<(String, serde_json::Value)>> {
+        self.updates.subscribe()
     }
 
     pub async fn clear_peer_keys(&self) {
@@ -51,31 +76,37 @@ impl AccountSession {
             &format!("/api/devices/{}/key", urlencoding::encode(device_id)),
         )?;
         let cache_id = endpoint.to_string();
-        let mut keys = self.peer_keys.lock().await;
-        if let Some(key) = keys.get(&cache_id) {
-            return Ok(*key);
-        }
-        let response = relay_http_client()
-            .get(endpoint)
-            .bearer_auth(&self.token)
-            .send()
-            .await?;
-        if !response.status().is_success() {
-            return Err(AccountClient::into_error(response).await);
-        }
-        #[derive(Deserialize)]
-        struct PeerKey {
-            device_id: String,
-            public_key: String,
-        }
-        let peer: PeerKey = response.json().await?;
-        if peer.device_id != device_id {
-            return Err(anyhow!("relay returned a different device identity"));
-        }
-        let public = super::encryption::parse_public_key(&peer.public_key)?;
-        let key = device_crypto::derive_message_key(&self.master_key, &public)?;
-        keys.insert(cache_id, key);
-        Ok(key)
+        let cell = {
+            let mut keys = self.peer_keys.lock().await;
+            keys.entry(cache_id).or_default().clone()
+        };
+        // Only callers for this peer share initialization. No account-wide
+        // lock survives network IO. Failed/cancelled lookups can be retried;
+        // invalidation removes the cell so an older lookup cannot refill it.
+        cell.get_or_try_init(|| async {
+            let response = relay_http_client()
+                .get(endpoint)
+                .bearer_auth(&self.token)
+                .send()
+                .await?;
+            if !response.status().is_success() {
+                return Err(AccountClient::into_error(response).await);
+            }
+            #[derive(Deserialize)]
+            struct PeerKey {
+                device_id: String,
+                public_key: String,
+            }
+            let peer: PeerKey = response.json().await?;
+            if peer.device_id != device_id {
+                return Err(anyhow!("relay returned a different device identity"));
+            }
+            let public = super::encryption::parse_public_key(&peer.public_key)?;
+            let key = device_crypto::derive_message_key(&self.master_key, &public)?;
+            Ok(key)
+        })
+        .await
+        .copied()
     }
 
     pub async fn encrypt_for_peer(
@@ -184,23 +215,6 @@ pub fn validate_relay_base_url(relay_url: &str) -> Result<reqwest::Url> {
     Ok(url)
 }
 
-/// Build the Relay WebSocket endpoint from the same validated base URL used by
-/// account HTTP requests. This preserves reverse-proxy prefixes while avoiding
-/// `//ws` when a user- or config-supplied base URL has a trailing slash.
-pub fn build_relay_websocket_url(relay_url: &str) -> Result<String> {
-    let mut url = validate_relay_base_url(relay_url)?;
-    let websocket_scheme = match url.scheme() {
-        "https" => "wss",
-        "http" => "ws",
-        _ => unreachable!("validate_relay_base_url accepts only http(s) schemes"),
-    };
-    url.set_scheme(websocket_scheme)
-        .map_err(|_| anyhow!("failed to convert relay URL to WebSocket scheme"))?;
-    let base_path = url.path().trim_end_matches('/').to_string();
-    url.set_path(&format!("{base_path}/ws"));
-    Ok(url.to_string())
-}
-
 impl Default for AccountClient {
     fn default() -> Self {
         Self::new()
@@ -222,16 +236,17 @@ impl AccountClient {
         let profile = identity
             .me()
             .await?
-            .ok_or_else(|| anyhow!("Sign in with GitHub to continue"))?;
+            .ok_or_else(|| anyhow!("Sign in to continue"))?;
         let access_token = identity
             .access_token()
             .await?
-            .ok_or_else(|| anyhow!("Sign in with GitHub to continue"))?;
-        let device_secret = super::session_store::device_secret(
-            relay_url,
-            &profile.user.github_id.to_string(),
-            &device.device_id,
-        )?;
+            .ok_or_else(|| anyhow!("Sign in to continue"))?;
+        let account_id = profile
+            .user
+            .identity_id()
+            .ok_or_else(|| anyhow!("Unsupported account identity"))?;
+        let device_secret =
+            super::session_store::device_secret(relay_url, &account_id, &device.device_id)?;
         let body = serde_json::json!({
             "access_token": access_token,
             "device_id": device.device_id,
@@ -252,10 +267,8 @@ impl AccountClient {
             return Err(Self::into_buffered_error(response));
         }
         let auth: AuthResponse = response.json().await?;
-        if auth.user_id != profile.user.github_id.to_string() {
-            return Err(anyhow!(
-                "relay returned a different GitHub account identity"
-            ));
+        if auth.user_id != account_id {
+            return Err(anyhow!("relay returned a different account identity"));
         }
         Ok((
             AccountSession::new(auth.token, auth.user_id, device_secret),
@@ -464,11 +477,10 @@ impl AccountClient {
         Ok(())
     }
 
-    /// Send an encrypted RemoteCommand to a target device via HTTP RPC.
-    /// The relay routes the opaque ciphertext to the target device's WS,
-    /// waits for the response, and returns the encrypted response.
-    /// The caller is responsible for encrypting the command and decrypting
-    /// the response with the account master_key.
+    /// Send an encrypted RemoteCommand over the shared account connection.
+    /// The relay routes opaque ciphertext and returns the encrypted acknowledgement.
+    /// Pairwise device keys protect both directions; the shared account
+    /// Socket.IO connection owns acknowledgement and reconnect lifetimes.
     pub async fn device_rpc(
         &self,
         relay_url: &str,
@@ -476,36 +488,55 @@ impl AccountClient {
         target_device_id: &str,
         plaintext_command: &str,
     ) -> Result<String> {
-        // Encrypt the command with the master key
+        // Encrypt for the authenticated target device
         let (data, nonce) = session
             .encrypt_for_peer(relay_url, target_device_id, plaintext_command)
             .await?;
-        let body = serde_json::json!({
-            "encrypted_data": data,
-            "nonce": nonce,
-        });
-        let resp = self
-            .http
-            .post(Self::endpoint(
-                relay_url,
-                &format!("/api/devices/{}/rpc", urlencoding::encode(target_device_id)),
-            )?)
-            .header("Authorization", Self::auth_header(session))
-            .json(&body)
-            .send()
+        let cell = {
+            let mut transports = session.transports.lock().await;
+            transports.entry(relay_url.to_string()).or_default().clone()
+        };
+        let transport = cell
+            .get_or_try_init(|| async {
+                let (transport, mut events) = super::relay_client::RelayClient::new_controller();
+                transport.connect(relay_url).await?;
+                transport
+                    .connect_authenticated(&session.token, "Controller")
+                    .await?;
+                let updates = session.updates.clone();
+                let peer_keys = session.peer_keys.clone();
+                tokio::spawn(async move {
+                    while let Some(event) = events.recv().await {
+                        use super::relay_client::RelayEvent;
+                        match event {
+                            RelayEvent::SessionUpdated {
+                                relay_session_id,
+                                message,
+                            } => {
+                                let _ = updates.send(Some((relay_session_id, message)));
+                            }
+                            RelayEvent::Connected
+                            | RelayEvent::Reconnected
+                            | RelayEvent::AuthOk { .. } => {
+                                peer_keys.lock().await.clear();
+                                let _ = updates.send(None);
+                            }
+                            RelayEvent::DevicePresence { .. } => {
+                                peer_keys.lock().await.clear();
+                            }
+                            _ => {}
+                        }
+                    }
+                });
+                Ok::<_, anyhow::Error>(Arc::new(transport))
+            })
             .await?;
-        if !resp.status().is_success() {
-            return Err(Self::into_error(resp).await);
-        }
-        let entry: RpcResponseEntry = resp.json().await?;
-        // Decrypt the response with the master key
+        let (encrypted_data, nonce) = transport
+            .request_device(target_device_id, &data, &nonce)
+            .await?;
+        // Decrypt using the authenticated target device key
         session
-            .decrypt_from_peer(
-                relay_url,
-                target_device_id,
-                &entry.encrypted_data,
-                &entry.nonce,
-            )
+            .decrypt_from_peer(relay_url, target_device_id, &encrypted_data, &nonce)
             .await
     }
 }
@@ -531,15 +562,64 @@ struct DeviceListEntry {
     last_seen_at: Option<i64>,
 }
 
-#[derive(Deserialize)]
-struct RpcResponseEntry {
-    encrypted_data: String,
-    nonce: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn slow_peer_lookup_does_not_block_another_device_or_invalidation() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::time::{timeout, Duration};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut slow, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            slow.read(&mut request).await.unwrap();
+            started_tx.send(()).unwrap();
+            let (mut fast, _) = listener.accept().await.unwrap();
+            fast.read(&mut request).await.unwrap();
+            let reply = |device: &str| {
+                let body = serde_json::json!({
+                    "device_id": device,
+                    "public_key": super::super::encryption::KeyPair::generate().public_key_base64()
+                })
+                .to_string();
+                format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body)
+            };
+            fast.write_all(reply("fast").as_bytes()).await.unwrap();
+            release_rx.await.unwrap();
+            slow.write_all(reply("slow").as_bytes()).await.unwrap();
+        });
+        let session = AccountSession::new("fixture".into(), "fixture".into(), [7; 32]);
+        let slow_session = session.clone();
+        let slow_url = url.clone();
+        let slow =
+            tokio::spawn(async move { slow_session.peer_message_key(&slow_url, "slow").await });
+        timeout(Duration::from_secs(5), started_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        timeout(
+            Duration::from_secs(5),
+            session.peer_message_key(&url, "fast"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        timeout(Duration::from_secs(5), session.clear_peer_keys())
+            .await
+            .unwrap();
+        release_tx.send(()).unwrap();
+        slow.await.unwrap().unwrap();
+        server.await.unwrap();
+        assert!(
+            session.peer_keys.lock().await.is_empty(),
+            "invalidation must survive an older lookup completing"
+        );
+    }
 
     #[test]
     fn relay_endpoint_accepts_http_servers_and_rejects_ambiguous_urls() {
@@ -561,18 +641,20 @@ mod tests {
     }
 
     #[test]
-    fn relay_websocket_endpoint_normalizes_root_and_prefixed_urls() {
-        assert_eq!(
-            build_relay_websocket_url("https://relay.example.com/").unwrap(),
-            "wss://relay.example.com/ws"
-        );
-        assert_eq!(
-            build_relay_websocket_url("https://relay.example.com/prefix/").unwrap(),
-            "wss://relay.example.com/prefix/ws"
-        );
-        assert_eq!(
-            build_relay_websocket_url("http://127.0.0.1:3000/relay").unwrap(),
-            "ws://127.0.0.1:3000/relay/ws"
-        );
+    fn retired_official_endpoint_does_not_capture_custom_relays() {
+        let old = ["https://remote.openbitfun.com", "/v/1.0.0"].concat();
+        assert!(is_retired_official_relay(&old));
+        assert!(is_retired_official_relay(&format!("{old}/")));
+        for endpoint in [
+            "https://remote.openbitfun.com/v/1.0.1",
+            "https://custom.example/v/1.0.0",
+            "http://127.0.0.1:9700",
+            "https://remote.openbitfun.com/relay",
+            "https://user@remote.openbitfun.com/v/1.0.0",
+            "https://remote.openbitfun.com:444/v/1.0.0",
+        ] {
+            assert!(!is_retired_official_relay(endpoint));
+        }
+        assert!(!is_retired_official_relay(&format!("{old}?other=1")));
     }
 }

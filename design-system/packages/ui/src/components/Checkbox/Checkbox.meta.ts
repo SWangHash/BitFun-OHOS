@@ -6,6 +6,7 @@ export const checkboxMeta = {
   maturity: "stable",
   name: "Checkbox",
   props: [
+    { name: "appearance", type: "custom | native", defaultValue: "custom" },
     { name: "checked", type: "boolean" },
     { name: "indeterminate", type: "boolean", defaultValue: "false" },
     { name: "invalid", type: "boolean", defaultValue: "false" },

@@ -85,6 +85,7 @@ export type ExternalIntegrationPolicyMutation = {
   expectedPreferenceRevision: number;
   scope: 'user' | 'workspace';
   change:
+    | { operation: 'set_automatic_discovery'; enabled: boolean }
     | { operation: 'set_enabled'; enabled: boolean }
     | {
         operation: 'set_ecosystem_mode';
@@ -125,6 +126,16 @@ export interface ExternalSourceRecord {
 }
 
 export interface ExternalSourceCatalogSnapshot {
+  /** Present only on the negotiated catalog discovery endpoint. */
+  discovery?: {
+    enabled: boolean;
+    canChange: boolean;
+    hasScanned: boolean;
+    discoverableCapabilities?: Record<string, string[]>;
+    /** View-only retained results; never sent to the host as authorization. */
+    retainedKinds?: string[];
+    preferenceRevision: number;
+  };
   hostCapabilities: {
     canRefresh: boolean;
     canMutatePolicy: boolean;
@@ -1368,6 +1379,63 @@ export const externalSourcesAPI = {
         sourceKey,
       },
     });
+  },
+
+  async getDiscoverySnapshot(workspacePath?: string, forceRefresh = false): Promise<ExternalSourceCatalogSnapshot> {
+    try {
+      const value = await invokeExternalSourceCommand<{
+        schemaVersion: number;
+        automaticDiscovery: boolean;
+        canChangeAutomaticDiscovery: boolean;
+        hasScanned: boolean;
+        discoverableCapabilities: Record<string, string[]>;
+        preferenceRevision: number;
+        catalog: unknown;
+      }>('get_external_source_discovery_snapshot', {
+        request: { workspacePath: normalizeOptionalWorkspacePath(workspacePath), forceRefresh },
+      });
+      if (!value || typeof value !== 'object') {
+        throw new ExternalSourceApiError('invalid_response', 'Invalid discovery snapshot', false);
+      }
+      if (value.schemaVersion !== 1) {
+        throw new ExternalSourceApiError('incompatible_version', 'Unsupported discovery snapshot version', false);
+      }
+      if (typeof value.automaticDiscovery !== 'boolean'
+        || typeof value.canChangeAutomaticDiscovery !== 'boolean' || typeof value.hasScanned !== 'boolean'
+        || !isNonNegativeInteger(value.preferenceRevision)
+        || !value.discoverableCapabilities || typeof value.discoverableCapabilities !== 'object'
+        || Array.isArray(value.discoverableCapabilities)
+        || !Object.values(value.discoverableCapabilities).every((ids) => Array.isArray(ids) && ids.every((id) => typeof id === 'string'))) {
+        throw new ExternalSourceApiError('invalid_response', 'Invalid discovery snapshot', false);
+      }
+      return {
+        ...normalizeSnapshot(value.catalog),
+        preferenceRevision: value.preferenceRevision,
+        discovery: {
+          enabled: value.automaticDiscovery,
+          canChange: value.canChangeAutomaticDiscovery,
+          hasScanned: value.hasScanned,
+          discoverableCapabilities: value.discoverableCapabilities,
+          preferenceRevision: value.preferenceRevision,
+        },
+      };
+    } catch (error) {
+      if (!(error instanceof ExternalSourceApiError) || error.code !== 'incompatible_version') throw error;
+      // Old hosts remain viewable, but never receive the new mutation.
+      return this.getSnapshot(workspacePath, forceRefresh);
+    }
+  },
+
+  async setAutomaticDiscovery(workspacePath: string | undefined, enabled: boolean, expectedPreferenceRevision: number) {
+    const path = normalizeOptionalWorkspacePath(workspacePath);
+    await invokeExternalSourceCommand('update_external_integration_policy_command', {
+      request: {
+        workspacePath: normalizeOptionalWorkspacePath(workspacePath),
+        mutation: { expectedPreferenceRevision, scope: path ? 'workspace' : 'user',
+          change: { operation: 'set_automatic_discovery', enabled } },
+      },
+    });
+    return this.getDiscoverySnapshot(workspacePath);
   },
 
   async getSnapshot(workspacePath?: string, forceRefresh = false) {

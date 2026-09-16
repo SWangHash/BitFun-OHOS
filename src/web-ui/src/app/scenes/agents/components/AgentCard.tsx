@@ -1,9 +1,8 @@
 import React from 'react';
-import { Bot } from 'lucide-react';
 import { CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@openbitfun/ui';
 import { useTranslation } from 'react-i18next';
 import type { AgentWithCapabilities } from '../agentsStore';
-import { AGENT_ICON_MAP } from '../agentsIcons';
+import { getAgentIcon } from '../agentsIcons';
 import { getAgentBadge, getAgentDescription, getCapabilityLabel } from '../utils';
 import AgentCatalogCard, { AgentCatalogMetrics } from './AgentCatalogCard';
 import './AgentCatalogCard.scss';
@@ -20,7 +19,7 @@ interface AgentCardProps {
 const AgentCard: React.FC<AgentCardProps> = ({ agent, disabledReason, onOpenDetails, ...metrics }) => {
   const { t } = useTranslation('scenes/agents');
   const badge = getAgentBadge(t, agent.agentKind, agent.source ?? agent.subagentSource);
-  const agentIcon = AGENT_ICON_MAP[(agent.iconKey ?? 'bot') as keyof typeof AGENT_ICON_MAP] ?? { glyph: Bot };
+  const agentIcon = getAgentIcon(agent.iconKey);
   const capabilities = agent.capabilities.slice(0, 2).map(cap => getCapabilityLabel(t, cap.category)).join(' · ');
 
   return (
@@ -31,30 +30,29 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, disabledReason, onOpenDeta
       data-openbitfun-product-part="root"
     >
       <CardHeader
+        align="center"
         className="agent-catalog-card__header"
         data-openbitfun-product-component="agent-card"
         data-openbitfun-product-part="header"
-        leading={(
-          <span className="agent-catalog-card__icon" data-openbitfun-product-component="agent-card" data-openbitfun-product-part="iconArea" aria-hidden="true">
-            <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="icon">
-              <Icon {...agentIcon} size="md" />
-            </span>
-          </span>
-        )}
         title={(
           <div className="agent-catalog-card__title" data-openbitfun-product-component="agent-card" data-openbitfun-product-part="headerInfo">
-            <div data-openbitfun-product-component="agent-card" data-openbitfun-product-part="titleRow">
-              <OverflowText data-openbitfun-product-component="agent-card" data-openbitfun-product-part="name" data-testid="agent-list-item-title">
+            <div className="agent-catalog-card__title-row" data-openbitfun-product-component="agent-card" data-openbitfun-product-part="titleRow">
+              <OverflowText className="agent-catalog-card__name" data-openbitfun-product-component="agent-card" data-openbitfun-product-part="name" data-testid="agent-list-item-title">
                 {agent.name}
               </OverflowText>
+              <span className="agent-catalog-card__identity">
+                <span className="agent-catalog-card__icon" data-openbitfun-product-component="agent-card" data-openbitfun-product-part="iconArea" aria-hidden="true">
+                  <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="icon">
+                    <Icon {...agentIcon} size="sm" />
+                  </span>
+                </span>
+                <OverflowText behavior="marquee">
+                  <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="badges">{badge.label}</span>
+                  <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="capabilities">{capabilities ? ` · ${capabilities}` : null}</span>
+                </OverflowText>
+              </span>
             </div>
           </div>
-        )}
-        description={(
-          <OverflowText className="agent-catalog-card__identity" behavior="marquee">
-            <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="badges">{badge.label}</span>
-            <span data-openbitfun-product-component="agent-card" data-openbitfun-product-part="capabilities">{capabilities ? ` · ${capabilities}` : null}</span>
-          </OverflowText>
         )}
       />
       <CardBody data-openbitfun-product-component="agent-card" data-openbitfun-product-part="body">

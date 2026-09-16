@@ -1,3 +1,4 @@
+import { WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { RemotePermissionMode, RemoteSession } from '../../model/RemoteModels';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
 import { DetectedUrlAction } from '../../services/ConnectScanDecisionPolicy';
@@ -5,6 +6,7 @@ import { ConversationIntent } from './ConversationIntent';
 import { AppRoute } from '../navigation/AppRouteContract';
 
 export interface AppRootPresentationActions {
+  readonly onWorkspaceTools: (intent: WorkspaceToolsIntent) => void;
   readonly onNavigationBack: (route: AppRoute) => boolean;
   readonly onConversationIntent: (route: AppRoute, intent: ConversationIntent) => void;
   readonly onCloseSidebar: () => void;
@@ -34,7 +36,7 @@ export interface RemoteHomePresentationActions {
   readonly refresh: () => void;
   readonly showWorkspaces: () => void;
   readonly showAssistants: () => void;
-  readonly selectWorkspace: (path: string, deviceId?: string) => void;
+  readonly selectWorkspace: (path: string, deviceId?: string, connectionId?: string) => void;
   readonly selectAssistant: (path: string) => void;
   readonly cancelWorkspace: () => void;
   readonly cancelAssistant: () => void;
@@ -46,8 +48,8 @@ export interface RemoteHomePresentationActions {
   readonly clearPairing: () => void;
   readonly create: (agentType: string) => void;
   readonly createInPlace: (agentType: string) => void;
-  readonly createInWorkspace: (path: string, agentType: string, deviceId?: string) => void;
-  readonly createInWorkspaceInPlace: (path: string, agentType: string, deviceId?: string) => void;
+  readonly createInWorkspace: (path: string, agentType: string, deviceId?: string, connectionId?: string) => void;
+  readonly createInWorkspaceInPlace: (path: string, agentType: string, deviceId?: string, connectionId?: string) => void;
   readonly selectDirectoryDevice: (deviceId: string) => void;
   readonly addDirectoryWorkspace: (deviceId: string) => void;
   readonly retryDirectoryDevice: (deviceId: string) => void;
@@ -111,6 +113,7 @@ export interface ConnectPresentationActions {
 
 export function emptyAppRootPresentationActions(): AppRootPresentationActions {
   return {
+    onWorkspaceTools: () => {},
     onNavigationBack: () => false,
     onConversationIntent: () => {},
     onCloseSidebar: () => {},

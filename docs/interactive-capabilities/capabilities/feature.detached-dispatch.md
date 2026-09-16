@@ -17,21 +17,21 @@ Dispatch durable work to another OpenBitFun host; the controller may disconnect 
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 列出可派发目标并探测版本、连接和运行能力
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出可派发目标并探测版本、连接和运行能力
   - List dispatch targets and probe their version, connectivity, and runtime capabilities
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为目标主机配置运行环境并安装或更新 OpenBitFun CLI
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为目标主机配置运行环境并安装或更新 OpenBitFun CLI
   - Provision the target runtime and install or update the OpenBitFun CLI
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在提交任务前同步目标所需的模型配置
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在提交任务前同步目标所需的模型配置
   - Synchronize required model configuration before submitting a job
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 把包含工作区、会话、模型和权限策略的持久任务提交到目标
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 把包含工作区、会话、模型和权限策略的持久任务提交到目标
   - Submit a durable job with workspace, session, model, and permission policy to the target
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 列出派发任务并查询运行状态、结果和错误
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出派发任务并查询运行状态、结果和错误
   - List dispatched jobs and query their status, result, and errors
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 保存、追加和重新加载可断线恢复的执行记录
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 保存、追加和重新加载可断线恢复的执行记录
   - Save, append, and reload reconnectable execution transcripts
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 远程回答权限请求，并继续或取消目标端任务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 远程回答权限请求，并继续或取消目标端任务
   - Answer permission requests remotely and continue or cancel target-side work
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 将目标端结果同步回控制端，而不把控制端当作远程文件系统代理
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 将目标端结果同步回控制端，而不把控制端当作远程文件系统代理
   - Synchronize target-side results back without treating the controller as a remote-filesystem proxy
 
 ## 怎么用 / How to use it
@@ -45,7 +45,7 @@ Dispatch durable work to another OpenBitFun host; the controller may disconnect 
 
 入口 / Entry: OpenBitFun 内的对应控制界面
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -57,13 +57,13 @@ Dispatch durable work to another OpenBitFun host; the controller may disconnect 
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开设备管理，我想把任务派发到另一台机器”
   - “Open device management so I can dispatch work to another machine”
 - “带我配置远程任务派发”
   - “Take me to remote task dispatch setup”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

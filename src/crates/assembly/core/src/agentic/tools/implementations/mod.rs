@@ -25,26 +25,35 @@ pub mod control_hub_tool;
 #[cfg(feature = "tools-agent-control")]
 pub mod cron_tool;
 pub mod delete_file_tool;
-pub(crate) mod devecocli_run;
-pub(crate) mod deveco_mcp_check;
-pub mod exec_command;
-pub mod file_edit_tool;
-pub mod file_read_tool;
-pub mod file_write_tool;
-pub(crate) mod harmony_device;
-pub(crate) mod hdc_fallback;
-pub mod arkts_knowledge_search_tool;
-pub mod build_project_tool;
-pub mod check_arkts_files_tool;
-pub mod check_cpp_files_tool;
-pub mod get_ui_verification_log_tool;
-pub mod hdc_log_tool;
-pub mod save_ui_screenshot_tool;
-pub(crate) mod session_cwd;
-pub mod start_app_tool;
-pub mod switch_cwd_tool;
-pub(crate) mod ui_verification_mcp;
-pub mod verify_ui_tool;
+    pub(crate) mod devecocli_run;
+    // DevEco MCP discovery pulls the MCP service layer; keep these helpers out
+    // of the light feature closures (agent-runtime, git) that never use them.
+    #[cfg(feature = "mcp-runtime")]
+    pub(crate) mod deveco_mcp_check;
+    pub mod exec_command;
+    pub mod file_edit_tool;
+    pub mod file_read_tool;
+    pub mod file_write_tool;
+    pub(crate) mod harmony_device;
+    pub(crate) mod hdc_fallback;
+    pub mod arkts_knowledge_search_tool;
+    pub mod build_project_tool;
+    #[cfg(feature = "mcp-runtime")]
+    pub mod check_arkts_files_tool;
+    #[cfg(feature = "mcp-runtime")]
+    pub mod check_cpp_files_tool;
+    #[cfg(feature = "mcp-runtime")]
+    pub mod get_ui_verification_log_tool;
+    pub mod hdc_log_tool;
+    #[cfg(feature = "mcp-runtime")]
+    pub mod save_ui_screenshot_tool;
+    pub(crate) mod session_cwd;
+    pub mod start_app_tool;
+    pub mod switch_cwd_tool;
+    #[cfg(feature = "mcp-runtime")]
+    pub(crate) mod ui_verification_mcp;
+    #[cfg(feature = "mcp-runtime")]
+    pub mod verify_ui_tool;
 #[cfg(feature = "tools-creation")]
 pub mod frontend_workbench_tool;
 #[cfg(feature = "tools-miniapp")]
@@ -118,14 +127,19 @@ pub use file_read_tool::FileReadTool;
 pub use file_write_tool::FileWriteTool;
 pub use arkts_knowledge_search_tool::ArktsKnowledgeSearchTool;
 pub use build_project_tool::BuildProjectTool;
-pub use check_arkts_files_tool::CheckArktsFilesTool;
-pub use check_cpp_files_tool::CheckCppFilesTool;
-pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
-pub use hdc_log_tool::HdcLogTool;
-pub use save_ui_screenshot_tool::SaveUiScreenshotTool;
+    #[cfg(feature = "mcp-runtime")]
+    pub use check_arkts_files_tool::CheckArktsFilesTool;
+    #[cfg(feature = "mcp-runtime")]
+    pub use check_cpp_files_tool::CheckCppFilesTool;
+    #[cfg(feature = "mcp-runtime")]
+    pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
+    pub use hdc_log_tool::HdcLogTool;
+    #[cfg(feature = "mcp-runtime")]
+    pub use save_ui_screenshot_tool::SaveUiScreenshotTool;
 pub use start_app_tool::StartAppTool;
 pub use switch_cwd_tool::SwitchCwdTool;
-pub use verify_ui_tool::VerifyUiTool;
+    #[cfg(feature = "mcp-runtime")]
+    pub use verify_ui_tool::VerifyUiTool;
 #[cfg(feature = "tools-creation")]
 pub use frontend_workbench_tool::FrontendWorkbenchTool;
 #[cfg(feature = "tools-miniapp")]

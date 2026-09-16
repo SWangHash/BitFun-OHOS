@@ -2,6 +2,11 @@
 
 !Cargo.toml
 !Cargo.lock
+!third_party/
+!third_party/eioc/
+!third_party/eioc/Cargo.toml
+!third_party/eioc/src/
+!third_party/eioc/src/**
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
@@ -11,6 +16,9 @@
 
 !design-system/
 !design-system/LICENSE
+!design-system/tsconfig.base.json
+!design-system/packages/ui/
+!design-system/packages/ui/**
 !design-system/packages/
 !design-system/packages/design-tokens/
 !design-system/packages/design-tokens/package.json

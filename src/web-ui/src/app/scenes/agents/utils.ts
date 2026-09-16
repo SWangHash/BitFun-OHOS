@@ -48,7 +48,7 @@ function getAgentBadge(
   agentKind?: AgentKind,
   source?: AgentSource,
 ): AgentBadgeConfig {
-  if (agentKind === 'harness') return { variant: 'accent', label: 'Agent Harness' };
+  if (agentKind === 'harness') return { variant: 'accent', label: t('nav.harness') };
   if (agentKind === 'agent') {
     if (source === 'user') {
       return { variant: 'success', label: t('agentCard.badges.userMode') };

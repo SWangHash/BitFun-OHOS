@@ -846,7 +846,7 @@ describe('Session usage report UI components', () => {
     expect(refWarnings).toEqual([]);
   });
 
-  it('syncs path redaction between the chat card and detail panel', () => {
+  it('syncs path redaction between the chat card and detail panel', async () => {
     const report = usageReport({
       workspace: {
         kind: 'local',
@@ -873,10 +873,10 @@ describe('Session usage report UI components', () => {
 
     render(
       <>
-        <SessionUsageReportCard report={report} markdown="## Session Usage" />
+        <SessionUsageReportCard report={report} markdown="## Session Usage: D:/workspace/openbitfun/src/private/secret.ts" />
         <SessionUsagePanel
           report={report}
-          markdown="## Session Usage"
+          markdown="## Session Usage: D:/workspace/openbitfun/src/private/secret.ts"
           sessionId="session-1"
           workspacePath="D:/workspace/openbitfun"
           initialTab="files"
@@ -889,15 +889,25 @@ describe('Session usage report UI components', () => {
     ));
     expect(redactionInputs).toHaveLength(2);
     expect(redactionInputs.every(input => input.checked)).toBe(true);
+    expect(redactionInputs.every(input => input.labels?.length === 1)).toBe(true);
+    expect(redactionInputs.every(input => input.closest('label')?.getAttribute('data-appearance') === 'native')).toBe(true);
     expect(container.textContent).toContain('[redacted path]');
     expect(container.textContent).toContain('secret.ts');
     expect(container.textContent).not.toContain('D:/workspace/openbitfun');
     expect(container.textContent).not.toContain('src/private/secret.ts');
     expect(container.querySelector('[data-tooltip="[redacted path]/secret.ts"]')).not.toBeNull();
 
+    const copy = container.querySelector<HTMLButtonElement>('.session-usage-report-card button[aria-label="Copy Markdown"]');
+    expect(copy).not.toBeNull();
+    await act(async () => copy?.click());
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('## Session Usage: [redacted path]/[redacted path]/secret.ts');
+
+    const preferenceWrite = vi.spyOn(dom.window.Storage.prototype, 'setItem');
     act(() => {
-      redactionInputs[0]?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      redactionInputs[0]?.labels?.[0].click();
     });
+    expect(preferenceWrite).toHaveBeenCalledTimes(1);
+    expect(preferenceWrite).toHaveBeenLastCalledWith(USAGE_EXPORT_REDACT_PATHS_STORAGE_KEY, 'false');
 
     const updatedInputs = Array.from(container.querySelectorAll<HTMLInputElement>(
       `input[aria-label="Redact paths"]`
@@ -905,6 +915,13 @@ describe('Session usage report UI components', () => {
     expect(updatedInputs.every(input => input.checked)).toBe(false);
     expect(container.textContent).toContain('D:/workspace/openbitfun');
     expect(container.querySelector('[data-tooltip="src/private/secret.ts"]')).not.toBeNull();
+    await act(async () => copy?.click());
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('## Session Usage: D:/workspace/openbitfun/src/private/secret.ts');
+    act(() => updatedInputs[1]?.labels?.[0].click());
+    expect(updatedInputs.every(input => input.checked)).toBe(true);
+    expect(preferenceWrite).toHaveBeenCalledTimes(2);
+    expect(preferenceWrite).toHaveBeenLastCalledWith(USAGE_EXPORT_REDACT_PATHS_STORAGE_KEY, 'true');
+    preferenceWrite.mockRestore();
   });
 
   it('does not append a token unit when chat card model tokens are unavailable', () => {

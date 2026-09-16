@@ -36,23 +36,18 @@ struct SidebarView: View {
     var onPermanentActions: ((ChatSession) -> Void)? = nil
     @State private var search = ""
     @State private var searchVisible = false
-    @State private var visibleRecentCount = 6
     @State private var expandedWorkspacePaths: Set<String> = []
     @State private var visibleDeviceWorkspaceCounts: [String: Int] = [:]
     @State private var compactActionSession: ChatSession?
     @State private var workspacePickerDevice: MobileDeviceDirectoryEntry?
+    @State private var deviceTools: NativeDeviceToolTarget?
+    @State private var deviceToolsPicker = false
+    @State private var toolLocation: NativeDeviceToolLocation?
+    @State private var pendingDeviceTool: NativeDeviceToolTarget?
+    @State private var workspaceCreateTarget: MobileWorkspaceGroup?
+    @State private var pendingWorkspaceCreate: NativeWorkspaceCreateTarget?
     @State private var workspaceCreatePath: String?
     @State private var remoteChatsCollapsed = false
-
-    private var recentSessions: [ChatSession] {
-        let source = model.sessions
-        guard !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return source }
-        return source.filter { $0.title.localizedCaseInsensitiveContains(search) }
-    }
-
-    private var shownRecentSessions: [ChatSession] {
-        Array(recentSessions.prefix(search.isEmpty ? visibleRecentCount : recentSessions.count))
-    }
 
     private var hasActiveRemoteViewFilter: Bool {
         !model.remoteWorkspaceFilter.isEmpty ||
@@ -128,6 +123,34 @@ struct SidebarView: View {
                 surface
             }
         }
+        .onChange(of: model.remoteWorkspaces) { _ in finishWorkspaceCreateWhenReady() }
+        .onChange(of: model.remoteCreateInteraction.canSubmit) { _ in finishWorkspaceCreateWhenReady() }
+        .sheet(isPresented: $deviceToolsPicker, onDismiss: {
+            if let target = pendingDeviceTool, target.deviceKey == model.remoteExpectedDeviceKey {
+                if target.terminal { model.openDeviceTerminal(target.location.path, connectionId: target.location.connectionId) } else { model.openDeviceFiles(target.location.path, connectionId: target.location.connectionId) }
+                deviceTools = target
+            }
+            pendingDeviceTool = nil
+        }) {
+            NavigationStack {
+                List {
+                    if let location = toolLocation {
+                        Text(location.name).font(.headline)
+                        Button(model.localized("浏览文件")) { pendingDeviceTool = NativeDeviceToolTarget(location: location, terminal: false, deviceKey: model.remoteExpectedDeviceKey); deviceToolsPicker = false }
+                        Button(model.localized("打开终端")) { pendingDeviceTool = NativeDeviceToolTarget(location: location, terminal: true, deviceKey: model.remoteExpectedDeviceKey); deviceToolsPicker = false }
+                    } else {
+                        Button(model.localized("受控设备本机")) { toolLocation = NativeDeviceToolLocation(name: model.localized("受控设备本机"), path: "", connectionId: nil) }
+                        ForEach(model.savedRuntimeConnections, id: \.id) { connection in
+                            Button(connection.name) { toolLocation = NativeDeviceToolLocation(name: connection.name, path: "", connectionId: connection.id) }
+                        }
+                    }
+                }.navigationTitle(model.localized("Device tools"))
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button(model.localized("返回")) { if toolLocation != nil { toolLocation = nil } else { deviceToolsPicker = false } } } }
+            }
+        }
+        .fullScreenCover(item: $deviceTools) { target in
+            NativeDeviceToolsView(model: model, terminal: target.terminal, rootPath: target.location.path, deviceKey: target.deviceKey) { deviceTools = nil }
+        }
         .sheet(item: $workspacePickerDevice) { requestedDevice in
             let device = directoryEntries.first(where: { $0.id == requestedDevice.id }) ?? requestedDevice
             SidebarWorkspacePickerSheet(
@@ -144,12 +167,12 @@ struct SidebarView: View {
         .overlayPreferenceValue(SidebarWorkspaceCreateAnchorKey.self) { anchors in
             GeometryReader { proxy in
                 if let path = workspaceCreatePath,
-                   let workspace = model.remoteWorkspaces.first(where: { $0.path == path }),
+                   let workspace = workspaceCreateTarget ?? model.remoteWorkspaces.first(where: { ($0.path + ":" + ($0.remoteConnectionId ?? "")) == path }),
                    let anchor = anchors[path] {
                     let frame = proxy[anchor]
                     let menuHeight = HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities)
-                        ? 46 * 3 + MobileDesignGeometry.compactPopoverActionHeight + 16
-                        : MobileDesignGeometry.compactPopoverActionHeight * 2 + 16
+                        ? 46 * 3 + 16
+                        : MobileDesignGeometry.compactPopoverActionHeight + 16
                     ZStack(alignment: .topLeading) {
                         OpenBitFunTheme.transparent
                             .contentShape(Rectangle())
@@ -176,10 +199,10 @@ struct SidebarView: View {
                workspaceCreatePath == nil,
                let workspace = model.remoteWorkspaces.first {
                 try? await Task.sleep(nanoseconds: 450_000_000)
-                workspaceCreatePath = workspace.path
+                workspaceCreatePath = workspace.path + ":" + (workspace.remoteConnectionId ?? "")
             } else if ProcessInfo.processInfo.arguments.contains("--sidebar-actions"),
                       compactActionSession == nil,
-                      let session = shownRecentSessions.first {
+                      let session = model.sessionListSections.flatMap(\.sessions).first {
                 try? await Task.sleep(nanoseconds: 450_000_000)
                 if permanent { onPermanentActions?(session) }
                 else { compactActionSession = session }
@@ -229,7 +252,7 @@ struct SidebarView: View {
         HStack(spacing: 8) {
             Button { model.connectRemote() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: "folder.badge.gearshape")
                         .font(.system(size: 17, weight: .medium))
                     Text(model.localized("连接桌面端"))
                         .font(.system(size: 15, weight: .medium))
@@ -432,7 +455,8 @@ struct SidebarView: View {
                 },
                 deviceKey: device.id,
                 directoryExpanded: workspace.directoryExpanded,
-                directoryStatus: workspace.directoryStatus
+                directoryStatus: workspace.directoryStatus,
+                remoteConnectionId: workspace.remoteConnectionId
             )
             SidebarWorkspaceRow(
                 workspace: scopedWorkspace,
@@ -447,7 +471,8 @@ struct SidebarView: View {
                     )
                 },
                 onToggleCreate: {
-                    model.openDirectoryRemoteDraft(device: device, workspace: scopedWorkspace)
+                    workspaceCreateTarget = scopedWorkspace
+                    workspaceCreatePath = scopedWorkspace.path + ":" + (scopedWorkspace.remoteConnectionId ?? "")
                 },
                 onOpenWorkspace: { model.selectDirectoryWorkspace(scopedWorkspace) },
                 onOpenSession: { model.selectDirectorySession($0) }, onActions: { session in
@@ -458,7 +483,8 @@ struct SidebarView: View {
                 directoryLoadStatus: workspace.directoryStatus,
                 onRetryDirectoryLoad: {
                     model.retryDirectoryWorkspace(device: device, workspace: scopedWorkspace)
-                }
+                },
+                createMenu: directoryCreateMenu(device: device, workspace: scopedWorkspace)
             )
         }
         if device.workspaces.count > visibleWorkspaceCount {
@@ -541,18 +567,15 @@ struct SidebarView: View {
     private func remoteProjectSections(
         _ sections: [MobileSessionListSectionProjection]
     ) -> some View {
-        let workspaces = sections.compactMap { section -> MobileWorkspaceGroup? in
-            guard section.kind == .project else { return nil }
-            let source = model.remoteWorkspaces.first {
-                normalizedWorkspacePath($0.path) == normalizedWorkspacePath(section.path)
+        let workspaces = sections.flatMap { section -> [MobileWorkspaceGroup] in
+            guard section.kind == .project else { return [] }
+            let sources = model.remoteWorkspaces.filter { normalizedWorkspacePath($0.path) == normalizedWorkspacePath(section.path) }
+            if sources.isEmpty { return [] }
+            return sources.map { source in
+                MobileWorkspaceGroup(path: source.path, name: source.name, selected: source.selected,
+                    sessions: section.sessions, deviceKey: normalizedDeviceKey(model.remoteExpectedDeviceKey),
+                    remoteConnectionId: source.remoteConnectionId)
             }
-            return MobileWorkspaceGroup(
-                path: section.path,
-                name: section.name,
-                selected: source?.selected ?? false,
-                sessions: section.sessions,
-                deviceKey: normalizedDeviceKey(model.remoteExpectedDeviceKey)
-            )
         }
         return ForEach(workspaces) { workspace in
             SidebarWorkspaceRow(
@@ -568,7 +591,11 @@ struct SidebarView: View {
                     }
                 },
                 onToggleCreate: {
-                    workspaceCreatePath = workspaceCreatePath == workspace.path ? nil : workspace.path
+                    if HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) {
+                        workspaceCreatePath = workspaceCreatePath == workspace.path + ":" + (workspace.remoteConnectionId ?? "") ? nil : workspace.path + ":" + (workspace.remoteConnectionId ?? "")
+                    } else {
+                        model.createRemoteSession(in: workspace, agentType: "code")
+                    }
                 },
                 onOpenWorkspace: { model.selectRemoteWorkspace(workspace) },
                 onOpenSession: { model.surface = .remote; model.select($0) },
@@ -640,7 +667,7 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
                 Spacer(minLength: 0)
                 Button { model.createRemoteAssistantSession() } label: {
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: "folder.badge.gearshape")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(OpenBitFunTheme.muted)
                         .frame(width: 40, height: 40)
@@ -769,29 +796,55 @@ struct SidebarView: View {
         .buttonStyle(.plain)
     }
 
-    private func workspaceCreateMenu(_ workspace: MobileWorkspaceGroup) -> some View {
-        VStack(spacing: 0) {
-            if HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) {
-                ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
-                    Button {
-                        workspaceCreatePath = nil
-                        model.createRemoteSession(in: workspace, agentType: profile.agentType)
-                    } label: {
-                        HarnessProfileLabel(model: model, profile: profile)
-                            .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
-                            .padding(.horizontal, 14)
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                workspaceCreateMenuRow("Code") {
-                    workspaceCreatePath = nil
-                    model.createRemoteSession(in: workspace, agentType: "code")
+    private func createWorkspaceSession(_ workspace: MobileWorkspaceGroup, agentType: String) {
+        if workspace.deviceKey == nil || normalizedDeviceKey(workspace.deviceKey) == normalizedDeviceKey(model.remoteExpectedDeviceKey) {
+            model.createRemoteSession(in: workspace, agentType: agentType)
+        } else if let device = model.accountDevices.first(where: { normalizedDeviceKey($0.id) == normalizedDeviceKey(workspace.deviceKey) }) {
+            pendingWorkspaceCreate = NativeWorkspaceCreateTarget(workspace: workspace, agentType: agentType)
+            model.selectRemoteDevice(device, preserveDrawer: true)
+        }
+    }
+
+    private func finishWorkspaceCreateWhenReady() {
+        guard let target = pendingWorkspaceCreate,
+              normalizedDeviceKey(target.workspace.deviceKey) == normalizedDeviceKey(model.remoteExpectedDeviceKey),
+              model.remoteCreateInteraction.canSubmit,
+              model.remoteWorkspaces.contains(where: { $0.path == target.workspace.path && $0.remoteConnectionId == target.workspace.remoteConnectionId }) else { return }
+        pendingWorkspaceCreate = nil
+        model.createRemoteSession(in: target.workspace, agentType: target.agentType)
+    }
+
+    private func directoryCreateMenu(device: MobileDeviceDirectoryEntry, workspace: MobileWorkspaceGroup) -> AnyView? {
+        // Capabilities belong to the connected target, never another directory device.
+        guard model.remoteExpectedDeviceKey == "account:\(device.id)",
+              HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) else { return nil }
+        return AnyView(Menu {
+            ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
+                Button {
+                    model.openDirectoryRemoteDraft(device: device, workspace: workspace, agentType: profile.agentType)
+                } label: {
+                    HarnessProfileLabel(model: model, profile: profile)
                 }
             }
-            workspaceCreateMenuRow("Cowork") {
-                workspaceCreatePath = nil
-                model.createRemoteSession(in: workspace, agentType: "Cowork")
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(OpenBitFunTheme.ink)
+                .frame(width: 30, height: 40)
+        })
+    }
+
+    private func workspaceCreateMenu(_ workspace: MobileWorkspaceGroup) -> some View {
+        VStack(spacing: 0) {
+            ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
+                Button {
+                    workspaceCreatePath = nil
+                    createWorkspaceSession(workspace, agentType: profile.agentType)
+                } label: {
+                    HarnessProfileLabel(model: model, profile: profile)
+                        .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                        .padding(.horizontal, 14)
+                }.buttonStyle(.plain)
             }
         }
         .openBitFunCompactPopoverSurface()
@@ -814,7 +867,7 @@ struct SidebarView: View {
             if !showsPrimaryNavigation {
                 SignedOutConnectionActions(
                     scanTitle: model.localized("扫码连接"),
-                    accountTitle: model.localized("使用 GitHub 登录"),
+                    accountTitle: model.localized("使用邮箱或 GitHub 登录"),
                     onScan: model.scanRemote,
                     onOpenAccount: { model.accountSheetOpen = true; model.drawerOpen = false },
                     showScan: !model.remoteConnected
@@ -827,29 +880,10 @@ struct SidebarView: View {
 
     private var authenticatedFooter: some View {
         HStack(spacing: 0) {
-            Group {
-                if model.selectedRemoteWorkspaceKind.lowercased() != "assistant",
-                   HarnessProfilePolicy.shared.supported(capabilities: model.remoteHostCapabilities) {
-                    Menu {
-                        ForEach([HarnessProfile.minimal, .standard, .ultimate], id: \.name) { profile in
-                            Button { model.createRemoteSessionFromHome(agentType: profile.agentType) } label: {
-                                HarnessProfileLabel(model: model, profile: profile)
-                            }
-                        }
-                    } label: { newChatLabel }
-                } else {
-                    Button {
-                        if model.selectedRemoteWorkspaceKind.lowercased() == "assistant" {
-                            model.createRemoteAssistantSession()
-                        } else {
-                            model.createRemoteSessionFromHome()
-                        }
-                    } label: { newChatLabel }
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(!model.remoteConnected || !model.remoteCreateInteraction.canSubmit || model.remoteCreateSubmitting)
-            .accessibilityIdentifier("sidebar.newChat")
+            Button { toolLocation = nil; deviceToolsPicker = true } label: { deviceToolsLabel }
+                .buttonStyle(.plain)
+                .disabled(!model.remoteConnected)
+                .accessibilityIdentifier("sidebar.deviceTools")
             Spacer(minLength: 0)
             Button { model.settingsOpen = true; model.drawerOpen = false } label: {
                 Image(systemName: "gearshape")
@@ -867,12 +901,12 @@ struct SidebarView: View {
         .padding(.leading, 12)
     }
 
-    private var newChatLabel: some View {
+    private var deviceToolsLabel: some View {
         HStack(spacing: 9) {
-            Image(systemName: "square.and.pencil")
+            Image(systemName: "folder.badge.gearshape")
                 .font(.system(size: 19, weight: .regular))
                 .frame(width: 24, height: 24)
-            Text(model.localized("新聊天"))
+            Text(model.localized("Device tools"))
                 .font(.system(size: 15, weight: .medium))
                 .lineLimit(1)
                 .fixedSize()
@@ -962,6 +996,7 @@ private struct SidebarWorkspaceRow: View {
     var selectedWorkspacePath: String? = nil
     var directoryLoadStatus = "READY"
     var onRetryDirectoryLoad: (() -> Void)? = nil
+    var createMenu: AnyView? = nil
     @State private var visibleSessionCount = 3
 
     private func isSelected(_ session: ChatSession) -> Bool {
@@ -1008,19 +1043,24 @@ private struct SidebarWorkspaceRow: View {
                 .accessibilityIdentifier("sidebar.workspace.\(workspace.deviceKey ?? "unknown").\(workspace.path)")
                 .accessibilityValue(Text(workspace.path))
                 Spacer(minLength: 0)
-                Button(action: onToggleCreate) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(OpenBitFunTheme.ink)
-                        .frame(width: 30, height: 40)
+                Group {
+                    if let createMenu { createMenu }
+                    else {
+                        Button(action: onToggleCreate) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundStyle(OpenBitFunTheme.ink)
+                                .frame(width: 30, height: 40)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(MobileLocalization.text("新建远程会话"))
+                .accessibilityLabel(MobileLocalization.text("Workspace actions"))
                 .accessibilityIdentifier("sidebar.newSession.\(workspace.deviceKey ?? "unknown").\(workspace.path)")
                 .anchorPreference(
                     key: SidebarWorkspaceCreateAnchorKey.self,
                     value: .bounds,
-                    transform: { [workspace.path: $0] }
+                    transform: { [workspace.path + ":" + (workspace.remoteConnectionId ?? ""): $0] }
                 )
             }
             .padding(.leading, 6)
@@ -1238,4 +1278,22 @@ private struct SidebarWorkspacePickerSheet: View {
         .padding(.top, 10)
         .background(OpenBitFunTheme.page)
     }
+}
+
+private struct NativeDeviceToolTarget: Identifiable {
+    let id = UUID()
+    let location: NativeDeviceToolLocation
+    let terminal: Bool
+    let deviceKey: String?
+}
+
+private struct NativeWorkspaceCreateTarget {
+    let workspace: MobileWorkspaceGroup
+    let agentType: String
+}
+
+private struct NativeDeviceToolLocation {
+    let name: String
+    let path: String
+    let connectionId: String?
 }

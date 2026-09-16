@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,6 +25,47 @@ import kotlin.test.assertContentEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteWorkspaceStoreTest {
+    @Test
+    fun deviceToolsUseRuntimeHomeAndExplicitProviderWithoutWorkspaceSelection() = runTest {
+        val base = FakeWorkspaceTransport()
+        val calls = mutableListOf<RemoteCommand>()
+        var terminalCount = 0
+        val transport = object : RemoteCommandTransport {
+            override suspend fun <T : CommandStatus> send(deserializer: DeserializationStrategy<T>, command: RemoteCommand, timeoutMs: Long): T {
+                calls += command
+                val wire = when {
+                    command.cmd == "list_recent_workspaces" -> """{"resp":"ok","workspaces":[{"path":"/repo","name":"Local"},{"path":"/repo","name":"SSH","workspace_kind":"remote","remote_connection_id":"saved-1"}]}"""
+                    command.command == "get_system_info" -> """{"resp":"host_invoke_result","ok":true,"value":{"homeDir":"/home/runtime"}}"""
+                    command.command == "get_directory_children_paginated" -> """{"resp":"host_invoke_result","ok":true,"value":{"children":[],"hasMore":false}}"""
+                    command.command == "terminal_create" -> { terminalCount++; """{"resp":"host_invoke_result","ok":true,"value":{"id":"terminal-$terminalCount"}}""" }
+                    else -> null
+                }
+                return if (wire == null) base.send(deserializer, command, timeoutMs) else RelayJson.decodeFromString(deserializer, wire)
+            }
+        }
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load); advanceUntilIdle()
+        calls.clear()
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceFiles("", null)); advanceUntilIdle()
+        assertEquals("/home/runtime", calls.last().args!!.jsonObject.getValue("request").jsonObject.getValue("path").jsonPrimitive.content)
+        assertTrue(calls.none { it.cmd == "get_workspace_info" || it.cmd == "list_recent_workspaces" })
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceFiles("", "saved-1")); advanceUntilIdle()
+        assertEquals("/", calls.last().args!!.jsonObject.getValue("request").jsonObject.getValue("path").jsonPrimitive.content)
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceFiles("/repo", "saved-1")); advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.BrowseFiles("/repo/sub", false)); advanceUntilIdle()
+        val ssh = calls.last().args!!.jsonObject.getValue("request").jsonObject
+        assertEquals("saved-1", ssh.getValue("remoteConnectionId").jsonPrimitive.content)
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceFiles("/repo", null)); advanceUntilIdle()
+        assertEquals("", calls.last().args!!.jsonObject.getValue("request").jsonObject.getValue("remoteConnectionId").jsonPrimitive.content)
+        assertFalse(calls.any { it.cmd == "set_workspace" })
+        assertEquals("/repo", assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).selected?.path)
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceTerminal("/repo", "saved-1")); advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceTerminal("/repo", null)); advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenDeviceTerminal("/repo", "saved-1")); advanceUntilIdle()
+        assertEquals(2, terminalCount)
+        store.stop()
+    }
+
     @Test
     fun loadsWorkspaceAssistantAndCurrentSelection() = runTest {
         val transport = FakeWorkspaceTransport()
@@ -37,7 +79,7 @@ class RemoteWorkspaceStoreTest {
         assertEquals(listOf("/assistant"), ready.assistants.map { it.path })
         assertEquals("/repo", ready.selected?.path)
         assertEquals(
-            setOf("list_recent_workspaces", "list_assistants", "get_workspace_info"),
+            setOf("list_recent_workspaces", "list_assistants", "get_workspace_info", "host_invoke"),
             transport.commands.map { it.cmd }.toSet(),
         )
     }
@@ -54,6 +96,25 @@ class RemoteWorkspaceStoreTest {
 
         assertEquals("/next", transport.commands.first { it.cmd == "set_workspace" }.path)
         assertFalse(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).busy)
+    }
+
+    @Test
+    fun rejectedSelectionRetainsWorkspaceAndDoesNotRefreshAsSuccess() = runTest {
+        val transport = FakeWorkspaceTransport()
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        transport.selectionAccepted = false
+        transport.commands.clear()
+        store.dispatch(RemoteWorkspaceIntent.SelectWorkspace("/denied", "ssh-id", "host"))
+        advanceUntilIdle()
+        val state = assertIs<RemoteWorkspaceUiState.Ready>(store.state.value)
+        assertEquals("/repo", state.selected?.path)
+        assertTrue(state.loadFailure)
+        assertFalse(state.busy)
+        assertEquals(listOf("set_workspace"), transport.commands.map { it.cmd })
+        assertEquals("ssh-id", transport.commands.single().remoteConnectionId)
+        assertEquals("host", transport.commands.single().remoteSshHost)
     }
 
     @Test
@@ -121,6 +182,91 @@ class RemoteWorkspaceStoreTest {
         assertEquals(listOf("/assistant"), ready.assistants.map { it.path })
         assertFalse(ready.busy)
         assertFalse(ready.loadFailure)
+    }
+
+    @Test
+    fun invalidPreviewRetainsRequestIdentityAndReplacesPreviousRequest() = runTest {
+        val store = RemoteWorkspaceStore.create(this, FakeWorkspaceTransport(), StandardTestDispatcher(testScheduler), "device-a")
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("https://example.com/file", "file", "s1", "invalid-preview"))
+        runCurrent()
+        val failed = assertIs<RemoteFilePreviewUiState.Failed>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
+        assertEquals("invalid-preview", failed.identity.requestId)
+        assertEquals("device-a", failed.identity.deviceKey)
+        assertEquals("s1", failed.identity.sessionId)
+        store.stop()
+    }
+
+    @Test
+    fun previewDoesNotCancelWorkspaceRefresh() = runTest {
+        val transport = FakeWorkspaceTransport()
+        val store = RemoteWorkspaceStore.create(this, transport)
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        transport.commandGates["get_workspace_info"] = gate
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        runCurrent()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("src/main.rs", "main.rs", "s1", "preview"))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).busy)
+        store.stop()
+    }
+
+    @Test
+    fun workspaceRefreshDoesNotLeaveCancelledDownloadPermanentlyLoading() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler), "device-a")
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        transport.commandGates["get_file_info"] = gate
+        store.dispatch(RemoteWorkspaceIntent.DownloadFile("src/main.rs", "main.rs", "s1"))
+        runCurrent()
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        runCurrent()
+        assertFalse(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download is RemoteFileDownloadUiState.Loading)
+        gate.complete(Unit)
+        store.dispatch(RemoteWorkspaceIntent.DownloadFile("src/main.rs", "main.rs", "s1"))
+        advanceUntilIdle()
+        assertIs<RemoteFileDownloadUiState.AwaitingSave>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download)
+        store.stop()
+    }
+
+    @Test
+    fun workspaceSelectionRetainsDownloadCancellationInsteadOfRestoringLoading() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler), "device-a")
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        transport.commandGates["get_file_info"] = CompletableDeferred<Unit>()
+        store.dispatch(RemoteWorkspaceIntent.DownloadFile("src/main.rs", "main.rs", "s1"))
+        runCurrent()
+        store.dispatch(RemoteWorkspaceIntent.SelectWorkspace("/repo"))
+        runCurrent()
+        assertIs<RemoteFileDownloadUiState.Failed>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download)
+        store.stop()
+    }
+
+    @Test
+    fun previewDoesNotCancelAnInFlightDownload() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true)
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler), "device-a")
+        store.dispatch(RemoteWorkspaceIntent.Load)
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        transport.commandGates["get_file_info"] = gate
+        store.dispatch(RemoteWorkspaceIntent.DownloadFile("src/main.rs", "main.rs", "s1"))
+        runCurrent()
+        store.dispatch(RemoteWorkspaceIntent.OpenFile("src/main.rs", "main.rs", "s1", "preview"))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertIs<RemoteFileDownloadUiState.AwaitingSave>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download)
+        store.stop()
     }
 
     @Test
@@ -428,7 +574,7 @@ class RemoteWorkspaceStoreTest {
         val image = assertIs<RemoteFilePreviewUiState.Image>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
         assertContentEquals("fn main() {}".encodeToByteArray(), image.bytes)
         val reads = transport.commands.filter { it.cmd == "read_file_chunk" }
-        assertEquals(listOf(0, 6), reads.map { it.offset })
+        assertEquals(listOf(0L, 6L), reads.map { it.offset })
         assertTrue(reads.all { it.sessionId == "origin-session" })
     }
 
@@ -454,6 +600,18 @@ class RemoteWorkspaceStoreTest {
         assertIs<RemoteFilePreviewUiState.Failed>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).preview)
     }
 
+    @Test fun workspaceDownloadCapturesSavedConnectionForEveryChunk() = runTest {
+        val transport = FakeWorkspaceTransport(downloadChunks = true).apply { savedConnection = "saved-ssh" }
+        val store = RemoteWorkspaceStore.create(this, transport, StandardTestDispatcher(testScheduler))
+        store.dispatch(RemoteWorkspaceIntent.Load); advanceUntilIdle()
+        store.dispatch(RemoteWorkspaceIntent.DownloadFile("/repo/main.rs", "main.rs", "")); advanceUntilIdle()
+        val download = assertIs<RemoteFileDownloadUiState.AwaitingSave>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download)
+        val reads = transport.commands.filter { it.cmd in setOf("get_file_info", "read_file_chunk") }
+        assertEquals(3, reads.size)
+        assertTrue(reads.all { it.sessionId == null && it.workspacePath == "/repo" && it.remoteConnectionId == "saved-ssh" })
+        store.dispatch(RemoteWorkspaceIntent.DownloadSaved(download.target.path)); store.stop()
+    }
+
     @Test
     fun downloadsAFileInChunksAndWaitsForThePlatformSaver() = runTest {
         val transport = FakeWorkspaceTransport(downloadChunks = true)
@@ -466,8 +624,8 @@ class RemoteWorkspaceStoreTest {
 
         val ready = assertIs<RemoteWorkspaceUiState.Ready>(store.state.value)
         val download = assertIs<RemoteFileDownloadUiState.AwaitingSave>(ready.download)
-        assertContentEquals("fn main() {}".encodeToByteArray(), download.bytes)
-        assertEquals(listOf(0, 6), transport.commands.filter { it.cmd == "read_file_chunk" }.map { it.offset })
+        assertTrue(download.localReference.isNotBlank())
+        assertEquals(listOf(0L, 6L), transport.commands.filter { it.cmd == "read_file_chunk" }.map { it.offset })
 
         store.dispatch(RemoteWorkspaceIntent.DownloadSaved(download.target.path))
         assertIs<RemoteFileDownloadUiState.Saved>(assertIs<RemoteWorkspaceUiState.Ready>(store.state.value).download)
@@ -504,9 +662,11 @@ private class OverlappingWorkspaceTransport : RemoteCommandTransport {
         timeoutMs: Long,
     ): T {
         started += command.cmd
+        if (command.cmd == "host_invoke") return RelayJson.decodeFromString(deserializer, """{"resp":"host_invoke_result","ok":true,"value":[]}""")
         val gate = CompletableDeferred<Unit>().also { gates[command.cmd] = it }
         gate.await()
         val json = when (command.cmd) {
+            "host_invoke" -> """{"resp":"host_invoke_result","ok":true,"value":[{"id":"saved-1","name":"Saved host","host":"host"}]}"""
             "list_recent_workspaces" -> """{"resp":"ok","workspaces":[{"path":"/repo"}]}"""
             "list_assistants" -> """{"resp":"ok","assistants":[]}"""
             "get_workspace_info" -> """{"resp":"ok","has_workspace":true,"path":"/authoritative"}"""
@@ -538,6 +698,7 @@ private class SwitchingWorkspaceTransport : RemoteCommandTransport {
         }
         val path = if (firstLoad) "/old" else "/new"
         val json = when (command.cmd) {
+            "host_invoke" -> """{"resp":"host_invoke_result","ok":true,"value":[{"id":"saved-1","name":"Saved host","host":"host"}]}"""
             "list_recent_workspaces" -> """{"resp":"ok","workspaces":[{"path":"$path"}]}"""
             "list_assistants" -> """{"resp":"ok","assistants":[]}"""
             "get_workspace_info" -> """{"resp":"ok","has_workspace":true,"path":"$path"}"""
@@ -596,6 +757,7 @@ private class DelayedPreviewTransport : RemoteCommandTransport {
         timeoutMs: Long,
     ): T {
         val json = when (command.cmd) {
+            "host_invoke" -> """{"resp":"host_invoke_result","ok":true,"value":[{"id":"saved-1","name":"Saved host","host":"host"}]}"""
             "list_recent_workspaces" -> """{"resp":"ok","workspaces":[{"path":"/repo","name":"Repo"}]}"""
             "list_assistants" -> """{"resp":"ok","assistants":[]}"""
             "get_workspace_info" -> """{"resp":"ok","has_workspace":true,"path":"/repo"}"""
@@ -620,7 +782,11 @@ private class FakeWorkspaceTransport(
     private val revisionChanges: Boolean = false,
 ) : RemoteCommandTransport {
     val commands = mutableListOf<RemoteCommand>()
+    var selectionAccepted: Boolean = true
+
+    val commandGates = mutableMapOf<String, CompletableDeferred<Unit>>()
     var fileInfoError: String? = null
+    var savedConnection: String? = null
 
     /** What the desktop calls the file, and the bytes it hands back for it. */
     var fileName: String = "main.rs"
@@ -632,22 +798,24 @@ private class FakeWorkspaceTransport(
         timeoutMs: Long,
     ): T {
         commands += command
+        commandGates[command.cmd]?.await()
         val json = when (command.cmd) {
+            "host_invoke" -> """{"resp":"host_invoke_result","ok":true,"value":[{"id":"saved-1","name":"Saved host","host":"host"}]}"""
             "list_recent_workspaces" ->
                 """{"resp":"ok","workspaces":[{"path":"/repo","name":"Repo","last_opened":"2026-08-09"}]}"""
             "list_assistants" ->
                 """{"resp":"ok","assistants":[{"path":"/assistant","name":"Assistant","assistant_id":"a1"}]}"""
             "get_workspace_info" ->
-                """{"resp":"ok","has_workspace":true,"path":"/repo","project_name":"Repo","git_branch":"main"}"""
-            "set_workspace" -> """{"resp":"ok","success":true,"path":"${command.path}"}"""
-            "set_assistant" -> """{"resp":"ok","success":true,"path":"${command.path}"}"""
+                """{"resp":"ok","has_workspace":true,"path":"/repo","project_name":"Repo","git_branch":"main","workspace_kind":"${if (savedConnection == null) "local" else "remote"}","remote_connection_id":${savedConnection?.let { "\"$it\"" } ?: "null"}}"""
+            "set_workspace" -> """{"resp":"ok","success":$selectionAccepted,"path":"${command.path}"}"""
+            "set_assistant" -> """{"resp":"ok","success":$selectionAccepted,"path":"${command.path}"}"""
             "get_file_info" -> {
                 fileInfoError?.let { error(it) }
                 """{"resp":"ok","name":"$fileName","size":${if (downloadChunks) 12 else 16},"mime_type":"text/plain"}"""
             }
             "read_file_chunk" -> if (readFileUnsupported) {
                 error("unsupported command read_file_chunk")
-            } else if (downloadChunks && command.offset == 0) {
+            } else if (downloadChunks && command.offset == 0L) {
                 """{"resp":"ok","name":"main.rs","chunk_base64":"Zm4gbWFp","offset":0,"chunk_size":6,"total_size":12,"mime_type":"text/plain"}"""
             } else if (downloadChunks) {
                 """{"resp":"ok","name":"main.rs","chunk_base64":"bigpIHt9","offset":6,"chunk_size":6,"total_size":12,"mime_type":"text/plain"}"""
@@ -657,7 +825,7 @@ private class FakeWorkspaceTransport(
             else -> error("Unexpected command ${command.cmd}")
         }
         var response = if (imageChunks) json.replace("main.rs", "preview.png").replace("text/plain", "image/png") else json
-        if (truncate && command.cmd == "read_file_chunk" && command.offset != 0) {
+        if (truncate && command.cmd == "read_file_chunk" && command.offset != 0L) {
             response = response.replace("bigpIHt9", "").replace("\"chunk_size\":6", "\"chunk_size\":0")
         }
         if (revisionChanges && command.cmd == "read_file_chunk") {

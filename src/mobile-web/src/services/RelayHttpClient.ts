@@ -1,5 +1,8 @@
-/** Account-authenticated HTTP device directory and encrypted device RPC. */
-import { deriveDeviceMessageKey, encrypt, decrypt, fromB64 } from './E2EEncryption';
+import { openSessionStream, type SessionStreamHandle, type SessionHistoryState } from '../../../shared/relay-transport/SessionStream';
+import type { SessionEvent } from '../../../shared/relay-transport/SessionCipher';
+/** Account directory plus the shared Socket.IO encrypted RPC transport. */
+import { AccountRealtime } from '../../../shared/relay-transport/AccountRealtime';
+import { deriveDeviceMessageKey, encrypt, decrypt, decryptBytes, fromB64 } from './E2EEncryption';
 import { normalizeRelayUrl } from './pairingLink';
 
 export interface AccountIdentity {
@@ -29,9 +32,11 @@ type RelayRequestOptions = { retryable?: boolean; timeoutMs?: number };
 
 export class RelayHttpClient {
   private readonly relayUrl: string;
+  private realtime: AccountRealtime | null = null;
   private identity: AccountIdentitySnapshot | null = null;
   private identityGeneration = 0;
   private accountEpochValue = 0;
+  private directoryListeners = new Set<() => void>();
   private ownerListeners = new Set<(change: AccountOwnerChange) => void>();
   private authorizationExpiredListeners = new Set<(token: string) => void>();
   private targetDeviceIdValue: string | null = null;
@@ -51,8 +56,14 @@ export class RelayHttpClient {
       throw new Error('Relay returned an invalid account identity.');
     }
     const kind = this.identity ? 'replacement' : 'initial';
+    this.realtime?.close();
+    this.realtime = null;
     this.identity?.masterKey.fill(0);
     this.identity = { ...identity, masterKey: identity.masterKey.slice(), generation: ++this.identityGeneration };
+    this.realtime = new AccountRealtime({ url: this.relayUrl, token: identity.token });
+    const notifyDirectory = () => { for (const listener of this.directoryListeners) listener(); };
+    this.realtime.onDeviceDirectoryChanged(notifyDirectory);
+    this.realtime.onReconnect(notifyDirectory);
     this.accountEpochValue += 1;
     this.deviceMessageKeys.clear();
     this.setTargetDeviceId(null);
@@ -60,6 +71,8 @@ export class RelayHttpClient {
   }
 
   resetConnectionIdentity(): void {
+    this.realtime?.close();
+    this.realtime = null;
     this.identity?.masterKey.fill(0);
     this.identity = null;
     this.identityGeneration += 1;
@@ -67,6 +80,11 @@ export class RelayHttpClient {
     this.deviceMessageKeys.clear();
     this.setTargetDeviceId(null);
     for (const listener of this.ownerListeners) listener({ kind: 'unavailable', epoch: this.accountEpochValue, userId: null });
+  }
+
+  onDeviceDirectoryChanged(listener: () => void): () => void {
+    this.directoryListeners.add(listener);
+    return () => { this.directoryListeners.delete(listener); };
   }
 
   onAccountOwnerChange(listener: (change: AccountOwnerChange) => void, options?: { emitCurrent?: boolean }): () => void {
@@ -97,6 +115,32 @@ export class RelayHttpClient {
   onControlTargetChange(listener: (snapshot: ControlTargetSnapshot) => void): () => void {
     this.controlTargetListeners.add(listener);
     return () => this.controlTargetListeners.delete(listener);
+  }
+
+  async subscribeSessionStream(sessionId: string, relaySessionId: string, key: string,
+    onEvent: (event: SessionEvent) => void, onError: (error: unknown) => void, onCaughtUp?: () => void, onHistoryState?: (state: SessionHistoryState) => void, onResumed?: () => void): Promise<SessionStreamHandle> {
+    const identity = this.identity;
+    const connection = this.realtime;
+    const target = this.getControlTargetSnapshot();
+    if (!identity || !connection || !target.deviceId) throw new Error('No controlled runtime is selected');
+    let disposed = false;
+    let stop: SessionStreamHandle | undefined;
+    const current = () => !disposed && this.identity === identity && this.isControlTargetCurrent(target);
+    const dispose = () => { disposed = true; stop?.close(); unbindTarget(); unbindOwner(); };
+    const unbindTarget = this.onControlTargetChange(dispose);
+    const unbindOwner = this.onAccountOwnerChange(dispose);
+    try {
+      stop = await openSessionStream({ connection, relay: this.relayUrl, token: identity.token,
+        decrypt: decryptBytes, account: identity.userId, machine: target.deviceId, sessionId, relaySessionId, key,
+        onEvent: event => { if (current()) onEvent(event); },
+        onError: error => { if (current()) onError(error); },
+        onCaughtUp: () => { if (current()) onCaughtUp?.(); },
+        onHistoryState: state => { if (current()) onHistoryState?.(state); },
+        onResumed: () => { if(current())onResumed?.(); },
+      });
+      if (!current()) dispose();
+      return {close:dispose,wake:()=>{if(current())stop?.wake();},loadOlder:()=>current()&&stop?stop.loadOlder():Promise.resolve()};
+    } catch (error) { dispose(); throw error; }
   }
 
   private async fetchWithTimeout(
@@ -226,33 +270,20 @@ export class RelayHttpClient {
         throw new AccountIdentityChangedError();
       }
       const timeoutMs = options.timeoutMs ?? (options.retryable ? 20_000 : 130_000);
-      const resp = await (options.retryable ? this.fetchWithRetry : this.fetchWithTimeout).call(
-        this,
-        `${this.relayUrl}/api/devices/${encodeURIComponent(targetDeviceId)}/rpc`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${identity.token}`,
+      const connection = this.realtime;
+      if (!connection) throw new AccountIdentityChangedError();
+      const data = await connection.call<{ encrypted_data: string; nonce: string }>(targetDeviceId,
+        { encrypted_data: encData, nonce: encNonce }, {
+          timeoutMs,
+          beforeSend: () => {
+            if (identity.generation !== this.identityGeneration || targetEpoch !== this.controlTargetEpochValue) {
+              throw new AccountIdentityChangedError();
+            }
           },
-          body: JSON.stringify({ encrypted_data: encData, nonce: encNonce }),
-        },
-        timeoutMs,
-        () => {
-          if (identity.generation !== this.identityGeneration || targetEpoch !== this.controlTargetEpochValue) {
-            throw new AccountIdentityChangedError();
-          }
-        },
-      );
-
-      if (!resp.ok) {
-        const err = new Error(`Device RPC failed: HTTP ${resp.status}`) as Error & {
-          status?: number;
-        };
-        err.status = resp.status;
-        throw err;
+        });
+      if (identity.generation !== this.identityGeneration || targetEpoch !== this.controlTargetEpochValue) {
+        throw new AccountIdentityChangedError();
       }
-      const data = await resp.json();
       const decrypted = await decrypt(
         messageKey,
         data.encrypted_data,
@@ -271,7 +302,7 @@ export class RelayHttpClient {
 
   private async withAccount<T>(operation: (identity: AccountIdentitySnapshot) => Promise<T>): Promise<T> {
     const identity = this.identity;
-    if (!identity) throw new Error('Sign in with GitHub to continue');
+    if (!identity) throw new Error('Sign in to continue');
     try {
       const result = await operation(identity);
       if (this.identity !== identity) throw new AccountIdentityChangedError();

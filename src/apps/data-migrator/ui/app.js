@@ -36,13 +36,13 @@ const groups = [
   }],
   ['agents_skills_and_miniapps', {
     en: ['Agents, Skills, and MiniApps', 'Imports user extensions and saved data from built-in MiniApps. Built-in code is provided by OpenBitFun.'],
-    'zh-CN': ['Agents、Skills 与 MiniApps', '导入用户扩展和内置 MiniApps 的使用数据；内置代码由新版提供。'],
-    'zh-TW': ['Agents、Skills 與 MiniApps', '匯入使用者擴充與內建 MiniApps 的使用資料；內建程式碼由新版提供。'],
+    'zh-CN': ['智能体、Skills 与 MiniApps', '导入用户扩展和内置 MiniApps 的使用数据；内置代码由新版提供。'],
+    'zh-TW': ['智能體、Skills 與 MiniApps', '匯入使用者擴充與內建 MiniApps 的使用資料；內建程式碼由新版提供。'],
   }],
   ['workspaces_sessions_and_tasks', {
     en: ['Workspaces, sessions, and tasks', 'Imports workspaces, conversation history, and Agent task status.'],
-    'zh-CN': ['工作区、会话与 Agent 任务状态', '导入工作区、会话历史与 Agent 任务状态。'],
-    'zh-TW': ['工作區、工作階段與 Agent 任務狀態', '匯入工作區、會話歷史與 Agent 任務狀態。'],
+    'zh-CN': ['工作区、会话与智能体任务状态', '导入工作区、会话历史与智能体任务状态。'],
+    'zh-TW': ['工作區、工作階段與智能體任務狀態', '匯入工作區、會話歷史與智能體任務狀態。'],
   }],
   ['memory', {
     en: ['Memory', 'Imports memory databases and memory files.'],

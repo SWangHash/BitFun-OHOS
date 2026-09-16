@@ -1010,6 +1010,25 @@ pub async fn minimize_to_tray(
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetTrayUnreadCountRequest {
+    pub count: u32,
+}
+
+#[tauri::command]
+pub async fn set_tray_unread_count(request: SetTrayUnreadCountRequest) -> Result<(), String> {
+    #[cfg(not(target_env = "ohos"))]
+    {
+        crate::tray::set_unread_count(request.count)
+    }
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = request;
+        Err("Do not support the tray unread count on HarmonyOS".to_string())
+    }
+}
+
 /// Initialize the desktop tray after the startup shell has become interactive.
 #[tauri::command]
 pub async fn initialize_tray_after_startup(

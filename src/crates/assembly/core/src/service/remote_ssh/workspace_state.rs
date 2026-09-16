@@ -646,3 +646,46 @@ mod tests {
         let _ = std::fs::remove_dir_all(workspace_root);
     }
 }
+
+/// Initialize the same saved-profile providers for headless hosts. Existing
+/// graphical-host providers are reused, never replaced during a live session.
+#[cfg(feature = "ssh-remote")]
+pub async fn ensure_saved_connection_services() -> Result<Arc<RemoteWorkspaceStateManager>, String>
+{
+    static INITIALIZED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+    let state = init_remote_workspace_manager();
+    if state.get_ssh_manager().await.is_some() && state.get_file_service().await.is_some() {
+        return Ok(state);
+    }
+    INITIALIZED
+        .get_or_try_init(|| async {
+            let data_dir = if std::env::var_os("OPENBITFUN_HOME").is_some() {
+                crate::infrastructure::try_get_path_manager_arc()
+                    .map_err(|e| e.to_string())?
+                    .user_data_dir()
+                    .join("ssh")
+            } else {
+                dirs::data_local_dir()
+                    .ok_or("Application data directory is unavailable")?
+                    .join("OpenBitFun")
+                    .join("ssh")
+            };
+            let ssh = SSHConnectionManager::new(data_dir);
+            ssh.load_saved_connections()
+                .await
+                .map_err(|e| e.to_string())?;
+            ssh.load_known_hosts().await.map_err(|e| e.to_string())?;
+            state
+                .set_file_service(RemoteFileService::new(Arc::new(RwLock::new(Some(
+                    ssh.clone(),
+                )))))
+                .await;
+            state
+                .set_terminal_manager(RemoteTerminalManager::new(ssh.clone()))
+                .await;
+            state.set_ssh_manager(ssh).await;
+            Ok::<(), String>(())
+        })
+        .await?;
+    Ok(state)
+}

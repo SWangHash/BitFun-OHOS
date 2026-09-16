@@ -17,19 +17,19 @@ Adjust logging level, inspect runtime log locations, and export diagnostic bundl
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 设置 Trace、Debug、Info、Warn、Error 或关闭后端日志
+- **智能体可直接控制 / Direct Agent control** · 设置 Trace、Debug、Info、Warn、Error 或关闭后端日志
   - Set backend logging to Trace, Debug, Info, Warn, Error, or Off
-- **Agent 可直接控制 / Direct Agent control** · 选择诊断中是否允许包含敏感上下文，并在导出前明确提示
+- **智能体可直接控制 / Direct Agent control** · 选择诊断中是否允许包含敏感上下文，并在导出前明确提示
   - Choose whether diagnostics may include sensitive context, with an explicit warning before export
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看日志路径并打开日志文件夹
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看日志路径并打开日志文件夹
   - Inspect the log path and open the log folder
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 导出包含系统、配置健康和日志信息的诊断包
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 导出包含系统、配置健康和日志信息的诊断包
   - Export a diagnostics bundle containing system, configuration-health, and log information
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看上次崩溃、非正常退出、启动恢复和配置恢复信息
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看上次崩溃、非正常退出、启动恢复和配置恢复信息
   - Inspect previous crashes, unclean shutdowns, startup recovery, and configuration recovery
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在开发构建中检查 DevTools 是否可用并打开或关闭
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在开发构建中检查 DevTools 是否可用并打开或关闭
   - In development builds, check DevTools availability and open or close them
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在开发构建中启用主窗口元素检查并回传选中的元素
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在开发构建中启用主窗口元素检查并回传选中的元素
   - In development builds, inspect main-window elements and report the selected element
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Adjust logging level, inspect runtime log locations, and export diagnostic bundl
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ Adjust logging level, inspect runtime log locations, and export diagnostic bundl
 | 日志级别 / Log level | `error` / `warn` / `info` / `debug` / `trace` | 设置后端运行日志的详细程度。 | Set the verbosity of backend runtime logs. |
 | 诊断包包含敏感信息 / Include sensitive diagnostics | `boolean` | 仅在明确需要并理解隐私风险时启用。 | Enable only when explicitly needed and after reviewing the privacy risk. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “把日志级别改成 debug”
   - “Set the log level to debug”
@@ -65,6 +65,6 @@ Adjust logging level, inspect runtime log locations, and export diagnostic bundl
 - “带我导出诊断包”
   - “Take me to export a diagnostic bundle”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -1209,9 +1209,11 @@ describeWithJsdom('DeepReviewActionBar', () => {
       .find((button) => button.textContent?.includes('Confirm and start')) as HTMLButtonElement | undefined;
     expect(confirmBeforeSelection?.disabled).toBe(true);
 
-    const stagedPathButton = Array.from(container.querySelectorAll('button'))
+    const stagedPathButton = Array.from(container.querySelectorAll<HTMLButtonElement>('.deep-review-action-bar__decision-gate-option'))
       .find((button) => button.textContent?.includes('Staged path'));
     expect(stagedPathButton).toBeTruthy();
+    expect(stagedPathButton?.closest('[data-openbitfun-component="action-card"]')).not.toBeNull();
+    expect(container.querySelector('.deep-review-action-bar__decision-gate-options [role="radio"]')).toBeNull();
 
     await act(async () => {
       stagedPathButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));

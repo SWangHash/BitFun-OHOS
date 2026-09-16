@@ -11,6 +11,7 @@ export const inputMeta = {
     { name: "placeholder", type: "string" },
     { name: "leading", type: "ReactNode" },
     { name: "trailing", type: "ReactNode" },
+    { defaultValue: "false", name: "hideNativePasswordReveal", type: "boolean" },
     { defaultValue: "sm", name: "size", type: "sm | md | lg" },
     { defaultValue: "false", name: "readOnly", type: "boolean" },
     { defaultValue: "false", name: "invalid", type: "boolean" },

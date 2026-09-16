@@ -1,6 +1,26 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "查看设备": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse devices"
+          }
+        }
+      }
+    },
+    "选择设备和工作区，继续你的对话。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a device and workspace to continue your conversations."
+          }
+        }
+      }
+    },
     "无法打开授权页面，请重试。": {
       "localizations": {
         "en": {
@@ -591,7 +611,7 @@
         }
       }
     },
-    "允许 Agent 直接执行操作": {
+    "允许智能体直接执行操作": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -841,7 +861,7 @@
         }
       }
     },
-    "告诉 Agent 要做什么": {
+    "告诉智能体要做什么": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1866,7 +1886,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your sign-in is no longer valid. Enter the account and password again."
+            "value": "Your sign-in has expired. Sign in again with email or GitHub."
           }
         }
       }
@@ -2226,7 +2246,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Incorrect account or password"
+            "value": "Sign-in details are invalid. Please sign in again."
           }
         }
       }
@@ -2261,6 +2281,16 @@
         }
       }
     },
+    "子任务输出": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtask output"
+          }
+        }
+      }
+    },
     "输出": {
       "localizations": {
         "en": {
@@ -2291,7 +2321,7 @@
         }
       }
     },
-    "这是 OpenBitFun 的移动端会话界面。你可以从手机连接桌面端，查看工作区、会话和 Agent 的执行状态。": {
+    "这是 OpenBitFun 的移动端会话界面。你可以从手机连接桌面端，查看工作区、会话和智能体的执行状态。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -2651,12 +2681,12 @@
         }
       }
     },
-    "使用 GitHub 登录": {
+    "使用邮箱或 GitHub 登录": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with GitHub"
+            "value": "Sign in with email or GitHub"
           }
         }
       }
@@ -2951,12 +2981,12 @@
         }
       }
     },
-    "此桌面要求使用 GitHub 账号验证身份。": {
+    "此桌面要求使用 OpenBitFun 账号验证身份。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This desktop requires your GitHub account to verify your identity."
+            "value": "This desktop requires your OpenBitFun account to verify your identity."
           }
         }
       }
@@ -3001,12 +3031,12 @@
         }
       }
     },
-    "GitHub 账号": {
+    "OpenBitFun 账号": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub account"
+            "value": "OpenBitFun account"
           }
         }
       }
@@ -3221,7 +3251,7 @@
         }
       }
     },
-    "Agent 类型": {
+    "智能体类型": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -3231,7 +3261,7 @@
         }
       }
     },
-    "所有 Agent 类型": {
+    "所有智能体类型": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -5071,12 +5101,12 @@
         }
       }
     },
-    "桌面端已使用 GitHub 登录，需要验证同一账号后继续连接。": {
+    "桌面端已使用邮箱或 GitHub 登录，需要验证同一账号后继续连接。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The desktop is signed in to a GitHub account. Verify the same account to continue."
+            "value": "The desktop is signed in to a OpenBitFun account. Verify the same account to continue."
           }
         }
       }
@@ -5091,12 +5121,12 @@
         }
       }
     },
-    "请使用 GitHub 登录后连接设备": {
+    "请使用邮箱或 GitHub 登录后连接设备": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with GitHub to connect this device"
+            "value": "Sign in with email or GitHub to connect this device"
           }
         }
       }
@@ -7121,12 +7151,12 @@
         }
       }
     },
-    "请使用 GitHub 登录以继续。": {
+    "请使用邮箱或 GitHub 登录以继续。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with GitHub to continue."
+            "value": "Sign in with email or GitHub to continue."
           }
         }
       }
@@ -7341,12 +7371,12 @@
         }
       }
     },
-    "把这块手表加入你的 GitHub 账号？": {
+    "把这块手表加入你的 OpenBitFun 账号？": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add this watch to your GitHub account?"
+            "value": "Add this watch to your OpenBitFun account?"
           }
         }
       }
@@ -7859,22 +7889,22 @@
         }
       }
     },
-    "打开 GitHub 授权": {
+    "打开 OpenBitFun 授权": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open GitHub authorization"
+            "value": "Open OpenBitFun authorization"
           }
         }
       }
     },
-    "通过 GitHub 登录": {
+    "使用邮箱或 GitHub 登录": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with GitHub"
+            "value": "Sign in with email or GitHub"
           }
         }
       }
@@ -7895,18 +7925,18 @@
         }
       }
     },
-    "该设备已离线，或不属于当前 GitHub 账户。": {
+    "该设备已离线，或不属于当前 OpenBitFun 账户。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This device is offline or does not belong to your GitHub account."
+            "value": "This device is offline or does not belong to your OpenBitFun account."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "该设备已离线，或不属于当前 GitHub 账户。"
+            "value": "该设备已离线，或不属于当前 OpenBitFun 账户。"
           }
         }
       }
@@ -8021,18 +8051,18 @@
         }
       }
     },
-    "使用 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。": {
+    "使用邮箱或 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with GitHub to connect to your computers.\nTasks and model settings stay on the controlled computer."
+            "value": "Sign in with email or GitHub to connect to your computers.\nTasks and model settings stay on the controlled computer."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。"
+            "value": "使用邮箱或 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。"
           }
         }
       }
@@ -8309,6 +8339,556 @@
           "stringUnit": {
             "state": "translated",
             "value": "Available offline"
+          }
+        }
+      }
+    },
+    "允许 Agent 直接执行操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow the agent to perform operations directly"
+          }
+        }
+      }
+    },
+    "告诉 Agent 要做什么": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell the agent what to do"
+          }
+        }
+      }
+    },
+    "这是 OpenBitFun 的移动端会话界面。你可以从手机连接桌面端，查看工作区、会话和 Agent 的执行状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is the OpenBitFun mobile conversation UI. Connect to a desktop to view workspaces, sessions, and agent status."
+          }
+        }
+      }
+    },
+    "Agent 类型": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent type"
+          }
+        }
+      }
+    },
+    "所有 Agent 类型": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All agent types"
+          }
+        }
+      }
+    },
+    "受控设备上的路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path on controlled device"
+          }
+        }
+      }
+    },
+    "SSH 主机（可选）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH host (optional)"
+          }
+        }
+      }
+    },
+    "打开工作区": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open workspace"
+          }
+        }
+      }
+    },
+    "已保存的 SSH 连接": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved SSH connections"
+          }
+        }
+      }
+    },
+    "受控设备本机": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlled device"
+          }
+        }
+      }
+    },
+    "无法加载已保存连接，请刷新重试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load saved connections. Refresh to retry."
+          }
+        }
+      }
+    },
+    "终端输入": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal input"
+          }
+        }
+      }
+    },
+    "关闭终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close terminal"
+          }
+        }
+      }
+    },
+    "打开终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open terminal"
+          }
+        }
+      }
+    },
+    "终端请求失败。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal request failed."
+          }
+        }
+      }
+    },
+    "文件路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File path"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件路径"
+          }
+        }
+      }
+    },
+    "浏览文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览文件"
+          }
+        }
+      }
+    },
+    "显示更多": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示更多"
+          }
+        }
+      }
+    },
+    "保存文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存文件"
+          }
+        }
+      }
+    },
+    "文件操作失败，请重试。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File operation failed. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件操作失败，请重试。"
+          }
+        }
+      }
+    },
+    "创建文件夹": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create folder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建文件夹"
+          }
+        }
+      }
+    },
+    "新建文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建文件"
+          }
+        }
+      }
+    },
+    "重命名打开的文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename open file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名打开的文件"
+          }
+        }
+      }
+    },
+    "删除打开的文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete open file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除打开的文件"
+          }
+        }
+      }
+    },
+    "编辑后批准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit before approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑后批准"
+          }
+        }
+      }
+    },
+    "Permission request could not be completed. Retry to refresh pending requests.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission request could not be completed. Retry to refresh pending requests."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限请求未能完成，请重试以刷新待审批请求。"
+          }
+        }
+      }
+    },
+    "Upload file": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upload file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上传文件"
+          }
+        }
+      }
+    },
+    "Could not read the selected file. Choose a local file and retry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the selected file. Choose a local file and retry."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取所选文件，请选择本地文件后重试。"
+          }
+        }
+      }
+    },
+    "Browse folders": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse folders"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览文件夹"
+          }
+        }
+      }
+    },
+    "Choose this folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose this folder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择此文件夹"
+          }
+        }
+      }
+    },
+    "Parent folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parent folder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上级文件夹"
+          }
+        }
+      }
+    },
+    "Sort files": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件排序"
+          }
+        }
+      }
+    },
+    "Name: A–Z": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name: A–Z"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称：升序"
+          }
+        }
+      }
+    },
+    "Name: Z–A": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name: Z–A"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称：降序"
+          }
+        }
+      }
+    },
+    "Modified: newest first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modified: newest first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改时间：最新优先"
+          }
+        }
+      }
+    },
+    "Modified: oldest first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modified: oldest first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改时间：最早优先"
+          }
+        }
+      }
+    },
+    "Discard unsaved changes?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard unsaved changes?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放弃未保存的更改？"
+          }
+        }
+      }
+    },
+    "Discard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放弃"
+          }
+        }
+      }
+    },
+    "Workspace actions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workspace actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作区操作"
+          }
+        }
+      }
+    },
+    "Device tools": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device tools"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备工具"
           }
         }
       }

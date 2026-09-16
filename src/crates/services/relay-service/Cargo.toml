@@ -1,6 +1,6 @@
 [package]
 name = "openbitfun-relay-service"
-version = "1.0.0-beta"
+version = "1.0.0"
 authors = ["OpenBitFun Team"]
 edition = "2021"
 description = "Reusable relay runtime for OpenBitFun Remote Connect"
@@ -16,8 +16,10 @@ axum = { version = "0.8", features = ["json", "ws"] }
 tower-http = { version = "0.6.11", features = ["cors"] }
 # Keep the runtime surface explicit: relay needs multi-thread RT, timers,
 # channels/semaphores, and TCP — not tokio's full feature set.
-tokio = { version = "1.52", default-features = false, features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+tokio = { version = "1.52", default-features = false, features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs", "io-util"] }
 futures-util = "0.3.31"
+tempfile = "3"
+socketioxide = { version = "0.18.7", default-features = false, features = ["extensions"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
@@ -52,7 +54,6 @@ rusqlite = { version = "0.32", features = ["bundled", "hooks", "limits"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
-tempfile = "3"
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "handshake"] }
 
 [lints.rust]

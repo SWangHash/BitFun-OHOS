@@ -3,39 +3,31 @@
 Controller-side React/transport layer for Peer Device Mode. Architecture:
 [`docs/architecture/peer-device-mode.md`](../../../../../docs/architecture/peer-device-mode.md).
 
-## Migrating to the Session Projection contract
+## Relay session ownership
 
-The invariants below are pairwise rules between writers that carry no shared
-position. They are being replaced by one contract —
-[`docs/architecture/session-projection.md`](../../../../../docs/architecture/session-projection.md)
-— under which a write is admitted by its position in the order rather than by
-what it would do to painted content. **This list shrinking is the measure of
-that migration**; a change that adds a rule here is going the wrong way.
+The selected Desktop or CLI owns execution, persisted records, workspaces, PTYs,
+and blocking interactions. A controller owns presentation and drafts. Its lifetime
+never determines whether an accepted turn continues running.
 
-Already owned by the contract (`flow_chat/session-stream/`):
+`RelaySessionHistory` owns one subscription per visible surface/session.
+`SessionRecordReplica` applies both cached/replayed history and live canonical
+records using stable IDs, revisions and tombstones. Following Happy's sync owner,
+the latest page paints first; older pages share one in-flight reader and are
+prefetched with a yield between pages. Receive cursors advance only after applying
+records, never from a send acknowledgement. Transport reconnect resumes that same
+subscription. Local Runtime projection machinery is not a second Relay content
+writer: peer token/body events must not overwrite canonical records.
 
-- The stream position, the delivery gap, and the attach fence in invariant 12.
-  `runtimeSessionEventGate` is now an adapter over `SessionStream`, not a
-  second owner of that state.
-- Surface-scoped Session identity in invariant 0: a stream is keyed by
-  `(DeviceSurfaceId, SessionId)` by construction.
-
-Also owned: which read may write a Turn. `replaceRunningSnapshot` is gone —
-the persisted record (snapshot merge *and* disk hydrate) may not write the Turn
-the runtime stream owns, and the Host's declared executing Turn is part of that
-ownership. `snapshotDropsProjectedTurnContent` and
-`isRunningSnapshotForwardProgress` survive inside `persistedReadMayReplaceTurn`
-for the two gaps the contract does not yet close (a Host with no runtime
-projection, and a partial history read); see the contract doc before touching
-them.
-
-Still to migrate, in order: the interaction mailbox, then history positions.
+The independent Runtime interaction mailbox restores unanswered questions and
+permissions without fetching the transcript. Keep its revisions and surface fence
+separate from history pagination. Neither a WebSocket connection nor an event
+listener alone recovers an interaction emitted before attachment.
 
 ## Invariants (do not regress)
 
 0. **A surface switch is a view change, not a teardown.** Attachments and the
-   rendered surface are independent: peers stay attached (and keep running our
-   work) after the UI moves elsewhere, and `switchToLocal` is a switch, not a
+   rendered surface are independent: peers stay attached after the UI moves elsewhere; accepted work
+   remains owned by the runtime even when every controller disconnects, and `switchToLocal` is a switch, not a
    disconnect. Two consequences:
 
    - Everything in `resetProductSurface()` must be **frontend-only**.
@@ -69,22 +61,6 @@ Still to migrate, in order: the interaction mailbox, then history positions.
      must not fire while a Runtime attach is resetting the state machine to
      IDLE. Any new await inside `startTurn`
      widens that window and must keep the same scope checkpoint.
-   - **Reconciliation repairs a projection, never guts it.** The wholesale
-     replace path (`replaceRunningSnapshot`) skips the forward-progress
-     comparator so a settled turn can adopt the host's copy. A turn keeps its
-     identity and user message independently of its rounds, so a windowed or
-     not-yet-checkpointed snapshot can name the turn while carrying none of its
-     work — and a first-time surface projection has no state machines, so
-     *every* turn reads as idle and qualifies for replacement.
-     That combination erased the whole response and left only the prompt on
-     screen (regression: 2026-08-15). `snapshotDropsProjectedTurnContent` gates
-     the replace. Equal item counts are not sufficient: text and thinking must
-     preserve prefix progress, and completed tool results may not disappear.
-     Recognized client-derived display cards are carried across the terminal
-     host-tail repair instead of blocking authoritative text reconciliation.
-     The refresh loop still re-attaches an executing turn when a
-     snapshot is refused, or a rebuilt surface would render it as static
-     history.
    - **Surface-scoped events must stay routed by source device.** Background
      attachments mean several agent streams share one event bus. The
      controller tags re-emitted peer payloads with `__openbitfunSourceDeviceId`
@@ -100,22 +76,18 @@ Still to migrate, in order: the interaction mailbox, then history positions.
      rebind render; otherwise React can pair A's old `turnId` with B's Session
      for one render, including when both devices use the same Session id.
 
-1. **Cloud session/turn APIs stay on the controller** (`LOCAL_ONLY` in
-   `peer-device-adapter.ts`). Peer history comes from HostInvoke
-   (`restore_session_view`, list sessions, …), not from
-   `account_fetch_session_turns`.
+1. **Relay subscriptions stay on the controller.** The account subscription
+   commands attach to the selected runtime's encrypted session log. Product
+   commands such as listing sessions execute on that runtime through HostInvoke.
+   Never route a controller's subscription back onto the peer.
 
-2. **Fail-closed cloud import must skip Peer Mode.**
-   `FlowChatStore.loadSessionHistory` calls `accountFetchSessionTurns` and
-   throws on failure for incomplete relay imports. In Peer Mode that command is
-   paused — **skip the call** when `isPeerDeviceModeActive()` is true, then
-   restore via the peer. Do not reintroduce “throw on any fetch error” without
-   a Peer Mode gate (regression: 2026-07-19 session harden commit).
+2. **Peer history has one owner.** `loadSessionHistory` uses
+   `RelaySessionHistory`; it must not fall back to `restore_session_view`, cloud
+   imports, or a local transcript after a Relay failure.
 
-3. **Backend peer pauses must soft-succeed for hydrate paths.** Prefer
-   `Ok(false)` / empty success over hard `Err` for
-   `account_fetch_session_turns` / `account_auto_sync` while the controller is
-   in Peer Mode, so accidental callers do not abort UI restore.
+3. **Failures stay explicit and recoverable.** Failed reads leave loading state,
+   retain previously rendered records, and expose retry. An empty success is not
+   a substitute for an unavailable runtime or unsupported capability.
 
 4. **Clear `FlowChatManager.currentWorkspacePath` on peer switch.** Stale
    controller paths (e.g. Windows) must not be reused for `create_session` on a
@@ -159,118 +131,26 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     the tree and reject traversal-like entry names.
 
 11. **Terminal traffic stays interactive and observable.** All `terminal_*`
-    commands are high priority, low-priority polling leaves one transport slot
-    available, and both local and SSH-backed PTY events on B must fan out to A.
+    commands are high priority within each submission burst and use the shared
+    transport admission policy. Both local and SSH-backed PTY cursors on B must
+    notify A without placing raw output into an unbounded event queue.
     Remote `SIGINT` / `SIGTSTP` map to PTY control bytes instead of silently
     succeeding without affecting the process.
 
-12. **Active chat attaches to a Runtime-owned Turn projection.** DeviceEvent is
-    the low-latency path, not the owner of current-Turn state. Desktop and CLI
-    Peer Hosts materialize eligible current Turns after their ordered delivery
-    boundary and expose them
-    from `restore_session_view` as `runtimeEventSnapshot` with a per-Session
-    cursor and Runtime-process `streamId`. While restore is in flight,
-    `runtimeSessionEventGate` queues live events by
-    `(DeviceSurfaceId, SessionId)`; replay starts from an empty active-Turn base,
-    then the gate drops cursor-covered events and releases newer events in
-    order. Held events pass through the same ordering and ownership checks as
-    live events. A detected gap or rejected projection remains stale through
-    subsequent deliveries until a successful read repairs it. Since delivery
-    may already have advanced beyond the missing event, gap repair uses the
-    journal prefix; a suffix after that cursor cannot fill the hole.
-    Never compare cursors across different `streamId` values. This is
-    gated on
-    `isSurfaceReconcileEnabled()`, **not** on Peer Mode: once a window has
-    switched surface, a turn left running on the local device also needs the
-    same attach, because its live events were dropped by surface routing while
-    another device was rendered. Attach is requested as soon as a Session on
-    this surface has a usable live projection: `historyState === 'ready'`
-    after disk hydrate, or `historyState === 'new'` for a session created in
-    this window (those never become `ready` via hydrate). The gate is per
-    `(DeviceSurfaceId, SessionId)`, not per the focused tab — a dropped-event
-    refresh must still attach a background session that kept running here.
-    The 3s loop is only a liveness retry and an older-Host fallback. The Peer Host must
-    overlay its live in-memory session state on the persisted view; otherwise
-    an in-progress turn is normalized as interrupted history and later chunks
-    are dropped by the controller state machine. Surface epoch checks reject a
-    restore from a device no longer rendered. Older hosts may omit the Runtime
-    projection; their persisted snapshot must still never overwrite newer live
-    content.
+12. **Canonical records and control events have different owners.** Completed
+    semantic text/tool blocks enter the runtime's durable session log. Replayed
+    pages and live records use the same replica, revision rules and tombstones.
+    A disconnected controller resumes from its receive cursor and deduplicates
+    records; it does not reconstruct a running turn from a second full snapshot.
+    Lifecycle and approval events may update controls, but raw token/tool-body
+    events cannot overwrite the canonical content owner.
 
-    **Delivery is not acceptance, and persist is not the current Turn.** A
-    live event that the state machine drops still advances the gate cursor.
-    Mark that projection stale so the next attach replays the journal instead
-    of treating the cursor as current and leaving in-progress tool cards
-    frozen. `finish()` may cover live events only after replay (or an
-    equivalent apply) proves the painted tools/text have caught up with the
-    Host journal — a matching cursor is not that proof. Overlapping attach
-    transfers the fence instead of draining it onto a state machine that is
-    about to reset. A 3s `staleOnly` tick, a hidden document, or a
-    `FINISHING` machine must not skip repair while `hasGap` is set; TextChunk
-    heartbeats are not evidence that a dropped ToolEnd was applied.
-    `loadSessionHistory` and `refreshPeerSessionSnapshot` both read
-    `runtimeEventSnapshot`: the persisted checkpoint of an executing Turn is
-    only identity, never the painted rounds. A session-object identity change
-    during restore must still return the journal — hiding it used to abort
-    attach and freeze the receiver while the Host kept streaming.
-    A CLI Peer Host still filters Host-local turns with `owns()`; that is a
-    CLI Host limitation, not a reason for a Desktop receiver to freeze.
-
-    **Terminal delivery is not the durability fence.** The Host may publish
-    `DialogTurnCompleted` before its complete generation journal has been
-    committed. After the commit it publishes `SessionHistoryChanged`; local and
-    Peer surfaces then reconcile the terminal tail from that Host. The
-    controller must not echo a shorter painted prefix over the settled record,
-    even when the prefix has the same round and item counts.
-
-    **The subscription and the attach loop must never be able to disable each
-    other.** The agentic subscription is this window's only live view of a
-    running Turn, and a surface switch tears it down. Rebuilding it used to be
-    a side effect of `FlowChatManager.initialize()`, which a newer switch is
-    allowed to supersede — so a rapid switch could leave the window with no
-    subscription and nothing to retry. The attach loop then *refused to run
-    while the subscription was down*, disabling the only path that could repair
-    it, and the chat froze permanently with no live output and no snapshot
-    repair (regression: 2026-08-16). `FlowChatManager` therefore re-arms on
-    `onSurfaceActivated` and retries a failed start on its own, the attach loop
-    treats a dead subscription as a reason to reconcile **and** re-arm rather
-    than to bail, and callers of `initialize()` must not report a superseded
-    bootstrap as a product failure. Any new gate on subscription readiness has
-    to keep both halves independently recoverable.
-    **Controller presence is not Turn ownership.** A controller lease gates
-    submission and interaction responses, but once a Peer Host accepts a Turn,
-    the Host keeps executing and materializing it through a zero-controller
-    device-switch interval. Detach/presence loss must not cancel that Turn;
-    only an actual host event-stream continuity failure may fail it closed.
-    **Blocking interactions are owner mailboxes, not one-shot UI events.** The
-    Runtime retains native `AskUserQuestion` and interactive permission
-    requests until answer/cancel/drop, and `restore_session_view` returns their
-    additive, revisioned `interactionSnapshot` from both Desktop and CLI Peer
-    Hosts. Keep its frontend projection per Surface, fence it with the captured
-    Surface epoch and newer event state, replay it after the Turn projection,
-    and use it only to reconstruct UI in the owning Turn/round. Reattachment
-    must never restart or cancel the
-    running Session. Older peers may omit the field; absence is not an empty
-    authoritative mailbox. Answering an `AskUserQuestion` is separately gated
-    by `peer_mode_ping.capabilities.user_question_response`: legacy Desktop
-    hosts already support the command, while legacy CLI hosts must show an
-    explicit unsupported/upgrade state. Current controllers include the owning
-    Session id with the mutation and hosts reject stale cross-Session answers;
-    newer hosts still accept the legacy Tool-id-only form. A
-    question interaction may disable its unattended deadline through the
-    session-scoped `start_user_question_interaction` command, gated by
-    `user_question_interaction_v1`. It is idempotent and does not answer the
-    question. Older peers keep their answer path and display an explicit warning
-    if interaction cannot stop the deadline. The Runtime snapshot's additive
-    `interactionStarted` flag survives controller reattachment; changing devices
-    does not restart a timer. Activity and answer commands use the reserved
-    high-priority control slot so ordinary HostInvoke work cannot queue them
-    past the deadline. Trusted execution lineage registers parent Session
-    controllers for child questions; reattachment projects the same pending
-    question into the parent's turn without granting unrelated Sessions access.
-    Any new
-    interaction that can suspend execution is incomplete until its owner
-    exposes equivalent replayable attach state and a negotiated response path.
+    `get_session_interaction_mailbox` returns the Runtime's revisioned pending
+    questions and permissions on attach/reconnect. Apply it with a captured
+    Surface scope and newer-event fence. Answers carry the owning session and
+    request/tool identity; the runtime validates them. A controller switch does
+    not restart a question deadline or cancel an accepted turn. Any interaction
+    that can suspend execution needs a recoverable mailbox and response path.
 
 13. **Weak links use bounded, idempotency-aware recovery.** Presence gaps
     and product RPC timeouts keep an attached peer's surface selected and request
@@ -284,27 +164,20 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     surface epoch, discarding state, or resubmitting work. Only explicit
     disconnect or logout disposes an attachment.
 
-    Default Peer HostInvoke concurrency is four with one slot reserved from normal/low
-    traffic. Read-only commands have a real 10s deadline and four
-    exponential-backoff retries. Mutations have a 30s deadline and are never
-    replayed automatically without an idempotency contract. Dialog submission
-    is the explicit exception: `start_dialog_turn` and
-    `start_acp_dialog_turn` reuse `(sessionId, turnId)`, and the host
-    coalesces/caches duplicate execution attempts. The controller must observe
-    the matching `idempotent_dialog_submit` capability in `peer_mode_ping`
-    before replaying either command; an older host stays single-shot. A failed
-    session list must leave its loading state and offer an explicit retry.
+    Request admission and byte budgets belong to the shared transport owner.
+    Avoid independent UI slot limits or polling loops that compete with recovery.
+    Mutations are not automatically replayed without an idempotency contract.
+    Dialog submissions reuse `(sessionId, turnId)` so an ambiguous acknowledgement
+    does not create another turn. A failed session list must leave loading state
+    and offer an explicit retry.
 
-14. **Catalog-backed history stays windowed across the peer boundary.**
-    `restore_session_view` returns the compact `turnCatalog` plus the restored
-    tail; the controller must not follow it with an unconditional full restore.
-    `load_session_turn_window` is a high-priority, retryable read and carries
-    the same session/workspace scope as restore. Sequential history scrolling
-    and turn-rail navigation request bounded windows. Search and older Hosts
-    that reject the window command use the shared explicit full-history ensure
-    fallback. Targeted rollback is separately capability-gated and never falls
-    back to a controller-local or numeric rollback path. Never include catalog
-    preview text in Peer request/response logs.
+14. **History navigation uses the same canonical replica.** Latest-page loading,
+    older-page prefetch and explicit full-history requests share the subscription.
+    The controller builds the turn catalog from canonical turn identities after
+    older pages are complete, preserving actual storage indices. Turn navigation
+    must not introduce a second `restore_session_view` or window-RPC content owner.
+    Rollback remains an explicit runtime operation; it never falls back to a
+    controller-local mutation. Never log catalog preview text.
 
 15. **Git ownership trust is read on the peer, granted at the machine.**
     `git_get_repository_trust` is a read-only probe and routes to the peer
@@ -338,6 +211,12 @@ Still to migrate, in order: the interaction mailbox, then history positions.
     `peer_mode_ping` advertises `miniapp_agent_context_files_v1`; otherwise the
     controller fails before RPC. Never omit the files, fall back to a local
     Agent, or run the prompt without its declared context.
+
+18. **WSL belongs to the selected Windows host.** `wsl_workspaces_v1` gates
+    `ssh_list_wsl_distributions` and SSH profile requests with a `wsl` target
+    before RPC. Missing capability means unsupported, including older Desktop
+    and CLI peers. Discovery reports the host's OS availability; it must never
+    inspect or execute the controller's WSL installation as a fallback.
 
 ## Related account-login guards
 

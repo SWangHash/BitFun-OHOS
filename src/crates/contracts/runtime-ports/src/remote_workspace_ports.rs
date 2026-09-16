@@ -196,6 +196,8 @@ pub trait RemoteWorkspaceFileRuntimeHost: Send + Sync {
         &self,
         _path: &str,
         _session_id: Option<&str>,
+        _workspace_path: Option<&str>,
+        _remote_connection_id: Option<&str>,
         _offset: u64,
         _limit: u64,
     ) -> Result<Option<RemoteWorkspaceFileChunk>, String> {
@@ -206,6 +208,8 @@ pub trait RemoteWorkspaceFileRuntimeHost: Send + Sync {
         &self,
         _path: &str,
         _session_id: Option<&str>,
+        _workspace_path: Option<&str>,
+        _remote_connection_id: Option<&str>,
     ) -> Result<Option<RemoteWorkspaceFileInfo>, String> {
         Ok(None)
     }

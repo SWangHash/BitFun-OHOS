@@ -405,7 +405,9 @@ impl MockOpenAiServer {
         let (release_tx, release_rx) = mpsc::channel();
         let (disconnect_tx, disconnect_rx) = mpsc::channel();
         let thread = thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(30);
+            // The owning test bounds startup and turn waits. Keep the listener alive
+            // until Drop: a cold CLI startup can consume the old 30-second lifetime
+            // before its first model request, especially on Windows CI.
             let mut attempt = 0;
             loop {
                 match listener.accept() {
@@ -445,7 +447,7 @@ impl MockOpenAiServer {
                         break;
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        if stop_for_thread.load(Ordering::Relaxed) || Instant::now() >= deadline {
+                        if stop_for_thread.load(Ordering::Relaxed) {
                             break;
                         }
                         thread::sleep(Duration::from_millis(10));

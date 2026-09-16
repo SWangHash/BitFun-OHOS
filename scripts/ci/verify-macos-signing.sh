@@ -20,6 +20,7 @@ fi
 
 for app in "${apps[@]}"; do
   codesign --verify --deep --strict --verbose=2 "${app}"
+  bash "$(dirname "$0")/verify-macos-microphone.sh" "${app}"
   while IFS= read -r -d '' candidate; do
     if ! file -b "${candidate}" | grep -q 'Mach-O'; then
       continue

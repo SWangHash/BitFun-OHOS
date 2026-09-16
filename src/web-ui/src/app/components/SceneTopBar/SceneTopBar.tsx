@@ -87,12 +87,7 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
       onDoubleClick={handleDoubleClick}
       data-openbitfun-scene="workbench"
       data-openbitfun-part="topBar"
-      leading={<>
-        <SceneBar />
-        {canDragWindow && (
-          <div className="openbitfun-scene-top-bar__drag-space" aria-hidden="true" />
-        )}
-      </>}
+      leading={<SceneBar />}
       size="md"
       trailing={<>
       <SceneChromeHost

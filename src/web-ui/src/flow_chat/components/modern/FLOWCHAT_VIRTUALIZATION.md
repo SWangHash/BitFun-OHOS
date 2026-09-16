@@ -179,6 +179,11 @@ reads the existing prompt syntax, so historical messages need no migration or li
 MCP catalog lookup. It preserves the stored text and uses the existing row measurement
 path, with no mount animation or viewport writes.
 
+Reference capsules align their label's text baseline with adjacent message text.
+The label participates in flex baseline alignment while the icon stays centered;
+the capsule's padding and the label's intrinsic line box do not set the outer
+alignment reference.
+
 ## A Row's Mount Is Not an Arrival
 
 **No mount or enter animation may live inside `.virtual-item-wrapper`**, no

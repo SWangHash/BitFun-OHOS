@@ -340,7 +340,7 @@ internal fun GeneralChatScreen(
                         enabled = !state.busy,
                         // General chat has no tools: the provider stream carries
                         // text only, so no row can ever ask for an approval.
-                        onApproveTool = {},
+                        onApproveTool = { _, _ -> },
                         onRejectTool = { _, _ -> },
                         onCancelTool = { _, _ -> },
                         onAnswerTool = { _, _ -> },

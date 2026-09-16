@@ -13,7 +13,7 @@ Appearance packages.
   `src/links.ts`).
 
 The site is self-contained and does not import the main Web UI locale or theme catalogs.
-GitHub identity is shared with the MiniApp market through its same-origin auth
+GitHub and independent email-code identity are shared with the MiniApp market through its same-origin auth
 broker. Skin writes use the `/skin`-scoped CSRF alias issued by that broker.
 Local development proxies `/miniapp/api` to `127.0.0.1:9710`; set
 `MINIAPP_MARKET_DEV_API` when the broker runs elsewhere.
@@ -26,6 +26,7 @@ The server generates variants lazily, stores them beside the content-addressed
 original, and serves public variants with immutable cache headers.
 
 ```bash
+pnpm --dir design-system run build:packages # First run or after shared theme/UI changes
 pnpm --dir src/skin-market-web dev
 pnpm --dir src/skin-market-web type-check
 pnpm --dir src/skin-market-web test

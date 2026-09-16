@@ -257,7 +257,7 @@ test('built-in and external browsers share one agent action contract', async () 
   assert.ok(browser);
   assert.ok(browser.items.some(({ id }) => id === 'agent-page-automation'));
   assert.ok(browser.items.some(({ id }) => id === 'shared-browser-action-contract'));
-  assert.ok(browser.searchTerms.some((term) => /Agent.*内置网页/u.test(term)));
+  assert.ok(browser.searchTerms.some((term) => /智能体.*内置网页/u.test(term)));
   assert.ok(browser.searchTerms.some((term) => /one BrowserActions/iu.test(term)));
   assert.equal(browser.agentControl.tool, 'ControlHub');
   assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('browser.open_builtin')));

@@ -11,6 +11,7 @@ mod factory;
 mod listing;
 mod operations;
 mod service;
+mod sorting;
 mod tree;
 mod types;
 
@@ -28,6 +29,7 @@ pub use operations::{
     FileReadResult, FileWriteResult,
 };
 pub use service::FileSystemService;
+pub use sorting::sort_directory_nodes;
 pub use tree::{
     BatchedFileSearchProgressSink, FileContentSearchOptions, FileNameSearchOptions,
     FileSearchOutcome, FileSearchProgressSink, FileSearchResult, FileSearchResultGroup,

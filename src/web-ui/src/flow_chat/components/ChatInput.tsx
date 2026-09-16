@@ -222,6 +222,8 @@ import type { SessionPermissionMode } from '@/infrastructure/api/service-api/Age
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { useLocalFileDrop } from '@/infrastructure/files/useLocalFileDrop';
+import { useWindowsFileDropPreview } from '@/infrastructure/files/useWindowsFileDropPreview';
+import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
 import { resolveBrowserDroppedFilePaths } from '@/infrastructure/files/resolveBrowserDroppedFilePaths';
 import {
   buildExternalFileContexts,
@@ -283,6 +285,8 @@ export interface ChatInputProps {
   /** The host conversation area that accepts files for this composer. */
   fileDropTargetRef?: React.RefObject<HTMLElement | null>;
   onFileDragOverChange?: (isOver: boolean) => void;
+  onFileDragPreviewChange?: (preview: FileDropPreview | null) => void;
+  onFileDragPositionChange?: (position: FileDropPosition | null) => void;
   /**
    * Optional content and transport registration for hosts that embed the
    * standard composer. The registration never replaces ChatInput's UI.
@@ -492,6 +496,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   isSceneActive = true,
   fileDropTargetRef,
   onFileDragOverChange,
+  onFileDragPreviewChange,
+  onFileDragPositionChange,
   registration,
 }) => {
   const deviceSurfaceScope = getActiveSurfaceScope();
@@ -4020,6 +4026,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     );
     let composerCleared = false;
     const trimmedMessage = message.trim();
+    if (!trimmedMessage.startsWith('/')) return false;
     const commandWhitespaceIndex = trimmedMessage.search(/\s/);
     const command = trimmedMessage.startsWith('/')
       ? (commandWhitespaceIndex === -1
@@ -4815,6 +4822,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     inputElement.addEventListener('imagePaste', handleImagePaste);
     return () => inputElement.removeEventListener('imagePaste', handleImagePaste);
   }, [addClipboardImageFiles, captureExternalFileIntakeRequest, enqueueExternalFileIntake]);
+
+  useWindowsFileDropPreview({
+    targetRef: fileDropTargetRef ?? externalFileDropTargetRef,
+    enabled: Boolean(fileDropTargetRef && onFileDragPreviewChange && onFileDragPositionChange)
+      && isSceneActive && !caps.transferInFlight && !isInterruptedTurnRecoveryInFlight,
+    onDragOver: setNativeFileDragOver,
+    onPreview: preview => onFileDragPreviewChange?.(preview),
+    onPosition: position => onFileDragPositionChange?.(position),
+    onDropPaths: paths => intakeExternalPaths('drop', paths),
+  });
 
   useLocalFileDrop({
     targetRef: fileDropTargetRef ?? externalFileDropTargetRef,

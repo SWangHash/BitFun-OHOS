@@ -343,7 +343,12 @@ class OutputFileSessionManager extends RemoteSessionManager {
   }
 }
 
-class RecordingAccountDeviceClient extends CloudAccountClient {
+class TestCloudAccountClient extends CloudAccountClient {
+  observePresence(_relay: string, _session: CloudAccountSession, _onPresence: (ids: string[]) => void,
+    _onReconnect: () => void): () => void { return () => {}; }
+}
+
+class RecordingAccountDeviceClient extends TestCloudAccountClient {
   async deviceRpc<T extends CommandStatusResponse>(
     _relayUrl: string,
     _session: CloudAccountSession,
@@ -444,7 +449,7 @@ class InMemoryCloudAccountSessionStore extends CloudAccountSessionStore {
 }
 
 /** Publishes one roster, then models the relay revoking the account token. */
-class ExpiringAccountClient extends CloudAccountClient {
+class ExpiringAccountClient extends TestCloudAccountClient {
   listCalls: number = 0;
 
   async listDevices(
@@ -460,7 +465,7 @@ class ExpiringAccountClient extends CloudAccountClient {
   }
 }
 
-class OfflineAccountClient extends CloudAccountClient {
+class OfflineAccountClient extends TestCloudAccountClient {
   async listDevices(
     _relayUrl: string,
     _session: CloudAccountSession,
@@ -470,7 +475,7 @@ class OfflineAccountClient extends CloudAccountClient {
   }
 }
 
-class ProvisioningFailureAccountClient extends CloudAccountClient {
+class ProvisioningFailureAccountClient extends TestCloudAccountClient {
   readonly statusCode: number;
 
   constructor(statusCode: number) {
@@ -518,7 +523,7 @@ class AccountDeviceSwitchHarness {
   readonly controller: SettingsController;
 
   constructor(
-    client: CloudAccountClient = new CloudAccountClient(),
+    client: CloudAccountClient = new TestCloudAccountClient(),
     sessionManager: ScriptedAccountSessionManager = new ScriptedAccountSessionManager(),
     applyExistingSession: boolean = true,
     profileLoader?: GitHubProfileLoader
@@ -583,14 +588,14 @@ class AccountDeviceSwitchHarness {
 export default function transportAndGeneralChatUnitTest() {
   describe('Account device links', () => {
     it('uses the same device selector for official and LAN endpoints', 0, () => {
-      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.0', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
         const parsed = accountDeviceLink(`${endpoint}/#/pair?did=desktop-1`);
         expect(parsed?.deviceId).assertEqual('desktop-1');
         expect(parsed?.relayUrl).assertEqual(endpoint);
       }
     });
     it('rejects credentials, legacy rooms, duplicate targets and public lookalikes', 0, () => {
-      const prefix = 'https://remote.openbitfun.com/v/1.0.0/#/pair?';
+      const prefix = 'https://remote.openbitfun.com/v/1.0.1/#/pair?';
       for (const suffix of ['did=desktop-1&pk=untrusted', 'did=desktop-1&relay=evil',
         'did=desktop-1&did=desktop-2', 'did=%00', 'did=%ZZ', 'room=old&pk=old']) {
         expect(accountDeviceLink(prefix + suffix)).assertUndefined();
@@ -633,7 +638,7 @@ export default function transportAndGeneralChatUnitTest() {
   describe('RemoteSessionManager account connection', () => {
     it('loads account device sessions through either relay endpoint', 0, async () => {
       const manager = new RemoteSessionManager();
-      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.0', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
         const result = await manager.connectAccountDevice(new RecordingAccountDeviceClient(), endpoint,
           { token: 'token', userId: 'account-user', masterKey: new Uint8Array(32) }, 'desktop-device');
         expect(result.workspace.path).assertEqual('/account-workspace');
@@ -1175,7 +1180,7 @@ export default function transportAndGeneralChatUnitTest() {
 
     it('enriches an existing numeric account without changing its authorization or target', 0, async () => {
       const loader = new TestGitHubProfileLoader();
-      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
+      const harness = new AccountDeviceSwitchHarness(new TestCloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
       harness.controller.applyCloudAccountSession({ token: 't', userId: '1', masterKey: new Uint8Array(32) }, 'https://relay.example.com', '1');
       harness.remoteState.setControlTarget('account_device', 'desk-a', 'Desktop A');
       await harness.controller.refreshCloudAccountProfile();
@@ -1191,7 +1196,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('keeps cached presentation and the session when public profile refresh fails', 0, async () => {
       const loader = new TestGitHubProfileLoader();
       loader.fail = true;
-      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
+      const harness = new AccountDeviceSwitchHarness(new TestCloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
       harness.controller.applyCloudAccountSession({ token: 't', userId: '1', masterKey: new Uint8Array(32) }, 'https://relay.example.com', '1');
       const cached = normalizeGitHubProfile('1', { id: 1, login: 'cached-name' });
       cached.fetchedAt = 0;
@@ -1204,7 +1209,7 @@ export default function transportAndGeneralChatUnitTest() {
 
     it('discards a profile response after logout', 0, async () => {
       const loader = new TestGitHubProfileLoader();
-      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
+      const harness = new AccountDeviceSwitchHarness(new TestCloudAccountClient(), new ScriptedAccountSessionManager(), false, loader);
       harness.controller.applyCloudAccountSession({ token: 't', userId: '1', masterKey: new Uint8Array(32) }, 'https://relay.example.com', '1');
       loader.beforeResponse = async (): Promise<void> => { await harness.controller.logoutCloudAccount(); };
       await harness.controller.refreshCloudAccountProfile();
@@ -1238,7 +1243,7 @@ export default function transportAndGeneralChatUnitTest() {
     });
 
     it('does not erase the encrypted account record when restore temporarily fails', 0, async () => {
-      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), new ScriptedAccountSessionManager(), false);
+      const harness = new AccountDeviceSwitchHarness(new TestCloudAccountClient(), new ScriptedAccountSessionManager(), false);
       harness.sessionStore.failLoads = true;
 
       await harness.controller.initializeCloudAccount({} as Context);
@@ -1447,7 +1452,7 @@ export default function transportAndGeneralChatUnitTest() {
 
     it('keeps the newest device when an older switch completes late', 0, async () => {
       const manager = new GatedAccountSessionManager();
-      const harness = new AccountDeviceSwitchHarness(new CloudAccountClient(), manager);
+      const harness = new AccountDeviceSwitchHarness(new TestCloudAccountClient(), manager);
 
       const older = harness.controller.selectCloudAccountDevice(harness.device('desk-a'), false);
       await manager.heldSwitchStarted;
@@ -1892,7 +1897,7 @@ export default function transportAndGeneralChatUnitTest() {
         title: '',
         instruction: 'hello'
       }, '/repo');
-      expectCommandJson(createCommand, '{"cmd":"create_session","agent_type":"cowork","session_name":"Remote Cowork Session","workspace_path":"/repo"}');
+      expectCommandJson(createCommand, '{"cmd":"create_session","agent_type":"cowork","session_name":"Remote Cowork Session","workspace_path":"/repo","remote_connection_id":""}');
       expect(JSON.stringify(createCommand).indexOf('run_mode')).assertEqual(-1);
 
       const minimal = RemoteCommandFactory.createSession({

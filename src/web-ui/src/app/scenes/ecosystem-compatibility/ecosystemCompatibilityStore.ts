@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import type { EcosystemProductId } from './ecosystemCompatibilityModel';
 
+/** Legacy external-sources destinations focus the discovery switch in the header. */
 export type EcosystemCompatibilityOwnerSurface = 'acp' | 'external-sources' | null;
 
 export interface EcosystemCompatibilityDestination {

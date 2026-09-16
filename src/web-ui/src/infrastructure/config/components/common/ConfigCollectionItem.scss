@@ -353,3 +353,13 @@
     height: 24px;
   }
 }
+
+// The collection owns its inset; Disclosure owns expansion and content lifetime.
+.openbitfun-collection-item__disclosure > .openbitfun-collection-item__details-collapse {
+  visibility: visible;
+  transition-delay: 0s;
+
+  > .openbitfun-collection-item__details-clip {
+    padding: 0;
+  }
+}

@@ -161,7 +161,15 @@
   flex: 0 0 auto;
 }
 
-.openbitfun-chat-input__voice-setup-dismiss.icon-btn {
+.openbitfun-chat-input__voice-setup-pill > [data-openbitfun-part='action'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.openbitfun-chat-input__voice-setup-dismiss[data-openbitfun-component='icon-button'] {
   width: 24px;
   height: 24px;
   min-width: 24px;

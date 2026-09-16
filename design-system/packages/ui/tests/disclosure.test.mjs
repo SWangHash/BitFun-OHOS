@@ -45,3 +45,19 @@ test("Disclosure uses public geometry tokens and honors reduced motion", async (
   assert.match(styles, /prefers-reduced-motion: reduce/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
+
+test("Disclosure native mode preserves details anatomy and browser-owned state", () => {
+  const markup = renderToStaticMarkup(createElement(Disclosure, {
+    presentation: "native", open: true, name: "diagnostics", summary: "Source issues",
+  }, createElement("ul", null, createElement("li", null, "Unavailable"))));
+  assert.match(markup, /^<details[^>]*open=""/);
+  assert.match(markup, /name="diagnostics"/);
+  assert.match(markup, /data-openbitfun-component="disclosure"/);
+  assert.match(markup, /<summary[^>]*>Source issues<\/summary><ul>/);
+  assert.doesNotMatch(markup, /aria-expanded|aria-hidden|inert|role="region"|<button/);
+  const closed = renderToStaticMarkup(createElement(Disclosure, {
+    presentation: "native", summary: "Source issues",
+  }, "Still mounted"));
+  assert.doesNotMatch(closed, / open=/);
+  assert.match(closed, /Still mounted/);
+});

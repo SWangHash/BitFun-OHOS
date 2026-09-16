@@ -240,14 +240,14 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     this.remoteActivityViewModel.stopHeartbeat();
   }
 
-  async selectWorkspace(path: string): Promise<void> {
+  async selectWorkspace(path: string, connectionId?: string): Promise<void> {
     this.filePreviewController.close();
-    await this.remoteWorkspaceViewModel.selectWorkspace(path);
+    await this.remoteWorkspaceViewModel.selectWorkspace(path, connectionId);
   }
 
-  async selectWorkspaceOnDevice(path: string, deviceId?: string): Promise<void> {
+  async selectWorkspaceOnDevice(path: string, deviceId?: string, connectionId?: string): Promise<void> {
     await this.conversationController.ensureRemoteControlTarget(deviceId);
-    await this.selectWorkspace(path);
+    await this.selectWorkspace(path, connectionId);
   }
 
   async selectDirectoryDevice(deviceId: string): Promise<void> {

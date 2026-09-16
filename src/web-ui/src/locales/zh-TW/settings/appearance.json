@@ -80,7 +80,7 @@
       },
       "submissions": {
         "title": "我的投稿",
-        "hint": "直接上傳外觀包，或查看透過 OpenBitFun Agent 建立的投稿與審核進度",
+        "hint": "直接上傳外觀包，或查看透過 OpenBitFun 智能體建立的投稿與審核進度",
         "refresh": "重新整理",
         "loading": "正在載入投稿…",
         "empty": "你尚未投稿外觀包",

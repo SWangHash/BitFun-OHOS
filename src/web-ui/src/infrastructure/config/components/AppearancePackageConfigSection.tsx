@@ -1,3 +1,4 @@
+import { ActionCard } from '@openbitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -252,16 +253,16 @@ function AppearancePackagePreview({
       data-openbitfun-state={state || undefined}
     >
       {onSelect ? (
-        <button
-          type="button"
-          className="appearance-package-config__card-select"
+        <ActionCard
+          className="appearance-package-config__card-action"
+          triggerClassName="appearance-package-config__card-select"
+          selected={selected}
           aria-label={appearanceName}
           aria-pressed={selected}
           disabled={disabled}
           onClick={onSelect}
-        >
-          {cardContent}
-        </button>
+          body={cardContent}
+        />
       ) : cardContent}
     </article>
   );

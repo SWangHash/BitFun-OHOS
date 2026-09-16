@@ -1805,7 +1805,7 @@ $_section-header-height: 22px;
 
 .openbitfun-device-overview__notice {
   width: calc(100% - var(--openbitfun-space-5) * 2);
-  margin: var(--openbitfun-space-4) var(--openbitfun-space-5) 0;
+  margin: 0 var(--openbitfun-space-5) var(--openbitfun-space-4);
   height: auto;
   min-height: var(--openbitfun-control-height-sm);
   justify-content: flex-start;
@@ -1851,11 +1851,63 @@ $_section-header-height: 22px;
 }
 
 .openbitfun-device-overview__summary {
+  position: relative;
+  min-width: 0;
+  text-align: center;
+}
+
+.openbitfun-device-overview__carousel-viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.openbitfun-device-overview__carousel-track {
+  display: flex;
+  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.openbitfun-device-overview__carousel-slide {
+  flex: 0 0 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.openbitfun-device-overview__device-switcher {
+  position: relative;
+  width: 100%;
   min-width: 0;
-  text-align: center;
+}
+
+.openbitfun-device-overview__carousel-controls {
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 2 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: var(--openbitfun-space-4);
+  pointer-events: none;
+
+  > button { pointer-events: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .openbitfun-device-overview__carousel-track { transition: none; }
+}
+
+.openbitfun-device-overview__connect-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 1;
+
+  > button {
+    pointer-events: auto;
+  }
 }
 
 .openbitfun-device-overview__artwork {
@@ -1900,19 +1952,25 @@ $_section-header-height: 22px;
   font-family: var(--openbitfun-type-label-md-font-family);
   font-size: var(--openbitfun-type-meta-font-size);
   line-height: var(--openbitfun-type-body-sm-line-height);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .openbitfun-device-overview__activity {
+  max-width: 100%;
+  box-sizing: border-box;
   padding: var(--openbitfun-space-1) var(--openbitfun-space-5) 0;
   color: var(--openbitfun-color-content-muted);
   font-size: var(--openbitfun-type-meta-font-size);
   line-height: var(--openbitfun-type-body-sm-line-height);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .openbitfun-device-overview__device-group {
-  margin: var(--openbitfun-space-4) var(--openbitfun-space-5) 0;
+  margin: 0 var(--openbitfun-space-5) var(--openbitfun-space-4);
 
   h3 {
     margin: 0 6px 7px;
@@ -2178,9 +2236,9 @@ $_section-header-height: 22px;
   &::after {
     content: '';
     position: absolute;
-    left: 0;
+    left: var(--openbitfun-space-2);
+    right: var(--openbitfun-space-2);
     bottom: 0;
-    width: 100vw;
     border-bottom: 1px solid;
     @include shell-surfaces.sidebar-hairline-color;
     pointer-events: none;

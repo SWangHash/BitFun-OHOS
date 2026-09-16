@@ -171,7 +171,8 @@ export class RemoteSessionController {
     onCreated: (session: SessionSummary) => Promise<void>,
     instruction: string = '',
     modelId: string = '',
-    workspacePath: string = ''
+    workspacePath: string = '',
+    remoteConnectionId?: string
   ): Promise<SessionSummary | undefined> {
     if (isBusy || !remoteAvailable) {
       return undefined;
@@ -191,7 +192,8 @@ export class RemoteSessionController {
         title: '',
         instruction,
         modelId,
-        workspacePath
+        workspacePath,
+        remoteConnectionId
       }, handleAllocated);
       if (!allocationHandled) {
         await handleAllocated(session);

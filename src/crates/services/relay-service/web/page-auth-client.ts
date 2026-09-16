@@ -103,13 +103,14 @@ form?.addEventListener('submit', async (event) => {
   popup.opener = null;
   showError('');
   submitButton.disabled = true;
-  submitButton.textContent = message('等待 GitHub 授权…', 'Waiting for GitHub…');
+  submitButton.textContent = message('等待登录…', 'Waiting for sign-in…');
   try {
-    const start = await postJson<AuthStart>(relayApiPath('/api/auth/github/start'), {});
+    const start = await postJson<AuthStart>(relayApiPath('/api/auth/github/start?methods=all'), {});
     const authorization = new URL(start.authorizationUrl);
-    if (authorization.protocol !== 'https:' || authorization.hostname !== 'github.com') {
+    if (!((authorization.origin === 'https://github.com' && authorization.pathname === '/login/oauth/authorize') || (authorization.origin === 'https://auth.openbitfun.com' && authorization.pathname === '/sign-in')) || !!authorization.username || !!authorization.password) {
       throw new Error(message('登录地址无效。', 'The sign-in URL is invalid.'));
     }
+    if (authorization.origin === 'https://auth.openbitfun.com') authorization.searchParams.set('locale', navigator.language);
     popup.location.replace(authorization.href);
     let accessToken: string | undefined;
     while (Date.now() < start.expiresAt * 1000) {
@@ -141,6 +142,6 @@ form?.addEventListener('submit', async (event) => {
   } finally {
     popup.close();
     submitButton.disabled = false;
-    submitButton.textContent = message('使用 GitHub 登录', 'Sign in with GitHub');
+    submitButton.textContent = message('使用邮箱或 GitHub 登录', 'Sign in with email or GitHub');
   }
 });

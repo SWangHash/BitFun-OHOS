@@ -68,10 +68,20 @@ public class ChatTimelineStore public constructor() {
         state = state.copy(selectedModelId = selectedModelId)
     }
 
+    /** Reconcile a send even when the persisted message arrived before its acknowledgement. */
+    public fun acknowledgeOptimisticTurn(localMessageId: String, turnId: String) {
+        if (localMessageId.isBlank() || turnId.isBlank()) return
+        val persisted = state.persistedMessages.any { it.role == "user" && it.turnId == turnId }
+        state = state.copy(optimisticMessages = state.optimisticMessages.mapNotNull { message ->
+            if (message.id != localMessageId) message
+            else if (persisted) null
+            else message.copy(turnId = turnId)
+        })
+    }
+
     public fun setPersistedMessages(messages: List<ChatMessage>) {
-        val persisted = realMessages(messages)
-        val previousIds = state.persistedMessages.mapTo(mutableSetOf()) { it.id }
-        val newlyPersisted = persisted.filterNot { it.id in previousIds }
+        val persisted = withoutProvisionalUserAliases(realMessages(messages))
+        val newlyPersisted = newlyPersistedMessages(state.persistedMessages, persisted)
         val activeCovered = state.activeTurn?.let { active ->
             val coveredByContent = coveredByNewAssistantContent(active, newlyPersisted)
             if (coveredByContent) recentlyCoveredTurn = CoveredTurn.from(active)
@@ -85,9 +95,8 @@ public class ChatTimelineStore public constructor() {
     }
 
     public fun mergePersistedMessages(messages: List<ChatMessage>) {
-        val incoming = realMessages(messages)
-        val previousIds = state.persistedMessages.mapTo(mutableSetOf()) { it.id }
-        val newlyPersisted = incoming.filterNot { it.id in previousIds }
+        val incoming = withoutProvisionalUserAliases(realMessages(messages))
+        val newlyPersisted = newlyPersistedMessages(state.persistedMessages, incoming)
         val persisted = mergeMessages(state.persistedMessages, incoming)
         val activeCovered = state.activeTurn?.let { active ->
             val coveredByContent = coveredByNewAssistantContent(active, newlyPersisted)
@@ -122,6 +131,16 @@ public class ChatTimelineStore public constructor() {
         if (normalizedTurnId.isEmpty()) return
         val activeId = "active-$normalizedTurnId"
         val existing = state.activeTurn
+        val acknowledgedTurn = emptyMessage(id = activeId, turnId = normalizedTurnId, status = "active")
+        // Fast hosts may finish and persist the reply before send_message returns.
+        // A late acknowledgement must not resurrect an already completed turn.
+        if (isActiveTurnCoveredByMessages(acknowledgedTurn, state.persistedMessages)) {
+            if (existing == null || isLocalPendingActiveTurn(existing) || existing.turnId == normalizedTurnId) {
+                state = state.copy(activeTurn = null, syncPhase = ChatSyncPhase.IDLE)
+                activeTurnAnchor = ""
+            }
+            return
+        }
         if (existing?.id == activeId) {
             val activeTurn = existing.copy(
                 turnId = existing.turnId?.takeIf(String::isNotEmpty) ?: normalizedTurnId,
@@ -313,6 +332,9 @@ public class ChatTimelineStore public constructor() {
             return activeTurn.takeUnless { isActiveTurnCoveredByMessages(it, state.persistedMessages) }
         }
         val previous = state.activeTurn
+        // Polls can still report idle while the send RPC is in flight. Only its
+        // acknowledgement/failure (or a real host turn) may settle this placeholder.
+        if (previous != null && isLocalPendingActiveTurn(previous)) return previous
         if (previous != null && MessageStatusSemantics.shouldHoldCompletedTurn(previous.status) &&
             hasDisplayableAssistantFinal(previous) &&
             !isActiveTurnCoveredByMessages(previous, state.persistedMessages)
@@ -418,7 +440,7 @@ public class ChatTimelineStore public constructor() {
             status = incoming.status.ifEmpty { previous.status },
             timestamp = incoming.timestamp ?: previous.timestamp,
             thinking = monotonicText(previous.thinking.orEmpty(), incoming.thinking.orEmpty()).ifEmpty { null },
-            tools = incoming.tools ?: previous.tools,
+            tools = mergeTools(previous.tools, incoming.tools),
             items = mergeActiveItems(previous.items.orEmpty(), incoming.items.orEmpty()),
             images = incoming.images?.takeIf(List<ImageAttachment>::isNotEmpty) ?: previous.images,
             )
@@ -670,6 +692,22 @@ public class ChatTimelineStore public constructor() {
             else -> previous
         }
 
+        private fun mergeTools(
+            previous: List<RemoteToolStatusResponse>?,
+            incoming: List<RemoteToolStatusResponse>?,
+        ): List<RemoteToolStatusResponse>? {
+            if (incoming.isNullOrEmpty()) return previous ?: incoming
+            if (previous.isNullOrEmpty()) return incoming
+            val merged = previous.toMutableList()
+            incoming.forEachIndexed { position, tool ->
+                val index = if (!tool.id.isNullOrBlank()) merged.indexOfFirst { it.id == tool.id }
+                else position.takeIf { it < merged.size && merged[it].id.isNullOrBlank() } ?: -1
+                if (index < 0) merged += tool
+                else merged[index] = mergeTool(merged[index], tool)!!
+            }
+            return merged
+        }
+
         private fun mergeTool(
             previous: RemoteToolStatusResponse?,
             incoming: RemoteToolStatusResponse?,
@@ -677,7 +715,21 @@ public class ChatTimelineStore public constructor() {
             incoming == null -> previous
             previous == null -> incoming
             ToolStatusSemantics.shouldKeepPrevious(previous.status, incoming.status) -> previous
-            else -> incoming
+            else -> incoming.copy(
+                id = incoming.id ?: previous.id,
+                name = incoming.name ?: previous.name,
+                status = incoming.status ?: previous.status,
+                durationMs = incoming.durationMs ?: previous.durationMs,
+                startMs = incoming.startMs ?: previous.startMs,
+                inputPreview = incoming.inputPreview?.takeIf(String::isNotEmpty) ?: previous.inputPreview,
+                toolInput = incoming.toolInput ?: previous.toolInput,
+                stdout = incoming.stdout?.takeIf(String::isNotEmpty) ?: previous.stdout,
+                stderr = incoming.stderr?.takeIf(String::isNotEmpty) ?: previous.stderr,
+                toolOutput = incoming.toolOutput ?: previous.toolOutput,
+                resultPreview = incoming.resultPreview?.takeIf(String::isNotEmpty) ?: previous.resultPreview,
+                errorPreview = incoming.errorPreview?.takeIf(String::isNotEmpty) ?: previous.errorPreview,
+                exitCode = incoming.exitCode ?: previous.exitCode,
+            )
         }
 
         private fun isLocalPendingActiveTurn(activeTurn: ChatMessage): Boolean =
@@ -689,14 +741,54 @@ public class ChatTimelineStore public constructor() {
         ): List<ChatMessage> {
             val merged = current.toMutableList()
             incoming.forEach { message ->
-                val existingIndex = merged.indexOfFirst { it.id == message.id }
+                val existingIndex = merged.indexOfFirst { samePersistedMessage(it, message) }
                 if (existingIndex >= 0) {
-                    merged[existingIndex] = mergeMessageSnapshot(merged[existingIndex], message)
+                    val previous = merged[existingIndex]
+                    // A replayed provisional row must not replace the durable identity/body.
+                    merged[existingIndex] = if (previous.id != message.id && isProvisionalUser(message)) {
+                        previous
+                    } else {
+                        mergeMessageSnapshot(previous, message)
+                    }
                 } else {
                     merged += message
                 }
             }
             return merged
+        }
+
+        private fun withoutProvisionalUserAliases(messages: List<ChatMessage>): List<ChatMessage> {
+            val durableTurns = messages.filter { it.role == "user" && !isProvisionalUser(it) }
+                .mapNotNullTo(mutableSetOf()) { it.turnId?.takeIf(String::isNotBlank) }
+            return messages.filterNot { isProvisionalUser(it) && it.turnId in durableTurns }
+        }
+
+        private fun newlyPersistedMessages(
+            previous: List<ChatMessage>,
+            incoming: List<ChatMessage>,
+        ): List<ChatMessage> {
+            val ids = previous.mapTo(mutableSetOf()) { it.id }
+            val userTurns = previous.filter { it.role == "user" }
+                .mapNotNullTo(mutableSetOf()) { it.turnId?.takeIf(String::isNotBlank) }
+            val provisionalTurns = previous.filter(::isProvisionalUser).mapTo(mutableSetOf()) { it.turnId }
+            return incoming.filterNot { message ->
+                message.id in ids || (message.role == "user" && !message.turnId.isNullOrBlank() &&
+                    (message.turnId in provisionalTurns || (isProvisionalUser(message) && message.turnId in userTurns)))
+            }
+        }
+
+        /** The host can expose a Turn placeholder before the original user message is persisted. */
+        private fun isProvisionalUser(message: ChatMessage): Boolean =
+            message.role == "user" && !message.turnId.isNullOrBlank() &&
+                message.id == "${message.turnId}-user"
+
+        private fun samePersistedMessage(previous: ChatMessage, incoming: ChatMessage): Boolean {
+            if (previous.id == incoming.id) return true
+            // Only the known host-generated placeholder is an alias. Two durable
+            // user messages (including repeated steering) never merge by text or turn alone.
+            return previous.role == "user" && incoming.role == "user" &&
+                !previous.turnId.isNullOrBlank() && previous.turnId == incoming.turnId &&
+                (isProvisionalUser(previous) || isProvisionalUser(incoming))
         }
 
         private fun mergeMessageSnapshot(previous: ChatMessage, incoming: ChatMessage): ChatMessage {
@@ -758,6 +850,9 @@ public class ChatTimelineStore public constructor() {
         private fun isPersistedUserDuplicate(pending: ChatMessage, message: ChatMessage): Boolean {
             if (pending.role != "user" || message.role != "user") return false
             if (pending.id == message.id) return true
+            if (!pending.turnId.isNullOrBlank() && !message.turnId.isNullOrBlank()) {
+                return pending.turnId == message.turnId
+            }
             val pendingText = pending.text.trim()
             if (pendingText.isEmpty() || pendingText != message.text.trim()) return false
             return imageSignature(pending.images.orEmpty()) == imageSignature(message.images.orEmpty())

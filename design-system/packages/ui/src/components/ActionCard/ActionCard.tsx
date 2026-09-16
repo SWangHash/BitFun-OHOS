@@ -23,7 +23,10 @@ export type ActionCardSize = "sm" | "md";
 export interface ActionCardProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className"> {
   actions?: readonly ActionCardAction[];
-  children: ReactNode;
+  children?: ReactNode;
+  /** Rich card body (preview, multiline copy, selection marker) instead of title/description. */
+  body?: ReactNode;
+  triggerClassName?: string;
   className?: string;
   description?: ReactNode;
   leading?: ReactNode;
@@ -35,6 +38,8 @@ export const ActionCard = forwardRef<HTMLButtonElement, ActionCardProps>(
   function ActionCard({
     actions = [],
     children,
+    body,
+    triggerClassName,
     className,
     description,
     disabled = false,
@@ -55,7 +60,7 @@ export const ActionCard = forwardRef<HTMLButtonElement, ActionCardProps>(
       >
         <button data-overflow-trigger
           {...props}
-          className={styles.trigger}
+          className={classNames(styles.trigger, triggerClassName)}
           data-openbitfun-part="trigger"
           disabled={disabled}
           ref={ref}
@@ -66,14 +71,14 @@ export const ActionCard = forwardRef<HTMLButtonElement, ActionCardProps>(
               {leading}
             </span>
           )}
-          <span className={styles.content} data-openbitfun-part="content">
+          {body !== undefined ? body : <span className={styles.content} data-openbitfun-part="content">
             <OverflowText className={styles.title} data-openbitfun-part="title">{children}</OverflowText>
             {description !== undefined && description !== null && (
               <OverflowText className={styles.description} data-openbitfun-part="description">
                 {description}
               </OverflowText>
             )}
-          </span>
+          </span>}
         </button>
         {actions.length > 0 && (
           <span className={styles.actions} data-openbitfun-part="actions">

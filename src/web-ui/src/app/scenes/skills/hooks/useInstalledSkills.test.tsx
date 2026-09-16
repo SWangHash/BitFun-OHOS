@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SkillInfo } from '@/infrastructure/config/types';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import { useInstalledSkills } from './useInstalledSkills';
 import type { InstalledFilter } from '../skillsSceneStore';
 
@@ -176,7 +177,7 @@ describe('useInstalledSkills', () => {
     expect(getGlobalSkillSettingsMock).toHaveBeenCalledTimes(1);
   });
 
-  it('excludes discovered external content and counts only native copies and built-ins', async () => {
+  it('shows all discovered sources and exposes the shared directory as a source filter', async () => {
     const skill = (key: string, overrides: Partial<SkillInfo> = {}): SkillInfo => ({
       key, name: 'shared-name', description: '', path: `/skills/${key}`,
       level: 'user', sourceSlot: 'openbitfun', sourceId: 'openbitfun',
@@ -195,20 +196,45 @@ describe('useInstalledSkills', () => {
     getSkillConfigsMock.mockResolvedValue(skills);
     await act(async () => root.render(<Harness enabled activeFilter="source:codex" />));
     expect(currentInstalled?.catalogReady).toBe(true);
-    expect(currentInstalled?.diagnostics).toEqual([]);
-    expect(notificationMocks.warning).not.toHaveBeenCalled();
-    expect(currentInstalled?.filteredSkills).toEqual([]);
-    expect(currentInstalled?.sourceGroups).toEqual([]);
-    expect(currentInstalled?.counts).toEqual({ all: 3, builtin: 1, user: 1, project: 1 });
+    expect(currentInstalled?.diagnostics).toEqual(diagnosticsMock.items);
+    expect(notificationMocks.warning).toHaveBeenCalledTimes(1);
+    expect(currentInstalled?.filteredSkills).toEqual(skills.slice(3, 5));
+    expect(currentInstalled?.sourceGroups).toEqual([{ id: 'source:agent-skills', label: '.agents' }, { id: 'source:claude-code', label: 'Claude Code' }, { id: 'source:codex', label: 'Codex' }]);
+    expect(currentInstalled?.counts).toEqual({ all: 7, builtin: 1, user: 4, project: 2, 'source:codex': 2, 'source:claude-code': 1, 'source:agent-skills': 1 });
     await act(async () => root.render(<Harness enabled activeFilter="all" searchQuery="remote" />));
-    expect(currentInstalled?.filteredSkills).toEqual([]);
-    expect(currentInstalled?.counts.all).toBe(3);
+    expect(currentInstalled?.filteredSkills).toEqual([skills[4]]);
+    expect(currentInstalled?.counts.all).toBe(7);
     await act(async () => root.render(<Harness enabled activeFilter="user" />));
-    expect(currentInstalled?.filteredSkills.map((item) => item.key)).toEqual(['owned-user']);
+    expect(currentInstalled?.filteredSkills.map((item) => item.key)).toEqual(['owned-user', 'codex-user', 'claude', 'agents']);
     await act(async () => root.render(<Harness enabled activeFilter="project" />));
-    expect(currentInstalled?.filteredSkills.map((item) => item.key)).toEqual(['owned-project']);
+    expect(currentInstalled?.filteredSkills.map((item) => item.key)).toEqual(['owned-project', 'codex-project']);
     await act(async () => root.render(<Harness enabled activeFilter="all" />));
-    expect(currentInstalled?.filteredSkills).toEqual(skills.slice(0, 3));
+    expect(currentInstalled?.filteredSkills).toEqual(skills);
+    await act(async () => root.render(<Harness enabled activeFilter="source:agent-skills" />));
+    expect(currentInstalled?.filteredSkills).toEqual([skills[6]]);
+    await act(async () => { expect(await currentInstalled?.handleDelete(skills[6])).toBe(false); });
+    expect(deleteSkillMock).not.toHaveBeenCalled();
+  });
+
+  it('loads project policy, toggles a shared directory Skill, and refreshes after external policy changes', async () => {
+    const skill = { key: 'project::agents::review', name: 'review', description: '', path: '/project/.agents/skills/review',
+      level: 'project', sourceId: 'agent-skills', sourceSlot: 'agents', dirName: 'review', isBuiltin: false } as SkillInfo;
+    const disabled = { directSkillManagementVersion: 1, globallyDisabledUserSkillKeys: [], globallyDisabledProjectSkillKeys: [skill.key] };
+    getSkillConfigsMock.mockResolvedValue([skill]);
+    getGlobalSkillSettingsMock.mockResolvedValue(disabled);
+    await act(async () => root.render(<Harness enabled />));
+    expect(getGlobalSkillSettingsMock).toHaveBeenCalledWith('D:/workspace/project');
+    expect(currentInstalled?.globallyDisabledSkillKeys.has(skill.key)).toBe(true);
+    expect(currentInstalled?.canToggleSkill(skill)).toBe(true);
+    const enabled = { ...disabled, globallyDisabledProjectSkillKeys: [] };
+    setGlobalSkillDisabledMock.mockResolvedValue(enabled);
+    getGlobalSkillSettingsMock.mockResolvedValue(enabled);
+    await act(async () => { expect(await currentInstalled?.handleGlobalSkillToggle(skill, true)).toBe(true); });
+    expect(setGlobalSkillDisabledMock).toHaveBeenCalledWith({ skillKey: skill.key, disabled: false, workspacePath: 'D:/workspace/project' });
+    expect(currentInstalled?.globallyDisabledSkillKeys.has(skill.key)).toBe(false);
+    getGlobalSkillSettingsMock.mockResolvedValue(disabled);
+    await act(async () => globalEventBus.emit('mode:config:updated'));
+    expect(currentInstalled?.globallyDisabledSkillKeys.has(skill.key)).toBe(true);
   });
 
   it('groups native imported copies by persisted origin and keeps native deletion available', async () => {

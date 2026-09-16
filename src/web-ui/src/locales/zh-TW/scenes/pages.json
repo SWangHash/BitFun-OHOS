@@ -7,7 +7,7 @@
   "signInRequired": "登入帳號後即可管理已發佈頁面。",
   "signInHint": "頁面儲存在帳號中繼上，需要先登入帳號才能存取。",
   "empty": "還沒有發佈過頁面。",
-  "emptyHint": "讓 Agent 建立一個 Page，之後可以在這裡管理所有已儲存版本。",
+  "emptyHint": "讓智能體建立一個 Page，之後可以在這裡管理所有已儲存版本。",
   "status": {
     "deployed": "生產環境",
     "savedOnly": "僅儲存",

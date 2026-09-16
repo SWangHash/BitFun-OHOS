@@ -1,6 +1,6 @@
 /** Account login and authenticated device connections. */
 
-import { OverflowText, Alert, Button, Icon, IconButton, ScrollArea, StatusPill } from '@openbitfun/ui';
+import { OverflowText, Alert, Avatar, Button, Icon, IconButton, ScrollArea, StatusPill } from '@openbitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
@@ -73,8 +73,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const { success } = useNotification();
   const { peerMode, switchToDevice, switchToLocal } = usePeerDeviceMode();
   const identity = useAccountIdentity();
-  const githubId = identity.me?.user.githubId;
-  const username = identity.me?.user.login ?? '';
+  const githubId = (identity.me?.user.accountId ?? identity.me?.user.githubId);
+  const username = identity.me?.email ?? identity.me?.user.login ?? '';
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<View>('login');
@@ -443,16 +443,21 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   }, [activeAccountEpoch, applyPresenceOnline, isAccountEpochCurrent]);
 
   const handleLogin = useCallback(async () => {
+    if (identity.status === 'authorizing') {
+      try { await accountIdentityService.reopenSignIn(); }
+      catch (e: unknown) { if (mountedRef.current) setError(e instanceof Error ? e.message : String(e)); }
+      return;
+    }
     setLoading(true); setError(null);
     try {
       const me = await accountIdentityService.signIn();
-      if (mountedRef.current) success(t('accountLogin.loginSuccess', { user_id: me.user.login }));
+      if (mountedRef.current) success(t('accountLogin.loginSuccess', { user_id: me.email ?? me.user.login }));
     } catch (e: unknown) {
       if (mountedRef.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [success, t]);
+  }, [identity.status, success, t]);
 
   const handleLogout = useCallback(async () => {
     const epoch = invalidateAccountRequests();
@@ -588,8 +593,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
               <p className="account-panel__value-prop">{t('accountLogin.loginValueProp')}</p>
               <p className="account-panel__security-note">{t('accountLogin.securityNote')}</p>
               <div className="account-panel__actions" data-openbitfun-component="remote-account-panel" data-openbitfun-part="actions">
-                <Button variant="primary" size="sm" leadingIcon={<LogIn />} onClick={handleLogin} loading={loading}>
-                  {loading ? t('accountLogin.processing') : t('accountLogin.login')}
+                <Button variant="primary" size="sm" leadingIcon={<LogIn />} onClick={handleLogin} loading={loading && identity.status !== 'authorizing'}>
+                  {identity.status === 'authorizing' ? t('accountLogin.reopen') : loading ? t('accountLogin.processing') : t('accountLogin.login')}
                 </Button>
               </div>
             </div>
@@ -599,7 +604,9 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
         {view === 'devices' && (
           <ScrollArea className="account-panel__scroll" data-openbitfun-component="remote-account-panel" data-openbitfun-part="scroll">
             <div className="account-panel__identity-line">
-              <Icon name="user" size="lg" aria-hidden="true" />
+              <Avatar key={username} size="md" src={identity.me?.user.avatarUrl} alt={username} aria-label={username}>
+                {username.trim().charAt(0).toUpperCase() || <Icon name="user" />}
+              </Avatar>
               <span className="account-panel__identity-copy">
                 <span className="account-panel__identity-label">{t('accountLogin.signedInAccount')}</span>
                 <OverflowText className="account-panel__identity-name" title={username}>{username.trim()}</OverflowText>

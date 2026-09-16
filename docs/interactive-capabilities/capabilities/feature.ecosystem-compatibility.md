@@ -11,45 +11,47 @@ title_en: "External AI ecosystem compatibility"
 
 > 功能 / Feature
 
-查看五类外部 AI 生态的内容与状态，导入受支持的 Skill、MCP 和 Hook 副本，并查看 Command、Tool、Subagent 的兼容使用状态。
+查看五类外部 AI 生态的内容与状态，导入受支持的 Skill、MCP 和 Hook 副本，并查看 Command、Tool、子智能体的兼容使用状态。
 
 Inspect content and status from five external AI ecosystems, import supported Skill, MCP and Hook copies, and review compatibility usage for commands, tools and subagents.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 发现 OpenCode、Claude Code、Codex 等外部 AI 来源与可用内容
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 发现 OpenCode、Claude Code、Codex 等外部 AI 来源与可用内容
   - Discover OpenCode, Claude Code, Codex, and other external AI sources and content
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按来源启用或停用集成，并选择管理、预览或只读策略
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按来源启用或停用集成，并选择管理、预览或只读策略
   - Enable or disable each source and choose managed, preview, or read-only policy
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 展开外部 Prompt/Command 内容并处理与原生命令的冲突
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 展开外部 Prompt/Command 内容并处理与原生命令的冲突
   - Expand external prompt/command content and resolve conflicts with native commands
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 启用外部 Agent，处理同名冲突并绑定模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 启用外部智能体，处理同名冲突并绑定模型
   - Enable external agents, resolve naming conflicts, and bind models
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 预览 MCP 导入计划，逐个处理服务器冲突并应用
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 预览 MCP 导入计划，逐个处理服务器冲突并应用
   - Preview MCP import plans, resolve server conflicts individually, and apply them
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择外部工具目标、解决冲突并控制是否启用
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择外部工具目标、解决冲突并控制是否启用
   - Choose external tool targets, resolve conflicts, and control activation
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看外部 Hooks 目录、规划导入、修改选择并应用
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看外部 Hooks 目录、规划导入、修改选择并应用
   - Inspect external hook catalogs, plan imports, edit selections, and apply
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在迁移前查看冲突、安全影响和来源控制快照
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在迁移前查看冲突、安全影响和来源控制快照
   - Review conflicts, security impact, and source-control snapshots before migration
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在文件管理器或远程环境中定位外部配置来源
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在文件管理器或远程环境中定位外部配置来源
   - Reveal external configuration sources in the file manager or remote environment
 
 ## 怎么用 / How to use it
 
-1. 打开“生态兼容”并选择 Agent
+1. 打开“生态兼容”并选择智能体
    Open Ecosystem Compatibility and choose an agent
-2. 按类别查看发现结果、限制与当前状态；未发现、发现关闭和发现失败会分别显示
-   Expand a category to inspect results, limits and current status; missing, disabled and failed discovery are distinct
-3. 审阅可导入项目并确认创建副本；Command、Tool、Subagent 按已有兼容功能使用
+2. 在左侧导航搜索框上方切换自动发现，悬停查看说明；关闭后保留结果，也可手动刷新
+   Toggle automatic discovery above the sidebar search and hover for details; pausing retains results and manual refresh remains available
+3. 查看分类状态，打开分类弹窗浏览、搜索并选择内容
+   Inspect category status, then open a category dialog to browse, search, and select content
+4. 审阅可导入项目并确认创建副本；Command、Tool、子智能体按已有兼容功能使用
    Review importable items and confirm copies; use commands, tools and subagents through existing compatibility features
-4. 前往对应管理页确认副本启用或连接；当前页不将“已导入”视为可用
+5. 前往对应管理页确认副本启用或连接；当前页不将“已导入”视为可用
    Confirm copy activation or connection in the relevant settings; Imported does not mean available
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -61,13 +63,13 @@ Inspect content and status from five external AI ecosystems, import supported Sk
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开外部 AI 生态兼容”
   - “Open external AI ecosystem compatibility”
 - “我想迁移 Claude Code 的配置”
   - “I want to migrate my Claude Code configuration”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -276,6 +276,12 @@ internal fun MobileScreen() {
     // The button and the pane are the same sidebar; exactly one of them is real.
     val showMenu = sidebarWidth == 0
 
+    var workspaceToolVisible by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(readyAccount?.selectedDeviceId) { workspaceToolVisible = null }
+    (activeWorkspaceState as? RemoteWorkspaceUiState.Ready)?.let { ready ->
+        if (workspaceToolVisible == "files") com.openbitfun.mobile.app.ui.remote.RuntimeFilesDialog(ready, ::dispatchActiveWorkspace) { workspaceToolVisible = null }
+        if (workspaceToolVisible == "terminal") com.openbitfun.mobile.app.ui.remote.RuntimeTerminalDialog(ready.terminal, ::dispatchActiveWorkspace) { workspaceToolVisible = null }
+    }
     val sidebar: @Composable () -> Unit = {
         AppSidebar(
             permanent = sidebarWidth > 0,
@@ -313,11 +319,11 @@ internal fun MobileScreen() {
                 shell.closeRemoteSession()
             },
             onOpenRemoteSession = { sessionId ->
-                dispatchActiveSession(RemoteSessionIntent.Open(sessionId))
                 shell.openRemoteSession(sessionId)
                 closeDrawer()
+                dispatchActiveSession(RemoteSessionIntent.Open(sessionId))
             },
-            onCreateRemoteInWorkspace = { path, agentType ->
+            onCreateRemoteInWorkspace = { path, connectionId, agentType ->
                 dispatchActiveSession(
                     RemoteSessionIntent.CreateSession(
                         agentType = agentType,
@@ -325,9 +331,15 @@ internal fun MobileScreen() {
                         instruction = "",
                         modelId = null,
                         workspacePath = path,
+                        remoteConnectionId = connectionId,
                     ),
                 )
                 shell.show(MobileSurface.REMOTE)
+                closeDrawer()
+            },
+            onWorkspaceTool = { path, connectionId, terminal ->
+                dispatchActiveWorkspace(if (terminal) RemoteWorkspaceIntent.OpenDeviceTerminal(path, connectionId) else RemoteWorkspaceIntent.OpenDeviceFiles(path, connectionId))
+                workspaceToolVisible = if (terminal) "terminal" else "files"
                 closeDrawer()
             },
             onOpenRemoteWorkspace = { path ->

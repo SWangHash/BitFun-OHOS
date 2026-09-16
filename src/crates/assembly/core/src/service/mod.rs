@@ -11,7 +11,8 @@ pub(crate) mod bootstrap; // Workspace persona bootstrap helpers
 #[cfg(feature = "canvas-runtime")]
 pub mod canvas; // Canvas service compatibility facade
 pub mod config; // Config management
-pub mod local_model_client;
+    #[cfg(feature = "local-model-runtime")]
+    pub mod local_model_client;
 #[cfg(feature = "agent-runtime")]
 pub(crate) mod coordination_persistence;
 #[cfg(all(feature = "agent-runtime", feature = "scheduled-jobs"))]

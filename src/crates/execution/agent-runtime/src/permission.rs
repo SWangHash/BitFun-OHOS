@@ -207,6 +207,8 @@ pub struct PermissionReplyResolution {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PermissionRequestManagerError {
+    #[error("Invalid permission reply: {0}")]
+    InvalidReply(String),
     #[error("Duplicate pending permission request: {0}")]
     DuplicateRequest(String),
     #[error("Pending permission request not found: {0}")]
@@ -568,6 +570,13 @@ impl PermissionRequestManager {
         reply: PermissionReply,
         source: PermissionReplySource,
     ) -> Result<PermissionReplyResolution, PermissionRequestManagerError> {
+        if let PermissionReply::OnceWithInput { updated_input } = &reply {
+            if include_following || !updated_input.is_object() {
+                return Err(PermissionRequestManagerError::InvalidReply(
+                    "Edited approval requires an object input and a single request".to_string(),
+                ));
+            }
+        }
         let _operation = self.operations.lock().await;
         let request = self
             .pending
@@ -576,6 +585,15 @@ impl PermissionRequestManager {
             .ok_or_else(|| {
                 PermissionRequestManagerError::RequestNotFound(request_id.to_string())
             })?;
+        if matches!(reply, PermissionReply::OnceWithInput { .. })
+            && (request.source.kind
+                != openbitfun_runtime_ports::PermissionRequestSourceKind::ToolCall
+                || request.tool_call_id.is_none())
+        {
+            return Err(PermissionRequestManagerError::InvalidReply(
+                "This permission owner does not support edited input".to_string(),
+            ));
+        }
         let timestamp_ms = self.clock.now_unix_millis();
         let resolution_requests = if include_following {
             self.ordered_pending_requests(|pending| {

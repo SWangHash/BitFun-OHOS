@@ -136,3 +136,66 @@ yank、上传和 migration 变化不能只测试成功路径。
 不要在生产服务器直接执行 `cargo run`，不要手工替换 binary，也不要直接编辑
 SQLite/artifacts。完整流程见
 [生产部署手册](../../../../deploy/miniapp-market/README.md)。
+
+## 邮箱验证码登录
+
+统一登录页提供两个独立入口：GitHub OAuth 和邮箱验证码。首次验证邮箱后创建独立
+账号；不创建密码，不按邮箱或昵称自动绑定、合并 GitHub 账号。跨设备必须使用同一种
+登录方式和同一个账号。
+
+新版客户端向 `POST /auth/desktop/start?methods=all` 请求统一登录页，继续使用原有
+事务 secret 和一次性轮询 token。未携带该参数的旧客户端仍直接收到 GitHub OAuth
+URL。Relay 的旧命名 `/api/auth/github/start` 同样仅在 `methods=all` 时转发新能力。
+旧服务器忽略该参数时保留原 GitHub 路径，不向旧客户端发放邮箱身份。
+
+`POST /auth/login/start` 创建浏览器授权票据；`POST /auth/login/github` 选择 GitHub；
+`POST /auth/email/send` 发码，`POST /auth/email/verify` 验码。邮箱地址按 ASCII 小写
+规范化，不删除加号标签或点。固定八位随机数字验证码十分钟有效，单次最多五次尝试，只存
+基于 session secret 的 HMAC 摘要。每个邮箱一分钟一次、一天二十次；服务器整体
+一分钟三百封、不设每日总量上限，发送失败也计入配额。发送记录保留一天，配额跨重启有效。
+只接受八位数字，不兼容旧六位验证码；部署后旧验证码需重新获取。
+SMTP 错误不得包含地址、凭据或验证码。认证接口保留 body、并发、期限和全局限流。
+
+浏览器授权票据与设备轮询 secret 分离。邮箱验证完成后使用六十秒、一次性 grant
+在市场 origin 建立 host-only Cookie；不在 URL 中传输长期 session 或 API token。
+
+新增 migration 0002 保留旧 users 内部 ID、会话和产品外键，将 github_id 改为可空。
+`/me` 增加可选 `accountId`：GitHub 用户保持原数字 ID 字符串，邮箱用户为独立
+`email-<internal-id>` 命名空间。兼容字段 `githubId=0` 表示没有 GitHub 身份，不是
+合成 GitHub ID；旧消费者必须拒绝该身份。管理员仍仅由正数 GitHub ID 决定。
+已产生邮箱用户后不得回滚到旧 binary；应向前修复，恢复备份需单独的数据恢复决策。
+
+发信使用 `SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURITY`（ssl/starttls）、`SMTP_USERNAME`、
+`SMTP_PASSWORD` 和可选 `SMTP_FROM_NAME`。默认阿里企业邮箱 TLS 主机
+`smtp.qiye.aliyun.com:465`，不允许关闭证书验证。未配置密码时只关闭邮箱入口，
+`/config` 和 `/health` 的 `emailAuthConfigured` 明确报告能力。
+
+重点回归：`cargo test -p openbitfun-miniapp-market-service --lib email_`。
+
+The verification email uses `src/email/sign-in.html` as a multipart/alternative
+HTML body with a complete UTF-8 plain-text fallback. Layout uses presentation
+tables, inline styles and system fonts; the six digits stay selectable text.
+Media queries add compact spacing and dark-mode colors without being required
+for readability. There are no scripts, forms, tracking pixels or recipient data
+in image URLs. The HTML branch is multipart/related with the original application
+PNG embedded as an inline CID resource (`src/email/app-icon.png`). It does not
+require external image downloads. The brand generator owns this byte-identical
+copy of the application icon; do not recolor it or add a CSS placeholder background.
+The market web build publishes the same icon separately for the sign-in page.
+
+Email clients cannot consume CSS variables or theme packages. The template's
+small inline palette is an email-specific snapshot of the existing OpenBitFun
+reference scales: neutral 0/70/75/200/350/650/800/850/900/950/1000 and cyan 500 from
+`design-system/packages/theme-openbitfun/src/reference.tokens.json`. Preserve
+those source mappings when updating the template; do not add a separate brand
+palette. Check the HTML at 390px and desktop widths in light and dark mode,
+then run `cargo test -p openbitfun-miniapp-market-service --lib email_auth::tests`
+and a real message render check after SMTP/template changes.
+
+Marketplace author labels are public: email accounts display their full verified
+email address in listing owners and moderation submitters. The authenticated
+`/me` profile keeps its legacy `user.login` protocol handle and exposes the
+verified address separately as `email`; older relays require that handle format.
+Skin uses the separate email for its public author projection. GitHub
+accounts retain their GitHub login. Ownership and authorization use internal IDs,
+never the displayed label; this does not link email and GitHub accounts.

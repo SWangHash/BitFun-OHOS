@@ -80,6 +80,9 @@
   }
   
   &__content {
+    // Pass the bounded height to Listbox's ScrollArea instead of clipping a taller list.
+    display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
     min-height: 60px;
@@ -113,7 +116,8 @@
   }
   
   &__list {
-    block-size: 100%;
+    flex: 1;
+    min-height: 0;
     padding: var(--openbitfun-overlay-menu-surface-padding);
   }
 
@@ -131,10 +135,9 @@
   }
 
   &__skill-option > [data-openbitfun-part='metadata'] {
-    flex: 1 1 auto;
-    inline-size: 8rem;
+    // Let every description reach the same trailing edge after its skill name.
+    flex: 1 1 0;
     min-inline-size: 0;
-    max-inline-size: 60%;
   }
 
   &__skill-description {

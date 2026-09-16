@@ -8,7 +8,7 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Button, Icon, IconButton, Input, Menu, MenuItem, OverflowText, Tooltip } from '@openbitfun/ui';
 import { createPortal } from 'react-dom';
-import { Bot, Loader2, Archive, ListChecks } from 'lucide-react';
+import { Loader2, Archive, ListChecks } from 'lucide-react';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n';
 import { flowChatStore } from '../../../../../flow_chat/store/FlowChatStore';
@@ -1758,7 +1758,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                   <Tooltip content={t('nav.sessions.confirmEdit')} placement="top">
                     <IconButton
                       aria-label={t('nav.sessions.confirmEdit')}
-                      variant="primary"
+                      variant="quiet"
                       size="sm"
                       className="openbitfun-nav-panel__inline-item-edit-btn confirm"
                       onClick={e => { e.stopPropagation(); handleConfirmEdit(); }}
@@ -1809,9 +1809,10 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           count: backgroundSubagentActivityCount,
                         })}
                       >
-                        <Bot
-                          className="openbitfun-nav-panel__inline-item-background-subagent-icon is-bot"
-                          size={10}
+                        <Icon
+                          name="user"
+                          className="openbitfun-nav-panel__inline-item-background-subagent-icon is-agent"
+                          size="2xs"
                           aria-hidden
                         />
                         <Loader2

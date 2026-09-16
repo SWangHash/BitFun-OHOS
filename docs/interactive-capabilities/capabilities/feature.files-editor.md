@@ -11,33 +11,33 @@ title_en: "Files & code editing"
 
 > 功能 / Feature
 
-浏览、搜索和编辑项目文件，查看差异、按语言可用的编辑操作与 Agent 产生的改动。
+浏览、搜索和编辑项目文件，查看差异、按语言可用的编辑操作与智能体产生的改动。
 
 Browse, search, and edit project files while inspecting diffs, language-aware editor actions, and agent changes.
 
 ## 完整功能清单 / Everything included
 
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `LS` / `Read` / `Write` / `Edit` / `Delete` / `ExecCommand` · 浏览、创建、读取、编辑、重命名和删除文件与目录
+- **由专用智能体工具控制 / Delegated Agent tool** · `LS` / `Read` / `Write` / `Edit` / `Delete` / `ExecCommand` · 浏览、创建、读取、编辑、重命名和删除文件与目录
   - Browse, create, read, edit, rename, and delete files and directories
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在系统文件管理器中显示文件或目录
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在系统文件管理器中显示文件或目录
   - Reveal a file or directory in the operating-system file manager
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Glob` / `Grep` · 按文件名模式和全文内容搜索当前工作区
+- **由专用智能体工具控制 / Delegated Agent tool** · `Glob` / `Grep` · 按文件名模式和全文内容搜索当前工作区
   - Search the active workspace by filename pattern and full-text content
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 建立或重建界面搜索索引
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 建立或重建界面搜索索引
   - Build or rebuild the UI search index
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `Read` / `Write` / `Edit` · 读取、编辑、保存文件并同步编辑器状态
+- **由专用智能体工具控制 / Delegated Agent tool** · `Read` / `Write` / `Edit` · 读取、编辑、保存文件并同步编辑器状态
   - Read, edit, and save files while synchronizing editor state
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `GetFileDiff` · 查看修改文件、会话、轮次和单次操作的差异与统计
+- **由专用智能体工具控制 / Delegated Agent tool** · `GetFileDiff` · 查看修改文件、会话、轮次和单次操作的差异与统计
   - Inspect diffs and statistics by file, session, turn, or operation
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 按文件、操作或整个会话接受或拒绝 Agent 改动
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 按文件、操作或整个会话接受或拒绝智能体改动
   - Accept or reject agent changes by file, operation, or whole session
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看文件变更历史和快照，并回滚整个会话或指定轮次
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看文件变更历史和快照，并回滚整个会话或指定轮次
   - Review file history and snapshots, then roll back a session or selected turn
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 仅在当前语言提供器实际支持时显示格式化、定义与类型跳转、引用、重命名、快速修复和符号导航
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 仅在当前语言提供器实际支持时显示格式化、定义与类型跳转、引用、重命名、快速修复和符号导航
   - Show formatting, definition and type navigation, references, rename, quick fixes, and symbol navigation only when supported by the active language provider
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在 Desktop 本地会话中粘贴或拖入本机文件、文件夹与图片
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在 Desktop 本地会话中粘贴或拖入本机文件、文件夹与图片
   - Paste or drop local files, folders, and images into Desktop local sessions
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `view_image` / `analyze_image` · 查看并分析工作区或会话中的图片
+- **由专用智能体工具控制 / Delegated Agent tool** · `view_image` / `analyze_image` · 查看并分析工作区或会话中的图片
   - View and analyze images from the workspace or session context
 
 ## 怎么用 / How to use it
@@ -51,7 +51,7 @@ Browse, search, and edit project files while inspecting diffs, language-aware ed
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -63,13 +63,13 @@ Browse, search, and edit project files while inspecting diffs, language-aware ed
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开项目文件”
   - “Open the project files”
 - “带我去文件和代码编辑器”
   - “Take me to the file and code editor”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

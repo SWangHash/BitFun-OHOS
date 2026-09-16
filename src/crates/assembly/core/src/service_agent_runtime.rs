@@ -370,12 +370,6 @@ fn configured_plugin_dialog_turn_port(
 }
 
 #[cfg(feature = "remote-connect")]
-fn current_workspace_path() -> Option<std::path::PathBuf> {
-    crate::service::workspace::get_global_workspace_service()
-        .and_then(|service| service.try_get_current_workspace_path())
-}
-
-#[cfg(feature = "remote-connect")]
 fn session_storage_request_from_binding(binding: &WorkspaceBinding) -> SessionStoragePathRequest {
     SessionStoragePathRequest {
         workspace_path: binding.logical_workspace_path().to_path_buf(),
@@ -1535,6 +1529,22 @@ impl CoreServiceAgentRuntime {
         openbitfun_services_integrations::remote_connect::file_projection::SessionFileTarget,
         String,
     > {
+        Self::remote_file_target_with_identity(path, session_id)
+            .await
+            .map(|(target, _)| target)
+    }
+
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn remote_file_target_with_identity(
+        path: &str,
+        session_id: Option<&str>,
+    ) -> Result<
+        (
+            openbitfun_services_integrations::remote_connect::file_projection::SessionFileTarget,
+            String,
+        ),
+        String,
+    > {
         let binding = if let Some(session_id) = session_id {
             Self::resolve_session_workspace_binding(session_id).await
                 .ok_or_else(|| "The output session workspace is unavailable; no current-workspace fallback was attempted".to_string())?
@@ -1559,7 +1569,118 @@ impl CoreServiceAgentRuntime {
                     "Cannot resolve the selected workspace for file access".to_string()
                 })?
         };
-        Self::file_target_for_binding(path, session_id, binding).await
+        let connection_id = binding.connection_id().map(str::to_string);
+        let target = Self::file_target_for_binding(path, session_id, binding).await?;
+        let target_id = if target.remote {
+            connection_id.ok_or("Remote file target has no connection identity")?
+        } else {
+            "local".to_string()
+        };
+        Ok((target, target_id))
+    }
+
+    #[cfg(feature = "remote-connect")]
+    async fn scoped_remote_file_target(
+        path: &str,
+        session_id: Option<&str>,
+        workspace_path: Option<&str>,
+        remote_connection_id: Option<&str>,
+    ) -> Result<
+        openbitfun_services_integrations::remote_connect::file_projection::SessionFileTarget,
+        String,
+    > {
+        Self::scoped_remote_file_target_with_identity(
+            path,
+            session_id,
+            workspace_path,
+            remote_connection_id,
+        )
+        .await
+        .map(|(target, _)| target)
+    }
+
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn scoped_remote_file_target_with_identity(
+        path: &str,
+        session_id: Option<&str>,
+        workspace_path: Option<&str>,
+        remote_connection_id: Option<&str>,
+    ) -> Result<
+        (
+            openbitfun_services_integrations::remote_connect::file_projection::SessionFileTarget,
+            String,
+        ),
+        String,
+    > {
+        // An empty connection ID is the explicit local-provider marker shared
+        // with directory/CRUD calls; absence is also local for scoped files.
+        let remote_connection_id = remote_connection_id.filter(|id| !id.is_empty());
+        if session_id.is_some() {
+            if workspace_path.is_some() || remote_connection_id.is_some() {
+                return Err("Use either a session or an explicit file workspace".into());
+            }
+            return Self::remote_file_target_with_identity(path, session_id).await;
+        }
+        let workspace_path = workspace_path
+            .filter(|value| !value.trim().is_empty())
+            .ok_or("File workspace identity is required when no session is supplied")?;
+        if let Some(connection_id) = remote_connection_id {
+            #[cfg(feature = "ssh-remote")]
+            {
+                let state =
+                    crate::service::remote_ssh::workspace_state::ensure_saved_connection_services()
+                        .await?;
+                let ssh = state
+                    .get_ssh_manager()
+                    .await
+                    .ok_or("SSH connection manager is unavailable")?;
+                if !ssh
+                    .get_saved_connections()
+                    .await
+                    .iter()
+                    .any(|profile| profile.id == connection_id)
+                {
+                    return Err("File workspace connection is not saved on this runtime".into());
+                }
+                ssh.ensure_connected(connection_id)
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+            #[cfg(not(feature = "ssh-remote"))]
+            {
+                let _ = connection_id;
+                return Err("SSH file workspaces are unavailable on this runtime".into());
+            }
+        }
+        let config = crate::agentic::core::SessionConfig {
+            workspace_path: Some(workspace_path.into()),
+            remote_connection_id: remote_connection_id.map(str::to_string),
+            ..Default::default()
+        };
+        let binding = if remote_connection_id.is_some() {
+            ConversationCoordinator::build_workspace_binding(&config)
+                .await
+                .ok_or("Explicit file workspace cannot be resolved")?
+        } else {
+            // An explicit local provider must not infer SSH from a same-named
+            // open remote workspace or the runtime's currently selected root.
+            WorkspaceBinding::new(
+                ConversationCoordinator::resolve_workspace_id_for_config(&config).await,
+                std::path::PathBuf::from(workspace_path),
+            )
+        };
+        if binding.connection_id() != remote_connection_id {
+            return Err(
+                "Explicit file workspace provider does not match its connection identity".into(),
+            );
+        }
+        let target = Self::file_target_for_binding(path, None, binding).await?;
+        let target_id = if target.remote {
+            remote_connection_id.ok_or("Remote file target has no connection identity")?
+        } else {
+            "local"
+        };
+        Ok((target, target_id.to_string()))
     }
 
     #[cfg(feature = "remote-connect")]
@@ -1654,6 +1775,22 @@ impl CoreServiceAgentRuntime {
     #[cfg(feature = "remote-connect")]
     pub(crate) fn remote_image_context(context: RemoteImageContext) -> ImageContextData {
         image_context_from_remote_image_context(context)
+    }
+
+    /// One source read/commit owner for both migration and live block updates.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn synchronize_relay_session(
+        publisher: &openbitfun_services_integrations::remote_connect::session_log::SessionPublisher,
+        session_id: &str,
+        turn_id: Option<&str>,
+    ) -> Result<(), String> {
+        publisher.synchronize_records(session_id.to_owned(),turn_id.is_none(),||async {
+            let directory=Self::resolve_session_storage_dir(session_id).await
+                .ok_or_else(||anyhow::anyhow!("Session storage is unavailable on this host"))?;
+            let coordinator=get_global_coordinator().ok_or_else(||anyhow::anyhow!("Runtime is unavailable"))?;
+            let turns=coordinator.load_relay_session_turns(&directory,session_id,turn_id).await?;
+            openbitfun_services_integrations::remote_connect::session_records::records_from_turns(&turns)
+        }).await.map_err(|error|error.to_string())
     }
 
     #[cfg(feature = "remote-connect")]
@@ -2725,26 +2862,40 @@ impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
         &self,
         path: &str,
         session_id: Option<&str>,
+        workspace_path: Option<&str>,
+        remote_connection_id: Option<&str>,
         offset: u64,
         limit: u64,
     ) -> Result<Option<openbitfun_runtime_ports::RemoteWorkspaceFileChunk>, String> {
-        CoreServiceAgentRuntime::remote_file_target(path, session_id)
-            .await?
-            .read_chunk(offset, limit)
-            .await
-            .map(Some)
+        CoreServiceAgentRuntime::scoped_remote_file_target(
+            path,
+            session_id,
+            workspace_path,
+            remote_connection_id,
+        )
+        .await?
+        .read_chunk(offset, limit)
+        .await
+        .map(Some)
     }
 
     async fn remote_file_info(
         &self,
         path: &str,
         session_id: Option<&str>,
+        workspace_path: Option<&str>,
+        remote_connection_id: Option<&str>,
     ) -> Result<Option<openbitfun_runtime_ports::RemoteWorkspaceFileInfo>, String> {
-        CoreServiceAgentRuntime::remote_file_target(path, session_id)
-            .await?
-            .info()
-            .await
-            .map(Some)
+        CoreServiceAgentRuntime::scoped_remote_file_target(
+            path,
+            session_id,
+            workspace_path,
+            remote_connection_id,
+        )
+        .await?
+        .info()
+        .await
+        .map(Some)
     }
 }
 
@@ -3018,11 +3169,22 @@ impl RemotePollRuntimeHost for CoreRemotePollRuntimeHost<'_> {
 #[cfg(feature = "remote-connect")]
 #[async_trait::async_trait]
 impl RemoteInteractionRuntimeHost for CoreRemoteInteractionRuntimeHost {
-    async fn confirm_tool(&self, tool_id: &str) -> Result<(), String> {
+    async fn confirm_tool(
+        &self,
+        tool_id: &str,
+        updated_input: Option<serde_json::Value>,
+    ) -> Result<(), String> {
         self.coordinator()?
             .reply_to_tool(
                 tool_id,
-                openbitfun_agent_runtime::sdk::PermissionReply::Once,
+                match updated_input {
+                    Some(updated_input) => {
+                        openbitfun_agent_runtime::sdk::PermissionReply::OnceWithInput {
+                            updated_input,
+                        }
+                    }
+                    None => openbitfun_agent_runtime::sdk::PermissionReply::Once,
+                },
             )
             .await
             .map_err(|error| error.to_string())

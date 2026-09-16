@@ -1,6 +1,11 @@
 package com.openbitfun.mobile.app
 
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.mutableStateOf
+import com.openbitfun.mobile.core.feature.session.RemoteSessionIntent
+import com.openbitfun.mobile.core.feature.session.RemoteSessionFailureReason
+import com.openbitfun.mobile.app.ui.chat.CONVERSATION_LOADING_TEST_TAG
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -69,6 +74,38 @@ class AccountRemoteScreenTest {
         }
 
         composeRule.onAllNodesWithText(testString(R.string.pairing_title)).assertCountEquals(0)
+    }
+
+    @Test
+    fun aRequestedSessionRoutesImmediatelyAndCanRetryALoadFailure() {
+        val state = mutableStateOf<RemoteSessionUiState>(RemoteSessionUiState.Idle)
+        val intents = mutableListOf<RemoteSessionIntent>()
+        var wentBack = false
+        composeRule.setContent {
+            OpenBitFunTheme(dark = false) {
+                val placement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0)
+                AccountRemoteScreen(
+                    remoteState = state.value, workspaceState = RemoteWorkspaceUiState.Idle,
+                    deviceId = "device-1", deviceName = "Studio Mac", createDevices = emptyList(),
+                    accountUsername = "tester", phase = ConnectionPhase.RECONNECTING,
+                    settingsPlacement = placement, sessionDetailsPlacement = placement,
+                    viewSettingsPlacement = placement, onOpenRemoteSettings = {}, onCreateDevicePick = {},
+                    onSessionIntent = { intents += it }, onWorkspaceIntent = {},
+                    requestedSessionId = "requested", onRemoteHome = { wentBack = true },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(200)
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.home_recent_title)).assertDoesNotExist()
+        composeRule.runOnIdle { state.value = RemoteSessionUiState.Failed(RemoteSessionFailureReason.TRANSPORT) }
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithText(testString(R.string.sessions_failed)).assertIsDisplayed()
+        composeRule.onNodeWithText(testString(R.string.sessions_retry)).performClick()
+        assertEquals(listOf(RemoteSessionIntent.Open("requested")), intents)
+        composeRule.onNodeWithText(testString(R.string.conversation_back)).performClick()
+        assertEquals(true, wentBack)
     }
 
     @Test

@@ -1,11 +1,14 @@
+import { IconButton } from '@openbitfun/ui';
 import { Minus as LucideMinus, X as LucideX } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Window controls — matches the OpenBitFun main app style.
  * 32x32 transparent buttons with SVG icons, subtle hover bg.
  */
 export function WindowControls() {
+  const { t } = useTranslation();
   const handleMinimize = () => {
     getCurrentWindow().minimize();
   };
@@ -16,22 +19,20 @@ export function WindowControls() {
 
   return (
     <div className="window-controls">
-      <button
+      <IconButton
         className="window-controls__btn"
         onClick={handleMinimize}
-        aria-label="Minimize"
-        title="Minimize"
-      >
-        <LucideMinus width="14" height="14" aria-hidden="true" />
-      </button>
-      <button
+        aria-label={t('window.minimize')}
+        title={t('window.minimize')}
+        icon={<LucideMinus width="14" height="14" aria-hidden="true" />}
+      />
+      <IconButton
         className="window-controls__btn window-controls__btn--close"
         onClick={handleClose}
-        aria-label="Close"
-        title="Close"
-      >
-        <LucideX width="14" height="14" aria-hidden="true" />
-      </button>
+        aria-label={t('window.close')}
+        title={t('window.close')}
+        icon={<LucideX width="14" height="14" aria-hidden="true" />}
+      />
     </div>
   );
 }

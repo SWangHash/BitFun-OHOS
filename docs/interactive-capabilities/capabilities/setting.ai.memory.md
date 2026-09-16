@@ -17,23 +17,23 @@ Control whether OpenBitFun extracts and uses long-term memory from sessions, inc
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 一键同时启用或停用长期记忆生成与会话召回
+- **智能体可直接控制 / Direct Agent control** · 一键同时启用或停用长期记忆生成与会话召回
   - Enable or disable long-term memory generation and session recall together
-- **Agent 可直接控制 / Direct Agent control** · 决定 BTW 轻量会话是否参与记忆生成
+- **智能体可直接控制 / Direct Agent control** · 决定 BTW 轻量会话是否参与记忆生成
   - Choose whether lightweight BTW sessions contribute memories
-- **Agent 可直接控制 / Direct Agent control** · 存在外部工具上下文时选择清除工具结果、允许或跳过会话
+- **智能体可直接控制 / Direct Agent control** · 存在外部工具上下文时选择清除工具结果、允许或跳过会话
   - When external tool context exists, clear tool results, allow it, or skip the session
-- **Agent 可直接控制 / Direct Agent control** · 设置空闲时长、最大年龄、启动处理上限和扫描上限
+- **智能体可直接控制 / Direct Agent control** · 设置空闲时长、最大年龄、启动处理上限和扫描上限
   - Set idle time, maximum age, startup rollout limit, and scan limit
-- **Agent 可直接控制 / Direct Agent control** · 设置记忆提取并发数和单次原始候选上限
+- **智能体可直接控制 / Direct Agent control** · 设置记忆提取并发数和单次原始候选上限
   - Set memory-extraction concurrency and the raw-candidate limit
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 从当前可用模型中选择记忆提取模型或跟随主模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 从当前可用模型中选择记忆提取模型或跟随主模型
   - Choose the memory-extraction model from currently available models or follow the primary model
-- **Agent 可直接控制 / Direct Agent control** · 设置未使用记忆的最长保留天数
+- **智能体可直接控制 / Direct Agent control** · 设置未使用记忆的最长保留天数
   - Set how long unused memories are retained
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择记忆整理模型并让它跟随主模型或提取模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择记忆整理模型并让它跟随主模型或提取模型
   - Choose the consolidation model or make it follow the primary or extraction model
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 打开记忆目录、恢复默认设置或显式清空全部记忆
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 打开记忆目录、恢复默认设置或显式清空全部记忆
   - Open the memory directory, restore defaults, or explicitly erase all memories
 
 ## 怎么用 / How to use it
@@ -47,7 +47,7 @@ Control whether OpenBitFun extracts and uses long-term memory from sessions, inc
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ Control whether OpenBitFun extracts and uses long-term memory from sessions, inc
 | 原始记忆候选上限 / Raw memory candidate limit | `integer` (1–4096) | 限制进入整理阶段的第一阶段候选数量。 | Limit phase-one candidates passed to consolidation. |
 | 未使用记忆保留天数 / Unused-memory retention | `integer` (0–365) | 设置未被使用的原始记忆最多保留多少天。 | Set how many days unused raw memories are retained. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “关闭长期记忆”
   - “Turn off long-term memory”
@@ -77,6 +77,6 @@ Control whether OpenBitFun extracts and uses long-term memory from sessions, inc
 - “打开记忆设置”
   - “Open Memory settings”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

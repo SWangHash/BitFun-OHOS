@@ -1,3 +1,4 @@
+import { Disclosure } from '@openbitfun/ui';
 /**
  * Unified chat context picker.
  * The source level exposes files, skills, MCP, and images; typing searches providers together.
@@ -977,10 +978,9 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         </Listbox>
       </div>
       {(view === 'skills' || isSearchMode) && !skillsLoading && !skillsLoadFailed && (
-        skillDiagnostics.length > 0 ? <details className="chat-context-picker__diagnostics">
-          <summary>{t('contextPicker.skillsIncomplete')}</summary>
+        skillDiagnostics.length > 0 ? <Disclosure presentation="native" className="chat-context-picker__diagnostics" summary={t('contextPicker.skillsIncomplete')}>
           {skillDiagnostics.map((item, index) => <p key={index}>{item.path}: {item.message}</p>)}
-        </details> : !skillDiagnosticsAvailable && <p role="status">{t('contextPicker.skillsDiagnosticsUnavailable')}</p>
+        </Disclosure> : !skillDiagnosticsAvailable && <p role="status">{t('contextPicker.skillsDiagnosticsUnavailable')}</p>
       )}
       <div data-openbitfun-component="chat-context-picker" data-openbitfun-part="footer" className="chat-context-picker__footer">
         <span><KeyHint>↑</KeyHint><KeyHint>↓</KeyHint> {t('contextPicker.navHint')}</span>

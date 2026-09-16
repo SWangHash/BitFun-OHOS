@@ -16,7 +16,10 @@ public data class RemoteSidebarWorkspaceRow public constructor(
     public val name: String,
     public val selected: Boolean,
     public val sessions: List<RemoteSidebarSessionRow>,
-)
+    public val remoteConnectionId: String?,
+) {
+    public constructor(path: String, name: String, selected: Boolean, sessions: List<RemoteSidebarSessionRow>) : this(path, name, selected, sessions, null)
+}
 
 /** Platform-neutral projection for HarmonyOS' device/workspace/session hierarchy. */
 public object RemoteSidebarPresentation {
@@ -28,19 +31,23 @@ public object RemoteSidebarPresentation {
         val selected = workspaceState.selected
         val workspaceRows = buildList {
             if (selected != null && selected.path.isNotBlank()) {
-                add(selected.path to selected.name)
+                add(Triple(selected.path, selected.name, selected.remoteConnectionId))
+            }
+            workspaceState.assistants.forEach { assistant ->
+                if (assistant.path.isNotBlank() && none { it.first == assistant.path && it.third == null }) add(Triple(assistant.path, assistant.name, null))
             }
             workspaceState.workspaces.forEach { workspace ->
-                if (workspace.path.isNotBlank() && none { it.first == workspace.path }) {
-                    add(workspace.path to workspace.name)
+                if (workspace.path.isNotBlank() && none { it.first == workspace.path && it.third == workspace.remoteConnectionId }) {
+                    add(Triple(workspace.path, workspace.name, workspace.remoteConnectionId))
                 }
             }
         }
-        return workspaceRows.map { (path, name) ->
+        return workspaceRows.map { (path, name, connectionId) ->
             RemoteSidebarWorkspaceRow(
                 path = path,
                 name = name,
-                selected = path == selected?.path,
+                selected = path == selected?.path && connectionId == selected.remoteConnectionId,
+                remoteConnectionId = connectionId,
                 sessions = sessionState?.sessions.orEmpty()
                     .filter { (it.workspacePath ?: selected?.path) == path }
                     .map { session ->

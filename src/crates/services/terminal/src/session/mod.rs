@@ -16,7 +16,7 @@ pub use manager::{
     ExecuteOptions, SessionManager,
 };
 pub use persistent::PersistentSession;
-pub use replay::{TerminalReplayEvent, TerminalReplayHistory};
+pub use replay::{TerminalReplayEvent, TerminalReplayHistory, TerminalReplayPage};
 pub use serializer::SessionSerializer;
 pub use singleton::{
     get_session_manager, init_session_manager, is_session_manager_initialized, session_manager,

@@ -104,7 +104,7 @@ internal fun ToolSummaryIcon(readCount: Int, searchCount: Int, modifier: Modifie
 private fun kindIcon(kind: ToolKind): Int = when (kind) {
     ToolKind.QUESTION -> R.drawable.ic_symbol_questionmark_circle
     ToolKind.TODO -> R.drawable.ic_symbol_list_checkmark
-    ToolKind.TASK -> R.drawable.ic_symbol_robot
+    ToolKind.TASK -> R.drawable.ic_symbol_person
     ToolKind.GIT -> R.drawable.ic_symbol_arrow_triangle_merge
     ToolKind.DELETE -> R.drawable.ic_symbol_trash
     ToolKind.DIFF -> R.drawable.ic_symbol_doc_text_badge_magnifyingglass

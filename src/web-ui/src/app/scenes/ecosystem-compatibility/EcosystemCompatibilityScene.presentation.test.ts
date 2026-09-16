@@ -35,19 +35,20 @@ describe('ecosystem compatibility scene presentation contract', () => {
     const scene = source('./EcosystemCompatibilityScene.tsx');
     const model = source('./ecosystemCompatibilityModel.ts');
 
-    expect(scene).toContain('externalSourcesAPI.getSnapshot(workspacePath, forceRefresh)');
+    expect(scene).toContain('externalSourcesAPI.getDiscoverySnapshot(workspacePath, forceRefresh)');
     const content = source('./ExternalAgentContent.tsx');
     expect(content).toContain('externalSourcesAPI.planMcpImport(workspacePath || undefined)');
     expect(content).toContain('externalSourcesAPI.applyMcpImport(');
     expect(scene).toContain('ACPClientAPI.getClients()');
     expect(scene).toContain('ACPClientAPI.updateClientSubagentConfig({');
     expect(scene).not.toContain("import('@/infrastructure/config/components/ExternalSourcesConfig')");
-    expect(scene).toContain('<ExternalAgentDiscovery');
+    expect(scene).toContain('<ExternalDiscoveryToggle');
     expect(scene).not.toContain('SkillsConfig');
     expect(scene).not.toContain('HooksConfig');
     expect(scene).not.toContain('McpToolsConfig');
     expect(scene).toContain('onSnapshotChange={setSnapshot}');
-    expect(scene).toContain('<AcpAgentsConfig clientIds=');
+    expect(scene).toContain('<AcpAgentsConfig');
+    expect(scene).toContain('clientIds={[...selectedRuntime.acpClients.map((client) => client.id)');
     expect(scene).toContain("new CustomEvent('openbitfun:create-acp-session'");
     expect(scene).toContain("t('run.session.title')");
     expect(scene).toContain("t('run.subagent.title')");
@@ -160,9 +161,10 @@ describe('ecosystem compatibility scene presentation contract', () => {
       'subagent',
       'mcp',
     ]);
-    expect(items.map((item) => item.kind)).toEqual(
-      ECOSYSTEM_IMPORT_ITEM_KINDS.filter((kind) => kind !== 'pet'),
-    );
+    expect(items.map((item) => item.kind)).toEqual([
+      'command', 'tool', 'subagent', 'skill', 'mcp', 'hook', 'instruction',
+      'account', 'settings', 'memory', 'plugin',
+    ]);
     expect(items.find((item) => item.kind === 'mcp')?.discoverySupport).toBe('supported');
     expect(items.find((item) => item.kind === 'skill')).toEqual(expect.objectContaining({
       discovered: false,
@@ -194,9 +196,10 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(runtime).toBeDefined();
     const items = buildEcosystemImportItems(null, runtime!);
 
-    expect(items.map((item) => item.kind)).toEqual(
-      ECOSYSTEM_IMPORT_ITEM_KINDS.filter((kind) => kind !== 'command' && kind !== 'tool'),
-    );
+    expect(items.map((item) => item.kind)).toEqual([
+      'subagent', 'skill', 'mcp', 'hook', 'instruction', 'pet',
+      'account', 'settings', 'memory', 'plugin',
+    ]);
     expect(items.every((item) => item.discovered === false)).toBe(true);
     expect(items.every((item) => item.candidateId === undefined)).toBe(true);
     expect(items.find((item) => item.kind === 'command')).toBeUndefined();
@@ -210,7 +213,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
       detection: 'owner',
     }));
     expect(items.find((item) => item.kind === 'memory')?.discoverySupport).toBe('unsupported');
-    expect(items.find((item) => item.kind === 'pet')?.discoverySupport).toBe('unsupported');
+    expect(items.find((item) => item.kind === 'pet')?.discoverySupport).toBe('supported');
   });
 
   it('uses product-specific compatibility instead of one shared capability set', () => {
@@ -245,7 +248,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
     const codexSupport = support('codex');
     expect(codexSupport).toMatchObject({
       memory: 'unsupported',
-      pet: 'unsupported',
+      pet: 'supported',
     });
     expect(codexSupport).not.toHaveProperty('command');
     expect(codexSupport).not.toHaveProperty('tool');
@@ -260,19 +263,17 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(support('dsh')).toMatchObject({ skill: 'supported', hook: 'supported', mcp: 'supported' });
   });
 
-  it('keeps use and import in one page with a compact header check summary', () => {
+  it('keeps use and import in one page', () => {
     const scene = source('./EcosystemCompatibilityScene.tsx');
     const model = source('./ecosystemCompatibilityModel.ts');
     const runPosition = scene.lastIndexOf('renderRun()');
-    const importPosition = scene.indexOf('<ExternalAgentContent');
+    const importPosition = scene.search(/<ExternalAgentContent\s/);
 
     expect(runPosition).toBeGreaterThan(-1);
     expect(importPosition).toBeGreaterThan(runPosition);
     expect(scene).toContain('ecosystem-compatibility__unified-stack');
-    expect(scene).toContain("t('header.checksLabel')");
-    expect(scene).toContain("t('header.checksSummary'");
     expect(scene).not.toContain('renderDiagnostics');
-    expect(scene).not.toContain('ecosystem-compatibility__header-actions');
+    expect(scene).toContain('refreshControlRef={externalContentRef}');
     expect(scene).not.toContain('<MoreHorizontal');
     expect(scene).not.toContain("t('diagnostics.refresh')");
     expect(scene).not.toContain('role="tablist"');
@@ -325,6 +326,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
       'pi',
       'dsh',
       'opencode',
+      'cursor',
     ]);
     expect(runtimes.flatMap((runtime) => runtime.acpClients)).toEqual([]);
   });

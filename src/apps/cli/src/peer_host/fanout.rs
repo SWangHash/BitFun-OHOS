@@ -5,7 +5,7 @@
 //! and bookkeeping boundary; it is not a visibility boundary.
 
 use std::collections::HashSet;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use openbitfun_agent_runtime::sdk::{
     attach_session_event_cursor, AgentEventReceiver, PermissionRequestEvent,
@@ -13,16 +13,20 @@ use openbitfun_agent_runtime::sdk::{
 use openbitfun_agent_tools::effective_tool_invocation;
 use openbitfun_core::service::remote_connect::remote_server::RemoteCommand;
 use openbitfun_events::{project_agentic_frontend_event, AgenticEvent, ToolEventData};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, OwnedSemaphorePermit, Semaphore};
 
 use crate::account::PeerFanoutOwner;
 
 use super::control::{attached_controllers, controller_delivery_lease};
 use super::state::{PeerHostState, PeerTurnKey};
 
-const PEER_EVENT_DELIVERY_CAPACITY: usize = i32::MAX as usize;
+// Memory budget for ephemeral control notifications. Durable transcript and PTY
+// replay are owned elsewhere, so this queue never carries their output streams.
+const PEER_EVENT_DELIVERY_BYTES: usize = 64 * 1024 * 1024;
+const PEER_EVENT_DELIVERY_CAPACITY: usize = 1024;
 
 struct QueuedPeerDeviceEvent {
+    _memory: Option<OwnedSemaphorePermit>,
     owner: PeerFanoutOwner,
     targets: Vec<String>,
     event: String,
@@ -39,6 +43,7 @@ impl QueuedPeerDeviceEvent {
         payload: serde_json::Value,
     ) -> Self {
         Self {
+            _memory: None,
             owner,
             targets,
             event,
@@ -59,6 +64,7 @@ impl QueuedPeerDeviceEvent {
     ) -> Self {
         let terminal = terminal_turn.map(|turn| (turns.clone(), generation, turn));
         Self {
+            _memory: None,
             owner,
             targets,
             event,
@@ -123,32 +129,49 @@ pub(crate) fn start_peer_event_fanout(state: PeerHostState, mut rx: AgentEventRe
         loop {
             match rx.recv().await {
                 Ok(envelope) => {
-                    if let Err(error) = handle_agentic_event(&state, envelope.event).await {
-                        tracing::warn!("CLI Peer event fanout lost continuity: {error}");
-                        interrupt_and_fail_peer_turns(
-                            &state,
-                            false,
-                            "Peer event fanout lost continuity",
-                        )
-                        .await;
-                        if drain_broadcast_receiver(&mut rx) {
-                            state.turns.interrupt_event_stream(true);
-                            break;
+                    let publisher = state.account_routing.session_publisher().await;
+                    let mut incoming = vec![envelope.event];
+                    // A microbatch is a scheduling unit, never an admission limit.
+                    // Drain already-ready events without delaying a quiet stream.
+                    while incoming.len() < 64 {
+                        match rx.try_recv() {
+                            Ok(event) => incoming.push(event.event),
+                            Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
+                                tracing::error!(
+                                    "CLI session event source lagged by {skipped} events"
+                                );
+                                report_publication_gap(&state, "Runtime event source lagged").await;
+                            }
+                            Err(_) => break,
                         }
-                        state.turns.mark_event_stream_ready();
+                    }
+                    let mut publication = Vec::new();
+                    for event in incoming {
+                        if let Err(error) = handle_agentic_event(
+                            &state,
+                            event,
+                            publisher.is_some(),
+                            &mut publication,
+                        )
+                        .await
+                        {
+                            tracing::error!("CLI session event publication failed: {error}");
+                            report_publication_gap(&state, &error).await;
+                        }
+                    }
+                    if let Some(publisher) = publisher {
+                        if let Err(error) = publisher.append_batch(publication).await {
+                            tracing::error!("CLI session journal commit failed: {error}");
+                            report_publication_gap(&state, &error.to_string()).await;
+                        }
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                    tracing::warn!("CLI Peer event fanout lagged by {skipped} events");
-                    interrupt_and_fail_peer_turns(&state, false, "Peer event stream lagged").await;
-                    if drain_broadcast_receiver(&mut rx) {
-                        state.turns.interrupt_event_stream(true);
-                        break;
-                    }
-                    state.turns.mark_event_stream_ready();
+                    tracing::error!("CLI session event source lagged by {skipped} events");
+                    report_publication_gap(&state, "Runtime event source lagged").await;
                 }
                 Err(broadcast::error::RecvError::Closed) => {
-                    interrupt_and_fail_peer_turns(&state, true, "Peer event stream closed").await;
+                    report_publication_gap(&state, "Runtime event source closed").await;
                     break;
                 }
             }
@@ -209,14 +232,7 @@ fn start_peer_permission_event_fanout(state: PeerHostState) {
                     }
                 }
                 Err(broadcast::error::RecvError::Closed) => {
-                    if let Err(error) = state
-                        .cancel_and_drain_peer_turns("Peer permission event stream closed")
-                        .await
-                    {
-                        tracing::warn!(
-                            "Peer work was not fully cancelled after permission event closure: {error}"
-                        );
-                    }
+                    tracing::error!("Peer permission event source closed; runtime turns and permission mailbox remain owned by the host");
                     break;
                 }
             }
@@ -231,15 +247,26 @@ async fn fanout_permission_event(event: PermissionRequestEvent) {
     }
 }
 
-async fn interrupt_and_fail_peer_turns(state: &PeerHostState, closed: bool, reason: &'static str) {
-    let drain = state.turns.interrupt_event_stream(closed);
-    let interrupted_turns = drain.turns.clone();
-    if let Err(error) = state.cancel_peer_turns(drain, reason).await {
-        tracing::warn!("Peer turn cancellation after event interruption was incomplete: {error}");
-    }
-    for turn in interrupted_turns {
-        let (event, payload) = interrupted_turn_failure_projection(&turn, reason);
-        fanout_peer_device_event(event, payload).await;
+async fn report_publication_gap(state: &PeerHostState, reason: &str) {
+    if let Some(publisher) = state.account_routing.session_publisher().await {
+        for session in publisher
+            .session_ids()
+            .await
+            .into_iter()
+            .filter(|session| !session.starts_with("terminal-"))
+        {
+            if let Err(error) =
+                openbitfun_core::service::remote_connect::synchronize_session_records(
+                    &publisher, &session,
+                )
+                .await
+            {
+                tracing::error!("Unable to reconcile runtime records after source gap: {error}");
+            }
+        }
+        if let Err(error) = publisher.report_source_gap(reason).await {
+            tracing::error!("Unable to persist session continuity warning: {error}");
+        }
     }
 }
 
@@ -256,7 +283,12 @@ fn drain_broadcast_receiver(
     }
 }
 
-async fn handle_agentic_event(state: &PeerHostState, event: AgenticEvent) -> Result<(), String> {
+async fn handle_agentic_event(
+    state: &PeerHostState,
+    event: AgenticEvent,
+    durable: bool,
+    publication: &mut Vec<(String, String, serde_json::Value)>,
+) -> Result<(), String> {
     let event_turn = event_turn_key(&event);
     let terminal_turn = terminal_turn_key(&event);
     if terminal_turn
@@ -424,8 +456,9 @@ async fn handle_agentic_event(state: &PeerHostState, event: AgenticEvent) -> Res
         }
     }
 
+    openbitfun_core::service::remote_connect::notify_session_catalog_event(&event);
     let cursor = state.session_event_journal.record(&event);
-    let Some(mut projected) = project_agentic_frontend_event(event) else {
+    let Some(mut projected) = project_agentic_frontend_event(event.clone()) else {
         if let Some(turn) = terminal_turn {
             state.turns.finish_turn(&turn);
         }
@@ -433,6 +466,58 @@ async fn handle_agentic_event(state: &PeerHostState, event: AgenticEvent) -> Res
     };
     if let Some(cursor) = cursor {
         attach_session_event_cursor(&mut projected.payload, cursor);
+    }
+    if durable {
+        let name = projected.event_name.as_str();
+        let policy =
+            openbitfun_core::service::remote_connect::session_records::session_event_publication(
+                name,
+                &projected.payload,
+            );
+        if !policy.synchronize_records && !policy.persist_control {
+            return Ok(());
+        }
+        if let Some(publisher) = state.account_routing.session_publisher().await {
+            if policy.synchronize_records {
+                async {
+                    if let Some(turn) = projected
+                        .payload
+                        .get("turnId")
+                        .or_else(|| projected.payload.get("settledTurnId"))
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        openbitfun_core::service::remote_connect::synchronize_session_record_turn(
+                            &publisher, session_id, turn,
+                        )
+                        .await
+                    } else if name == "agentic://session-history-changed" {
+                        openbitfun_core::service::remote_connect::synchronize_session_records(
+                            &publisher, session_id,
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                .await?;
+            }
+        }
+        if let Some(session_id) = projected
+            .payload
+            .get("session_id")
+            .or_else(|| projected.payload.get("sessionId"))
+            .and_then(serde_json::Value::as_str)
+        {
+            if policy.persist_control {
+                publication.push((
+                    session_id.to_owned(),
+                    projected.event_name,
+                    projected.payload,
+                ));
+            }
+            settle_record_only_event(&state.turns, terminal_turn.as_ref());
+            return Ok(());
+        }
     }
     let targets = attached_controllers();
     if targets.is_empty() {
@@ -580,7 +665,6 @@ pub(crate) async fn fanout_peer_device_event(event: String, payload: serde_json:
         return;
     }
     let inherited_owner = crate::account::inherited_peer_fanout_owner();
-    let inherits_routing_lease = inherited_owner.is_some();
     let owner = match inherited_owner {
         Some(owner) => owner,
         None => match super::state::peer_host_state().map(|state| state.account_routing.clone()) {
@@ -598,58 +682,94 @@ pub(crate) async fn fanout_peer_device_event(event: String, payload: serde_json:
         },
     };
     let queued = QueuedPeerDeviceEvent::new(owner, targets, event, payload);
-    if inherits_routing_lease {
-        // HostInvoke already holds the lifecycle read lease. Never await queue
-        // capacity or acquire a nested read here: a queued transition writer
-        // would otherwise create a writer-priority self-deadlock. A detached
-        // task preserves backpressure and validates the captured owner later.
-        enqueue_inherited_peer_device_event(peer_event_sender().clone(), queued);
-        return;
-    }
-    if let Err(queued) = enqueue_peer_device_event(peer_event_sender(), queued).await {
-        tracing::warn!(
-            "Peer event delivery queue closed before accepting command event; using direct delivery"
-        );
-        fanout_peer_device_event_once(queued).await;
+    if enqueue_peer_device_event(peer_event_sender(), queued)
+        .await
+        .is_err()
+    {
+        tracing::warn!("Peer control notification was not accepted: routing retired or delivery queue closed; controllers must refresh their mailbox");
     }
 }
 
-fn enqueue_inherited_peer_device_event(
-    sender: mpsc::Sender<QueuedPeerDeviceEvent>,
-    queued: QueuedPeerDeviceEvent,
-) {
-    match sender.try_send(queued) {
-        Ok(()) => {}
-        Err(mpsc::error::TrySendError::Full(queued)) => {
-            tokio::spawn(async move {
-                if let Err(queued) = enqueue_peer_device_event(&sender, queued).await {
-                    tracing::warn!(
-                        "Peer event delivery queue closed while draining inherited routing event"
-                    );
-                    fanout_peer_device_event_once(queued).await;
-                }
-            });
-        }
-        Err(mpsc::error::TrySendError::Closed(queued)) => {
-            tokio::spawn(async move {
-                tracing::warn!(
-                    "Peer event delivery queue closed for inherited routing event; using direct delivery"
-                );
-                fanout_peer_device_event_once(queued).await;
-            });
-        }
-    }
+fn peer_event_budget() -> &'static Arc<Semaphore> {
+    static BUDGET: OnceLock<Arc<Semaphore>> = OnceLock::new();
+    BUDGET.get_or_init(|| Arc::new(Semaphore::new(PEER_EVENT_DELIVERY_BYTES)))
 }
 
 async fn enqueue_peer_device_event(
     sender: &mpsc::Sender<QueuedPeerDeviceEvent>,
     queued: QueuedPeerDeviceEvent,
 ) -> Result<(), QueuedPeerDeviceEvent> {
-    sender.send(queued).await.map_err(|error| error.0)
+    enqueue_peer_device_event_with_budget(
+        sender,
+        queued,
+        peer_event_budget().clone(),
+        PEER_EVENT_DELIVERY_BYTES,
+    )
+    .await
+}
+
+async fn enqueue_peer_device_event_with_budget(
+    sender: &mpsc::Sender<QueuedPeerDeviceEvent>,
+    mut queued: QueuedPeerDeviceEvent,
+    budget: Arc<Semaphore>,
+    capacity: usize,
+) -> Result<(), QueuedPeerDeviceEvent> {
+    // Include envelope/target overhead. A single oversized notification reserves
+    // the entire budget, so it remains deliverable without permitting a backlog
+    // of oversized messages. Large contents use the transport's bulk lane.
+    let bytes = serde_json::to_vec(&queued.payload)
+        .map(|json| json.len())
+        .unwrap_or(capacity)
+        .saturating_add(queued.event.len())
+        .saturating_add(queued.targets.iter().map(String::len).sum::<usize>())
+        .saturating_add(512)
+        .min(capacity) as u32;
+    let mut cancellation = queued.owner.cancellation_receiver();
+    let cancelled = async {
+        if let Some(ref mut receiver) = cancellation {
+            let _ = receiver.changed().await;
+        } else {
+            std::future::pending::<()>().await;
+        }
+    };
+    tokio::pin!(cancelled);
+    let permit = tokio::select! {
+        biased;
+        _ = &mut cancelled => return Err(queued),
+        permit = budget.acquire_many_owned(bytes) => match permit {
+            Ok(permit) => permit,
+            Err(_) => return Err(queued),
+        }
+    };
+    queued._memory = Some(permit);
+    // Reserve before moving the payload so cancellation returns ownership and
+    // releases its byte permit. No detached task and no direct-send bypass.
+    let slot = tokio::select! {
+        biased;
+        _ = &mut cancelled => return Err(queued),
+        slot = sender.reserve() => match slot {
+            Ok(slot) => slot,
+            Err(_) => return Err(queued),
+        }
+    };
+    slot.send(queued);
+    Ok(())
 }
 
 async fn fanout_peer_device_event_once(queued: QueuedPeerDeviceEvent) {
+    let Some(mut cancelled) = queued.owner.cancellation_receiver() else {
+        return;
+    };
+    tokio::select! {
+        biased;
+        _ = cancelled.changed() => {},
+        _ = fanout_peer_device_event_current(queued) => {}
+    }
+}
+
+async fn fanout_peer_device_event_current(queued: QueuedPeerDeviceEvent) {
     let QueuedPeerDeviceEvent {
+        _memory,
         owner,
         targets,
         event,
@@ -674,7 +794,7 @@ async fn fanout_peer_device_event_once(queued: QueuedPeerDeviceEvent) {
         return;
     }
 
-    let routing_lease = match crate::account::acquire_peer_fanout_lease(&owner).await {
+    let routing_lease = match crate::account::acquire_peer_fanout_lease(&owner) {
         Ok(lease) => lease,
         Err(error) => {
             tracing::debug!("Queued Peer event dropped after owner change: {error}");
@@ -774,8 +894,8 @@ mod tests {
     use openbitfun_events::{AgenticEvent, AgenticEventEnvelope, AgenticEventPriority};
 
     use super::{
-        continuity_is_current, drain_broadcast_receiver, enqueue_inherited_peer_device_event,
-        enqueue_peer_device_event, event_turn_key, interrupted_turn_failure_projection,
+        continuity_is_current, drain_broadcast_receiver, enqueue_peer_device_event,
+        enqueue_peer_device_event_with_budget, event_turn_key, interrupted_turn_failure_projection,
         owned_terminal_turn, retained_delivery_targets, settle_record_only_event,
         QueuedPeerDeviceEvent, TerminalDeliveryGuard,
     };
@@ -864,7 +984,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn closed_delivery_queue_returns_the_event_for_direct_fallback() {
+    async fn closed_delivery_queue_returns_undelivered_control() {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         drop(rx);
         let queued = QueuedPeerDeviceEvent::new(
@@ -881,33 +1001,92 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn inherited_enqueue_does_not_wait_for_full_delivery_queue() {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        tx.send(QueuedPeerDeviceEvent::new(
-            test_owner(7),
-            vec!["controller-1".to_string()],
-            "first".to_string(),
-            serde_json::json!({}),
-        ))
-        .await
-        .expect("seed queue");
-
-        enqueue_inherited_peer_device_event(
-            tx,
+    async fn byte_budget_backpressures_until_delivery_releases_memory() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+        let budget = std::sync::Arc::new(tokio::sync::Semaphore::new(1024));
+        let make = || {
             QueuedPeerDeviceEvent::new(
                 test_owner(7),
-                vec!["controller-1".to_string()],
-                "second".to_string(),
-                serde_json::json!({}),
-            ),
+                vec![],
+                "control".into(),
+                serde_json::json!({"data": "x".repeat(900)}),
+            )
+        };
+        assert!(
+            enqueue_peer_device_event_with_budget(&tx, make(), budget.clone(), 1024)
+                .await
+                .is_ok()
         );
+        let second = enqueue_peer_device_event_with_budget(&tx, make(), budget.clone(), 1024);
+        tokio::pin!(second);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut second)
+                .await
+                .is_err()
+        );
+        let first = rx.recv().await.expect("first");
+        assert_eq!(
+            budget.available_permits(),
+            0,
+            "dequeue is not delivery completion"
+        );
+        drop(first);
+        assert!(second.await.is_ok());
+        drop(rx.recv().await);
+        assert_eq!(budget.available_permits(), 1024);
+    }
 
-        assert_eq!(rx.recv().await.expect("first queued event").event, "first");
-        let second = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
-            .await
-            .expect("detached enqueue should complete after capacity is available")
-            .expect("second queued event");
-        assert_eq!(second.event, "second");
+    #[tokio::test]
+    async fn account_retirement_cancels_waiting_admission_and_releases_capacity() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let budget = std::sync::Arc::new(tokio::sync::Semaphore::new(1024));
+        let (cancel, cancellation) = tokio::sync::watch::channel(0);
+        let first = QueuedPeerDeviceEvent::new(
+            test_owner(7),
+            vec![],
+            "first".into(),
+            serde_json::json!({}),
+        );
+        assert!(
+            enqueue_peer_device_event_with_budget(&tx, first, budget.clone(), 1024)
+                .await
+                .is_ok()
+        );
+        let queued = QueuedPeerDeviceEvent::new(
+            test_owner(7).with_test_cancellation(cancellation),
+            vec![],
+            "retired".into(),
+            serde_json::json!({}),
+        );
+        let pending = enqueue_peer_device_event_with_budget(&tx, queued, budget.clone(), 1024);
+        tokio::pin!(pending);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut pending)
+                .await
+                .is_err()
+        );
+        cancel.send_replace(1);
+        let retired = pending.await.err().expect("cancelled admission");
+        assert_eq!(retired.event, "retired");
+        drop(retired);
+        drop(rx.recv().await);
+        assert_eq!(budget.available_permits(), 1024);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn retirement_before_enqueue_is_not_missed() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (cancel, cancellation) = tokio::sync::watch::channel(0);
+        let queued = QueuedPeerDeviceEvent::new(
+            test_owner(7).with_test_cancellation(cancellation),
+            vec![],
+            "old".into(),
+            serde_json::json!({}),
+        );
+        cancel.send_replace(1);
+        assert!(enqueue_peer_device_event(&tx, queued).await.is_err());
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]

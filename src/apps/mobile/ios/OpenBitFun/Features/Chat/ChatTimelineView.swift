@@ -1,31 +1,73 @@
 import Foundation
+import OSLog
 import OpenBitFunMobileCore
 import SwiftUI
 import UIKit
 
 struct ChatTimelineView: View {
     @ObservedObject var model: MobileAppModel
-    @State private var userScrolledUp = false
+    var onLoadOlderMessages: (() -> Void)? = nil
+    @State private var expandedMailboxToolID: String?
+    @StateObject private var scrollController = TimelineScrollController()
+    @State private var historyAnchor: (id: String, top: CGFloat, firstID: String)?
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: MobileDesignGeometry.messageSpacing) {
-                    if model.surface == .remote && model.remoteHasMoreMessages {
-                        Button { model.loadOlderRemoteMessages() } label: {
-                            HStack(spacing: 7) {
-                                if model.busy { ProgressView().controlSize(.small) }
-                                Text(model.localized(model.busy ? "正在加载" : "加载更早消息"))
-                                    .font(MobileDesignTypography.labelSmall.font)
+                VStack(spacing: MobileDesignGeometry.messageSpacing) {
+                    // History is already paged by the session store. Measure the
+                    // loaded page exactly: an estimated lazy history above a growing
+                    // eager tail can repeatedly invalidate its own placement phases
+                    // during keyboard dismissal and long streamed replies.
+                    VStack(spacing: MobileDesignGeometry.messageSpacing) {
+                        if model.surface == .remote && model.remoteHasMoreMessages {
+                            Button {
+                                #if DEBUG
+                                Logger(subsystem: "com.openbitfun.mobile.ios", category: "timeline-scroll").info("History capture frames=\(scrollController.rowFrames.count)")
+                                #endif
+                                if let row = scrollController.rowFrames.filter({ $0.value.maxY > 0 })
+                                    .min(by: { $0.value.minY < $1.value.minY })
+                                {
+                                    historyAnchor = (row.key, row.value.minY, model.timelineRows.first?.id ?? "")
+                                    #if DEBUG
+                                    Logger(subsystem: "com.openbitfun.mobile.ios", category: "timeline-scroll").info("History capture top=\(row.value.minY) height=\(row.value.height)")
+                                    #endif
+                                }
+                                scrollController.stopFollowing()
+                                if let onLoadOlderMessages {
+                                    onLoadOlderMessages()
+                                } else {
+                                    model.loadOlderRemoteMessages()
+                                }
+                            } label: {
+                                HStack(spacing: 7) {
+                                    if model.busy { ProgressView().controlSize(.small) }
+                                    Text(model.localized(model.busy ? "正在加载" : "加载更早消息"))
+                                        .font(MobileDesignTypography.labelSmall.font)
+                                }
+                                .foregroundStyle(OpenBitFunTheme.muted)
+                                .frame(maxWidth: .infinity, minHeight: 38)
                             }
-                            .foregroundStyle(OpenBitFunTheme.muted)
-                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .buttonStyle(.plain)
+                            .disabled(model.busy)
+                            .accessibilityIdentifier("timeline.loadOlder")
                         }
-                        .buttonStyle(.plain)
-                        .disabled(model.busy)
+                        ForEach(historyRows) { row in timelineRow(row) }
                     }
-                    ForEach(model.timelineRows) { row in
-                        ConversationRowView(row: row, model: model).id(row.id)
+                    if model.surface == .remote, let mailbox = model.permissionMailbox {
+                        if mailbox.failed { Text(model.localized("Permission request could not be completed. Retry to refresh pending requests.")); Button(model.localized("重试")) { model.refreshPermissionMailbox() } }
+                        ForEach(mailbox.questions, id: \.id) { question in
+                            ToolStatusList(tools: [MobileAppModel.mapTool(question)], model: model, expandedToolID: $expandedMailboxToolID)
+                                .simultaneousGesture(TapGesture().onEnded { model.startQuestionInteraction(question.id) })
+                        }
+                        ForEach(mailbox.requests, id: \.requestId) { request in
+                            PermissionMailboxRow(request: request, busy: mailbox.busy, model: model)
+                        }
+                    }
+                    // Keep the user's message and its reply in the same measured
+                    // tail, including acknowledgement and completion transitions.
+                    ForEach(currentTurnItems) { item in
+                        timelineRow(item.row, identity: item.id)
                     }
                     if model.timelineRows.isEmpty && model.isSending {
                         TypingIndicator().frame(maxWidth: .infinity, alignment: .leading)
@@ -35,43 +77,58 @@ struct ChatTimelineView: View {
                 .padding(.horizontal, MobileDesignGeometry.contentGutter)
                 .padding(.top, MobileDesignGeometry.timelineTopPadding)
                 .padding(.bottom, 14)
+                .background(TimelineScrollProbe(controller: scrollController))
             }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 8).onChanged { value in
-                    if value.translation.height > 8 { userScrolledUp = true }
+            .coordinateSpace(name: "chat-timeline")
+            .onPreferenceChange(TimelineRowFramesKey.self) { frames in
+                scrollController.rowFrames = frames
+                // Apply corrections from this measurement directly. Publishing
+                // frames into State adds a second, potentially stale layout pass.
+                guard let anchor = historyAnchor else { return }
+                if scrollController.isUserScrolling {
+                    historyAnchor = nil
+                } else if historyRestoreRequest != nil, model.timelineRows.first?.id != anchor.firstID,
+                    let frame = frames[anchor.id]
+                {
+                    // Preserve the actual visible row, including its partial offset,
+                    // rather than guessing from a lazy stack's total height.
+                    scrollController.preserveAnchor(displacement: frame.minY - anchor.top)
                 }
-            )
+            }
+            .task(id: historyRestoreRequest) {
+                #if DEBUG
+                Logger(subsystem: "com.openbitfun.mobile.ios", category: "timeline-scroll").info("History task available=\(historyRestoreRequest != nil)")
+                #endif
+                guard let request = historyRestoreRequest else { return }
+                await Task.yield()
+                guard !Task.isCancelled, !scrollController.isUserScrolling,
+                    historyRestoreRequest == request
+                else { return }
+                // Explicitly key restoration by both the captured anchor and the
+                // new transcript. State used only inside callbacks may otherwise
+                // arrive after the list's first layout notification.
+                proxy.scrollTo(scrollTargetID(request.id), anchor: .top)
+                await Task.yield()
+                guard !Task.isCancelled, historyRestoreRequest == request else { return }
+                if let frame = scrollController.rowFrames[request.id] {
+                    scrollController.preserveAnchor(displacement: frame.minY - request.top)
+                }
+            }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: model.selectedSessionID) { _ in
-                userScrolledUp = false
-                Task { @MainActor in
-                    await Task.yield()
-                    proxy.scrollTo("timeline-bottom", anchor: .bottom)
-                }
+            .onAppear { scrollController.open(session: model.selectedSessionID) }
+            .onChange(of: model.selectedSessionID) { session in
+                historyAnchor = nil
+                scrollController.open(session: session)
             }
-            .onChange(of: model.isSending) { sending in
-                guard sending else { return }
-                userScrolledUp = false
-                Task { @MainActor in
-                    await Task.yield()
-                    proxy.scrollTo("timeline-bottom", anchor: .bottom)
-                }
-            }
-            .onChange(of: model.timelineRows) { _ in
-                guard !userScrolledUp else { return }
-                Task { @MainActor in
-                    await Task.yield()
-                    guard !userScrolledUp else { return }
-                    proxy.scrollTo("timeline-bottom", anchor: .bottom)
-                }
+            .onChange(of: model.composerSendGeneration) { _ in
+                historyAnchor = nil
+                scrollController.followBottom()
             }
             .overlay(alignment: .bottomTrailing) {
-                if userScrolledUp {
+                if !scrollController.followsBottom {
                     Button {
-                        userScrolledUp = false
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            proxy.scrollTo("timeline-bottom", anchor: .bottom)
-                        }
+                        historyAnchor = nil
+                        scrollController.followBottom()
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 13, weight: .semibold))
@@ -84,11 +141,84 @@ struct ChatTimelineView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(18)
+                    .accessibilityIdentifier("timeline.scrollToBottom")
                     .accessibilityLabel(Text(model.localized("滚动到底部")))
                 }
             }
+            .background(OpenBitFunTheme.page)
         }
-        .background(OpenBitFunTheme.page)
+    }
+
+    private struct HistoryRestoreRequest: Equatable {
+        let session: String
+        let firstID: String
+        let id: String
+        let top: CGFloat
+    }
+
+    private var historyRestoreRequest: HistoryRestoreRequest? {
+        guard let anchor = historyAnchor, let first = model.timelineRows.first?.id,
+            first != anchor.firstID
+        else { return nil }
+        return HistoryRestoreRequest(
+            session: model.selectedSessionID, firstID: first,
+            id: anchor.id, top: anchor.top)
+    }
+
+    private var currentTurnStart: Int {
+        if let userIndex = model.timelineRows.lastIndex(where: { $0.kind == "USER" }) {
+            return userIndex
+        }
+        return model.timelineRows.last?.live == true
+            ? max(0, model.timelineRows.count - 1) : model.timelineRows.count
+    }
+
+    private var currentTurnRows: ArraySlice<MobileConversationRow> {
+        model.timelineRows.dropFirst(currentTurnStart)
+    }
+
+    private struct CurrentTurnItem: Identifiable {
+        let id: String
+        let row: MobileConversationRow
+    }
+
+    private var currentTurnItems: [CurrentTurnItem] {
+        currentTurnRows.map { CurrentTurnItem(id: scrollTargetID($0.id), row: $0) }
+    }
+
+    private func scrollTargetID(_ rowID: String) -> String {
+        // Acknowledgement replaces the transport ID, not the visible message.
+        // Retain the current user leaf across that replacement; historical rows
+        // and assistant blocks continue to use their transcript identities.
+        if model.timelineRows.last(where: { $0.kind == "USER" })?.id == rowID {
+            return "current-user:\(model.selectedSessionID)"
+        }
+        return rowID
+    }
+
+    private var historyRows: ArraySlice<MobileConversationRow> {
+        model.timelineRows.prefix(currentTurnStart)
+    }
+
+    private func timelineRow(_ row: MobileConversationRow, identity: String? = nil) -> some View {
+        ConversationRowView(row: row, model: model, language: model.appLanguage.rawValue)
+            .equatable().id(identity ?? row.id)
+            .environment(\.streamingRowIdentity, row.id)
+            .background(TimelineRowProbe(controller: scrollController, rowID: row.id))
+            .background {
+                GeometryReader { geometry in
+                    OpenBitFunTheme.transparent.preference(
+                        key: TimelineRowFramesKey.self,
+                        value: [row.id: geometry.frame(in: .named("chat-timeline"))])
+                }
+            }
+    }
+}
+
+private struct TimelineRowFramesKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
@@ -108,6 +238,7 @@ struct ConversationLoadingState: View {
         .background(OpenBitFunTheme.page)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(MobileLocalization.text("正在加载")))
+        .accessibilityIdentifier("conversation.loading")
     }
 
     private func assistantSkeleton(width: CGFloat, height: CGFloat) -> some View {
@@ -146,9 +277,15 @@ struct ConversationLoadingState: View {
     }
 }
 
-private struct ConversationRowView: View {
+private struct ConversationRowView: View, Equatable {
+    @State private var expandedToolID: String? = nil
     let row: MobileConversationRow
-    @ObservedObject var model: MobileAppModel
+    let model: MobileAppModel
+    let language: String
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.row == rhs.row && lhs.language == rhs.language && lhs.model === rhs.model
+    }
 
     @ViewBuilder
     var body: some View {
@@ -211,10 +348,10 @@ private struct ConversationRowView: View {
                 MessageBlockList(blocks: row.blocks, model: model)
             } else {
                 if let thinking = row.thinking, !thinking.isEmpty {
-                    ThinkingBlock(text: thinking, streaming: row.streaming)
+                    ThinkingBlock(text: thinking, streaming: row.streaming && row.text.isEmpty && row.tools.isEmpty)
                 }
-                if !row.text.isEmpty { MarkdownMessageView(text: row.text, model: model) }
-                if !row.tools.isEmpty { ToolStatusList(tools: row.tools, model: model) }
+                if !row.text.isEmpty { StreamingMarkdownMessageView(text: row.text, active: row.streaming, model: model) }
+                if !row.tools.isEmpty { ToolStatusList(tools: row.tools, model: model, expandedToolID: $expandedToolID) }
             }
             if !row.images.isEmpty { TimelineImageGrid(images: row.images) }
             if let error = row.error, !error.isEmpty {
@@ -301,20 +438,44 @@ private struct EmptyConversationRow: View {
 
 private struct MessageBlockList: View {
     let blocks: [MobileTimelineBlock]
-    @ObservedObject var model: MobileAppModel
+    let model: MobileAppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(blocks) { block in
-                switch block {
-                case let .text(_, text, _):
-                    if !text.isEmpty { MarkdownMessageView(text: text, model: model) }
-                case let .thinking(_, text, streaming):
-                    ThinkingBlock(text: text, streaming: streaming)
-                case let .tools(_, tools):
-                    ToolStatusList(tools: tools, model: model)
-                case let .subagent(_, title, running, text, children):
-                    SubagentBlock(title: title, running: running, text: text, children: children, model: model)
+            ForEach(MobileProcessGroup.project(blocks)) { group in
+                ProcessGroupView(group: group, model: model)
+            }
+        }
+    }
+}
+
+private struct ProcessGroupView: View {
+    let group: MobileProcessGroup
+    let model: MobileAppModel
+    @State private var expandedToolID: String? = nil
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if group.toolsOnly {
+                ToolStatusList(tools: group.tools, model: model, expandedToolID: $expandedToolID)
+            } else {
+                if group.hasSummary {
+                    ToolSummaryButton(tools: group.tools, model: model, expanded: $expanded)
+                }
+                if !group.hasSummary || expanded {
+                    ForEach(group.blocks) { block in
+                        switch block {
+                        case let .text(id, text, streaming):
+                            if !text.isEmpty { StreamingMarkdownMessageView(text: text, active: streaming, model: model, partID: id) }
+                        case let .thinking(id, text, streaming):
+                            ThinkingBlock(text: text, streaming: streaming, partID: id)
+                        case let .tools(_, tools):
+                            ToolStatusList(tools: tools, model: model, expandedToolID: $expandedToolID)
+                        case let .subagent(id, title, running, text, children, status):
+                            SubagentBlock(id: id, title: title, running: running, text: text, children: children, model: model, status: status)
+                        }
+                    }
                 }
             }
         }
@@ -322,12 +483,17 @@ private struct MessageBlockList: View {
 }
 
 private struct SubagentBlock: View {
+    let id: String
     let title: String
     let running: Bool
     let text: String
     let children: [MobileTimelineBlock]
-    @ObservedObject var model: MobileAppModel
-    @State private var expanded = true
+    let model: MobileAppModel
+    var status: String = ""
+    @State private var expanded = false
+    private var failed: Bool { MobileSubagentPresentation.failed(status) }
+    private var processBlocks: [MobileTimelineBlock] { MobileSubagentPresentation.blocks(children, running: running) }
+    private var hasDetails: Bool { !processBlocks.isEmpty || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -338,31 +504,81 @@ private struct SubagentBlock: View {
                         .font(MobileDesignTypography.labelMedium.font).lineLimit(1)
                     Spacer()
                     if running { ProgressView().controlSize(.mini) }
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    Text(model.localized(running ? "运行中" : (failed ? "失败" : "已完成")))
                         .font(MobileDesignTypography.labelSmall.font)
+                    if hasDetails {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(MobileDesignTypography.labelSmall.font)
+                    }
                 }
-                .foregroundStyle(OpenBitFunTheme.muted)
+                .foregroundStyle(failed ? OpenBitFunTheme.statusDanger : OpenBitFunTheme.muted)
                 .frame(minHeight: 32)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            if expanded {
-                if !text.isEmpty { MarkdownMessageView(text: text, model: model) }
-                if !children.isEmpty { MessageBlockList(blocks: children, model: model) }
+            .accessibilityIdentifier("subagent.toggle.\(id)")
+            .disabled(!hasDetails)
+            if expanded && hasDetails {
+                // The parent content is often the Task summary, not another output.
+                // Keep it only as a fallback for older hosts without child items.
+                let blocks = processBlocks
+                if blocks.isEmpty && !text.isEmpty { outputPreview(text, key: id) }
+                ForEach(blocks) { block in
+                    switch block {
+                    case let .text(key, value, _):
+                        outputPreview(value, key: key)
+                    case let .thinking(key, value, streaming):
+                        ThinkingBlock(text: value, streaming: streaming, partID: key)
+                    case let .tools(_, tools):
+                        SubagentToolRow(tools: tools, model: model)
+                    case let .subagent(key, title, live, value, nested, status):
+                        SubagentBlock(id: key, title: title, running: live,
+                            text: value, children: nested, model: model, status: status)
+                    }
+                }
             }
         }
         .padding(.leading, 12)
         .overlay(alignment: .leading) { Rectangle().fill(OpenBitFunTheme.line).frame(width: 2) }
+    }
+
+    private func outputPreview(_ raw: String, key: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(model.localized("子任务输出"))
+                .font(MobileDesignTypography.labelSmall.font)
+                .foregroundStyle(OpenBitFunTheme.muted)
+            Text(MobileSubagentPresentation.preview(raw))
+                .font(MobileDesignTypography.bodySmall.font)
+                .lineSpacing(MobileDesignTypography.bodySmall.lineSpacing)
+                .lineLimit(4)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("subagent.output.\(key)")
+        }
+    }
+}
+
+private struct SubagentToolRow: View {
+    let tools: [MobileTimelineTool]
+    let model: MobileAppModel
+    @State private var expandedToolID: String?
+
+    var body: some View {
+        ToolStatusList(tools: tools, model: model, expandedToolID: $expandedToolID)
     }
 }
 
 private struct ThinkingBlock: View {
     let text: String
     let streaming: Bool
+    let partID: String
+    @Environment(\.streamingRowIdentity) private var rowID
     @State private var expanded: Bool
 
-    init(text: String, streaming: Bool) {
+    init(text: String, streaming: Bool, partID: String = "thinking") {
         self.text = text
         self.streaming = streaming
+        self.partID = partID
         _expanded = State(initialValue: streaming)
     }
 
@@ -380,8 +596,10 @@ private struct ThinkingBlock: View {
                 }
                 .foregroundStyle(OpenBitFunTheme.muted)
                 .frame(minHeight: 32)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("thinking.toggle.\(partID)")
             if expanded {
                 Text(text)
                     .font(MobileDesignTypography.bodyLarge.font)
@@ -389,6 +607,15 @@ private struct ThinkingBlock: View {
                     .lineSpacing(MobileDesignTypography.bodyLarge.lineSpacing)
                     .textSelection(.enabled)
             }
+        }
+        // Match Harmony: preserve manual toggles during one thinking phase,
+        // then fold when later output starts and expand for a new phase.
+        .onChange(of: streaming) { running in expanded = running }
+        .background {
+            #if DEBUG
+            ThinkingLayoutProbe(rowID: rowID, partID: partID, characters: text.count,
+                                streaming: streaming, expanded: expanded)
+            #endif
         }
     }
 }
@@ -409,9 +636,68 @@ private struct TypingIndicator: View {
     }
 }
 
+private struct StreamingRowIdentityKey: EnvironmentKey {
+    static let defaultValue = ""
+}
+
+private extension EnvironmentValues {
+    var streamingRowIdentity: String {
+        get { self[StreamingRowIdentityKey.self] }
+        set { self[StreamingRowIdentityKey.self] = newValue }
+    }
+}
+
+private struct StreamingMarkdownMessageView: View {
+    let text: String
+    let active: Bool
+    let model: MobileAppModel
+    var partID = "body"
+    @Environment(\.streamingRowIdentity) private var rowID
+
+    var body: some View {
+        let key = "\(model.remoteTargetEpoch)|\(model.selectedSessionID)|\(rowID)|\(partID)"
+        StreamingMarkdownRevealView(text: text, active: active, model: model, key: key)
+            .id(key)
+    }
+}
+
+private struct StreamingMarkdownRevealView: View {
+    let text: String
+    let active: Bool
+    let model: MobileAppModel
+    let key: String
+    @State private var reveal: StreamingTextState
+
+    init(text: String, active: Bool, model: MobileAppModel, key: String) {
+        self.text = text
+        self.active = active
+        self.model = model
+        self.key = key
+        var state = StreamingTextState(text: active ? StreamingRevealCache.shared.text(for: key) : text)
+        state.update(text, active: active)
+        _reveal = State(initialValue: state)
+    }
+
+    var body: some View {
+        MarkdownMessageView(text: reveal.visible, model: model)
+            .onChange(of: text) { value in reveal.update(value, active: active) }
+            .onChange(of: active) { value in reveal.update(text, active: value) }
+            .onChange(of: reveal.visible) { value in StreamingRevealCache.shared.save(value, for: key) }
+            .onDisappear { StreamingRevealCache.shared.save(reveal.visible, for: key) }
+            .task(id: active && reveal.ticksRemaining > 0) {
+                guard active && reveal.ticksRemaining > 0 else { return }
+                while !Task.isCancelled && reveal.ticksRemaining > 0 {
+                    do { try await Task.sleep(nanoseconds: 40_000_000) }
+                    catch { return }
+                    reveal.advance()
+                }
+            }
+    }
+}
+
 struct MarkdownMessageView: View {
     let text: String
-    @ObservedObject var model: MobileAppModel
+    let model: MobileAppModel
 
     var body: some View {
         let projection = MarkdownProjectionCache.shared.projection(for: text)
@@ -846,7 +1132,9 @@ private enum ToolDisplayRow: Identifiable {
 
 private struct ToolStatusList: View {
     let tools: [MobileTimelineTool]
-    @ObservedObject var model: MobileAppModel
+    let model: MobileAppModel
+    @Binding var expandedToolID: String?
+    @State private var summariesExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -864,8 +1152,8 @@ private struct ToolStatusList: View {
                             else if model.isSending || model.busy { Text(model.localized("请等待当前操作完成")) }
                         }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
                             .background(OpenBitFunTheme.soft).clipShape(RoundedRectangle(cornerRadius: 14))
-                    } else { ToolStatusRow(tool: tool, model: model) }
-                case let .collapsed(_, tools): CollapsedToolsRow(tools: tools, model: model)
+                    } else { ToolStatusRow(tool: tool, model: model, expandedToolID: $expandedToolID) }
+                case let .collapsed(_, tools): CollapsedToolsRow(tools: tools, model: model, expanded: $summariesExpanded, expandedToolID: $expandedToolID)
                 }
             }
         }
@@ -877,7 +1165,7 @@ private struct ToolStatusList: View {
         func flush() {
             if pending.count < 2 { result.append(contentsOf: pending.map(ToolDisplayRow.tool)) }
             else if let first = pending.first {
-                result.append(.collapsed(id: "collapsed-\(first.id)-\(pending.count)", tools: pending))
+                result.append(.collapsed(id: "collapsed-\(first.id)", tools: pending))
             }
             pending.removeAll()
         }
@@ -889,31 +1177,42 @@ private struct ToolStatusList: View {
     }
 }
 
+private struct ToolSummaryButton: View {
+    let tools: [MobileTimelineTool]
+    let model: MobileAppModel
+    @Binding var expanded: Bool
+
+    var body: some View {
+        Button { withAnimation(.easeOut(duration: 0.18)) { expanded.toggle() } } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 20).background(OpenBitFunTheme.soft)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                Text(model.localizedFormat("已完成 %lld 项操作", Int64(tools.count)))
+                    .font(MobileDesignTypography.bodySmall.font)
+                Spacer()
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(OpenBitFunTheme.muted).frame(minHeight: 32)
+                    .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("tool.summary.\(tools.first?.id ?? "empty")")
+    }
+}
+
 private struct CollapsedToolsRow: View {
     let tools: [MobileTimelineTool]
-    @ObservedObject var model: MobileAppModel
-    @State private var expanded = false
+    let model: MobileAppModel
+    @Binding var expanded: Bool
+    @Binding var expandedToolID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Button { withAnimation(.easeOut(duration: 0.18)) { expanded.toggle() } } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .medium))
-                        .frame(width: 20, height: 20).background(OpenBitFunTheme.soft)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    Text(model.localizedFormat("已完成 %lld 项操作", Int64(tools.count)))
-                        .font(MobileDesignTypography.bodySmall.font)
-                    Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .foregroundStyle(OpenBitFunTheme.muted).frame(minHeight: 32)
-            }
-            .buttonStyle(.plain)
+            ToolSummaryButton(tools: tools, model: model, expanded: $expanded)
             if expanded {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(tools) { ToolStatusRow(tool: $0, model: model) }
-                }
+                ForEach(tools) { ToolStatusRow(tool: $0, model: model, expandedToolID: $expandedToolID) }
             }
         }
     }
@@ -922,8 +1221,11 @@ private struct CollapsedToolsRow: View {
 private struct ToolStatusRow: View {
     let tool: MobileTimelineTool
     @ObservedObject var model: MobileAppModel
-    @State private var expanded = false
+    @Binding var expandedToolID: String?
+    private var expanded: Bool { expandedToolID == tool.id }
     @State private var answer = ""
+    @State private var editingApproval = false
+    @State private var approvalInput = ""
     @State private var selectedOptions: [Int: Set<String>] = [:]
     @State private var otherAnswers: [Int: String] = [:]
 
@@ -933,7 +1235,7 @@ private struct ToolStatusRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 if !tool.input.isEmpty || !tool.output.isEmpty || !tool.filePath.isEmpty {
-                    withAnimation(.easeOut(duration: 0.18)) { expanded.toggle() }
+                    withAnimation(.easeOut(duration: 0.18)) { expandedToolID = expanded ? nil : tool.id }
                 }
             } label: {
                 HStack(spacing: 8) {
@@ -947,8 +1249,10 @@ private struct ToolStatusRow: View {
                     else { Text(statusMark).font(MobileDesignTypography.labelSmall.font).foregroundStyle(statusColor) }
                 }
                 .frame(minHeight: 32)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("tool.toggle.\(tool.id)")
 
             if expanded {
                 if !tool.filePath.isEmpty {
@@ -969,9 +1273,13 @@ private struct ToolStatusRow: View {
                     structuredAnswerPanel
                 }
             } else if tool.actions.contains("APPROVE") || tool.actions.contains("REJECT") {
+                if tool.actions.contains("APPROVE") {
+                    Button(model.localized("编辑后批准")) { approvalInput = tool.input.isEmpty ? "{}" : tool.input; editingApproval.toggle() }
+                    if editingApproval { TextEditor(text: $approvalInput).frame(minHeight: 120) }
+                }
                 HStack(spacing: 8) {
                     if tool.actions.contains("REJECT") { toolAction(model.localized("拒绝"), primary: false) { model.rejectTool(tool.id) } }
-                    if tool.actions.contains("APPROVE") { toolAction(model.localized("允许"), primary: true) { model.approveTool(tool.id) } }
+                    if tool.actions.contains("APPROVE") { toolAction(model.localized("允许"), primary: true) { model.approveTool(tool.id, updatedInput: editingApproval ? approvalInput : nil) }.disabled(editingApproval && ((try? JSONSerialization.jsonObject(with: Data(approvalInput.utf8))) as? [String: Any]) == nil) }
                 }
             }
             if tool.actions.contains("CANCEL") {
@@ -1184,5 +1492,31 @@ private struct ToolStatusRow: View {
 
     private var statusMark: String {
         switch tool.phase { case "FAILED": "!"; case "PENDING_CONFIRMATION": "?"; case "CANCELLED": "×"; case "COMPLETED": "✓"; default: "•" }
+    }
+}
+
+private struct PermissionMailboxRow: View {
+    let request: PermissionMailboxRequest
+    let busy: Bool
+    @ObservedObject var model: MobileAppModel
+    @State private var editing = false
+    @State private var input = "{}"
+    private var valid: Bool {
+        guard editing else { return true }
+        guard let data = input.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) else { return false }
+        return object is [String: Any]
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(request.source.isEmpty ? request.action : request.source)
+            Text(request.action)
+            Text(request.resources.joined(separator: "\n"))
+            if editing { TextEditor(text: $input).frame(minHeight: 90).disabled(busy) }
+            HStack {
+                Button(model.localized("编辑后批准")) { editing.toggle() }.disabled(busy)
+                Button(model.localized("批准")) { model.respondPermission(request.requestId, approve: true, updatedInput: editing ? input : nil) }.disabled(busy || !valid)
+                Button(model.localized("拒绝")) { model.respondPermission(request.requestId, approve: false, updatedInput: nil) }.disabled(busy)
+            }
+        }.padding(12)
     }
 }

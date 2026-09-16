@@ -1,3 +1,5 @@
+import { DurableSessionStream, DurableSessionCallbacks, DurableSessionSource, DurableSessionEvent, SessionKeyGrant, SessionMessagePage, SessionCiphertext } from './DurableSessionStream';
+import { AccountRealtime } from './AccountRealtime';
 import { normalizeAccountRelayUrl, OFFICIAL_RELAY_URL } from './AccountDeviceLink';
 import { http } from '@kit.NetworkKit';
 import { CloudAccountCrypto } from './CloudAccountCrypto';
@@ -141,6 +143,25 @@ function isDesktopDeviceRow(device: CloudAccountDeviceWire, selfDeviceId: string
 interface DeviceKeyPair { privateKey: Uint8Array; publicKey: Uint8Array; }
 
 export class CloudAccountClient {
+  private realtime?: AccountRealtime;
+  private realtimeUrl: string = '';
+  private realtimeToken: string = '';
+
+  private connection(relayUrl: string, token: string): AccountRealtime {
+    const url = normalizeAccountRelayUrl(relayUrl);
+    if (!url) throw new Error('Invalid Relay URL');
+    if (this.realtime && this.realtimeUrl === url && this.realtimeToken === token) return this.realtime;
+    this.realtime?.close();
+    this.realtimeUrl = url; this.realtimeToken = token;
+    this.realtime = new AccountRealtime(url, token);
+    return this.realtime;
+  }
+
+  closeAccount(): void {
+    this.realtime?.close(); this.realtime = undefined;
+    this.realtimeUrl = ''; this.realtimeToken = '';
+  }
+
   private readonly cipher: HarmonyRemoteCryptoCipher = new HarmonyRemoteCryptoCipher();
 
   private authorizationGeneration: number = 0;
@@ -150,12 +171,12 @@ export class CloudAccountClient {
   async login(relayUrl: string, deviceId: string, openAuthorization: (url: string) => Promise<boolean>, deviceSecret: Uint8Array): Promise<CloudAccountSession> {
     const generation = ++this.authorizationGeneration;
     const startRequest: Record<string, string> = {};
-    const start = await this.post<GitHubStart>(relayUrl, '/api/auth/github/start', startRequest);
+    const start = await this.post<GitHubStart>(relayUrl, '/api/auth/github/start?methods=all', startRequest);
     if (generation !== this.authorizationGeneration) throw new Error('Sign-in cancelled.');
-    if (!start.authorizationUrl.startsWith('https://github.com/login/oauth/authorize?')) {
+    if (!start.authorizationUrl.startsWith('https://github.com/login/oauth/authorize?') && !/^https:\/\/auth\.openbitfun\.com\/sign-in#ticket=[A-Za-z0-9_-]+$/.test(start.authorizationUrl)) {
       throw new Error('Untrusted account authorization URL.');
     }
-    if (!await openAuthorization(start.authorizationUrl)) throw new Error('Could not open GitHub sign-in.');
+    if (!await openAuthorization(start.authorizationUrl)) throw new Error('Could not open account sign-in.');
     const deadline = Math.min(start.expiresAt * 1000, Date.now() + 600000);
     while (Date.now() < deadline && generation === this.authorizationGeneration) {
       await new Promise<void>((resolve) => setTimeout(resolve, Math.min(30, Math.max(1, start.pollIntervalSeconds)) * 1000));
@@ -254,6 +275,7 @@ export class CloudAccountClient {
     if (target.length === 0) {
       throw new Error('Remote target device is required.');
     }
+    const socket = this.connection(relayUrl, session.token);
     const peer = await this.request<PeerPublicKey>(relayUrl,
       `/api/devices/${encodeURIComponent(target)}/key`, 'GET', undefined, session.token);
     const messageKey = await CloudAccountCrypto.deriveDeviceKey(session.masterKey, Encoding.base64ToBytes(peer.public_key));
@@ -268,14 +290,7 @@ export class CloudAccountClient {
       nonce: Encoding.bytesToBase64(nonce)
     };
     RemoteLogger.info(`device rpc cmd=${command.cmd || 'unknown'} bytes=${body.encrypted_data.length}`);
-    const response = await this.request<EncryptedPayload>(
-      relayUrl,
-      `/api/devices/${encodeURIComponent(target)}/rpc`,
-      'POST',
-      body,
-      session.token,
-      timeoutMs
-    );
+    const response = await socket.call(target, body, timeoutMs);
     const plain = await this.cipher.decrypt(
       Encoding.base64ToBytes(response.encrypted_data),
       messageKey,
@@ -286,6 +301,40 @@ export class CloudAccountClient {
       throw new Error(parsed.message || 'Remote device command failed.');
     }
     return parsed;
+  }
+
+  observePresence(relayUrl: string, session: CloudAccountSession,
+    onPresence: (ids: string[]) => void, onReconnect: () => void): () => void {
+    const socket = this.connection(relayUrl, session.token);
+    const stopUpdate = socket.onUpdate((event: string, data: Object) => {
+      const presence = data as AccountPresence;
+      if (event === 'ephemeral' && presence.type === 'device-presence') {
+        onPresence((presence.devices || []).map((device: AccountPresenceDevice) => device.device_id));
+      }
+    });
+    const stopReconnect = socket.onReconnect(onReconnect);
+    return () => { stopUpdate(); stopReconnect(); };
+  }
+
+  subscribeSession(relayUrl: string, session: CloudAccountSession, targetId: string,
+    logicalId: string, callbacks: DurableSessionCallbacks): DurableSessionStream {
+    const socket = this.connection(relayUrl, session.token);
+    const source: DurableSessionSource = {
+      grant: () => this.deviceRpc<SessionKeyGrant>(relayUrl, session, targetId,
+        { cmd: 'get_session_key', session_id: logicalId }),
+      read: (relayId: string, after: number) => this.request<SessionMessagePage>(relayUrl,
+        `/v3/sessions/${encodeURIComponent(relayId)}/messages?after_seq=${after}&limit=100`, 'GET', undefined, session.token),
+      readBefore: (relayId: string, before: number) => this.request<SessionMessagePage>(relayUrl,
+        `/v3/sessions/${encodeURIComponent(relayId)}/messages?before_seq=${before}&limit=100`, 'GET', undefined, session.token),
+      decrypt: async (content: SessionCiphertext, key: string): Promise<DurableSessionEvent> => {
+        const plain = await this.cipher.decrypt(Encoding.base64ToBytes(content.data),
+          Encoding.base64ToBytes(key), Encoding.base64ToBytes(content.nonce));
+        return Encoding.parseJsonObject<DurableSessionEvent>(Encoding.bytesToUtf8(plain));
+      },
+      onUpdate: (listener: (event: string, data: Object) => void) => socket.onUpdate(listener),
+      onReconnect: (listener: () => void) => socket.onReconnect(listener)
+    };
+    return new DurableSessionStream(logicalId, source, callbacks);
   }
 
   private async post<T>(relayUrl: string, path: string, body: Object): Promise<T> {
@@ -358,3 +407,6 @@ export class CloudAccountClient {
     }
   }
 }
+
+interface AccountPresenceDevice { device_id: string; }
+interface AccountPresence { type: string; devices?: AccountPresenceDevice[]; }

@@ -19,10 +19,9 @@ public object CreateSessionPresenter {
     /**
      * Which agent a picked workspace implies.
      *
-     * The desktop binds every chat session to its own assistant workspace and
-     * ignores the requested `workspace_path`, so a picked workspace only holds
-     * when it is paired with the code agent. No workspace means chat, which is
-     * what the chat agent is for.
+     * A normal chat delegates default assistant-workspace resolution to the
+     * runtime. A selected project uses the workspace agent and carries that
+     * project's explicit path and connection identity.
      */
     public fun agentType(workspacePath: String): String =
         if (workspacePath.trim().isEmpty()) CHAT_AGENT else WORKSPACE_AGENT

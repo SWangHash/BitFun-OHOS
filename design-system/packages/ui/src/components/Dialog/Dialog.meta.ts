@@ -6,6 +6,9 @@ export const dialogMeta = {
   maturity: "stable",
   name: "Dialog",
   props: [
+    { name: "restoreFocus", type: "boolean", defaultValue: "true" },
+    { name: "portalTarget", type: "HTMLElement | null" },
+    { name: "overlayProps", type: "HTMLAttributes<HTMLDivElement>" },
     { name: "open", type: "boolean" },
     { name: "onOpenChange", type: "(open: false, reason: DialogCloseReason) => void" },
     { defaultValue: "md", name: "size", type: "sm | md | lg | xl | 2xl" },
@@ -49,6 +52,9 @@ export const sheetMeta = {
   description: "A compound edge-aligned sheet using the same dismissal, focus, scroll-lock, and anatomy contracts as Dialog.",
   name: "Sheet",
   props: [
+    { name: "restoreFocus", type: "boolean", defaultValue: "true" },
+    { name: "portalTarget", type: "HTMLElement | null" },
+    { name: "overlayProps", type: "HTMLAttributes<HTMLDivElement>" },
     { name: "open", type: "boolean" },
     { name: "onOpenChange", type: "(open: false, reason: DialogCloseReason) => void" },
     { defaultValue: "right", name: "placement", type: "left | right | bottom" },

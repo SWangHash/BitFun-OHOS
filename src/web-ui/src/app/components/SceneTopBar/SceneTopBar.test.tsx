@@ -146,11 +146,11 @@ describe('SceneTopBar', () => {
     it.each([0, 1, 2, 8])('allows dragging and maximizing empty chrome with %i open tabs', async tabCount => {
       const toolbar = renderBar(tabCount);
       const tabList = toolbar.querySelector('[role="tablist"]')!;
-      const dragSpace = toolbar.querySelector('.openbitfun-scene-top-bar__drag-space')!;
-      expect(dragSpace).not.toBeNull();
-      expect(tabList.contains(dragSpace)).toBe(false);
+      const leading = toolbar.querySelector(':scope > [data-openbitfun-part="leading"]')!;
+      expect(leading.children).toHaveLength(1);
+      expect(leading.firstElementChild).toBe(tabList);
 
-      for (const target of [toolbar, tabList, dragSpace]) {
+      for (const target of [toolbar, leading, tabList]) {
         await mouseDown(target);
         doubleClick(target);
       }
@@ -229,12 +229,11 @@ describe('SceneTopBar', () => {
       expect(maximize).not.toHaveBeenCalled();
     });
 
-    it('does not expose native window gestures or reserve desktop space in a browser runtime', async () => {
+    it('does not expose native window gestures in a browser runtime', async () => {
       vi.stubGlobal('__TAURI_INTERNALS__', undefined);
       const toolbar = renderBar(2);
       await mouseDown(toolbar);
       doubleClick(toolbar);
-      expect(toolbar.querySelector('.openbitfun-scene-top-bar__drag-space')).toBeNull();
       expect(startDragging).not.toHaveBeenCalled();
       expect(maximize).not.toHaveBeenCalled();
     });

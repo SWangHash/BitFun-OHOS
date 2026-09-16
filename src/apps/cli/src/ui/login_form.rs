@@ -1,4 +1,4 @@
-//! Full-viewport GitHub account panel (Login / Account status).
+//! Full-viewport OpenBitFun account panel (Login / Account status).
 //!
 //! Opened by `/login`. When already logged in, shows account info and connected devices instead of the credential form.
 
@@ -20,7 +20,7 @@ pub(crate) enum LoginFormAction {
     None,
     /// Close the panel (Esc on most views).
     Cancel,
-    /// Start GitHub sign-in or check an existing transaction.
+    /// Start account sign-in or check an existing transaction.
     Submit(Option<String>),
     /// User requested logout from the account page.
     Logout,
@@ -108,7 +108,7 @@ impl LoginFormState {
 
     pub(crate) fn set_authorization(&mut self, authorization: GitHubAuthStart) {
         self.authorization = Some(authorization);
-        self.set_status("Complete GitHub authorization, then press Enter.");
+        self.set_status("Complete OpenBitFun authorization, then press Enter.");
     }
 
     pub(crate) fn insert_paste(&mut self, _text: &str) {}
@@ -188,7 +188,7 @@ impl LoginFormState {
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_style(theme.style(StyleKind::Primary))
-            .title(" OpenBitFun · GitHub Sign-in ")
+            .title(" OpenBitFun · Account Sign-in ")
             .title_alignment(Alignment::Center);
         let inner = outer.inner(area);
         frame.render_widget(outer, area);
@@ -202,7 +202,7 @@ impl LoginFormState {
             ])
             .split(inner);
         frame.render_widget(
-            Paragraph::new("Use the same GitHub account as the OpenBitFun marketplaces.")
+            Paragraph::new("Use the same OpenBitFun account as the OpenBitFun marketplaces.")
                 .style(theme.style(StyleKind::Muted))
                 .wrap(Wrap { trim: false }),
             rows[0],
@@ -211,7 +211,7 @@ impl LoginFormState {
             .authorization
             .as_ref()
             .map(|a| format!("Open this link in your browser:\n\n{}", a.authorization_url))
-            .unwrap_or_else(|| "Press Enter to sign in with GitHub.".to_string());
+            .unwrap_or_else(|| "Press Enter to sign in with email or GitHub.".to_string());
         frame.render_widget(
             Paragraph::new(text)
                 .style(theme.style(StyleKind::Primary))
@@ -231,7 +231,7 @@ impl LoginFormState {
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_style(theme.style(StyleKind::Primary))
-            .title(" GitHub Account ")
+            .title(" OpenBitFun Account ")
             .title_alignment(Alignment::Center);
         let inner = outer.inner(area);
         frame.render_widget(outer, area);

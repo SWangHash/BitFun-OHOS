@@ -163,6 +163,9 @@ async fn connect_with_presence_reset(db_path: &str, reset_presence: bool) -> Res
         .connect_with(options)
         .await?;
     sqlx::query(SCHEMA).execute(&pool).await?;
+    sqlx::query(crate::realtime::store::SCHEMA)
+        .execute(&pool)
+        .await?;
     // Older DBs created pages without deployed_version_id.
     let _ = sqlx::query(MIGRATE_PAGES_DEPLOYED_VERSION)
         .execute(&pool)

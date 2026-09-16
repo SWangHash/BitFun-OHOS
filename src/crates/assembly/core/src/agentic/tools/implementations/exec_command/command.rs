@@ -1176,7 +1176,7 @@ mod tests {
         assert!(tool.prepared_shells.lock().await.is_empty());
     }
 
-    fn local_tool_context(workspace: &Path) -> ToolUseContext {
+    fn local_tool_context_anonymous(workspace: &Path) -> ToolUseContext {
         ToolUseContext {
             tool_call_id: None,
             agent_type: Some("Standard".to_string()),
@@ -1220,7 +1220,7 @@ mod tests {
     #[test]
     fn local_workdir_resolves_relative_input_without_a_preflight_stat() {
         let workspace = tempfile::tempdir().expect("temporary workspace");
-        let context = local_tool_context(workspace.path());
+        let context = local_tool_context_anonymous(workspace.path());
 
         let resolved =
             ExecCommandTool::resolve_workdir(&json!({"workdir": "src/../tests"}), &context)

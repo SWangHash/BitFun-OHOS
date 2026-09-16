@@ -31,15 +31,17 @@ describe('ecosystem discovery, copy and use presentation', () => {
     expect(presentEcosystemContent({ ...facts, localImportSupported: false }).state).toBe('unsupportedContext');
   });
 
-  it.each(['checking', 'discoveryDisabled', 'discoveryUnavailable'] as const)(
-    'does not hide %s behind a cached item or eligible import plan', (discoveryState) => {
-      expect(presentEcosystemContent({ ...facts, discoveryState })).toMatchObject({ state: discoveryState, canImport: false });
+  it.each(['checking', 'notScanned', 'discoveryUnavailable'] as const)(
+    'retains the previous result during %s without trusting its old import plan', (discoveryState) => {
+      expect(presentEcosystemContent({ ...facts, discoveryState })).toMatchObject({ state: 'discovered', canImport: false, descriptionKey: 'content.lastKnownResult' });
+      expect(presentEcosystemContent({ ...facts, discoveryState, item: { ...facts.item, discovered: false } })).toMatchObject({ state: discoveryState, canImport: false });
     },
   );
 
   it('keeps confirmed copies visible when discovery fails', () => {
     expect(presentEcosystemContent({ ...facts, catalogFailed: true, imported: true }).state).toBe('imported');
-    expect(presentEcosystemContent({ ...facts, catalogFailed: true })).toMatchObject({ state: 'discoveryUnavailable', canImport: false });
+    expect(presentEcosystemContent({ ...facts, catalogFailed: true })).toMatchObject({ state: 'discovered', canImport: false, descriptionKey: 'content.lastKnownResult' });
+    expect(presentEcosystemContent({ ...facts, discoveryState: 'discoveryDisabled' })).toMatchObject({ state: 'discoveryDisabled', canImport: false });
   });
 
   it('distinguishes missing results from missing page discovery integration', () => {

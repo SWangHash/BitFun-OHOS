@@ -4422,46 +4422,61 @@ mod handle_chat_tests {
         )
         .unwrap();
         let server = tokio::spawn(async move {
-            let mut polls = 0;
+            use futures::{SinkExt, StreamExt};
+            use tokio_tungstenite::tungstenite::{
+                handshake::derive_accept_key, protocol::Role, Message,
+            };
+            let polls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let mut clients = tokio::task::JoinSet::new();
             loop {
                 let (mut socket, _) = listener.accept().await.unwrap();
-                let mut bytes = Vec::new();
-                let (header_end, length) = loop {
-                    let mut block = [0u8; 4096];
-                    let count = socket.read(&mut block).await.unwrap();
-                    if count == 0 {
+                let public = public.clone();
+                let observed = observed.clone();
+                let polls = polls.clone();
+                clients.spawn(async move {
+                    let mut bytes = Vec::new();
+                    let header_end = loop {
+                        let mut block = [0u8; 4096];
+                        let count = socket.read(&mut block).await.unwrap();
+                        if count == 0 { return; }
+                        bytes.extend_from_slice(&block[..count]);
+                        if let Some(end) = bytes.windows(4).position(|v| v == b"\r\n\r\n") { break end + 4; }
+                        assert!(bytes.len() < 128 * 1024);
+                    };
+                    let header = std::str::from_utf8(&bytes[..header_end]).unwrap();
+                    if header.starts_with("GET /api/devices/device-a/key ") {
+                        let reply = serde_json::json!({"device_id":"device-a","public_key":public}).to_string();
+                        let http = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", reply.len(), reply);
+                        socket.write_all(http.as_bytes()).await.unwrap();
                         return;
                     }
-                    bytes.extend_from_slice(&block[..count]);
-                    if let Some(end) = bytes.windows(4).position(|v| v == b"\r\n\r\n") {
-                        let header = std::str::from_utf8(&bytes[..end]).unwrap();
-                        let length = header
-                            .lines()
-                            .find_map(|line| {
-                                line.to_ascii_lowercase()
-                                    .strip_prefix("content-length:")
-                                    .map(|v| v.trim().parse::<usize>().unwrap())
-                            })
-                            .unwrap_or(0);
-                        break (end + 4, length);
-                    }
-                    assert!(bytes.len() < 128 * 1024);
-                };
-                while bytes.len() < header_end + length {
-                    let mut block = [0u8; 4096];
-                    let count = socket.read(&mut block).await.unwrap();
-                    assert!(count > 0);
-                    bytes.extend_from_slice(&block[..count]);
-                }
-                let header = std::str::from_utf8(&bytes[..header_end]).unwrap();
-                let reply = if header.starts_with("GET /api/devices/device-a/key ") {
-                    serde_json::json!({"device_id":"device-a","public_key":public})
-                } else {
-                    assert!(header.starts_with("POST /api/devices/device-a/rpc "));
-                    let envelope: Value=serde_json::from_slice(&bytes[header_end..header_end+length]).unwrap();
-                    let plaintext=encryption::decrypt_from_base64(&key,envelope["encrypted_data"].as_str().unwrap(),envelope["nonce"].as_str().unwrap()).unwrap();
-                    let command: Value=serde_json::from_str(&plaintext).unwrap();
-                    observed.lock().unwrap().push(command.clone());
+                    assert!(header.starts_with("GET /v1/updates/"), "{header}");
+                    let websocket_key = header.lines().find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("sec-websocket-key").then_some(value.trim())
+                    }).unwrap();
+                    let accept = derive_accept_key(websocket_key.as_bytes());
+                    socket.write_all(format!("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n").as_bytes()).await.unwrap();
+                    let mut ws = tokio_tungstenite::WebSocketStream::from_partially_read(socket, bytes[header_end..].to_vec(), Role::Server, None).await;
+                    ws.send(Message::Text(r#"0{"sid":"fixture","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}"#.into())).await.unwrap();
+                    while let Some(frame) = ws.next().await {
+                        let Ok(Message::Text(text)) = frame else { break; };
+                        if text.starts_with("40") {
+                            ws.send(Message::Text(r#"40{"sid":"fixture"}"#.into())).await.unwrap();
+                            ws.send(Message::Text(r#"42["auth-ok",{"userId":"test-user","deviceId":"controller"}]"#.into())).await.unwrap();
+                            continue;
+                        }
+                        if text == "3" { continue; }
+                        assert!(text.starts_with("42"), "Unexpected Socket.IO frame: {text}");
+                        let array_start = text.find('[').unwrap();
+                        let ack_id = &text[2..array_start];
+                        let event: Value = serde_json::from_str(&text[array_start..]).unwrap();
+                        assert_eq!(event[0], "rpc-call");
+                        assert_eq!(event[1]["method"], "device-a:invoke");
+                        let envelope = &event[1]["params"];
+                        let plaintext = encryption::decrypt_from_base64(&key, envelope["encrypted_data"].as_str().unwrap(), envelope["nonce"].as_str().unwrap()).unwrap();
+                        let command: Value = serde_json::from_str(&plaintext).unwrap();
+                        observed.lock().unwrap().push(command.clone());
                     let response=match command["cmd"].as_str().unwrap() {
                         "send_message" => {
                             assert_eq!(command["session_id"],"session-a");
@@ -4471,8 +4486,8 @@ mod handle_chat_tests {
                         }
                         "poll_session" => {
                             assert_eq!(command["session_id"],"session-a");
-                            polls += 1;
-                            if polls == 1 { continue; } // Lost connection after submission.
+                            let polls = polls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                            if polls == 1 { break; } // Lost connection after submission.
                             let tool = if polls == 2 {
                                 serde_json::json!({"id":"question-a","name":"AskUserQuestion","status":"running",
                                     "tool_input":{"questions":[{"question":"Format?","options":[{"label":"PNG"}]}]}})
@@ -4519,11 +4534,11 @@ mod handle_chat_tests {
                         }
                         other=>panic!("Unexpected command: {other}"),
                     };
-                    let (encrypted_data, nonce)=encryption::encrypt_to_base64(&key,&response.to_string()).unwrap();
-                    serde_json::json!({"encrypted_data":encrypted_data,"nonce":nonce})
-                }.to_string();
-                let http=format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",reply.len(),reply);
-                socket.write_all(http.as_bytes()).await.unwrap();
+                    let (encrypted_data, nonce) = encryption::encrypt_to_base64(&key, &response.to_string()).unwrap();
+                    let response = serde_json::json!([{"ok":true,"result":{"encrypted_data":encrypted_data,"nonce":nonce}}]);
+                    ws.send(Message::Text(format!("43{ack_id}{response}").into())).await.unwrap();
+                    }
+                });
             }
         });
         let mut state = BotChatState::new("chat".into());

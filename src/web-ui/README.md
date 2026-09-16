@@ -188,11 +188,11 @@ Use test content or reversible imported copies. Category discovery coverage is i
 
 | Check | Action | Expected result |
 |---|---|---|
-| Direct command use | Put `Reply with STATUS_OK.` in `.claude/commands/status-check.md`, allow Claude Code command compatibility, then refresh | The command shows its usage state and explains that copy import is unavailable. Discover-only policy shows disabled use; unresolved same-name selection shows a conflict |
+| Command discovery | Put `Reply with STATUS_OK.` in `.claude/commands/status-check.md`, then refresh the catalog | The category shows the discovered count and the category dialog lists the discovered commands. Viewing it neither enables execution nor offers unsupported copy import; runtime activation stays with its existing owner |
 | MCP copy versus connection | Review and import an existing supported MCP declaration, leaving the native copy disabled | The row says Imported and connection not confirmed. Check and enable the copy in MCP settings, which owns the actual connection result |
-| Read-only hooks | Select Pi or DSH with a configured extension and expand Hook | Static declarations are viewable without execution. Single and category import actions are absent |
-| Categories without discovery | Inspect plugins or full settings | The label describes discovery not integrated on this page, without claiming that all other feature entry points are unsupported |
-| Discovery and environment | Disable discovery for the selected ecosystem, refresh and inspect MCP; then switch to a remote workspace or Peer | Disabled discovery is explicit. Host-provided remote catalogs remain viewable, while local copy import is gated without falling back to the controller |
+| Read-only hooks | Select Pi or DSH with a configured extension and open the Hook category dialog | Static declarations are viewable without execution. Single and category import actions are absent |
+| Categories without discovery | Inspect plugins or full settings | The label says "Not yet supported" and the description explains that this page cannot show the content yet, without claiming that all other feature entry points are unsupported |
+| Discovery and environment | Toggle Automatic discovery above the sidebar search, inspect its hover/focus explanation, and refresh manually while paused; then switch workspace or Peer | Only automatic catalog reads pause; prior results, runtime enablement and approvals stay intact. Built-in presets remain under More apps; actual sources/content or user configurations appear under Identified. Content shows counts or scan results. Late and failed reads preserve scoped content. Old hosts keep a read-only switch; remote imports never fall back to the controller |
 
 From the repository root, run the focused status and interaction checks:
 

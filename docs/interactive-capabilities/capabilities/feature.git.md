@@ -17,23 +17,23 @@ Inspect changes, branches, and commits; stage, commit, merge, cherry-pick, and w
 
 ## 完整功能清单 / Everything included
 
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 查看仓库状态、修改文件和逐文件 Diff
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 查看仓库状态、修改文件和逐文件 Diff
   - Inspect repository status, changed files, and per-file diffs
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 暂存文件、取消暂存并重置到指定提交
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 暂存文件、取消暂存并重置到指定提交
   - Stage files, unstage changes, and reset to a selected commit
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 预览或生成提交信息并创建提交
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 预览或生成提交信息并创建提交
   - Preview or generate a commit message and create the commit
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 从远端 Pull 并向远端 Push
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 从远端 Pull 并向远端 Push
   - Pull from and push to remotes
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 查看、创建、切换和删除本地分支
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 查看、创建、切换和删除本地分支
   - Browse, create, check out, and delete local branches
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 浏览提交图谱与仓库历史并保存最近访问记录
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 浏览提交图谱与仓库历史并保存最近访问记录
   - Browse the commit graph and repository history, including recent-history persistence
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 解析 Revision 并查看任意提交中的文件内容
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 解析 Revision 并查看任意提交中的文件内容
   - Resolve revisions and inspect file content from any commit
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` · 执行、继续或中止 Cherry-pick
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 执行、继续或中止 Cherry-pick
   - Start, continue, or abort a cherry-pick
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除
   - Manage repository trust and create, bind, promote, recreate, or remove worktrees
 
 ## 怎么用 / How to use it
@@ -47,7 +47,7 @@ Inspect changes, branches, and commits; stage, commit, merge, cherry-pick, and w
 
 入口 / Entry: OpenBitFun 对应场景
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -59,13 +59,13 @@ Inspect changes, branches, and commits; stage, commit, merge, cherry-pick, and w
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Git 面板”
   - “Open the Git panel”
 - “带我查看当前代码改动”
   - “Show me the current code changes”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

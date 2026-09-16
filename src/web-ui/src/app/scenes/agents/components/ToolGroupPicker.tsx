@@ -34,7 +34,6 @@ import {
   resolveToolGroupSummary,
   resolveToolGroups,
   setToolGroupSelection,
-  toggleToolSelection,
   unavailableUserToolNames,
 } from './toolGroups';
 import {
@@ -42,6 +41,7 @@ import {
   type AgentCapabilityTooltipField,
 } from './AgentCapabilityTooltip';
 import { capabilityTooltipAriaLabel } from './agentCapabilityTooltipUtils';
+import { AgentCapabilityOption } from './AgentCapabilityOption';
 import './ToolGroupPicker.scss';
 
 interface ToolGroupPickerProps {
@@ -178,13 +178,13 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
     setToolNames(new Set(group.toolNames));
   };
 
-  const toggleTool = (toolName: string) => {
+  const setToolSelected = (toolName: string, checked: boolean) => {
     setToolNames((current) => {
       const next = new Set(current);
-      if (next.has(toolName)) {
-        next.delete(toolName);
-      } else {
+      if (checked) {
         next.add(toolName);
+      } else {
+        next.delete(toolName);
       }
       return next;
     });
@@ -318,19 +318,16 @@ const GroupManagerModal: React.FC<GroupManagerModalProps> = ({
                         titleMonospace
                         placement="top"
                       >
-                        <Button
+                        <AgentCapabilityOption
                           className="tool-group-manager__token"
                           data-openbitfun-product-component="tool-group-picker" data-openbitfun-product-part="token"
                           data-openbitfun-state={selected ? 'selected' : undefined}
-                          variant={selected ? 'secondary' : 'outline'}
-                          size="sm"
-                          onClick={() => toggleTool(tool.name)}
+                          checked={selected}
+                          label={tool.name}
+                          onCheckedChange={(checked) => setToolSelected(tool.name, checked)}
                           disabled={saving}
-                          aria-label={capabilityTooltipAriaLabel(tool.name, tool.description, tooltipFields)}
-                          aria-pressed={selected}
-                        >
-                          {tool.name}
-                        </Button>
+                          inputAriaLabel={capabilityTooltipAriaLabel(tool.name, tool.description, tooltipFields)}
+                        />
                       </AgentCapabilityTooltip>
                     );
                   })}
@@ -466,6 +463,7 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
         leading={(
           <span className="tool-group-picker__selected-count">
             {t('agentsOverview.toolGroups.selectedCount', { count: selectedCount })}
+            {' · '}{t('agentsOverview.selectionSaveHint')}
           </span>
         )}
         trailing={(
@@ -516,6 +514,7 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
                         ) : null}
                         <Checkbox
                           size="sm"
+                          label={t('agentsOverview.selectAll')}
                           checked={allSelected}
                           indeterminate={selectedInGroup > 0 && !allSelected}
                           onCheckedChange={(checked) => onSelectionChange(
@@ -543,19 +542,18 @@ export const ToolGroupPicker: React.FC<ToolGroupPickerProps> = ({
                             titleMonospace
                             placement="top"
                           >
-                            <Button
+                            <AgentCapabilityOption
                               className="tool-group-picker__token"
                               data-openbitfun-product-component="tool-group-picker" data-openbitfun-product-part="token"
                               data-openbitfun-state={selected ? 'selected' : undefined}
-                              variant={selected ? 'secondary' : 'outline'}
-                              size="sm"
-                              onClick={() => onSelectionChange(toggleToolSelection(selectedToolNames, tool.name))}
+                              checked={selected}
+                              label={tool.name}
+                              onCheckedChange={(checked) => onSelectionChange(
+                                setToolGroupSelection(selectedToolNames, [tool.name], checked),
+                              )}
                               disabled={disabled}
-                              aria-label={capabilityTooltipAriaLabel(tool.name, tool.description, tooltipFields)}
-                              aria-pressed={selected}
-                            >
-                              {tool.name}
-                            </Button>
+                              inputAriaLabel={capabilityTooltipAriaLabel(tool.name, tool.description, tooltipFields)}
+                            />
                           </AgentCapabilityTooltip>
                         );
                       })}
@@ -608,7 +606,11 @@ export const ToolGroupSummary: React.FC<ToolGroupSummaryProps> = ({
                   fields={tooltipFields}
                   titleMonospace
                 >
-                  <StatusPill tone="neutral" className="tool-group-summary__item">
+                  <StatusPill
+                    tone="neutral"
+                    className="tool-group-summary__item"
+                    leading={<Icon name="check-line" size="xs" />}
+                  >
                     {tool.name.replace(/_/g, ' ')}
                   </StatusPill>
                 </AgentCapabilityTooltip>

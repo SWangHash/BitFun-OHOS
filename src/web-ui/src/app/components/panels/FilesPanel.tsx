@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@openbitfun/ui';
 import { FileText as LucideFileText } from 'lucide-react';
 /**
  * Files panel component
@@ -1054,22 +1055,18 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                 : <Icon name="search" size="sm" aria-hidden />}
             />
             <div className="openbitfun-files-panel__search-toolbar" data-openbitfun-component="files-panel" data-openbitfun-part="searchToolbar">
-              <div className="openbitfun-files-panel__search-modes">
-                <button
-                  type="button"
-                  className={`openbitfun-files-panel__search-mode ${searchMode === 'content' ? 'active' : ''}`}
-                  onClick={() => setSearchMode('content')}
-                >
-                  {t('search.modeContent')}
-                </button>
-                <button
-                  type="button"
-                  className={`openbitfun-files-panel__search-mode ${searchMode === 'filenames' ? 'active' : ''}`}
-                  onClick={() => setSearchMode('filenames')}
-                >
-                  {t('search.modeFiles')}
-                </button>
-              </div>
+              <SegmentedControl
+                className="openbitfun-files-panel__search-modes"
+                interaction="buttons"
+                labelBehavior="static"
+                aria-label={t('search.placeholder')}
+                value={searchMode}
+                onValueChange={value => setSearchMode(value as 'content' | 'filenames')}
+                options={[
+                  { value: 'content', label: t('search.modeContent') },
+                  { value: 'filenames', label: t('search.modeFiles') },
+                ]}
+              />
               <div className="openbitfun-files-panel__search-options">
                 <Tooltip content={t('options.caseSensitive')}>
                   <IconButton

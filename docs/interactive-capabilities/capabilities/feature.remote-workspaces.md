@@ -11,31 +11,31 @@ title_en: "Remote workspaces"
 
 > 功能 / Feature
 
-通过 SSH 或容器在远程主机上打开项目，让文件、搜索、终端和 Agent 都在目标环境执行。
+通过 SSH 或容器在远程主机上打开项目，让文件、搜索、终端和智能体都在目标环境执行。
 
 Open projects over SSH or in containers so files, search, terminal, and agents all execute in the target environment.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 保存、列出、测试和删除 SSH 连接配置
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 保存、列出、测试和删除 SSH 连接配置
   - Save, list, test, and delete SSH connection profiles
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 使用密码、私钥、证书、SSH Config Host 与跳板机连接
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 使用密码、私钥、证书、SSH Config Host 与跳板机连接
   - Connect with passwords, private keys, certificates, SSH config hosts, and jump hosts
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 发现远程 Docker 容器并把容器作为工作环境
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 发现远程 Docker 容器并把容器作为工作环境
   - Discover remote Docker containers and use a container as the work environment
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择 Windows 主机上的 WSL 发行版作为工作区
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择 Windows 主机上的 WSL 发行版作为工作区
   - Choose a WSL distribution on the Windows host as a workspace
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 打开、关闭和移除远程工作区，并读取服务器信息
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 打开、关闭和移除远程工作区，并读取服务器信息
   - Open, close, and remove remote workspaces, and inspect server information
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `LS` / `Read` / `Write` / `Edit` / `Delete` / `Glob` / `Grep` / `ExecCommand` · 浏览、读取、写入、创建、重命名和删除远程文件与目录
+- **由专用智能体工具控制 / Delegated Agent tool** · `LS` / `Read` / `Write` / `Edit` / `Delete` / `Glob` / `Grep` / `ExecCommand` · 浏览、读取、写入、创建、重命名和删除远程文件与目录
   - Browse, read, write, create, rename, and remove remote files and directories
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 上传本地文件、下载远程文件并取消进行中的传输
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 上传本地文件、下载远程文件并取消进行中的传输
   - Upload local files, download remote files, and cancel active transfers
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `ExecCommand` / `WriteStdin` / `ExecControl` · 在目标主机执行命令，让终端、搜索和 Agent 使用远程数据面
+- **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` / `WriteStdin` / `ExecControl` · 在目标主机执行命令，让终端、搜索和智能体使用远程数据面
   - Execute commands on the target so terminals, search, and agents use the remote data plane
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `PortForward` · 发现远程监听端口并启动、查看或停止端口转发
+- **由专用智能体工具控制 / Delegated Agent tool** · `PortForward` · 发现远程监听端口并启动、查看或停止端口转发
   - Discover remote listening ports and start, inspect, or stop port forwarding
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看连接状态并断开单个或全部 SSH 会话
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看连接状态并断开单个或全部 SSH 会话
   - Inspect connection status and disconnect one or all SSH sessions
 
 ## 怎么用 / How to use it
@@ -49,7 +49,7 @@ Open projects over SSH or in containers so files, search, terminal, and agents a
 
 入口 / Entry: OpenBitFun 功能入口
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -61,13 +61,13 @@ Open projects over SSH or in containers so files, search, terminal, and agents a
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开远程项目配置”
   - “Open remote-project setup”
 - “我想连接一个 SSH 工作区”
   - “I want to connect to an SSH workspace”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

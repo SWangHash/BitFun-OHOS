@@ -17,19 +17,19 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择局域网或官方 Relay
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择局域网或官方 Relay
   - Choose LAN or the official Relay
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 启动、停止 Remote Connect 并查看实时连接状态和设备信息
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 启动、停止 Remote Connect 并查看实时连接状态和设备信息
   - Start or stop Remote Connect and inspect live status and device information
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看局域网 IP、网络信息与可分享的连接配置
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看局域网 IP、网络信息与可分享的连接配置
   - Inspect LAN IP, network details, and shareable connection configuration
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 配置飞书、Telegram、微信等 Bot 并单独停止 Bot
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 配置飞书、Telegram、微信等 Bot 并单独停止 Bot
   - Configure Feishu, Telegram, WeChat, and other bots, and stop a bot independently
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 使用 GitHub 登录、退出并查看身份状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 使用 GitHub 登录、退出并查看身份状态
   - Sign in with GitHub, sign out, and inspect identity status
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 列出、连接、查看在线状态和删除同账户设备
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出、连接、查看在线状态和删除同账户设备
   - List, connect, inspect online status, and remove same-account devices
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 进入 Peer Device Mode，把另一台 OpenBitFun 设备作为命令与事件数据面
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 进入 Peer Device Mode，把另一台 OpenBitFun 设备作为命令与事件数据面
   - Enter Peer Device Mode and use another OpenBitFun device as the command and event data plane
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
 
 入口 / Entry: OpenBitFun 内的对应控制界面
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Remote Connect”
   - “Open Remote Connect”
@@ -64,6 +64,6 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
 - “带我管理已连接设备”
   - “Take me to connected-device management”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

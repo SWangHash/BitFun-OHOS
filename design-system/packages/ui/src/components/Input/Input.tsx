@@ -13,6 +13,8 @@ import styles from "./Input.module.css";
 export interface InputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "size"> {
   className?: string;
+  /** Hide the browser reveal button when the caller provides a visibility control. */
+  hideNativePasswordReveal?: boolean;
   invalid?: boolean;
   leading?: ReactNode;
   onValueChange?: (value: string) => void;
@@ -24,6 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   "aria-invalid": ariaInvalid,
   className,
   disabled,
+  hideNativePasswordReveal = false,
   invalid = false,
   leading,
   onChange,
@@ -63,6 +66,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
         {...props}
         aria-invalid={resolvedAriaInvalid}
         className={styles.input}
+        data-hide-native-password-reveal={hideNativePasswordReveal ? "true" : undefined}
         disabled={disabled}
         onChange={handleChange}
         onCompositionEnd={(event) => {

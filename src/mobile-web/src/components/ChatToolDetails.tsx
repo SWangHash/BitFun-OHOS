@@ -10,6 +10,7 @@ export default function ChatToolDetails({ tool, label }: { tool: RemoteToolStatu
   const [open, setOpen] = useState(false);
   const request = tool.tool_input == null ? tool.input_preview : tool.tool_input;
   const text = typeof request === 'string' ? request : request == null ? '' : JSON.stringify(request, null, 2);
+  const output = typeof tool.tool_output === 'string' ? tool.tool_output : tool.tool_output == null ? '' : JSON.stringify(tool.tool_output, null, 2);
   return (
     <>
       <MobileButton appearance="plain" className={label ? 'chat-tool-details__trigger chat-tool-details__trigger--inline' : 'chat-tool-details__trigger'} aria-label={`${t('chat.toolDetails')} · ${tool.name}`} onClick={() => setOpen(true)}>
@@ -25,6 +26,11 @@ export default function ChatToolDetails({ tool, label }: { tool: RemoteToolStatu
         <h3>{t('chat.toolRequest')}</h3>
         {tool.tool_input == null && <p>{t(text ? 'chat.requestPreview' : 'chat.requestUnavailable')}</p>}
         {text && <pre className="chat-tool-details__payload">{text}</pre>}
+        {(output || tool.error_preview) && <>
+          <h3>{t('chat.toolResult')}</h3>
+          {tool.error_preview && <p>{tool.error_preview}</p>}
+          {output && <pre className="chat-tool-details__payload">{output}</pre>}
+        </>}
       </MobileSheet>
     </>
   );

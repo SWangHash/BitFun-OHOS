@@ -22,6 +22,9 @@ export interface SegmentedControlProps
     HTMLAttributes<HTMLDivElement>,
     "children" | "defaultValue" | "onChange"
   > {
+  /** Buttons keep every option in Tab order and leave arrow keys to the owner. */
+  interaction?: "radio" | "buttons";
+  labelBehavior?: "overflow" | "static";
   defaultValue?: string;
   disabled?: boolean;
   distribution?: "content" | "fill";
@@ -51,6 +54,8 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
   function SegmentedControl({
     className,
     defaultValue,
+    interaction = "radio",
+    labelBehavior = "overflow",
     disabled = false,
     distribution = "content",
     onValueChange,
@@ -68,7 +73,7 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
     const selectedValue = getSelectedValue(options, value ?? uncontrolledValue);
 
     function selectOption(option: SegmentedControlOption) {
-      if (disabled || option.disabled || option.value === selectedValue) {
+      if (disabled || option.disabled || (interaction === "radio" && option.value === selectedValue)) {
         return;
       }
       if (value === undefined) {
@@ -136,25 +141,27 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
         data-tone={tone}
         data-variant={variant}
         ref={ref}
-        role="radiogroup"
+        role={interaction === "radio" ? "radiogroup" : "group"}
+        data-interaction={interaction}
       >
         {options.map((option, index) => {
           const selected = option.value === selectedValue;
           return (
             <button data-overflow-trigger
-              aria-checked={selected}
+              aria-checked={interaction === "radio" ? selected : undefined}
+              aria-pressed={interaction === "buttons" ? selected : undefined}
               className={styles.segment}
               data-openbitfun-part="segment"
               data-openbitfun-value={option.value}
               disabled={disabled || option.disabled}
               key={option.value}
               onClick={() => selectOption(option)}
-              onKeyDown={(event) => handleKeyDown(event, index)}
+              onKeyDown={interaction === "radio" ? (event) => handleKeyDown(event, index) : undefined}
               ref={(node) => {
                 segmentRefs.current[index] = node;
               }}
-              role="radio"
-              tabIndex={selected ? 0 : -1}
+              role={interaction === "radio" ? "radio" : undefined}
+              tabIndex={interaction === "buttons" || selected ? 0 : -1}
               type="button"
             >
               {option.icon && (
@@ -162,7 +169,9 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
                   {option.icon}
                 </span>
               )}
-              <OverflowText className={styles.label} data-openbitfun-part="label">{option.label}</OverflowText>
+              {labelBehavior === "static"
+                ? <span className={styles.label} data-openbitfun-part="label">{option.label}</span>
+                : <OverflowText className={styles.label} data-openbitfun-part="label">{option.label}</OverflowText>}
             </button>
           );
         })}

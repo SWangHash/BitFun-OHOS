@@ -326,6 +326,7 @@ export class RemoteTranscriptController {
         sessionId: this.remote.activeSession.sessionId,
         title: snapshot.title,
         workspacePath: this.remote.activeSession.workspacePath,
+        remoteConnectionId: this.remote.activeSession.remoteConnectionId,
         agentType: this.remote.activeSession.agentType
       });
     }

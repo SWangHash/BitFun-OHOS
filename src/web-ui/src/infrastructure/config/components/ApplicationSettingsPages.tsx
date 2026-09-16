@@ -100,17 +100,17 @@ function LaunchAtLoginSetting() {
     return null;
   }
 
-  if (loading) {
-    return <ConfigLoadingState label={t('launchAtLogin.messages.loading')} />;
-  }
-
-  if (loadFailed) {
+  if (loading || loadFailed) {
     return (
-      <ConfigRetryState
-        message={t('launchAtLogin.messages.loadFailed')}
-        retryLabel={t('common.retry')}
-        onRetry={() => void loadData()}
-      />
+      <ConfigPageRow
+        label={t('launchAtLogin.toggleLabel')}
+        description={t(loading ? 'launchAtLogin.messages.loading' : 'launchAtLogin.messages.loadFailed')}
+        align="center"
+      >
+        <Button type="button" variant="outline" size="sm" loading={loading} disabled={loading} onClick={() => void loadData()}>
+          {t('common.retry')}
+        </Button>
+      </ConfigPageRow>
     );
   }
 
@@ -197,17 +197,17 @@ function AutoUpdateSetting() {
     return null;
   }
 
-  if (loading) {
-    return <ConfigLoadingState label={t('autoUpdate.messages.loading')} />;
-  }
-
-  if (loadFailed) {
+  if (loading || loadFailed) {
     return (
-      <ConfigRetryState
-        message={t('autoUpdate.messages.loadFailed')}
-        retryLabel={t('common.retry')}
-        onRetry={() => void loadData()}
-      />
+      <ConfigPageRow
+        label={t('autoUpdate.toggleLabel')}
+        description={t(loading ? 'autoUpdate.messages.loading' : 'autoUpdate.messages.loadFailed')}
+        align="center"
+      >
+        <Button type="button" variant="outline" size="sm" loading={loading} disabled={loading} onClick={() => void loadData()}>
+          {t('common.retry')}
+        </Button>
+      </ConfigPageRow>
     );
   }
 
@@ -292,17 +292,17 @@ function PreventSleepSetting() {
     return null;
   }
 
-  if (loading) {
-    return <ConfigLoadingState label={t('preventSleep.messages.loading')} />;
-  }
-
-  if (loadFailed) {
+  if (loading || loadFailed) {
     return (
-      <ConfigRetryState
-        message={t('preventSleep.messages.loadFailed')}
-        retryLabel={t('common.retry')}
-        onRetry={() => void loadData()}
-      />
+      <ConfigPageRow
+        label={t('preventSleep.toggleLabel')}
+        description={t(loading ? 'preventSleep.messages.loading' : 'preventSleep.messages.loadFailed')}
+        align="center"
+      >
+        <Button type="button" variant="outline" size="sm" loading={loading} disabled={loading} onClick={() => void loadData()}>
+          {t('common.retry')}
+        </Button>
+      </ConfigPageRow>
     );
   }
 

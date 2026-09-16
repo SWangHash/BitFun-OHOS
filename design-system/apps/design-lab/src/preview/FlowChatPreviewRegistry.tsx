@@ -7,7 +7,6 @@ import {
   Archive,
   ArrowDownToLine,
   ArrowUp,
-  Bot,
   CheckCircle2,
   Circle,
   Code2,
@@ -37,6 +36,7 @@ import {
   Terminal,
   Timer,
   Trash2,
+  User,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -987,7 +987,7 @@ export const flowChatPreviewDefinitions = {
   AgentControlToolCard: {
     attention: "prominent",
     codeSample: concreteCodeSample("AgentControlToolCard"),
-    icon: Bot,
+    icon: User,
     render: (options) => <ConcreteProminentPreview {...options} kind="agent" />,
     section: "tool-card",
     specimens: [

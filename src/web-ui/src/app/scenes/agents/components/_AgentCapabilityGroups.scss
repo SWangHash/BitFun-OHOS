@@ -47,6 +47,9 @@
       font-size: var(--openbitfun-type-meta-font-size);
       line-height: var(--openbitfun-type-meta-line-height);
       font-variant-numeric: tabular-nums;
+    }
+
+    &__group-count {
       white-space: nowrap;
     }
 
@@ -55,8 +58,9 @@
     }
 
     &__token-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+      inline-size: 100%;
       gap: var(--openbitfun-space-2);
     }
 

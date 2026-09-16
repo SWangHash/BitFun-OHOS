@@ -153,7 +153,7 @@ describe('mobile RemoteSessionManager target routing', () => {
     });
     const manager = new RemoteSessionManager(client);
 
-    const download = manager.readFile('/tmp/from-a.txt', undefined, () => {
+    const download = manager.readFile('/tmp/from-a.txt', 'session-a', () => {
       client.setTargetDeviceId('device-b');
     });
 

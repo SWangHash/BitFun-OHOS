@@ -76,6 +76,11 @@ UiState or an Intent declared there, and no module above it is visible to them.
   `./gradlew compileKotlinIosSimulatorArm64` for iOS. Run iOS pure Swift
   infrastructure checks from the repository root with
   `(cd src/apps/mobile/ios && ./Testing/run-pure-swift-tests.sh)`.
+  The isolated native streaming fixture (no remote requests) is covered by
+  `xcodebuild -project src/apps/mobile/ios/OpenBitFun.xcodeproj -scheme OpenBitFun -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16 Plus' -parallel-testing-enabled NO -only-testing:OpenBitFunUITests/StreamingPresentationUITests test`.
+  Run it on one phone and one iPad destination when changing timeline layout,
+  streaming reveal, keyboard dismissal, or history anchoring. The Debug-only
+  launch argument `--streaming-regression` opens the same deterministic fixture.
   `local.properties` holds
   the local SDK path and is not committed.
 - The Android app builds from `android/`: `./gradlew :app:assembleDebug` and
@@ -91,6 +96,10 @@ UiState or an Intent declared there, and no module above it is visible to them.
   from `shared/`, with an emulator or handset attached. Those suites compile the
   same `commonTest` sources onto ART; they are not in CI, so run them by hand
   when touching either module.
+
+## Remote capability ownership
+
+Native mobile surfaces are controllers. Desktop and CLI own execution, files, terminals and SSH credentials. Mobile workspace selection may use only connections already saved on the controlled runtime; it must not create an SSH connection or instantiate another runtime. Carry the selected connection identity through every operation, and report missing identity instead of falling back to local files.
 
 ## Offline Mini Apps
 

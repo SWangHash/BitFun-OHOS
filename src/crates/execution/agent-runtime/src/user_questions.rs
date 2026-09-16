@@ -358,11 +358,28 @@ impl PendingUserInput {
     }
 }
 
-#[derive(Default)]
 struct UserInputState {
     pending: HashMap<String, PendingUserInput>,
     next_registration_sequence: u64,
     revision: u64,
+    changes: watch::Sender<u64>,
+}
+
+impl Default for UserInputState {
+    fn default() -> Self {
+        Self {
+            pending: HashMap::new(),
+            next_registration_sequence: 0,
+            revision: 0,
+            changes: watch::channel(0).0,
+        }
+    }
+}
+impl UserInputState {
+    fn bump_revision(&mut self) {
+        self.revision = self.revision.saturating_add(1);
+        self.changes.send_replace(self.revision);
+    }
 }
 
 /// Drop guard tying a pending mailbox record to the Tool future that waits on
@@ -389,7 +406,7 @@ impl UserInputRegistration {
         });
         if can_expire {
             state.pending.remove(&self.tool_id);
-            state.revision = state.revision.saturating_add(1);
+            state.bump_revision();
         }
         can_expire
     }
@@ -438,7 +455,7 @@ impl Drop for UserInputRegistration {
             .is_some_and(|pending| pending.registration_sequence == self.registration_sequence);
         if belongs_to_registration {
             state.pending.remove(&self.tool_id);
-            state.revision = state.revision.saturating_add(1);
+            state.bump_revision();
             debug!(
                 "Removed dropped user-input registration: tool_id={}",
                 self.tool_id
@@ -463,6 +480,13 @@ impl UserInputManager {
         Self {
             state: Arc::new(Mutex::new(UserInputState::default())),
         }
+    }
+
+    /// Coalesced invalidation of the live question mailbox. Consumers read
+    /// pending_question_counts plus their previous session set to also publish
+    /// removals; no tool payload or bounded queue sits on the execution path.
+    pub fn subscribe_changes(&self) -> watch::Receiver<u64> {
+        lock_user_input_state(&self.state).changes.subscribe()
     }
 
     pub fn register_channel(&self, tool_id: String, sender: oneshot::Sender<UserInputResponse>) {
@@ -522,7 +546,7 @@ impl UserInputManager {
                 interaction_started,
             },
         );
-        state.revision = state.revision.saturating_add(1);
+        state.bump_revision();
         (registration_sequence, activity)
     }
 
@@ -545,7 +569,7 @@ impl UserInputManager {
             if let Some(question) = pending.question.as_mut() {
                 question.interaction_started = true;
             }
-            state.revision = state.revision.saturating_add(1);
+            state.bump_revision();
         }
         Ok(())
     }
@@ -557,7 +581,7 @@ impl UserInputManager {
             let mut state = lock_user_input_state(&self.state);
             let pending = state.pending.remove(tool_id);
             if pending.is_some() {
-                state.revision = state.revision.saturating_add(1);
+                state.bump_revision();
             }
             pending
         };
@@ -596,7 +620,7 @@ impl UserInputManager {
             });
         }
         state.pending.remove(tool_id);
-        state.revision = state.revision.saturating_add(1);
+        state.bump_revision();
         Ok(())
     }
 
@@ -605,7 +629,7 @@ impl UserInputManager {
             let mut state = lock_user_input_state(&self.state);
             let removed = state.pending.remove(tool_id).is_some();
             if removed {
-                state.revision = state.revision.saturating_add(1);
+                state.bump_revision();
             }
             removed
         };
@@ -935,6 +959,35 @@ mod tests {
         UserInputSendError,
     };
     use serde_json::json;
+
+    #[tokio::test]
+    async fn mailbox_watch_coalesces_without_losing_sessions_and_notifies_removal() {
+        let manager = UserInputManager::new();
+        let mut changes = manager.subscribe_changes();
+        let (sender_a, receiver_a) = tokio::sync::oneshot::channel();
+        let (sender_b, _receiver_b) = tokio::sync::oneshot::channel();
+        let a = manager.register_question(
+            PendingUserQuestion::new("a", "session-a", None, None, json!({"questions":[]})),
+            sender_a,
+        );
+        let b = manager.register_question(
+            PendingUserQuestion::new("b", "session-b", None, None, json!({"questions":[]})),
+            sender_b,
+        );
+        changes.changed().await.unwrap();
+        let revision = *changes.borrow_and_update();
+        let sessions = manager.pending_question_counts();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions.get("session-a"), Some(&1));
+        assert_eq!(sessions.get("session-b"), Some(&1));
+        manager.send_answer("a", json!({"0":"yes"})).unwrap();
+        assert_eq!(receiver_a.await.unwrap().answers, json!({"0":"yes"}));
+        drop(b);
+        changes.changed().await.unwrap();
+        assert!(*changes.borrow_and_update() > revision);
+        assert!(manager.pending_question_counts().is_empty());
+        drop(a);
+    }
 
     #[tokio::test]
     async fn user_input_manager_delivers_answer_and_clears_channel() {

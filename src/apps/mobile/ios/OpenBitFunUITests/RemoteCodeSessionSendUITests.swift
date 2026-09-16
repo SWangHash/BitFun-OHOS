@@ -926,3 +926,427 @@ private extension XCUIApplication {
         if later.exists { later.tap() }
     }
 }
+
+final class StreamingPresentationUITests: XCTestCase {
+    func testDirectoryOpenRoutesBeforeAuthorityIsReady() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--fixture-shell", "--open-loading-regression", "--status-regression"]
+        app.launch()
+        let open = app.buttons["fixture.openDelayed"]
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        let status = app.descendants(matching: .any)["conversation.connectionStatus"].firstMatch
+        XCTAssertTrue(status.exists)
+        XCTAssertEqual(status.frame.height, 48, accuracy: 1)
+        open.tap()
+        let detail = app.descendants(matching: .any)["conversation.session.delayed"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 2))
+        let loading = app.descendants(matching: .any)["conversation.loading"].firstMatch
+        XCTAssertTrue(loading.waitForExistence(timeout: 2))
+        XCTAssertFalse(status.exists, "The connection strip must not compete with the loading skeleton")
+        app.buttons["fixture.bindTarget"].tap()
+        XCTAssertTrue(detail.exists, "Binding the selected device must preserve pending navigation")
+        XCTAssertTrue(loading.waitForExistence(timeout: 2))
+        app.buttons["fixture.finishLoading"].tap()
+        XCTAssertTrue(app.staticTexts["LOADED-SESSION"].waitForExistence(timeout: 3))
+        XCTAssertFalse(loading.exists)
+    }
+
+    func testSubagentDetailsMatchHarmonyPreviewAndThinking() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--card-regression", "--subagent-detail-regression"]
+        app.launch()
+        let task = app.buttons["subagent.toggle.details"]
+        XCTAssertTrue(task.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["LIVE-CHILD-THOUGHT"].exists)
+        XCTAssertFalse(app.buttons["subagent.toggle.empty"].isEnabled, "Empty tasks must not offer disclosure")
+        task.tap()
+        XCTAssertTrue(app.staticTexts["LIVE-CHILD-THOUGHT"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["OLD-CHILD-THOUGHT"].exists)
+        XCTAssertFalse(app.staticTexts["PARENT-SUMMARY-MUST-NOT-REPEAT"].exists)
+        let preview = app.staticTexts["subagent.output.child-output"]
+        XCTAssertTrue(preview.exists)
+        XCTAssertLessThanOrEqual(preview.label.count, 321)
+        XCTAssertFalse(preview.label.contains("HIDDEN-OUTPUT-TAIL"))
+        XCTAssertLessThan(preview.frame.height, 100)
+        XCTAssertTrue(app.buttons["tool.toggle.child-one"].exists)
+        XCTAssertTrue(app.buttons["tool.toggle.child-two"].exists)
+        XCTAssertFalse(app.buttons["tool.summary.child-one"].exists)
+        XCTAssertFalse(app.staticTexts["NESTED-OUTPUT"].exists)
+        app.buttons["subagent.toggle.nested"].tap()
+        XCTAssertTrue(app.staticTexts["NESTED-OUTPUT"].exists)
+        app.buttons["subagent.toggle.nested"].tap()
+        app.buttons["fixture.send"].tap()
+        XCTAssertTrue(task.label.contains("失败"), "Host failures must remain visible in the subtask header")
+        XCTAssertTrue(preview.exists, "Completing keeps the manually opened subtask open")
+        XCTAssertFalse(app.staticTexts["LIVE-CHILD-THOUGHT"].exists)
+        app.buttons["thinking.toggle.child-old"].tap()
+        XCTAssertTrue(app.staticTexts["OLD-CHILD-THOUGHT"].exists)
+    }
+
+    func testCardsMatchHarmonyExpansionAndOrdering() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--card-regression"]
+        app.launch()
+        let task = app.buttons["subagent.toggle.task"]
+        XCTAssertTrue(task.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["TASK-BODY"].exists, "Running tasks start collapsed")
+        task.tap()
+        XCTAssertTrue(app.staticTexts["TASK-BODY"].waitForExistence(timeout: 3))
+        app.buttons["fixture.send"].tap()
+        XCTAssertTrue(app.staticTexts["TASK-BODY"].exists, "Status updates preserve the user's expansion")
+        task.tap()
+        XCTAssertFalse(app.staticTexts["TASK-BODY"].exists)
+        let summary = app.buttons["tool.summary.one"]
+        XCTAssertTrue(summary.exists)
+        XCTAssertFalse(app.buttons["tool.toggle.one"].exists)
+        XCTAssertFalse(app.staticTexts["REASON-BEFORE"].exists)
+        XCTAssertFalse(app.buttons["thinking.toggle.before"].exists)
+        XCTAssertTrue(app.buttons["tool.toggle.running"].exists)
+        XCTAssertTrue(app.buttons["tool.toggle.failed"].exists)
+        summary.tap()
+        let one = app.buttons["tool.toggle.one"]
+        let two = app.buttons["tool.toggle.two"]
+        XCTAssertTrue(one.waitForExistence(timeout: 3))
+        let before = app.buttons["thinking.toggle.before"]
+        let between = app.buttons["thinking.toggle.between"]
+        XCTAssertTrue(before.exists && between.exists)
+        XCTAssertLessThan(before.frame.minY, one.frame.minY)
+        XCTAssertLessThan(one.frame.minY, between.frame.minY)
+        XCTAssertLessThan(between.frame.minY, two.frame.minY)
+        one.tap()
+        XCTAssertTrue(app.staticTexts["OUTPUT-one"].waitForExistence(timeout: 3))
+        two.tap()
+        XCTAssertTrue(app.staticTexts["OUTPUT-two"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["OUTPUT-one"].exists, "Only one tool detail is expanded")
+        XCTAssertLessThan(one.frame.minY, two.frame.minY)
+        app.buttons["fixture.send"].tap()
+        XCTAssertTrue(app.buttons["tool.toggle.three"].waitForExistence(timeout: 3),
+            "Appending a completed tool must preserve the open summary")
+        XCTAssertTrue(app.staticTexts["OUTPUT-two"].exists,
+            "Appending tools must preserve the selected detail")
+        summary.tap()
+        XCTAssertFalse(one.exists)
+        XCTAssertFalse(app.staticTexts["OUTPUT-two"].exists)
+        XCTAssertTrue(app.staticTexts["ANSWER-AFTER-ACTIVITY"].isHittable)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    func testSentUserBubbleStaysVisibleBeforeReply() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--user-bubble-regression"]
+        app.launch()
+        let start = app.buttons["fixture.send"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15))
+        let input = app.textFields.firstMatch
+        input.tap()
+        input.typeText("Message before reply")
+        start.tap()
+        let bubble = app.staticTexts["SENT-USER-BUBBLE"]
+        XCTAssertTrue(bubble.waitForExistence(timeout: 5))
+        for _ in 0..<4 {
+            XCTAssertTrue(bubble.isHittable, "The sent message must remain visible while awaiting a reply")
+            let tick = expectation(description: "Observe pending/acknowledged user bubble")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { tick.fulfill() }
+            wait(for: [tick], timeout: 2)
+        }
+        XCTAssertTrue(app.staticTexts["Stream finished"].waitForExistence(timeout: 15))
+        XCTAssertTrue(bubble.isHittable)
+        XCTAssertTrue(app.staticTexts["SHORT-REPLY"].isHittable)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    func testLongThinkingFoldsWhenAnswerStarts() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--thinking-regression"]
+        app.launch()
+        let start = app.buttons["fixture.send"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15))
+        start.tap()
+        let thought = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Thinking segment 12")).firstMatch
+        XCTAssertTrue(thought.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(thought.frame.height, app.scrollViews.firstMatch.frame.height)
+        let answer = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "ANSWER-AFTER-THINKING")).firstMatch
+        XCTAssertTrue(answer.waitForExistence(timeout: 10))
+        let folded = NSPredicate { _, _ in !thought.exists }
+        expectation(for: folded, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(answer.isHittable)
+        XCTAssertTrue(app.staticTexts["Stream finished"].waitForExistence(timeout: 10))
+        XCTAssertTrue(answer.isHittable)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    override func setUpWithError() throws { continueAfterFailure = false }
+
+    func testPrependingHistoryPreservesVisibleRowOffset() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression"]
+        app.launch()
+        let short = app.buttons["fixture.shortHistory"]
+        XCTAssertTrue(short.waitForExistence(timeout: 15))
+        short.tap()
+        let load = app.buttons["timeline.loadOlder"]
+        XCTAssertTrue(load.waitForExistence(timeout: 5))
+        let row = app.staticTexts["History row 0"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let originalY = row.frame.minY
+        print("History anchor before: \(originalY)")
+        let before = XCTAttachment(screenshot: app.screenshot())
+        before.name = "BeforePrepend"
+        before.lifetime = .keepAlways
+        add(before)
+        load.tap()
+        let after = XCTAttachment(screenshot: app.screenshot())
+        after.name = "AfterPrepend"
+        after.lifetime = .keepAlways
+        add(after)
+        let restored = NSPredicate { _, _ in
+            print("History anchor observed: exists=\(row.exists) y=\(row.frame.minY) expected=\(originalY)")
+            return row.exists && abs(row.frame.minY - originalY) < 4
+        }
+        expectation(for: restored, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        XCTAssertFalse(load.exists)
+    }
+
+    func testUserCanReadHistoryAndResumeFollowingDuringStreaming() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression"]
+        app.launch()
+        let start = app.buttons["fixture.send"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15))
+        start.tap()
+        let scroll = app.scrollViews.firstMatch
+        XCTAssertTrue(scroll.waitForExistence(timeout: 5))
+        scroll.swipeDown()
+        scroll.swipeDown()
+        let follow = app.buttons["timeline.scrollToBottom"]
+        XCTAssertTrue(follow.waitForExistence(timeout: 5))
+        follow.tap()
+        XCTAssertTrue(app.staticTexts["Stream finished"].waitForExistence(timeout: 25))
+        let end = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "STREAM-END")).firstMatch
+        XCTAssertTrue(end.waitForExistence(timeout: 5))
+        XCTAssertTrue(end.isHittable)
+        app.buttons["fixture.reset"].tap()
+        XCTAssertTrue(start.exists)
+        XCTAssertTrue(app.textFields.firstMatch.exists)
+        expectation(for: NSPredicate { _, _ in !end.exists }, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+    }
+
+    func testKeyboardDismissalAndLongStreamKeepContentVisible() {
+        checkKeyboardAndStream(shell: false)
+    }
+
+    func testFullShellRemainsVisibleThroughKeyboardAndStreaming() {
+        checkKeyboardAndStream(shell: true)
+    }
+
+    private func checkKeyboardAndStream(shell: Bool) {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression"] + (shell ? ["--fixture-shell"] : [])
+        app.launch()
+        let start = app.buttons["fixture.send"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15))
+        let input = app.textFields.firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("Draft before streaming")
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        start.tap()
+        let keyboardGone = NSPredicate { _, _ in !app.keyboards.firstMatch.exists }
+        expectation(for: keyboardGone, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(start.exists)
+        XCTAssertTrue(input.exists)
+        XCTAssertTrue(app.staticTexts["Stream finished"].waitForExistence(timeout: 25))
+        let end = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "STREAM-END")).firstMatch
+        XCTAssertTrue(end.waitForExistence(timeout: 5))
+        XCTAssertTrue(end.isHittable, "The final response should remain in the viewport")
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+}
+
+/// Real-device diagnostics. Sending probes require an explicit environment opt-in.
+final class RemoteTimelineScrollProbeUITests: XCTestCase {
+    func testStreamInCurrentConversation() throws {
+        guard ProcessInfo.processInfo.environment["PROBE_SEND_CURRENT"] == "1" else {
+            throw XCTSkip("Explicit live send probe is not enabled")
+        }
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.activate()
+        let conversation = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "conversation.session.")
+        ).firstMatch
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+        let input = app.textFields["composer.input"]
+        XCTAssertTrue(input.exists)
+        input.tap()
+        input.typeText("请写一篇约1500字的中文说明，分成十段，介绍聊天界面应有的交互体验。不要调用工具或修改文件。这是流式滚动诊断测试。")
+        app.buttons["arrow.up"].tap()
+        for index in 0..<6 {
+            let pause = expectation(description: "Allow streaming progress")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { pause.fulfill() }
+            wait(for: [pause], timeout: 3)
+            let capture = XCTAttachment(screenshot: app.screenshot())
+            capture.name = "StreamPhase\(index)"
+            capture.lifetime = .keepAlways
+            add(capture)
+            if index == 2 || index == 4 {
+                let scroll = conversation.scrollViews.firstMatch
+                scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+                    .press(forDuration: 0.1, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+            }
+        }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "AfterStreamingDrag"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+    }
+
+    func testInspectCurrentScreen() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.activate()
+        if app.buttons["查看设备"].waitForExistence(timeout: 3) { app.buttons["查看设备"].tap() }
+        let device = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.device.")).firstMatch
+        if !device.waitForExistence(timeout: 8), app.buttons["查看设备"].exists {
+            app.buttons["查看设备"].tap()
+            _ = device.waitForExistence(timeout: 8)
+        }
+        if device.exists && !device.isHittable && app.buttons["打开侧栏"].exists {
+            app.buttons["打开侧栏"].tap()
+        }
+        if device.exists && device.isHittable {
+            device.tap()
+            let workspace = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.workspace.")).firstMatch
+            _ = workspace.waitForExistence(timeout: 20)
+        }
+        if let sessionID = ProcessInfo.processInfo.environment["PROBE_SESSION_ID"] {
+            let session = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "sidebar.session.", sessionID)).firstMatch
+            let workspaces = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.workspace."))
+            for workspace in workspaces.allElementsBoundByIndex {
+                if session.exists { break }
+                if workspace.isHittable { workspace.tap(); _ = session.waitForExistence(timeout: 5) }
+            }
+            if session.exists && session.isHittable {
+                session.tap()
+                let input = app.textFields["composer.input"]
+                if input.waitForExistence(timeout: 15) {
+                    let message = ProcessInfo.processInfo.environment["PROBE_MESSAGE"] ?? "请仅用三段简短中文介绍你能做什么。不要调用工具或修改任何文件。这是一条手机流式显示测试消息。"
+                    input.tap()
+                    if (input.value as? String) != message { input.typeText(message) }
+                    let send = app.buttons["arrow.up"]
+                    if send.exists && send.isEnabled {
+                        send.tap()
+                        let sent = XCTAttachment(screenshot: app.screenshot())
+                        sent.name = "ImmediatelyAfterSend"
+                        sent.lifetime = .keepAlways
+                        add(sent)
+                        let draftCleared = NSPredicate { _, _ in (input.value as? String) != message }
+                        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: draftCleared, object: nil)], timeout: 10)
+                        let settled = NSPredicate { _, _ in !app.buttons["停止"].exists }
+                        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 45)
+                        let conversation = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "conversation.session.")).firstMatch
+                        let scroll = conversation.scrollViews.firstMatch
+                        if scroll.exists {
+                            let beforeDrag = XCTAttachment(string: app.debugDescription)
+                            beforeDrag.name = "AfterReplyBeforeDrag"
+                            beforeDrag.lifetime = .keepAlways
+                            add(beforeDrag)
+                            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).press(forDuration: 0.1, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+                        }
+                    }
+                }
+            }
+        }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "CurrentScreen"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+    }
+
+    func testProfileCurrentComposerInteractions() {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.activate()
+        let header = app.buttons["打开侧栏"]
+        if header.exists && header.frame.minX > 100 { header.tap() }
+        let input = app.textFields["composer.input"]
+        if !input.waitForExistence(timeout: 10) {
+            if app.buttons["查看设备"].exists { app.buttons["查看设备"].tap() }
+            let device = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.device.")).firstMatch
+            if !device.isHittable && header.exists { header.tap() }
+            XCTAssertTrue(device.waitForExistence(timeout: 10))
+            device.tap()
+            let workspaces = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "sidebar.workspace."))
+            XCTAssertTrue(workspaces.firstMatch.waitForExistence(timeout: 20))
+            guard let sessionID = ProcessInfo.processInfo.environment["PROBE_SESSION_ID"] else {
+                XCTFail("A session ID is required to open a closed conversation"); return
+            }
+            let session = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "sidebar.session.", sessionID)).firstMatch
+            for workspace in workspaces.allElementsBoundByIndex {
+                if session.exists { break }
+                if workspace.isHittable { workspace.tap(); _ = session.waitForExistence(timeout: 5) }
+            }
+            XCTAssertTrue(session.waitForExistence(timeout: 10))
+            session.tap()
+        }
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        for cycle in 0..<6 {
+            let pause = expectation(description: "Prepare interaction profiling")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { pause.fulfill() }
+            wait(for: [pause], timeout: 6)
+            print("ComposerProbe cycle=\(cycle) action=focus begin")
+            input.tap()
+            let picker = app.buttons["选择模型"]
+            XCTAssertTrue(picker.waitForExistence(timeout: 10))
+            print("ComposerProbe cycle=\(cycle) action=model-picker begin")
+            picker.tap()
+            let close = app.buttons["关闭"].firstMatch
+            XCTAssertTrue(close.waitForExistence(timeout: 10))
+            close.tap()
+            let conversation = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "conversation.session.")).firstMatch
+            conversation.scrollViews.firstMatch.swipeDown()
+            print("ComposerProbe cycle=\(cycle) action=finished")
+        }
+    }
+
+    func testCurrentConversationCanScroll() throws {
+        let app = XCUIApplication(bundleIdentifier: "com.openbitfun.mobile.ios")
+        app.activate()
+        let before = XCTAttachment(string: app.debugDescription)
+        before.name = "RemoteTimelineBeforeDrag"
+        before.lifetime = .keepAlways
+        add(before)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "RemoteTimelineBeforeDrag"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let conversation = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "conversation.session.")
+        ).firstMatch
+        let scroll = conversation.scrollViews.firstMatch
+        guard scroll.waitForExistence(timeout: 10) else {
+            XCTFail("No conversation scroll view is available")
+            return
+        }
+        let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+        let end = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        for _ in 0..<12 { start.press(forDuration: 0.1, thenDragTo: end) }
+        let after = XCTAttachment(string: app.debugDescription)
+        after.name = "RemoteTimelineAfterDrag"
+        after.lifetime = .keepAlways
+        add(after)
+        let afterScreenshot = XCTAttachment(screenshot: app.screenshot())
+        afterScreenshot.name = "RemoteTimelineAfterDrag"
+        afterScreenshot.lifetime = .keepAlways
+        add(afterScreenshot)
+    }
+}

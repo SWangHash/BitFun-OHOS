@@ -1,6 +1,14 @@
 import {
   Button,
+  DialogBody,
+  DialogClose,
+  DialogDescription,
+  DialogHeader,
+  DialogHeaderActions,
+  DialogHeading,
+  DialogTitle,
   Icon,
+  IconButton,
   LoadingState,
   NavigationPanel,
   NavigationPanelBody,
@@ -15,10 +23,9 @@ import {
   StatusPill,
   Switch,
   Textarea,
-  type StatusPillTone,
+  Tooltip,
 } from '@openbitfun/ui';
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Network } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import {
@@ -39,20 +46,23 @@ import {
   type EcosystemProductId,
   type EcosystemProductRuntime,
 } from './ecosystemCompatibilityModel';
-import ExternalAgentContent from './ExternalAgentContent';
+import ExternalAgentContent, { type ExternalAgentContentHandle } from './ExternalAgentContent';
+import { EcosystemDialog as Dialog } from './EcosystemDialog';
+import ExternalDiscoveryToggle from './ExternalDiscoveryToggle';
+import { ecosystemDiscoveryCache, rememberEcosystemCatalog } from './ecosystemDiscoveryCache';
 import { useEcosystemCompatibilityStore } from './ecosystemCompatibilityStore';
 import './EcosystemCompatibilityScene.scss';
 
 const AcpAgentsConfig = lazy(
   () => import('@/infrastructure/config/components/AcpAgentsConfig'),
 );
-const ExternalAgentDiscovery = lazy(() => import('./ExternalAgentDiscovery'));
 const PRODUCT_ICON_SOURCES: Record<EcosystemProductId, string> = {
   'claude-code': '/assets/ecosystem-compatibility/claude-code.svg',
   codex: '/assets/ecosystem-compatibility/codex.svg',
   pi: '/assets/ecosystem-compatibility/pi.svg',
   dsh: '/assets/ecosystem-compatibility/deepseek-harness.svg',
   opencode: '/assets/ecosystem-compatibility/opencode.svg',
+  cursor: '/assets/ecosystem-compatibility/cursor.svg',
 };
 
 function EcosystemProductIcon({ productId, size }: {
@@ -60,6 +70,14 @@ function EcosystemProductIcon({ productId, size }: {
   size: number;
 }) {
   const source = PRODUCT_ICON_SOURCES[productId];
+  if (productId === 'cursor') return (
+    <span
+      className="ecosystem-compatibility__brand-image ecosystem-compatibility__brand-image--monochrome"
+      data-product-logo={productId}
+      aria-hidden="true"
+      style={{ width: size, height: size, maskImage: `url("${source}")` }}
+    />
+  );
   return (
     <img
       className="ecosystem-compatibility__brand-image"
@@ -72,14 +90,7 @@ function EcosystemProductIcon({ productId, size }: {
   );
 }
 
-const GROUP_ORDER = ['connected', 'available', 'other'] as const;
-const PRODUCT_STATUS_TONES: Record<EcosystemProductRuntime['status'], StatusPillTone> = {
-  connected: 'success',
-  detected: 'info',
-  configured: 'success',
-  available: 'neutral',
-  development: 'neutral',
-};
+const GROUP_ORDER = ['identified', 'more', 'other'] as const;
 
 type LoadIssue = 'externalSources' | 'acpClients';
 interface AcpSubagentDraft {
@@ -111,6 +122,10 @@ const EcosystemCompatibilityScene: React.FC = () => {
   const requestScope = JSON.stringify([peerDeviceId, workspace?.id, workspace?.workspaceKind, workspacePath]);
   const requestSequence = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const acpManagerRef = useRef<React.ComponentRef<typeof AcpAgentsConfig>>(null);
+  const discoveryControlRef = useRef<HTMLDivElement>(null);
+  const externalContentRef = useRef<ExternalAgentContentHandle>(null);
+  const [contentRefreshDisabled, setContentRefreshDisabled] = useState(true);
   const [snapshotState, setSnapshotState] = useState<{ scope: string; value: ExternalSourceCatalogSnapshot | null }>();
   const [clientState, setClientState] = useState<{ scope: string; value: AcpClientInfo[] }>();
   const [supplementalState, setSupplementalState] = useState<{ scope: string; counts: Record<string, number> }>();
@@ -119,10 +134,16 @@ const EcosystemCompatibilityScene: React.FC = () => {
     setSupplementalState((current) => current?.scope === requestScope
       && JSON.stringify(current.counts) === JSON.stringify(counts) ? current : { scope: requestScope, counts });
   }, [requestScope]);
-  const snapshot = snapshotState?.scope === requestScope ? snapshotState.value : null;
-  const acpClients = useMemo(() => clientState?.scope === requestScope ? clientState.value : [], [clientState, requestScope]);
-  const setSnapshot = useCallback((value: ExternalSourceCatalogSnapshot | null) => setSnapshotState({ scope: requestScope, value }), [requestScope]);
-  const setAcpClients = useCallback((value: AcpClientInfo[]) => setClientState({ scope: requestScope, value }), [requestScope]);
+  const snapshot = snapshotState?.scope === requestScope ? snapshotState.value : ecosystemDiscoveryCache(requestScope).catalog ?? null;
+  const acpClients = useMemo(() => clientState?.scope === requestScope ? clientState.value : ecosystemDiscoveryCache(requestScope).clients ?? [], [clientState, requestScope]);
+  const setSnapshot = useCallback((value: ExternalSourceCatalogSnapshot | null) => {
+    const next = value ? rememberEcosystemCatalog(requestScope, value) : ecosystemDiscoveryCache(requestScope).catalog ?? null;
+    setSnapshotState({ scope: requestScope, value: next });
+  }, [requestScope]);
+  const setAcpClients = useCallback((value: AcpClientInfo[]) => {
+    ecosystemDiscoveryCache(requestScope).clients = value;
+    setClientState({ scope: requestScope, value });
+  }, [requestScope]);
   const [loadIssues, setLoadIssues] = useState<LoadIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -130,6 +151,12 @@ const EcosystemCompatibilityScene: React.FC = () => {
   const ownerSurface = useEcosystemCompatibilityStore((state) => state.ownerSurface);
   const selectProduct = useEcosystemCompatibilityStore((state) => state.selectProduct);
   const setOwnerSurface = useEcosystemCompatibilityStore((state) => state.setOwnerSurface);
+  useEffect(() => {
+    if (ownerSurface !== 'external-sources') return;
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+    discoveryControlRef.current?.focus();
+    setOwnerSurface(null);
+  }, [ownerSurface, setOwnerSurface]);
   const [editingSubagentClientId, setEditingSubagentClientId] = useState<string | null>(null);
   const [savingSubagentClientId, setSavingSubagentClientId] = useState<string | null>(null);
   const [subagentDraft, setSubagentDraft] = useState<AcpSubagentDraft>({
@@ -146,7 +173,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
     if (!forceRefresh && !backgroundRequest) setLoading(true);
 
     const [sourceResult, clientsResult] = await Promise.allSettled([
-      externalSourcesAPI.getSnapshot(workspacePath, forceRefresh),
+      externalSourcesAPI.getDiscoverySnapshot(workspacePath, forceRefresh),
       ACPClientAPI.getClients(),
     ]);
     if (sequence !== requestSequence.current || backgroundRequest?.isCurrent() === false) return undefined;
@@ -169,7 +196,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
 
   useEffect(() => {
     setSnapshot(null);
-    setAcpClients([]);
     setLoadIssues([]);
     void loadCompatibility(false);
     return () => {
@@ -178,6 +204,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
   }, [loadCompatibility, setAcpClients, setSnapshot]);
 
   useEffect(() => {
+    // Reading completion never starts a scan when automatic discovery is off.
     if (!snapshot?.discoveryPending) return undefined;
     let cancelled = false;
     let timer: number | undefined;
@@ -196,7 +223,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [loadCompatibility, ownerSurface, snapshot?.discoveryPending]);
+  }, [loadCompatibility, snapshot?.discoveryPending]);
 
   useEffect(() => {
     const refreshClients = () => {
@@ -212,10 +239,11 @@ const EcosystemCompatibilityScene: React.FC = () => {
 
   const productRuntimes = useMemo(
     () => buildEcosystemProductRuntimes(snapshot, acpClients).map((runtime): EcosystemProductRuntime => (
-      runtime.status === 'available' && (supplementalCounts?.[runtime.spec.ecosystemId] ?? 0) > 0
-        ? { ...runtime, status: 'detected', group: 'connected' } : runtime
+      runtime.group === 'more' && ((supplementalCounts?.[runtime.spec.ecosystemId] ?? 0) > 0
+        || ecosystemDiscoveryCache(requestScope).identified.has(runtime.spec.ecosystemId))
+        ? { ...runtime, group: 'identified' } : runtime
     )),
-    [acpClients, snapshot, supplementalCounts],
+    [acpClients, snapshot, supplementalCounts, requestScope],
   );
   const selectedRuntime = productRuntimes.find(
     (runtime) => runtime.spec.id === selectedProductId,
@@ -308,8 +336,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
 
   if (!selectedRuntime) return null;
 
-  const discoveredAssetCount = totalDiscoveredAssets(selectedRuntime.capabilityCounts)
-    + (supplementalCounts?.[selectedRuntime.spec.ecosystemId] ?? 0);
   const currentHost = workspace?.workspaceKind === WorkspaceKind.Remote
     ? t('host.remote', { name: workspace.sshHost || workspace.name })
     : peerDevice?.peerMode.active
@@ -320,12 +346,11 @@ const EcosystemCompatibilityScene: React.FC = () => {
     : selectedRuntime.spec.acpClientId
       ? t('header.acpRuntime')
       : null;
-  const headerCheckSummary = t('header.checksSummary', {
-    sourceCount: formatNumber(selectedRuntime.sources.length),
-    assetCount: formatNumber(discoveredAssetCount),
-    runtimeCount: formatNumber(selectedRuntime.acpClients.length),
-  });
-  const sourceLocationFallback = snapshot?.integrationPolicy.status === 'compatible'
+  const sourceLocationFallback = snapshot?.discovery
+    ? !snapshot.discovery.hasScanned
+      ? t(snapshot.discovery.enabled ? 'loading' : 'import.states.notScanned')
+      : loadIssues.includes('externalSources') ? t('import.states.discoveryUnavailable') : t('header.notDetected')
+    : snapshot?.integrationPolicy.status === 'compatible'
     && !snapshot.integrationPolicy.effective.enabled
     ? t('import.states.discoveryDisabled')
     : loading || snapshot?.discoveryPending
@@ -352,19 +377,31 @@ const EcosystemCompatibilityScene: React.FC = () => {
       <section className="ecosystem-compatibility__section">
         <div className="ecosystem-compatibility__section-heading ecosystem-compatibility__section-heading--actions">
           <div>
-            <h2>{t('run.title')}</h2>
+            <div className="ecosystem-compatibility__section-title">
+              <h2>{t('run.title')}</h2>
+              {selectedRuntime.acpClients.length === 0 ? (
+                <Tooltip
+                  content={t('run.notConfiguredDescription', { name: selectedRuntime.spec.name })}
+                  trigger="hover-focus"
+                  placement="top"
+                >
+                  <StatusPill className="ecosystem-compatibility__run-status" tone="neutral" tabIndex={0}>
+                    {t('run.notConfiguredTitle', { name: selectedRuntime.spec.name })}
+                  </StatusPill>
+                </Tooltip>
+              ) : null}
+            </div>
             <p>{t('run.description', { name: selectedRuntime.spec.name })}</p>
           </div>
           <Button
             className="ecosystem-compatibility__section-action"
             size="sm"
             variant="outline"
-            leadingIcon={<Icon name="settings" />}
-            aria-expanded={ownerSurface === 'acp'}
+            aria-haspopup="dialog"
             aria-controls="ecosystem-acp-manager"
-            onClick={() => setOwnerSurface(ownerSurface === 'acp' ? null : 'acp')}
+            onClick={() => setOwnerSurface('acp')}
           >
-            {t(ownerSurface === 'acp' ? 'run.hideManager' : 'run.openManager')}
+            {t('run.openManager')}
           </Button>
         </div>
         {selectedRuntime.acpClients.length > 0 ? (
@@ -391,9 +428,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
               return (
                 <article className="ecosystem-compatibility__runtime-agent" key={client.id}>
                   <div className="ecosystem-compatibility__runtime-row">
-                    <span className="ecosystem-compatibility__runtime-icon" aria-hidden="true">
-                      <Icon name="terminal" size="md" />
-                    </span>
                     <div className="ecosystem-compatibility__runtime-copy">
                       <strong><OverflowText>{displayName}</OverflowText></strong>
                       <StatusPill tone={client.status === 'failed' ? 'danger' : client.status === 'running' ? 'success' : 'neutral'}>
@@ -415,8 +449,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
                       <Button
                         className="ecosystem-compatibility__runtime-mode-action"
                         size="sm"
-                        variant="primary"
-                        leadingIcon={<Icon name="side-chat" />}
+                        variant="outline"
                         onClick={() => handleStartAcpClient(client)}
                       >
                         {t('run.startSession')}
@@ -425,12 +458,12 @@ const EcosystemCompatibilityScene: React.FC = () => {
 
                     <div className="ecosystem-compatibility__runtime-mode">
                       <span className="ecosystem-compatibility__runtime-mode-icon" aria-hidden="true">
-                        <Icon glyph={Bot} size="md" />
+                        <Icon name="user" size="md" />
                       </span>
                       <div className="ecosystem-compatibility__runtime-mode-copy">
                         <div className="ecosystem-compatibility__runtime-mode-title">
                           <strong>{t('run.subagent.title')}</strong>
-                          <StatusPill tone={profileState === 'configured' || profileState === 'defaultProfile' ? 'success' : profileState === 'unsupportedHost' ? 'warning' : 'neutral'}>
+                          <StatusPill tone={profileState === 'configured' ? 'success' : profileState === 'unsupportedHost' ? 'warning' : 'neutral'}>
                             {t(`run.subagent.states.${profileState}`)}
                           </StatusPill>
                         </div>
@@ -536,27 +569,8 @@ const EcosystemCompatibilityScene: React.FC = () => {
               );
             })}
           </div>
-        ) : (
-          <div className="ecosystem-compatibility__empty-card">
-            <Icon glyph={Network} size="md" />
-            <div>
-              <strong>{t('run.notConfiguredTitle', { name: selectedRuntime.spec.name })}</strong>
-              <p>{t('run.notConfiguredDescription', { name: selectedRuntime.spec.name })}</p>
-            </div>
-          </div>
-        )}
+        ) : null}
       </section>
-      {ownerSurface === 'acp' ? (
-        <section id="ecosystem-acp-manager" className="ecosystem-compatibility__owner-surface" aria-label={t('run.managerLabel')}>
-          <div className="ecosystem-compatibility__owner-note">
-            <Icon name="info" size="sm" aria-hidden="true" />
-            <span>{t('run.managerScope')}</span>
-          </div>
-          <Suspense fallback={<OwnerSurfaceLoading label={t('run.loadingManager')} />}>
-            <AcpAgentsConfig clientIds={[...selectedRuntime.acpClients.map((client) => client.id), ...(selectedRuntime.spec.acpClientId ? [selectedRuntime.spec.acpClientId] : [])]} />
-          </Suspense>
-        </section>
-      ) : null}
     </div>
   );
 
@@ -574,7 +588,16 @@ const EcosystemCompatibilityScene: React.FC = () => {
         data-openbitfun-part="sidebar"
       >
         <NavigationPanelHeader className="ecosystem-compatibility__sidebar-header">
-          <div className="ecosystem-compatibility__sidebar-title">{t('sidebar.label')}</div>
+          <header
+            className="ecosystem-compatibility__navigation-header"
+            data-openbitfun-scene="ecosystem-compatibility"
+            data-openbitfun-part="header"
+          >
+            <strong>{t('title')}</strong>
+            <div className="ecosystem-compatibility__navigation-scope">
+              <OverflowText>{workspacePath ? `${workspace?.name || t('discovery.workspaceLabel')} · ${currentHost}` : currentHost}</OverflowText>
+            </div>
+          </header>
           <div className="ecosystem-compatibility__search">
             <SearchField
               leadingIcon={<Icon name="search" aria-hidden />}
@@ -612,29 +635,40 @@ const EcosystemCompatibilityScene: React.FC = () => {
             <NavigationPanelContent>
               {GROUP_ORDER.map((group) => {
                 const runtimes = filteredRuntimes.filter((runtime) => runtime.group === group);
-                if (runtimes.length === 0) return null;
+                if (runtimes.length === 0 && group !== 'identified') return null;
                 return (
-                  <NavigationPanelSection key={group} title={t(`groups.${group}`)}>
-                    {runtimes.map((runtime) => {
-                      const selected = runtime.spec.id === selectedRuntime.spec.id;
-                      return (
-                        <NavigationPanelItem
-                          key={runtime.spec.id}
-                          selected={selected}
-                          onClick={() => handleSelectProduct(runtime)}
-                          data-product-id={runtime.spec.id}
-                          title={`${runtime.spec.name} · ${renderProductSummary(runtime)}`}
-                          leading={<EcosystemProductIcon productId={runtime.spec.id} size={22} />}
-                          metadata={
-                            <StatusPill tone={PRODUCT_STATUS_TONES[runtime.status]}>
-                              {t(`status.${runtime.status}`)}
-                            </StatusPill>
-                          }
-                        >
-                          {runtime.spec.name}
-                        </NavigationPanelItem>
-                      );
-                    })}
+                  <NavigationPanelSection
+                    key={group}
+                    data-product-group={group}
+                    title={group === 'identified' ? undefined : t(`groups.${group}`)}
+                    aria-label={group === 'identified' ? t('groups.identified') : undefined}
+                  >
+                    {group === 'identified' ? (
+                      <div className="ecosystem-compatibility__identified-heading">
+                        <OverflowText className="ecosystem-compatibility__identified-label">
+                          {t('groups.identified')}
+                        </OverflowText>
+                        <ExternalDiscoveryToggle
+                          key={requestScope}
+                          snapshot={snapshot}
+                          onSnapshotChange={setSnapshot}
+                          controlRef={discoveryControlRef}
+                        />
+                      </div>
+                    ) : null}
+                    {runtimes.map((runtime) => (
+                      <NavigationPanelItem
+                        key={runtime.spec.id}
+                        className={group === 'more' ? 'ecosystem-compatibility__available-product' : undefined}
+                        selected={runtime.spec.id === selectedRuntime.spec.id}
+                        onClick={() => handleSelectProduct(runtime)}
+                        data-product-id={runtime.spec.id}
+                        title={`${runtime.spec.name} · ${renderProductSummary(runtime)}`}
+                        leading={<EcosystemProductIcon productId={runtime.spec.id} size={22} />}
+                      >
+                        {runtime.spec.name}
+                      </NavigationPanelItem>
+                    ))}
                   </NavigationPanelSection>
                 );
               })}
@@ -661,8 +695,6 @@ const EcosystemCompatibilityScene: React.FC = () => {
         >
           <header
             className="ecosystem-compatibility__product-header"
-            data-openbitfun-scene="ecosystem-compatibility"
-            data-openbitfun-part="header"
           >
             <div className="ecosystem-compatibility__header-top">
               <div className="ecosystem-compatibility__product-identity">
@@ -672,28 +704,21 @@ const EcosystemCompatibilityScene: React.FC = () => {
                 <div>
                   <div className="ecosystem-compatibility__product-title-row">
                     <h1><OverflowText>{selectedRuntime.spec.name}</OverflowText></h1>
-                    <StatusPill tone={PRODUCT_STATUS_TONES[selectedRuntime.status]} aria-label={`${t('header.currentState')} · ${t(`status.${selectedRuntime.status}`)}`}>
-                      {t(`status.${selectedRuntime.status}`)}
-                    </StatusPill>
                   </div>
                   {adapterLabel ? <span className="ecosystem-compatibility__adapter-label">{adapterLabel}</span> : null}
                 </div>
               </div>
-              <Button
-                className="ecosystem-compatibility__header-action"
-                size="sm"
-                variant="outline"
-                leadingIcon={<Icon name={ownerSurface === 'external-sources' ? 'chevron-left' : 'settings'} />}
-                aria-expanded={ownerSurface === 'external-sources'}
-                aria-controls="ecosystem-source-manager"
-                onClick={() => {
-                  setOwnerSurface(ownerSurface === 'external-sources' ? null : 'external-sources');
-                }}
-              >
-                {ownerSurface === 'external-sources'
-                  ? t('governance.closeAction')
-                  : t('governance.openAction')}
-              </Button>
+              <div className="ecosystem-compatibility__header-actions">
+                <IconButton
+                  size="sm"
+                  variant="quiet"
+                  icon={<Icon name="refresh" size="sm" />}
+                  aria-label={t('content.refresh')}
+                  title={t('content.refresh')}
+                  disabled={loading || contentRefreshDisabled}
+                  onClick={() => void externalContentRef.current?.refresh()}
+                />
+              </div>
             </div>
             <dl className="ecosystem-compatibility__product-meta">
               <div>
@@ -707,25 +732,9 @@ const EcosystemCompatibilityScene: React.FC = () => {
                 <dd>{currentHost}</dd>
               </div>
             </dl>
-            <div className="ecosystem-compatibility__header-checks">
-              <Icon name="info" size="sm" aria-hidden="true" />
-              <span>{t('header.checksLabel')}</span>
-              <strong>{headerCheckSummary}</strong>
-            </div>
           </header>
 
           <div className="ecosystem-compatibility__body">
-            {snapshot?.integrationPolicy.status === 'compatible'
-              && !snapshot.integrationPolicy.effective.enabled
-              && ownerSurface !== 'external-sources' ? (
-                <div className="ecosystem-compatibility__load-notice" role="status">
-                  <Icon name="info" size="sm" aria-hidden="true" />
-                  <span>{t('discovery.disabledDescription')}</span>
-                  <Button variant="outline" size="sm" onClick={() => setOwnerSurface('external-sources')}>
-                    {t('discovery.manageAction')}
-                  </Button>
-                </div>
-              ) : null}
             {loading ? (
               <LoadingState className="ecosystem-compatibility__loading" role="status" size="sm">
                 {t('loading')}
@@ -743,40 +752,61 @@ const EcosystemCompatibilityScene: React.FC = () => {
                 </Button>
               </div>
             ) : null}
-            {ownerSurface === 'external-sources' ? (
-              <Suspense fallback={<OwnerSurfaceLoading label={t('governance.loadingManager')} />}>
-                <ExternalAgentDiscovery
-                  key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
-                  runtime={selectedRuntime}
-                  snapshot={snapshot}
-                  onSnapshotChange={setSnapshot}
-                />
-              </Suspense>
-            ) : (
-              <div className="ecosystem-compatibility__unified-stack">
-                {selectedRuntime.spec.development ? (
-                  <div className="ecosystem-compatibility__development-card" role="status">
-                    <Icon glyph={Bot} size="lg" />
-                    <div>
-                      <strong>{t('comingSoon.title')}</strong>
-                      <p>{t('comingSoon.notice', { name: selectedRuntime.spec.name })}</p>
-                    </div>
+            <div className="ecosystem-compatibility__unified-stack">
+              {selectedRuntime.spec.development ? (
+                <div className="ecosystem-compatibility__development-card" role="status">
+                  <Icon name="user" size="lg" />
+                  <div>
+                    <strong>{t('comingSoon.title')}</strong>
+                    <p>{t('comingSoon.notice', { name: selectedRuntime.spec.name })}</p>
                   </div>
-                ) : null}
-                {selectedRuntime.spec.acpClientId || selectedRuntime.acpClients.length > 0 ? renderRun() : null}
-                <ExternalAgentContent
-                  key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
-                  runtime={selectedRuntime}
-                  snapshot={snapshot}
-                  catalogFailed={loadIssues.includes('externalSources')}
-                  onSupplementalCounts={onSupplementalCounts}
-                  onRefresh={() => loadCompatibility(true)}
-                />
-              </div>
-            )}
+                </div>
+              ) : null}
+              {selectedRuntime.spec.acpClientId || selectedRuntime.acpClients.length > 0 ? renderRun() : null}
+              <ExternalAgentContent
+                key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
+                scopeKey={requestScope}
+                refreshControlRef={externalContentRef}
+                onRefreshDisabledChange={setContentRefreshDisabled}
+                runtime={selectedRuntime}
+                snapshot={snapshot}
+                catalogFailed={loadIssues.includes('externalSources')}
+                onSupplementalCounts={onSupplementalCounts}
+                onRefresh={() => loadCompatibility(true)}
+              />
+            </div>
           </div>
         </ScrollArea>
       </main>
+      <Dialog
+        id="ecosystem-acp-manager"
+        className="ecosystem-compatibility__acp-dialog"
+        open={ownerSurface === 'acp'}
+        onOpenChange={() => {
+          if (acpManagerRef.current) acpManagerRef.current.requestClose();
+          else setOwnerSurface(null);
+        }}
+        size="xl"
+      >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{selectedRuntime.spec.name} · {t('run.managerLabel')}</DialogTitle>
+            <DialogDescription>{t('run.managerScope')}</DialogDescription>
+          </DialogHeading>
+          <DialogHeaderActions><DialogClose /></DialogHeaderActions>
+        </DialogHeader>
+        <DialogBody>
+          <Suspense fallback={<OwnerSurfaceLoading label={t('run.loadingManager')} />}>
+            <AcpAgentsConfig
+              key={JSON.stringify([requestScope, selectedRuntime.spec.id])}
+              ref={acpManagerRef}
+              clientIds={[...selectedRuntime.acpClients.map((client) => client.id), ...(selectedRuntime.spec.acpClientId ? [selectedRuntime.spec.acpClientId] : [])]}
+              presentation="dialog"
+              onClose={() => setOwnerSurface(null)}
+            />
+          </Suspense>
+        </DialogBody>
+      </Dialog>
     </div>
   );
 };

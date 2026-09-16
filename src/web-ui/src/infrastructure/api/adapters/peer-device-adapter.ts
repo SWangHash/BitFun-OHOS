@@ -1,3 +1,4 @@
+import { DEFAULT_RPC_TIMEOUT_MS } from '../../../../../shared/relay-transport/RpcPolicy';
 import { translateAgentIdentityCommand, translateAgentIdentityFields, translateAgentIdentityResponse } from '../../../../../shared/agent-harness/wire';
 import { ITransportAdapter, type TransportRequestTiming } from './base';
 import { TauriTransportAdapter } from './tauri-adapter';
@@ -253,10 +254,9 @@ export function peerInvokePriorityFor(command: string): PeerInvokePriority {
   return 'normal';
 }
 
-/** Max in-flight HostInvoke RPCs per controller. */
-export const PEER_HOST_INVOKE_MAX_CONCURRENT = 4;
-export const PEER_READ_REQUEST_TIMEOUT_MS = 10_000;
-export const PEER_MUTATION_REQUEST_TIMEOUT_MS = 30_000;
+/** The shared account transport owns admission and acknowledged RPC deadlines. */
+export const PEER_READ_REQUEST_TIMEOUT_MS = DEFAULT_RPC_TIMEOUT_MS;
+export const PEER_MUTATION_REQUEST_TIMEOUT_MS = DEFAULT_RPC_TIMEOUT_MS;
 export const PEER_READ_MAX_RETRIES = 4;
 export const PEER_IDEMPOTENT_MUTATION_MAX_RETRIES = 4;
 export const PEER_RETRY_BASE_DELAY_MS = 500;
@@ -393,6 +393,7 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
   /** Bumped on every bind/unbind, so a request can detect it outlived one. */
   private surfaceBindingEpoch = 0;
   private activeCount = 0;
+  private pumpScheduled = false;
   private readonly activeByPriority: Record<PeerInvokePriority, number> = {
     high: 0,
     normal: 0,
@@ -410,7 +411,6 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
     private readonly targetDeviceId: string,
     private readonly deviceRpc: DeviceRpcFn,
     private hooks: PeerDeviceTransportHooks = {},
-    private readonly maxConcurrent: number = PEER_HOST_INVOKE_MAX_CONCURRENT,
   ) {
     this.surfaceId = surfaceIdForDevice(targetDeviceId);
   }
@@ -683,7 +683,10 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
       };
       this.pending.add(entry);
       this.queues[priority].push(entry);
-      this.pump();
+      if (!this.pumpScheduled) {
+        this.pumpScheduled = true;
+        queueMicrotask(() => { this.pumpScheduled = false; this.pump(); });
+      }
     });
   }
 
@@ -691,7 +694,7 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
     if (this.disposed) {
       return;
     }
-    while (this.activeCount < this.maxConcurrent) {
+    while (true) {
       const next = this.dequeueNext();
       if (!next) {
         return;
@@ -711,30 +714,9 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
   }
 
   private dequeueNext(): QueuedPeerRequest | undefined {
-    // Prefer high, then normal. Allow low only when nothing higher is waiting,
-    // so background git/SSH cannot monopolize slots after a hydrate burst.
-    if (this.queues.high.length > 0) {
-      return this.queues.high.shift();
-    }
-    const nonHighConcurrencyLimit =
-      this.maxConcurrent > 1 ? this.maxConcurrent - 1 : 1;
-    const activeNonHigh = this.activeByPriority.normal + this.activeByPriority.low;
-    if (
-      this.queues.normal.length > 0 &&
-      activeNonHigh < nonHighConcurrencyLimit
-    ) {
-      return this.queues.normal.shift();
-    }
-    // Keep one transport slot available for future interactive work. Without
-    // this, two slow background RPCs can make terminal input appear frozen.
-    const lowConcurrencyLimit = this.maxConcurrent > 1 ? this.maxConcurrent - 1 : 1;
-    if (
-      this.queues.low.length > 0 &&
-      this.activeByPriority.low < lowConcurrencyLimit
-    ) {
-      return this.queues.low.shift();
-    }
-    return undefined;
+    // Order the current dispatch burst without a second in-flight limit.
+    // Slow data requests cannot hold control calls behind adapter-owned slots.
+    return this.queues.high.shift() ?? this.queues.normal.shift() ?? this.queues.low.shift();
   }
 
   private async invokePeerCommand<T extends PeerDeviceCommandResponse>(

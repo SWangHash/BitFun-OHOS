@@ -17,19 +17,19 @@ Manage app-level preferences for startup, updates, close behavior, notifications
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 启用或停用自动检查更新
+- **智能体可直接控制 / Direct Agent control** · 启用或停用自动检查更新
   - Enable or disable automatic update checks
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 手动检查并后台下载更新，确认后安装并重启，或稍后从关于页面安装
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 手动检查并后台下载更新，确认后安装并重启，或稍后从关于页面安装
   - Check and download updates in the background, then confirm installation and restart or install later from About
-- **Agent 可直接控制 / Direct Agent control** · 控制 OpenBitFun 是否在登录系统后自动启动
+- **智能体可直接控制 / Direct Agent control** · 控制 OpenBitFun 是否在登录系统后自动启动
   - Choose whether OpenBitFun launches automatically after system sign-in
-- **Agent 可直接控制 / Direct Agent control** · 控制 OpenBitFun 运行期间是否阻止电脑自动睡眠
+- **智能体可直接控制 / Direct Agent control** · 控制 OpenBitFun 运行期间是否阻止电脑自动睡眠
   - Choose whether OpenBitFun prevents the computer from sleeping while it runs
-- **Agent 可直接控制 / Direct Agent control** · 选择关闭主窗口时退出、最小化到托盘或每次询问
+- **智能体可直接控制 / Direct Agent control** · 选择关闭主窗口时退出、最小化到托盘或每次询问
   - Choose whether closing the main window quits, minimizes to tray, or asks each time
-- **Agent 可直接控制 / Direct Agent control** · 分别控制任务完成、权限请求和启动提示通知
+- **智能体可直接控制 / Direct Agent control** · 分别控制任务完成、权限请求和启动提示通知
   - Control completion, permission-request, and startup-tip notifications independently
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看、标记已读、忽略或永久隐藏产品公告与提示
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看、标记已读、忽略或永久隐藏产品公告与提示
   - Review, mark seen, dismiss, or permanently hide product announcements and tips
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Manage app-level preferences for startup, updates, close behavior, notifications
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -58,10 +58,10 @@ Manage app-level preferences for startup, updates, close behavior, notifications
 | 自动检查更新 / Automatic updates | `boolean` | 启动后自动检查可用更新。 | Check for available updates automatically after startup. |
 | 关闭按钮行为 / Close button behavior | `ask` / `minimize_to_tray` / `quit` | 选择退出应用或最小化到托盘。 | Choose whether closing quits the app or minimizes it to the tray. |
 | 任务完成通知 / Completion notifications | `boolean` | 会话任务完成时发送系统通知。 | Send an OS notification when session work completes. |
-| 权限请求通知 / Permission request notifications | `boolean` | Agent 等待权限确认时发送系统通知。 | Send an OS notification when an agent waits for permission. |
+| 权限请求通知 / Permission request notifications | `boolean` | 智能体等待权限确认时发送系统通知。 | Send an OS notification when an agent waits for permission. |
 | 启动提示 / Startup tips | `boolean` | 启动后显示功能提示。 | Show product tips after startup. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “关闭自动更新”
   - “Turn off automatic updates”
@@ -70,6 +70,6 @@ Manage app-level preferences for startup, updates, close behavior, notifications
 - “打开常规设置”
   - “Open General settings”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

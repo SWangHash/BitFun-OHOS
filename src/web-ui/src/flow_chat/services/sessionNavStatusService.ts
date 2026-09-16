@@ -1,3 +1,4 @@
+import { installTrayUnreadService } from './trayUnreadService';
 import { agentAPI, type AgenticEvent, type PermissionRequest } from '@/infrastructure/api/service-api/AgentAPI';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
 import { getActiveSurfaceId, getActiveSurfaceScope, onSurfaceActivated, surfaceIdForDevice, type DeviceSurfaceId } from '@/infrastructure/peer-device/deviceSurface';
@@ -169,6 +170,7 @@ export function installSessionNavStatusService(): () => void {
     ['agentic://tool-event', callback => agentAPI.onToolEvent(callback)],
   ];
   const eventNames = new Set(events.map(([name]) => name));
+  const disposeTrayUnread = installTrayUnreadService();
   const disposers = events.map(([name, listen]) => listen(event => {
     if (observed.delete(event)) return;
     sessionActivityStore.observe(getActiveSurfaceId(), name, event);
@@ -272,6 +274,7 @@ export function installSessionNavStatusService(): () => void {
   for (const sessionId of rows.keys()) { publish(sessionId); refresh(sessionId); }
   cleanup = () => {
     disposed = true;
+    disposeTrayUnread();
     sync.dispose();
     clearInterval(interval);
     disposers.forEach(dispose => dispose());

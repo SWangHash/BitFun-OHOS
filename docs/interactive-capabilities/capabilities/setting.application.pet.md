@@ -11,19 +11,19 @@ title_en: "Companion settings"
 
 > 设置 / Setting
 
-启用桌面 Agent 伙伴并管理当前角色。
+启用桌面智能体伙伴并管理当前角色。
 
 Enable the desktop agent companion and manage the active character.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 整体启用或停用 Agent 伙伴
+- **智能体可直接控制 / Direct Agent control** · 整体启用或停用智能体伙伴
   - Enable or disable the agent companion
-- **Agent 可直接控制 / Direct Agent control** · 从内置与已导入角色中选择当前伙伴
+- **智能体可直接控制 / Direct Agent control** · 从内置与已导入角色中选择当前伙伴
   - Choose the active companion from built-in and imported characters
-- **Agent 可直接控制 / Direct Agent control** · 导入本地 Petdex 角色包
+- **智能体可直接控制 / Direct Agent control** · 导入本地 Petdex 角色包
   - Import a local Petdex character package
-- **Agent 可直接控制 / Direct Agent control** · 刷新角色列表并删除不再需要的导入包
+- **智能体可直接控制 / Direct Agent control** · 刷新角色列表并删除不再需要的导入包
   - Refresh the character list and delete imported packages you no longer need
 
 ## 怎么用 / How to use it
@@ -37,7 +37,7 @@ Enable the desktop agent companion and manage the active character.
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -49,15 +49,15 @@ Enable the desktop agent companion and manage the active character.
 
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
-| 启用桌面伙伴 / Enable companion | `boolean` | 显示或隐藏 Agent 伙伴。 | Show or hide the agent companion. |
+| 启用桌面伙伴 / Enable companion | `boolean` | 显示或隐藏智能体伙伴。 | Show or hide the agent companion. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “关闭桌面伙伴”
   - “Turn off the desktop companion”
 - “让 OpenBitFun 使用 /path/to/pet 里的萌宠”
   - “Make OpenBitFun use the pet at /path/to/pet”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

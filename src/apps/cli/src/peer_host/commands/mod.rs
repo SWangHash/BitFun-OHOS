@@ -12,6 +12,7 @@ mod session;
 mod snapshot;
 mod soft;
 mod system;
+mod terminal;
 mod tools;
 mod workspace;
 
@@ -19,46 +20,54 @@ use serde_json::Value;
 
 use super::state::PeerHostState;
 
-pub(crate) async fn dispatch(
-    command: &str,
-    args: &Value,
-    state: &PeerHostState,
-) -> Result<Value, String> {
+// Select the handler before polling it. A monolithic async match retains every
+// handler's construction temporaries in its poll frame (900 KiB in a debug
+// build), exhausting the worker stack when a handler starts the runtime.
+// Returning a selected future releases dispatch's stack before execution.
+pub(crate) fn dispatch<'a>(
+    command: &'a str,
+    args: &'a Value,
+    state: &'a PeerHostState,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send + 'a>> {
     match command {
-        "list_ai_models_by_config" => models::list_ai_models_by_config(args).await,
-        "list_visible_subagents" | "list_subagents" | "list_manageable_subagents" => tools::list_subagents(command, args).await,
-        "get_session_permission_mode" => permission::session_permission_mode(state, args, false, false).await,
-        "update_session_permission_mode" => permission::session_permission_mode(state, args, true, false).await,
-        "update_active_turn_permission_mode" => permission::session_permission_mode(state, args, true, true).await,
-        "get_ai_model_catalog" => models::get_ai_model_catalog().await,
-        "project_ai_model_reasoning_catalog" => models::project_ai_model_reasoning_catalog(args).await,
-        "get_model_configs" => models::get_model_configs().await,
-        "get_models_dev_catalog_status" => models::get_models_dev_catalog_status().await,
-        "refresh_models_dev_catalog_now" => models::refresh_models_dev_catalog_now().await,
-        "test_ai_config_connection" => models::test_ai_config_connection(args).await,
+        "list_ai_models_by_config" => Box::pin(models::list_ai_models_by_config(args)),
+        "list_visible_subagents" | "list_subagents" | "list_manageable_subagents" => Box::pin(tools::list_subagents(command, args)),
+        "get_session_permission_mode" => Box::pin(permission::session_permission_mode(state, args, false, false)),
+        "update_session_permission_mode" => Box::pin(permission::session_permission_mode(state, args, true, false)),
+        "update_active_turn_permission_mode" => Box::pin(permission::session_permission_mode(state, args, true, true)),
+        "get_ai_model_catalog" => Box::pin(models::get_ai_model_catalog()),
+        "project_ai_model_reasoning_catalog" => Box::pin(models::project_ai_model_reasoning_catalog(args)),
+        "get_model_configs" => Box::pin(models::get_model_configs()),
+        "get_models_dev_catalog_status" => Box::pin(models::get_models_dev_catalog_status()),
+        "refresh_models_dev_catalog_now" => Box::pin(models::refresh_models_dev_catalog_now()),
+        "test_ai_config_connection" => Box::pin(models::test_ai_config_connection(args)),
         // Workspace / config
         "initialize_workspace_startup_state" => {
-            workspace::initialize_workspace_startup_state(state).await
+            Box::pin(workspace::initialize_workspace_startup_state(state))
         }
-        "get_opened_workspaces" => workspace::get_opened_workspaces(state).await,
-        "get_recent_workspaces" => workspace::get_recent_workspaces(state).await,
+        "get_opened_workspaces" => Box::pin(workspace::get_opened_workspaces(state)),
+        "get_recent_workspaces" => Box::pin(workspace::get_recent_workspaces(state)),
         "get_current_workspace" | "get_workspace_info" => {
-            workspace::get_current_workspace(state).await
+            Box::pin(workspace::get_current_workspace(state))
         }
-        "open_workspace" => workspace::open_workspace(state, args).await,
-        "cleanup_invalid_workspaces" => workspace::cleanup_invalid_workspaces(state).await,
-        "reload_config" => workspace::reload_config().await,
-        "get_config" => config::get_config(args).await,
-        "get_configs" => config::get_configs(args).await,
-        "set_config" => config::set_config(state, args).await,
-        "get_web_search_credential_status" => config::get_web_search_credential_status(args).await,
-        "save_web_search_credential" => config::save_web_search_credential(args).await,
-        "clear_web_search_credential" => config::clear_web_search_credential(args).await,
-        "product_control_invoke" => product_control::invoke(state, args).await,
-        "get_agent_profile_config" => config::get_agent_profile_config(args).await,
-        "get_agent_profile_configs" => config::get_agent_profile_configs().await,
+        "set_active_workspace" => Box::pin(workspace::set_active_workspace(state, args)),
+        "open_workspace" => Box::pin(workspace::open_workspace(state, args)),
+        "ssh_list_saved_connections" => Box::pin(workspace::ssh_list_saved_connections()),
+        "open_remote_workspace" => Box::pin(workspace::open_remote_workspace(state, args)),
+        "cleanup_invalid_workspaces" => Box::pin(workspace::cleanup_invalid_workspaces(state)),
+        "reload_config" => Box::pin(workspace::reload_config()),
+        "get_config" => Box::pin(config::get_config(args)),
+        "get_configs" => Box::pin(config::get_configs(args)),
+        "set_config" => Box::pin(config::set_config(state, args)),
+        "get_web_search_credential_status" => Box::pin(config::get_web_search_credential_status(args)),
+        "save_web_search_credential" => Box::pin(config::save_web_search_credential(args)),
+        "clear_web_search_credential" => Box::pin(config::clear_web_search_credential(args)),
+        "product_control_invoke" => Box::pin(product_control::invoke(state, args)),
+        "get_agent_profile_config" => Box::pin(config::get_agent_profile_config(args)),
+        "get_agent_profile_configs" => Box::pin(config::get_agent_profile_configs()),
         "get_external_source_snapshot"
         | "get_external_source_control_snapshot"
+        | "get_external_source_discovery_snapshot"
         | "reveal_external_source_location"
         | "apply_external_source_control_action_command"
         | "set_external_source_enabled_command"
@@ -74,18 +83,39 @@ pub(crate) async fn dispatch(
         | "set_external_mcp_servers_enabled_command"
         | "choose_external_mcp_conflict_command"
         | "update_external_integration_policy_command" => {
-            external_sources::dispatch(command, args, state).await
+            Box::pin(external_sources::dispatch(command, args, state))
         }
 
+        "terminal_execute" => Box::pin(terminal::execute(args)),
+        "terminal_create" => Box::pin(terminal::create(state, args)),
+        "terminal_write" => Box::pin(terminal::write(args)),
+        "terminal_resize" => Box::pin(terminal::resize(args)),
+        "terminal_close" => Box::pin(terminal::close(args)),
+        "terminal_get_history" => Box::pin(terminal::history(args)),
+        "terminal_list" => Box::pin(terminal::list()),
+        "terminal_get" => Box::pin(terminal::get(args)),
+        "terminal_get_shells" => Box::pin(terminal::shells()),
+        "terminal_signal" => Box::pin(terminal::signal(args)),
+        "terminal_ack" => Box::pin(terminal::acknowledge(args)),
+        "terminal_has_shell_integration" => Box::pin(terminal::has_shell_integration(args)),
+        "terminal_send_command" => Box::pin(terminal::send_command(args)),
+        "terminal_shutdown_all" => Box::pin(terminal::shutdown_all()),
         // Filesystem
+        "workspace_file_upload" => Box::pin(filesystem::workspace_file_upload(state, args)),
         "get_directory_children" | "list_files" => {
-            filesystem::get_directory_children(state, args).await
+            Box::pin(filesystem::get_directory_children(state, args))
         }
         "get_directory_children_paginated" => {
-            filesystem::get_directory_children_paginated(state, args).await
+            Box::pin(filesystem::get_directory_children_paginated(state, args))
         }
-        "check_path_exists" => filesystem::check_path_exists(args).await,
-        "create_directory" => filesystem::create_directory(state, args).await,
+        "check_path_exists" => Box::pin(filesystem::check_path_exists(state, args)),
+        "create_directory" => Box::pin(filesystem::create_directory(state, args)),
+        "read_file_content" => Box::pin(filesystem::read_file_content(state, args)),
+        "write_file_content" => Box::pin(filesystem::write_file_content(state, args)),
+        "rename_file" => Box::pin(filesystem::rename_file(state, args)),
+        "delete_file" => Box::pin(filesystem::delete_path(state, args, false)),
+        "delete_directory" => Box::pin(filesystem::delete_path(state, args, true)),
+        "list_directory_files" => Box::pin(filesystem::list_directory_files(state, args)),
 
         // Tools catalog — read-only tool listing for Agents / Assistant
         // Defaults UI. CLI Host assembles the same Core tool registry as
@@ -93,88 +123,89 @@ pub(crate) async fn dispatch(
         // tell "CLI Host doesn't support catalog query" from "the runtime
         // really has no tools". Without this the call fell into the unsupported
         // dispatch branch and the UI silently rendered an empty tool list.
-        "get_all_tools_info" => tools::get_all_tools_info().await,
-        "get_chat_mcp_catalog" => tools::get_chat_mcp_catalog(args).await,
+        "get_all_tools_info" => Box::pin(tools::get_all_tools_info()),
+        "get_chat_mcp_catalog" => Box::pin(tools::get_chat_mcp_catalog(args)),
 
         // Sessions
-        "list_persisted_sessions" => session::list_persisted_sessions(state, args).await,
-        "list_persisted_sessions_page" => session::list_persisted_sessions_page(state, args).await,
-        "save_session_metadata" => session::save_session_metadata(state, args).await,
+        "list_persisted_sessions" => Box::pin(session::list_persisted_sessions(state, args)),
+        "list_persisted_sessions_page" => Box::pin(session::list_persisted_sessions_page(state, args)),
+        "save_session_metadata" => Box::pin(session::save_session_metadata(state, args)),
         "list_persisted_sessions_count" => {
-            session::list_persisted_sessions_count(state, args).await
+            Box::pin(session::list_persisted_sessions_count(state, args))
         }
-        "search_session_content" => session::search_session_content(state, args).await,
-        "load_session_turn_window" => session::load_session_turn_window(state, args).await,
-        "load_session_turns" => session::load_session_turns(state, args).await,
-        "load_session_event_backfill" => session::load_session_event_backfill(state, args),
-        "restore_session_view" => session::restore_session_view(state, args).await,
-        "restore_session_with_turns" => session::restore_session_with_turns(state, args).await,
-        "restore_session" => session::restore_session(state, args).await,
-        "create_session" => session::create_session(state, args).await,
-        "delete_session" => session::delete_session(state, args).await,
-        "rename_session" => session::rename_session(state, args).await,
-        "archive_session" => session::archive_session(state, args).await,
-        "touch_session_activity" => session::touch_session_activity(state, args).await,
-        "get_session_thread_goal" => session::get_session_thread_goal(state, args).await,
-        "update_session_mode" => session::update_session_mode(state, args).await,
-        "update_session_model" => session::update_session_model(state, args).await,
-        "ensure_coordinator_session" => session::ensure_coordinator_session(state, args).await,
-        "get_available_modes" => session::get_available_modes(state, args).await,
-        "get_session_stats" => session::get_session_stats(state, args).await,
-        "save_session_turn" => session::save_session_turn(state, args).await,
+        "search_session_content" => Box::pin(session::search_session_content(state, args)),
+        "load_session_turn_window" => Box::pin(session::load_session_turn_window(state, args)),
+        "load_session_turns" => Box::pin(session::load_session_turns(state, args)),
+        "load_session_event_backfill" => Box::pin(std::future::ready(session::load_session_event_backfill(state, args))),
+        "restore_session_view" => Box::pin(session::restore_session_view(state, args)),
+        "restore_session_with_turns" => Box::pin(session::restore_session_with_turns(state, args)),
+        "restore_session" => Box::pin(session::restore_session(state, args)),
+        "create_session" => Box::pin(session::create_session(state, args)),
+        "delete_session" => Box::pin(session::delete_session(state, args)),
+        "rename_session" => Box::pin(session::rename_session(state, args)),
+        "archive_session" => Box::pin(session::archive_session(state, args)),
+        "touch_session_activity" => Box::pin(session::touch_session_activity(state, args)),
+        "get_session_thread_goal" => Box::pin(session::get_session_thread_goal(state, args)),
+        "update_session_mode" => Box::pin(session::update_session_mode(state, args)),
+        "update_session_model" => Box::pin(session::update_session_model(state, args)),
+        "ensure_coordinator_session" => Box::pin(session::ensure_coordinator_session(state, args)),
+        "get_available_modes" => Box::pin(session::get_available_modes(state, args)),
+        "get_session_stats" => Box::pin(session::get_session_stats(state, args)),
+        "save_session_turn" => Box::pin(session::save_session_turn(state, args)),
 
         // Snapshot / rollback
-        "rollback_session_to_turn" => snapshot::rollback_session_to_turn(state, args).await,
-        "get_session_files" => snapshot::get_session_files(state, args).await,
+        "rollback_session_to_turn" => Box::pin(snapshot::rollback_session_to_turn(state, args)),
+        "get_session_files" => Box::pin(snapshot::get_session_files(state, args)),
 
         // Dialog / tools
-        "start_dialog_turn" => dialog::start_dialog_turn(state, args).await,
-        "cancel_dialog_turn" => dialog::cancel_dialog_turn(state, args).await,
-        "start_user_question_interaction" => dialog::start_user_question_interaction(state, args).await,
-        "submit_user_answers" => dialog::submit_user_answers(state, args).await,
+        "start_dialog_turn" => Box::pin(dialog::start_dialog_turn(state, args)),
+        "cancel_dialog_turn" => Box::pin(dialog::cancel_dialog_turn(state, args)),
+        "start_user_question_interaction" => Box::pin(dialog::start_user_question_interaction(state, args)),
+        "submit_user_answers" => Box::pin(dialog::submit_user_answers(state, args)),
         // Per-tool interrupt. The controller renders Terminal cards for Turns
         // this host owns, so it must be able to stop a running tool here —
         // same owner as cancel_dialog_turn, one level finer. Reaches the Core
         // coordinator via the compatibility surface both CLI and Desktop Peer
         // Hosts share.
-        "cancel_tool" => dialog::cancel_tool(state, args).await,
-        "list_pending_permission_requests" => permission::list_pending_permission_requests(state),
-        "subscribe_permission_requests" => permission::subscribe_permission_requests(),
-        "respond_permission" => permission::respond_permission(state, args).await,
-        "respond_permission_batch" => permission::respond_permission_batch(state, args).await,
+        "cancel_tool" => Box::pin(dialog::cancel_tool(state, args)),
+        "get_session_interaction_mailbox" => Box::pin(std::future::ready(permission::get_session_interaction_mailbox(state, args))),
+        "list_pending_permission_requests" => Box::pin(std::future::ready(permission::list_pending_permission_requests(state))),
+        "subscribe_permission_requests" => Box::pin(std::future::ready(permission::subscribe_permission_requests())),
+        "respond_permission" => Box::pin(permission::respond_permission(state, args)),
+        "respond_permission_batch" => Box::pin(permission::respond_permission_batch(state, args)),
         "list_project_permission_grants" => {
-            permission::list_project_permission_grants(state, args).await
+            Box::pin(permission::list_project_permission_grants(state, args))
         }
         "remove_project_permission_grant" => {
-            permission::remove_project_permission_grant(state, args).await
+            Box::pin(permission::remove_project_permission_grant(state, args))
         }
         "clear_project_permission_grants" => {
-            permission::clear_project_permission_grants(state, args).await
+            Box::pin(permission::clear_project_permission_grants(state, args))
         }
         "list_project_permission_audit" => {
-            permission::list_project_permission_audit(state, args).await
+            Box::pin(permission::list_project_permission_audit(state, args))
         }
 
         // Git (local workspace only)
-        "git_is_repository" => git::git_is_repository(args).await,
-        "git_get_repository_trust" => git::git_get_repository_trust(args).await,
+        "git_is_repository" => Box::pin(git::git_is_repository(args)),
+        "git_get_repository_trust" => Box::pin(git::git_get_repository_trust(args)),
 
         // Soft empty / no-op for Desktop-only subsystems
-        "notify_cron_host_ready" => soft::notify_cron_host_ready().await,
-        "list_miniapps" => soft::list_miniapps().await,
-        "miniapp_worker_list_running" => soft::miniapp_worker_list_running().await,
-        "get_acp_clients" => soft::get_acp_clients().await,
-        "list_background_command_activities" => soft::list_background_command_activities().await,
+        "notify_cron_host_ready" => Box::pin(soft::notify_cron_host_ready()),
+        "list_miniapps" => Box::pin(soft::list_miniapps()),
+        "miniapp_worker_list_running" => Box::pin(soft::miniapp_worker_list_running()),
+        "get_acp_clients" => Box::pin(soft::get_acp_clients()),
+        "list_background_command_activities" => Box::pin(soft::list_background_command_activities()),
 
         // System
-        "get_system_info" => system::get_system_info().await,
-        "get_token_usage_statistics" => system::get_token_usage_statistics(state, args).await,
+        "get_system_info" => Box::pin(system::get_system_info()),
+        "get_token_usage_statistics" => Box::pin(system::get_token_usage_statistics(state, args)),
 
         // Only reachable if the registry marks a command Handled without a
         // matching arm above; the closure test below fails first.
-        other => Err(format!(
+        other => Box::pin(std::future::ready(Err(format!(
             "command '{other}' is registered as handled on the CLI peer host but this build has no handler for it"
-        )),
+        )))),
     }
 }
 
@@ -184,6 +215,28 @@ pub(crate) async fn dispatch(
 /// cannot be advertised as runnable here without a handler (or vice versa).
 #[cfg(test)]
 pub(crate) const HANDLED_COMMANDS: &[&str] = &[
+    "terminal_execute",
+    "terminal_get",
+    "terminal_get_shells",
+    "terminal_signal",
+    "terminal_ack",
+    "terminal_has_shell_integration",
+    "terminal_send_command",
+    "terminal_shutdown_all",
+    "terminal_create",
+    "terminal_write",
+    "terminal_resize",
+    "terminal_close",
+    "terminal_get_history",
+    "terminal_list",
+    "ssh_list_saved_connections",
+    "open_remote_workspace",
+    "read_file_content",
+    "write_file_content",
+    "rename_file",
+    "delete_file",
+    "delete_directory",
+    "list_directory_files",
     "list_subagents",
     "list_manageable_subagents",
     "test_ai_config_connection",
@@ -219,9 +272,11 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "get_config",
     "get_configs",
     "get_current_workspace",
+    "workspace_file_upload",
     "get_directory_children",
     "get_directory_children_paginated",
     "get_external_source_control_snapshot",
+    "get_external_source_discovery_snapshot",
     "get_external_source_snapshot",
     "get_opened_workspaces",
     "get_recent_workspaces",
@@ -236,6 +291,7 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "git_is_repository",
     "initialize_workspace_startup_state",
     "list_files",
+    "get_session_interaction_mailbox",
     "list_pending_permission_requests",
     "list_persisted_sessions",
     "list_persisted_sessions_count",
@@ -272,6 +328,7 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "set_external_tool_conflict_choice_command",
     "set_external_tool_target_decision_command",
     "set_external_tool_targets_enabled_command",
+    "set_active_workspace",
     "start_dialog_turn",
     "submit_user_answers",
     "start_user_question_interaction",
@@ -307,7 +364,7 @@ mod tests {
             .find("match command {")
             .expect("commands::dispatch must match on the command name");
         let end = source[start..]
-            .find("other => Err(")
+            .find("other =>")
             .map(|offset| start + offset)
             .expect("commands::dispatch must end with the `other =>` arm");
         let body = &source[start..end];
@@ -336,7 +393,7 @@ mod tests {
             if pending.is_empty() || !target.contains("::") {
                 continue;
             }
-            let is_soft = target.starts_with("soft::");
+            let is_soft = target.trim_start_matches("Box::pin(").starts_with("soft::");
             for name in pending.drain(..) {
                 if is_soft {
                     soft.insert(name);

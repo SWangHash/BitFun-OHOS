@@ -17,19 +17,19 @@ Save page versions and publish them to public or private URLs while managing tit
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看账户下的 Pages 与每个页面的当前发布状态
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看账户下的 Pages 与每个页面的当前发布状态
   - List account Pages and inspect each page's current publishing state
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 保存不可变页面版本并浏览版本历史
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 保存不可变页面版本并浏览版本历史
   - Save immutable page versions and browse version history
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `PagePublish` / `PageDeploy` · 发布或重新部署选中的页面版本
+- **由专用智能体工具控制 / Delegated Agent tool** · `PagePublish` / `PageDeploy` · 发布或重新部署选中的页面版本
   - Publish or redeploy a selected page version
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 更新标题、公开/私有可见性和访问设置
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 更新标题、公开/私有可见性和访问设置
   - Update titles, public/private visibility, and access settings
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 创建可打开和分享的页面链接
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 创建可打开和分享的页面链接
   - Create an openable, shareable link for a page
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 取消发布页面，同时保留可再次发布的版本
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 取消发布页面，同时保留可再次发布的版本
   - Unpublish a page while retaining versions for later publication
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 删除单个版本或整个 Page
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 删除单个版本或整个 Page
   - Delete an individual version or an entire Page
 
 ## 怎么用 / How to use it
@@ -43,7 +43,7 @@ Save page versions and publish them to public or private URLs while managing tit
 
 入口 / Entry: OpenBitFun 对应场景
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -55,13 +55,13 @@ Save page versions and publish them to public or private URLs while managing tit
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开 Pages”
   - “Open Pages”
 - “带我管理已发布的页面”
   - “Take me to my published pages”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 
 import { MobileBanner, MobileButton, MobileScrim, MobileStatus } from '@openbitfun/ui/mobile';
 import PairingPage, { type BrowserAccountBinding } from './pages/PairingPage';
 import WorkspacePage from './pages/WorkspacePage';
+import DeviceToolsPage from './pages/DeviceToolsPage';
 import SessionListPage from './pages/SessionListPage';
 import DevicesPage from './pages/DevicesPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -229,7 +230,16 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('popstate', onPopState);
   }, [accountDirectoryOpen, doPopFromChat, doPopFromWorkspace, doPopFromDevices]);
 
+  const [deviceToolsOpen, setDeviceToolsOpen] = useState(false);
+  const handleOpenDeviceTools = useCallback(() => {
+    setDeviceToolsOpen(true);
+    setCompactSidebarOpen(false);
+    navigateTo('workspace', 'push');
+  }, [navigateTo]);
+
   const handleOpenWorkspace = useCallback(() => {
+    setDeviceToolsOpen(false);
+    setCompactSidebarOpen(false);
     navigateTo('workspace', 'push');
   }, [navigateTo]);
 
@@ -243,6 +253,7 @@ const AppContent: React.FC = () => {
     isNew?: boolean,
     agentType = 'Standard',
   ) => {
+    useMobileStore.getState().setError(null);
     setActiveSessionId(sessionId);
     setActiveSessionName(sessionName || 'Session');
     setActiveSessionAgentType(agentType);
@@ -332,6 +343,7 @@ const AppContent: React.FC = () => {
   }, [navigateTo]);
 
   const handleControlTargetChanged = useCallback(() => {
+    setDeviceToolsOpen(false);
     setAccountDirectoryOpen(false);
     clearTimeout(timerRef.current);
     const restored = navigationRef.current?.restored;
@@ -500,6 +512,7 @@ const AppContent: React.FC = () => {
       activeSessionId={activeSessionId}
       onSelectSession={handleSelectSession}
       onOpenWorkspace={handleOpenWorkspace}
+      onOpenDeviceTools={handleOpenDeviceTools}
       onDisconnect={handleDisconnect}
       onOpenDevices={() => navigateTo('devices', 'push')}
       onControlTargetChanged={handleControlTargetChanged}
@@ -508,6 +521,7 @@ const AppContent: React.FC = () => {
 
   const renderDetailPage = () => {
     if (currentPage === 'workspace' && sessionMgrRef.current) {
+      if (deviceToolsOpen) return <DeviceToolsPage manager={sessionMgrRef.current} onBack={doPopFromWorkspace}/>;
       return (
         <WorkspacePage
           sessionMgr={sessionMgrRef.current}
@@ -610,6 +624,7 @@ const AppContent: React.FC = () => {
                   activeSessionId={activeSessionId}
                   onSelectSession={handleSelectSession}
                   onOpenWorkspace={handleOpenWorkspace}
+                  onOpenDeviceTools={handleOpenDeviceTools}
                   onDisconnect={handleDisconnect}
                   onOpenDevices={() => navigateTo('devices', 'push')}
                   onControlTargetChanged={handleControlTargetChanged}

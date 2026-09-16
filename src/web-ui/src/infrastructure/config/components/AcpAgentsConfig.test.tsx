@@ -3,7 +3,7 @@
 import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
-import AcpAgentsConfigPage from './AcpAgentsConfig';
+import AcpAgentsConfigPage, { type AcpAgentsConfigHandle } from './AcpAgentsConfig';
 import {
   discardAndContinueSettingsNavigation,
   getSettingsDraftSnapshot,
@@ -27,8 +27,8 @@ const translate = (_key: string, options?: Record<string, unknown> & { defaultVa
   options?.defaultValue ?? _key
 );
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
+vi.mock('@/infrastructure/i18n', () => ({
+  useI18n: () => ({
     t: translate,
   }),
 }));
@@ -36,16 +36,24 @@ vi.mock('react-i18next', () => ({
 vi.mock('@openbitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@openbitfun/ui')>(),
   ConfirmDialog: ({
+    cancelText,
     confirmText,
     message,
     onConfirm,
+    onOpenChange,
+    onSecondary,
     open,
+    secondaryText,
     title,
   }: {
+    cancelText?: string;
     confirmText: string;
     message: React.ReactNode;
     onConfirm: () => void;
+    onOpenChange: (open: false) => void;
+    onSecondary?: () => void;
     open: boolean;
+    secondaryText?: string;
     title: string;
   }) => open ? (
     <div role="dialog">
@@ -54,6 +62,8 @@ vi.mock('@openbitfun/ui', async importOriginal => ({
       <button type="button" data-testid="confirm-install" onClick={onConfirm}>
         {confirmText}
       </button>
+      {onSecondary ? <button type="button" onClick={onSecondary}>{secondaryText}</button> : null}
+      {cancelText ? <button type="button" onClick={() => onOpenChange(false)}>{cancelText}</button> : null}
     </div>
   ) : null,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
@@ -298,6 +308,64 @@ describe('AcpAgentsConfig', () => {
     vi.clearAllMocks();
   });
 
+  it('closes a clean dialog without saving configuration', async () => {
+    const manager = React.createRef<AcpAgentsConfigHandle>();
+    const onClose = vi.fn();
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage ref={manager} presentation="dialog" onClose={onClose} />);
+    });
+
+    act(() => manager.current?.requestClose());
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+  });
+
+  it('retains dialog edits on cancel or failed save, and closes only after a successful save', async () => {
+    const manager = React.createRef<AcpAgentsConfigHandle>();
+    const onClose = vi.fn();
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage ref={manager} presentation="dialog" clientIds={['opencode']} onClose={onClose} />);
+    });
+    await selectPermission(container, 'allow_once');
+    act(() => manager.current?.requestClose());
+    expect(onClose).not.toHaveBeenCalled();
+
+    const guardButton = (label: string) => Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === label)!;
+    await act(async () => guardButton('settings:changeGuard.keepEditing').click());
+    expect(container.textContent).not.toContain('settings:changeGuard.title');
+    expect(onClose).not.toHaveBeenCalled();
+
+    act(() => manager.current?.requestClose());
+    saveJsonConfigMock.mockRejectedValueOnce(new Error('Save failed'));
+    await act(async () => guardButton('settings:changeGuard.saveAndLeave').click());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('settings:changeGuard.title');
+    expect(notifyErrorMock).toHaveBeenCalled();
+
+    await act(async () => guardButton('settings:changeGuard.saveAndLeave').click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(JSON.parse(saveJsonConfigMock.mock.calls[1][0]).acpClients.opencode.permissionMode).toBe('allow_once');
+  });
+
+  it('discards dialog edits only after the user chooses to leave without saving', async () => {
+    const manager = React.createRef<AcpAgentsConfigHandle>();
+    const onClose = vi.fn();
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage ref={manager} presentation="dialog" clientIds={['opencode']} onClose={onClose} />);
+    });
+    await selectPermission(container, 'allow_once');
+    act(() => manager.current?.requestClose());
+
+    const discard = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'settings:changeGuard.discardAndLeave')!;
+    await act(async () => discard.click());
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['ask', 'ask'],
     ['allow_once', 'allow_once'],
@@ -472,7 +540,7 @@ describe('AcpAgentsConfig', () => {
     });
 
     expect(container.querySelector('header')?.textContent).toContain('actions.learnMore');
-    const registryHeading = Array.from(container.querySelectorAll('h2'))
+    const registryHeading = Array.from(container.querySelectorAll('h3'))
       .find(heading => heading.textContent === 'registry.title');
     const registrySection = registryHeading?.closest('section');
     expect(registrySection?.textContent).toContain('actions.refresh');

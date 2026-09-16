@@ -393,6 +393,25 @@
   &__notice {
     margin-bottom: 12px;
     padding: 0;
+
+    &[data-openbitfun-component='alert'] {
+      display: block;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      font-family: inherit;
+      font-weight: inherit;
+      line-height: inherit;
+      letter-spacing: inherit;
+
+      > [data-openbitfun-part='content'] {
+        display: block;
+
+        > [data-openbitfun-part='message'] {
+          color: inherit;
+        }
+      }
+    }
   }
 
   &__empty {

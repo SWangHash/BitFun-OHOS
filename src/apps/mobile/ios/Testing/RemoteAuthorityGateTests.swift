@@ -583,6 +583,56 @@ struct RemoteAuthorityGateTests {
             message: "terminal authority loss clears the complete target projection before dropping model authority"
         )
 
+        for (target, storeDevice) in [("account:device-a", "device-a" as String?), ("pairing:session-a", nil)] {
+            expect(RemoteAuthorityGate.filePreviewCallbackMatchesAuthority(
+                requestTargetKey: target, requestEpoch: 7,
+                adapterTargetKey: target, adapterEpoch: 7,
+                expectedStoreDeviceKey: storeDevice, callbackDeviceKey: storeDevice
+            ), "preview accepts store identity independently of the adapter namespace")
+            expect(!RemoteAuthorityGate.filePreviewCallbackMatchesAuthority(
+                requestTargetKey: target, requestEpoch: 7,
+                adapterTargetKey: target, adapterEpoch: 8,
+                expectedStoreDeviceKey: storeDevice, callbackDeviceKey: storeDevice
+            ), "rebound stores cannot update an old preview")
+            expect(!RemoteAuthorityGate.filePreviewCallbackMatchesAuthority(
+                requestTargetKey: target, requestEpoch: 7,
+                adapterTargetKey: target, adapterEpoch: 7,
+                expectedStoreDeviceKey: storeDevice, callbackDeviceKey: "different-device"
+            ), "another device's preview is rejected")
+        }
+
+        expect(ComposerSendSettlementPolicy.shouldRestore(
+            sentSession: "a", currentSession: "a", acknowledged: false,
+            draftIsEmpty: true, attachmentsAreEmpty: true
+        ), "failed send restores the cleared composer")
+        for (session, ack, emptyDraft, emptyImages) in [
+            ("a", true, true, true), ("b", false, true, true),
+            ("a", false, false, true), ("a", false, true, false)
+        ] {
+            expect(!ComposerSendSettlementPolicy.shouldRestore(
+                sentSession: "a", currentSession: session, acknowledged: ack,
+                draftIsEmpty: emptyDraft, attachmentsAreEmpty: emptyImages
+            ), "send settlement preserves newer typing, attachments and another session")
+        }
+        expectCallBeforeMutation(
+            in: remoteSessionSource,
+            function: "func sendRemote()",
+            call: "draft = \"\"",
+            mutation: "coreAdapter.sendRemote(",
+            message: "accepted send clears the composer before dispatching network work"
+        )
+
+        let selectionAdapterSource = readSource(
+            iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileCoreAdapter.swift")
+        )
+        expectCallBeforeMutation(
+            in: selectionAdapterSource,
+            function: "func selectAccountDevice(id: String)",
+            call: "onAccountState?(ready, accountGeneration)",
+            mutation: "startAccountRemoteSessionIfNeeded(",
+            message: "reselecting a persisted device acknowledges account readiness without waiting for a changed StateFlow"
+        )
+
         let filePreviewSource = readSource(
             iosDirectory.appendingPathComponent("OpenBitFun/Infrastructure/MobileAppModel+FilePreview.swift")
         )

@@ -14,9 +14,12 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +37,8 @@ import com.openbitfun.mobile.app.R
 import com.openbitfun.mobile.app.ui.chat.FileReferenceCards
 import com.openbitfun.mobile.app.ui.chat.MarkdownContent
 import com.openbitfun.mobile.app.ui.chat.tool.ToolStatusList
+import com.openbitfun.mobile.app.ui.chat.tool.ToolDisclosure
+import com.openbitfun.mobile.app.ui.chat.tool.LocalToolDisclosure
 import com.openbitfun.mobile.core.feature.session.MessageBlock
 import com.openbitfun.mobile.core.feature.session.QuestionAnswer
 import com.openbitfun.mobile.core.feature.workspace.RemoteFileDownloadUiState
@@ -43,7 +48,7 @@ internal const val SUBAGENT_GROUP_TEST_TAG: String = "subagent-group"
 /** What the app has to be handed to draw any block, gathered so nesting stays cheap. */
 internal data class MessageBlockCallbacks(
     val enabled: Boolean,
-    val onApproveTool: (String) -> Unit,
+    val onApproveTool: (String, String?) -> Unit,
     val onRejectTool: (String, String) -> Unit,
     val onCancelTool: (String, String) -> Unit,
     val onAnswerTool: (String, String) -> Unit,
@@ -71,11 +76,34 @@ internal fun MessageBlockList(
     callbacks: MessageBlockCallbacks,
     modifier: Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        blocks.forEach { block -> MessageBlockView(block, callbacks) }
+    val selectedTool = rememberSaveable { mutableStateOf<String?>(null) }
+    val disclosure = remember { ToolDisclosure(selectedTool) }
+    CompositionLocalProvider(LocalToolDisclosure provides disclosure) {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val groups = remember(blocks) { processGroups(blocks) }
+            groups.forEach { group ->
+                key(group.id) {
+                    var expanded by rememberSaveable { mutableStateOf(false) }
+                    if (group.summarized) {
+                        Row(Modifier.fillMaxWidth().height(32.dp).clickable { expanded = !expanded },
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.tool_group_summary, group.tools.size),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f))
+                            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(
+                                if (expanded) R.drawable.ic_symbol_chevron_down else R.drawable.ic_symbol_chevron_right),
+                                contentDescription = null, modifier = Modifier.width(16.dp))
+                        }
+                    }
+                    if (!group.summarized || expanded) group.blocks.forEach { block ->
+                        key(block.id) { MessageBlockView(block, callbacks) }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -129,17 +157,9 @@ private fun MessageBlockView(block: MessageBlock, callbacks: MessageBlockCallbac
  */
 @Composable
 private fun SubagentGroup(block: MessageBlock.Subagent, callbacks: MessageBlockCallbacks) {
-    var expanded by remember(block.id) { mutableStateOf(block.running) }
-    var userToggled by remember(block.id) { mutableStateOf(false) }
-    LaunchedEffect(block.running) {
-        expanded = if (block.running) {
-            if (userToggled) expanded else true
-        } else {
-            userToggled = false
-            false
-        }
-    }
-
+    var expanded by rememberSaveable(block.id) { mutableStateOf(false) }
+    val children = remember(block.children, block.running) { subagentChildren(block) }
+    val hasDetails = children.isNotEmpty() || block.text.isNotBlank()
     val outline = MaterialTheme.colorScheme.outlineVariant
     Column(
         modifier = Modifier
@@ -156,15 +176,13 @@ private fun SubagentGroup(block: MessageBlock.Subagent, callbacks: MessageBlockC
                 .toggleable(
                     value = expanded,
                     role = Role.Button,
-                    onValueChange = {
-                        userToggled = block.running
-                        expanded = !expanded
-                    },
+                    enabled = hasDetails,
+                    onValueChange = { expanded = it },
                 ),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            androidx.compose.material3.Icon(
+            if (hasDetails) androidx.compose.material3.Icon(
                 painter = androidx.compose.ui.res.painterResource(
                     if (expanded) R.drawable.ic_symbol_chevron_down else R.drawable.ic_symbol_chevron_right,
                 ),
@@ -177,10 +195,18 @@ private fun SubagentGroup(block: MessageBlock.Subagent, callbacks: MessageBlockC
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
+            Text(stringResource(when {
+                subagentFailed(block.status) -> R.string.tool_phase_failed
+                block.running -> R.string.tool_phase_running
+                else -> R.string.tool_phase_completed
+            }), style = MaterialTheme.typography.labelSmall,
+                color = if (subagentFailed(block.status)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (expanded) {
+        if (expanded && hasDetails) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,16 +221,26 @@ private fun SubagentGroup(block: MessageBlock.Subagent, callbacks: MessageBlockC
                     .padding(start = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (block.running) ChatTypingDots(Modifier)
-                if (block.text.isNotBlank()) {
+                if (children.isEmpty() && block.text.isNotBlank()) {
                     Text(
-                        block.text,
+                        subagentPreview(block.text),
+                        maxLines = 4,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         fontSize = 14.sp,
                         lineHeight = 21.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                block.children.forEach { child -> MessageBlockView(child, callbacks) }
+                children.forEach { child -> key(child.id) {
+                    if (child is MessageBlock.Text) {
+                        Text(stringResource(R.string.chat_subagent_output), style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(subagentPreview(child.text), maxLines = 4,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else MessageBlockView(child, callbacks)
+                } }
             }
         }
     }
@@ -219,8 +255,8 @@ private fun SubagentGroup(block: MessageBlock.Subagent, callbacks: MessageBlockC
  */
 @Composable
 internal fun ThinkingBlock(thinking: String, streaming: Boolean, stateKey: String) {
-    var expanded by remember(stateKey) { mutableStateOf(streaming) }
-    var userToggled by remember(stateKey) { mutableStateOf(false) }
+    var expanded by rememberSaveable(stateKey) { mutableStateOf(streaming) }
+    var userToggled by rememberSaveable(stateKey) { mutableStateOf(false) }
     LaunchedEffect(streaming) {
         expanded = if (streaming) {
             if (userToggled) expanded else true

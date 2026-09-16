@@ -1,5 +1,5 @@
 import { GitHubAccountProfile, GitHubProfileLoader } from '../../services/GitHubAccountProfile';
-import { normalizeAccountRelayUrl } from '../../services/AccountDeviceLink';
+import { normalizeAccountRelayUrl, OFFICIAL_RELAY_URL } from '../../services/AccountDeviceLink';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { stampRemoteSessionsDevice } from '../../services/RemoteSessionIdentity';
 import {
@@ -13,7 +13,6 @@ import {
 import { CloudAccountSessionStore, PersistedCloudAccountSession } from '../../services/CloudAccountSessionStore';
 import { ConnectionErrorPolicy } from '../../services/ConnectionErrorPolicy';
 import { Encoding } from '../../services/Encoding';
-import { RemoteHeartbeatController } from '../../services/RemoteHeartbeatController';
 import { RemoteLogger } from '../../services/RemoteLogger';
 import { RemoteSessionManager } from '../../services/RemoteSessionManager';
 import { WatchProvisionOutcome } from '../../services/WatchProvisionController';
@@ -61,9 +60,6 @@ export interface PreferredCloudTarget {
   readonly deviceName: string;
 }
 
-/** How often presence is refetched while device rows are on screen. */
-const PRESENCE_POLL_INTERVAL_MS: number = 20000;
-
 /** Owns the authenticated account and remote device selection. */
 export class SettingsController {
   private readonly cloud?: CloudAccountSettingsDependencies;
@@ -75,7 +71,12 @@ export class SettingsController {
   private cloudAccountUsername: string = '';
   private accountDevices: CloudAccountDevice[] = [];
   private lastAccountDevicesAt: number = 0;
-  private presenceTicker?: RemoteHeartbeatController;
+  private stopPresence?: () => void;
+  private presenceGeneration: number = 0;
+  private presenceRefreshing: boolean = false;
+  private targetProbeTimer: number = -1;
+  private targetProbing: boolean = false;
+  private targetProbeDelay: number = 250;
   private restoringControlTarget: boolean = false;
   private accountDeviceSelectionVersion: number = 0;
   /** Last account device the user successfully controlled, independent of the live QR projection. */
@@ -195,6 +196,7 @@ export class SettingsController {
     remoteState.setAccountAvatarUrl('');
     remoteState.setAccountUserId(session.userId);
     remoteState.setAccountUsername(this.cloudAccountUsername);
+    this.startPresencePolling(0);
   }
 
   cancelCloudLogin(): void { this.cloud?.client.cancelAuthorization(); }
@@ -241,29 +243,93 @@ export class SettingsController {
     };
   }
 
-  /**
-   * Polls presence for as long as device rows are on screen.
-   *
-   * Events alone do not cover the screen where this matters most: the wide
-   * layout keeps the sidebar mounted in its master pane, so the drawer open
-   * that carries a refresh never fires there and a desktop coming online is
-   * never noticed. The relay cannot push presence, so the rows have to ask.
-   * The ticker reuses the heartbeat's drop-overlapping-ticks semantics, and
-   * [maxAgeMs] still gates the request, so a tick that lands right after an
-   * event-driven refresh costs nothing.
-   */
-  startPresencePolling(maxAgeMs: number): void {
-    if (!this.presenceTicker) {
-      this.presenceTicker = new RemoteHeartbeatController(async (): Promise<void> => {
-        await this.refreshAccountDevicesIfStale(maxAgeMs);
-      }, PRESENCE_POLL_INTERVAL_MS);
+  /** Account Socket.IO owns liveness. Presence snapshots update known rows
+   * directly; reconnect and unknown devices hydrate metadata once, never idle. */
+  startPresencePolling(_maxAgeMs: number): void {
+    this.stopPresencePolling();
+    const binding = this.activeCloudAccount();
+    if (!binding) return;
+    const epoch = this.presenceGeneration;
+    try {
+      this.stopPresence = binding.client.observePresence(binding.relayUrl, binding.session,
+      (ids: string[]) => {
+        if (epoch !== this.presenceGeneration) return;
+        const previousTarget = this.accountDevices.find((device: CloudAccountDevice) => device.deviceId === this.requireCloud().remoteState.controlTargetDeviceId);
+        this.accountDevices = this.accountDevices.map((device: CloudAccountDevice): CloudAccountDevice => ({
+          deviceId: device.deviceId, deviceName: device.deviceName, deviceKind: device.deviceKind,
+          lastSeenAt: device.lastSeenAt, online: ids.includes(device.deviceId)
+        }));
+        const cloud = this.requireCloud();
+        cloud.hooks.onAccountDevices(this.accountDevices);
+        const target = cloud.remoteState.controlTargetDeviceId;
+        if (target && !ids.includes(target)) {
+          cloud.remoteState.setConnectionState('reconnecting');
+          cloud.remoteState.setStatusText(RemoteI18n.t('remote.settings.deviceUnavailable'));
+          if (this.targetProbeTimer !== -1) clearTimeout(this.targetProbeTimer);
+          this.targetProbeTimer = -1;
+        } else if (target && previousTarget?.online !== true) {
+          this.targetProbeDelay = 250; this.scheduleTargetProbe(epoch);
+        }
+        if (ids.some((id: string) => !this.accountDevices.some((device: CloudAccountDevice) => device.deviceId === id))) void this.hydratePresence(epoch);
+      },
+      () => { void this.hydratePresence(epoch); });
+    } catch (error) {
+      // Transport startup failure must not invalidate a restored account identity.
+      const cloud = this.requireCloud();
+      cloud.remoteState.setStatusText(ConnectionErrorPolicy.errorText(error));
+      if (cloud.remoteState.controlTargetDeviceId) cloud.remoteState.setConnectionState('reconnecting');
+      RemoteLogger.warn(`account presence observer failed: ${ConnectionErrorPolicy.errorText(error)}`);
     }
-    this.presenceTicker.start();
   }
 
-  /** Stops the presence poll. Nothing is on screen to go stale. */
   stopPresencePolling(): void {
-    this.presenceTicker?.stop();
+    this.presenceGeneration++;
+    this.stopPresence?.(); this.stopPresence = undefined;
+    if (this.targetProbeTimer !== -1) clearTimeout(this.targetProbeTimer);
+    this.targetProbeTimer = -1;
+  }
+
+  private async hydratePresence(epoch: number): Promise<void> {
+    if (this.presenceRefreshing || epoch !== this.presenceGeneration) return;
+    this.presenceRefreshing = true;
+    try {
+      await this.refreshAccountDevicesIfStale(0);
+      if (epoch === this.presenceGeneration) { this.targetProbeDelay = 250; this.scheduleTargetProbe(epoch); }
+    }
+    finally { this.presenceRefreshing = false; }
+  }
+
+  private scheduleTargetProbe(epoch: number): void {
+    if (epoch !== this.presenceGeneration || this.targetProbeTimer !== -1 || this.targetProbing) return;
+    const cloud = this.requireCloud();
+    const target = cloud.remoteState.controlTargetDeviceId;
+    if (!target || !this.accountDevices.some((device: CloudAccountDevice) => device.deviceId === target && device.online)) return;
+    this.targetProbeTimer = setTimeout(() => {
+      this.targetProbeTimer = -1;
+      void this.probeTarget(epoch, target);
+    }, this.targetProbeDelay);
+  }
+
+  private async probeTarget(epoch: number, target: string): Promise<void> {
+    if (epoch !== this.presenceGeneration || target !== this.requireCloud().remoteState.controlTargetDeviceId) return;
+    this.targetProbing = true;
+    let retry = false;
+    try {
+      await this.requireCloud().sessionManager.ping();
+      if (epoch !== this.presenceGeneration || target !== this.requireCloud().remoteState.controlTargetDeviceId) return;
+      this.requireCloud().remoteState.setConnectionState('connected');
+      this.targetProbeDelay = 250;
+    } catch (error) {
+      if (epoch === this.presenceGeneration && target === this.requireCloud().remoteState.controlTargetDeviceId) {
+        this.requireCloud().remoteState.setConnectionState('reconnecting');
+        this.requireCloud().remoteState.setStatusText(ConnectionErrorPolicy.errorText(error));
+        this.targetProbeDelay = Math.min(30000, this.targetProbeDelay * 2);
+        retry = true;
+      }
+    } finally {
+      this.targetProbing = false;
+      if (retry) this.scheduleTargetProbe(epoch);
+    }
   }
 
   /**
@@ -320,11 +386,13 @@ export class SettingsController {
     }
     try {
       const devices = await cloud.client.listDevices(this.cloudRelayUrl, session, cloud.hooks.deviceId());
+      if (this.cloudSession !== session) throw new Error('Account changed while loading devices');
       this.accountDevices = devices;
       this.lastAccountDevicesAt = Date.now();
       cloud.hooks.onAccountDevices(devices);
       return devices;
     } catch (err) {
+      if (this.cloudSession !== session) throw new Error('Account changed while loading devices');
       if (err instanceof CloudAccountRequestError && err.statusCode === 401) {
         await this.expireCloudAccountSession();
         throw new Error(RemoteI18n.t('remote.settings.accountExpired'));
@@ -628,6 +696,15 @@ export class SettingsController {
       if (!persisted) {
         return;
       }
+      if (/^https:\/\/remote\.openbitfun\.com\/v\/[^/]+\/?$/.test(persisted.relayUrl) && persisted.relayUrl.replace(/\/+$/, '') !== OFFICIAL_RELAY_URL) {
+        // Relay credentials are database-scoped; never replay an older credential at a new endpoint.
+        this.selectedRelayUrl = OFFICIAL_RELAY_URL;
+        this.cloudRelayUrl = OFFICIAL_RELAY_URL;
+        cloud.remoteState.setAccountUserId(persisted.userId);
+        cloud.remoteState.setAccountUsername(persisted.username || persisted.userId);
+        cloud.remoteState.setStatusText(RemoteI18n.t('remote.settings.relayReauthorizationRequired'));
+        return;
+      }
       const session: CloudAccountSession = {
         token: persisted.token,
         userId: persisted.userId,
@@ -677,6 +754,7 @@ export class SettingsController {
     // Invalidate late device-selection completions before touching observable
     // state. During an in-flight switch the target is deliberately `none`, but
     // its busy/status/session projection still belongs to the account.
+    cloud.client.closeAccount();
     this.accountDeviceSelectionVersion += 1;
     this.resetAccountDeviceConnection(true);
     this.clearCloudAccountIdentity(cloud);

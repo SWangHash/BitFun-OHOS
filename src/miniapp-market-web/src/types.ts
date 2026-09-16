@@ -1,5 +1,6 @@
 export interface MarketUser {
   githubId: number;
+  accountId?: string;
   login: string;
   avatarUrl: string;
 }
@@ -142,12 +143,14 @@ export interface CursorPage<T> {
 }
 
 export interface Me {
+  email?: string;
   user: MarketUser;
   isAdmin: boolean;
 }
 
 export interface MarketConfig {
   githubAuthConfigured: boolean;
+  emailAuthConfigured?: boolean;
   publicBrowse: boolean;
   webSubmissionsEnabled: boolean;
   categories: string[];

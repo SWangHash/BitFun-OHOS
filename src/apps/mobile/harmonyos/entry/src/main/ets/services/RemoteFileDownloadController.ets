@@ -1,10 +1,8 @@
 import fs from '@ohos.file.fs';
 import picker from '@ohos.file.picker';
-import { FileInfo, ReadFileResult } from '../model/RemoteModels';
+import { FileInfo, RuntimeFileLocation } from '../model/RemoteModels';
 import { RemoteI18n } from '../i18n/RemoteI18n';
 import { ConnectionErrorPolicy } from './ConnectionErrorPolicy';
-import { Encoding } from './Encoding';
-import { OhosError } from './OhosError';
 import { RemoteWorkspaceFileClient } from './RemoteWorkspaceFileClient';
 import { RemoteUiState } from './RemoteUiState';
 import { RemoteLogger } from './RemoteLogger';
@@ -17,7 +15,10 @@ export interface RemoteFileDownloadScheduler {
 }
 
 export interface RemoteFileSaver {
-  save(result: ReadFileResult): Promise<string>;
+  begin(name: string): Promise<void>;
+  write(bytes: Uint8Array): Promise<void>;
+  finish(): Promise<string>;
+  abort(): Promise<void>;
 }
 
 class SystemRemoteFileDownloadScheduler implements RemoteFileDownloadScheduler {
@@ -31,35 +32,38 @@ class SystemRemoteFileDownloadScheduler implements RemoteFileDownloadScheduler {
 }
 
 class SystemRemoteFileSaver implements RemoteFileSaver {
-  async save(result: ReadFileResult): Promise<string> {
-    const options = new picker.DocumentSaveOptions();
-    options.newFileNames = [result.name];
-    let uris: Array<string> = [];
-    try {
-      uris = await new picker.DocumentViewPicker().save(options);
-    } catch (err) {
-      throw OhosError.wrap('file picker save', err);
+  private file?: fs.File;
+  private uri: string = '';
+  async begin(name: string): Promise<void> {
+    const options = new picker.DocumentSaveOptions(); options.newFileNames = [name];
+    const uris = await new picker.DocumentViewPicker().save(options);
+    if (!uris.length) throw new Error('No destination file was selected.');
+    const file = await fs.open(uris[0], fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE);
+    let size = 0;
+    try { size = (await fs.stat(file.fd)).size; } catch (error) { await fs.close(file); throw error as Error; }
+    // Document providers do not promise atomic replace. Preserve existing user
+    // content and only stream into the empty new destination chosen by picker.
+    if (size !== 0) { await fs.close(file); throw new Error('Choose a new destination file to preserve existing content.'); }
+    this.file = file; this.uri = uris[0];
+  }
+  async write(bytes: Uint8Array): Promise<void> {
+    if (!this.file) throw new Error('Download destination is not open.');
+    let offset = 0;
+    while (offset < bytes.length) {
+      const buffer = bytes.slice(offset).buffer;
+      const count = await fs.write(this.file.fd, buffer);
+      if (count <= 0) throw new Error('Download destination write was incomplete.');
+      offset += count;
     }
-    const uri = uris.length > 0 ? uris[0] : '';
-    if (uri.length === 0) {
-      throw new Error('No destination file was selected.');
-    }
-    let file: fs.File | undefined = undefined;
-    try {
-      file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, Encoding.base64ToBytes(result.contentBase64).buffer);
-    } catch (err) {
-      throw OhosError.wrap('file download write', err);
-    } finally {
-      if (file) {
-        try {
-          fs.closeSync(file);
-        } catch (closeErr) {
-          throw OhosError.wrap('file download close', closeErr);
-        }
-      }
-    }
-    return uri;
+  }
+  async finish(): Promise<string> {
+    if (!this.file) throw new Error('Download destination is not open.');
+    await fs.fsync(this.file.fd); await fs.close(this.file); this.file = undefined;
+    const uri = this.uri; this.uri = ''; return uri;
+  }
+  async abort(): Promise<void> {
+    const file = this.file; const uri = this.uri; this.file = undefined; this.uri = '';
+    try { if (file) await fs.close(file); } finally { if (uri) await fs.unlink(uri); }
   }
 }
 
@@ -76,6 +80,8 @@ export class RemoteFileDownloadController {
   private downloadedFilePath: string = '';
   private fileDownloadStatus: string = '';
   private clearTimerId: number = 0;
+  private generation: number = 0;
+  private running: boolean = false;
 
   constructor(
     client: RemoteFileDownloadClient,
@@ -97,29 +103,29 @@ export class RemoteFileDownloadController {
     this.fileSaver = fileSaver;
   }
 
-  async download(path: string, sessionId: string, isBusy: boolean, remoteAvailable: boolean): Promise<void> {
+  async download(path: string, sessionId: string, isBusy: boolean, remoteAvailable: boolean, location?: RuntimeFileLocation): Promise<void> {
     const remotePath = RemoteUiState.normalizeRemoteFilePath(path);
-    if (sessionId.length === 0 || remotePath.length === 0 || isBusy || !remoteAvailable) {
+    if ((!sessionId && !location?.path) || remotePath.length === 0 || isBusy || this.running || !remoteAvailable) {
       return;
     }
     this.cancelClearTimer();
+    const generation = ++this.generation;
+    this.running = true;
     try {
       RemoteLogger.info(`file_download start session=${sessionId.length > 0 ? 'set' : 'none'}`);
       this.onBusy(true);
       this.setDownloadStatus(path, '', RemoteI18n.t('status.fileInfo'));
-      const info = await this.client.getFileInfo(remotePath, sessionId);
-      RemoteLogger.info(`file_download metadata name=${info.name} size=${info.size} mime=${info.mimeType}`);
-      this.setDownloadStatus(path, '', RemoteI18n.f('status.prepareDownload', RemoteUiState.formatBytes(info.size)));
-      const result: ReadFileResult = await this.client.readFile(remotePath, sessionId, (downloaded: number, total: number) => {
-        this.setDownloadStatus(
-          path,
-          '',
-          `${RemoteUiState.formatBytes(downloaded)} / ${RemoteUiState.formatBytes(total)}`
-        );
-      });
-      RemoteLogger.info(`file_download data_ready name=${result.name} size=${result.size}`);
-      await this.fileSaver.save(result);
-      RemoteLogger.info(`file_download saved name=${result.name} size=${result.size}`);
+      let opened = false;
+      const result = await this.client.streamFile(remotePath, sessionId || undefined, async (bytes: Uint8Array, info: FileInfo): Promise<void> => {
+        if (generation !== this.generation) throw new Error('File download cancelled.');
+        if (!opened) { await this.fileSaver.begin(info.name); opened = true; }
+        if (generation !== this.generation) throw new Error('File download cancelled.');
+        await this.fileSaver.write(bytes);
+      }, (downloaded: number, total: number) => {
+        this.setDownloadStatus(path, '', `${RemoteUiState.formatBytes(downloaded)} / ${RemoteUiState.formatBytes(total)}`);
+      }, location);
+      if (generation !== this.generation) throw new Error('File download cancelled.');
+      await this.fileSaver.finish();
       this.setDownloadStatus(
         path,
         path,
@@ -127,22 +133,26 @@ export class RemoteFileDownloadController {
       );
       this.onStatusText(this.fileDownloadStatus);
     } catch (err) {
+      try { await this.fileSaver.abort(); } catch (cleanupError) { RemoteLogger.error(`file_download cleanup_failed message=${String(cleanupError)}`); }
       const errorText = ConnectionErrorPolicy.errorText(err);
       RemoteLogger.error(`file_download failed message=${errorText}`);
       this.setDownloadStatus(this.downloadingFilePath, this.downloadedFilePath, errorText);
       this.onStatusText(this.fileDownloadStatus);
     } finally {
+      this.running = false;
       this.onBusy(false);
       this.scheduleClearDownloadingFilePath();
     }
   }
 
   clear(): void {
+    this.generation++;
     this.cancelClearTimer();
     this.setDownloadStatus('', '', '');
   }
 
   cancel(): void {
+    this.generation++;
     this.cancelClearTimer();
   }
 

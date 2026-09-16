@@ -1,3 +1,4 @@
+import { Disclosure } from '@openbitfun/ui';
 import React from 'react';
 import { ConfigPageRow, ConfigPageSection } from '../common';
 import {
@@ -40,8 +41,8 @@ export const ExternalSourceSection: React.FC<ExternalSourceSectionProps> = ({
               className="openbitfun-external-sources-config__source-group"
               label={group.displayName}
               description={(
-                <div className="openbitfun-external-sources-config__source-description" data-openbitfun-component="external-sources-config" data-openbitfun-part="sourceGroup">
-                  <span className="openbitfun-external-sources-config__source-origin" data-openbitfun-component="external-sources-config" data-openbitfun-part="sourceDescription">
+                <div className="openbitfun-external-sources-config__source-description" data-openbitfun-product-component="external-sources-config" data-openbitfun-product-part="sourceGroup">
+                  <span className="openbitfun-external-sources-config__source-origin" data-openbitfun-product-component="external-sources-config" data-openbitfun-product-part="sourceDescription">
                     <span
                       className="openbitfun-external-sources-config__source-location"
                       title={group.location}
@@ -85,27 +86,26 @@ export const ExternalSourceSection: React.FC<ExternalSourceSectionProps> = ({
               {renderSourceMembers(group)}
             </ConfigPageRow>
             {userDiagnostics.length > 0 ? (
-              <details
+              <Disclosure
+                presentation="native"
                 className="openbitfun-external-sources-config__notice"
-                data-openbitfun-component="external-sources-config"
-                data-openbitfun-part="notice"
+                data-openbitfun-product-component="external-sources-config"
+                data-openbitfun-product-part="notice"
                 data-external-attention="true"
                 data-external-ecosystem={group.ecosystemId}
+                summary={t('diagnostics.sourceSummary', {
+                  name: group.displayName,
+                  count: userDiagnostics.length,
+                })}
               >
-                <summary>
-                  {t('diagnostics.sourceSummary', {
-                    name: group.displayName,
-                    count: userDiagnostics.length,
-                  })}
-                </summary>
-                <ul className="openbitfun-external-sources-config__diagnostics" data-openbitfun-component="external-sources-config" data-openbitfun-part="diagnostics">
+                <ul className="openbitfun-external-sources-config__diagnostics" data-openbitfun-product-component="external-sources-config" data-openbitfun-product-part="diagnostics">
                   {userDiagnostics.map((diagnostic) => (
                     <li key={externalSourceDiagnosticKey(diagnostic)}>
                       <span>{t(`diagnostics.category.${sourceDiagnosticCategory(diagnostic.code)}`)}</span>
                     </li>
                   ))}
                 </ul>
-              </details>
+              </Disclosure>
             ) : null}
           </React.Fragment>
         );

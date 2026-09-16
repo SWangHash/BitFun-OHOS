@@ -17,13 +17,13 @@ Choose the search provider used by the WebSearch tool at runtime and configure c
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在免费 Exa MCP、Exa Search API、Tavily 与 OpenBitFun Search HTTP Protocol 之间选择运行时服务
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在免费 Exa MCP、Exa Search API、Tavily 与 OpenBitFun Search HTTP Protocol 之间选择运行时服务
   - Choose free Exa MCP, Exa Search API, Tavily, or OpenBitFun Search HTTP Protocol as the runtime provider
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 为 OpenBitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为 OpenBitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header
   - Configure the endpoint, authentication mode, and restricted credential header for OpenBitFun Search HTTP Protocol
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看当前执行主机的凭据状态，并保存、替换或清除 API Key/Secret
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看当前执行主机的凭据状态，并保存、替换或清除 API Key/Secret
   - Inspect credential status on the current execution host and save, replace, or clear an API key or secret
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看并复制 OpenBitFun Search HTTP Protocol v1 的请求、响应和传输限制
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看并复制 OpenBitFun Search HTTP Protocol v1 的请求、响应和传输限制
   - Inspect and copy the request, response, and transport limits for OpenBitFun Search HTTP Protocol v1
 
 ## 怎么用 / How to use it
@@ -37,7 +37,7 @@ Choose the search provider used by the WebSearch tool at runtime and configure c
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -49,13 +49,13 @@ Choose the search provider used by the WebSearch tool at runtime and configure c
 | --- | --- | --- | --- |
 | 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开网页搜索设置”
   - “Open Web Search settings”
 - “带我配置 WebSearch 搜索服务”
   - “Take me to WebSearch provider setup”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

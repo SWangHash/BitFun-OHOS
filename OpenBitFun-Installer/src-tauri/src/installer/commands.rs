@@ -90,6 +90,7 @@ struct PayloadManifestFile {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LaunchContext {
     pub mode: String,
+    pub preview_only: bool,
     pub uninstall_path: Option<String>,
     pub app_language: Option<String>,
 }
@@ -427,6 +428,15 @@ unsafe fn windows_sys_get_disk_free_space(
 
 #[tauri::command]
 pub(crate) fn get_launch_context() -> LaunchContext {
+    // Resolve preview before helpers that create the application's config directory.
+    if crate::preview::is_enabled() {
+        return LaunchContext {
+            mode: "install".to_string(),
+            preview_only: true,
+            uninstall_path: None,
+            app_language: None,
+        };
+    }
     let args: Vec<String> = std::env::args().collect();
     let app_language = read_saved_app_language();
     if let Some(idx) = args.iter().position(|arg| arg == "--uninstall") {
@@ -436,6 +446,7 @@ pub(crate) fn get_launch_context() -> LaunchContext {
             .or_else(guess_uninstall_path_from_exe);
         return LaunchContext {
             mode: "uninstall".to_string(),
+            preview_only: false,
             uninstall_path,
             app_language,
         };
@@ -444,6 +455,7 @@ pub(crate) fn get_launch_context() -> LaunchContext {
     if is_running_as_uninstall_binary() {
         return LaunchContext {
             mode: "uninstall".to_string(),
+            preview_only: false,
             uninstall_path: guess_uninstall_path_from_exe(),
             app_language,
         };
@@ -451,6 +463,7 @@ pub(crate) fn get_launch_context() -> LaunchContext {
 
     LaunchContext {
         mode: "install".to_string(),
+        preview_only: false,
         uninstall_path: None,
         app_language,
     }

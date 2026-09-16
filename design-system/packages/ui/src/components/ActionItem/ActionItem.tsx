@@ -27,6 +27,9 @@ export type ActionItemTone = "neutral" | "danger";
 export interface ActionItemProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className"> {
   actions?: readonly ActionItemAction[];
+  /** Independently interactive trailing content, outside the primary button. */
+  actionContent?: ReactNode;
+  triggerClassName?: string;
   children: ReactNode;
   className?: string;
   leading?: ReactNode;
@@ -40,6 +43,8 @@ export interface ActionItemProps
 
 export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(function ActionItem({
   actions = [],
+  actionContent,
+  triggerClassName,
   children,
   className,
   disabled,
@@ -63,7 +68,7 @@ export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(functio
     >
       <button data-overflow-trigger
         {...props}
-        className={styles.trigger}
+        className={classNames(styles.trigger, triggerClassName)}
         data-openbitfun-part="trigger"
         disabled={disabled}
         ref={ref}
@@ -90,8 +95,9 @@ export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(functio
           </span>
         )}
       </button>
-      {actions.length > 0 && (
+      {(actions.length > 0 || actionContent != null) && (
         <span className={styles.actions} data-openbitfun-part="actions">
+          {actionContent}
           {actions.map((action) => (
               <IconButton
                 aria-label={action.label}

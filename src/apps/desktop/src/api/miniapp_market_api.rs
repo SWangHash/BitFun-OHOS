@@ -705,14 +705,17 @@ mod tests {
     use super::validate_minimum_openbitfun_version;
 
     #[test]
-    fn rejects_minimum_versions_before_initial_openbitfun_release() {
+    fn rejects_minimum_versions_above_current_release() {
         assert!(validate_minimum_openbitfun_version("1.0.0").is_ok());
+        // Market minimums below the current product version are supported by
+        // plain SemVer ordering; only minimums above the current release and
+        // pre-1.0.0 release identities are rejected.
         let pre_release_identity = [0, 9, 0]
             .into_iter()
             .map(|part| part.to_string())
             .collect::<Vec<_>>()
             .join(".");
-        assert!(validate_minimum_openbitfun_version(&pre_release_identity).is_err());
-        assert!(validate_minimum_openbitfun_version("1.0.0-rc.1").is_err());
+        assert!(validate_minimum_openbitfun_version(&pre_release_identity).is_ok());
+        assert!(validate_minimum_openbitfun_version("1.0.1").is_err());
     }
 }

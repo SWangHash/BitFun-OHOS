@@ -1487,3 +1487,29 @@
     @include nav-font.nav-panel-text-icon;
   }
 }
+
+.openbitfun-nav-panel__assistant-item-name-action[data-openbitfun-component='action-item'],
+.openbitfun-nav-panel__workspace-item-name-action[data-openbitfun-component='action-item'] {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+
+  > [data-openbitfun-part='trigger'] > [data-openbitfun-part='label'] {
+    display: contents;
+    font: inherit;
+  }
+}
+.openbitfun-nav-panel__workspace-item[data-openbitfun-state~='remote'] .openbitfun-nav-panel__workspace-item-name-action {
+  flex: 1 1 0;
+  max-width: none;
+}
+
+.openbitfun-nav-panel__assistant-item-name-action[data-openbitfun-component='action-item'] {
+  flex: 1 1 0;
+  > [data-openbitfun-part='trigger'] { width: 100%; }
+}

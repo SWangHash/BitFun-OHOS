@@ -41,3 +41,11 @@ cargo check -p openbitfun-skin-market-server
 
 Production deployment, backup and rollback are documented in
 `deploy/skin-market/README.md`.
+
+Email identities use the authority's additive `accountId`; legacy GitHub profiles
+still resolve by their numeric ID. Migration 0002 preserves all existing user IDs
+and ownership references, and keeps email accounts in a separate namespace.
+Neither an email match nor a shared display name links accounts. Old binaries do
+not support email identities after this migration; use a forward fix rather than
+rolling an old binary over new email-user data. Focused upgrade regression:
+`cargo test -p openbitfun-skin-market-service --lib email_tests`.

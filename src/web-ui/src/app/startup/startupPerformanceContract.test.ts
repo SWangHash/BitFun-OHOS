@@ -496,14 +496,15 @@ describe('startup performance contract', () => {
     expect(registrySource).toContain("id: 'application.general'");
   });
 
-  it('keeps ecosystem governance lazy until its owner surface is opened', () => {
+  it('keeps ACP settings lazy while discovery stays inline in the ecosystem header', () => {
     const sceneSource = readSource(
       '../scenes/ecosystem-compatibility/EcosystemCompatibilityScene.tsx'
     );
-    const ownerSpecifier = './ExternalAgentDiscovery';
+    const ownerSpecifier = '@/infrastructure/config/components/AcpAgentsConfig';
 
     expect(dynamicImportSpecifiers(sceneSource)).toContain(ownerSpecifier);
     expect(staticImportSpecifiers(sceneSource)).not.toContain(ownerSpecifier);
+    expect(staticImportSpecifiers(sceneSource)).toContain('./ExternalDiscoveryToggle');
   });
 
   it('keeps tool-card metadata separate from heavy card implementations', () => {

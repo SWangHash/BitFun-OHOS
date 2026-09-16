@@ -11,7 +11,6 @@ import {
   BarChart2,
   Server,
   Layers,
-  Bot,
   Cpu,
   Microscope,
 } from 'lucide-react';
@@ -20,7 +19,7 @@ export { CAPABILITY_ACCENT } from './agentAppearance';
 export type AgentIconKey =
   | 'code2' | 'eye' | 'flask' | 'bug' | 'filetext'
   | 'globe' | 'barchart' | 'layers' | 'penline' | 'server'
-  | 'bot' | 'terminal' | 'microscope' | 'cpu';
+  | 'user' | 'bot' | 'terminal' | 'microscope' | 'cpu';
 
 export const AGENT_ICON_MAP: Record<AgentIconKey, IconSource> = {
   code2: { glyph: Code2 },
@@ -33,8 +32,14 @@ export const AGENT_ICON_MAP: Record<AgentIconKey, IconSource> = {
   layers: { glyph: Layers },
   penline: { name: 'edit' },
   server: { glyph: Server },
-  bot: { glyph: Bot },
+  user: { name: 'user' },
+  // Existing agent definitions still use this key; keep their identity readable.
+  bot: { name: 'user' },
   terminal: { name: 'terminal' },
   microscope: { glyph: Microscope },
   cpu: { glyph: Cpu },
 };
+
+export function getAgentIcon(iconKey?: string): IconSource {
+  return AGENT_ICON_MAP[(iconKey ?? 'user') as AgentIconKey] ?? AGENT_ICON_MAP.user;
+}

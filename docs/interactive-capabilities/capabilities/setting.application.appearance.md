@@ -17,21 +17,21 @@ Switch themes and languages, tune typography, and install or import appearance p
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 选择跟随系统、浅色、深色、单色、Midnight、中国风、Cyber、Slate 或 Tokyo Night 等内置外观
+- **智能体可直接控制 / Direct Agent control** · 选择跟随系统、浅色、深色、单色、Midnight、中国风、Cyber、Slate 或 Tokyo Night 等内置外观
   - Choose system, light, dark, monochrome, Midnight, China, Cyber, Slate, Tokyo Night, and other built-in appearances
-- **Agent 可直接控制 / Direct Agent control** · 切换简体中文、繁体中文、英文等受支持界面语言
+- **智能体可直接控制 / Direct Agent control** · 切换简体中文、繁体中文、英文等受支持界面语言
   - Switch among Simplified Chinese, Traditional Chinese, English, and other supported UI languages
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 调整全局界面字号，并支持自定义像素值
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 调整全局界面字号，并支持自定义像素值
   - Adjust the global UI font size, including custom pixel values
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 导入、预览、应用、导出和删除本地外观包
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 导入、预览、应用、导出和删除本地外观包
   - Import, preview, apply, export, and delete local appearance packages
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 浏览、搜索、筛选并安装或更新 Skin 市场外观
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 浏览、搜索、筛选并安装或更新 Skin 市场外观
   - Browse, search, filter, install, and update appearances from the Skin market
-- **由专用 Agent 工具控制 / Delegated Agent tool** · `PublishAppearance` · 在用户明确要求时由 Agent 提交本地外观包到 Skin 市场审核
+- **由专用智能体工具控制 / Delegated Agent tool** · `PublishAppearance` · 在用户明确要求时由智能体提交本地外观包到 Skin 市场审核
   - Let an agent submit a local Appearance package for Skin-market review when explicitly requested
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看和撤回自己的外观市场投稿
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看和撤回自己的外观市场投稿
   - Review and withdraw your appearance-market submissions
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 在具备权限时查看并批准或拒绝外观投稿
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在具备权限时查看并批准或拒绝外观投稿
   - When authorized, inspect and approve or reject appearance submissions
 
 ## 怎么用 / How to use it
@@ -45,7 +45,7 @@ Switch themes and languages, tune typography, and install or import appearance p
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ Switch themes and languages, tune typography, and install or import appearance p
 | 主题 / Theme | `system` / `openbitfun-light` / `openbitfun-monochrome` / `openbitfun-slate` / `openbitfun-dark` / `openbitfun-midnight` / `openbitfun-china-style` / `openbitfun-china-night` / `openbitfun-cyber` / `openbitfun-tokyo-night` | 使用系统、OpenBitFun 深色或 OpenBitFun 浅色外观。 | Use the system, OpenBitFun dark, or OpenBitFun light appearance. |
 | 界面语言 / Interface language | `zh-CN` / `en-US` / `zh-TW` | 设置 OpenBitFun 的界面语言。 | Set the OpenBitFun interface language. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “切换成深色主题”
   - “Switch to the dark theme”
@@ -67,6 +67,6 @@ Switch themes and languages, tune typography, and install or import appearance p
 - “打开外观设置”
   - “Open Appearance settings”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

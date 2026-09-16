@@ -62,10 +62,16 @@ impl ChatMode {
                 });
                 use openbitfun_core::service::remote_connect::account_runtime::AccountLoginProgress;
                 match result {
-                    Ok(AccountLoginProgress::Authorization(authorization)) => chat_view.login_form_set_authorization(authorization),
-                    Ok(AccountLoginProgress::Waiting) => chat_view.login_form_set_status("Waiting for GitHub authorization. Complete it in your browser, then press Enter."),
+                    Ok(AccountLoginProgress::Authorization(authorization)) => {
+                        chat_view.login_form_set_authorization(authorization)
+                    }
+                    Ok(AccountLoginProgress::Waiting) => chat_view.login_form_set_status(
+                        "Waiting for sign-in. Complete it in your browser, then press Enter.",
+                    ),
                     Ok(AccountLoginProgress::Complete(login)) => {
-                        chat_state.add_system_message(crate::account::account_login_status_message(&login));
+                        chat_state.add_system_message(
+                            crate::account::account_login_status_message(&login),
+                        );
                         self.open_login_or_account_panel(chat_view, chat_state, rt_handle);
                     }
                     Err(error) => chat_view.login_form_set_error(format!("Login failed: {error}")),

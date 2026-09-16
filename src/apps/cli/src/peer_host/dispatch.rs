@@ -285,7 +285,7 @@ mod tests {
 
     #[tokio::test]
     async fn cli_unsupported_commands_keep_the_legacy_prefix_and_add_a_reason() {
-        let resp = handle_host_invoke("terminal_list", json!({})).await;
+        let resp = handle_host_invoke("worktree_list", json!({})).await;
         match resp {
             RemoteResponse::HostInvokeResult {
                 ok: false,
@@ -293,7 +293,7 @@ mod tests {
                 ..
             } => {
                 assert!(
-                    err.starts_with("command 'terminal_list' is not supported on CLI peer host"),
+                    err.starts_with("command 'worktree_list' is not supported on CLI peer host"),
                     "{err}"
                 );
                 assert!(err.contains(": "), "reason must be appended: {err}");

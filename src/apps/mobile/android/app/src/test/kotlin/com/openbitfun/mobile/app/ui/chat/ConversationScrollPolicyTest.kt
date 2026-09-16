@@ -18,6 +18,13 @@ class ConversationScrollPolicyTest {
     }
 
     @Test
+    fun aDragTakesOverBeforeTheFirstMovementAwayFromTheTail() {
+        assertFalse(ConversationScrollPolicy.shouldStickToBottom(
+            currentlySticking = true, isAtBottom = true, isScrollInProgress = true,
+        ))
+    }
+
+    @Test
     fun stopsStickingWhenReaderLeavesTail() {
         assertFalse(
             ConversationScrollPolicy.shouldStickToBottom(

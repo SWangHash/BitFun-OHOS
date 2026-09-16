@@ -103,23 +103,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("accept_operation", RemoteWorkspacePolicy::LegacyUnaudited),
     ("accept_session", RemoteWorkspacePolicy::LegacyUnaudited),
     (
-        "account_auto_sync",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
         "account_connect_devices",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
-        "account_delegate_to_paired",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
         "account_delete_device",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_delete_synced_session",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -131,31 +119,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
-        "account_export_all_sessions",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_export_local_session",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_fetch_session_turns",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_fetch_settings",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_fetch_synced_sessions",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
         "account_get_credential_hint",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_import_remote_sessions",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -163,32 +127,12 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     ("account_login", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    (
-        "account_finalize_login",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_cancel_pending_login",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
     ("account_logout", RemoteWorkspacePolicy::WorkspaceAgnostic),
     (
         "account_online_devices",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
-    (
-        "account_send_session_to_device",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
     ("account_status", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    (
-        "account_sync_session",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "account_sync_settings",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
     (
         "append_flow_chat_diagnostics",
         RemoteWorkspacePolicy::LocalOnly,
@@ -1343,47 +1287,12 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::RemoteRouted,
     ),
     ("reload_subagents", RemoteWorkspacePolicy::LegacyUnaudited),
-    // One-click self-hosted relay (SSH to user host). WorkspaceAgnostic: uses
-    // an SSH connection id, not the open project workspace. See
-    // src/web-ui/src/features/relay-deploy/README.md.
-    (
-        "relay_deploy_cancel",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_install_docker",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_poll",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_preflight",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_register",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_start",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "relay_deploy_verify",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
     (
         "remote_close_workspace",
         RemoteWorkspacePolicy::RemoteRouted,
     ),
     (
         "remote_connect_configure_bot",
-        RemoteWorkspacePolicy::WorkspaceAgnostic,
-    ),
-    (
-        "remote_connect_configure_custom_server",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -1590,6 +1499,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     (
         "save_acp_json_config",
         RemoteWorkspacePolicy::LegacyUnaudited,
+    ),
+    (
+        "report_canvas_runtime_ready",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     ("save_canvas_state", RemoteWorkspacePolicy::LegacyUnaudited),
     (
@@ -2039,6 +1952,83 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("worktree_remove", RemoteWorkspacePolicy::RemoteUnsupported),
     ("write_file_content", RemoteWorkspacePolicy::LegacyUnaudited),
+    // Commands merged from upstream/main whose behavior matches the generated
+    // Product Operation Registry stances.
+    ("account_github_info", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("account_github_poll", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("account_github_start", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("account_load_older_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("account_subscribe_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("account_unsubscribe_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    (
+        "browser_webview_capture_preview",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    ("browser_webview_close", RemoteWorkspacePolicy::LocalOnly),
+    ("browser_webview_hide", RemoteWorkspacePolicy::LocalOnly),
+    ("browser_webview_set_focus", RemoteWorkspacePolicy::LocalOnly),
+    ("browser_webview_show", RemoteWorkspacePolicy::LocalOnly),
+    ("get_chat_mcp_catalog", RemoteWorkspacePolicy::RemoteUnsupported),
+    (
+        "get_external_source_discovery_snapshot",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "get_instruction_source_catalog",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "get_session_interaction_mailbox",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    ("local_file_download", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("market_image_load", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    (
+        "resolve_browser_dropped_file_paths",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    ("set_file_drop_preview_target", RemoteWorkspacePolicy::LocalOnly),
+    ("set_tray_unread_count", RemoteWorkspacePolicy::LocalOnly),
+    (
+        "start_user_question_interaction",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    ("workspace_file_upload", RemoteWorkspacePolicy::RemoteRouted),
+    // HarmonyOS delivery-profile and window-chrome commands: inherently
+    // host-local UI/OS automation. The Product Operation Registry does not
+    // carry rows for these OpenBitFun-OHOS additions.
+    ("center_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("check_for_updates_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("close_window", RemoteWorkspacePolicy::LocalOnly),
+    ("current_monitor_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("delete_workspace", RemoteWorkspacePolicy::RemoteRouted),
+    ("get_clipboard", RemoteWorkspacePolicy::LocalOnly),
+    ("handle_max_window", RemoteWorkspacePolicy::LocalOnly),
+    ("handle_min_window", RemoteWorkspacePolicy::LocalOnly),
+    ("handle_restore_window", RemoteWorkspacePolicy::LocalOnly),
+    ("inner_size_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("maximize_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("open_external_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("open_oh_file_dialog", RemoteWorkspacePolicy::LocalOnly),
+    ("outer_position_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("outer_size_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("save_file_to_downloads_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("send_system_notification_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_always_on_top_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_clipboard", RemoteWorkspacePolicy::LocalOnly),
+    ("set_decorations_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_focus_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_min_size_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_resizable_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_skip_taskbar_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_theme_mode", RemoteWorkspacePolicy::LocalOnly),
+    ("set_window_position_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("set_window_size_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("share_file_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("unmaximize_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("window_is_maximized", RemoteWorkspacePolicy::LocalOnly),
+    ("window_is_minimized", RemoteWorkspacePolicy::LocalOnly),
+    ("window_start_dragging", RemoteWorkspacePolicy::LocalOnly),
 ];
 
 pub fn remote_workspace_policy(command: &str) -> Option<RemoteWorkspacePolicy> {

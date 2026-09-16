@@ -1829,3 +1829,18 @@
     }
   }
 }
+
+// The existing card owns feedback and geometry; the shared trigger owns activation.
+.appearance-package-config__card-action[data-openbitfun-component='action-card'] {
+  min-block-size: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  outline: none;
+  box-shadow: none;
+  opacity: 1;
+
+  > [data-openbitfun-part='trigger'] {
+    min-block-size: 72px;
+  }
+}

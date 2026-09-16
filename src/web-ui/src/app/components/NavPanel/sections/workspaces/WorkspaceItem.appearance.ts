@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const workspaceItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'workspace-item',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' }, { id: 'card' }, { id: 'collapse' }, { id: 'icon' },
     { id: 'name' }, { id: 'label' }, { id: 'badge' }, { id: 'action' },

@@ -1,4 +1,5 @@
-import { HarnessProfileMenu } from './HarnessProfileMenu';
+import { SavedRuntimeConnection } from '../../model/RemoteModels';
+import { WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
@@ -51,7 +52,10 @@ export struct AppSidebar {
   @Param workspacePath: string = '';
   @Param controlTargetDeviceId: string = '';
   @Param supportsHarnessProfiles: boolean = false;
-  @Local showCreateMenu: boolean = false;
+  @Local showToolsPicker: boolean = false;
+  @Local toolsPickerTargetId: string = '';
+  @Param toolLocations: SavedRuntimeConnection[] = [];
+  @Event onWorkspaceTools: (intent: WorkspaceToolsIntent) => void = (_intent: WorkspaceToolsIntent) => {};
   @Param accountUserId: string = '';
   @Param controlTargetType: string = 'none';
   @Param showCollapseButton: boolean = false;
@@ -358,25 +362,25 @@ export struct AppSidebar {
       Button() {
         Row({ space: 8 }) {
           SidebarGlyph({ kind: 'edit' })
-          Text(RemoteI18n.t('sidebar.newChat'))
+          Text(RemoteI18n.t('workspaceTools.title'))
             .fontSize(MobileDesignTypography.titleMedium.size)
             .fontWeight(FontWeight.Medium)
             .fontColor(INK)
         }
       }
-      .width(98)
+      .constraintSize({ minWidth: 128, maxWidth: 180 })
       .height(44)
-      .padding(0)
+      .padding({ left: 14, right: 14 })
       .backgroundColor(CARD)
       .border({ width: 0.5, color: LINE })
       .borderRadius(22)
       .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetY: 7 })
-      .enabled(SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy))
-      .opacity(SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy) ? 1 : 0.45)
-      .accessibilityText(RemoteI18n.t('sidebar.newChat'))
+      .enabled(this.connectionState === 'connected')
+      .opacity(this.connectionState === 'connected' ? 1 : 0.45)
+      .accessibilityText(RemoteI18n.t('workspaceTools.title'))
       .stateEffect(true)
-      .bindPopup(this.showCreateMenu, {
-        builder: () => { this.CreateModeMenu() },
+      .bindPopup(this.showToolsPicker, {
+        builder: () => { this.DeviceToolsPicker() },
         placement: Placement.Top,
         popupColor: TRANSPARENT,
         enableArrow: false,
@@ -384,10 +388,10 @@ export struct AppSidebar {
         mask: false,
         targetSpace: 6,
         onStateChange: (event) => {
-          if (!event.isVisible) this.showCreateMenu = false;
+          if (!event.isVisible) this.showToolsPicker = false;
         }
       })
-      .onClick(() => { this.requestChat(); })
+      .onClick(() => { this.requestDeviceTools(); })
 
       Blank()
 
@@ -457,8 +461,8 @@ export struct AppSidebar {
   }
 
   @Monitor('controlTargetDeviceId', 'workspacePath', 'workspaceKind', 'connectionState', 'isBusy', 'supportsHarnessProfiles')
-  private closeStaleCreateMenu(): void {
-    this.showCreateMenu = false;
+  private closeStaleToolsPicker(): void {
+    this.showToolsPicker = false;
   }
 
   @Builder
@@ -805,26 +809,34 @@ export struct AppSidebar {
     return AdaptiveSheetOptions.fromPlacement(this.sessionDetailsPlacement);
   }
 
-  private requestChat(): void {
-    if (!SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy)) return;
-    const action = SidebarConnectionActionPolicy.chatAction(this.workspaceKind, this.supportsHarnessProfiles);
-    if (action === 'choose-harness') {
-      this.showCreateMenu = !this.showCreateMenu;
-      return;
-    }
-    this.onNewChat(action === 'assistant' ? 'claw' : 'code');
+  private requestDeviceTools(): void {
+    if (this.connectionState !== 'connected') return;
+    this.toolsPickerTargetId = this.controlTargetDeviceId;
+    this.showToolsPicker = !this.showToolsPicker;
   }
 
   @Builder
-  private CreateModeMenu() {
-    HarnessProfileMenu({
-      onSelect: (agentType: string) => {
-        this.showCreateMenu = false;
-        if (SidebarConnectionActionPolicy.canCreateSession(this.connectionState, this.isBusy)) {
-          this.onNewChat(agentType);
-        }
-      }
-    })
+  private DeviceToolsPicker() {
+    Scroll() {
+      Column({ space: 4 }) {
+        Text(RemoteI18n.t('workspaceTools.selectLocation'))
+          .fontSize(MobileDesignTypography.labelSmall.size).fontColor(SUBTLE)
+          .padding(10).width('100%')
+        Button(RemoteI18n.t('workspaceTools.runtimeLocal')).width('100%').padding(12)
+          .backgroundColor(TRANSPARENT).fontColor(INK).onClick(() => this.openDeviceLocation(''))
+        ForEach(this.toolLocations, (location: SavedRuntimeConnection) => {
+          Button(location.name || location.id).width('100%').padding(12)
+            .backgroundColor(TRANSPARENT).fontColor(INK)
+            .onClick(() => this.openDeviceLocation(location.id))
+        }, (location: SavedRuntimeConnection): string => location.id)
+      }.width('100%').padding(8)
+    }.width(270).constraintSize({ maxHeight: 360 }).backgroundColor(CARD).borderRadius(16)
+  }
+
+  private openDeviceLocation(connectionId: string): void {
+    this.showToolsPicker = false;
+    if (this.toolsPickerTargetId !== this.controlTargetDeviceId || this.connectionState !== 'connected') return;
+    this.onWorkspaceTools({ type: 'open-device', deviceId: this.toolsPickerTargetId, connectionId: connectionId, tab: 0 });
   }
 
   private shouldShowPrimaryNavigation(): boolean {

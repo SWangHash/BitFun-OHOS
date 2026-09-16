@@ -102,6 +102,22 @@ fn join_posix_path(root: &str, components: &[&str]) -> String {
 #[async_trait]
 impl WorkspaceFileSystem for RemoteWorkspaceFs {
     #[cfg(feature = "remote-ssh-concrete")]
+    async fn open_write_new(
+        &self,
+        path: &str,
+    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+        self.file_service
+            .open_write_new(&self.connection_id, path)
+            .await
+    }
+    #[cfg(feature = "remote-ssh-concrete")]
+    async fn atomic_replace(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        self.file_service
+            .atomic_replace(&self.connection_id, from, to)
+            .await
+    }
+
+    #[cfg(feature = "remote-ssh-concrete")]
     async fn open_read(
         &self,
         path: &str,

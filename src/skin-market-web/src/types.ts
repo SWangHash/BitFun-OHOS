@@ -9,12 +9,14 @@ export interface AppearanceMarketUser {
 }
 
 export interface SharedMarketAccount {
+  email?: string;
   user: AppearanceMarketUser;
   isAdmin: boolean;
 }
 
 export interface SharedMarketAccountConfig {
   githubAuthConfigured: boolean;
+  emailAuthConfigured?: boolean;
 }
 
 export interface AppearanceListingSummary {

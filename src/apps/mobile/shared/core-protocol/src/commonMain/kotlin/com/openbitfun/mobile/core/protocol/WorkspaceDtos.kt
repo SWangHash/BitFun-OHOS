@@ -22,6 +22,8 @@ public data class WorkspaceInfoResponse(
     @SerialName("git_branch") val gitBranch: String? = null,
     @SerialName("workspace_kind") val workspaceKind: String? = null,
     @SerialName("assistant_id") val assistantId: String? = null,
+    @SerialName("remote_connection_id") val remoteConnectionId: String? = null,
+    @SerialName("remote_ssh_host") val remoteSshHost: String? = null,
     @SerialName("capabilities") val capabilities: List<String> = emptyList(),
 ) : CommandStatus {
     /** `path` wins over `workspace_path`, matching `RemoteResponseMapper.workspaceFromResponse`. */
@@ -43,6 +45,7 @@ public data class RecentWorkspaceEntryResponse(
     val lastOpened: String = "",
     val workspaceKind: String? = null,
     val remoteSshHost: String? = null,
+    val remoteConnectionId: String? = null,
 )
 
 public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspaceEntryResponse> {
@@ -56,6 +59,7 @@ public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspa
             lastOpened = json.firstWireTime(RECENT_WORKSPACE_TIME_KEYS),
             workspaceKind = json.wireString("workspace_kind"),
             remoteSshHost = json.wireString("remote_ssh_host"),
+            remoteConnectionId = json.wireString("remote_connection_id"),
         )
     }
 
@@ -67,6 +71,7 @@ public object RecentWorkspaceEntryResponseSerializer : KSerializer<RecentWorkspa
                 if (value.lastOpened.isNotEmpty()) put("last_opened", value.lastOpened)
                 value.workspaceKind?.let { put("workspace_kind", it) }
                 value.remoteSshHost?.let { put("remote_ssh_host", it) }
+                value.remoteConnectionId?.let { put("remote_connection_id", it) }
             },
         )
     }
@@ -118,4 +123,20 @@ public data class PermissionModeResponse(
     @SerialName("resp") override val resp: String? = null,
     @SerialName("message") override val message: String? = null,
     @SerialName("mode") val mode: RemotePermissionMode? = null,
+) : CommandStatus
+
+@Serializable
+public data class SavedRuntimeConnection(
+    val id: String,
+    val name: String,
+    val host: String = "",
+)
+
+@Serializable
+public data class SavedRuntimeConnectionsResponse(
+    @SerialName("resp") override val resp: String? = null,
+    @SerialName("message") override val message: String? = null,
+    val ok: Boolean = false,
+    val value: List<SavedRuntimeConnection> = emptyList(),
+    val error: String? = null,
 ) : CommandStatus

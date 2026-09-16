@@ -17,6 +17,8 @@ export function applyInstallerThemeToDocument(theme: InstallerTheme): void {
 
   root.style.setProperty('--openbitfun-color-surface-canvas', colors.background.primary);
   root.style.setProperty('--openbitfun-color-surface-panel', colors.background.secondary);
+  root.style.setProperty('--openbitfun-color-field-background', colors.background.secondary);
+  root.style.setProperty('--openbitfun-color-field-background-hover', colors.background.secondary);
   root.style.setProperty('--openbitfun-color-content-primary', colors.text.primary);
   root.style.setProperty('--openbitfun-color-content-secondary', colors.text.secondary);
   root.style.setProperty('--openbitfun-color-content-muted', colors.text.muted);

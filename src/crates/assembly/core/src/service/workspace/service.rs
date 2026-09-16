@@ -343,12 +343,12 @@ impl WorkspaceService {
     ) -> OpenBitFunResult<WorkspaceInfo> {
         let path_str = path.to_string_lossy().to_string();
         let known = self
-            .find_known_remote_workspace_for_path(
+            .resolve_remote_workspace_for_open(
                 &path_str,
                 preferred_connection_id,
                 preferred_ssh_host,
             )
-            .await;
+            .await?;
         self.open_workspace_after_known_resolution(path, known)
             .await
     }
@@ -454,32 +454,120 @@ impl WorkspaceService {
             return None;
         }
 
-        if let Some(connection_id) = preferred_connection_id {
-            if let Some(matched) = matches
-                .iter()
-                .find(|workspace| workspace.remote_ssh_connection_id() == Some(connection_id))
-            {
-                return Some((*matched).clone());
-            }
-        }
-
-        if let Some(ssh_host) = preferred_ssh_host {
-            if let Some(matched) = matches.iter().find(|workspace| {
-                workspace
-                    .metadata
-                    .get("sshHost")
-                    .and_then(|value| value.as_str())
-                    .map(str::trim)
-                    == Some(ssh_host)
-            }) {
-                return Some((*matched).clone());
-            }
-        }
+        // Explicit identity is a constraint, never a hint to another host.
+        matches.retain(|workspace| {
+            preferred_connection_id
+                .is_none_or(|id| workspace.remote_ssh_connection_id() == Some(id))
+                && preferred_ssh_host.is_none_or(|host| {
+                    workspace
+                        .metadata
+                        .get("sshHost")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        == Some(host)
+                })
+        });
 
         // Prefer the most recently accessed match when the path alone is ambiguous
         // (e.g. the same POSIX root opened on two SSH hosts).
         matches.sort_by(|left, right| right.last_accessed.cmp(&left.last_accessed));
         matches.first().map(|workspace| (*workspace).clone())
+    }
+
+    /// Resolve persisted identity or verify a new path against an existing SSH
+    /// connection. Caller input alone never authorizes a remote runtime scope.
+    pub(crate) async fn resolve_remote_workspace_for_open(
+        &self,
+        path: &str,
+        connection_id: Option<&str>,
+        ssh_host: Option<&str>,
+    ) -> OpenBitFunResult<Option<WorkspaceInfo>> {
+        let known = self
+            .find_known_remote_workspace_for_path(path, connection_id, ssh_host)
+            .await;
+        let connection_id = connection_id.map(str::trim).filter(|id| !id.is_empty());
+        let ssh_host = ssh_host.map(str::trim).filter(|id| !id.is_empty());
+        if connection_id.is_none() && ssh_host.is_none() {
+            return Ok(known);
+        }
+        #[cfg(feature = "ssh-remote")]
+        {
+            let connection_id = connection_id.ok_or_else(|| {
+                OpenBitFunError::service(
+                    "Opening a new remote workspace requires its saved SSH connection ID",
+                )
+            })?;
+            if !path.starts_with('/') || path.contains('\0') {
+                return Err(OpenBitFunError::service(
+                    "Remote workspace path must be an absolute POSIX path",
+                ));
+            }
+            let manager =
+                crate::service::remote_ssh::workspace_state::ensure_saved_connection_services()
+                    .await
+                    .map_err(OpenBitFunError::service)?;
+            let ssh = manager
+                .get_ssh_manager()
+                .await
+                .ok_or_else(|| OpenBitFunError::service("SSH connection manager is unavailable"))?;
+            if !ssh
+                .get_saved_connections()
+                .await
+                .iter()
+                .any(|profile| profile.id == connection_id)
+            {
+                return Err(OpenBitFunError::service(
+                    "Remote workspace connection is not saved on this host",
+                ));
+            }
+            if let Some(known) = known {
+                return Ok(Some(known));
+            }
+            ssh.ensure_connected(connection_id)
+                .await
+                .map_err(|e| OpenBitFunError::service(e.to_string()))?;
+            let config = ssh
+                .get_connection_config(connection_id)
+                .await
+                .ok_or_else(|| OpenBitFunError::service("SSH connection is unavailable"))?;
+            let host = ssh
+                .get_saved_host_for_connection_id(connection_id)
+                .await
+                .unwrap_or(config.host);
+            if ssh_host.is_some_and(|requested| requested != host) {
+                return Err(OpenBitFunError::service(
+                    "SSH host identity does not match the selected connection",
+                ));
+            }
+            let fs = manager
+                .get_file_service()
+                .await
+                .ok_or_else(|| OpenBitFunError::service("Remote file service is unavailable"))?;
+            let path = normalize_remote_workspace_path(path);
+            if !fs
+                .is_dir(connection_id, &path)
+                .await
+                .map_err(|e| OpenBitFunError::service(e.to_string()))?
+            {
+                return Err(OpenBitFunError::service(
+                    "Remote workspace path is not a directory",
+                ));
+            }
+            let options = WorkspaceOpenOptions {
+                workspace_kind: WorkspaceKind::Remote,
+                remote_connection_id: Some(connection_id.to_string()),
+                remote_ssh_host: Some(host.clone()),
+                stable_workspace_id: Some(remote_workspace_stable_id(&host, &path)),
+                ..Default::default()
+            };
+            return WorkspaceInfo::new_without_worktree(PathBuf::from(path), options)
+                .await
+                .map(Some);
+        }
+        #[cfg(not(feature = "ssh-remote"))]
+        Err(OpenBitFunError::service(
+            "Opening a new remote workspace requires SSH support on this host",
+        ))
     }
 
     async fn open_known_remote_workspace(
@@ -1735,6 +1823,10 @@ impl WorkspaceService {
     }
 
     /// Saves workspace data locally.
+    pub fn subscribe_catalog_changes() -> tokio::sync::watch::Receiver<u64> {
+        workspace_catalog_revision().subscribe()
+    }
+
     async fn save_workspace_data(&self) -> OpenBitFunResult<()> {
         let manager = self.manager.read().await;
 
@@ -1756,7 +1848,7 @@ impl WorkspaceService {
             .map_err(|e| {
                 OpenBitFunError::service(format!("Failed to save workspace data: {}", e))
             })?;
-
+        workspace_catalog_revision().send_modify(|revision| *revision = revision.wrapping_add(1));
         Ok(())
     }
 
@@ -2728,6 +2820,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn explicit_remote_identity_does_not_select_another_host_at_same_path() {
+        let env = TestEnvironment::new();
+        let service = build_test_workspace_service(env.path_manager.clone()).await;
+        let root = PathBuf::from("/tests/identity-selection");
+        service
+            .track_workspace_activity(
+                root.clone(),
+                WorkspaceCreateOptions {
+                    workspace_kind: WorkspaceKind::Remote,
+                    remote_connection_id: Some("saved-alpha".into()),
+                    remote_ssh_host: Some("alpha.example".into()),
+                    ..Default::default()
+                },
+                WorkspaceActivityMode::RefreshMetadata,
+            )
+            .await
+            .unwrap();
+        assert!(service
+            .find_known_remote_workspace_for_path(root.to_str().unwrap(), Some("saved-beta"), None)
+            .await
+            .is_none());
+        assert!(service
+            .find_known_remote_workspace_for_path(
+                root.to_str().unwrap(),
+                Some("saved-alpha"),
+                Some("beta.example")
+            )
+            .await
+            .is_none());
+        assert!(service
+            .find_known_remote_workspace_for_path(
+                root.to_str().unwrap(),
+                Some("saved-alpha"),
+                Some("alpha.example")
+            )
+            .await
+            .is_some());
+    }
+
+    #[tokio::test]
     async fn open_workspace_resolving_known_reports_unknown_remote_paths_clearly() {
         let env = TestEnvironment::new();
         let service = build_test_workspace_service(env.path_manager.clone()).await;
@@ -2823,4 +2955,10 @@ mod tests {
             Some("Legacy TypeScript implementation".to_string())
         );
     }
+}
+
+fn workspace_catalog_revision() -> &'static tokio::sync::watch::Sender<u64> {
+    static REVISION: std::sync::OnceLock<tokio::sync::watch::Sender<u64>> =
+        std::sync::OnceLock::new();
+    REVISION.get_or_init(|| tokio::sync::watch::channel(0).0)
 }

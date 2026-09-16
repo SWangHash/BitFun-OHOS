@@ -1,15 +1,39 @@
 import { useCallback, useEffect, useState } from 'react';
+import localeContract from '../../shared/i18n/contract/locales.json';
 
 export type Locale = 'en-US' | 'zh-CN' | 'zh-TW';
 
 const messages = {
   'en-US': {
+    accountSignIn: "Sign in to OpenBitFun",
+    githubSignIn: "Continue with GitHub",
+    emailLoginIntro: "Use an email code or GitHub. No password needed.",
+    authOr: "or",
+    authPrivate: "Password-free. Your code is only used to sign in.",
+    emailAddress: "Email address",
+    emailCode: "Verification code",
+    emailSendCode: "Send verification code",
+    emailVerify: "Verify and sign in",
+    emailCodeSent: "Code sent. Check your inbox and spam folder.",
+    emailResend: "Resend code",
+    emailResendWait: "Please wait before resending",
+    authWorking: "Please wait…",
+    emailChange: "Use another email",
+    emailInvalid: "Enter a valid email address.",
+    emailCodeInvalid: "Incorrect or expired code. Request a new code if needed.",
+    emailRateLimited: "Too many requests. Please try again later.",
+    emailFlowExpired: "This sign-in request has expired or already finished. Close this window and start sign-in again from the app or website you were using.",
+    emailDeliveryFailed: "We couldn't send the email. Wait a minute, then try again.",
+    emailAuthBusy: "Sign-in is busy. Wait a minute, then try again.",
+    emailStartFailed: "Sign-in could not be completed. Please try again or reopen the sign-in page.",
+    emailUnavailable: "Sign-in is unavailable on this server.",
+
     market: 'MiniApp Market',
     discover: 'Discover',
     submit: 'Submit',
     submissions: 'My submissions',
     admin: 'Review',
-    signIn: 'Sign in with GitHub',
+    signIn: 'Sign in',
     signOut: 'Sign out',
     headline: 'Useful MiniApps, right inside OpenBitFun.',
     intro:
@@ -33,7 +57,7 @@ const messages = {
     submitTitle: 'Submit a MiniApp',
     submitIntro:
       'Upload a self-contained .bfminiapp package and 1–5 marketplace images. Node, npm, and remote executable dependencies are rejected.',
-    signInRequired: 'Sign in with GitHub to continue.',
+    signInRequired: 'Sign in to continue.',
     package: '.bfminiapp package',
     screenshots: 'Marketplace images',
     listingImageHint:
@@ -61,10 +85,9 @@ const messages = {
     yank: 'Yank release',
     unpublish: 'Unpublish listing',
     back: 'Back to market',
-    authComplete: 'GitHub authorization complete',
+    authComplete: 'Sign-in complete',
     authCompleteBody: 'Return to the app or browser window where you started signing in. You can close this tab.',
-    authSharedIdentity: 'Use your GitHub identity for the marketplaces and remote device control.',
-    footerNote: 'Reviewed releases / Hash-locked packages / Manual updates',
+    authSharedIdentity: 'Use the same OpenBitFun account for the marketplaces and remote device control.',
     openbitfunHome: 'OpenBitFun home',
     getOpenBitFunTitle: 'New to OpenBitFun?',
     getOpenBitFunCatalogNote:
@@ -149,7 +172,7 @@ const messages = {
     statusRejected: 'Rejected',
     statusWithdrawn: 'Withdrawn',
     marketNotPublic: 'The MiniApp marketplace is not open to the public yet.',
-    oauthNotConfigured: 'GitHub sign-in is being configured. Please try again shortly.',
+    oauthNotConfigured: 'Sign-in is being configured. Please try again shortly.',
     categoryDeveloper: 'Developer',
     categoryProductivity: 'Productivity',
     categoryData: 'Data',
@@ -160,12 +183,35 @@ const messages = {
     categoryOther: 'Other',
   },
   'zh-CN': {
+    accountSignIn: "登录 OpenBitFun",
+    githubSignIn: "使用 GitHub 登录",
+    emailLoginIntro: "使用邮箱验证码或 GitHub 登录，无需设置密码。",
+    authOr: "或",
+    authPrivate: "无需密码，验证码仅用于本次登录。",
+    emailAddress: "邮箱地址",
+    emailCode: "验证码",
+    emailSendCode: "发送验证码",
+    emailVerify: "验证并登录",
+    emailCodeSent: "验证码已发送，请检查收件箱和垃圾邮件。",
+    emailResend: "重新发送",
+    emailResendWait: "请稍后重新发送",
+    authWorking: "请稍候…",
+    emailChange: "更换邮箱",
+    emailInvalid: "请输入有效的邮箱地址。",
+    emailCodeInvalid: "验证码错误或已过期，请重试或重新获取。",
+    emailRateLimited: "请求过于频繁，请稍后重试。",
+    emailFlowExpired: "本次登录已过期或已完成。请关闭此窗口，返回原来的应用或网站重新发起登录。",
+    emailDeliveryFailed: "邮件发送失败，请等待一分钟后重试。",
+    emailAuthBusy: "登录服务繁忙，请等待一分钟后重试。",
+    emailStartFailed: "暂时无法完成登录，请重试或重新打开登录页面。",
+    emailUnavailable: "此服务器尚未配置登录方式。",
+
     market: 'MiniApp 市场',
     discover: '发现',
     submit: '投稿',
     submissions: '我的投稿',
     admin: '审核',
-    signIn: '使用 GitHub 登录',
+    signIn: '登录',
     signOut: '退出登录',
     headline: '好用的 MiniApp，就在 OpenBitFun 里。',
     intro: '发现经过审核的小工具，在熟悉的工作流里安全安装、按需授权。',
@@ -187,7 +233,7 @@ const messages = {
     releases: '版本历史',
     submitTitle: '投稿 MiniApp',
     submitIntro: '上传自包含的 .bfminiapp 和 1–5 张市场展示图。Node、npm 和远程可执行依赖会被拒绝。',
-    signInRequired: '请先使用 GitHub 登录。',
+    signInRequired: '请先登录。',
     package: '.bfminiapp 安装包',
     screenshots: '市场展示图',
     listingImageHint:
@@ -214,10 +260,9 @@ const messages = {
     yank: '永久撤下版本',
     unpublish: '下架 Listing',
     back: '返回市场',
-    authComplete: 'GitHub 授权完成',
+    authComplete: '登录完成',
     authCompleteBody: '请返回发起登录的应用或浏览器窗口。你可以关闭此标签页。',
-    authSharedIdentity: '市场与远程设备控制共用你的 GitHub 身份。',
-    footerNote: '人工审核版本 / 哈希锁定安装包 / 手动更新',
+    authSharedIdentity: '市场与远程设备控制共用你的 OpenBitFun 账号。',
     openbitfunHome: 'OpenBitFun 官网',
     getOpenBitFunTitle: '没有 OpenBitFun？',
     getOpenBitFunCatalogNote:
@@ -291,7 +336,7 @@ const messages = {
     permissionRunCommand: '运行命令',
     permissionNetwork: '联网域名',
     permissionAi: '使用已配置的 AI 模型',
-    permissionAgent: '启动可见的 OpenBitFun Agent 会话',
+    permissionAgent: '启动可见的 OpenBitFun 智能体会话',
     permissionNotifications: '发送系统通知',
     permissionNodeUnavailable: '不可使用 Node 运行时',
     packagePending: '等待上传安装包',
@@ -301,7 +346,7 @@ const messages = {
     statusRejected: '已驳回',
     statusWithdrawn: '已撤回',
     marketNotPublic: 'MiniApp 市场尚未对公众开放。',
-    oauthNotConfigured: 'GitHub 登录正在配置，请稍后再试。',
+    oauthNotConfigured: '登录正在配置，请稍后再试。',
     categoryDeveloper: '开发工具',
     categoryProductivity: '效率',
     categoryData: '数据',
@@ -312,12 +357,35 @@ const messages = {
     categoryOther: '其他',
   },
   'zh-TW': {
+    accountSignIn: "登入 OpenBitFun",
+    githubSignIn: "使用 GitHub 登入",
+    emailLoginIntro: "使用信箱驗證碼或 GitHub 登入，無需設定密碼。",
+    authOr: "或",
+    authPrivate: "無需密碼，驗證碼僅用於本次登入。",
+    emailAddress: "電子郵件地址",
+    emailCode: "驗證碼",
+    emailSendCode: "傳送驗證碼",
+    emailVerify: "驗證並登入",
+    emailCodeSent: "驗證碼已傳送，請檢查收件匣和垃圾郵件。",
+    emailResend: "重新傳送",
+    emailResendWait: "請稍後重新傳送",
+    authWorking: "請稍候…",
+    emailChange: "更換信箱",
+    emailInvalid: "請輸入有效的電子郵件地址。",
+    emailCodeInvalid: "驗證碼錯誤或已過期，請重試或重新取得。",
+    emailRateLimited: "請求過於頻繁，請稍後重試。",
+    emailFlowExpired: "本次登入已過期或已完成。請關閉此視窗，返回原來的應用程式或網站重新發起登入。",
+    emailDeliveryFailed: "郵件傳送失敗，請等待一分鐘後重試。",
+    emailAuthBusy: "登入服務忙碌，請等待一分鐘後重試。",
+    emailStartFailed: "暫時無法完成登入，請重試或重新開啟登入頁面。",
+    emailUnavailable: "此伺服器尚未設定登入方式。",
+
     market: 'MiniApp 市場',
     discover: '探索',
     submit: '投稿',
     submissions: '我的投稿',
     admin: '審核',
-    signIn: '使用 GitHub 登入',
+    signIn: '登入',
     signOut: '登出',
     headline: '好用的 MiniApp，就在 OpenBitFun 裡。',
     intro: '探索經過審核的小工具，在熟悉的工作流程裡安全安裝、按需授權。',
@@ -339,7 +407,7 @@ const messages = {
     releases: '版本歷史',
     submitTitle: '投稿 MiniApp',
     submitIntro: '上傳自包含的 .bfminiapp 和 1–5 張市場展示圖。Node、npm 和遠端可執行依賴會被拒絕。',
-    signInRequired: '請先使用 GitHub 登入。',
+    signInRequired: '請先登入。',
     package: '.bfminiapp 安裝包',
     screenshots: '市場展示圖',
     listingImageHint:
@@ -366,10 +434,9 @@ const messages = {
     yank: '永久撤下版本',
     unpublish: '下架 Listing',
     back: '返回市場',
-    authComplete: 'GitHub 授權完成',
+    authComplete: '登入完成',
     authCompleteBody: '請返回發起登入的應用程式或瀏覽器視窗。你可以關閉此分頁。',
-    authSharedIdentity: '市場與遠端裝置控制共用你的 GitHub 身分。',
-    footerNote: '人工審核版本 / 雜湊鎖定安裝包 / 手動更新',
+    authSharedIdentity: '市場與遠端裝置控制共用你的 OpenBitFun 帳號。',
     openbitfunHome: 'OpenBitFun 官網',
     getOpenBitFunTitle: '還沒有 OpenBitFun？',
     getOpenBitFunCatalogNote:
@@ -443,7 +510,7 @@ const messages = {
     permissionRunCommand: '執行命令',
     permissionNetwork: '連網網域',
     permissionAi: '使用已設定的 AI 模型',
-    permissionAgent: '啟動可見的 OpenBitFun Agent 工作階段',
+    permissionAgent: '啟動可見的 OpenBitFun 智能體工作階段',
     permissionNotifications: '傳送系統通知',
     permissionNodeUnavailable: '不可使用 Node 執行環境',
     packagePending: '等待上傳安裝包',
@@ -453,7 +520,7 @@ const messages = {
     statusRejected: '已駁回',
     statusWithdrawn: '已撤回',
     marketNotPublic: 'MiniApp 市場尚未對公眾開放。',
-    oauthNotConfigured: 'GitHub 登入正在設定，請稍後再試。',
+    oauthNotConfigured: '登入正在設定，請稍後再試。',
     categoryDeveloper: '開發工具',
     categoryProductivity: '效率',
     categoryData: '資料',
@@ -467,15 +534,21 @@ const messages = {
 
 export type MessageKey = keyof (typeof messages)['en-US'];
 
-function initialLocale(): Locale {
-  const stored = localStorage.getItem('openbitfun-market-locale');
-  if (stored === 'zh-CN' || stored === 'zh-TW' || stored === 'en-US') return stored;
-  const locale = navigator.language;
-  if (locale.toLowerCase().startsWith('zh-tw') || locale.toLowerCase().startsWith('zh-hk')) {
-    return 'zh-TW';
-  }
-  if (locale.toLowerCase().startsWith('zh')) return 'zh-CN';
-  return 'en-US';
+export function resolveMarketLocale(value: string | null): Locale | undefined {
+  const normalized = value?.trim().replace(/_/g, '-').toLowerCase();
+  if (!normalized) return undefined;
+  const aliases = localeContract.locales.flatMap(locale =>
+    locale.aliases.map(alias => ({ alias: alias.toLowerCase(), locale: locale.id as Locale })),
+  ).sort((left, right) => right.alias.length - left.alias.length);
+  return aliases.find(({ alias }) => normalized === alias || normalized.startsWith(`${alias}-`))?.locale;
+}
+
+export function initialLocale(): Locale {
+  const requested = resolveMarketLocale(new URLSearchParams(window.location.search).get('locale'));
+  if (requested) return requested;
+  let stored: string | null = null;
+  try { stored = localStorage.getItem('openbitfun-market-locale'); } catch { /* Storage can be blocked in an auth popup. */ }
+  return resolveMarketLocale(stored) ?? resolveMarketLocale(navigator.language) ?? localeContract.fallbackLocale as Locale;
 }
 
 export function useLocale() {
@@ -483,11 +556,16 @@ export function useLocale() {
   const t = useCallback((key: MessageKey) => messages[locale][key], [locale]);
   useEffect(() => {
     document.documentElement.lang = locale;
-    localStorage.setItem('openbitfun-market-locale', locale);
+    try { localStorage.setItem('openbitfun-market-locale', locale); } catch { /* Keep the selected language in memory. */ }
   }, [locale]);
   return {
     locale,
-    setLocale: setLocaleState,
+    setLocale: (next: Locale) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('locale', next);
+      window.history.replaceState(null, '', url);
+      setLocaleState(next);
+    },
     t,
   };
 }

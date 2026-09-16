@@ -101,6 +101,8 @@ pub struct FileTreeOptions {
     pub include_git_info: bool,
     pub include_mime_types: bool,
     pub skip_patterns: Vec<String>,
+    /// Retained for source compatibility. Metadata listings never hide files by size;
+    /// content readers own their separate memory/streaming budgets.
     pub max_file_size_mb: Option<u64>,
     pub follow_symlinks: bool,
 }
@@ -119,7 +121,7 @@ impl Default for FileTreeOptions {
                 ".DS_Store".to_string(),
                 "Thumbs.db".to_string(),
             ],
-            max_file_size_mb: Some(100),
+            max_file_size_mb: None,
             follow_symlinks: false,
         }
     }
@@ -508,12 +510,6 @@ impl FileTreeService {
                     metadata.as_ref().map(|m| m.len())
                 };
 
-                if let (Some(size_bytes), Some(max_mb)) = (size, self.options.max_file_size_mb) {
-                    if size_bytes > max_mb * 1024 * 1024 {
-                        continue;
-                    }
-                }
-
                 let last_modified = metadata.as_ref().and_then(|m| {
                     m.modified().ok().map(|t| {
                         let datetime: chrono::DateTime<chrono::Utc> = t.into();
@@ -691,12 +687,6 @@ impl FileTreeService {
                     }
                 }
 
-                if let (Some(size_bytes), Some(max_mb)) = (size, self.options.max_file_size_mb) {
-                    if size_bytes > max_mb * 1024 * 1024 {
-                        continue;
-                    }
-                }
-
                 if !is_directory {
                     if let Some(ext) = entry_path.extension().and_then(|e| e.to_str()) {
                         *stats.file_type_counts.entry(ext.to_string()).or_insert(0) += 1;
@@ -836,14 +826,36 @@ impl FileTreeService {
             }
 
             let entry_path = entry.path();
+            let metadata = entry.metadata().await.ok();
             let is_directory = entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false);
+            let size = if is_directory {
+                None
+            } else {
+                metadata.as_ref().map(|value| value.len())
+            };
+            let modified = metadata
+                .as_ref()
+                .and_then(|value| value.modified().ok())
+                .map(|value| {
+                    let time: chrono::DateTime<chrono::Utc> = value.into();
+                    time.format("%Y-%m-%d %H:%M:%S").to_string()
+                });
+            let extension = if is_directory {
+                None
+            } else {
+                entry_path
+                    .extension()
+                    .map(|value| value.to_string_lossy().to_string())
+            };
 
             let node = FileTreeNode::new(
                 entry_path.to_string_lossy().to_string(),
                 file_name_str.to_string(),
                 entry_path.to_string_lossy().to_string(),
                 is_directory,
-            );
+            )
+            .with_metadata(size, modified)
+            .with_extension(extension);
 
             nodes.push(node);
         }
@@ -1527,6 +1539,31 @@ pub enum SearchMatchType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn large_files_remain_visible_in_metadata_listings() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("large.bin");
+        // Sparse metadata fixture: no 101 MiB buffer or content write is needed.
+        let size = 101 * 1024 * 1024;
+        std::fs::File::create(&path).unwrap().set_len(size).unwrap();
+        let service = FileTreeService::new(FileTreeOptions {
+            max_file_size_mb: Some(1),
+            ..Default::default()
+        });
+        let root = root.path().to_str().unwrap();
+        let nodes = service.build_tree(root).await.unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].name, "large.bin");
+        assert_eq!(nodes[0].size, Some(size));
+        let (nodes, stats) = service.build_tree_with_stats(root).await.unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(stats.total_files, 1);
+        assert_eq!(stats.total_size_bytes, size);
+        let page = service.get_directory_contents(root).await.unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].size, Some(size));
+    }
 
     #[test]
     fn default_tree_visibility_matches_vscode_baseline() {

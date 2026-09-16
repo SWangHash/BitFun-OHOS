@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const externalSourcesConfigAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'external-sources-config',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'hostMode' },

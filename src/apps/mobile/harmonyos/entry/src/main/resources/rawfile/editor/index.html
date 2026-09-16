@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+html,body{margin:0;height:100%;overflow:hidden;background:transparent}body{display:flex;font:14px/22px monospace;color:var(--ink)}#gutter{margin:0;padding:8px;box-sizing:border-box;overflow:hidden;text-align:right;color:var(--muted);flex:none;user-select:none}textarea{font:inherit;line-height:22px;color:inherit;background:transparent;flex:1;min-width:0;resize:none;white-space:pre;overflow:auto;border:0;outline:0;padding:8px;margin:0;box-sizing:border-box;tab-size:4}
+</style></head><body><pre id="gutter"></pre><textarea id="editor" wrap="off" readonly spellcheck="false"></textarea><script>
+const editor=document.getElementById('editor'),gutter=document.getElementById('gutter');
+function lines(){gutter.textContent=Array.from({length:editor.value.split('\n').length},(_,i)=>i+1).join('\n');gutter.scrollTop=editor.scrollTop;}
+editor.addEventListener('scroll',()=>{gutter.scrollTop=editor.scrollTop;});
+editor.addEventListener('input',()=>{lines();window.OpenBitFunEditorHost.postMessage(JSON.stringify({type:'edit',text:editor.value}));});
+window.OpenBitFunEditor={accept(frame){if(editor.value!==frame.content){editor.value=frame.content;lines();}editor.readOnly=!frame.editing;gutter.hidden=!frame.lineNumbers;document.documentElement.style.setProperty('--ink',frame.ink);document.documentElement.style.setProperty('--muted',frame.muted);},connect(){window.OpenBitFunEditorHost.postMessage('{"type":"ready"}');}};
+lines();
+</script></body></html>

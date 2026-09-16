@@ -17,6 +17,8 @@ pub mod dispatch_contract;
 pub mod dispatch_workspace;
 #[cfg(any(feature = "local-storage", feature = "runtime-ownership"))]
 mod file_lock;
+#[cfg(any(feature = "filesystem", feature = "workspace-transfer"))]
+pub mod file_write_lock;
 #[cfg(feature = "filesystem")]
 pub mod filesystem;
 #[cfg(any(feature = "markdown", feature = "workspace-instructions"))]
@@ -41,6 +43,8 @@ pub mod persistence;
 pub mod secure_credentials;
 #[cfg(feature = "screen-capture")]
 pub mod screen_capture;
+#[cfg(feature = "pet-packages")]
+pub mod pet_packages;
 #[cfg(feature = "process-runtime")]
 pub mod process_manager;
 #[cfg(feature = "process-runtime")]
@@ -81,3 +85,11 @@ pub mod workspace_identity;
 #[cfg(feature = "workspace-instructions")]
 pub mod workspace_instructions;
 pub mod workspace_text;
+#[cfg(feature = "workspace-transfer")]
+pub mod workspace_transfer;
+
+#[cfg(feature = "asar")]
+pub mod asar;
+
+#[cfg(all(feature = "installed-apps", target_os = "windows"))]
+pub mod installed_apps;

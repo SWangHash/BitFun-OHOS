@@ -34,6 +34,9 @@ class FakeAppRootHost implements AppRootHostPort {
 }
 
 class SidebarSessionClient extends CloudAccountClient {
+  observePresence(_relay: string, _session: CloudAccountSession, _onPresence: (ids: string[]) => void,
+    _onReconnect: () => void): () => void { return () => {}; }
+
   createCommands: RemoteCommand[] = [];
   createTargets: string[] = [];
   async deviceRpc<T extends CommandStatusResponse>(
@@ -45,7 +48,7 @@ class SidebarSessionClient extends CloudAccountClient {
     if (command.cmd === 'create_session') {
       this.createCommands.push(command);
       this.createTargets.push(targetDeviceId);
-      return JSON.parse('{"session_id":"new-session","title":"New session"}') as T;
+      return JSON.parse('{"session_id":"new-session","title":"New session","workspace_path":"/runtime/primary"}') as T;
     }
     if (command.cmd === 'get_session_messages') return JSON.parse('{"messages":[],"has_more":false}') as T;
     return JSON.parse('{"sessions":[],"messages":[],"has_more":false,"is_running":false}') as T;
@@ -137,7 +140,9 @@ export default function appRootLifecycleUnitTest() {
             expect(client.createCommands.length).assertEqual(1);
             expect(client.createTargets[0]).assertEqual('desktop-a');
             expect(client.createCommands[0].agent_type).assertEqual(agentType);
-            expect(client.createCommands[0].workspace_path).assertEqual('/workspace');
+            expect(client.createCommands[0].workspace_path).assertUndefined();
+            expect(client.createCommands[0].remote_connection_id).assertUndefined();
+            expect(runtime.remotePageState.activeSession.workspacePath).assertEqual('/runtime/primary');
             expect(runtime.remotePageState.activeSession.sessionId).assertEqual('new-session');
             expect(runtime.appShellViewModel.currentRoute()).assertEqual(AppRoute.RemoteChat);
             expect(runtime.appShellState.showSidebar).assertFalse();

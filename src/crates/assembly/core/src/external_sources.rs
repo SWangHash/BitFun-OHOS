@@ -17,6 +17,7 @@ pub use openbitfun_product_domains::external_source_control::{
     EXTERNAL_SOURCE_CONTROL_SCHEMA_V1,
 };
 use openbitfun_product_domains::external_sources::native_prompt_command_group_fingerprint;
+pub use openbitfun_product_domains::external_sources::ExternalSourceDiscoverySnapshotV1;
 pub use openbitfun_product_domains::external_sources::{
     native_prompt_command_conflict_key, prompt_command_conflict_key, EcosystemId,
     ExpandedPromptCommand, ExternalIntegrationCapabilityId, ExternalMcpActivationState,
@@ -67,6 +68,7 @@ use openbitfun_claude_code_adapter::{
     ClaudeCodeCommandProvider, ClaudeCodeMcpProvider, ClaudeCodeSubagentProvider,
 };
 use openbitfun_codex_adapter::{CodexMcpProvider, CodexSubagentProvider};
+
 use openbitfun_dsh_adapter::DshMcpProvider;
 use openbitfun_external_sources::{
     DeferredDiscovery, ExternalMcpDiscoveryResult, ExternalSourceControlPlane,
@@ -83,10 +85,10 @@ use openbitfun_opencode_adapter::{
     OpenCodeSubagentProviderOptions,
 };
 use openbitfun_product_domains::external_integration_policy::{
-    external_integration_policy_snapshot, incompatible_external_integration_policy_snapshot,
-    ExternalIntegrationCapabilityDescriptor, ExternalIntegrationEcosystemDescriptor,
-    ExternalIntegrationPolicyDocument, ExternalIntegrationPolicySettings,
-    EXTERNAL_INTEGRATION_POLICY_SCHEMA_MAJOR,
+    automatic_discovery_enabled, external_integration_policy_snapshot,
+    incompatible_external_integration_policy_snapshot, ExternalIntegrationCapabilityDescriptor,
+    ExternalIntegrationEcosystemDescriptor, ExternalIntegrationPolicyDocument,
+    ExternalIntegrationPolicySettings, EXTERNAL_INTEGRATION_POLICY_SCHEMA_MAJOR,
 };
 use openbitfun_product_domains::external_sources::{
     ExecutionDomainId, ExternalMcpRevisionKey, ExternalMcpSourceProvider, ExternalSourceContext,
@@ -117,6 +119,28 @@ use tokio::sync::broadcast;
 use tool_runtime::exec_command::{
     exec_command_argv_for_isolated_shell, exec_command_noninteractive_env, ExecCommandShellKind,
 };
+
+pub use openbitfun_codex_adapter::BuiltinPetCatalog as ExternalBuiltinPetCatalog;
+
+pub fn external_builtin_pet_sources(
+    ecosystem_id: &str,
+    only_id: Option<&str>,
+) -> ExternalBuiltinPetCatalog {
+    match ecosystem_id {
+        "codex" => openbitfun_codex_adapter::builtin_pet_sources(only_id),
+        _ => ExternalBuiltinPetCatalog {
+            pets: Vec::new(),
+            diagnostics: vec!["Built-in pet source is unsupported".into()],
+        },
+    }
+}
+
+pub fn external_pet_source_root(ecosystem_id: &str) -> Option<PathBuf> {
+    match ecosystem_id {
+        "codex" => Some(openbitfun_codex_adapter::pet_source_root()),
+        _ => None,
+    }
+}
 
 const PROVIDER_DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const EXTERNAL_SOURCE_PREFERENCES_FILE: &str = "external-sources.json";
@@ -1573,6 +1597,7 @@ fn ensure_source_set_capability_active(
 enum ExternalSourceServiceProfile {
     LocalExecution,
     ReadOnlyProjection,
+    DiscoveryCatalog,
 }
 
 struct WorkspaceExternalSourceService {
@@ -1589,6 +1614,7 @@ struct WorkspaceExternalSourceService {
     mcp_runtime: Arc<dyn ExternalMcpRuntimePort>,
     active_mcp_runtime_ids: tokio::sync::Mutex<BTreeSet<String>>,
     initial_refresh_completed: AtomicBool,
+    automatic_discovery_active: AtomicBool,
     background_refresh_scheduled: AtomicBool,
     initial_refresh_gate: tokio::sync::Mutex<()>,
     keepalive_started: AtomicBool,
@@ -1602,6 +1628,71 @@ struct WorkspaceExternalSourceService {
 }
 
 impl WorkspaceExternalSourceService {
+    fn discovery_policy(
+        &self,
+        preferences: &ExternalSourcesConfig,
+    ) -> Result<ExternalIntegrationPolicySnapshot, String> {
+        if self.profile != ExternalSourceServiceProfile::DiscoveryCatalog {
+            return integration_policy_snapshot(preferences, self.workspace_root.as_deref());
+        }
+        let Some(stored) = preferences.integration_policy.known() else {
+            return integration_policy_snapshot(preferences, self.workspace_root.as_deref());
+        };
+        // This policy is used only by static discovery lanes. Runtime decisions
+        // and the public policy snapshot continue to use the original document.
+        let mut discovery = stored.clone();
+        discovery.user_defaults.enabled = true;
+        if let Some(key) = workspace_policy_key(self.workspace_root.as_deref()) {
+            discovery
+                .workspace_overrides
+                .entry(key)
+                .or_default()
+                .enabled = Some(true);
+        }
+        external_integration_policy_snapshot(
+            &discovery,
+            workspace_policy_key(self.workspace_root.as_deref()).as_deref(),
+            default_external_integration_ecosystems(),
+        )
+        .map_err(|error| format!("policy_unavailable: {error}"))
+    }
+
+    async fn automatic_discovery_allowed(&self) -> Result<bool, String> {
+        if self.profile != ExternalSourceServiceProfile::DiscoveryCatalog {
+            return Ok(true);
+        }
+        let preferences = read_external_sources_config().await?;
+        Ok(preferences
+            .integration_policy
+            .known()
+            .is_some_and(|document| {
+                automatic_discovery_enabled(
+                    document,
+                    workspace_policy_key(self.workspace_root.as_deref()).as_deref(),
+                )
+            }))
+    }
+
+    async fn watch_policy(&self) -> Result<ExternalIntegrationPolicySnapshot, String> {
+        let preferences = read_external_sources_config().await?;
+        let mut policy = self.discovery_policy(&preferences)?;
+        if self.profile == ExternalSourceServiceProfile::DiscoveryCatalog
+            && !preferences
+                .integration_policy
+                .known()
+                .is_some_and(|document| {
+                    automatic_discovery_enabled(
+                        document,
+                        workspace_policy_key(self.workspace_root.as_deref()).as_deref(),
+                    )
+                })
+        {
+            policy.effective.enabled = false;
+            policy.effective.ecosystems.clear();
+        }
+        Ok(policy)
+    }
+
     async fn create(
         workspace_root: Option<PathBuf>,
         profile: ExternalSourceServiceProfile,
@@ -1686,6 +1777,15 @@ impl WorkspaceExternalSourceService {
         initial_snapshot.preference_revision = preferences.preference_revision;
         initial_snapshot.integration_policy =
             integration_policy_snapshot(&preferences, workspace_root.as_deref())?;
+        let automatic_discovery = preferences
+            .integration_policy
+            .known()
+            .is_some_and(|document| {
+                automatic_discovery_enabled(
+                    document,
+                    workspace_policy_key(workspace_root.as_deref()).as_deref(),
+                )
+            });
         let (updates, _) = broadcast::channel(32);
         let service = Arc::new(Self {
             profile,
@@ -1701,6 +1801,7 @@ impl WorkspaceExternalSourceService {
             mcp_runtime: Arc::new(OpenBitFunExternalMcpRuntime),
             active_mcp_runtime_ids: tokio::sync::Mutex::new(BTreeSet::new()),
             initial_refresh_completed: AtomicBool::new(false),
+            automatic_discovery_active: AtomicBool::new(automatic_discovery),
             background_refresh_scheduled: AtomicBool::new(false),
             initial_refresh_gate: tokio::sync::Mutex::new(()),
             keepalive_started: AtomicBool::new(false),
@@ -1729,7 +1830,7 @@ impl WorkspaceExternalSourceService {
     async fn refresh_mcp_import_sources(self: &Arc<Self>) -> Result<(), String> {
         sync_service_preferences(self).await?;
         let preferences = read_external_sources_config().await?;
-        let policy = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())?;
+        let policy = self.discovery_policy(&preferences)?;
         self.discover_mcp_import_sources(&policy).await;
         Ok(())
     }
@@ -1774,7 +1875,7 @@ impl WorkspaceExternalSourceService {
             return Ok(());
         }
         let preferences = read_external_sources_config().await?;
-        let policy = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())?;
+        let policy = self.discovery_policy(&preferences)?;
         let mut requests = Vec::new();
         let mut disabled_results = Vec::new();
         for request in
@@ -1826,8 +1927,24 @@ impl WorkspaceExternalSourceService {
     async fn refresh_preserving_worker_recovery(
         self: &Arc<Self>,
     ) -> Result<ExternalSourceCatalogSnapshot, String> {
+        if !self.automatic_discovery_allowed().await? {
+            sync_service_preferences(self).await?;
+            let mut snapshot = self.snapshot();
+            snapshot.discovery_pending = false;
+            return Ok(snapshot);
+        }
         self.refresh_with_worker_recovery(WorkerRecoveryPolicy::Preserve)
             .await
+    }
+
+    async fn refresh_after_source_change(
+        self: &Arc<Self>,
+    ) -> Result<ExternalSourceCatalogSnapshot, String> {
+        if self.profile == ExternalSourceServiceProfile::DiscoveryCatalog {
+            self.refresh_preserving_worker_recovery().await
+        } else {
+            self.refresh().await
+        }
     }
 
     async fn refresh_worker_loss_once(
@@ -1848,7 +1965,15 @@ impl WorkspaceExternalSourceService {
         sync_service_preferences(self).await?;
         let _refresh_guard = self.refresh_gate.lock().await;
         let preferences = read_external_sources_config().await?;
-        let policy = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())?;
+        // Recheck after acquiring the gate: a queued watcher request may have
+        // been paused while another scan held it. Explicit refresh still runs.
+        if self.profile == ExternalSourceServiceProfile::DiscoveryCatalog
+            && matches!(recovery_policy, WorkerRecoveryPolicy::Preserve)
+            && !self.automatic_discovery_allowed().await?
+        {
+            return Ok(self.snapshot());
+        }
+        let policy = self.discovery_policy(&preferences)?;
         if self.profile == ExternalSourceServiceProfile::LocalExecution
             && matches!(recovery_policy, WorkerRecoveryPolicy::ResetAndAttempt)
         {
@@ -2013,6 +2138,11 @@ impl WorkspaceExternalSourceService {
     async fn ensure_initial_refresh(
         self: &Arc<Self>,
     ) -> Result<ExternalSourceCatalogSnapshot, String> {
+        if !self.automatic_discovery_allowed().await? {
+            let mut snapshot = self.snapshot();
+            snapshot.discovery_pending = false;
+            return Ok(snapshot);
+        }
         self.ensure_initial_refresh_with(|| self.refresh()).await
     }
 
@@ -2033,7 +2163,7 @@ impl WorkspaceExternalSourceService {
         let command_snapshot = lock_coordinator(&self.control_plane).snapshot();
         let mut preferences = read_external_sources_config().await?;
         let mut policy = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())?;
-        if self.profile == ExternalSourceServiceProfile::ReadOnlyProjection {
+        if self.profile != ExternalSourceServiceProfile::LocalExecution {
             return self
                 .rebuild_read_only_projection(command_snapshot, preferences, policy)
                 .await;
@@ -2736,8 +2866,7 @@ impl WorkspaceExternalSourceService {
         let Ok(preferences) = read_external_sources_config().await else {
             return;
         };
-        let Ok(policy) = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())
-        else {
+        let Ok(policy) = self.discovery_policy(&preferences) else {
             return;
         };
         let ecosystem_id =
@@ -2764,8 +2893,7 @@ impl WorkspaceExternalSourceService {
         let Ok(preferences) = read_external_sources_config().await else {
             return;
         };
-        let Ok(policy) = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())
-        else {
+        let Ok(policy) = self.discovery_policy(&preferences) else {
             return;
         };
         let ecosystem_id =
@@ -2796,8 +2924,7 @@ impl WorkspaceExternalSourceService {
         let Ok(preferences) = read_external_sources_config().await else {
             return;
         };
-        let Ok(policy) = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())
-        else {
+        let Ok(policy) = self.discovery_policy(&preferences) else {
             return;
         };
         let ecosystem_id =
@@ -2827,8 +2954,7 @@ impl WorkspaceExternalSourceService {
         let Ok(preferences) = read_external_sources_config().await else {
             return;
         };
-        let Ok(policy) = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())
-        else {
+        let Ok(policy) = self.discovery_policy(&preferences) else {
             return;
         };
         let ecosystem_id =
@@ -2859,8 +2985,7 @@ impl WorkspaceExternalSourceService {
         let Ok(preferences) = read_external_sources_config().await else {
             return;
         };
-        let Ok(policy) = integration_policy_snapshot(&preferences, self.workspace_root.as_deref())
-        else {
+        let Ok(policy) = self.discovery_policy(&preferences) else {
             return;
         };
         let ecosystem_id = lock_workspace_reference_coordinator(&self.control_plane)
@@ -3023,16 +3148,22 @@ impl WorkspaceExternalSourceService {
         #[cfg(not(feature = "opencode-plugin-host"))]
         let snapshot = lock_snapshot(&self.snapshot).clone();
         #[cfg(feature = "opencode-plugin-host")]
-        for message in crate::plugin_host::configured_plugin_activation_failures(
-            self.workspace_root.as_deref(),
-        ) {
-            if !snapshot.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code == "plugin.activation_failed" && diagnostic.message == message
-            }) {
-                snapshot.diagnostics.push(
-                    ExternalSourceDiagnostic::warning("plugin.activation_failed", message, None)
+        if self.profile != ExternalSourceServiceProfile::DiscoveryCatalog {
+            for message in crate::plugin_host::configured_plugin_activation_failures(
+                self.workspace_root.as_deref(),
+            ) {
+                if !snapshot.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == "plugin.activation_failed" && diagnostic.message == message
+                }) {
+                    snapshot.diagnostics.push(
+                        ExternalSourceDiagnostic::warning(
+                            "plugin.activation_failed",
+                            message,
+                            None,
+                        )
                         .with_asset_kind(ExternalSourceAssetKind::Hook),
-                );
+                    );
+                }
             }
         }
         snapshot
@@ -4078,9 +4209,12 @@ impl WorkspaceExternalSourceService {
     }
 
     async fn start_watching(self: &Arc<Self>) {
-        let policy = self.snapshot().integration_policy;
+        let Ok(policy) = self.watch_policy().await else {
+            return;
+        };
         let watch_roots = self.watch_roots(&policy);
-        if watch_roots.is_empty() {
+        if watch_roots.is_empty() && self.profile != ExternalSourceServiceProfile::DiscoveryCatalog
+        {
             return;
         }
         self.ensure_watch_roots(&policy).await;
@@ -4092,7 +4226,7 @@ impl WorkspaceExternalSourceService {
                     Ok(events) => events,
                     Err(broadcast::error::RecvError::Lagged(_)) => {
                         if let Some(service) = weak.upgrade() {
-                            let _ = service.refresh().await;
+                            let _ = service.refresh_after_source_change().await;
                             continue;
                         }
                         break;
@@ -4102,7 +4236,9 @@ impl WorkspaceExternalSourceService {
                 let Some(service) = weak.upgrade() else {
                     break;
                 };
-                let policy = service.snapshot().integration_policy;
+                let Ok(policy) = service.watch_policy().await else {
+                    continue;
+                };
                 let watch_roots = service.watch_roots(&policy);
                 let relevant = events.iter().any(|event| {
                     let path = Path::new(&event.path);
@@ -4111,7 +4247,7 @@ impl WorkspaceExternalSourceService {
                 if !relevant {
                     continue;
                 }
-                if let Err(error) = service.refresh().await {
+                if let Err(error) = service.refresh_after_source_change().await {
                     log::warn!(
                         "External source background refresh failed scope={} error_category={}",
                         external_log_scope(service.workspace_root.as_deref()),
@@ -4156,6 +4292,16 @@ impl WorkspaceExternalSourceService {
     }
 
     async fn ensure_watch_roots(&self, policy: &ExternalIntegrationPolicySnapshot) {
+        let discovery_policy;
+        let policy = if self.profile == ExternalSourceServiceProfile::DiscoveryCatalog {
+            discovery_policy = match self.watch_policy().await {
+                Ok(policy) => policy,
+                Err(_) => return,
+            };
+            &discovery_policy
+        } else {
+            policy
+        };
         let watch_roots = self.watch_roots(policy);
         let watcher = Arc::clone(&self.watcher);
         let mut states = self.watch_states.lock().await;
@@ -4330,12 +4476,20 @@ fn read_only_workspace_services(
     READ_ONLY_WORKSPACE_SERVICES.get_or_init(DashMap::new)
 }
 
+fn discovery_workspace_services(
+) -> &'static DashMap<Option<PathBuf>, Weak<WorkspaceExternalSourceService>> {
+    static SERVICES: OnceLock<DashMap<Option<PathBuf>, Weak<WorkspaceExternalSourceService>>> =
+        OnceLock::new();
+    SERVICES.get_or_init(DashMap::new)
+}
+
 fn workspace_services_for_profile(
     profile: ExternalSourceServiceProfile,
 ) -> &'static DashMap<Option<PathBuf>, Weak<WorkspaceExternalSourceService>> {
     match profile {
         ExternalSourceServiceProfile::LocalExecution => workspace_services(),
         ExternalSourceServiceProfile::ReadOnlyProjection => read_only_workspace_services(),
+        ExternalSourceServiceProfile::DiscoveryCatalog => discovery_workspace_services(),
     }
 }
 
@@ -4868,7 +5022,11 @@ fn mcp_import_discovery_complete(
 pub(crate) async fn collect_external_mcp_import_candidates(
     workspace_root: Option<&Path>,
 ) -> Result<Vec<crate::external_mcp_import::ExternalMcpImportCandidate>, String> {
-    let service = read_only_service_for(workspace_root).await?;
+    let service = service_for_profile(
+        workspace_root,
+        ExternalSourceServiceProfile::DiscoveryCatalog,
+    )
+    .await?;
     service.refresh_mcp_import_sources().await?;
     // Provider preparation performs bounded synchronous file reads. Keep it off
     // the async workers serving UI requests and connection lifecycle.
@@ -4955,6 +5113,23 @@ async fn service_for_profile(
     {
         service.touch();
         sync_service_preferences(&service).await?;
+        drop(_service_gate);
+        if profile == ExternalSourceServiceProfile::DiscoveryCatalog {
+            let enabled = service.automatic_discovery_allowed().await?;
+            let was_enabled = service
+                .automatic_discovery_active
+                .swap(enabled, Ordering::AcqRel);
+            if enabled && !was_enabled {
+                service
+                    .background_refresh_scheduled
+                    .store(true, Ordering::Release);
+                let result = service.refresh_preserving_worker_recovery().await;
+                service
+                    .background_refresh_scheduled
+                    .store(false, Ordering::Release);
+                result?;
+            }
+        }
         return Ok(service);
     }
     let created = WorkspaceExternalSourceService::create(workspace_root.clone(), profile).await?;
@@ -5812,7 +5987,8 @@ fn validate_integration_policy_operation(
                 })
         };
     match operation {
-        ExternalIntegrationPolicyOperation::SetEnabled { .. } => Ok(()),
+        ExternalIntegrationPolicyOperation::SetEnabled { .. }
+        | ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { .. } => Ok(()),
         ExternalIntegrationPolicyOperation::SetEcosystemMode { ecosystem_id, mode } => {
             validate_ecosystem(ecosystem_id)?;
             mode.is_known().then_some(()).ok_or_else(|| {
@@ -5863,6 +6039,11 @@ fn apply_user_policy_operation(
     operation: &ExternalIntegrationPolicyOperation,
 ) -> Result<bool, String> {
     match operation {
+        ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { enabled } => {
+            let changed = settings.automatic_discovery != Some(*enabled);
+            settings.automatic_discovery = Some(*enabled);
+            Ok(changed)
+        }
         ExternalIntegrationPolicyOperation::SetEnabled { enabled } => {
             let changed = settings.enabled != *enabled;
             settings.enabled = *enabled;
@@ -5911,6 +6092,11 @@ fn apply_workspace_policy_operation(
         .entry(workspace_key.to_string())
         .or_default();
     match operation {
+        ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { enabled } => {
+            let changed = policy.automatic_discovery != Some(*enabled);
+            policy.automatic_discovery = Some(*enabled);
+            Ok(changed)
+        }
         ExternalIntegrationPolicyOperation::SetEnabled { enabled } => {
             let changed = policy.enabled != Some(*enabled);
             policy.enabled = Some(*enabled);
@@ -7221,15 +7407,108 @@ pub async fn external_source_read_only_snapshot(
     Ok(public)
 }
 
+pub async fn external_source_discovery_snapshot(
+    workspace_root: Option<&Path>,
+    force_refresh: bool,
+    host_capabilities: ExternalSourceHostCapabilities,
+) -> Result<ExternalSourceDiscoverySnapshotV1, String> {
+    let service = service_for_profile(
+        workspace_root,
+        ExternalSourceServiceProfile::DiscoveryCatalog,
+    )
+    .await?;
+    if force_refresh {
+        service.refresh().await?;
+    } else {
+        if service.automatic_discovery_allowed().await? {
+            service.ensure_background_refresh();
+        }
+    }
+    let preferences = read_external_sources_config().await?;
+    let automatic_discovery = preferences
+        .integration_policy
+        .known()
+        .is_some_and(|document| {
+            automatic_discovery_enabled(
+                document,
+                workspace_policy_key(service.workspace_root.as_deref()).as_deref(),
+            )
+        });
+    let has_scanned = service.initial_refresh_completed.load(Ordering::Acquire);
+    let discovery_policy = service.discovery_policy(&preferences)?;
+    let discoverable_capabilities = discovery_policy
+        .effective
+        .ecosystems
+        .iter()
+        .map(|(id, ecosystem)| {
+            (
+                id.clone(),
+                ecosystem
+                    .capabilities
+                    .iter()
+                    .filter_map(|(capability, _)| {
+                        integration_capability_is_discoverable(
+                            &discovery_policy,
+                            id.as_str(),
+                            capability.as_str(),
+                        )
+                        .then_some(capability.clone())
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    // Read the result after the awaited preference read, so a just-completed
+    // background scan cannot be reported as complete with an earlier catalog.
+    let mut catalog = ExternalSourcePublicSnapshot::from(service.snapshot());
+    catalog.host_capabilities = ExternalSourceHostCapabilities::read_only_projection();
+    catalog.integration_policy =
+        integration_policy_snapshot(&preferences, service.workspace_root.as_deref())?;
+    catalog.preference_revision = preferences.preference_revision;
+    catalog.discovery_pending = service.background_refresh_scheduled.load(Ordering::Acquire)
+        || service.refresh_gate.try_lock().is_err()
+        || if has_scanned {
+            catalog.discovery_pending
+        } else {
+            automatic_discovery
+        };
+    Ok(ExternalSourceDiscoverySnapshotV1 {
+        schema_version: 1,
+        automatic_discovery,
+        can_change_automatic_discovery: host_capabilities.can_mutate_policy
+            && preferences.integration_policy.known().is_some(),
+        has_scanned,
+        discoverable_capabilities,
+        preference_revision: preferences.preference_revision,
+        catalog,
+    })
+}
+
 pub async fn update_external_integration_policy(
     workspace_root: Option<&Path>,
     mutation: ExternalIntegrationPolicyMutation,
 ) -> Result<ExternalSourceCatalogSnapshot, String> {
     let expected_revision = mutation.expected_preference_revision;
     let (scope, operation, ecosystem, capability) = integration_policy_log_context(&mutation);
-    let result = match service_for(workspace_root).await {
-        Ok(service) => service.update_integration_policy(mutation).await,
-        Err(error) => Err(error),
+    let result = if matches!(
+        mutation.change,
+        ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { .. }
+    ) {
+        async {
+            persist_integration_policy_mutation(workspace_root, mutation).await?;
+            let service = service_for_profile(
+                workspace_root,
+                ExternalSourceServiceProfile::DiscoveryCatalog,
+            )
+            .await?;
+            service.ensure_initial_refresh().await
+        }
+        .await
+    } else {
+        match service_for(workspace_root).await {
+            Ok(service) => service.update_integration_policy(mutation).await,
+            Err(error) => Err(error),
+        }
     };
     match &result {
         Ok(snapshot) => log::info!(
@@ -7263,6 +7542,11 @@ fn integration_policy_log_context(
         _ => "unknown",
     };
     let (operation, ecosystem, capability) = match &mutation.change {
+        ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { .. } => (
+            "set_automatic_discovery",
+            "all".to_string(),
+            "all".to_string(),
+        ),
         ExternalIntegrationPolicyOperation::SetEnabled { .. } => {
             ("set_enabled", "all".to_string(), "all".to_string())
         }
@@ -7546,6 +7830,136 @@ mod opencode_local_source_order_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn automatic_discovery_mutations_preserve_runtime_policy_approvals_and_scope() {
+        let mut config = ExternalSourcesConfig::default();
+        config.approved_tool_targets.insert("approved-tool".into());
+        config
+            .approved_subagent_envelopes
+            .insert("approved-agent".into());
+        for runtime_enabled in [false, true] {
+            config
+                .integration_policy
+                .known_mut()
+                .unwrap()
+                .user_defaults
+                .enabled = runtime_enabled;
+            let before = integration_policy_snapshot(&config, None).unwrap();
+            for enabled in [true, false] {
+                let mutation = ExternalIntegrationPolicyMutation {
+                    expected_preference_revision: config.preference_revision,
+                    scope: ExternalIntegrationPolicyScope::Workspace,
+                    change: ExternalIntegrationPolicyOperation::SetAutomaticDiscovery { enabled },
+                };
+                apply_integration_policy_mutation_to_config(
+                    &mut config,
+                    Some("project"),
+                    &mutation,
+                )
+                .unwrap();
+                assert_eq!(
+                    integration_policy_snapshot(&config, None)
+                        .unwrap()
+                        .effective,
+                    before.effective
+                );
+                let document = config.integration_policy.known().unwrap();
+                assert_eq!(
+                    automatic_discovery_enabled(document, Some("project")),
+                    enabled
+                );
+                assert_eq!(
+                    automatic_discovery_enabled(document, Some("another-project")),
+                    runtime_enabled
+                );
+                assert!(config.approved_tool_targets.contains("approved-tool"));
+                assert!(config
+                    .approved_subagent_envelopes
+                    .contains("approved-agent"));
+                let revision = config.preference_revision;
+                assert!(apply_integration_policy_mutation_to_config(
+                    &mut config,
+                    Some("project"),
+                    &mutation
+                )
+                .is_err());
+                assert_eq!(config.preference_revision, revision);
+            }
+        }
+    }
+
+    #[test]
+    fn automatic_discovery_policy_only_bypasses_the_runtime_master_switch() {
+        let mut service = test_service(Vec::new());
+        Arc::get_mut(&mut service).unwrap().profile =
+            ExternalSourceServiceProfile::DiscoveryCatalog;
+        let mut preferences = ExternalSourcesConfig::default();
+        preferences
+            .integration_policy
+            .known_mut()
+            .unwrap()
+            .user_defaults
+            .ecosystems
+            .insert(
+                EcosystemId::new("codex").unwrap(),
+                openbitfun_product_domains::external_integration_policy::ExternalEcosystemPolicy {
+                    mode: ExternalIntegrationMode::Disabled,
+                    ..Default::default()
+                },
+            );
+        let original = preferences.clone();
+        let discovery = service.discovery_policy(&preferences).unwrap();
+        assert!(integration_capability_is_discoverable(
+            &discovery,
+            "opencode",
+            EXTERNAL_CAPABILITY_MCP
+        ));
+        assert!(!integration_capability_is_discoverable(
+            &discovery,
+            "codex",
+            EXTERNAL_CAPABILITY_MCP
+        ));
+        assert!(
+            !integration_policy_snapshot(&preferences, None)
+                .unwrap()
+                .effective
+                .enabled
+        );
+        assert_eq!(
+            serde_json::to_value(preferences).unwrap(),
+            serde_json::to_value(original).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn automatic_discovery_catalog_discovers_without_calling_or_retiring_runtime() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let runtime = Arc::new(CountingExternalMcpRuntime::default());
+        let mut service = test_service(vec![delayed_provider(
+            "opencode",
+            std::time::Duration::ZERO,
+            calls.clone(),
+        )]);
+        let inner = Arc::get_mut(&mut service).unwrap();
+        inner.profile = ExternalSourceServiceProfile::DiscoveryCatalog;
+        inner.mcp_runtime = runtime.clone();
+        service
+            .active_mcp_runtime_ids
+            .lock()
+            .await
+            .insert("existing-runtime".into());
+        let catalog = service.refresh().await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(catalog.commands.len(), 1);
+        assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
+        assert!(service
+            .active_mcp_runtime_ids
+            .lock()
+            .await
+            .contains("existing-runtime"));
+        assert!(service.initial_refresh_completed.load(Ordering::Acquire));
+    }
+
     #[test]
     fn imported_mcp_plan_does_not_treat_capacity_failures_as_an_empty_catalog() {
         let mut snapshot = openbitfun_external_sources::ExternalMcpCoordinatorSnapshot {
@@ -8958,6 +9372,7 @@ mod tests {
             mcp_runtime: Arc::new(OpenBitFunExternalMcpRuntime),
             active_mcp_runtime_ids: tokio::sync::Mutex::new(BTreeSet::new()),
             initial_refresh_completed: AtomicBool::new(false),
+            automatic_discovery_active: AtomicBool::new(false),
             background_refresh_scheduled: AtomicBool::new(false),
             initial_refresh_gate: tokio::sync::Mutex::new(()),
             keepalive_started: AtomicBool::new(false),

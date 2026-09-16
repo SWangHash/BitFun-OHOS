@@ -16,7 +16,7 @@ import {
   MobileSheet,
 } from '@openbitfun/ui/mobile';
 import { useI18n } from '../i18n';
-import LanguageToggleButton from './LanguageToggleButton';
+import { MOBILE_LOCALES } from '../i18n/localeRegistry';
 
 interface SettingsDevice {
   device_id: string;
@@ -32,6 +32,7 @@ interface CompactSettingsSheetProps {
   isDark: boolean;
   onClose: () => void;
   onDisconnectRequest: () => void;
+  onOpenDevices?: () => void;
   onSelectDevice: (device: SettingsDevice) => void;
   onToggleTheme: () => void;
   open: boolean;
@@ -55,13 +56,14 @@ export default function CompactSettingsSheet({
   isDark,
   onClose,
   onDisconnectRequest,
+  onOpenDevices,
   onSelectDevice,
   onToggleTheme,
   open,
   renderDeviceIcon,
   selectedDeviceId,
 }: CompactSettingsSheetProps) {
-  const { t } = useI18n();
+  const { t, language, setLanguage } = useI18n();
 
   return (
     <MobileSheet
@@ -85,6 +87,12 @@ export default function CompactSettingsSheet({
           {accountLabel && <MobileBadge className="harmony-sidebar__verified" tone="success">{t('settings.signedIn')}</MobileBadge>}
         </MobileCard>
 
+        {onOpenDevices && (
+          <MobileButton appearance="plain" block onClick={onOpenDevices} aria-label={t('devices.title')}>
+            {t('devices.title')}
+          </MobileButton>
+        )}
+
         <h3>{t('settings.generalSection')}</h3>
         <MobileCard padding="none" className="harmony-sidebar__settings-card">
           <MobileButton appearance="plain" block className="harmony-sidebar__settings-row" onClick={onToggleTheme}>
@@ -93,11 +101,22 @@ export default function CompactSettingsSheet({
             <small>{isDark ? 'Dark' : 'Light'}</small>
             <span className="harmony-sidebar__settings-chevron" aria-hidden="true">›</span>
           </MobileButton>
-          <div className="harmony-sidebar__settings-row">
+          <div className="harmony-sidebar__settings-row harmony-sidebar__settings-row--language">
             <span className="harmony-sidebar__settings-row-icon" aria-hidden="true"><LucideGlobe width="20" height="20" stroke="currentColor" aria-hidden="true" /></span>
             <span className="harmony-sidebar__settings-label">{t('settings.language')}</span>
-            <LanguageToggleButton className="harmony-sidebar__settings-language" />
-            <span className="harmony-sidebar__settings-chevron" aria-hidden="true">›</span>
+            <div className="harmony-sidebar__settings-languages" role="group" aria-label={t('settings.language')}>
+              {MOBILE_LOCALES.map((locale) => (
+                <MobileButton
+                  key={locale.id}
+                  appearance="plain"
+                  className="harmony-sidebar__settings-language"
+                  aria-pressed={language === locale.id}
+                  onClick={() => setLanguage(locale.id)}
+                >
+                  {locale.shortName}
+                </MobileButton>
+              ))}
+            </div>
           </div>
         </MobileCard>
 

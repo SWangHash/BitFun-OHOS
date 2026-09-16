@@ -1,10 +1,24 @@
-import React, { forwardRef, useImperativeHandle } from 'react';
+// @vitest-environment jsdom
+import React, { act, forwardRef, useImperativeHandle } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
-import MarkdownEditor, {
-  MARKDOWN_RICH_EDITOR_MAX_BYTES,
-  shouldUseLargeMarkdownSourceMode,
-} from './MarkdownEditor';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import MarkdownEditor from './MarkdownEditor';
+import type { DocumentSnapshot } from '../services/EditorDocument';
+
+const documentMock = vi.hoisted(() => ({
+  enabled: false,
+  session: {
+    id: 'markdown-load-test',
+    snapshot: undefined as DocumentSnapshot | undefined,
+    files: { readFileContent: vi.fn(), getFileMetadata: vi.fn() },
+    isCurrent: vi.fn(() => true),
+    capture: vi.fn(),
+  },
+}));
+vi.mock('../services/EditorDocument', () => ({
+  useEditorDocument: () => documentMock.enabled ? documentMock.session : null,
+}));
 
 vi.mock('../meditor', () => ({
   MEditor: forwardRef((props: { value?: string; mode?: string }, ref) => {
@@ -79,14 +93,6 @@ describe('MarkdownEditor', () => {
     expect(html).toContain('data-openbitfun-component="icon-button"');
   });
 
-  it('uses preview mode for markdown rendering', () => {
-    const html = renderToStaticMarkup(
-      <MarkdownEditor initialContent="```mermaid\ngraph TD\n  A-->B\n```" />,
-    );
-
-    expect(html).toContain('data-mode="preview"');
-  });
-
   it('does not show the IR fallback warning in the preview/source file UI', () => {
     const html = renderToStaticMarkup(
       <MarkdownEditor initialContent="# Ordinary Markdown" />,
@@ -94,11 +100,82 @@ describe('MarkdownEditor', () => {
 
     expect(html).not.toContain('IR fallback warning');
   });
+});
 
-  it('uses source mode at and above the rich markdown size limit', () => {
-    expect(shouldUseLargeMarkdownSourceMode(MARKDOWN_RICH_EDITOR_MAX_BYTES - 1)).toBe(false);
-    expect(shouldUseLargeMarkdownSourceMode(MARKDOWN_RICH_EDITOR_MAX_BYTES)).toBe(true);
-    expect(shouldUseLargeMarkdownSourceMode(MARKDOWN_RICH_EDITOR_MAX_BYTES + 1)).toBe(true);
-    expect(shouldUseLargeMarkdownSourceMode(undefined)).toBe(false);
+describe('MarkdownEditor file load recovery', () => {
+  let root: Root;
+  let container: HTMLDivElement;
+  const filePath = '/external/home/123.md';
+  const read = documentMock.session.files.readFileContent;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers();
+    documentMock.enabled = true;
+    documentMock.session.snapshot = undefined;
+    documentMock.session.isCurrent.mockReturnValue(true);
+    // Unexpected reads stay pending so a regression fails instead of hanging.
+    read.mockReset().mockImplementation(() => new Promise<string>(() => {}));
+    documentMock.session.files.getFileMetadata.mockReset().mockRejectedValue(new Error('File does not exist'));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    documentMock.enabled = false;
+    vi.useRealTimers();
+  });
+
+  it('keeps a missing file error stable through rerenders and disk polling', async () => {
+    read.mockRejectedValueOnce(new Error('File does not exist'));
+    const reportMissing = vi.fn();
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} onFileMissingFromDiskChange={reportMissing} />));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(reportMissing).toHaveBeenCalledWith(true);
+    expect(container.textContent).toContain('editor.common.fileNotFound');
+    expect(container.textContent).not.toContain('editor.markdownEditor.loadingFile');
+
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} onFileMissingFromDiskChange={vi.fn()} />));
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('editor.common.retry');
+  });
+
+  it('retries once on tab reactivation and keeps subsequent failures stable', async () => {
+    read.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} />));
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} isActiveTab={false} />));
+    expect(read).toHaveBeenCalledTimes(1);
+    read.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} isActiveTab />));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('editor.common.loadFailed');
+  });
+
+  it('allows manual retry to recover when the file becomes readable', async () => {
+    read.mockRejectedValueOnce(new Error('File does not exist'));
+    const reportMissing = vi.fn();
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} onFileMissingFromDiskChange={reportMissing} />));
+    read.mockResolvedValueOnce('# Recovered');
+    documentMock.session.files.getFileMetadata.mockResolvedValue({ isFile: true });
+    await act(async () => container.querySelector<HTMLButtonElement>('button')!.click());
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(reportMissing).toHaveBeenLastCalledWith(false);
+    expect(container.querySelector('[data-testid="markdown-body"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('editor.common.retry');
+  });
+
+  it('does not retry on an inactive device', async () => {
+    read.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} />));
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} isActiveTab={false} />));
+    documentMock.session.isCurrent.mockReturnValue(false);
+    await act(async () => root.render(<MarkdownEditor filePath={filePath} isActiveTab />));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('editor.common.loadFailed');
   });
 });

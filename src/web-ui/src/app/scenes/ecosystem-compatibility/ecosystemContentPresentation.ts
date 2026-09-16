@@ -19,14 +19,14 @@ export function contentUsageState(state?: string): ContentUsageState {
   }
 }
 
-export type ContentState = ContentUsageState | 'checking' | 'discoveryDisabled'
+export type ContentState = ContentUsageState | 'checking' | 'notScanned' | 'discoveryDisabled'
   | 'discoveryUnavailable' | 'notDetected' | 'discoveryUnsupported' | 'discovered'
   | 'importUnsupported' | 'unsupportedContext' | 'ready' | 'readyRename' | 'review'
   | 'imported' | 'unavailable';
 
 interface ContentFacts {
   item: EcosystemImportItem;
-  discoveryState: 'checking' | 'discoveryDisabled' | 'discoveryUnavailable' | 'notDetected';
+  discoveryState: 'checking' | 'notScanned' | 'discoveryDisabled' | 'discoveryUnavailable' | 'notDetected';
   catalogFailed: boolean;
   imported: boolean;
   localImportSupported: boolean;
@@ -34,6 +34,7 @@ interface ContentFacts {
   hookImportSupported: boolean;
   planLoading: boolean;
   mcpDisposition?: ExternalMcpImportDispositionV1;
+  mcpPlanDeferred?: boolean;
 }
 
 export interface ContentPresentation {
@@ -54,12 +55,18 @@ export function presentEcosystemContent(facts: ContentFacts): ContentPresentatio
   }
   if (!item.discovered && item.discoverySupport === 'unsupported') return result('discoveryUnsupported');
   if (facts.catalogFailed && item.detection === 'catalog') {
+    if (item.discovered) return result('discovered', 'content.lastKnownResult');
     return result('discoveryUnavailable', 'discovery.unavailableDescription');
   }
   // A cached entry is not evidence that the latest scan completed or discovery is enabled.
   if (facts.discoveryState !== 'notDetected') {
+    // Keep known catalog entries inspectable while updates are paused or fail.
+    if (item.discovered && ['checking', 'notScanned', 'discoveryUnavailable'].includes(facts.discoveryState)) {
+      return result('discovered', 'content.lastKnownResult');
+    }
     const key = facts.discoveryState === 'checking' ? 'loading'
-      : facts.discoveryState === 'discoveryDisabled' ? 'discovery.disabledDescription'
+      : facts.discoveryState === 'notScanned' ? 'import.states.notScanned'
+      : facts.discoveryState === 'discoveryDisabled' ? 'import.states.discoveryDisabled'
         : 'discovery.unavailableDescription';
     return result(facts.discoveryState, key);
   }
@@ -80,5 +87,6 @@ export function presentEcosystemContent(facts: ContentFacts): ContentPresentatio
   if (facts.planLoading) return result('checking', 'loading');
   if (facts.mcpDisposition === 'eligible') return result('ready');
   if (facts.mcpDisposition === 'automatic_rename') return result('readyRename');
+  if (!facts.mcpDisposition && facts.mcpPlanDeferred) return result('review', 'content.mcpReviewDescription');
   return result('unavailable');
 }

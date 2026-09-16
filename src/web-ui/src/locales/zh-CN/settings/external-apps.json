@@ -1,6 +1,6 @@
 {
   "title": "外部 AI 应用",
-  "subtitle": "查看从其他 AI 应用发现的兼容命令、工具、Agent 与 MCP",
+  "subtitle": "查看从其他 AI 应用发现的兼容命令、工具、智能体与 MCP",
   "governance": {
     "title": "外部来源与安全",
     "subtitle": "管理当前执行主机的来源访问、安全策略、审批与冲突"
@@ -73,7 +73,7 @@
       "http": "HTTP",
       "mcp_tool": "MCP 工具",
       "prompt": "Prompt",
-      "agent": "Agent"
+      "agent": "智能体"
     },
     "scope": {
       "user_global": "用户",
@@ -122,7 +122,7 @@
     "updated": "已保存。",
     "waitForUpdate": "另一项更改仍在保存，请等待完成后再做选择。",
     "agentUpdated": "已保存“{{name}}”的更改并刷新状态。",
-    "modelBindingUpdated": "已保存 Agent 模型绑定并刷新受影响的 Agent。",
+    "modelBindingUpdated": "已保存智能体模型绑定并刷新受影响的智能体。",
     "mcpUpdated": "已保存 MCP 服务器选择并刷新状态。"
   },
   "bulkActions": {
@@ -145,7 +145,7 @@
   },
   "safeMode": {
     "title": "外部来源安全模式",
-    "description": "阻止新的外部工具、Agent 和 MCP 调用，同时保留已发现的命令与诊断信息；已在执行的调用不会被取消",
+    "description": "阻止新的外部工具、智能体和 MCP 调用，同时保留已发现的命令与诊断信息；已在执行的调用不会被取消",
     "activeNotice": "当前 Host 进程已阻止新的外部调用；已在执行的调用仍可能完成，重启或切换 Host 后安全模式会自动关闭。",
     "toggleLabel": "使用外部来源安全模式",
     "entered": "外部来源安全模式已启用。",
@@ -206,7 +206,7 @@
       "reference": "引用目录",
       "command": "命令",
       "tool": "工具",
-      "subagent": "Agent",
+      "subagent": "智能体",
       "mcp": "MCP 服务器"
     },
     "state": {
@@ -260,17 +260,17 @@
     "empty": "未发现配置",
     "commandCount": "{{count}} 个命令",
     "toolCount": "{{count}} 个工具",
-    "agentCount": "{{count}} 个 Agent",
+    "agentCount": "{{count}} 个智能体",
     "mcpCount": "{{count}} 个 MCP 服务器",
     "toggleLabel": "启用 {{name}}"
   },
   "agents": {
-    "title": "发现的 Agent",
-    "description": "Agent 仍保存在原应用中。启用前，请确认下方的模型、工具和运行位置；其指令或这些设置变化后，OpenBitFun 会再次请你确认",
+    "title": "发现的智能体",
+    "description": "智能体仍保存在原应用中。启用前，请确认下方的模型、工具和运行位置；其指令或这些设置变化后，OpenBitFun 会再次请你确认",
     "disable": "停用",
-    "enable": "启用 Agent",
+    "enable": "启用智能体",
     "reviewTitle": "查看 {{name}} 的运行设置",
-    "approvalWarning": "启用后，该 Agent 可以让所选模型调用上方工具。其指令、模型、工具或配置来源发生变化时，OpenBitFun 会要求你再次确认。",
+    "approvalWarning": "启用后，该智能体可以让所选模型调用上方工具。其指令、模型、工具或配置来源发生变化时，OpenBitFun 会要求你再次确认。",
     "role": {
       "primary": "主会话",
       "subagent": "单次任务，不支持续问",
@@ -291,8 +291,8 @@
     "sourceLocations": "配置来源（{{count}} 个）"
   },
   "agentModelBindings": {
-    "title": "Agent 模型绑定",
-    "affectedAgents": "影响 {{count}} 个 Agent",
+    "title": "智能体模型绑定",
+    "affectedAgents": "影响 {{count}} 个智能体",
     "effectiveModel": "实际使用 {{model}}",
     "configuredEffort": "已配置推理强度：{{value}}",
     "selectLabel": "为 {{request}} 选择 OpenBitFun 模型",
@@ -333,7 +333,7 @@
   },
   "agentChanges": {
     "unavailable": "{{name}} 已无法用于新任务（{{state}}）。请在下方检查它当前使用的模型、工具、配置来源或同名冲突。",
-    "unavailableMany": "已有 {{count}} 个已启用 Agent 无法用于新任务。请在下方检查它们当前的设置。",
+    "unavailableMany": "已有 {{count}} 个已启用智能体无法用于新任务。请在下方检查它们当前的设置。",
     "removedState": "配置来源已删除"
   },
   "agentCompatibility": {
@@ -343,15 +343,15 @@
     "invalid": "配置有误"
   },
   "agentDiagnostics": {
-    "activationBlocked": "无法启用此 Agent。",
+    "activationBlocked": "无法启用此智能体。",
     "degradedOnly": "部分设置不会生效。",
     "configurationUnavailable": {
-      "reason": "OpenBitFun 无法读取模型设置，无法启用此 Agent。",
+      "reason": "OpenBitFun 无法读取模型设置，无法启用此智能体。",
       "impact": "{{impact}}",
       "nextStep": "请检查 OpenBitFun 的模型设置后刷新。"
     },
     "modelUnavailable": {
-      "reason": "此 Agent 请求的模型在 OpenBitFun 中不可用。",
+      "reason": "此智能体请求的模型在 OpenBitFun 中不可用。",
       "impact": "{{impact}}",
       "nextStep": "请在来源应用中更换模型，或在 OpenBitFun 中配置可用模型后刷新。"
     },
@@ -361,12 +361,12 @@
       "nextStep": "请在来源应用中移除或替换这些工具后刷新。"
     },
     "promptMissing": {
-      "reason": "此 Agent 缺少有效的 prompt。",
+      "reason": "此智能体缺少有效的 prompt。",
       "impact": "{{impact}}",
       "nextStep": "请在来源应用中补充 prompt 后刷新。"
     },
     "unsupportedSetting": {
-      "reason": "OpenBitFun 不支持 {{setting}} 设置，无法启用此 Agent。",
+      "reason": "OpenBitFun 不支持 {{setting}} 设置，无法启用此智能体。",
       "impact": "{{impact}}",
       "nextStep": "请在来源应用中移除该设置后刷新。"
     },
@@ -380,9 +380,9 @@
       "ambientPermissions": "全局权限",
       "permissions": "权限",
       "options": "选项",
-      "nativeAgentOverlay": "内置 Agent 覆盖",
-      "legacyPrimaryMode": "旧版主 Agent 模式",
-      "primaryAgentMode": "主 Agent 模式",
+      "nativeAgentOverlay": "内置智能体覆盖",
+      "legacyPrimaryMode": "旧版主智能体模式",
+      "primaryAgentMode": "主智能体模式",
       "toolPatterns": "工具通配规则",
       "defaultPermissions": "默认权限",
       "variant": "模型变体",
@@ -391,15 +391,15 @@
       "steps": "步数限制",
       "maxSteps": "最大步数",
       "color": "显示颜色",
-      "primaryFacet": "主 Agent 能力"
+      "primaryFacet": "主智能体能力"
     },
     "invalidDefinition": {
-      "reason": "此 Agent 的配置有误。",
+      "reason": "此智能体的配置有误。",
       "impact": "{{impact}}",
       "nextStep": "请在来源应用中修正配置后刷新。"
     },
     "unsupportedBehavior": {
-      "reason": "此 Agent 包含 OpenBitFun 当前不支持的设置，无法启用。",
+      "reason": "此智能体包含 OpenBitFun 当前不支持的设置，无法启用。",
       "impact": "{{impact}}",
       "nextStep": "请在来源应用中修改后刷新。"
     },
@@ -410,14 +410,14 @@
     }
   },
   "agentConflicts": {
-    "title": "同名 Agent",
-    "description": "OpenBitFun 不会静默替你选择。待选择项和当前选择都会保留显示；其中一个 Agent 发生变化前，OpenBitFun 会记住你的选择",
-    "agentName": "找到多个名为 {{name}} 的 Agent",
+    "title": "同名智能体",
+    "description": "OpenBitFun 不会静默替你选择。待选择项和当前选择都会保留显示；其中一个智能体发生变化前，OpenBitFun 会记住你的选择",
+    "agentName": "找到多个名为 {{name}} 的智能体",
     "disableAll": "暂不使用任何一个",
-    "pending": "请选择今后执行任务时使用哪一个 Agent。选择外部 Agent 时，也会确认下方显示的模型、工具和运行位置。",
+    "pending": "请选择今后执行任务时使用哪一个智能体。选择外部智能体时，也会确认下方显示的模型、工具和运行位置。",
     "currentSelection": "新任务会使用当前选择。如需更改，请在上方选择其他选项。",
     "currentSelectionUnavailable": "仍保留此来源为当前选择，但它目前已停用或无法用于新任务。请启用或修复它、改选其他来源，或保持此名称不可用。",
-    "keptUnavailable": "当前保持此 Agent 名称不可用。需要使用时，可在上方选择一个 Agent。",
+    "keptUnavailable": "当前保持此智能体名称不可用。需要使用时，可在上方选择一个智能体。",
     "selectionApproves": "选择后，也表示你确认了下方显示的模型、工具、运行位置和配置来源。"
   },
   "mcp": {
@@ -623,7 +623,7 @@
   "opencode": {
     "title": "OpenCode 扩展",
     "description": "从 OpenCode 兼容配置中发现的外部能力",
-    "summary": "发现 {{agents}} 个 Agent · {{commands}} 个命令 · {{tools}} 个工具 · {{mcps}} 个 MCP",
+    "summary": "发现 {{agents}} 个智能体 · {{commands}} 个命令 · {{tools}} 个工具 · {{mcps}} 个 MCP",
     "configLocations": "配置位置",
     "inherited": "继承自整体模式",
     "capability": {
@@ -633,9 +633,9 @@
         "risk": "引用不会授予额外的文件访问权限。"
       },
       "subagent": {
-        "description": "发现 {{count}} 个 Agent · 来自{{scope}}",
-        "effect": "启用后允许调用 OpenCode 中定义的 Agent。",
-        "risk": "Agent 可执行模型调用，请确认来源可信。"
+        "description": "发现 {{count}} 个智能体 · 来自{{scope}}",
+        "effect": "启用后允许调用 OpenCode 中定义的智能体。",
+        "risk": "智能体可执行模型调用，请确认来源可信。"
       },
       "command": {
         "description": "发现 {{count}} 个命令 · 来自{{scope}}",

@@ -383,8 +383,8 @@
     transform-origin: center center;
     transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard), transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
 
-    &.is-bot {
-      animation: openbitfun-nav-background-subagent-bot-cycle 3.6s ease-in-out infinite;
+    &.is-agent {
+      animation: openbitfun-nav-background-subagent-agent-cycle 3.6s ease-in-out infinite;
     }
 
     &.is-loader {
@@ -686,7 +686,7 @@
   }
 }
 
-@keyframes openbitfun-nav-background-subagent-bot-cycle {
+@keyframes openbitfun-nav-background-subagent-agent-cycle {
   0%,
   62%,
   100% {
@@ -728,7 +728,7 @@
   .openbitfun-nav-panel__inline-item-background-subagent-icon {
     animation: none;
 
-    &.is-bot {
+    &.is-agent {
       opacity: 1;
       transform: none;
     }

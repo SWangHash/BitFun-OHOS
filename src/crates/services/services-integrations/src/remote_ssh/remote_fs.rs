@@ -54,6 +54,29 @@ impl RemoteFileService {
         Self { manager }
     }
 
+    pub async fn open_write_new(
+        &self,
+        connection_id: &str,
+        path: &str,
+    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+        self.get_manager(connection_id)
+            .await?
+            .open_workspace_file_write_new(connection_id, path)
+            .await
+    }
+
+    pub async fn atomic_replace(
+        &self,
+        connection_id: &str,
+        from: &str,
+        to: &str,
+    ) -> anyhow::Result<()> {
+        self.get_manager(connection_id)
+            .await?
+            .atomic_replace_workspace_file(connection_id, from, to)
+            .await
+    }
+
     pub async fn open_read(
         &self,
         connection_id: &str,

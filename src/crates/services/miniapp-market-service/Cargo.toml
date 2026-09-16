@@ -16,6 +16,8 @@ openbitfun-product-domains = { path = "../../contracts/product-domains", feature
 openbitfun-services-core = { path = "../services-core", features = ["tls-provider"] }
 chrono = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
+lettre = { workspace = true, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 rand = { workspace = true }
 reqwest = { workspace = true, features = ["form", "http2", "json", "rustls-no-provider"] }

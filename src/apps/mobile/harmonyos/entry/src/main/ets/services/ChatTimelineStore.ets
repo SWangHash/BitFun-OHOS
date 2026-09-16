@@ -947,6 +947,7 @@ export class ChatTimelineStore {
     // the tool was running so Task/subagent titles do not collapse to "Task".
     return {
       id: incoming.id !== undefined ? incoming.id : previous.id,
+      permission_request_id: incoming.permission_request_id,
       name: incoming.name !== undefined ? incoming.name : previous.name,
       status: incoming.status !== undefined ? incoming.status : previous.status,
       duration_ms: incoming.duration_ms !== undefined ? incoming.duration_ms : previous.duration_ms,

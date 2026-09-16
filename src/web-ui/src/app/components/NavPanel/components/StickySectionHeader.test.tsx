@@ -105,4 +105,49 @@ describe('StickySectionHeader', () => {
     expect(disconnectSpy).toHaveBeenCalledOnce();
     root = createRoot(container);
   });
+
+  it('clips covered rows on scroll and resize, then restores them on return and unmount', () => {
+    let onResize: ResizeObserverCallback;
+    const disconnectResize = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { onResize = callback; }
+      observe = vi.fn();
+      disconnect = disconnectResize;
+    });
+    const scrollRootRef = createRef<HTMLDivElement>();
+    scrollRootRef.current = document.createElement('div');
+    const contentRef = createRef<HTMLDivElement>();
+    const content = document.createElement('div');
+    contentRef.current = content;
+    let contentTop = 100;
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, contentTop, 300, 1000));
+
+    act(() => root.render(
+      <StickySectionHeader scrollRootRef={scrollRootRef} contentRef={contentRef}>Sessions</StickySectionHeader>,
+    ));
+    const header = container.querySelector<HTMLElement>('[data-testid="nav-sessions-sticky-header"]')!;
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 22));
+    expect(content.style.clipPath).toBe('');
+
+    contentTop = -20;
+    act(() => scrollRootRef.current!.dispatchEvent(new Event('scroll')));
+    expect(content.style.clipPath).toBe('inset(42px 0 0)');
+
+    contentTop = -40;
+    act(() => onResize!([], {} as ResizeObserver));
+    expect(content.style.clipPath).toBe('inset(62px 0 0)');
+
+    contentTop = 100;
+    act(() => scrollRootRef.current!.dispatchEvent(new Event('scroll')));
+    expect(content.style.clipPath).toBe('');
+
+    contentTop = -20;
+    act(() => scrollRootRef.current!.dispatchEvent(new Event('scroll')));
+    act(() => root.unmount());
+    expect(content.style.clipPath).toBe('');
+    expect(disconnectResize).toHaveBeenCalledOnce();
+    act(() => scrollRootRef.current!.dispatchEvent(new Event('scroll')));
+    expect(content.style.clipPath).toBe('');
+    root = createRoot(container);
+  });
 });

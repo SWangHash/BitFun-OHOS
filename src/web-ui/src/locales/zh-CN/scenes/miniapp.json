@@ -46,7 +46,7 @@
     "capabilities": {
       "ai": {
         "title": "AI 协作",
-        "description": "可按需调用 AI 或 Agent 完成任务"
+        "description": "可按需调用 AI 或智能体完成任务"
       },
       "workspace": {
         "title": "工作区协同",
@@ -123,6 +123,7 @@
       "waiting": "请在浏览器中完成授权，OpenBitFun 会自动更新登录状态。",
       "cancel": "取消",
       "continue": "打开 GitHub",
+      "reopen": "重新打开登录页",
       "authorizing": "等待 GitHub 授权…"
     },
     "empty": "暂时没有已发布的小应用",
@@ -144,7 +145,7 @@
       "customizing": "定制中",
       "local": "本地",
       "version": "v{{version}}",
-      "marketMeta": "作者 @{{owner}} · 评分 {{rating}} · {{downloads}} 次下载",
+      "marketMeta": "作者 {{owner}} · 评分 {{rating}} · {{downloads}} 次下载",
       "localMeta": "位于此设备",
       "viewDetails": "查看“{{name}}”详情",
       "showcaseAlt": "{{name}} 展示图",
@@ -172,7 +173,7 @@
     "detail": {
       "loading": "加载详情…",
       "reviewed": "人工审核",
-      "by": "作者 @{{owner}}",
+      "by": "作者 {{owner}}",
       "install": "安装",
       "update": "更新",
       "installed": "已安装",
@@ -196,7 +197,7 @@
       "shell": "执行命令：{{value}}",
       "net": "联网域名：{{value}}",
       "ai": "调用 AI",
-      "agent": "在可见会话中调用 Agent",
+      "agent": "在可见会话中调用智能体",
       "notifications": "系统通知",
       "dialog": "打开系统对话框",
       "clipboardRead": "读取剪贴板",

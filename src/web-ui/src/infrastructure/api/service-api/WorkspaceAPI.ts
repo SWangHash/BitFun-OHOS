@@ -46,6 +46,12 @@ export interface OpenFileDialogOptions {
   directory?: boolean;
   filters?: OpenFileDialogFilter[];
   defaultPath?: string;
+  /**
+   * Desktop-only: let the native directory picker recurse into subfolders
+   * (plugin-dialog `recursive`). The OpenHarmony DocumentViewPicker always
+   * returns the selected folder as-is, so it ignores this option.
+   */
+  recursive?: boolean;
 }
 
 const FILE_SEARCH_PROGRESS_EVENT = 'file-search://progress';
@@ -1092,6 +1098,7 @@ export class WorkspaceAPI {
         title: opts.title,
         defaultPath: opts.defaultPath,
         filters: opts.filters?.map((f) => ({ name: f.name, extensions: f.extensions })),
+        recursive: opts.recursive,
       });
     }
 

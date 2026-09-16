@@ -11,23 +11,23 @@ title_en: "Session & workspace settings"
 
 > 设置 / Setting
 
-控制默认 Agent Harness、会话标题生成、工作区加速搜索和与项目上下文相关的行为。
+控制默认智能体执行框架、会话标题生成、工作区加速搜索和与项目上下文相关的行为。
 
 Control the default Agent Harness, session-title generation, accelerated workspace search, and project-context behavior.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 让普通新会话跟随 ChatInput 上次选择，或固定使用指定 Harness
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 让普通新会话跟随 ChatInput 上次选择，或固定使用指定执行框架
   - Make regular new sessions follow the last ChatInput selection or use a fixed Harness
-- **Agent 可直接控制 / Direct Agent control** · 启用或停用根据会话内容自动生成标题
+- **智能体可直接控制 / Direct Agent control** · 启用或停用根据会话内容自动生成标题
   - Enable or disable automatic titles generated from session content
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 让标题模型继承主模型、快速模型或使用指定模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 让标题模型继承主模型、快速模型或使用指定模型
   - Make title generation inherit the primary or fast model, or use a selected model
-- **Agent 可直接控制 / Direct Agent control** · 为本地工作区启用 Flashgrep 加速搜索
+- **智能体可直接控制 / Direct Agent control** · 为本地工作区启用 Flashgrep 加速搜索
   - Enable Flashgrep-backed accelerated search for local workspaces
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 查看索引状态并在需要时重建工作区索引
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看索引状态并在需要时重建工作区索引
   - Inspect index status and rebuild the workspace index when needed
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 远程工作区明确降级搜索实现，不把远程路径回退到本机
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 远程工作区明确降级搜索实现，不把远程路径回退到本机
   - Use an explicit remote-workspace search path without silently falling back to local files
 
 ## 怎么用 / How to use it
@@ -36,12 +36,12 @@ Control the default Agent Harness, session-title generation, accelerated workspa
    Open Settings
 2. 进入“工作区 > 会话与工作区”
    Go to Workspace > Session & Workspace
-3. 调整默认 Harness、标题或搜索选项
+3. 调整默认执行框架、标题或搜索选项
    Tune the default Harness, title, or search controls
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -54,17 +54,17 @@ Control the default Agent Harness, session-title generation, accelerated workspa
 | 自动生成会话标题 / Automatic session titles | `boolean` | 根据会话内容生成易识别的标题。 | Generate a recognizable title from session content. |
 | 工作区加速搜索 / Accelerated workspace search | `boolean` | 为本地项目启用 Flashgrep 加速搜索。 | Enable Flashgrep-backed search for local projects. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
-- “让新会话跟随 ChatInput 上一次选择的 Harness”
+- “让新会话跟随 ChatInput 上一次选择的执行框架”
   - “Make new sessions follow the last Harness selected in ChatInput”
-- “把新会话固定为 Ultimate Harness”
+- “把新会话固定为 Ultimate 执行框架”
   - “Fix Ultimate as the Harness for new sessions”
 - “关闭自动生成会话标题”
   - “Turn off automatic session titles”
 - “启用工作区加速搜索”
   - “Enable accelerated workspace search”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

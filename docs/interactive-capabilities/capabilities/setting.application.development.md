@@ -17,13 +17,13 @@ Tune code editor font, indentation, wrapping, formatting, and minimap behavior.
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 设置编辑器字体、字重、字号、行高与光标样式
+- **智能体可直接控制 / Direct Agent control** · 设置编辑器字体、字重、字号、行高与光标样式
   - Configure editor font, weight, size, line height, and cursor behavior
-- **Agent 可直接控制 / Direct Agent control** · 设置 Tab 宽度、空格缩进、自动换行、行号与平滑滚动
+- **智能体可直接控制 / Direct Agent control** · 设置 Tab 宽度、空格缩进、自动换行、行号与平滑滚动
   - Configure tab size, space indentation, word wrapping, line numbers, and smooth scrolling
-- **Agent 可直接控制 / Direct Agent control** · 控制 Minimap、空白字符、当前行高亮和滚动边界
+- **智能体可直接控制 / Direct Agent control** · 控制 Minimap、空白字符、当前行高亮和滚动边界
   - Control the minimap, whitespace rendering, current-line highlight, and scroll bounds
-- **Agent 可直接控制 / Direct Agent control** · 控制自动保存、语义高亮、括号配色、格式化和空白清理
+- **智能体可直接控制 / Direct Agent control** · 控制自动保存、语义高亮、括号配色、格式化和空白清理
   - Control autosave, semantic highlighting, bracket colors, formatting, and whitespace trimming
 
 ## 怎么用 / How to use it
@@ -35,7 +35,7 @@ Tune code editor font, indentation, wrapping, formatting, and minimap behavior.
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -71,11 +71,11 @@ Tune code editor font, indentation, wrapping, formatting, and minimap behavior.
 | 粘贴时格式化 / Format on paste | `boolean` | 粘贴代码时执行可用的格式化。 | Run available formatting when code is pasted. |
 | 清理自动空白 / Trim automatic whitespace | `boolean` | 保存时清理自动产生的尾随空白。 | Trim automatically inserted trailing whitespace on save. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “把编辑器字号改成 15”
   - “Set the editor font size to 15”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

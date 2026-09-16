@@ -56,3 +56,19 @@ desktops in the two tabs, disconnect one tab, then sign out from Devices and
 confirm both tabs return to sign-in. A separate browser profile should remain
 independent. Repeat on LAN HTTP and official HTTPS; fixture tests alone are not
 evidence of a live Relay/desktop deployment.
+
+## Controlled runtime capabilities
+
+Mobile web is a controller: workspace paths, files, terminals, and SSH operations execute on the selected Desktop or CLI runtime. The workspace picker offers that runtime and its saved SSH connections; it does not create connections or collect SSH credentials. Product operations use the same `host_invoke` registry as peer control. A missing remote connection identity must never fall back to the runtime’s local filesystem.
+
+Conversation history and live updates share revisioned `session-record` entries. The controller opens the latest encrypted message page, prefetches older pages in a single background flight shared with explicit older-page requests, and applies WebSocket messages directly when their sequence follows the committed cursor. Sequence gaps, reconnects, and returning to a visible tab trigger forward recovery. Stable record identities and revisioned deletion markers make backward pages safe to merge with newer edits. Cache fragments, the forward cursor, and the older-page boundary commit atomically in IndexedDB. A separate host transcript snapshot is not mixed into this stream.
+
+The workspace tools provide directory browsing, text-file reading/editing, file/folder creation, file renaming/deletion, binary upload/download, and an xterm PTY renderer. Saving a read file supplies its original SHA-256 to the runtime, which rejects conflicting writes. Terminal output follows durable notifications and resumes the runtime's output cursor. These controls do not create a phone/browser runtime.
+
+Pending questions and permissions use the runtime interaction mailbox independently of transcript history. Initial attachment, reconnect, foreground recovery, and permission control events refresh that mailbox. Requests are answered by `requestId`, including requests with no tool-call attachment; edited approval input is sent to the same runtime permission owner.
+
+File uploads stream 3 MiB chunks through the runtime transfer owner, use a whole-file digest, and resolve a lost append acknowledgment through the transfer cursor. Downloads stream chunks to the browser writable-file picker with backpressure; browsers without that API retain Blob parts until their download API accepts the file. Preview buffers remain separate from downloads. Terminal input is coalesced and serialized, resize keeps the latest dimensions, and ANSI output is rendered by xterm rather than interpreted by a custom parser.
+
+Account sign-in offers independent GitHub and email-code accounts through the
+shared OpenBitFun authorization page. No password registration is needed. Use the
+same login method and account on the desktop/CLI and phone to see its devices.

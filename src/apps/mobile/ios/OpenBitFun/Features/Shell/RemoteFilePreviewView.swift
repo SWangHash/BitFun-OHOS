@@ -43,27 +43,20 @@ private struct FilePreviewVisibleLinePreferenceKey: PreferenceKey {
     }
 }
 
-struct MobileDownloadDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data] }
-    let data: Data
-
-    init(data: Data) {
-        self.data = data
-    }
-
-    init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
-    }
-}
-
 struct RemoteFilePreviewSheet: View {
     @ObservedObject var model: MobileAppModel
-    let preview: MobileFilePreview
+    private let initialPreview: MobileFilePreview
     var embedded = false
+
+    init(model: MobileAppModel, preview: MobileFilePreview, embedded: Bool = false) {
+        self.model = model
+        self.initialPreview = preview
+        self.embedded = embedded
+    }
+
+    // sheet(item:) can retain the initial Loading value for the same file ID.
+    // Read the observed projection so text, image and failure updates render.
+    private var preview: MobileFilePreview { model.filePreview ?? initialPreview }
     @Environment(\.dismiss) private var dismiss
     @State private var visibleLine: Int = 0
     @State private var codeLines: [AttributedString] = []

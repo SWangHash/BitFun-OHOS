@@ -583,6 +583,7 @@ test('Services Core feature-free dependencies stay behind exact text and async I
       'workspace-instructions',
       'workspace-runtime',
       'workspace-text-runtime',
+      'workspace-transfer',
     ]),
   );
 });
@@ -3888,6 +3889,7 @@ test('services-core capability profiles keep heavy owners out of the empty profi
     'dep:tokio',
     'tokio/fs',
     'tokio/rt',
+    'tokio/sync',
   ]);
   assert.deepEqual(profiles.get('product-identity'), ['dep:openbitfun-core-types']);
   assert.deepEqual(profiles.get('json-io'), [
@@ -4061,7 +4063,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
     features: {
       'credential-vault': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt'],
       diff: ['dep:tokio', 'tokio/rt', 'tokio/time'],
-      filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt'],
+      filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync'],
       'json-io': ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync', 'tokio/time'],
       'local-storage': [
         'dep:tokio',
@@ -4088,6 +4090,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
         'tokio/sync',
       ],
       'session-git': ['local-storage'],
+      'workspace-transfer': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt', 'tokio/sync'],
     },
   };
 
@@ -4108,7 +4111,7 @@ test('Services Core Tokio owners cannot be hidden behind an unreviewed alias', (
     ],
     features: {
       diff: ['dep:tokio', 'tokio/rt', 'tokio/time'],
-      filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt'],
+      filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync'],
       'json-io': ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync', 'tokio/time'],
       'local-storage': [
         'dep:tokio',
@@ -4767,4 +4770,53 @@ test('capability contract consumers cannot remove reviewed dependency edges', as
   ]).map((violation) => violation.message);
   assert.ok(messages.some((message) => /openbitfun-plugin-runtime-client.*missing reviewed.*normal.*edge/.test(message)));
   assert.ok(messages.some((message) => /openbitfun-opencode-adapter.*missing reviewed.*dev.*edge/.test(message)));
+});
+
+test('vendored Engine.IO remains in resolved feature audits without becoming a product owner', () => {
+  const owner = packageAt('owner', 'src/apps/example/Cargo.toml');
+  const vendor = { ...packageAt('eioc', 'third_party/eioc/Cargo.toml'), version: '0.5.0' };
+  const collect = members => collectCargoMetadataGraph({
+    root: TEST_ROOT,
+    manifestPaths: [join(TEST_ROOT, 'Cargo.toml')],
+    loadMetadata: () => ({
+      packages: [owner, vendor], workspace_members: members,
+      resolve: { nodes: [{ id: vendor.id, features: ['rustls-tls'], deps: [] }] },
+    }),
+  });
+  const graph = collect([owner.id]);
+  assert.deepEqual(graph.packages.map(pkg => pkg.name), ['owner']);
+  assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'eioc'));
+  assert.ok(collect([owner.id, vendor.id]).packages.some(pkg => pkg.name === 'eioc'),
+    'a product workspace member cannot bypass ownership checks through a vendor path');
+});
+
+
+test('workspace transfer admits IO without process or networking capabilities', () => {
+  const pkg = {
+    name: 'openbitfun-services-core',
+    manifest_path: 'src/crates/services/services-core/Cargo.toml',
+    dependencies: [{ name: 'tokio', kind: null, optional: true, features: [] }],
+    features: {
+      'workspace-transfer': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt', 'tokio/sync'],
+    },
+  };
+  assert.deepEqual(findTokioDependencyFeatureViolations([pkg]).filter(v => v.message.includes(':workspace-transfer ')), []);
+  pkg.features['workspace-transfer'].push('tokio/process', 'tokio/net');
+  assert.ok(findTokioDependencyFeatureViolations([pkg]).some(v =>
+    v.message.includes('workspace-transfer has unexpected effective Tokio capabilities')));
+});
+
+
+test('core loopback WebSocket fixture cannot broaden the runtime dependency', () => {
+  const runtime = { name: 'tokio-tungstenite', kind: null, optional: true, uses_default_features: true, features: [] };
+  const development = { ...runtime, kind: 'dev', optional: false };
+  const pkg = packageAt('openbitfun-core', 'src/crates/assembly/core/Cargo.toml', [runtime, development]);
+  assert.deepEqual(findThirdPartyCapabilityFeatureViolations([pkg]), []);
+  for (const dependencies of [
+    [{ ...runtime, optional: false }, development],
+    [runtime, { ...development, features: ['rustls-tls-native-roots'] }],
+    [runtime, development, { ...development }],
+  ]) {
+    assert.ok(findThirdPartyCapabilityFeatureViolations([{ ...pkg, dependencies }]).length > 0);
+  }
 });

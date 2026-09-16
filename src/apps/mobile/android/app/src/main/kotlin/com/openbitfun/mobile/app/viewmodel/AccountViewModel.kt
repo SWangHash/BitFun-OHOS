@@ -29,6 +29,7 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
     private val completionNotifier = com.openbitfun.mobile.app.platform.TaskCompletionNotifier(application)
     private var foreground = true
     fun setBackground(value: Boolean) {
+        if (!value) store.resumeSessionStreams()
         foreground = !value
         completionNotifier.setBackground(value)
         remoteStore?.dispatch(RemoteSessionIntent.SetForeground(foreground))

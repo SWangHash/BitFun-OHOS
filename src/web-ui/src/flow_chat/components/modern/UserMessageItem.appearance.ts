@@ -2,6 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const userMessageItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'user-message-item',
+  componentAttribute: 'data-openbitfun-product-component',
   parts: [
     { id: 'root' }, { id: 'main' }, { id: 'content' },
     { id: 'steeringTag' }, { id: 'meta' }, { id: 'actions' }, { id: 'images' }, { id: 'image' },

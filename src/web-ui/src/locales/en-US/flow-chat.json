@@ -628,6 +628,9 @@
     "image": "Image",
     "url": "URL",
     "dropToAdd": "Drop to add to message",
+    "dropFilesHint": "Add files and images to this conversation",
+    "dropFileCount": "{{fileCount}} files",
+    "dropPreviewUnavailable": "File preview is temporarily unavailable. Release to add files.",
     "dragHint": "Drop files here to add context"
   },
   "agent": {

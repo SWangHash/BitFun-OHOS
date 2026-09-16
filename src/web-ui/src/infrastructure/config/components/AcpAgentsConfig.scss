@@ -1,4 +1,27 @@
 .openbitfun-acp-agents {
+  &--dialog {
+    min-inline-size: 0;
+    container: config-panel / inline-size;
+  }
+
+  &__dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--openbitfun-space-6);
+
+    .openbitfun-acp-agents__manager {
+      gap: var(--openbitfun-space-6);
+    }
+  }
+
+  &__view-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--openbitfun-space-3);
+  }
+
   &__tabs {
     align-self: flex-start;
     max-width: 100%;
@@ -9,20 +32,16 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--openbitfun-space-3);
     align-items: center;
-    padding: var(--openbitfun-space-4) var(--openbitfun-space-5);
-    border-bottom: 1px solid var(--openbitfun-component-config-page-divider);
   }
 
   &__toolbar-actions {
-    display: flex;
-    align-items: center;
     justify-content: flex-end;
-    gap: var(--openbitfun-space-2);
     flex-wrap: wrap;
   }
 
   &__search {
-    min-width: 0;
+    inline-size: min(100%, 20rem);
+    min-inline-size: 0;
   }
 
   &__filter-select {
@@ -226,7 +245,6 @@
   }
 
   @container config-panel (max-width: 640px) {
-    &__toolbar,
     &__remote-head,
     &__hidden-remote-row {
       grid-template-columns: 1fr;
@@ -245,10 +263,6 @@
       grid-column: 1 / -1;
     }
 
-    &__toolbar {
-      padding: var(--openbitfun-space-4);
-    }
-
     &__toolbar-actions,
     &__remote-actions,
     &__remote-head,
@@ -260,6 +274,17 @@
     &__filter-select,
     &__confirmation-select {
       width: 150px;
+    }
+  }
+
+  @container config-panel (max-width: 480px) {
+    &__toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    &__search,
+    &__filter-select {
+      inline-size: 100%;
     }
   }
 }

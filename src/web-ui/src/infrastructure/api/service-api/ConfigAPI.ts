@@ -45,6 +45,7 @@ export interface GetModeSkillConfigsParams {
 }
 
 export interface SetGlobalSkillDisabledParams {
+  workspacePath?: string;
   skillKey: string;
   disabled: boolean;
 }
@@ -427,21 +428,22 @@ export class ConfigAPI {
     }
   }
 
-  async getGlobalSkillSettings(): Promise<GlobalSkillSettings> {
+  async getGlobalSkillSettings(workspacePath?: string): Promise<GlobalSkillSettings> {
     try {
-      return await api.invoke('get_global_skill_settings');
+      return await api.invoke('get_global_skill_settings', workspacePath ? { request: { workspacePath } } : undefined);
     } catch (error) {
       throw createTauriCommandError('get_global_skill_settings', error);
     }
   }
 
   async setGlobalSkillDisabled({
+    workspacePath,
     skillKey,
     disabled,
   }: SetGlobalSkillDisabledParams): Promise<GlobalSkillSettings> {
     try {
       return await api.invoke('set_global_skill_disabled', {
-        request: { skillKey, disabled },
+        request: { skillKey, disabled, ...(workspacePath ? { workspacePath } : {}) },
       });
     } catch (error) {
       throw createTauriCommandError('set_global_skill_disabled', error, { skillKey, disabled });

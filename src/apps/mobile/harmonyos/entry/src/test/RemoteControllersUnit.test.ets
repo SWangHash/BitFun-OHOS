@@ -1,3 +1,4 @@
+import { FakeDurableSessionManager, durableRecord } from './LocalTestFixtures';
 import { describe, it, expect } from '@ohos/hypium';
 import { RemoteI18n } from '../main/ets/i18n/RemoteI18n';
 import { ChatSessionController, ChatSessionSnapshot } from '../main/ets/services/ChatSessionController';
@@ -890,7 +891,7 @@ export default function remoteControllersUnitTest() {
 
       await controller.download('/workspace/OpenBitFun/README.md', 'session-1', false, true);
 
-      expect(client.infoRequests[0]).assertEqual('/workspace/OpenBitFun/README.md|session-1');
+      expect(client.infoRequests.length).assertEqual(0);
       expect(client.readRequests[0]).assertEqual('/workspace/OpenBitFun/README.md|session-1');
       expect(fileSaver.savedNames[0]).assertEqual('README.md');
       expect(status.downloadedFilePath).assertEqual('/workspace/OpenBitFun/README.md');
@@ -1694,288 +1695,7 @@ export default function remoteControllersUnitTest() {
   });
 
   describe('RemoteChatCommandController', () => {
-    it('coalesces rapid transcript misses to the latest selected session', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      let activeSessionId = 'session-1';
-      client.deferMessages = true;
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {},
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (_statusText: string) => {},
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, inertRemoteChatCache());
-      const canApply = (sessionId: string): boolean => sessionId === activeSessionId;
-
-      const first = controller.loadMessages('session-1', canApply);
-      await Promise.resolve();
-      activeSessionId = 'session-2';
-      const middle = controller.loadMessages('session-2', canApply);
-      await Promise.resolve();
-      activeSessionId = 'session-3';
-      const latest = controller.loadMessages('session-3', canApply);
-      await Promise.resolve();
-
-      expect(client.messageRequests.length).assertEqual(1);
-      expect(client.messageRequests[0]).assertEqual('session-1');
-      client.resolveNextMessages({
-        messages: [chatMessage('message-1', 'assistant', 'Stale')],
-        hasMore: false
-      });
-      // The stale result is intentionally written to the cache before the
-      // latest waiter gets the transport slot.
-      await delay(0);
-
-      expect(client.messageRequests.length).assertEqual(2);
-      expect(client.messageRequests[1]).assertEqual('session-3');
-      client.resolveNextMessages({
-        messages: [chatMessage('message-3', 'assistant', 'Latest')],
-        hasMore: false
-      });
-      await Promise.all([first, middle, latest]);
-
-      expect(client.messageRequests.length).assertEqual(2);
-      expect(projection.messages.length).assertEqual(1);
-      expect(projection.messages[0].id).assertEqual('message-3');
-    });
-
-    it('loads active messages and ignores stale route projections', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      const statuses: string[] = [];
-      client.messageResults = [{
-        messages: [chatMessage('message-1', 'assistant', 'Hello')],
-        hasMore: false
-      }, {
-        messages: [chatMessage('message-2', 'assistant', 'Stale')],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {},
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (statusText: string) => {
-          statuses.push(statusText);
-        },
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, inertRemoteChatCache());
-
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-      await controller.loadMessages('session-2', (_sessionId: string) => false);
-
-      expect(client.messageRequests[0]).assertEqual('session-1');
-      expect(client.messageRequests[1]).assertEqual('session-2');
-      expect(projection.messages.length).assertEqual(1);
-      expect(projection.messages[0].id).assertEqual('message-1');
-      expect(projection.hasMoreMessages).assertFalse();
-      expect(projection.pollVersion).assertEqual(0);
-      expect(projection.knownMessageCount).assertEqual(1);
-      expect(statuses[0]).assertEqual(RemoteI18n.t('status.loadMessages'));
-      expect(statuses[1]).assertEqual(RemoteI18n.t('status.messagesSynced'));
-    });
-
-    it('caches a fetched transcript and reopens it without a request', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const store = new FakeRemoteChatCacheStore();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      const statuses: string[] = [];
-      let timelineReadyCount = 0;
-      client.messageResults = [{
-        messages: [
-          chatMessage('message-1', 'user', 'Hello'),
-          chatMessage('message-2', 'assistant', 'Hi')
-        ],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {
-          timelineReadyCount += 1;
-        },
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (statusText: string) => {
-          statuses.push(statusText);
-        },
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, await readyRemoteChatCache(store));
-
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-
-      expect(client.messageRequests.length).assertEqual(1);
-      expect(projection.messages.length).assertEqual(2);
-      expect(projection.messages[1].id).assertEqual('message-2');
-      // A cached open still resets the poll version: the desktop restarts its
-      // version tracker, so a carried-over one would match by accident.
-      expect(projection.pollVersion).assertEqual(0);
-      expect(projection.knownMessageCount).assertEqual(2);
-      expect(timelineReadyCount).assertEqual(2);
-      expect(statuses[statuses.length - 1]).assertEqual(RemoteI18n.t('status.messagesRestored'));
-    });
-
-    it('refetches when a cached assistant has no body', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const store = new FakeRemoteChatCacheStore();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      const cache = await readyRemoteChatCache(store);
-      const hollow = chatMessage('message-2', 'assistant', '');
-      hollow.thinking = '';
-      hollow.tools = [];
-      hollow.items = [];
-      await cache.syncIncremental('session-1', [
-        chatMessage('message-1', 'user', 'Hello'),
-        hollow
-      ]);
-      client.messageResults = [{
-        messages: [
-          chatMessage('message-1', 'user', 'Hello'),
-          chatMessage('message-2', 'assistant', 'Recovered reply')
-        ],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {},
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (_statusText: string) => {},
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, cache);
-
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-
-      expect(client.messageRequests.length).assertEqual(1);
-      expect(projection.messages.length).assertEqual(2);
-      expect(projection.messages[1].text).assertEqual('Recovered reply');
-
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-      expect(client.messageRequests.length).assertEqual(1);
-    });
-
-    it('caches a transcript the user switched away from before it arrived', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const store = new FakeRemoteChatCacheStore();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      let timelineReadyCount = 0;
-      client.messageResults = [{
-        messages: [
-          chatMessage('message-1', 'user', 'Hello'),
-          chatMessage('message-2', 'assistant', 'Hi')
-        ],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {
-          timelineReadyCount += 1;
-        },
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (_statusText: string) => {},
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, await readyRemoteChatCache(store));
-
-      // Opened, then switched away from before the fetch landed. Nothing may
-      // reach the timeline that now belongs to another session.
-      await controller.loadMessages('session-1', (_sessionId: string) => false);
-      expect(projection.messages.length).assertEqual(0);
-      expect(timelineReadyCount).assertEqual(0);
-
-      // Reopening it has to be free: the transcript was already paid for.
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-
-      expect(client.messageRequests.length).assertEqual(1);
-      expect(projection.messages.length).assertEqual(2);
-      expect(projection.messages[1].id).assertEqual('message-2');
-      expect(projection.knownMessageCount).assertEqual(2);
-      expect(timelineReadyCount).assertEqual(1);
-    });
-
-    it('appends polled messages to the cache instead of rewriting it', 0, async () => {
+    it('appends newly synchronized messages to the cache instead of rewriting it', 0, async () => {
       const client = new FakeRemoteChatCommandClient();
       const store = new FakeRemoteChatCacheStore();
       const cache = await readyRemoteChatCache(store);
@@ -2002,7 +1722,7 @@ export default function remoteControllersUnitTest() {
         onPollRequested: () => {}
       }, cache);
 
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
+      await cache.replaceSnapshot('session-1', [chatMessage('message-1', 'user', 'Hello')]);
       await cache.syncIncremental('session-1', [
         chatMessage('message-1', 'user', 'Hello'),
         chatMessage('message-2', 'assistant', 'Hi')
@@ -2117,97 +1837,6 @@ export default function remoteControllersUnitTest() {
       await cache.forget('session-1');
 
       expect((await cache.load('session-1')).length).assertEqual(0);
-    });
-
-    it('keeps working when the cache store is unusable', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const store = new FakeRemoteChatCacheStore();
-      const projection = new RemoteChatMessagesProjectionRecord();
-      store.shouldFail = true;
-      client.messageResults = [{
-        messages: [chatMessage('message-1', 'assistant', 'Hello')],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (_pollVersion: number, _knownMessageCount: number) => {},
-        onTimelineReady: () => {},
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (_statusText: string) => {},
-        onToast: (_message: string) => {},
-        onBusy: (_isBusy: boolean) => {},
-        onPollRequested: () => {}
-      }, await readyRemoteChatCache(store));
-
-      await controller.loadMessages('session-1', (_sessionId: string) => true);
-
-      expect(client.messageRequests.length).assertEqual(1);
-      expect(projection.messages.length).assertEqual(1);
-    });
-
-    it('loads older messages with busy and cursor callbacks', 0, async () => {
-      const client = new FakeRemoteChatCommandClient();
-      const store = new FakeRemoteChatCacheStore();
-      const cache = await readyRemoteChatCache(store);
-      const projection = new RemoteChatMessagesProjectionRecord();
-      const busyEvents: boolean[] = [];
-      client.messageResults = [{
-        messages: [
-          chatMessage('message-1', 'user', 'Older'),
-          chatMessage('message-2', 'assistant', 'Reply')
-        ],
-        hasMore: false
-      }];
-      const controller = new RemoteChatCommandController(client, {
-        onMessagesLoaded: (messages: ChatMessage[], hasMoreMessages: boolean) => {
-          projection.messages = messages;
-          projection.hasMoreMessages = hasMoreMessages;
-        },
-        onMessageCountKnown: (pollVersion: number, knownMessageCount: number) => {
-          projection.pollVersion = pollVersion;
-          projection.knownMessageCount = knownMessageCount;
-        },
-        onTimelineReady: () => {},
-        onSendSucceeded: (_turnId: string, _pendingActiveId: string) => {},
-        onSendFailed: (
-          _rawText: string,
-          _images: SelectedImageAttachment[],
-          _localMessageId: string,
-          _pendingActiveId: string
-        ) => {},
-        onActiveSession: (_session: SessionSummary) => {},
-        onSessionTitleChanged: (_sessionId: string, _title: string) => {},
-        onStatusText: (_statusText: string) => {},
-        onToast: (_message: string) => {},
-        onBusy: (isBusy: boolean) => {
-          busyEvents.push(isBusy);
-        },
-        onPollRequested: () => {}
-      }, cache);
-
-      await controller.loadOlderMessages('session-1', 7, true, false);
-
-      expect(client.messageRequests[0]).assertEqual('session-1');
-      expect(projection.messages.length).assertEqual(2);
-      expect(projection.hasMoreMessages).assertFalse();
-      expect(projection.pollVersion).assertEqual(7);
-      expect(projection.knownMessageCount).assertEqual(2);
-      expect(busyEvents[0]).assertTrue();
-      expect(busyEvents[1]).assertFalse();
-      // What came back is a full transcript, so it belongs in the cache for the
-      // same reason the first load's does.
-      expect((await cache.load('session-1')).length).assertEqual(2);
     });
 
     it('sends prepared remote messages and reports failed payloads', 0, async () => {
@@ -3359,286 +2988,35 @@ export default function remoteControllersUnitTest() {
   });
 
   describe('ChatSessionController', () => {
-    it('ignores a poll response that completes after the controller stopped', 0, async () => {
-      const manager = new BlockingPollSessionManager();
+    it('ignores durable records delivered after observer stop', 0, async () => {
+      const manager = new FakeDurableSessionManager();
       const snapshots: ChatSessionSnapshot[] = [];
-      const errors: Object[] = [];
       const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (error: Object) => {
-          errors.push(error);
-        },
-        canPoll: (_sessionId: string) => true
+        onSnapshot: (value: ChatSessionSnapshot) => { snapshots.push(value); },
+        onError: (_error: Object) => {}, canPoll: () => true
       });
-
-      controller.start('session-stale', {
-        pollVersion: 0,
-        knownMessageCount: 0,
-        knownModelCatalogVersion: 0
-      });
-      await delay(20);
+      controller.start('session', { pollVersion: 0, knownMessageCount: 0, knownModelCatalogVersion: 0 });
       controller.stop();
-      manager.resolve(pollResult({
-        version: 1,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Stale',
-        newMessages: [chatMessage('stale-message', 'assistant', 'must not render')],
-        totalMessageCount: 1
-      }));
-      await delay(20);
-
+      await manager.emit(durableRecord('session', 1, 'must not render'));
       expect(snapshots.length).assertEqual(0);
-      expect(errors.length).assertEqual(0);
     });
-
-    it('flags a transcript the desktop shortened', 0, async () => {
-      const manager = new FakePollSessionManager();
+    it('upserts a stable item through active and completed states without duplicate transcript rows', 0, async () => {
+      const manager = new FakeDurableSessionManager();
       const snapshots: ChatSessionSnapshot[] = [];
-      manager.results = [pollResult({
-        version: 2,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [],
-        totalMessageCount: 2
-      }), pollResult({
-        version: 3,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [chatMessage('message-6', 'assistant', 'Reply')],
-        totalMessageCount: 6
-      })];
       const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
+        onSnapshot: (value: ChatSessionSnapshot) => { snapshots.push(value); },
+        onError: (_error: Object) => {}, canPoll: () => true
       });
-
-      controller.start('session-1', {
-        pollVersion: 1,
-        knownMessageCount: 5,
-        knownModelCatalogVersion: 0
-      });
-      await delay(20);
-      await controller.pollNow();
+      controller.start('session', { pollVersion: 0, knownMessageCount: 0, knownModelCatalogVersion: 0 });
+      await manager.emit(durableRecord('session', 1, 'partial'));
+      expect(snapshots[snapshots.length - 1].activeTurn?.text).assertEqual('partial');
+      await manager.emit(durableRecord('session', 2, 'complete', 'completed'));
+      await manager.emit(durableRecord('session', 1, 'stale'));
+      const latest = snapshots[snapshots.length - 1];
+      expect(latest.activeTurn).assertUndefined();
+      expect(latest.messageSnapshot?.length).assertEqual(2);
+      expect(latest.messageSnapshot?.[1].text).assertEqual('complete');
       controller.stop();
-
-      // 2 < 5: whatever the desktop is counting is not what this session had.
-      expect(snapshots[0].historyRewritten).assertTrue();
-      // 6 >= 2: an ordinary tail, resumable from the offset already agreed on.
-      expect(snapshots[1].historyRewritten).assertFalse();
-    });
-
-    it('preserves active turn when unchanged poll omits active turn', 0, async () => {
-      const manager = new FakePollSessionManager();
-      const snapshots: ChatSessionSnapshot[] = [];
-      manager.results = [pollResult({
-        version: 1,
-        changed: false,
-        sessionState: 'running',
-        title: 'Session',
-        newMessages: [],
-        totalMessageCount: 1
-      })];
-      const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
-      });
-
-      controller.start('session-1', {
-        pollVersion: 1,
-        knownMessageCount: 1,
-        knownModelCatalogVersion: 0
-      }, chatMessage('active-turn-1', 'assistant', 'Working', 'active'));
-      await delay(20);
-      controller.stop(false);
-
-      expect(snapshots.length).assertEqual(1);
-      expect(snapshots[0].changed).assertEqual(false);
-      expect(snapshots[0].activeTurn ? snapshots[0].activeTurn.id : '').assertEqual('active-turn-1');
-    });
-
-    it('keeps completed active turn until final assistant message arrives', 0, async () => {
-      const manager = new FakePollSessionManager();
-      const snapshots: ChatSessionSnapshot[] = [];
-      const persistedAssistant = chatMessage('assistant-final-1', 'assistant', 'Final text');
-      persistedAssistant.turnId = 'turn-2';
-      const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
-      });
-
-      manager.results = [pollResult({
-        version: 2,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [],
-        totalMessageCount: 1,
-        activeTurn: activeChatMessage('turn-2', 'Final text', 'completed')
-      })];
-      controller.start('session-1', {
-        pollVersion: 1,
-        knownMessageCount: 1,
-        knownModelCatalogVersion: 0
-      }, activeChatMessage('turn-2', 'Final text', 'active'));
-      await delay(20);
-
-      manager.results = [pollResult({
-        version: 3,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [],
-        totalMessageCount: 1
-      })];
-      await controller.pollNow();
-
-      manager.results = [pollResult({
-        version: 4,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [persistedAssistant],
-        totalMessageCount: 2
-      })];
-      await controller.pollNow();
-      controller.stop(false);
-
-      expect(snapshots.length).assertEqual(3);
-      expect(snapshots[0].activeTurn ? snapshots[0].activeTurn.status : '').assertEqual('completed');
-      expect(snapshots[0].completedTurnId).assertEqual('');
-      expect(snapshots[1].activeTurn ? snapshots[1].activeTurn.id : '').assertEqual('active-turn-2');
-      expect(snapshots[2].activeTurn ? snapshots[2].activeTurn.id : '').assertEqual('');
-      expect(snapshots[2].completedTurnId).assertEqual('turn-2');
-    });
-
-    it('recognizes a durable final assistant from the full message snapshot', 0, async () => {
-      const manager = new FakePollSessionManager();
-      const snapshots: ChatSessionSnapshot[] = [];
-      const persistedAssistant = chatMessage('assistant-final-3', 'assistant', 'Final text');
-      persistedAssistant.turnId = 'turn-3';
-      manager.results = [pollResult({
-        version: 3,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [],
-        messageSnapshot: [persistedAssistant],
-        totalMessageCount: 2,
-        activeTurn: activeChatMessage('turn-3', 'Final text', 'completed')
-      })];
-      const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => snapshots.push(snapshot),
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
-      });
-
-      controller.start('session-3', {
-        pollVersion: 2,
-        knownMessageCount: 1,
-        knownModelCatalogVersion: 0
-      }, activeChatMessage('turn-3', 'Final text', 'active'));
-      await delay(20);
-      controller.stop(false);
-
-      expect(snapshots.length).assertEqual(1);
-      expect(snapshots[0].completedTurnId).assertEqual('turn-3');
-      expect(snapshots[0].messageSnapshot ? snapshots[0].messageSnapshot.length : 0).assertEqual(1);
-    });
-
-    it('recognizes persisted completion when running turn transitions directly to idle', 0, async () => {
-      const manager = new FakePollSessionManager();
-      const snapshots: ChatSessionSnapshot[] = [];
-      const persistedAssistant = chatMessage('turn-4-assistant', 'assistant', 'Final text');
-      persistedAssistant.turnId = 'turn-4';
-      manager.results = [pollResult({
-        version: 4,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [persistedAssistant],
-        messageSnapshot: [
-          chatMessage('turn-4-user', 'user', 'Question'),
-          persistedAssistant
-        ],
-        totalMessageCount: 2
-      })];
-      const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => snapshots.push(snapshot),
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
-      });
-
-      controller.start('session-4', {
-        pollVersion: 3,
-        knownMessageCount: 1,
-        knownModelCatalogVersion: 0
-      }, activeChatMessage('turn-4', '', 'active'));
-      await delay(20);
-      controller.stop(false);
-
-      expect(snapshots.length).assertEqual(1);
-      expect(snapshots[0].sessionState).assertEqual('idle');
-      expect(snapshots[0].activeTurn ? snapshots[0].activeTurn.id : '').assertEqual('');
-      expect(snapshots[0].completedTurnId).assertEqual('turn-4');
-    });
-
-    it('resyncs when a completed assistant message is updated during the settle window', 0, async () => {
-      const manager = new FakePollSessionManager();
-      const snapshots: ChatSessionSnapshot[] = [];
-      const controller = new ChatSessionController(manager, {
-        onSnapshot: (snapshot: ChatSessionSnapshot) => {
-          snapshots.push(snapshot);
-        },
-        onError: (_error: Object) => {},
-        canPoll: (_sessionId: string) => true
-      });
-
-      manager.results = [pollResult({
-        version: 2,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [
-          chatMessage('turn-1-assistant', 'assistant', '')
-        ],
-        totalMessageCount: 2
-      })];
-      controller.start('session-1', {
-        pollVersion: 1,
-        knownMessageCount: 1,
-        knownModelCatalogVersion: 0
-      }, chatMessage('active-turn-1', 'assistant', '', 'active'));
-      await delay(20);
-
-      manager.results = [pollResult({
-        version: 3,
-        changed: true,
-        sessionState: 'idle',
-        title: 'Session',
-        newMessages: [],
-        totalMessageCount: 2
-      })];
-      await controller.pollNow();
-      controller.stop(false);
-
-      expect(snapshots.length).assertEqual(2);
-      expect(snapshots[0].shouldSyncAfterTurnEnded).assertEqual(true);
-      expect(snapshots[1].newMessages.length).assertEqual(0);
-      expect(snapshots[1].shouldSyncAfterTurnEnded).assertEqual(true);
     });
   });
 }

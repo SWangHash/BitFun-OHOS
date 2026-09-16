@@ -10,7 +10,16 @@ use crate::peer_host::args::{get_string, request_value};
 use crate::peer_host::state::PeerHostState;
 
 fn permission_reply(request: &Value) -> Result<PermissionReply, String> {
-    match get_string(request, "reply")?.as_str() {
+    let reply = get_string(request, "reply")?;
+    if let Some(updated_input) = request.get("updatedInput").filter(|value| !value.is_null()) {
+        if reply != "once" || !updated_input.is_object() {
+            return Err("Edited input requires a one-time approval and an object".to_string());
+        }
+        return Ok(PermissionReply::OnceWithInput {
+            updated_input: updated_input.clone(),
+        });
+    }
+    match reply.as_str() {
         "once" => Ok(PermissionReply::Once),
         "always" => Ok(PermissionReply::Always),
         "reject" => Ok(PermissionReply::Reject {
@@ -338,4 +347,18 @@ mod selector_tests {
             assert!(parse_selector_mode(&serde_json::json!({"mode": value})).is_err());
         }
     }
+}
+
+/// Small live mailbox for reconnecting controllers; never reads transcript history.
+pub(crate) fn get_session_interaction_mailbox(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let session_id = get_string(request_value(args), "sessionId")?;
+    serde_json::to_value(
+        state
+            .agent_runtime
+            .session_interaction_snapshot(&session_id),
+    )
+    .map_err(|error| error.to_string())
 }

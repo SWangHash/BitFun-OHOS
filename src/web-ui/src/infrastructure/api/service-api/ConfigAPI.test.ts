@@ -170,6 +170,23 @@ describe('ConfigAPI batch config reads', () => {
 });
 
 
+describe('direct Skill availability wire compatibility', () => {
+  it('keeps user-only requests compatible and scopes project switches explicitly', async () => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue({ globallyDisabledUserSkillKeys: [] });
+    const config = new ConfigAPI();
+    const legacy = await config.getGlobalSkillSettings();
+    expect(invokeMock).toHaveBeenLastCalledWith('get_global_skill_settings', undefined);
+    expect(legacy.directSkillManagementVersion).toBeUndefined();
+    await config.getGlobalSkillSettings('/workspace/a');
+    expect(invokeMock).toHaveBeenLastCalledWith('get_global_skill_settings', { request: { workspacePath: '/workspace/a' } });
+    await config.setGlobalSkillDisabled({ skillKey: 'user::home.agents::review', disabled: true });
+    expect(invokeMock).toHaveBeenLastCalledWith('set_global_skill_disabled', { request: { skillKey: 'user::home.agents::review', disabled: true } });
+    await config.setGlobalSkillDisabled({ skillKey: 'project::agents::review', disabled: false, workspacePath: '/workspace/a' });
+    expect(invokeMock).toHaveBeenLastCalledWith('set_global_skill_disabled', { request: { skillKey: 'project::agents::review', disabled: false, workspacePath: '/workspace/a' } });
+  });
+});
+
 describe('skill scan response compatibility', () => {
   it('accepts legacy arrays and marks diagnostics as unavailable', async () => {
     invokeMock.mockResolvedValueOnce([{ key: 'user::codex::pdf', name: 'pdf' }]);

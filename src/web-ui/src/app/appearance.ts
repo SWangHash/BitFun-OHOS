@@ -6,6 +6,7 @@ export const workbenchAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'workspace' },
     { id: 'collapsedNav' },
     { id: 'navArea' },
+    { id: 'workspaceMaterial', propertyProfile: 'paint', visualRole: 'decoration' },
     { id: 'navDivider' },
     { id: 'sceneArea' },
     { id: 'sceneSurface' },

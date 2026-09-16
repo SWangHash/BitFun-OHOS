@@ -1,4 +1,4 @@
-﻿import {
+import {
   Button,
   ConfirmDialog,
   Field,
@@ -71,14 +71,14 @@ interface CategoryInfo {
 const CATEGORIES: CategoryInfo[] = [
   {
     id: 'all',
-    icon: { glyph: Layers },
+    icon: <Icon glyph={Layers} size="sm" />,
     labelKey: 'filters.all',
     titleKey: 'installed.titleListAll',
     descKey: 'categories.all',
   },
   {
     id: 'builtin',
-    icon: { glyph: ShieldCheck },
+    icon: <Icon glyph={ShieldCheck} size="sm" />,
     labelKey: 'filters.builtin',
     titleKey: 'installed.titleBuiltin',
     descKey: 'categories.builtin',
@@ -92,14 +92,14 @@ const CATEGORIES: CategoryInfo[] = [
   },
   {
     id: 'project',
-    icon: { glyph: FolderOpen },
+    icon: <Icon glyph={FolderOpen} size="sm" />,
     labelKey: 'filters.project',
     titleKey: 'installed.titleProject',
     descKey: 'categories.project',
   },
   {
     id: 'groups',
-    icon: { glyph: Layers },
+    icon: <Icon glyph={Layers} size="sm" />,
     labelKey: 'filters.groups',
     titleKey: 'groups.title',
     descKey: 'categories.groups',
@@ -408,7 +408,7 @@ const SkillsScene: React.FC = () => {
                         selected={installedView === cat.id}
                         onClick={() => setInstalledView(cat.id)}
                         title={t(cat.descKey, { source: cat.sourceLabel })}
-                        leading={<span data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemIcon"><Icon {...cat.icon} size="sm" /></span>}
+                        leading={<span data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemIcon">{cat.icon}</span>}
                         metadata={(
                           <span className="skills-sidebar__item-count" data-openbitfun-scene="skills" data-openbitfun-part="sidebarItemCount">
                             {formatNumber(count)}
@@ -431,12 +431,13 @@ const SkillsScene: React.FC = () => {
             <div className="skills-main" data-openbitfun-scene="skills" data-openbitfun-part="main">
               {!desktopConfigAvailable ? (
                 <div className="skills-main__empty" data-testid="skills-management-unavailable" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                  <Icon name="package" size="lg" />
+                  <Icon name="extension" size="lg" />
                   <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
                 </div>
               ) : installedView === 'groups' ? (
                 <SkillGroupsView
                   key={installed.catalogContextKey}
+                  searchQuery={searchDraft}
                   skills={groupSkills}
                   collection={skillGroups}
                   catalogReady={installed.catalogReady}
@@ -528,7 +529,7 @@ const SkillsScene: React.FC = () => {
 
                     {!installed.loading && installed.error && (
                       <div className="skills-main__empty skills-main__empty--error" data-openbitfun-scene="skills" data-openbitfun-part="error">
-                        <Icon name="package" size="lg" />
+                        <Icon name="extension" size="lg" />
                         <span>{t('list.loadFailed')}</span>
                         <Button
                           variant="outline"
@@ -549,7 +550,7 @@ const SkillsScene: React.FC = () => {
 
                     {!installed.loading && !installed.error && installedFiltered.length === 0 && installed.diagnostics.length === 0 && (
                       <div className="skills-main__empty" data-testid="skill-list-empty" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                        <Icon name="package" size="lg" />
+                        <Icon name="extension" size="lg" />
                         <span>
                           {installed.skills.length === 0
                             ? t('list.empty.noSkills')
@@ -780,7 +781,7 @@ const SkillsScene: React.FC = () => {
 
               {!market.marketLoading && market.marketError && (
                 <div className="skills-discover__empty skills-discover__empty--error" data-openbitfun-scene="skills" data-openbitfun-part="error">
-                  <Icon name="package" size="lg" />
+                  <Icon name="extension" size="lg" />
                   <span>{market.marketError}</span>
                 </div>
               )}
@@ -801,7 +802,7 @@ const SkillsScene: React.FC = () => {
 
               {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length === 0 && (
                 <div className="skills-discover__empty" data-testid="skill-list-empty" data-openbitfun-scene="skills" data-openbitfun-part="empty">
-                  <Icon name="package" size="lg" />
+                  <Icon name="extension" size="lg" />
                   <span>{marketQuery ? t('market.empty.noMatch') : t('market.empty.noSkills')}</span>
                 </div>
               )}
@@ -971,7 +972,7 @@ const SkillsScene: React.FC = () => {
       <GalleryDetailModal
         isOpen={desktopConfigAvailable && Boolean(selectedDetail)}
         onClose={() => setSelectedDetail(null)}
-        icon={selectedMarketSkill || selectedMatrixSkill ? <Icon name="package" size="lg" /> : <Icon name="extension" size="lg" />}
+        icon={selectedMarketSkill || selectedMatrixSkill ? <Icon name="extension" size="lg" /> : <Icon name="extension" size="lg" />}
         iconGradient={getCardGradient(
           selectedInstalledSkill?.name
           ?? selectedMarketSkill?.installId

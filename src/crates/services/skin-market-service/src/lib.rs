@@ -148,6 +148,7 @@ mod tests {
             .unwrap_or_default();
         let (github_id, login, is_admin) = match token {
             "Bearer owner-token" => (41, "owner", false),
+            "Bearer email-token" => (0, "user-legacy-handle", false),
             "Bearer admin-token" => (42, "admin", true),
             _ => {
                 return (
@@ -160,10 +161,12 @@ mod tests {
             StatusCode::OK,
             Json(serde_json::json!({
                 "user": {
+                    "accountId": if github_id == 0 { "email-43".to_string() } else { github_id.to_string() },
                     "githubId": github_id,
                     "login": login,
                     "avatarUrl": "https://example.invalid/avatar"
                 },
+                "email": if github_id == 0 { Some("author@example.com") } else { None },
                 "isAdmin": is_admin
             })),
         )
@@ -263,6 +266,10 @@ mod tests {
     }
 
     async fn create_submission(app: &Router, slug: &str) -> String {
+        create_submission_with_token(app, slug, "owner-token").await
+    }
+
+    async fn create_submission_with_token(app: &Router, slug: &str, token: &str) -> String {
         let body = serde_json::json!({
             "slug": slug,
             "releaseNumber": 1,
@@ -273,7 +280,7 @@ mod tests {
         let mut request = request(
             "POST",
             "/skin/api/v1/submissions",
-            Some("owner-token"),
+            Some(token),
             Body::from(body.to_string()),
         );
         request.headers_mut().insert(
@@ -359,14 +366,23 @@ mod tests {
 
     #[tokio::test]
     async fn bearer_submission_review_and_public_download_flow() {
+        submission_review_and_download("owner-token", "owner", 41).await;
+    }
+
+    #[tokio::test]
+    async fn email_submission_review_and_public_download_flow() {
+        submission_review_and_download("email-token", "author@example.com", 0).await;
+    }
+
+    async fn submission_review_and_download(token: &str, login: &str, github_id: i64) {
         let temporary = tempfile::tempdir().unwrap();
         let app = test_router(&temporary).await;
-        let submission_id = create_submission(&app, "aurora-market").await;
+        let submission_id = create_submission_with_token(&app, "aurora-market", token).await;
         let package = appearance_package();
         let mut upload = request(
             "PUT",
             &format!("/skin/api/v1/submissions/{submission_id}/package"),
-            Some("owner-token"),
+            Some(token),
             Body::from(package.clone()),
         );
         upload.headers_mut().insert(
@@ -392,7 +408,7 @@ mod tests {
             .oneshot(request(
                 "GET",
                 &private_preview_path,
-                Some("owner-token"),
+                Some(token),
                 Body::empty(),
             ))
             .await
@@ -414,7 +430,7 @@ mod tests {
             .oneshot(request(
                 "POST",
                 &format!("/skin/api/v1/submissions/{submission_id}/submit"),
-                Some("owner-token"),
+                Some(token),
                 Body::empty(),
             ))
             .await
@@ -436,8 +452,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let approved = json_body(response).await;
         assert_eq!(approved["submission"]["status"], "approved");
-        assert_eq!(approved["submitter"]["login"], "owner");
-        assert_eq!(approved["submitter"]["githubId"], 41);
+        assert_eq!(approved["submitter"]["login"], login);
+        assert_eq!(approved["submitter"]["githubId"], github_id);
         assert!(approved["reviewBundleHash"].as_str().is_some());
 
         let response = app
@@ -509,6 +525,10 @@ mod tests {
             .await
             .unwrap();
         let detail = json_body(response).await;
+        assert_eq!(detail["owner"]["login"], login);
+        if github_id == 0 {
+            assert_eq!(detail["owner"]["accountId"], "email-43");
+        }
         assert_eq!(detail["releases"][0]["packageVersion"], "1.0.0");
         assert_eq!(detail["releases"][0]["yanked"], false);
 

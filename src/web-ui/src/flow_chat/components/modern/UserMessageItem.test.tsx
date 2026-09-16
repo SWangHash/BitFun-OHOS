@@ -224,6 +224,32 @@ describe('UserMessageItem steering tag', () => {
     vi.unstubAllGlobals();
   });
 
+  it('uses the shared image dialog without changing image or background click behavior', () => {
+    act(() => root.render(
+      <FlowChatContext.Provider value={{ sessionId: 'main-session' }}>
+        <UserMessageItem message={{
+          id: 'image-preview', content: 'Image', timestamp: 1000,
+          images: [{ id: 'image-1', name: 'preview.png', dataUrl: 'data:image/png;base64,AA==', mimeType: 'image/png' }],
+        }} turnId="turn-1" />
+      </FlowChatContext.Provider>,
+    ));
+    const thumbnail = container.querySelector<HTMLElement>('.user-message-item__image-thumb')!;
+    act(() => thumbnail.click());
+    const dialog = document.querySelector<HTMLElement>('.user-message-item__lightbox-surface')!;
+    expect(dialog.getAttribute('data-openbitfun-component')).toBe('dialog');
+    expect(dialog.parentElement?.getAttribute('data-openbitfun-product-part')).toBe('lightbox');
+    expect(dialog.parentElement?.getAttribute('data-openbitfun-native-webview-occlusion')).toBe('true');
+    act(() => dialog.querySelector('img')!.click());
+    expect(dialog.isConnected).toBe(true);
+    act(() => document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(dialog.isConnected).toBe(true);
+    act(() => dialog.click());
+    expect(dialog.isConnected).toBe(false);
+    act(() => thumbnail.click());
+    act(() => document.querySelector<HTMLButtonElement>('.user-message-item__lightbox-close')!.click());
+    expect(document.querySelector('.user-message-item__lightbox')).toBeNull();
+  });
+
   it('renders pending steering tag on the right side of the message row', () => {
     act(() => {
       root.render(

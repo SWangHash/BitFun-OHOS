@@ -129,6 +129,104 @@ pub async fn set_global_user_skill_disabled(
         .await
 }
 
+/// Local workspace identity is canonicalized so aliases share one availability policy.
+fn skill_workspace_identity(root: &Path) -> OpenBitFunResult<String> {
+    dunce::canonicalize(root)
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|error| OpenBitFunError::tool(format!("Invalid Skill workspace: {error}")))
+}
+
+pub async fn load_globally_disabled_project_skills(root: &Path) -> OpenBitFunResult<Vec<String>> {
+    let identity = skill_workspace_identity(root)?;
+    let config_service = GlobalConfigManager::get_service().await?;
+    let settings: SkillSettingsConfig =
+        config_service.get_config(Some("ai.skill_settings")).await?;
+    Ok(settings
+        .globally_disabled_project_skills
+        .get(&identity)
+        .cloned()
+        .unwrap_or_default())
+}
+
+pub async fn set_global_project_skill_disabled(
+    root: &Path,
+    skill_key: &str,
+    disabled: bool,
+) -> OpenBitFunResult<Vec<String>> {
+    let identity = skill_workspace_identity(root)?;
+    let config_service = GlobalConfigManager::get_service().await?;
+    config_service
+        .update_config("ai.skill_settings", |settings: &mut SkillSettingsConfig| {
+            Ok(update_project_skill_availability(
+                settings, &identity, skill_key, disabled,
+            ))
+        })
+        .await
+}
+
+fn update_project_skill_availability(
+    settings: &mut SkillSettingsConfig,
+    identity: &str,
+    skill_key: &str,
+    disabled: bool,
+) -> Vec<String> {
+    let keys = settings
+        .globally_disabled_project_skills
+        .entry(identity.to_string())
+        .or_default();
+    keys.retain(|key| key != skill_key);
+    if disabled {
+        keys.push(skill_key.to_string());
+    }
+    *keys = normalize_skill_keys(std::mem::take(keys));
+    let result = keys.clone();
+    if result.is_empty() {
+        settings.globally_disabled_project_skills.remove(identity);
+    }
+    result
+}
+
+#[cfg(test)]
+mod availability_tests {
+    use super::*;
+
+    #[test]
+    fn project_switches_share_path_aliases_but_isolate_workspaces_and_user_policy() {
+        let temp = tempfile::tempdir().unwrap();
+        let first = temp.path().join("first");
+        let second = temp.path().join("second");
+        std::fs::create_dir(&first).unwrap();
+        std::fs::create_dir(&second).unwrap();
+        let first_id = skill_workspace_identity(&first).unwrap();
+        let alias = skill_workspace_identity(&first.join(".")).unwrap();
+        assert_eq!(first_id, alias);
+        let second_id = skill_workspace_identity(&second).unwrap();
+        let key = "project::agents::review";
+        let mut settings = SkillSettingsConfig::default();
+        settings
+            .globally_disabled_user_skills
+            .push("user::home.agents::review".into());
+        update_project_skill_availability(&mut settings, &first_id, key, true);
+        update_project_skill_availability(&mut settings, &alias, key, true);
+        assert_eq!(settings.globally_disabled_project_skills[&first_id], [key]);
+        assert!(!settings
+            .globally_disabled_project_skills
+            .contains_key(&second_id));
+        update_project_skill_availability(&mut settings, &second_id, key, true);
+        let mut restored: SkillSettingsConfig =
+            serde_json::from_value(serde_json::to_value(settings).unwrap()).unwrap();
+        update_project_skill_availability(&mut restored, &alias, key, false);
+        assert!(!restored
+            .globally_disabled_project_skills
+            .contains_key(&first_id));
+        assert_eq!(restored.globally_disabled_project_skills[&second_id], [key]);
+        assert_eq!(
+            restored.globally_disabled_user_skills,
+            ["user::home.agents::review"]
+        );
+    }
+}
+
 pub fn project_mode_skills_path_for_remote(remote_root: &str) -> String {
     project_agent_profiles_path_for_remote(remote_root)
 }

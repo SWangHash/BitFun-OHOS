@@ -166,8 +166,6 @@ internal fun RemoteSessionListContent(
     // Not saveable, like the delete confirmation: an open menu is a finger
     // half-way through a gesture, not a place to come back to.
     var projectCreateMenuPath by remember { mutableStateOf<String?>(null) }
-    var pendingProjectCreate by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var pendingAssistantCreate by remember { mutableStateOf(false) }
     var viewSettings by rememberSaveable(stateSaver = SessionViewSettings.Saver) {
         mutableStateOf(SessionViewSettings.Default)
     }
@@ -182,40 +180,8 @@ internal fun RemoteSessionListContent(
             onIntent(RemoteSessionIntent.Search(search))
         }
     }
-    LaunchedEffect(workspaceState, pendingProjectCreate, pendingAssistantCreate) {
-        when (workspaceState) {
-            is RemoteWorkspaceUiState.Ready -> {
-                pendingProjectCreate?.let { pending ->
-                    if (workspaceState.selected?.path == pending.first) {
-                        pendingProjectCreate = null
-                        onIntent(RemoteSessionIntent.CreateSession(pending.second))
-                    }
-                }
-                if (pendingAssistantCreate && workspaceState.selected?.kind == ASSISTANT_WORKSPACE_KIND) {
-                    pendingAssistantCreate = false
-                    onIntent(RemoteSessionIntent.CreateSession("Claw"))
-                }
-            }
-            is RemoteWorkspaceUiState.Failed -> {
-                pendingProjectCreate = null
-                pendingAssistantCreate = false
-            }
-            else -> Unit
-        }
-    }
     val createAssistantSession = {
-        val workspaceReady = workspaceState as? RemoteWorkspaceUiState.Ready
-        if (workspaceReady?.selected?.kind == ASSISTANT_WORKSPACE_KIND) {
-            onIntent(RemoteSessionIntent.CreateSession("Claw"))
-        } else {
-            val assistant = workspaceReady?.assistants?.firstOrNull()
-            if (assistant == null) {
-                onCreate()
-            } else {
-                pendingAssistantCreate = true
-                onWorkspaceIntent(RemoteWorkspaceIntent.SelectAssistant(assistant.path))
-            }
-        }
+        onIntent(RemoteSessionIntent.CreateSession("Claw"))
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -298,14 +264,13 @@ internal fun RemoteSessionListContent(
                             onCreateAgent = if (section is SessionListSection.Project) {
                                 { agentType ->
                                     projectCreateMenuPath = null
-                                    val selectedPath = (workspaceState as? RemoteWorkspaceUiState.Ready)
-                                        ?.selected?.path
-                                    if (selectedPath == section.path) {
-                                        onIntent(RemoteSessionIntent.CreateSession(agentType))
-                                    } else {
-                                        pendingProjectCreate = section.path to agentType
-                                        onWorkspaceIntent(RemoteWorkspaceIntent.SelectWorkspace(section.path))
-                                    }
+                                    val scope = workspaceState as? RemoteWorkspaceUiState.Ready
+                                    val matching = scope?.workspaces.orEmpty().filter { it.path == section.path }
+                                    val selected = scope?.selected?.takeIf { it.path == section.path }
+                                    if (selected != null || matching.size == 1) {
+                                        onIntent(RemoteSessionIntent.CreateSession(agentType, "", "", null, section.path, selected?.remoteConnectionId ?: matching.singleOrNull()?.remoteConnectionId))
+                                    } else onCreate()
+
                                 }
                             } else null,
                             onCreateAssistant = if (section is SessionListSection.Chat) {
@@ -696,6 +661,9 @@ internal fun ProjectCreateControl(
     onToggle: () -> Unit,
     onDismiss: () -> Unit,
     onCreateAgent: (String) -> Unit,
+    modesOnly: Boolean = false,
+    onFiles: (() -> Unit)? = null,
+    onTerminal: (() -> Unit)? = null,
 ) {
     Box {
         IconButton(
@@ -706,8 +674,8 @@ internal fun ProjectCreateControl(
                 .testTag(SESSION_PROJECT_CREATE_TEST_TAG_PREFIX + path),
         ) {
             Icon(
-                painterResource(R.drawable.ic_symbol_square_and_pencil),
-                contentDescription = stringResource(R.string.sidebar_new_chat),
+                painterResource(if (modesOnly || onFiles != null || onTerminal != null) R.drawable.ic_symbol_plus else R.drawable.ic_symbol_square_and_pencil),
+                contentDescription = stringResource(if (modesOnly || onFiles != null || onTerminal != null) R.string.workspace_actions else R.string.sidebar_new_chat),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
@@ -721,27 +689,12 @@ internal fun ProjectCreateControl(
             tonalElevation = 0.dp,
             shadowElevation = 18.dp,
         ) {
-            if (supportsHarnessProfiles) {
-                HarnessProfile.entries.forEach { profile ->
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { HarnessProfileLabel(profile) },
-                        onClick = { onCreateAgent(profile.agentType) },
-                    )
-                }
-            } else {
-            CompactCreateMenuItem(
-                label = stringResource(R.string.sessions_filter_code),
-                enabled = true,
-                onClick = { onCreateAgent("code") },
-                modifier = Modifier,
-            )
+            HarnessProfile.entries.forEach { profile ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { HarnessProfileLabel(profile) },
+                    onClick = { onCreateAgent(profile.agentType) },
+                )
             }
-            CompactCreateMenuItem(
-                label = stringResource(R.string.sessions_filter_cowork),
-                enabled = true,
-                onClick = { onCreateAgent("Cowork") },
-                modifier = Modifier,
-            )
         }
     }
 }

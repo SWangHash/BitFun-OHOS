@@ -56,13 +56,14 @@ members = [
 
 exclude = [
     "OpenBitFun-Installer/src-tauri",
+    "third_party/eioc",
 ]
 
 resolver = "2"
 
 # Shared package metadata 鈥?single source of truth for version
 [workspace.package]
-version = "1.0.0-beta" # x-release-please-version
+version = "1.0.0" # x-release-please-version
 authors = ["OpenBitFun Team"]
 edition = "2021"
 
@@ -135,6 +136,7 @@ indexmap = "2"
 include_dir = "0.7"
 aes = "0.8"
 hmac = "0.12"
+lettre = { version = "0.11.23", default-features = false }
 hex = "0.4"
 chardetng = "0.1.17"
 encoding_rs = "0.8.35"
@@ -283,6 +285,7 @@ qrcode = { version = "0.14", default-features = false }
 
 # WebSocket client
 tokio-tungstenite = "0.29"
+sioc = { version = "0.5.0", default-features = false }
 
 # Local speech recognition
 sherpa-onnx = "1.13.4"
@@ -308,8 +311,13 @@ ssh_config = "0.1"
 rustls = { version = "0.23", default-features = false }
 
 [patch.crates-io]
-# tao 0.35.3 can re-enter its Windows window callback while holding input locks.
-# Use the upstream fix until it is included in a crates.io release.
+# Keep Socket.IO on the product-owned ring provider; see the patch note.
+eioc = { path = "third_party/eioc" }
+# Keep the OpenHarmony forks of tao/wry/tauri: the OHOS delivery profile depends
+# on these branches, and crates.io tauri cannot build the OHOS targets.
+# The feat-ohos-webview tao pin also carries the fix for the Windows input
+# deadlock (tao 0.35.3 re-enters its window callback while holding input locks),
+# which supersedes the upstream tauri-runtime rev pin for that issue.
 wry = { git = "https://github.com/richerfu/wry"}
 tao = { git = "https://github.com/richerfu/tao", branch = "feat-ohos-webview"}
 openharmony-ability = {git = "https://github.com/harmony-contrib/openharmony-ability.git"}

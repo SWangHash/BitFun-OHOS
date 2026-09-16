@@ -27,9 +27,10 @@ const REFRESH_TOKEN_DAYS: i64 = 30;
 
 #[derive(Debug, Clone)]
 pub(crate) struct AuthService {
-    config: MarketConfig,
-    db: Database,
+    pub(super) config: MarketConfig,
+    pub(super) db: Database,
     client: reqwest::Client,
+    pub(super) mailer: Option<crate::email_auth::Mailer>,
 }
 
 #[derive(Debug, Clone)]
@@ -143,11 +144,11 @@ struct GitHubUser {
 }
 
 #[derive(Debug)]
-struct OAuthFlowRecord {
-    flow_kind: String,
-    transaction_id: Option<String>,
-    code_verifier: String,
-    return_to: String,
+pub(super) struct OAuthFlowRecord {
+    pub(super) flow_kind: String,
+    pub(super) transaction_id: Option<String>,
+    pub(super) code_verifier: String,
+    pub(super) return_to: String,
 }
 
 impl AuthService {
@@ -160,7 +161,12 @@ impl AuthService {
             .timeout(std::time::Duration::from_secs(20))
             .build()
             .map_err(MarketError::internal)?;
-        Ok(Self { config, db, client })
+        Ok(Self {
+            config,
+            db,
+            client,
+            mailer: crate::email_auth::Mailer::from_env()?,
+        })
     }
 
     pub(crate) async fn optional_auth(
@@ -202,7 +208,7 @@ impl AuthService {
     pub(crate) async fn require_auth(&self, headers: &HeaderMap) -> MarketResult<RequestAuth> {
         self.optional_auth(headers)
             .await?
-            .ok_or_else(|| MarketError::unauthorized("Sign in with GitHub to continue."))
+            .ok_or_else(|| MarketError::unauthorized("Sign in to continue."))
     }
 
     pub(crate) fn require_csrf(&self, headers: &HeaderMap, auth: &RequestAuth) -> MarketResult<()> {
@@ -229,9 +235,11 @@ impl AuthService {
     }
 
     pub(crate) fn is_admin(&self, user: &AuthenticatedUser) -> bool {
-        self.config
-            .admin_github_ids
-            .contains(&user.profile.github_id)
+        user.profile.github_id > 0
+            && self
+                .config
+                .admin_github_ids
+                .contains(&user.profile.github_id)
     }
 
     pub(crate) async fn start_web_oauth(&self, return_to: &str) -> MarketResult<String> {
@@ -239,8 +247,18 @@ impl AuthService {
         self.create_oauth_flow("web", None, &return_to).await
     }
 
+    #[cfg(test)]
     pub(crate) async fn start_desktop_oauth(&self) -> MarketResult<DesktopAuthStart> {
-        self.ensure_github_configured()?;
+        self.start_desktop_login(false).await
+    }
+
+    pub(crate) async fn start_desktop_login(
+        &self,
+        all_methods: bool,
+    ) -> MarketResult<DesktopAuthStart> {
+        if !all_methods {
+            self.ensure_github_configured()?;
+        }
         let transaction_id = Uuid::new_v4().to_string();
         let transaction_secret = random_token(32);
         let now = Utc::now().timestamp();
@@ -273,14 +291,20 @@ impl AuthService {
                 "Sign-in is busy. Please try again shortly.",
             ));
         }
-        let authorization_url = self
-            .create_oauth_flow_in_transaction(
+        let authorization_url = if all_methods {
+            let ticket = self
+                .create_login_flow(&mut transaction, Some(&transaction_id), "/miniapp/")
+                .await?;
+            format!("https://auth.openbitfun.com/sign-in#ticket={ticket}")
+        } else {
+            self.create_oauth_flow_in_transaction(
                 &mut transaction,
                 "desktop",
                 Some(&transaction_id),
                 "https://auth.openbitfun.com/complete",
             )
-            .await?;
+            .await?
+        };
         transaction.commit().await.map_err(MarketError::internal)?;
         Ok(DesktopAuthStart {
             transaction_id,
@@ -291,7 +315,7 @@ impl AuthService {
         })
     }
 
-    async fn create_oauth_flow(
+    pub(super) async fn create_oauth_flow(
         &self,
         kind: &str,
         transaction_id: Option<&str>,
@@ -379,7 +403,7 @@ impl AuthService {
         self.finish_verified_oauth(flow, user.internal_id).await
     }
 
-    async fn finish_verified_oauth(
+    pub(super) async fn finish_verified_oauth(
         &self,
         flow: OAuthFlowRecord,
         user_id: i64,
@@ -500,13 +524,20 @@ impl AuthService {
         let user_id: i64 = row
             .try_get("user_id")
             .map_err(|_| MarketError::internal("Authorized transaction has no user"))?;
+        let mut tx = self
+            .db
+            .pool()
+            .begin()
+            .await
+            .map_err(MarketError::internal)?;
         let updated = sqlx::query(
             "UPDATE desktop_auth_transactions SET status = 'consumed', updated_at = ?
-             WHERE id = ? AND status = 'authorized'",
+             WHERE id = ? AND status = 'authorized' AND expires_at > ?",
         )
         .bind(Utc::now().timestamp())
         .bind(&request.transaction_id)
-        .execute(self.db.pool())
+        .bind(Utc::now().timestamp())
+        .execute(&mut *tx)
         .await
         .map_err(MarketError::internal)?;
         if updated.rows_affected() != 1 {
@@ -515,7 +546,10 @@ impl AuthService {
                 "The desktop authorization was already consumed.",
             ));
         }
-        let tokens = self.issue_token_pair(user_id, None).await?;
+        let tokens = self
+            .issue_token_pair_in_transaction(&mut tx, user_id, None)
+            .await?;
+        tx.commit().await.map_err(MarketError::internal)?;
         Ok(DesktopAuthPollResponse {
             status: "authorized".to_string(),
             tokens: Some(tokens),
@@ -526,19 +560,56 @@ impl AuthService {
         &self,
         refresh_token: &str,
     ) -> MarketResult<MarketTokenPair> {
-        let Some((user, family_id)) = self.db.api_token_user(refresh_token, "refresh").await?
-        else {
-            return Err(MarketError::unauthorized(
-                "The refresh token is invalid or expired.",
-            ));
-        };
-        self.db.revoke_token_family(&family_id).await?;
-        self.issue_token_pair(user.internal_id, Some(family_id))
+        let mut tx = self
+            .db
+            .pool()
+            .begin()
             .await
+            .map_err(MarketError::internal)?;
+        // Claim the old refresh token before reading identity: concurrent refreshes
+        // serialize here, and failures roll back both consumption and replacement.
+        let row = sqlx::query("UPDATE api_tokens SET revoked_at = ? WHERE token_hash = ? AND token_type = 'refresh' AND expires_at > ? AND revoked_at IS NULL RETURNING user_id, family_id")
+            .bind(Utc::now().timestamp()).bind(token_hash(refresh_token)).bind(Utc::now().timestamp())
+            .fetch_optional(&mut *tx).await.map_err(MarketError::internal)?
+            .ok_or_else(|| MarketError::unauthorized("The refresh token is invalid or expired."))?;
+        let family_id: String = row.get("family_id");
+        sqlx::query(
+            "UPDATE api_tokens SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now().timestamp())
+        .bind(&family_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(MarketError::internal)?;
+        let pair = self
+            .issue_token_pair_in_transaction(&mut tx, row.get("user_id"), Some(family_id))
+            .await?;
+        tx.commit().await.map_err(MarketError::internal)?;
+        Ok(pair)
     }
 
+    #[cfg(test)]
     async fn issue_token_pair(
         &self,
+        user_id: i64,
+        family_id: Option<String>,
+    ) -> MarketResult<MarketTokenPair> {
+        let mut tx = self
+            .db
+            .pool()
+            .begin()
+            .await
+            .map_err(MarketError::internal)?;
+        let pair = self
+            .issue_token_pair_in_transaction(&mut tx, user_id, family_id)
+            .await?;
+        tx.commit().await.map_err(MarketError::internal)?;
+        Ok(pair)
+    }
+
+    async fn issue_token_pair_in_transaction(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
         user_id: i64,
         family_id: Option<String>,
     ) -> MarketResult<MarketTokenPair> {
@@ -547,24 +618,14 @@ impl AuthService {
         let family_id = family_id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let access_expires_at = (Utc::now() + Duration::minutes(ACCESS_TOKEN_MINUTES)).timestamp();
         let refresh_expires_at = (Utc::now() + Duration::days(REFRESH_TOKEN_DAYS)).timestamp();
-        self.db
-            .create_api_token(
-                user_id,
-                &access_token,
-                "access",
-                &family_id,
-                access_expires_at,
-            )
-            .await?;
-        self.db
-            .create_api_token(
-                user_id,
-                &refresh_token,
-                "refresh",
-                &family_id,
-                refresh_expires_at,
-            )
-            .await?;
+        for (token, kind, expires_at) in [
+            (&access_token, "access", access_expires_at),
+            (&refresh_token, "refresh", refresh_expires_at),
+        ] {
+            sqlx::query("INSERT INTO api_tokens(token_hash, user_id, token_type, family_id, expires_at, created_at) VALUES(?, ?, ?, ?, ?, ?)")
+                .bind(token_hash(token)).bind(user_id).bind(kind).bind(&family_id).bind(expires_at).bind(Utc::now().timestamp())
+                .execute(&mut **tx).await.map_err(MarketError::internal)?;
+        }
         Ok(MarketTokenPair {
             access_token,
             access_expires_at,
@@ -747,13 +808,13 @@ async fn bounded_github_json<T: serde::de::DeserializeOwned>(
     serde_json::from_slice(&bytes).map_err(MarketError::internal)
 }
 
-fn random_token(bytes: usize) -> String {
+pub(super) fn random_token(bytes: usize) -> String {
     let mut value = vec![0_u8; bytes];
     OsRng.fill_bytes(&mut value);
     URL_SAFE_NO_PAD.encode(value)
 }
 
-fn safe_return_to(value: &str) -> String {
+pub(super) fn safe_return_to(value: &str) -> String {
     const FALLBACK: &str = "/miniapp/";
     if value.len() > 2_048
         || !value.starts_with('/')
@@ -1167,6 +1228,123 @@ mod tests {
         assert!(clear_cookies
             .iter()
             .all(|cookie| cookie.contains("Max-Age=0")));
+    }
+
+    #[tokio::test]
+    async fn concurrent_refresh_has_one_winner_and_preserves_the_winning_tokens() {
+        let temporary = tempfile::tempdir().unwrap();
+        let database = Database::open(&temporary.path().join("market.sqlite"))
+            .await
+            .unwrap();
+        let service = AuthService::new(test_config(temporary.path()), database.clone()).unwrap();
+        let user = database.upsert_github_user(42, "alice", "").await.unwrap();
+        for _ in 0..32 {
+            let pair = service
+                .issue_token_pair(user.internal_id, None)
+                .await
+                .unwrap();
+            let (a, b) = tokio::join!(
+                service.refresh_tokens(&pair.refresh_token),
+                service.refresh_tokens(&pair.refresh_token),
+            );
+            assert_eq!(usize::from(a.is_ok()) + usize::from(b.is_ok()), 1);
+            let winner = a.ok().or(b.ok()).unwrap();
+            assert!(database
+                .api_token_user(&winner.access_token, "access")
+                .await
+                .unwrap()
+                .is_some());
+            assert!(database
+                .api_token_user(&winner.refresh_token, "refresh")
+                .await
+                .unwrap()
+                .is_some());
+            assert!(service.refresh_tokens(&pair.refresh_token).await.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_refresh_rolls_back_revocation_and_partial_token_issuance() {
+        let temporary = tempfile::tempdir().unwrap();
+        let database = Database::open(&temporary.path().join("market.sqlite"))
+            .await
+            .unwrap();
+        let service = AuthService::new(test_config(temporary.path()), database.clone()).unwrap();
+        let user = database.upsert_github_user(42, "alice", "").await.unwrap();
+        let pair = service
+            .issue_token_pair(user.internal_id, None)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TRIGGER fail_refresh_insert BEFORE INSERT ON api_tokens WHEN NEW.token_type = 'refresh' BEGIN SELECT RAISE(ABORT, 'injected storage failure'); END")
+            .execute(database.pool()).await.unwrap();
+        assert!(service.refresh_tokens(&pair.refresh_token).await.is_err());
+        assert!(database
+            .api_token_user(&pair.access_token, "access")
+            .await
+            .unwrap()
+            .is_some());
+        assert!(database
+            .api_token_user(&pair.refresh_token, "refresh")
+            .await
+            .unwrap()
+            .is_some());
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_tokens")
+            .fetch_one(database.pool())
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+        sqlx::query("DROP TRIGGER fail_refresh_insert")
+            .execute(database.pool())
+            .await
+            .unwrap();
+        assert!(service.refresh_tokens(&pair.refresh_token).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn failed_device_token_issuance_keeps_authorization_claimable() {
+        let temporary = tempfile::tempdir().unwrap();
+        let database = Database::open(&temporary.path().join("market.sqlite"))
+            .await
+            .unwrap();
+        let service = AuthService::new(test_config(temporary.path()), database.clone()).unwrap();
+        let user = database.upsert_github_user(42, "alice", "").await.unwrap();
+        let start = service.start_desktop_login(true).await.unwrap();
+        sqlx::query(
+            "UPDATE desktop_auth_transactions SET status = 'authorized', user_id = ? WHERE id = ?",
+        )
+        .bind(user.internal_id)
+        .bind(&start.transaction_id)
+        .execute(database.pool())
+        .await
+        .unwrap();
+        sqlx::query("CREATE TRIGGER fail_device_token BEFORE INSERT ON api_tokens WHEN NEW.token_type = 'refresh' BEGIN SELECT RAISE(ABORT, 'injected storage failure'); END")
+            .execute(database.pool()).await.unwrap();
+        let request = || DesktopAuthPollRequest {
+            transaction_id: start.transaction_id.clone(),
+            transaction_secret: start.transaction_secret.clone(),
+        };
+        assert!(service.poll_desktop(request()).await.is_err());
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_tokens")
+            .fetch_one(database.pool())
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+        sqlx::query("DROP TRIGGER fail_device_token")
+            .execute(database.pool())
+            .await
+            .unwrap();
+        assert!(service
+            .poll_desktop(request())
+            .await
+            .unwrap()
+            .tokens
+            .is_some());
+        assert!(service
+            .poll_desktop(request())
+            .await
+            .unwrap()
+            .tokens
+            .is_none());
     }
 
     #[tokio::test]

@@ -1,5 +1,7 @@
+import { WorkspaceToolsPanel } from './WorkspaceToolsPanel';
+import { WorkspaceToolsState, WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
-import { RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
+import { SavedRuntimeConnection, RecentWorkspaceEntry, RemoteSession } from '../../model/RemoteModels';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import {
   DeviceDirectoryEntry,
@@ -32,8 +34,12 @@ import { RemoteUiState } from '../../services/RemoteUiState';
  */
 @ComponentV2
 export struct SidebarWorkspaceSection {
+  @Param workspaceTools: WorkspaceToolsState = new WorkspaceToolsState();
+  @Event onWorkspaceTools: (intent: WorkspaceToolsIntent) => void = (_intent: WorkspaceToolsIntent) => {};
   @Param directoryState: DeviceDirectoryState = new DeviceDirectoryState();
   @Param sessions: RemoteSession[] = [];
+  @Param savedConnections: SavedRuntimeConnection[] = [];
+  @Param savedConnectionsTargetId: string = '';
   @Param recentWorkspaces: RecentWorkspaceEntry[] = [];
   @Param workspaceName: string = '';
   @Param workspacePath: string = '';
@@ -50,9 +56,9 @@ export struct SidebarWorkspaceSection {
     SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SessionDetails);
   @Event onOpenSession: (session: RemoteSession) => void = (_session: RemoteSession) => {};
   @Event onSessionActions: (session: RemoteSession) => void = (_session: RemoteSession) => {};
-  @Event onCreateInWorkspace: (deviceId: string, path: string, agentType: string) => void =
+  @Event onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string) => void =
     (_deviceId: string, _path: string, _agentType: string) => {};
-  @Event onOpenWorkspace: (deviceId: string, path: string) => void =
+  @Event onOpenWorkspace: (deviceId: string, path: string, connectionId?: string) => void =
     (_deviceId: string, _path: string) => {};
   @Event onExpandWorkspace: (deviceId: string, path: string) => Promise<void> =
     async (_deviceId: string, _path: string) => {};
@@ -70,6 +76,11 @@ export struct SidebarWorkspaceSection {
   build() {
     Column() {
       this.DeviceSectionHeader()
+      Row() {}.height(0)
+        .bindSheet($$this.workspaceTools.visible, this.WorkspaceTools(), { height: SheetSize.LARGE, onWillDismiss: (action: DismissSheetAction): void => {
+          if (this.workspaceTools.dirty) this.onWorkspaceTools({ type: 'close' });
+          else { this.onWorkspaceTools({ type: 'close' }); action.dismiss(); }
+        }, onDisappear: () => this.onWorkspaceTools({ type: 'close' }) })
       if (this.deviceEntries().length > 0) {
         ForEach(this.visibleDeviceEntries(), (entry: DeviceDirectoryEntry) => {
           this.DeviceRow(entry)
@@ -89,6 +100,11 @@ export struct SidebarWorkspaceSection {
     .alignItems(HorizontalAlign.Start)
     .margin({ top: 18 })
     .bindSheet($$this.showWorkspacePicker, this.WorkspacePicker(), this.workspacePickerSheetOptions())
+  }
+
+  @Builder
+  private WorkspaceTools() {
+    WorkspaceToolsPanel({ state: this.workspaceTools, onIntent: this.onWorkspaceTools })
   }
 
   @Builder
@@ -226,6 +242,7 @@ export struct SidebarWorkspaceSection {
       .alignItems(VerticalAlign.Center)
 
       SidebarDeviceGroup({
+        onWorkspaceTools: this.onWorkspaceTools,
         device: entry,
         directoryState: this.directoryState,
         sessions: this.sessionsForDevice(entry),
@@ -246,8 +263,8 @@ export struct SidebarWorkspaceSection {
         },
         onOpenSession: this.onOpenSession,
         onSessionActions: this.onSessionActions,
-        onCreateInWorkspace: (path: string, agentType: string) => {
-          this.onCreateInWorkspace(entry.deviceId, path, agentType);
+        onCreateInWorkspace: (path: string, agentType: string, connectionId?: string) => {
+          this.onCreateInWorkspace(entry.deviceId, path, agentType, connectionId);
         },
         onOpenWorkspace: (path: string) => {
           this.onOpenWorkspace(entry.deviceId, path);
@@ -302,7 +319,11 @@ export struct SidebarWorkspaceSection {
   @Builder
   private WorkspacePicker() {
     SidebarWorkspacePicker({
+      tools: this.workspaceTools,
+      canBrowse: this.isActiveDevice(this.workspacePickerDevice().deviceId),
+      onBrowse: this.onWorkspaceTools,
       deviceName: this.workspacePickerDevice().deviceName,
+      savedConnections: this.workspacePickerDevice().deviceId === this.savedConnectionsTargetId ? this.savedConnections : [],
       workspaces: this.workspacesForDevice(this.workspacePickerDevice()),
       selectedWorkspacePath: this.isActiveDevice(this.workspacePickerDevice().deviceId) ?
         this.workspacePath : '',
@@ -310,10 +331,10 @@ export struct SidebarWorkspaceSection {
       onClose: () => {
         this.showWorkspacePicker = false;
       },
-      onSelectWorkspace: (path: string) => {
+      onSelectWorkspace: (path: string, connectionId?: string) => {
         const deviceId = this.workspacePickerDeviceId;
         this.showWorkspacePicker = false;
-        this.onOpenWorkspace(deviceId, path);
+        this.onOpenWorkspace(deviceId, path, connectionId);
       }
     })
   }

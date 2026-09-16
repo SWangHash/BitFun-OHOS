@@ -2,6 +2,8 @@
   position: relative;
   z-index: 10;
   align-items: center;
+  // Tabs receive the remaining width; the toolbar gap is also draggable chrome.
+  column-gap: var(--openbitfun-space-2);
   flex: 0 0 var(--openbitfun-layout-toolbar-md-height);
   // Reclaim the scene surface's left gutter so tabs share the vertical inset.
   width: calc(100% + var(--openbitfun-space-4));
@@ -50,19 +52,12 @@
     }
   }
 
-  // Keep a window drag target outside the scrolling tabs, even at overflow.
-  &__drag-space {
-    align-self: stretch;
-    flex: 0 0 48px;
-  }
-
   &__actions {
     display: flex;
     align-items: center;
     flex: 0 1 auto;
     min-width: 0;
     height: 100%;
-    margin-inline-start: var(--openbitfun-space-2);
 
     &:empty {
       display: none;

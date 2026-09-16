@@ -2520,6 +2520,20 @@ impl Default for ExternalSourceHostCapabilities {
     }
 }
 
+/// Separate negotiated discovery view. Keep the older strict policy and catalog
+/// wire shapes unchanged for clients that do not request this endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalSourceDiscoverySnapshotV1 {
+    pub schema_version: u32,
+    pub automatic_discovery: bool,
+    pub can_change_automatic_discovery: bool,
+    pub has_scanned: bool,
+    pub discoverable_capabilities: BTreeMap<EcosystemId, Vec<ExternalIntegrationCapabilityId>>,
+    pub preference_revision: u64,
+    pub catalog: ExternalSourcePublicSnapshot,
+}
+
 /// Stable cross-host projection. Executable prompt templates and prepared
 /// runtime payloads never cross a product-surface transport boundary. Host
 /// capability facts are transport-owned and do not alter the authoritative

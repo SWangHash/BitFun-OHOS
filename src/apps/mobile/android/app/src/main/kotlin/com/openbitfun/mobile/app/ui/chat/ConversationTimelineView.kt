@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -43,8 +44,8 @@ internal object ConversationScrollPolicy {
         isAtBottom: Boolean,
         isScrollInProgress: Boolean,
     ): Boolean = when {
-        isAtBottom -> true
         isScrollInProgress -> false
+        isAtBottom -> true
         else -> currentlySticking
     }
 
@@ -67,7 +68,7 @@ internal fun ConversationTimelineView(
     hasMoreMessages: Boolean,
     onLoadOlder: () -> Unit,
     enabled: Boolean,
-    onApproveTool: (String) -> Unit,
+    onApproveTool: (String, String?) -> Unit,
     onRejectTool: (String, String) -> Unit,
     onCancelTool: (String, String) -> Unit,
     onAnswerTool: (String, String) -> Unit,
@@ -85,13 +86,22 @@ internal fun ConversationTimelineView(
     var stickToBottom by rememberSaveable { mutableStateOf(true) }
     val atBottom by remember(listState) { derivedStateOf { !listState.canScrollForward } }
 
+    var userDragging by remember { mutableStateOf(false) }
+    LaunchedEffect(listState.interactionSource) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> { userDragging = true; stickToBottom = false }
+                is DragInteraction.Stop, is DragInteraction.Cancel -> userDragging = false
+            }
+        }
+    }
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
-            .collect { (scrolling, canScrollForward) ->
+        snapshotFlow { userDragging to listState.canScrollForward }
+            .collect { (dragging, canScrollForward) ->
                 stickToBottom = ConversationScrollPolicy.shouldStickToBottom(
                     currentlySticking = stickToBottom,
                     isAtBottom = !canScrollForward,
-                    isScrollInProgress = scrolling,
+                    isScrollInProgress = dragging,
                 )
             }
     }
@@ -116,13 +126,14 @@ internal fun ConversationTimelineView(
             if (hasMoreMessages) {
                 item(key = "load-older-messages") {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        TextButton(onClick = onLoadOlder, enabled = enabled) {
+                        TextButton(onClick = { stickToBottom = false; onLoadOlder() }, enabled = enabled) {
                             Text(stringResource(R.string.chat_load_older_messages))
                         }
                     }
                 }
             }
-            items(rows, key = { it.id }) { row ->
+            val currentUser = rows.lastOrNull { it.kind == com.openbitfun.mobile.core.feature.session.ConversationRowKind.USER }
+            items(rows, key = { if (it === currentUser) "current-user" else "message:${it.id}" }) { row ->
                 ChatMessageBubble(
                     row = row,
                     enabled = enabled,

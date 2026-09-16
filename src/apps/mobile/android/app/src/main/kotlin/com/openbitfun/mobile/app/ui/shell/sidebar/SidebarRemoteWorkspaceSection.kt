@@ -78,8 +78,9 @@ internal fun SidebarRemoteWorkspaceSection(
     onSelectDevice: (String) -> Unit,
     onOpenSession: (String) -> Unit,
     onOpenActions: (RemoteSidebarSessionRow, IntRect) -> Unit,
-    onCreateInWorkspace: (String, String) -> Unit,
+    onCreateInWorkspace: (String, String?, String) -> Unit,
     onOpenWorkspace: (String) -> Unit,
+    onWorkspaceTool: (String, String?, Boolean) -> Unit,
 ) {
     val connected = ConnectionStatusPresenter.canReachSessions(connectionPhase)
     val addConnectionLabel = stringResource(R.string.sidebar_add_connection)
@@ -163,6 +164,7 @@ internal fun SidebarRemoteWorkspaceSection(
                 canActOnSessions = true,
                 onCreateInWorkspace = onCreateInWorkspace,
                 onOpenWorkspace = onOpenWorkspace,
+                onWorkspaceTool = onWorkspaceTool,
             )
         } else {
             projectedDevices.take(visibleDeviceCount).forEach { device ->
@@ -232,6 +234,7 @@ internal fun SidebarRemoteWorkspaceSection(
                         canActOnSessions = active,
                         onCreateInWorkspace = onCreateInWorkspace,
                         onOpenWorkspace = onOpenWorkspace,
+                onWorkspaceTool = onWorkspaceTool,
                     )
                 }
             }
@@ -262,49 +265,15 @@ private fun SidebarActiveDeviceBody(
     onOpenSession: (String) -> Unit,
     onOpenActions: (RemoteSidebarSessionRow, IntRect) -> Unit,
     canActOnSessions: Boolean,
-    onCreateInWorkspace: (String, String) -> Unit,
+    onCreateInWorkspace: (String, String?, String) -> Unit,
     onOpenWorkspace: (String) -> Unit,
+    onWorkspaceTool: (String, String?, Boolean) -> Unit,
 ) {
     val readyWorkspace = workspaceState
     val readySessions = remoteState
     val busy = remoteState?.busy == true
     val entries = remember(readyWorkspace, readySessions) {
-        // Keep this projection local: the shared function is off-limits here, and
-        // its raw path equality loses sessions when a desktop adds a separator.
-        if (readyWorkspace == null) {
-            emptyList()
-        } else {
-            val selected = readyWorkspace.selected
-            val workspaceRows = buildList {
-                if (selected != null && selected.path.isNotBlank()) {
-                    add(selected.path to (readyWorkspace.workspaces.firstOrNull { RemoteWorkspacePathPolicy.equal(it.path, selected.path) }?.displayName ?: selected.name))
-                }
-                readyWorkspace.workspaces.forEach { workspace ->
-                    if (workspace.path.isNotBlank() && none {
-                        RemoteWorkspacePathPolicy.equal(it.first, workspace.path)
-                    }) {
-                        add(workspace.path to workspace.displayName)
-                    }
-                }
-            }
-            workspaceRows.map { (path, name) ->
-                RemoteSidebarWorkspaceRow(
-                    path = path,
-                    name = name,
-                    selected = RemoteWorkspacePathPolicy.equal(path, selected?.path.orEmpty()),
-                    sessions = readySessions?.sessions.orEmpty()
-                        .filter { session ->
-                            RemoteWorkspacePathPolicy.equal(
-                                session.workspacePath ?: selected?.path.orEmpty(),
-                                path,
-                            )
-                        }
-                        .map { session ->
-                            RemoteSidebarSessionRow(session.id, session.title, session.agentType)
-                        },
-                )
-            }
-        }
+        com.openbitfun.mobile.core.feature.shell.RemoteSidebarPresentation.workspaces(readyWorkspace, readySessions)
     }
     var collapsedPaths by rememberSaveable(deviceKey) { mutableStateOf(emptyList<String>()) }
     var expandedSessionPaths by rememberSaveable(deviceKey) { mutableStateOf(emptyList<String>()) }
@@ -380,12 +349,13 @@ private fun SidebarActiveDeviceBody(
                     var createMenuOpen by remember(path) { mutableStateOf(false) }
                     ProjectCreateControl(
                         enabled = canActOnSessions && connected,
-                        supportsHarnessProfiles = HarnessProfilePolicy.supported(workspaceState?.hostCapabilities.orEmpty()),
+                        supportsHarnessProfiles = true,
+                        modesOnly = true,
                         path = path,
                         expanded = createMenuOpen,
                         onToggle = { createMenuOpen = !createMenuOpen },
                         onDismiss = { createMenuOpen = false },
-                        onCreateAgent = { agent -> createMenuOpen = false; onCreateInWorkspace(path, agent) },
+                        onCreateAgent = { agent -> createMenuOpen = false; onCreateInWorkspace(path, entry.remoteConnectionId, agent) },
                     )
                     Icon(
                         painterResource(

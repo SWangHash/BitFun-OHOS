@@ -1,6 +1,6 @@
 {
-  "title": "Agent Hooks",
-  "subtitle": "在 Agent 生命週期事件中執行自訂命令",
+  "title": "智能體 Hooks",
+  "subtitle": "在智能體生命週期事件中執行自訂命令",
   "loading": "正在載入 Hook 設定...",
   "activation": {
     "title": "啟用",

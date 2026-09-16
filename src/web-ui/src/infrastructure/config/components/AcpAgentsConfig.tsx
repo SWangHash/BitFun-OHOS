@@ -2,20 +2,23 @@ import { OverflowText,
   Alert,
   Button,
   ConfirmDialog,
+  FieldGroup,
+  FormSection,
   Icon,
   IconButton,
-  Input,
+  SearchField,
   Select,
   Spinner,
   StatusPill,
   TabGroup,
   Textarea,
+  ToolbarGroup,
   Tooltip,
   type StatusPillTone,
 } from '@openbitfun/ui';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Bot, CircleAlert, EyeOff, FileJson, Save, Server } from 'lucide-react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useI18n } from '@/infrastructure/i18n';
+import { CircleAlert, EyeOff, FileJson, Save, Server } from 'lucide-react';
 import {
   ConfigPageContent,
   ConfigPageHeader,
@@ -162,9 +165,16 @@ interface InstallConfirmation {
 
 export type AcpConfigView = 'local' | 'ssh' | 'json';
 
+export interface AcpAgentsConfigHandle {
+  /** The configuration owner resolves pending edits before closing its host. */
+  requestClose: () => void;
+}
+
 interface AcpAgentsConfigProps {
   /** When embedded in an ecosystem, expose only that product’s clients. */
   clientIds?: readonly string[];
+  presentation?: 'page' | 'dialog';
+  onClose?: () => void;
   viewId?: AcpConfigView;
   navigationRequestId?: number;
   onViewChange?: (view: AcpConfigView) => void;
@@ -476,14 +486,16 @@ function AgentStatusPill({
   );
 }
 
-const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
+const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(function AcpAgentsConfig({
   viewId,
   clientIds,
+  presentation = 'page',
+  onClose,
   navigationRequestId = 0,
   onViewChange,
   settingsDraftEnabled = false,
-}) => {
-  const { t } = useTranslation('settings/acp-agents');
+}, ref) {
+  const { t } = useI18n(['settings/acp-agents', 'settings']);
   const { error: notifyError, info: notifyInfo, success: notifySuccess } = useNotification();
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -500,6 +512,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
   const [jsonDirty, setJsonDirty] = useState(false);
   const [activeView, setActiveView] = useState<AcpConfigView>(() => normalizeAcpConfigView(viewId));
   const [pendingView, setPendingView] = useState<AcpConfigView | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [envDrafts, setEnvDrafts] = useState<Record<string, string>>({});
   const [requirementProbes, setRequirementProbes] = useState<AcpClientRequirementProbe[]>([]);
   const [remoteRequirementProbes, setRemoteRequirementProbes] = useState<Record<string, AcpClientRequirementProbe[]>>({});
@@ -519,6 +532,17 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
   const localRequirementProbeStartedRef = useRef(false);
   const loadedRemoteProbeIdsRef = useRef<Set<string>>(new Set());
   const [remoteProbeRefreshNonce, setRemoteProbeRefreshNonce] = useState(0);
+
+  useImperativeHandle(ref, () => ({
+    requestClose: () => {
+      if (savingConfigRef.current || installingClientIds.size > 0 || installingRemoteClientIds.size > 0) return;
+      if (dirty || jsonDirty) {
+        setConfirmClose(true);
+      } else {
+        onClose?.();
+      }
+    },
+  }), [dirty, installingClientIds, installingRemoteClientIds, jsonDirty, onClose]);
 
   const clientsById = useMemo(() => new Map(clients.map(client => [client.id, client])), [clients]);
   const remoteConnectionRows = useMemo(() => {
@@ -1306,15 +1330,32 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
     activateView(requestedView);
   }, [activeView, activateView, jsonDirty, navigationRequestId, settingsDraftEnabled, viewId]);
 
+  // The dialog host owns its title, gutters and scrolling. Keep the page shell
+  // only for settings so the same manager never nests two scrolling surfaces.
+  const Layout = presentation === 'dialog' ? 'div' : ConfigPageLayout;
+  const Content = presentation === 'dialog' ? 'div' : ConfigPageContent;
+  const layoutClassName = `openbitfun-acp-agents${presentation === 'dialog' ? ' openbitfun-acp-agents--dialog' : ''}`;
+  const contentClassName = presentation === 'dialog' ? 'openbitfun-acp-agents__dialog-content' : undefined;
+  const documentationAction = (
+    <Button
+      variant="outline"
+      size="sm"
+      trailingIcon={<Icon name="arrow-up-right" size="sm" />}
+      onClick={openLearnMore}
+    >
+      {t('actions.learnMore')}
+    </Button>
+  );
+
   if (loading || loadFailed) {
     return (
-      <ConfigPageLayout
-        className="openbitfun-acp-agents"
+      <Layout
+        className={layoutClassName}
         data-openbitfun-component="acp-agents-config"
         data-openbitfun-part="root"
       >
-        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-        <ConfigPageContent>
+        {presentation === 'page' ? <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} /> : null}
+        <Content className={contentClassName}>
           {loading ? (
             <ConfigLoadingState label={t('clients.loading')} />
           ) : (
@@ -1324,48 +1365,56 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
               onRetry={() => void loadConfig()}
             />
           )}
-        </ConfigPageContent>
-      </ConfigPageLayout>
+        </Content>
+      </Layout>
     );
   }
 
   return (
-    <ConfigPageLayout
-      className="openbitfun-acp-agents"
+    <Layout
+      className={layoutClassName}
       data-openbitfun-component="acp-agents-config"
       data-openbitfun-part="root"
       data-openbitfun-view={activeView}
     >
-      <ConfigPageHeader
+      {presentation === 'page' ? <ConfigPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        extra={(
-          <Button
-            variant="outline"
-            size="sm"
-            trailingIcon={<Icon name="arrow-up-right" size="sm" />}
-            onClick={openLearnMore}
-          >
-            {t('actions.learnMore')}
-          </Button>
-        )}
-      />
+        extra={documentationAction}
+      /> : null}
 
-      <ConfigPageContent
+      <Content
+        className={contentClassName}
         data-openbitfun-component="acp-agents-config"
         data-openbitfun-part="content"
         aria-busy={saving}
         {...(saving ? { inert: '' } : {})}
       >
-        <TabGroup
-          className="openbitfun-acp-agents__tabs"
-          data-openbitfun-component="acp-agents-config"
-          data-openbitfun-part="tabs"
-          size="sm"
-          items={viewTabs}
-          onValueChange={handleViewChange}
-          value={activeView}
-        />
+        <div className="openbitfun-acp-agents__view-controls">
+          <TabGroup
+            className="openbitfun-acp-agents__tabs"
+            data-openbitfun-component="acp-agents-config"
+            data-openbitfun-part="tabs"
+            size="sm"
+            items={viewTabs}
+            onValueChange={handleViewChange}
+            value={activeView}
+          />
+          <ToolbarGroup className="openbitfun-acp-agents__toolbar-actions">
+            {presentation === 'dialog' ? documentationAction : null}
+            {dirty && activeView !== 'json' ? (
+              <Button
+                variant="primary"
+                size="sm"
+                leadingIcon={<Save />}
+                onClick={() => { void saveConfig(); }}
+                loading={saving}
+              >
+                {t('actions.save')}
+              </Button>
+            ) : null}
+          </ToolbarGroup>
+        </div>
         {pendingPermissionMigration && (
           <Alert
             tone="warning"
@@ -1450,9 +1499,10 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
           )}
 
           {activeView === 'local' && (
-          <ConfigPageSection
+          <FormSection
+            headingAs="h3"
             title={t('registry.title')}
-            extra={(
+            actions={(
               <ConfigRefreshButton
                 tooltip={t('actions.refresh')}
                 onClick={() => { void refreshRequirementProbes({ force: true }); }}
@@ -1465,36 +1515,27 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
             data-openbitfun-component="acp-agents-config"
             data-openbitfun-part="toolbar"
           >
-            <Input
+            <SearchField
               className="openbitfun-acp-agents__search"
               value={registrySearch}
-              onChange={(event) => setRegistrySearch(event.target.value)}
+              onValueChange={setRegistrySearch}
+              onClear={registrySearch ? () => setRegistrySearch('') : undefined}
+              clearLabel={t('common:nav.search.clear')}
               placeholder={t('registry.searchPlaceholder')}
               aria-label={t('registry.searchPlaceholder')}
-              leading={<Icon name="search" size="sm" />}
+              leadingIcon={<Icon name="search" size="sm" />}
               size="sm"
             />
-            <div className="openbitfun-acp-agents__toolbar-actions">
-              <Select
-                className="openbitfun-acp-agents__filter-select"
-                options={registryFilterOptions}
-                value={registryFilter}
-                onValueChange={(value) => setRegistryFilter(value as RegistryFilter)}
-                size="sm"
-              />
-              {dirty && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leadingIcon={<Save />}
-                  onClick={() => { void saveConfig(); }}
-                  loading={saving}
-                >
-                  {t('actions.save')}
-                </Button>
-              )}
-            </div>
+            <Select
+              className="openbitfun-acp-agents__filter-select"
+              options={registryFilterOptions}
+              value={registryFilter}
+              onValueChange={(value) => setRegistryFilter(value as RegistryFilter)}
+              aria-label={t('registry.filterLabel')}
+              size="sm"
+            />
           </div>
+          <FieldGroup appearance="subtle" dividers={false} fieldSurface="ambient">
           {loading ? (
             <div className="openbitfun-acp-agents__empty" data-openbitfun-component="acp-agents-config" data-openbitfun-part="empty">
               {t('clients.loading')}
@@ -1572,7 +1613,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
                       data-openbitfun-part="registryMain"
                     >
                       <span className="openbitfun-acp-agents__registry-icon">
-                        <Bot size={16} />
+                        <Icon name="user" size="md" />
                       </span>
                       <div className="openbitfun-acp-agents__registry-copy">
                         <OverflowText className="openbitfun-acp-agents__registry-name">{preset.name}</OverflowText>
@@ -1714,7 +1755,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
                       data-openbitfun-part="registryMain"
                     >
                       <span className="openbitfun-acp-agents__registry-icon">
-                        <Bot size={16} />
+                        <Icon name="user" size="md" />
                       </span>
                       <div className="openbitfun-acp-agents__registry-copy">
                         <OverflowText className="openbitfun-acp-agents__registry-name">{displayName}</OverflowText>
@@ -1766,7 +1807,8 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
               })}
             </div>
           )}
-          </ConfigPageSection>
+          </FieldGroup>
+          </FormSection>
           )}
 
           {activeView === 'ssh' && (
@@ -1981,7 +2023,7 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
                                 data-openbitfun-part="registryMain"
                               >
                                 <span className="openbitfun-acp-agents__registry-icon">
-                                  <Bot size={16} />
+                                  <Icon name="user" size="md" />
                                 </span>
                                 <div className="openbitfun-acp-agents__registry-copy">
                                   <OverflowText className="openbitfun-acp-agents__registry-name">{row.displayName}</OverflowText>
@@ -2148,7 +2190,27 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
           </ConfigPageSection>
           )}
         </ConfigPageSectionStack>
-      </ConfigPageContent>
+      </Content>
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={() => setConfirmClose(false)}
+        onConfirm={async () => {
+          if (await (activeView === 'json' ? saveJsonConfig() : saveConfig())) {
+            setConfirmClose(false);
+            onClose?.();
+          }
+        }}
+        onSecondary={() => {
+          setConfirmClose(false);
+          onClose?.();
+        }}
+        title={t('settings:changeGuard.title')}
+        message={t('settings:changeGuard.message')}
+        confirmText={t('settings:changeGuard.saveAndLeave')}
+        secondaryText={t('settings:changeGuard.discardAndLeave')}
+        cancelText={t('settings:changeGuard.keepEditing')}
+        type="warning"
+      />
       <ConfirmDialog
         open={!settingsDraftEnabled && pendingView !== null}
         onOpenChange={(open) => { if (!open) keepEditingJson(); }}
@@ -2172,8 +2234,8 @@ const AcpAgentsConfig: React.FC<AcpAgentsConfigProps> = ({
         confirmText={t('installConfirm.confirm')}
         type="warning"
       />
-    </ConfigPageLayout>
+    </Layout>
   );
-};
+});
 
 export default AcpAgentsConfig;

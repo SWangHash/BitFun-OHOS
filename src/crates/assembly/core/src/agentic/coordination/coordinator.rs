@@ -2433,12 +2433,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         snapshot_log_context: &str,
     ) -> OpenBitFunResult<WorkspaceInfo> {
         let known_remote = workspace_service
-            .find_known_remote_workspace_for_path(
+            .resolve_remote_workspace_for_open(
                 &path.to_string_lossy(),
                 remote_connection_id,
                 remote_ssh_host,
             )
-            .await;
+            .await?;
         if known_remote.is_none() && !path.exists() {
             return Err(OpenBitFunError::service(format!(
                 "Workspace path does not exist locally and is not a known remote SSH workspace: {}. Open it once from the desktop SSH remote UI so OpenBitFun can remember the connection, then try again.",
@@ -8641,6 +8641,62 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .persistence_manager()
             .load_visible_session_turns(session_storage_path, session_id)
             .await
+    }
+
+    /// Read stable persisted identities plus already-completed runtime message
+    /// blocks under the same history mutation boundary. Streaming token buffers
+    /// are not copied; semantic messages enter context at block boundaries.
+    pub async fn load_relay_session_turns(
+        &self,
+        storage: &Path,
+        session_id: &str,
+        turn_id: Option<&str>,
+    ) -> OpenBitFunResult<Vec<DialogTurnData>> {
+        let _mutation = self
+            .session_manager
+            .acquire_session_mutation(session_id)
+            .await?;
+        self.prepare_persisted_session_read_locked(storage, session_id)
+            .await?;
+        let mut turns = if let Some(turn_id) = turn_id {
+            let index = self
+                .session_manager
+                .get_session(session_id)
+                .and_then(|session| session.dialog_turn_ids.iter().position(|id| id == turn_id))
+                .ok_or_else(|| {
+                    OpenBitFunError::NotFound(format!("Session turn unavailable: {turn_id}"))
+                })?;
+            self.session_manager
+                .persistence_manager()
+                .load_dialog_turn(storage, session_id, index)
+                .await?
+                .into_iter()
+                .collect::<Vec<_>>()
+        } else {
+            self.session_manager
+                .persistence_manager()
+                .load_visible_session_turns(storage, session_id)
+                .await?
+        };
+        let context = self
+            .session_manager
+            .get_context_messages(session_id)
+            .await?;
+        for turn in &mut turns {
+            if turn.status == TurnStatus::InProgress {
+                let messages: Vec<_> = context
+                    .iter()
+                    .filter(|message| {
+                        message.metadata.turn_id.as_deref() == Some(turn.turn_id.as_str())
+                    })
+                    .cloned()
+                    .collect();
+                let id = turn.turn_id.clone();
+                let timestamp = turn.start_time;
+                SessionManager::append_generation_rounds(turn, &id, &messages, timestamp);
+            }
+        }
+        Ok(turns)
     }
 
     /// Export a transcript while retaining the same Session history boundary
@@ -15041,9 +15097,9 @@ mod tests {
     use crate::agentic::goal_mode::thread_goal_patch;
     use crate::agentic::persistence::PersistenceManager;
     use crate::agentic::session::{
-        compression::{CompressionConfig, ContextCompressor},
-        PromptCachePolicy, SessionContextStore, SessionManager, SessionManagerConfig,
-        SystemPromptCacheIdentity, UserContextCacheIdentity, TEST_MODEL_RESOLUTION_AI_CONFIG,
+        compression::ContextCompressor, PromptCachePolicy, SessionContextStore, SessionManager,
+        SessionManagerConfig, SystemPromptCacheIdentity, UserContextCacheIdentity,
+        TEST_MODEL_RESOLUTION_AI_CONFIG,
     };
     use crate::agentic::skill_agent_snapshot::SkillSnapshotEntry;
     use crate::agentic::tools::framework::{
@@ -16668,7 +16724,7 @@ mod tests {
             )),
             event_queue.clone(),
             session_manager.clone(),
-            Arc::new(ContextCompressor::new(CompressionConfig::default())),
+            Arc::new(ContextCompressor::new()),
             ExecutionEngineConfig::default(),
         ));
         let coordinator = ConversationCoordinator::new_with_coordination_database_file(
@@ -17881,7 +17937,17 @@ mod tests {
             .await
             .expect_err("unverified hints must not bypass local ownership");
 
-        assert!(error.to_string().contains("ownership"));
+        #[cfg(feature = "ssh-remote")]
+        assert!(
+            error.to_string().contains("not saved on this host"),
+            "{error}"
+        );
+        #[cfg(not(feature = "ssh-remote"))]
+        assert!(
+            error.to_string().contains("requires SSH support"),
+            "{error}"
+        );
+        assert!(workspace_service.get_opened_workspaces().await.is_empty());
     }
 
     #[tokio::test]

@@ -24,7 +24,19 @@ import AssistantAvatarPicker from './AssistantAvatarPicker';
 import AssistantQuickInput from './AssistantQuickInput';
 import { useNurseryStore } from '../nurseryStore';
 import './NurseryView.scss';
-import { ActionCard, OverflowText, Icon, IconButton, Input, PageHeader, ScrollArea, Spinner, Textarea, Tooltip } from '@openbitfun/ui';
+import {
+  ActionCard,
+  Card,
+  Icon,
+  IconButton,
+  Input,
+  OverflowText,
+  PageHeader,
+  ScrollArea,
+  Spinner,
+  Textarea,
+  Tooltip,
+} from '@openbitfun/ui';
 
 const log = createLogger('AssistantConfigPage');
 
@@ -327,7 +339,7 @@ const AssistantConfigPage: React.FC = () => {
 
   const renderInfoPanel = () => (
     <div className="acp-right-info" data-openbitfun-component="assistant-config-page" data-openbitfun-part="details">
-      <div className="acp-right-shell">
+      <Card className="acp-right-shell" appearance="subtle" radius="md" clip>
         {/* Persona docs */}
         <div className="acp-section acp-section--nested">
           <div className="acp-section__head">
@@ -388,7 +400,7 @@ const AssistantConfigPage: React.FC = () => {
             )}
           </ScrollArea>
         </div>
-      </div>
+      </Card>
     </div>
   );
 
@@ -404,7 +416,7 @@ const AssistantConfigPage: React.FC = () => {
     const usesSourceBodyEditor = bodyEditability.mode === 'unsafe';
     return (
       <div className="acp-right-info" data-openbitfun-component="assistant-config-page" data-openbitfun-part="details">
-        <div className="acp-right-shell acp-right-shell--editor">
+        <Card className="acp-right-shell acp-right-shell--editor" appearance="subtle" radius="md" clip>
           <div className="acp-persona-editor" data-openbitfun-component="assistant-config-page" data-openbitfun-part="editor">
             <div className="acp-persona-editor__head" data-openbitfun-component="assistant-config-page" data-openbitfun-part="editorHeader">
               <PageHeader
@@ -479,7 +491,7 @@ const AssistantConfigPage: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     );
   };

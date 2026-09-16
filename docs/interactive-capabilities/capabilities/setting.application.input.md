@@ -17,15 +17,15 @@ Configure voice input, microphones, recognition language, local models, and real
 
 ## 完整功能清单 / Everything included
 
-- **Agent 可直接控制 / Direct Agent control** · 在聊天输入框启用或停用语音输入
+- **智能体可直接控制 / Direct Agent control** · 在聊天输入框启用或停用语音输入
   - Enable or disable voice input in the chat composer
-- **Agent 可直接控制 / Direct Agent control** · 选择自动检测或中文、粤语、英文、日文等识别语言
+- **智能体可直接控制 / Direct Agent control** · 选择自动检测或中文、粤语、英文、日文等识别语言
   - Choose automatic detection or Chinese, Cantonese, English, Japanese, and other recognition languages
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 选择麦克风并执行语音识别测试
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择麦克风并执行语音识别测试
   - Choose a microphone and run a speech-recognition test
-- **Agent 可定位入口，需交互完成 / Agent opens; interaction required** · 下载、选择、验证、修复或删除本地语音模型
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 下载、选择、验证、修复或删除本地语音模型
   - Download, select, verify, repair, or delete local speech models
-- **Agent 可直接控制 / Direct Agent control** · 设置单次语音输入的最长录音时间
+- **智能体可直接控制 / Direct Agent control** · 设置单次语音输入的最长录音时间
   - Set the maximum duration of one voice-input recording
 
 ## 怎么用 / How to use it
@@ -37,7 +37,7 @@ Configure voice input, microphones, recognition language, local models, and real
 
 入口 / Entry: OpenBitFun 设置
 
-## Agent 可替你做什么 / What an agent can do for you
+## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
@@ -51,13 +51,13 @@ Configure voice input, microphones, recognition language, local models, and real
 | 默认识别语言 / Default recognition language | `auto` / `zh` / `en` / `ja` / `yue` | 选择自动检测、中文、英文、日文或粤语。 | Choose automatic detection, Chinese, English, Japanese, or Cantonese. |
 | 最长录音时间 / Maximum recording duration | `integer` (10–600) | 单次语音输入允许的最长秒数。 | Maximum seconds allowed for one voice input. |
 
-## 可以直接对 Agent 说 / Try saying
+## 可以直接对智能体说 / Try saying
 
 - “打开语音输入设置”
   - “Open voice-input settings”
 - “把语音输入的默认语言设为中文”
   - “Set the voice-input language to Chinese”
 
-Agent 会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
+智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 
 The agent first finds the relevant feature or setting, confirms the target, and then opens, runs, or changes it for you. The full catalog is never embedded in the conversation context.

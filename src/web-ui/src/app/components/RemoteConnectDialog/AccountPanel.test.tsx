@@ -5,11 +5,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AccountPanel } from './AccountPanel';
 const mocks = vi.hoisted(() => ({
   identity: { resolved: true, status: 'signed-in', me: { user: { githubId: 42, login: 'alice' } } } as { resolved: boolean; status: string; me: { user: { githubId: number; login: string } } | null },
+  reopenSignIn: vi.fn(),
   getDeviceInfo: vi.fn(), accountStatus: vi.fn(), accountLogin: vi.fn(),
   accountConnectDevices: vi.fn(), accountListDevices: vi.fn(),
   t: (key: string) => key,
 }));
-vi.mock('@/infrastructure/account-identity', () => ({ useAccountIdentity: () => mocks.identity, accountIdentityService: {} }));
+vi.mock('@/infrastructure/account-identity', () => ({ useAccountIdentity: () => mocks.identity, accountIdentityService: { reopenSignIn: mocks.reopenSignIn } }));
 vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', () => ({ remoteConnectAPI: mocks }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({ api: { listen: () => () => {} } }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t, formatRelativeTime: () => '' }) }));
@@ -19,7 +20,7 @@ vi.mock('@/shared/notification-system', () => ({ useNotification: () => ({ succe
 vi.mock('@openbitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Button = ({ children, onClick, disabled }: { children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>;
-  return { OverflowText: Box, Alert: Box, Button, Icon: () => null, IconButton: () => null, ScrollArea: Box, StatusPill: Box };
+  return { Avatar: ({ src, alt }: { src?: string; alt?: string }) => <img src={src} alt={alt} />, OverflowText: Box, Alert: Box, Button, Icon: () => null, IconButton: () => null, ScrollArea: Box, StatusPill: Box };
 });
 let container: HTMLDivElement;
 let root: Root;
@@ -174,4 +175,15 @@ it('ignores pre-auth device information that arrives after the adopted ID', asyn
   await act(async () => { finishOldInfo({ device_id: 'before-auth' }); });
   expect(container.textContent).toContain('accountLogin.thisDevice');
   expect(mocks.accountConnectDevices).toHaveBeenCalledTimes(1);
+});
+
+it('lets a pending login reopen its external sign-in page', async () => {
+  mocks.identity = { resolved: true, status: 'authorizing', me: null };
+  mocks.accountStatus.mockResolvedValue({ logged_in: false });
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const reopen = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.reopen');
+  expect(reopen).toBeDefined();
+  expect(reopen!.disabled).toBe(false);
+  await act(async () => { reopen!.click(); });
+  expect(mocks.reopenSignIn).toHaveBeenCalledOnce();
 });

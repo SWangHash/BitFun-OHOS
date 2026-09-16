@@ -317,6 +317,7 @@ impl AppearanceConfig {
         let startup_locale_json =
             serde_json::to_string(&startup_locale).unwrap_or_else(|_| "\"zh-CN\"".to_string());
         let show_startup_window_controls = !cfg!(target_os = "macos");
+        let native_sidebar_material = cfg!(any(target_os = "windows", target_os = "macos"));
         let startup_trace_id_json = serde_json::to_string(startup_trace_id)
             .unwrap_or_else(|_| "\"desktop-unknown\"".to_string());
         let bootstrap_log_level_json = serde_json::to_string(crate::logging::level_to_str(
@@ -366,20 +367,23 @@ impl AppearanceConfig {
                     root.setAttribute('data-color-scheme', '{appearance_mode}');
                     root.setAttribute('data-contrast', 'standard');
                     root.setAttribute('data-density', 'compact');
+                    if ({native_sidebar_material}) {{
+                        root.setAttribute('data-openbitfun-native-material', 'sidebar');
+                    }}
 
-                    root.style.setProperty('--bf-color-surface-canvas', '{bg_primary}');
-                    root.style.setProperty('--bf-color-surface-panel', '{bg_secondary}');
-                    root.style.setProperty('--bf-color-surface-tertiary', '{bg_primary}');
-                    root.style.setProperty('--bf-color-surface-workbench', '{bg_primary}');
-                    root.style.setProperty('--bf-color-surface-scene', '{bg_scene}');
-                    root.style.setProperty('--bf-color-surface-chrome', '{bg_primary}');
-                    root.style.setProperty('--bf-color-content-primary', '{text_primary}');
-                    root.style.setProperty('--bf-color-content-muted', '{text_muted}');
-                    root.style.setProperty('--bf-color-accent-default', '{accent_color}');
-                    root.style.backgroundColor = '{bg_primary}';
+                    root.style.setProperty('--openbitfun-color-surface-canvas', '{bg_primary}');
+                    root.style.setProperty('--openbitfun-color-surface-panel', '{bg_secondary}');
+                    root.style.setProperty('--openbitfun-color-surface-tertiary', '{bg_primary}');
+                    root.style.setProperty('--openbitfun-color-surface-workbench', '{bg_primary}');
+                    root.style.setProperty('--openbitfun-color-surface-scene', '{bg_scene}');
+                    root.style.setProperty('--openbitfun-color-surface-chrome', '{bg_primary}');
+                    root.style.setProperty('--openbitfun-color-content-primary', '{text_primary}');
+                    root.style.setProperty('--openbitfun-color-content-muted', '{text_muted}');
+                    root.style.setProperty('--openbitfun-color-accent-default', '{accent_color}');
+                    root.style.backgroundColor = {native_sidebar_material} ? 'transparent' : '{bg_primary}';
                     
                     if (document.body) {{
-                        document.body.style.backgroundColor = '{bg_primary}';
+                        document.body.style.backgroundColor = {native_sidebar_material} ? 'transparent' : '{bg_primary}';
                     }}
                     
                     return true;
@@ -457,11 +461,11 @@ mod startup_appearance_tests {
         assert!(script.contains("data-openbitfun-appearance-mode"));
         assert!(script.contains("data-openbitfun-design-system-root"));
         assert!(script.contains("data-color-scheme"));
-        assert!(script.contains("--bf-color-surface-canvas"));
-        assert!(script.contains("--bf-color-surface-scene"));
-        assert!(script.contains("--bf-color-content-primary"));
-        assert!(script.contains("--bf-color-content-muted"));
-        assert!(script.contains("--bf-color-accent-default"));
+        assert!(script.contains("--openbitfun-color-surface-canvas"));
+        assert!(script.contains("--openbitfun-color-surface-scene"));
+        assert!(script.contains("--openbitfun-color-content-primary"));
+        assert!(script.contains("--openbitfun-color-content-muted"));
+        assert!(script.contains("--openbitfun-color-accent-default"));
         assert!(!script.contains("--bf-appearance-token-"));
         let retired_bootstrap_global = ["__OPENBITFUN_BOOTSTRAP", "THEME"].join("_");
         let retired_background_token = ["--", "color-bg-"].concat();
@@ -562,8 +566,41 @@ let main_url = if use_development_frontend() {
             }
         });
 
-    // Keep HTML5 drag-and-drop working inside the webview for desktop UI drag targets.
-    builder = builder.disable_drag_drop_handler();
+    // The webview must be transparent for the OS material to reach the sidebar.
+    // Opaque scene and startup surfaces remain owned by the frontend.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    {
+        builder = builder
+            .transparent(true)
+            .background_color(tauri::window::Color(0, 0, 0, 0))
+            .effects(
+                tauri::window::EffectsBuilder::new()
+                    .effects([
+                        tauri::window::Effect::Acrylic,
+                        tauri::window::Effect::Sidebar,
+                    ])
+                    .build(),
+            );
+    }
+
+    #[cfg(debug_assertions)]
+    if !use_development_frontend() {
+        // Product-path isolation alone does not isolate WKWebView storage.
+        // This guarded test window keeps a private store across document
+        // reloads and never opens the daily client's browser data store.
+        builder = builder.incognito(true);
+    }
+
+    // On Windows, Tauri's native file-drop handler replaces WebView2's OLE drop
+    // target and disables every HTML5 drag/drop interaction in the page. Keep
+    // the browser handler there. The frontend keeps dropped File wrappers alive
+    // briefly while the Desktop host resolves their original paths through
+    // WebView2, without copying file contents. WKWebView/WebKitGTK do not have
+    // that conflict, so their native handler remains enabled and supplies paths.
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.disable_drag_drop_handler();
+    }
 
     // The Desktop host arms each exact Creative preview/rollback transition.
     // Page-driven navigations remain blocked, including in development where
@@ -571,17 +608,6 @@ let main_url = if use_development_frontend() {
     let navigation_workbench = Arc::clone(&frontend_workbench);
     builder =
         builder.on_navigation(move |url| navigation_workbench.should_allow_main_navigation(url));
-
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder
-            .decorations(true)
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            // Match the 45px toolbar row (layout.toolbar.mdHeight) used by
-            // NavBar and SceneTopBar, including when the sidebar is collapsed.
-            .traffic_light_position(tauri::LogicalPosition::new(12.0, 22.5))
-            .hidden_title(true);
-    }
 
     #[cfg(target_os = "windows")]
     {

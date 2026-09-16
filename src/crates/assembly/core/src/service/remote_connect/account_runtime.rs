@@ -196,7 +196,28 @@ impl AccountRuntime {
         self.read_account_context().await.is_ok()
     }
 
-    pub async fn try_restore_session(&self) -> Option<String> {
+    pub async fn try_restore_session(self: &Arc<Self>) -> Option<String> {
+        if let Ok(Some(loaded)) = session_store::load_session_detailed() {
+            if openbitfun_services_integrations::remote_connect::account::is_retired_official_relay(
+                &loaded.relay_url,
+            ) {
+                if let Some(device_id) = loaded.device_id.as_deref() {
+                    if let Err(error) = DeviceIdentity::adopt_account_device_id(device_id) {
+                        log::warn!("Failed to adopt migrating account device id: {error}");
+                        return None;
+                    }
+                }
+                return match self.login_with_identity().await {
+                    Ok(result) => Some(result.user_id),
+                    Err(error) => {
+                        log::warn!(
+                            "New Relay sign-in required; previous credential retained: {error}"
+                        );
+                        None
+                    }
+                };
+            }
+        }
         let transition = self.begin_account_transition().await;
         self.host.stop_device_routing().await;
         let restored = match session_store::load_session_detailed() {
@@ -205,7 +226,6 @@ impl AccountRuntime {
                     Ok(url) => url,
                     Err(error) => {
                         log::warn!("Ignoring invalid persisted relay URL: {error}");
-                        session_store::clear_session();
                         transition.finish();
                         return None;
                     }
@@ -314,6 +334,15 @@ impl AccountRuntime {
             return Err(anyhow!("account context changed"));
         };
         self.host.stop_device_routing().await;
+        if let Some(previous) = previous_account_context.as_ref() {
+            if let Err(error) = crate::service::filesystem::upload::retire_account_uploads(
+                &previous.session.user_id,
+            )
+            .await
+            {
+                log::warn!("Failed to clean up retired account uploads: {error}");
+            }
+        }
         session_store::clear_session();
 
         let user_id = session.user_id.clone();
@@ -379,6 +408,11 @@ impl AccountRuntime {
             log::info!("Signalled the background account routing owner to shut down");
         }
         if let Ok((session, relay_url)) = self.read_account_context_raw().await {
+            if let Err(error) =
+                crate::service::filesystem::upload::retire_account_uploads(&session.user_id).await
+            {
+                log::warn!("Failed to clean up retired account uploads: {error}");
+            }
             let _ = AccountClient::new()
                 .revoke_token(&relay_url, &session)
                 .await;
@@ -411,8 +445,18 @@ impl AccountRuntime {
             transition.finish();
             return false;
         }
+        let retired_user = context
+            .as_ref()
+            .map(|context| context.session.user_id.clone());
         *context = None;
         drop(context);
+        if let Some(user_id) = retired_user {
+            if let Err(error) =
+                crate::service::filesystem::upload::retire_account_uploads(&user_id).await
+            {
+                log::warn!("Failed to clean up retired account uploads: {error}");
+            }
+        }
         self.token_expired.store(true, Ordering::Relaxed);
         session_store::clear_session();
         transition.finish();

@@ -358,6 +358,7 @@ export function ComponentDetailPage({
   const [actionCardSize, setActionCardSize] = useState<ActionCardSize>("md");
   const [tabGroupSize, setTabGroupSize] = useState<TabGroupSize>("sm");
   const [toolbarSize, setToolbarSize] = useState<ToolbarSize>("sm");
+  const [checkboxAppearance, setCheckboxAppearance] = useState<"custom" | "native">("custom");
   const [previewState, setPreviewState] = useState(
     component.name === "Card"
       ? "raised"
@@ -483,7 +484,7 @@ export function ComponentDetailPage({
     if (component.name === "Textarea") return `import { Textarea } from "@openbitfun/ui";\n\n<Textarea\n  label="${t("components.preview.inputLabel")}"\n  defaultValue="${t("components.preview.fieldValue")}"\n  hint="${t("components.preview.fieldDescription")}"\n  maxLength={200}\n  rows={3}\n  showCount\n/>`;
     if (component.name === "Alert") return `import { Alert } from "@openbitfun/ui";\n\n<Alert tone="info" title="${t("components.preview.notifications")}" message="${t("components.preview.fieldDescription")}" />`;
     if (component.name === "Avatar") return 'import { Avatar } from "@openbitfun/ui";\n\n<Avatar>BF</Avatar>';
-    if (component.name === "Checkbox" || component.name === "Radio") return `import { ${component.name} } from "@openbitfun/ui";\n\n<${component.name} label="${t("components.preview.notifications")}" defaultChecked />`;
+    if (component.name === "Checkbox" || component.name === "Radio") return `import { ${component.name} } from "@openbitfun/ui";\n\n<${component.name}${component.name === "Checkbox" ? ` appearance="${checkboxAppearance}"` : ""} label="${t("components.preview.notifications")}" defaultChecked />`;
     if (component.name === "NumberBadge") return `import { NumberBadge } from "@openbitfun/ui";\n\n<NumberBadge value={${JSON.stringify(numberBadgeValue)}} />;`;
     if (component.name === "NumberInput") return 'import { useState } from "react";\nimport { NumberInput } from "@openbitfun/ui";\n\nfunction Example() {\n  const [value, setValue] = useState(8);\n  return <NumberInput value={value} onValueChange={setValue} />;\n}';
     if (component.name === "Empty") return `import { Empty } from "@openbitfun/ui";\n\n<Empty title="${t("components.preview.cardTitle")}" description="${t("components.preview.cardDescription")}" />`;
@@ -1062,6 +1063,7 @@ export function ComponentDetailPage({
       return (
         <Alert
           message={t("components.preview.fieldDescription")}
+          role={tone === "error" || tone === "warning" ? "alert" : "status"}
           title={t("components.preview.notifications")}
           tone={tone}
         />
@@ -1082,7 +1084,7 @@ export function ComponentDetailPage({
           invalid={state === "invalid"}
           key={state}
           label={t("components.preview.notifications")}
-          {...(component.name === "Checkbox" ? { indeterminate: state === "indeterminate" } : {})}
+          {...(component.name === "Checkbox" ? { indeterminate: state === "indeterminate", appearance: checkboxAppearance } : {})}
         />
       );
     }
@@ -2368,6 +2370,14 @@ export function ComponentDetailPage({
                 </div>
               )}
               {component.name === "Menu" && <div className="component-menu-interaction"><NestedMenuPattern /></div>}
+              {component.name === "Disclosure" && (
+                <div className="component-preview-row">
+                  <code>presentation="native"</code>
+                  <Disclosure presentation="native" summary={t("components.preview.appearance")}>
+                    {t("components.preview.appearanceDescription")}
+                  </Disclosure>
+                </div>
+              )}
             </ThemeRoot>
           </section>
 
@@ -2435,6 +2445,11 @@ export function ComponentDetailPage({
                       options={fieldOrientations}
                       value={fieldOrientation}
                     />
+                  )}
+                  {component.name === "Checkbox" && (
+                    <InspectorSelect label="appearance" options={["custom", "native"]}
+                      value={checkboxAppearance} onChange={(value) => setCheckboxAppearance(value as "custom" | "native")}
+                      translateOptions={false} />
                   )}
                   {component.name === "PageHeader" && (
                     <InspectorSelect
