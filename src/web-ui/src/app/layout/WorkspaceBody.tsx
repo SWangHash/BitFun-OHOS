@@ -23,6 +23,10 @@ const NAV_DEFAULT_WIDTH = 240;
 const NAV_MIN_WIDTH = 240;
 const NAV_MAX_WIDTH = 480;
 const COLLAPSE_THRESHOLD = 64;
+// Cursor x (from the window's left edge) the collapsed-edge handle must be
+// dragged past before the panel pops back out. Mirrors COLLAPSE_THRESHOLD so
+// expand and collapse gestures stay symmetric.
+const NAV_EXPAND_THRESHOLD = 64;
 
 interface WorkspaceBodyProps {
   className?: string;
@@ -132,6 +136,77 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
     dragCleanupRef.current = cleanup;
   }, [isNavCollapsed, navWidth, toggleLeftPanel]);
 
+  // Drag on the collapsed-edge handle: once the cursor moves right past
+  // NAV_EXPAND_THRESHOLD the panel pops back out and its width follows the
+  // cursor (clamped) for the rest of the gesture. Dragging back left past the
+  // collapse line re-collapses, mirroring the collapse drag.
+  const handleNavExpandDragStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !isNavCollapsed) return;
+    event.preventDefault();
+
+    const startWidth = navWidth;
+    let latestWidth = startWidth;
+    let hasExpanded = false;
+    let frameId: number | null = null;
+
+    document.body.classList.add('bitfun-is-dragging-nav-collapse');
+    document.body.classList.add('bitfun-is-resizing-nav');
+
+    // Same bypass as the collapse drag: write --nav-width straight to the
+    // DOM during the gesture, commit through React once on cleanup.
+    const applyWidth = () => {
+      frameId = null;
+      const value = `${latestWidth}px`;
+      navAreaRef.current?.style.setProperty('--nav-width', value);
+      navDividerRef.current?.style.setProperty('--nav-width', value);
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const rawWidth = moveEvent.clientX;
+
+      if (!hasExpanded) {
+        if (rawWidth < NAV_EXPAND_THRESHOLD) return;
+        hasExpanded = true;
+        toggleLeftPanel();
+      }
+
+      if (rawWidth <= NAV_MIN_WIDTH - COLLAPSE_THRESHOLD) {
+        toggleLeftPanel();
+        cleanup();
+        return;
+      }
+
+      latestWidth = Math.min(NAV_MAX_WIDTH, Math.max(NAV_MIN_WIDTH, rawWidth));
+      if (frameId === null) {
+        frameId = requestAnimationFrame(applyWidth);
+      }
+    };
+
+    const handleMouseUp = () => cleanup();
+
+    function cleanup() {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+        frameId = null;
+      }
+      applyWidth();
+      document.body.classList.remove('bitfun-is-dragging-nav-collapse');
+      document.body.classList.remove('bitfun-is-resizing-nav');
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      dragCleanupRef.current = null;
+      // Commit the final width through React once, but only when the gesture
+      // actually expanded the panel; a plain click must not touch state.
+      if (hasExpanded) {
+        setNavWidth(latestWidth);
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    dragCleanupRef.current = cleanup;
+  }, [isNavCollapsed, navWidth, toggleLeftPanel]);
+
   return (
     <div
       className={`bitfun-workspace-body${isEntering ? ' is-entering' : ''}${isExiting ? ' is-exiting' : ''} ${className}`}
@@ -158,19 +233,18 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
         <NavPanel className="bitfun-workspace-body__nav-panel" />
       </div>
 
-      {/* Resize divider — placed at workspace-body level to avoid overflow:hidden clipping */}
-      {!isNavCollapsed && (
-        <div
-          ref={navDividerRef}
-          className="bitfun-workspace-body__nav-divider"
-          style={{ '--nav-width': `${navWidth}px` } as React.CSSProperties}
-          onMouseDown={handleNavCollapseDragStart}
-          role="separator"
-          aria-hidden="true"
-          data-bf-scene="workbench"
-          data-bf-part="navDivider"
-        />
-      )}
+      {/* Resize divider — placed at workspace-body level to avoid overflow:hidden clipping.
+          Kept mounted while collapsed as a thin drag handle that re-expands the panel. */}
+      <div
+        ref={navDividerRef}
+        className={`bitfun-workspace-body__nav-divider${isNavCollapsed ? ' bitfun-workspace-body__nav-divider--collapsed' : ''}`}
+        style={{ '--nav-width': `${navWidth}px` } as React.CSSProperties}
+        onMouseDown={isNavCollapsed ? handleNavExpandDragStart : handleNavCollapseDragStart}
+        role="separator"
+        aria-hidden="true"
+        data-bf-scene="workbench"
+        data-bf-part="navDivider"
+      />
 
       {/* Right: scene tab bar + scene content */}
       <div className="bitfun-workspace-body__scene-area" data-bf-scene="workbench" data-bf-part="sceneArea">
