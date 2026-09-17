@@ -3,14 +3,14 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentDialogSteerRequest, AgentDialogTurnRequest, AgentSessionCreateRequest,
     AgentSessionModelSelection, AgentSessionModelSelectionUpdateRequest,
     AgentSessionRestoreRequest, AgentTurnCancellationRequest, AgentTurnSettlementRequest,
     PermissionReply, PermissionReplySource, PermissionRequest, PermissionRequestEvent,
 };
-use openbitfun_events::{project_agentic_frontend_event, AgenticEvent};
-use openbitfun_runtime_ports::{
+use bitfun_events::{project_agentic_frontend_event, AgenticEvent};
+use bitfun_runtime_ports::{
     AgentSubmissionSource, DialogSubmissionPolicy, SessionExecutionTarget,
 };
 
@@ -420,7 +420,7 @@ async fn run_inner(store: &DispatchStore, job_id: &str) -> Result<()> {
 async fn handle_permission(
     store: &DispatchStore,
     job_id: &str,
-    runtime: &openbitfun_agent_runtime::sdk::AgentRuntime,
+    runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
     session_id: &str,
     turn_id: &str,
     request: PermissionRequest,
@@ -467,7 +467,7 @@ async fn handle_permission(
 async fn process_mailboxes(
     store: &DispatchStore,
     job_id: &str,
-    runtime: &openbitfun_agent_runtime::sdk::AgentRuntime,
+    runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
     session_id: &str,
     turn_id: &str,
 ) -> Result<Option<(DispatchJobState, Option<String>)>> {
@@ -530,7 +530,7 @@ async fn process_mailboxes(
 }
 
 async fn cancel_turn(
-    runtime: &openbitfun_agent_runtime::sdk::AgentRuntime,
+    runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
     session_id: &str,
     turn_id: &str,
     reason: &str,
@@ -553,11 +553,11 @@ async fn cancel_turn(
 
 fn runtime_attachments(
     attachments: &[super::protocol::DispatchAttachment],
-) -> Vec<openbitfun_runtime_ports::AgentInputAttachment> {
+) -> Vec<bitfun_runtime_ports::AgentInputAttachment> {
     attachments
         .iter()
         .map(|attachment| {
-            openbitfun_runtime_ports::AgentInputAttachment::remote_image(
+            bitfun_runtime_ports::AgentInputAttachment::remote_image(
                 attachment.id.clone(),
                 attachment
                     .name

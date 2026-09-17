@@ -383,9 +383,9 @@ describe('DispatchJobObserver', () => {
     // A recreated renderer resumes from its paired transcript cursor, which
     // may already be past the title event, while the index still has the default.
     const storage = dispatchJobStore.persist.getOptions().storage!;
-    const persisted = (await storage.getItem('openbitfun-dispatch-jobs-v1'))!;
+    const persisted = (await storage.getItem('bitfun-dispatch-jobs-v1'))!;
     dispatchJobStore.setState({ jobs: {} });
-    await storage.setItem('openbitfun-dispatch-jobs-v1', persisted);
+    await storage.setItem('bitfun-dispatch-jobs-v1', persisted);
     await dispatchJobStore.persist.rehydrate();
     flowChatStore.setState(() => ({ sessions: new Map(), activeSessionId: null }));
     mocks.loadTranscript.mockResolvedValue(cachedTranscript({ cursor: 50 }));
@@ -573,7 +573,7 @@ describe('DispatchJobObserver', () => {
       action: 'cli-install',
       details: {
         stage: 'cli-install-succeeded',
-        release: { version: '1.2.3', cliPath: '/usr/local/bin/openbitfun' },
+        release: { version: '1.2.3', cliPath: '/usr/local/bin/bitfun' },
       },
     };
     mocks.status.mockResolvedValue(status({
@@ -602,7 +602,7 @@ describe('DispatchJobObserver', () => {
       id: 'dispatch_pending_job-1',
       userMessage: {
         content: '',
-        metadata: { __openbitfunOptimisticDispatchJobId: 'job-1' },
+        metadata: { __bitfunOptimisticDispatchJobId: 'job-1' },
       },
     });
     expect(turn?.modelRounds).toHaveLength(1);
@@ -679,7 +679,7 @@ describe('DispatchJobObserver', () => {
     registerRunningJob();
     dispatchJobStore.getState().registerJob({
       ...dispatchJobStore.getState().jobs['job-1'],
-      baselineWorktreePath: '/source/.openbitfun/worktrees/missing-baseline',
+      baselineWorktreePath: '/source/.bitfun/worktrees/missing-baseline',
     });
     mocks.checkPathExists.mockResolvedValue(false);
     mocks.status.mockResolvedValue(status());
@@ -688,7 +688,7 @@ describe('DispatchJobObserver', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(mocks.checkPathExists).toHaveBeenCalledWith(
-      '/source/.openbitfun/worktrees/missing-baseline',
+      '/source/.bitfun/worktrees/missing-baseline',
     );
     expect(dispatchJobStore.getState().jobs['job-1'].baselineWorktreeMissing)
       .toBe(true);
@@ -929,7 +929,7 @@ describe('DispatchJobObserver', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(context.flowChatStore.addExternalSession).not.toHaveBeenCalled();
 
-    context.currentWorkspacePath = '/projects/OpenBitFun';
+    context.currentWorkspacePath = '/projects/BitFun';
     await vi.advanceTimersByTimeAsync(DISPATCH_JOB_POLL_INTERVAL_MS);
     expect(context.flowChatStore.addExternalSession).not.toHaveBeenCalled();
     expect(dispatchJobStore.getState().jobs['job-restored']).toBeUndefined();
@@ -947,7 +947,7 @@ describe('DispatchJobObserver', () => {
         workspacePath: '/target/repo',
         displayName: 'build-host',
       },
-      sourceWorkspacePath: '/projects/OpenBitFun',
+      sourceWorkspacePath: '/projects/BitFun',
       sourceWorkspaceId: 'workspace-1',
       workspacePath: '/target/repo',
       promptPreview: 'Dispatch test',
@@ -991,9 +991,9 @@ describe('DispatchJobObserver', () => {
       'session-restored',
       'Dispatch test',
       'Standard',
-      '/projects/OpenBitFun',
+      '/projects/BitFun',
       expect.objectContaining({
-        projectWorkspacePath: '/projects/OpenBitFun',
+        projectWorkspacePath: '/projects/BitFun',
         workspaceId: 'workspace-1',
       }),
     );

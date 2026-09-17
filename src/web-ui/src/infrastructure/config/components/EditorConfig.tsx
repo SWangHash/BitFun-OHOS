@@ -1,6 +1,6 @@
  
 
-import { NumberInput, Select, Switch } from '@openbitfun/ui';
+import { NumberInput, Select, Switch } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
@@ -410,7 +410,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
 
   if (isLoading || loadFailed) {
     return (
-      <ConfigPageLayout className="openbitfun-editor-config" data-openbitfun-component="editor-config" data-openbitfun-part="root" data-openbitfun-state="loading">
+      <ConfigPageLayout className="bitfun-editor-config" data-bitfun-component="editor-config" data-bitfun-part="root" data-bitfun-state="loading">
         <ConfigPageHeader
           title={t('title')}
           subtitle={t('subtitle')}
@@ -431,7 +431,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
   }
 
   return (
-    <ConfigPageLayout className="openbitfun-editor-config" data-openbitfun-component="editor-config" data-openbitfun-part="root">
+    <ConfigPageLayout className="bitfun-editor-config" data-bitfun-component="editor-config" data-bitfun-part="root">
       <ConfigPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
@@ -447,7 +447,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
         ) : undefined}
       />
 
-      <ConfigPageContent className="openbitfun-editor-config__content" data-openbitfun-component="editor-config" data-openbitfun-part="content">
+      <ConfigPageContent className="bitfun-editor-config__content" data-bitfun-component="editor-config" data-bitfun-part="content">
         <ConfigPageSection
           title={t('sections.appearance.title')}
           description={t('sections.appearance.description')}

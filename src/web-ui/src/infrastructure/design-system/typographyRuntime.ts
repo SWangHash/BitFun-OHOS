@@ -2,7 +2,7 @@ import {
   cssVariables,
   tokens,
   type TokenName,
-} from '@openbitfun/design-tokens';
+} from '@bitfun/design-tokens';
 
 export type FontFamilyTokenName = Extract<TokenName, `font.family.${string}`>;
 export type FontSizeTokenName = Extract<TokenName, `font.size.${string}`>;

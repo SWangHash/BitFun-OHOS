@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
-use openbitfun_core::service::system;
+use bitfun_core::service::system;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Position, Size, State};
 #[cfg(not(target_env = "ohos"))]
@@ -16,17 +16,17 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 /// Emitted during `install_update` download; matches `installUpdateWithProgress` / frontend listener.
-const UPDATE_PROGRESS_EVENT: &str = "openbitfun-update-progress";
+const UPDATE_PROGRESS_EVENT: &str = "bitfun-update-progress";
 
 /// Updater origins, in configured (fallback) order. Kept in step with
 /// `scripts/desktop-tauri-build.mjs`, which bakes the same pair into the bundle.
-const GITHUB_UPDATER_ENDPOINT: &str = match option_env!("OPENBITFUN_UPDATER_PRIMARY_ENDPOINT") {
+const GITHUB_UPDATER_ENDPOINT: &str = match option_env!("BITFUN_UPDATER_PRIMARY_ENDPOINT") {
     Some(endpoint) => endpoint,
-    None => "https://github.com/GCWing/OpenBitFun/releases/latest/download/latest-v1.json",
+    None => "https://github.com/GCWing/BitFun/releases/latest/download/latest-v1.json",
 };
-const OPENBITFUN_UPDATER_ENDPOINT: &str = match option_env!("OPENBITFUN_UPDATER_FALLBACK_ENDPOINT") {
+const BITFUN_UPDATER_ENDPOINT: &str = match option_env!("BITFUN_UPDATER_FALLBACK_ENDPOINT") {
     Some(endpoint) => endpoint,
-    None => "https://openbitfun.com/release/latest-v1.json",
+    None => "https://bitfun.com/release/latest-v1.json",
 };
 
 /// Throughput probe settings, matching the CLI updater and the relay deploy
@@ -74,10 +74,10 @@ async fn updater_endpoints_by_policy() -> Vec<tauri::Url> {
     let platform = updater_platform_key();
     let (github_manifest, mirror_manifest) = tokio::join!(
         fetch_updater_manifest(&client, GITHUB_UPDATER_ENDPOINT, &platform),
-        fetch_updater_manifest(&client, OPENBITFUN_UPDATER_ENDPOINT, &platform),
+        fetch_updater_manifest(&client, BITFUN_UPDATER_ENDPOINT, &platform),
     );
     let Some(github_manifest) = github_manifest else {
-        log::info!("GitHub updater metadata is unavailable; trying the OpenBitFun mirror first");
+        log::info!("GitHub updater metadata is unavailable; trying the BitFun mirror first");
         return mirror_first_endpoints();
     };
     let github_speed = probe_endpoint_throughput(&client, &github_manifest.package_url).await;
@@ -88,7 +88,7 @@ async fn updater_endpoints_by_policy() -> Vec<tauri::Url> {
     );
     if prefer_mirror(&github_manifest, mirror_manifest.as_ref(), github_speed) {
         log::info!(
-            "GitHub updater speed is {} KiB/s, under the {} KiB/s bar; trying the synchronized OpenBitFun mirror first.",
+            "GitHub updater speed is {} KiB/s, under the {} KiB/s bar; trying the synchronized BitFun mirror first.",
             github_speed / 1024,
             HEALTHY_THROUGHPUT / 1024
         );
@@ -156,14 +156,14 @@ fn prefer_mirror(
 }
 
 fn default_endpoints() -> Vec<tauri::Url> {
-    [GITHUB_UPDATER_ENDPOINT, OPENBITFUN_UPDATER_ENDPOINT]
+    [GITHUB_UPDATER_ENDPOINT, BITFUN_UPDATER_ENDPOINT]
         .iter()
         .filter_map(|endpoint| endpoint.parse().ok())
         .collect()
 }
 
 fn mirror_first_endpoints() -> Vec<tauri::Url> {
-    [OPENBITFUN_UPDATER_ENDPOINT, GITHUB_UPDATER_ENDPOINT]
+    [BITFUN_UPDATER_ENDPOINT, GITHUB_UPDATER_ENDPOINT]
         .iter()
         .filter_map(|endpoint| endpoint.parse().ok())
         .collect()
@@ -349,7 +349,7 @@ pub async fn save_text_file_dialog(
         let payload = serde_json::to_string(&request)
             .map_err(|error| format!("Failed to encode HarmonyOS save request: {error}"))?;
         let raw =
-            openbitfun_core::util::call_arkts_string_function("save_text_file_dialog", payload).await?;
+            bitfun_core::util::call_arkts_string_function("save_text_file_dialog", payload).await?;
         parse_ohos_save_text_file_response(&raw)
     }
 
@@ -913,7 +913,7 @@ pub async fn set_main_window_transient_geometry(
 #[cfg(target_env = "ohos")]
 async fn call_ohos_window_host(name: &str) -> Result<(), String> {
     let function = {
-        let lock = openbitfun_core::util::JS_THREADSAFE_FUNCTION.read();
+        let lock = bitfun_core::util::JS_THREADSAFE_FUNCTION.read();
         lock.get(name).cloned()
     };
     let Some(function) = function else {
@@ -973,7 +973,7 @@ pub fn get_app_config_bool(path: String) -> bool {
             .expect("failed to build napi config runtime")
     });
     runtime.block_on(async {
-        let Ok(service) = openbitfun_core::service::config::get_global_config_service().await else {
+        let Ok(service) = bitfun_core::service::config::get_global_config_service().await else {
             return false;
         };
         service
@@ -1283,7 +1283,7 @@ pub async fn notify_system_error_if_minimized(error: &str) {
     // The error string may carry a multi-line trace; the notification body
     // only needs the first line to be useful.
     let body = error.lines().next().unwrap_or(error).to_string();
-    let payload = serde_json::json!({ "title": "OpenBitFun system error", "body": body });
+    let payload = serde_json::json!({ "title": "BitFun system error", "body": body });
     if let Err(e) =
         crate::api::ohos::ohos_file_system::send_system_notification_ohos(payload.to_string()).await
     {
@@ -1412,11 +1412,11 @@ mod tests {
     fn updater_uses_mirror_only_for_a_slow_github_and_the_same_release() {
         let github = UpdaterManifestInfo {
             version: "1.2.3".into(),
-            package_url: "https://github.example/openbitfun.tar.gz".into(),
+            package_url: "https://github.example/bitfun.tar.gz".into(),
         };
         let synchronized_mirror = UpdaterManifestInfo {
             version: "1.2.3".into(),
-            package_url: "https://mirror.example/openbitfun.tar.gz".into(),
+            package_url: "https://mirror.example/bitfun.tar.gz".into(),
         };
         let stale_mirror = UpdaterManifestInfo {
             version: "1.2.2".into(),

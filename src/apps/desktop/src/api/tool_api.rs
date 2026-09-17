@@ -6,19 +6,19 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::State;
 
-use openbitfun_agent_runtime::sdk::AgentUserAnswersRequest;
-use openbitfun_core::agentic::{
+use bitfun_agent_runtime::sdk::AgentUserAnswersRequest;
+use bitfun_core::agentic::{
     tools::framework::ToolUseContext,
     tools::{get_all_tools, get_readonly_tools},
     workspace::{local_workspace_services, remote_workspace_services},
     WorkspaceBinding,
 };
-use openbitfun_core::agentic::tools::product_runtime::{build_tool_info, ToolInfoDto};
-use openbitfun_core::product_runtime::CoreRuntimeServicesProvider;
-use openbitfun_core::service::remote_ssh::workspace_state::{
+use bitfun_core::agentic::tools::product_runtime::{build_tool_info, ToolInfoDto};
+use bitfun_core::product_runtime::CoreRuntimeServicesProvider;
+use bitfun_core::service::remote_ssh::workspace_state::{
     get_remote_workspace_manager, lookup_remote_connection, workspace_session_identity,
 };
-use openbitfun_core::util::elapsed_ms_u64;
+use bitfun_core::util::elapsed_ms_u64;
 
 use crate::runtime::DesktopRuntimeContext;
 
@@ -30,9 +30,9 @@ pub type ToolInfo = ToolInfoDto;
 
 #[tauri::command]
 pub async fn get_chat_mcp_catalog(
-    request: openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalogRequest,
-) -> Result<openbitfun_core::agentic::tools::product_runtime::ChatMcpCatalog, String> {
-    openbitfun_core::agentic::tools::product_runtime::build_chat_mcp_catalog(request).await
+    request: bitfun_core::agentic::tools::product_runtime::ChatMcpCatalogRequest,
+) -> Result<bitfun_core::agentic::tools::product_runtime::ChatMcpCatalog, String> {
+    bitfun_core::agentic::tools::product_runtime::build_chat_mcp_catalog(request).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,10 +52,10 @@ pub struct GetToolInfoRequest {
 }
 
 // Re-export the shared dynamic tool DTOs (Core already owns them under
-// `openbitfun_core::agentic::tools::framework`); Desktop used to carry byte-for-byte
+// `bitfun_core::agentic::tools::framework`); Desktop used to carry byte-for-byte
 // duplicates. Keeping the names re-exported preserves downstream `use ...::*`
 // imports in lib.rs.
-pub use openbitfun_core::agentic::tools::framework::{DynamicMcpToolInfo, DynamicToolInfo};
+pub use bitfun_core::agentic::tools::framework::{DynamicMcpToolInfo, DynamicToolInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolExecutionResponse {
@@ -98,7 +98,7 @@ async fn build_tool_context(workspace_path: Option<&str>) -> ToolUseContext {
                     Some(&entry.ssh_host),
                 )
                 .unwrap_or_else(|| {
-                    openbitfun_core::service::remote_ssh::workspace_state::WorkspaceSessionIdentity {
+                    bitfun_core::service::remote_ssh::workspace_state::WorkspaceSessionIdentity {
                         hostname: entry.ssh_host.clone(),
                         logical_workspace_path: entry.remote_root.clone(),
                         remote_connection_id: Some(entry.connection_id.clone()),
@@ -309,15 +309,15 @@ pub async fn execute_tool(request: ToolExecutionRequest) -> Result<ToolExecution
                 Ok(results) => {
                     let combined_result = if results.len() == 1 {
                         match &results[0] {
-                            openbitfun_core::agentic::tools::framework::ToolResult::Result {
+                            bitfun_core::agentic::tools::framework::ToolResult::Result {
                                 data,
                                 ..
                             } => Some(data.clone()),
-                            openbitfun_core::agentic::tools::framework::ToolResult::Progress {
+                            bitfun_core::agentic::tools::framework::ToolResult::Progress {
                                 content,
                                 ..
                             } => Some(content.clone()),
-                            openbitfun_core::agentic::tools::framework::ToolResult::StreamChunk {
+                            bitfun_core::agentic::tools::framework::ToolResult::StreamChunk {
                                 data,
                                 ..
                             } => Some(data.clone()),
@@ -325,11 +325,11 @@ pub async fn execute_tool(request: ToolExecutionRequest) -> Result<ToolExecution
                     } else {
                         Some(serde_json::json!({
                                         "results": results.iter().map(|r| match r {
-                        openbitfun_core::agentic::tools::framework::ToolResult::Result { data, .. } => {
+                        bitfun_core::agentic::tools::framework::ToolResult::Result { data, .. } => {
                             data.clone()
                         }
-                        openbitfun_core::agentic::tools::framework::ToolResult::Progress { content, .. } => content.clone(),
-                        openbitfun_core::agentic::tools::framework::ToolResult::StreamChunk { data, .. } => data.clone(),
+                        bitfun_core::agentic::tools::framework::ToolResult::Progress { content, .. } => content.clone(),
+                        bitfun_core::agentic::tools::framework::ToolResult::StreamChunk { data, .. } => data.clone(),
                                         }).collect::<Vec<_>>()
                                     }))
                     };

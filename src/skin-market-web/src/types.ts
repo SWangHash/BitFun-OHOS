@@ -29,7 +29,7 @@ export interface AppearanceListingSummary {
   mode: AppearanceMode;
   packageVersion: string;
   latestRelease: number;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   requiredCapabilities: string[];
   owner: AppearanceMarketUser;
   previewUrl: string;
@@ -42,7 +42,7 @@ export interface AppearanceMarketRelease {
   listingId: string;
   releaseNumber: number;
   packageVersion: string;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   packageSha256: string;
   packageSize: number;
   reviewBundleHash: string;
@@ -82,7 +82,7 @@ export interface AppearanceSubmission {
   author?: string;
   mode?: AppearanceMode;
   packageVersion?: string;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   requiredCapabilities: string[];
   changelog: string;
   license: AppearanceMarketLicense;

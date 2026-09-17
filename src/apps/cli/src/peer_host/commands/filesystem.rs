@@ -24,7 +24,7 @@ fn remote_hint(request: &Value) -> Option<String> {
 }
 
 fn directory_nodes_to_json(
-    nodes: Vec<openbitfun_core::infrastructure::FileTreeNode>,
+    nodes: Vec<bitfun_core::infrastructure::FileTreeNode>,
 ) -> Vec<Value> {
     nodes
         .into_iter()
@@ -71,7 +71,7 @@ pub(crate) async fn get_directory_children_paginated(
         .get_directory_contents_with_remote_hint(&path, preferred.as_deref())
         .await
         .map_err(|e| format!("Failed to get paginated directory children: {e}"))?;
-    openbitfun_services_core::filesystem::sort_directory_nodes(
+    bitfun_services_core::filesystem::sort_directory_nodes(
         &mut nodes,
         request.get("sortBy").and_then(Value::as_str),
         request.get("sortOrder").and_then(Value::as_str),
@@ -96,7 +96,7 @@ pub(crate) async fn check_path_exists(
     let request = request_value(args);
     let path = get_string(request, "path")?;
     let hint = remote_hint(request);
-    openbitfun_core::service::filesystem::path_operations::exists(
+    bitfun_core::service::filesystem::path_operations::exists(
         &state.filesystem_service,
         &path,
         hint.as_deref(),
@@ -109,7 +109,7 @@ pub(crate) async fn create_directory(state: &PeerHostState, args: &Value) -> Res
     let request = request_value(args);
     let path = get_string(request, "path")?;
     let hint = remote_hint(request);
-    openbitfun_core::service::filesystem::path_operations::create_directory(
+    bitfun_core::service::filesystem::path_operations::create_directory(
         &state.filesystem_service,
         &path,
         hint.as_deref(),
@@ -130,7 +130,7 @@ pub(crate) async fn read_file_content(
             return Err(format!("Unsupported text encoding: {encoding}"));
         }
     }
-    openbitfun_core::service::filesystem::path_operations::read_text(
+    bitfun_core::service::filesystem::path_operations::read_text(
         &state.filesystem_service,
         &path,
         hint.as_deref(),
@@ -147,7 +147,7 @@ pub(crate) async fn write_file_content(
     let path = get_string(request, "filePath")?;
     let content = get_string(request, "content")?;
     let hint = remote_hint(request);
-    openbitfun_core::service::filesystem::path_operations::write_text_checked(
+    bitfun_core::service::filesystem::path_operations::write_text_checked(
         &state.filesystem_service,
         &path,
         &content,
@@ -166,7 +166,7 @@ pub(crate) async fn rename_file(state: &PeerHostState, args: &Value) -> Result<V
     let from = get_string(request, "oldPath")?;
     let to = get_string(request, "newPath")?;
     let hint = remote_hint(request);
-    openbitfun_core::service::filesystem::path_operations::rename(
+    bitfun_core::service::filesystem::path_operations::rename(
         &state.filesystem_service,
         &from,
         &to,
@@ -188,7 +188,7 @@ pub(crate) async fn delete_path(
         .get("recursive")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    openbitfun_core::service::filesystem::path_operations::remove(
+    bitfun_core::service::filesystem::path_operations::remove(
         &state.filesystem_service,
         &path,
         directory,
@@ -244,7 +244,7 @@ pub(crate) async fn workspace_file_upload(
         .ok_or("Sign in to use workspace transfers")?;
     let request = serde_json::from_value(request_value(args).clone())
         .map_err(|error| format!("Invalid workspace upload request: {error}"))?;
-    let result = openbitfun_core::service::filesystem::upload::workspace_file_upload(
+    let result = bitfun_core::service::filesystem::upload::workspace_file_upload(
         account.user_id,
         request,
     )

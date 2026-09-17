@@ -139,7 +139,7 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
-        key: "connectionMethods.openbitfunServer",
+        key: "connectionMethods.bitfunServer",
         value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
@@ -324,7 +324,7 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
-        key: "connectionMethods.openbitfunServer",
+        key: "connectionMethods.bitfunServer",
         value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
@@ -509,7 +509,7 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
-        key: "connectionMethods.openbitfunServer",
+        key: "connectionMethods.bitfunServer",
         value: "BitFun Server",
     },
     GeneratedSharedTermEntry {

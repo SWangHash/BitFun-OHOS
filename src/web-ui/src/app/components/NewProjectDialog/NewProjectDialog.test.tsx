@@ -38,8 +38,8 @@ describe('NewProjectDialog composition', () => {
     const pending = new Promise<void>((_resolve, reject) => { rejectCreate = reject; });
     const confirm = vi.fn(() => pending);
     await act(async () => root.render(<NewProjectDialog isOpen defaultParentPath="/srv/workspaces" onClose={close} onConfirm={confirm} />));
-    expect(button('newProject.cancel').dataset.openbitfunVariant).toBe('fill');
-    expect(button('newProject.create').dataset.openbitfunVariant).toBe('primary');
+    expect(button('newProject.cancel').dataset.bitfunVariant).toBe('fill');
+    expect(button('newProject.create').dataset.bitfunVariant).toBe('primary');
     enterName(' example-project ');
     await act(async () => { button('newProject.create').click(); });
     expect(confirm).toHaveBeenCalledWith('/srv/workspaces', 'example-project');
@@ -62,7 +62,7 @@ describe('NewProjectDialog composition', () => {
     await act(async () => { button('newProject.select').click(); });
     expect(pickDirectory).toHaveBeenCalledWith({ title: 'newProject.selectParentDirectory', defaultPath: '/srv' });
     enterName('project');
-    expect(document.querySelector('[data-openbitfun-part="preview"]')?.textContent).toContain('/srv/remote workspace/project');
+    expect(document.querySelector('[data-bitfun-part="preview"]')?.textContent).toContain('/srv/remote workspace/project');
     await act(async () => { button('newProject.create').click(); });
     expect(confirm).toHaveBeenCalledWith('/srv/remote workspace', 'project');
     expect(close).toHaveBeenCalledTimes(1);

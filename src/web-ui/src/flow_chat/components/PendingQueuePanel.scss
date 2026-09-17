@@ -1,4 +1,4 @@
-.openbitfun-pending-queue-panel {
+.bitfun-pending-queue-panel {
   &__item {
     position: relative;
 
@@ -15,29 +15,29 @@
     display: block;
     min-width: 0;
     overflow: hidden;
-    font-size: var(--openbitfun-type-body-md-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    font-size: var(--bitfun-type-body-md-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
     white-space: nowrap;
   }
 
   &__preview-empty {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     font-style: italic;
   }
 
   &__sending-label,
   &__failed-label {
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__sending-label {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__failed-label {
-    color: var(--openbitfun-color-status-danger-content);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-status-danger-content);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__actions {
@@ -45,6 +45,6 @@
   }
 
   &__btn--danger:hover:not(:disabled) {
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
 }

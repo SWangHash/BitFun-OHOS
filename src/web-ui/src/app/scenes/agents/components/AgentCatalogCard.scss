@@ -2,19 +2,19 @@
   &__surface {
     width: 100%;
     cursor: pointer;
-    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background-color: var(--openbitfun-color-surface-subtle);
+      background-color: var(--bitfun-color-surface-subtle);
     }
 
     &:active {
-      background-color: var(--openbitfun-color-action-neutral-surface-pressed);
+      background-color: var(--bitfun-color-action-neutral-surface-pressed);
     }
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-      outline-offset: var(--openbitfun-focus-offset);
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: var(--bitfun-focus-offset);
     }
   }
 
@@ -35,7 +35,7 @@
 
   // CardHeader defaults to a content-sized title. This compound title needs the
   // full header width so its text only shrinks when the card runs out of space.
-  &__header > [data-openbitfun-part='header-content'] > [data-openbitfun-part='title'] {
+  &__header > [data-bitfun-part='header-content'] > [data-bitfun-part='title'] {
     align-self: stretch;
   }
 
@@ -43,19 +43,19 @@
     display: inline-flex;
     flex: 0 1 auto;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     min-width: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__title-row {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     min-width: 0;
   }
 
@@ -71,8 +71,8 @@
 
   &__footer {
     flex-wrap: wrap;
-    row-gap: var(--openbitfun-space-2);
-    padding-block-start: var(--openbitfun-space-1);
+    row-gap: var(--bitfun-space-2);
+    padding-block-start: var(--bitfun-space-1);
   }
 
   &__metrics {
@@ -80,21 +80,21 @@
     flex: 1 1 auto;
     align-items: center;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-1) var(--openbitfun-space-3);
+    gap: var(--bitfun-space-1) var(--bitfun-space-3);
     min-width: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__metric {
     display: inline-flex;
     align-items: baseline;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__metric-value {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     font-variant-numeric: tabular-nums;
   }
 
@@ -107,20 +107,20 @@
     display: inline-flex;
     flex: 0 1 auto;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     max-width: 100%;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__status-icon {
     flex: none;
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
 
-  &__status[data-openbitfun-state='disabled'] &__status-icon {
-    color: var(--openbitfun-color-status-warning-content);
+  &__status[data-bitfun-state='disabled'] &__status-icon {
+    color: var(--bitfun-color-status-warning-content);
   }
 }
 

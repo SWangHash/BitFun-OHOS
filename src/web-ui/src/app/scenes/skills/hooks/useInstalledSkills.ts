@@ -4,7 +4,7 @@ import { configAPI, workspaceAPI } from '@/infrastructure/api';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import type { SkillInfo, SkillLevel, SkillValidationResult, SkillScanDiagnostic } from '@/infrastructure/config/types';
-import { canDeleteSkill, isOpenBitFunManagedSkill, getSkillOriginSourceId, getSkillSourceLabel } from '@/infrastructure/config/skillSourcePresentation';
+import { canDeleteSkill, isBitFunManagedSkill, getSkillOriginSourceId, getSkillSourceLabel } from '@/infrastructure/config/skillSourcePresentation';
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -15,7 +15,7 @@ const log = createLogger('SkillsScene:useInstalledSkills');
 function installedSkillGroup(skill: SkillInfo): InstalledFilter {
   if (skill.isBuiltin) return 'builtin';
   const sourceId = getSkillOriginSourceId(skill);
-  return sourceId === 'openbitfun' ? skill.level : `source:${sourceId}`;
+  return sourceId === 'bitfun' ? skill.level : `source:${sourceId}`;
 }
 
 interface UseInstalledSkillsOptions {
@@ -319,7 +319,7 @@ export function useInstalledSkills({
   }, [capabilityIsCurrent, currentCapabilityEpoch, loadSkills, notification, t, workspacePath]);
 
   const canToggleSkill = useCallback((skill: SkillInfo) => (
-    directManagementSupported || (skill.level === 'user' && isOpenBitFunManagedSkill(skill))
+    directManagementSupported || (skill.level === 'user' && isBitFunManagedSkill(skill))
   ), [directManagementSupported]);
 
   const handleGlobalSkillToggle = useCallback(async (skill: SkillInfo, enabled: boolean) => {

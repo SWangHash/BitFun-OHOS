@@ -17,7 +17,7 @@ export function AccountSignIn() {
   const [retryAt, setRetryAt] = useState(0);
   const [now, setNow] = useState(Date.now());
   const initial = useRef<Promise<void> | null>(null);
-  useEffect(() => { document.title = `OpenBitFun · ${t('signIn')}`; }, [t]);
+  useEffect(() => { document.title = `BitFun · ${t('signIn')}`; }, [t]);
   useEffect(() => {
     // Preserve a desktop ticket across reloads without putting its polling secret in the browser.
     if (!initial.current) initial.current = (async () => {
@@ -54,8 +54,8 @@ export function AccountSignIn() {
     try {
       const result = await marketApi.verifyEmailCode(ticket, challenge, code);
       const target = new URL(result.redirectUrl, window.location.origin);
-      if (![window.location.origin, 'https://auth.openbitfun.com', 'https://market.openbitfun.com'].includes(target.origin)) throw new Error('Untrusted return URL');
-      if (target.origin === 'https://auth.openbitfun.com' && target.pathname === '/complete') target.searchParams.set('locale', locale);
+      if (![window.location.origin, 'https://auth.bitfun.com', 'https://market.bitfun.com'].includes(target.origin)) throw new Error('Untrusted return URL');
+      if (target.origin === 'https://auth.bitfun.com' && target.pathname === '/complete') target.searchParams.set('locale', locale);
       window.location.assign(target.href);
     } catch (cause) { showError(cause); setBusy(false); }
   }
@@ -68,7 +68,7 @@ export function AccountSignIn() {
   }
   return <main className="account-auth-page"><div className="account-auth-shell">
     <header className="account-auth-header">
-      <div className="account-auth-brand"><img src="/miniapp/assets/openbitfun-email-app-icon.png" alt="" width="36" height="36" /><span>OpenBitFun</span></div>
+      <div className="account-auth-brand"><img src="/miniapp/assets/bitfun-email-app-icon.png" alt="" width="36" height="36" /><span>BitFun</span></div>
       <div className="account-auth-language"><Globe size={16} aria-hidden="true" />
         <select aria-label={t('language')} value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
           <option value="en-US">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option>

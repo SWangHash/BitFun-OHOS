@@ -1,6 +1,6 @@
 import { TerminalSquare } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { MobileBanner, MobileButton } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton } from '@bitfun/ui/mobile';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -31,7 +31,7 @@ export function WorkspaceTerminal({ manager, workspace }: { manager: RemoteSessi
     const terminal = new Terminal({
       cursorBlink: true,
       scrollback: 5000,
-      fontSize: Number.parseFloat(typography.getPropertyValue('--openbitfun-type-body-md-font-size')),
+      fontSize: Number.parseFloat(typography.getPropertyValue('--bitfun-type-body-md-font-size')),
       convertEol: false,
     });
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(container.current);

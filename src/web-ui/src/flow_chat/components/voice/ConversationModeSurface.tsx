@@ -1,6 +1,6 @@
 import { useCallback, type ReactNode } from 'react';
 import { Phone } from 'lucide-react';
-import { OverflowText } from '@openbitfun/ui';
+import { OverflowText } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 
 import { RealtimeVoiceCallPanel } from './RealtimeVoiceCallPanel';
@@ -49,33 +49,33 @@ export function ConversationModeSurface({
   return (
     <div
       className={[
-        'openbitfun-conversation-mode-surface',
+        'bitfun-conversation-mode-surface',
         className,
       ].filter(Boolean).join(' ')}
-      data-openbitfun-component="conversation-mode-surface"
-      data-openbitfun-part="root"
-      data-openbitfun-state={isVoiceMode ? 'voice' : 'chat'}
+      data-bitfun-component="conversation-mode-surface"
+      data-bitfun-part="root"
+      data-bitfun-state={isVoiceMode ? 'voice' : 'chat'}
     >
       <div
-        className="openbitfun-conversation-mode-surface__body"
-        data-openbitfun-component="conversation-mode-surface"
-        data-openbitfun-part="body"
+        className="bitfun-conversation-mode-surface__body"
+        data-bitfun-component="conversation-mode-surface"
+        data-bitfun-part="body"
       >
         {isVoiceMode ? <RealtimeVoiceCallPanel onClose={onCloseVoice} /> : children}
       </div>
 
       {showModeSwitch ? (
         <footer
-          className="openbitfun-conversation-mode-surface__switch"
-          data-openbitfun-component="conversation-mode-surface"
-          data-openbitfun-part="modeSwitch"
+          className="bitfun-conversation-mode-surface__switch"
+          data-bitfun-component="conversation-mode-surface"
+          data-bitfun-part="modeSwitch"
         >
           <button data-overflow-trigger
             type="button"
-            className="openbitfun-conversation-mode-surface__switch-button"
+            className="bitfun-conversation-mode-surface__switch-button"
             data-testid={switchTestId}
-            data-openbitfun-component="conversation-mode-surface"
-            data-openbitfun-part="modeSwitchButton"
+            data-bitfun-component="conversation-mode-surface"
+            data-bitfun-part="modeSwitchButton"
             disabled={voiceStartDisabled}
             onClick={handleModeSwitch}
           >

@@ -1,35 +1,35 @@
-.openbitfun-config-collection-section__content {
+.bitfun-config-collection-section__content {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-4);
-  padding: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
+  padding: var(--bitfun-space-4);
 }
 
-.openbitfun-config-collection-section__toolbar,
-.openbitfun-config-collection-section__filters,
-.openbitfun-config-collection-section__editor,
-.openbitfun-config-collection-section__list {
+.bitfun-config-collection-section__toolbar,
+.bitfun-config-collection-section__filters,
+.bitfun-config-collection-section__editor,
+.bitfun-config-collection-section__list {
   min-width: 0;
 }
 
-.openbitfun-config-collection-section__toolbar {
-  padding-bottom: var(--openbitfun-space-2);
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+.bitfun-config-collection-section__toolbar {
+  padding-bottom: var(--bitfun-space-2);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
-.openbitfun-config-collection-section__filters {
-  padding-bottom: var(--openbitfun-space-2);
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+.bitfun-config-collection-section__filters {
+  padding-bottom: var(--bitfun-space-2);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
-.openbitfun-config-collection-section__editor {
-  background: var(--openbitfun-color-surface-subtle);
-  border: 1px solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-radius-md);
-  padding: var(--openbitfun-space-3);
+.bitfun-config-collection-section__editor {
+  background: var(--bitfun-color-surface-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-md);
+  padding: var(--bitfun-space-3);
 }
 
-.openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__content {
+.bitfun-config-collection-section--with-editor .bitfun-config-collection-section__content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   grid-template-areas:
@@ -39,41 +39,41 @@
   align-items: start;
 }
 
-.openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__toolbar {
+.bitfun-config-collection-section--with-editor .bitfun-config-collection-section__toolbar {
   grid-area: toolbar;
 }
 
-.openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__filters {
+.bitfun-config-collection-section--with-editor .bitfun-config-collection-section__filters {
   grid-area: filters;
 }
 
-.openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__list {
+.bitfun-config-collection-section--with-editor .bitfun-config-collection-section__list {
   grid-area: list;
 }
 
-.openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__editor {
+.bitfun-config-collection-section--with-editor .bitfun-config-collection-section__editor {
   grid-area: editor;
   position: sticky;
-  top: var(--openbitfun-space-2);
+  top: var(--bitfun-space-2);
 }
 
 @container config-panel (max-width: 520px) {
-  .openbitfun-config-collection-section__content {
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-3);
+  .bitfun-config-collection-section__content {
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-3);
   }
 
-  .openbitfun-config-collection-section__editor {
-    padding: var(--openbitfun-space-2);
+  .bitfun-config-collection-section__editor {
+    padding: var(--bitfun-space-2);
   }
 
-  .openbitfun-config-collection-section--with-editor .openbitfun-config-collection-section__content {
+  .bitfun-config-collection-section--with-editor .bitfun-config-collection-section__content {
     display: flex;
     flex-direction: column;
   }
 
-  .openbitfun-config-collection-section__toolbar,
-  .openbitfun-config-collection-section__filters {
-    padding-bottom: var(--openbitfun-space-2);
+  .bitfun-config-collection-section__toolbar,
+  .bitfun-config-collection-section__filters {
+    padding-bottom: var(--bitfun-space-2);
   }
 }

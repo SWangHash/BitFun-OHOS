@@ -7,7 +7,7 @@ use std::{io::Write, path::Path, sync::OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterBuilder, UpdaterExt};
 
-const PROGRESS_EVENT: &str = "openbitfun-update-progress";
+const PROGRESS_EVENT: &str = "bitfun-update-progress";
 const RECORD_NAME: &str = "pending.json";
 
 // Serialize downloads and installs at the host, including calls from multiple windows.
@@ -342,9 +342,9 @@ mod tests {
     #[test]
     fn signed_cache_verifies_after_reload_and_rejects_tampering_even_with_a_new_checksum() {
         // Public fixture shared with the release-verification contract tests.
-        let key = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERENTQzQUM5RUY0NTIzRTMKUldUakkwWHZ5VHBVM1NOMXJWMHhLVlljSDBOY2x4YlpxVHA2clN1NEJPMWcyY2Qvd2U4VUR2b3AK";
-        let signature = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUakkwWHZ5VHBVM2RVVFdoR3FNZDltSWNUeEQ1K2ZnNWRUSnYxWk5lUkZzd0h0MkdzSUhUSlV6a0haUTdNZm1aemM5QVBQWW50UWgvaWpFcEp1Zkp4SERWdnhIc1g2YUFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDg2NTU4CWZpbGU6Lm9wZW5iaXRmdW4tbWluaXNpZ24tZml4dHVyZS50eHQKa1QxdDQ3bWtLVlhaZUdFSjR4R0V5R1Z3REVnUlI0RGJqbHFoZkVHdkdLSlFyTGJ5Z05JRTI5V3dwdXRkSFpZckUrK0RaUVVJYUJod1dzcmVydHZnQXc9PQo=";
-        let bytes = b"hello-openbitfun\n";
+        let key = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBQTBDNEQ4ODMzMDI4OEMKUldTTUtEQ0QyTVNndWxQUnpjaGQrOXp2NjdkSU9CalR3c2ZVUHR1NTVCOVJHZDdYSkZlemZJUXMK";
+        let signature = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTUtEQ0QyTVNndWtGU3lmcU9IMHc2d2dhL1RsOHllb0JvRSs4S1dwQ0EyN1FvOTdMSTNIVEtLRUNzakFFd1FjK2EwSXhqKy9pTVpEL1FhVFRTaGJvc1R4WFRZa3gwS0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NjEzNzQ1CWZpbGU6Yml0ZnVuLW1pbmlzaWduLWZpeHR1cmUudHh0CjluWm0wSUhSZ0FWaG9mVURxNVB5WTJFR2V1SnRxTlkvT3UxWXdOUXdJMGwxczg1dGdFOUpJQUNCOVlMTXFkVWVIczJhSXZweTU0UnIwenh6K05rVkF3PT0K";
+        let bytes = b"hello-bitfun\n";
         let mut record = record(bytes);
         record.signature = signature.into();
         let dir = tempfile::tempdir().unwrap();

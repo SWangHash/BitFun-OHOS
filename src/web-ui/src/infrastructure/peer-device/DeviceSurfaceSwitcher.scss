@@ -2,47 +2,47 @@
  * Device surface switcher row above the NavPanel footer.
  * Neutral while rendering this machine, warning-tinted while rendering a peer.
  */
-.openbitfun-device-switcher {
+.bitfun-device-switcher {
   display: flex;
   align-items: center;
-  gap: var(--openbitfun-space-2);
+  gap: var(--bitfun-space-2);
   flex-shrink: 0;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
   margin: 0;
-  padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
+  padding: var(--bitfun-space-2) var(--bitfun-space-3);
   border: none;
-  border-top: 1px solid var(--openbitfun-color-border-subtle);
+  border-top: 1px solid var(--bitfun-color-border-subtle);
   background: transparent;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   cursor: pointer;
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  line-height: var(--openbitfun-type-modifier-leading-snug-line-height);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  line-height: var(--bitfun-type-modifier-leading-snug-line-height);
   text-align: left;
-  transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-              color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+  transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+              color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &__trigger {
     inline-size: 100%;
   }
 
   &:hover {
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-quiet-hover);
   }
 
   &.is-remote {
-    background: color-mix(in srgb, var(--openbitfun-color-status-warning-emphasis) 14%, transparent);
-    color: var(--openbitfun-color-content-primary);
+    background: color-mix(in srgb, var(--bitfun-color-status-warning-emphasis) 14%, transparent);
+    color: var(--bitfun-color-content-primary);
 
-    .openbitfun-device-switcher__icon {
-      color: var(--openbitfun-color-status-warning-emphasis);
+    .bitfun-device-switcher__icon {
+      color: var(--bitfun-color-status-warning-emphasis);
     }
 
     &:hover {
-      background: color-mix(in srgb, var(--openbitfun-color-status-warning-emphasis) 20%, transparent);
+      background: color-mix(in srgb, var(--bitfun-color-status-warning-emphasis) 20%, transparent);
     }
   }
 
@@ -50,7 +50,7 @@
     flex-shrink: 0;
 
     &.is-spinning {
-      animation: openbitfun-device-switcher-spin 1s linear infinite;
+      animation: bitfun-device-switcher-spin 1s linear infinite;
     }
   }
 
@@ -67,10 +67,10 @@
     gap: 3px;
     flex-shrink: 0;
     padding: 1px 5px;
-    border-radius: var(--openbitfun-radius-sm);
-    background: color-mix(in srgb, var(--openbitfun-color-status-success-emphasis) 18%, transparent);
-    color: var(--openbitfun-color-status-success-content);
-    font-size: var(--openbitfun-type-micro-font-size);
+    border-radius: var(--bitfun-radius-sm);
+    background: color-mix(in srgb, var(--bitfun-color-status-success-emphasis) 18%, transparent);
+    color: var(--bitfun-color-status-success-content);
+    font-size: var(--bitfun-type-micro-font-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -82,18 +82,18 @@
   &__backdrop {
     position: fixed;
     inset: 0;
-    z-index: calc(var(--openbitfun-layer-popover) - 1);
+    z-index: calc(var(--bitfun-layer-popover) - 1);
   }
 
   &__menu {
     position: fixed;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
   }
 
   &__item-metadata {
     display: inline-flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__dot {
@@ -101,15 +101,15 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--openbitfun-color-status-success-emphasis);
+    background: var(--bitfun-color-status-success-emphasis);
 
     &.is-busy {
-      background: var(--openbitfun-color-status-warning-emphasis);
-      animation: openbitfun-device-switcher-pulse 1.6s var(--openbitfun-motion-easing-standard) infinite;
+      background: var(--bitfun-color-status-warning-emphasis);
+      animation: bitfun-device-switcher-pulse 1.6s var(--bitfun-motion-easing-standard) infinite;
     }
 
     &.is-offline {
-      background: var(--openbitfun-color-content-muted);
+      background: var(--bitfun-color-content-muted);
       animation: none;
     }
   }
@@ -117,38 +117,38 @@
   &__tag {
     flex-shrink: 0;
     padding: 1px 5px;
-    border-radius: var(--openbitfun-radius-sm);
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-micro-font-size);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-micro-font-size);
     white-space: nowrap;
 
     &.is-busy {
-      background: color-mix(in srgb, var(--openbitfun-color-status-warning-emphasis) 18%, transparent);
-      color: var(--openbitfun-color-status-warning-content);
+      background: color-mix(in srgb, var(--bitfun-color-status-warning-emphasis) 18%, transparent);
+      color: var(--bitfun-color-status-warning-content);
     }
   }
 
   &__empty,
   &__hint {
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
   }
 
   &__hint {
-    padding-top: var(--openbitfun-space-2);
+    padding-top: var(--bitfun-space-2);
   }
 }
 
-@keyframes openbitfun-device-switcher-spin {
+@keyframes bitfun-device-switcher-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes openbitfun-device-switcher-pulse {
+@keyframes bitfun-device-switcher-pulse {
   0%,
   100% {
     opacity: 1;
@@ -162,8 +162,8 @@
 // The spinner and the busy pulse are the only motion here and both loop
 // forever; state stays readable from colour and copy without them.
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-device-switcher__icon.is-spinning,
-  .openbitfun-device-switcher__dot.is-busy {
+  .bitfun-device-switcher__icon.is-spinning,
+  .bitfun-device-switcher__dot.is-busy {
     animation: none;
   }
 }

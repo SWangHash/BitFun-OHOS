@@ -1,7 +1,7 @@
 //! Read compatibility for the retired built-in Agent/profile identities.
 //! Migration is atomic: ambiguous collisions return an error before any write.
 
-use openbitfun_core_types::agent_identity::canonical_agent_config_id;
+use bitfun_core_types::agent_identity::canonical_agent_config_id;
 use serde_json::{Map, Value};
 
 pub fn canonicalize_agent_profile_keys(

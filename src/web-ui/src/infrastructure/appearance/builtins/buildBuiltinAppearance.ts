@@ -1,4 +1,4 @@
-import { themeCssVariables, themes, type ThemeTokenName } from '@openbitfun/theme-openbitfun';
+import { themeCssVariables, themes, type ThemeTokenName } from '@bitfun/theme-bitfun';
 
 import type { AppearancePalette } from './AppearancePalette';
 import { withLegacyButtonTokens } from './buttonThemeCompatibility';
@@ -79,12 +79,12 @@ function themeValuesToCssTokens(
     if (palette.id === DEFAULT_LIGHT_APPEARANCE_ID) {
       // Neutral action labels are primary text in the public theme. The generic
       // palette's secondary text projection used to make product menus too faint.
-      tokens['--openbitfun-color-action-neutral-content'] = String(themes.light['color.action.neutral.content']);
-      tokens['--openbitfun-color-scrollbar-thumb'] = String(themes.light['color.scrollbar.thumb']);
-      tokens['--openbitfun-color-number-badge-background'] = String(themes.light['color.numberBadge.background']);
-      tokens['--openbitfun-color-key-hint-content'] = String(themes.light['color.keyHint.content']);
-      tokens['--openbitfun-color-action-card-background'] = String(themes.light['color.actionCard.background']);
-      tokens['--openbitfun-color-content-caption'] = String(themes.light['color.content.caption']);
+      tokens['--bitfun-color-action-neutral-content'] = String(themes.light['color.action.neutral.content']);
+      tokens['--bitfun-color-scrollbar-thumb'] = String(themes.light['color.scrollbar.thumb']);
+      tokens['--bitfun-color-number-badge-background'] = String(themes.light['color.numberBadge.background']);
+      tokens['--bitfun-color-key-hint-content'] = String(themes.light['color.keyHint.content']);
+      tokens['--bitfun-color-action-card-background'] = String(themes.light['color.actionCard.background']);
+      tokens['--bitfun-color-content-caption'] = String(themes.light['color.content.caption']);
       // Default light fields use the published neutral states in both root and
       // chrome. Branded palettes and imported overrides retain their own colors.
       for (const name of Object.keys(themes.light) as ThemeTokenName[]) {
@@ -98,7 +98,7 @@ function themeValuesToCssTokens(
   // Branded presets retain their existing action palette; the default product
   // themes consume the component colors published by the design system.
   const legacyTokens = Object.fromEntries(
-    Object.entries(tokens).filter(([name]) => !name.startsWith('--openbitfun-component-button-')),
+    Object.entries(tokens).filter(([name]) => !name.startsWith('--bitfun-component-button-')),
   );
   for (const [name, value] of Object.entries(withLegacyButtonTokens(legacyTokens))) {
     if (value !== undefined) tokens[name as AppearanceThemeTokenName] = value;
@@ -298,96 +298,96 @@ function createAppearanceOwnedTokens(
     ?? (palette.type === 'dark' ? colors.element.base : colors.element.soft);
   return {
     ...themeValuesToCssTokens(createThemeTokenValues(palette), palette),
-    '--openbitfun-component-config-page-section-background': configPage?.section.background ?? colors.background.tertiary,
-    '--openbitfun-component-config-page-section-border': configPage?.section.border ?? colors.border.subtle,
-    '--openbitfun-component-config-page-section-border-width': configPage?.section.borderWidth ?? '1px',
-    '--openbitfun-component-config-page-section-shadow': configPage?.section.shadow
+    '--bitfun-component-config-page-section-background': configPage?.section.background ?? colors.background.tertiary,
+    '--bitfun-component-config-page-section-border': configPage?.section.border ?? colors.border.subtle,
+    '--bitfun-component-config-page-section-border-width': configPage?.section.borderWidth ?? '1px',
+    '--bitfun-component-config-page-section-shadow': configPage?.section.shadow
       ?? `inset 0 1px 0 ${OVERLAY_WHITE_04}`,
-    '--openbitfun-component-config-page-divider': configPage?.divider ?? colors.border.subtle,
-    '--openbitfun-component-config-page-row-hover-background': configPageRowHover,
-    '--openbitfun-component-scene-viewport-border-width': palette.layout?.sceneViewportBorder === false ? '0' : '1px',
-    '--openbitfun-component-badge-padding-block': '2px',
-    '--openbitfun-domain-context-compression': purple[500],
-    '--openbitfun-domain-generative-ui': '#06b6d4',
-    '--openbitfun-domain-mini-app': purple[500],
-    '--openbitfun-domain-mermaid-diagram': colors.semantic.success,
-    '--openbitfun-domain-tool-search': colors.accent[600],
-    '--openbitfun-domain-tool-web-search': '#06b6d4',
-    '--openbitfun-domain-tool-git': colors.semantic.warning,
-    '--openbitfun-domain-tool-terminal': '#14b8a6',
-    '--openbitfun-domain-tool-mcp': purple[500],
-    '--openbitfun-domain-tool-assistant-action': purple[500],
-    '--openbitfun-domain-tool-review-summary': '#06b6d4',
-    '--openbitfun-domain-capability-docs': colors.semantic.success,
-    '--openbitfun-domain-capability-testing': colors.semantic.warning,
-    '--openbitfun-domain-capability-creative': purple[500],
-    '--openbitfun-domain-capability-ops': '#06b6d4',
-    '--openbitfun-domain-insights-positive': colors.semantic.success,
-    '--openbitfun-domain-insights-time': purple[500],
-    '--openbitfun-domain-insights-neutral': colors.semantic.warning,
-    '--openbitfun-domain-insights-issue': colors.semantic.error,
-    '--openbitfun-domain-progress-compacting': '#14b8a6',
-    '--openbitfun-domain-template-memories': purple[500],
-    '--openbitfun-domain-review-member-default': '#64748b',
-    '--openbitfun-domain-review-worker': colors.accent[600],
-    '--openbitfun-domain-review-judge': purple[500],
-    '--openbitfun-domain-teal-action': '#14b8a6',
-    '--openbitfun-domain-todo': '#14b8a6',
-    '--openbitfun-domain-git-branch': colors.git.branch,
-    '--openbitfun-domain-git-branch-background': colors.git.branchBg,
-    '--openbitfun-domain-git-branch-background-hover': colors.element.medium,
-    '--openbitfun-domain-git-changes': colors.git.changes,
-    '--openbitfun-domain-git-added': colors.git.added,
-    '--openbitfun-domain-git-deleted': colors.git.deleted,
-    '--openbitfun-domain-git-staged': colors.git.staged,
-    '--openbitfun-domain-git-lane-0': colors.accent[600],
-    '--openbitfun-domain-git-lane-1': colors.semantic.success,
-    '--openbitfun-domain-git-lane-2': colors.semantic.warning,
-    '--openbitfun-domain-git-lane-3': purple[500],
-    '--openbitfun-domain-git-lane-4': colors.semantic.error,
-    '--openbitfun-domain-git-lane-5': '#06b6d4',
-    '--openbitfun-domain-git-lane-6': '#14b8a6',
-    '--openbitfun-domain-git-lane-7': '#64748b',
-    '--openbitfun-domain-text-stroke-0': colors.semantic.warning,
-    '--openbitfun-domain-text-stroke-1': colors.semantic.error,
-    '--openbitfun-domain-text-stroke-2': colors.accent[600],
-    '--openbitfun-domain-text-stroke-3': '#06b6d4',
-    '--openbitfun-domain-text-stroke-4': purple[500],
-    '--openbitfun-domain-inspector-active-border': colors.accent[600],
-    '--openbitfun-domain-inspector-active-background': `color-mix(in srgb, ${colors.accent[600]} 15%, transparent)`,
-    '--openbitfun-domain-inspector-active-border-subtle': `color-mix(in srgb, ${colors.accent[600]} 40%, transparent)`,
-    '--openbitfun-domain-inspector-selected-border': colors.semantic.success,
-    '--openbitfun-domain-inspector-selected-background': `color-mix(in srgb, ${colors.semantic.success} 18%, transparent)`,
-    '--openbitfun-domain-inspector-browser-tooltip-background': 'rgba(10, 10, 10, 0.92)',
-    '--openbitfun-domain-inspector-main-tooltip-background': 'rgba(15, 23, 42, 0.95)',
-    '--openbitfun-domain-inspector-tooltip-text': '#e2e8f0',
-    '--openbitfun-domain-inspector-tooltip-shadow': 'rgba(0, 0, 0, 0.5)',
-    '--openbitfun-domain-language-blue': '#3178c6',
-    '--openbitfun-domain-language-cyan': '#00add8',
-    '--openbitfun-domain-language-yellow': '#f7df1e',
-    '--openbitfun-domain-language-orange': '#e38c00',
-    '--openbitfun-domain-language-red': colors.semantic.error,
-    '--openbitfun-domain-language-green': colors.semantic.success,
-    '--openbitfun-domain-language-purple': purple[500],
-    '--openbitfun-domain-language-slate': '#64748b',
-    '--openbitfun-domain-prism-light-foreground': '#24292f',
-    '--openbitfun-domain-prism-light-comment': '#6e7781',
-    '--openbitfun-domain-prism-light-keyword': '#cf222e',
-    '--openbitfun-domain-prism-light-string': '#0550ae',
-    '--openbitfun-domain-prism-light-function': '#8250df',
-    '--openbitfun-domain-prism-light-number': '#0550ae',
-    '--openbitfun-domain-prism-light-tag': '#116329',
-    '--openbitfun-domain-prism-light-punctuation': '#57606a',
-    '--openbitfun-domain-prism-light-property': '#953800',
-    '--openbitfun-domain-prism-dark-foreground': '#d4d4d4',
-    '--openbitfun-domain-prism-dark-comment': '#6a9955',
-    '--openbitfun-domain-prism-dark-keyword': '#c586c0',
-    '--openbitfun-domain-prism-dark-string': '#ce9178',
-    '--openbitfun-domain-prism-dark-function': '#dcdcaa',
-    '--openbitfun-domain-prism-dark-number': '#b5cea8',
-    '--openbitfun-domain-prism-dark-tag': '#569cd6',
-    '--openbitfun-domain-prism-dark-punctuation': '#d4d4d4',
-    '--openbitfun-domain-prism-dark-property': '#9cdcfe',
+    '--bitfun-component-config-page-divider': configPage?.divider ?? colors.border.subtle,
+    '--bitfun-component-config-page-row-hover-background': configPageRowHover,
+    '--bitfun-component-scene-viewport-border-width': palette.layout?.sceneViewportBorder === false ? '0' : '1px',
+    '--bitfun-component-badge-padding-block': '2px',
+    '--bitfun-domain-context-compression': purple[500],
+    '--bitfun-domain-generative-ui': '#06b6d4',
+    '--bitfun-domain-mini-app': purple[500],
+    '--bitfun-domain-mermaid-diagram': colors.semantic.success,
+    '--bitfun-domain-tool-search': colors.accent[600],
+    '--bitfun-domain-tool-web-search': '#06b6d4',
+    '--bitfun-domain-tool-git': colors.semantic.warning,
+    '--bitfun-domain-tool-terminal': '#14b8a6',
+    '--bitfun-domain-tool-mcp': purple[500],
+    '--bitfun-domain-tool-assistant-action': purple[500],
+    '--bitfun-domain-tool-review-summary': '#06b6d4',
+    '--bitfun-domain-capability-docs': colors.semantic.success,
+    '--bitfun-domain-capability-testing': colors.semantic.warning,
+    '--bitfun-domain-capability-creative': purple[500],
+    '--bitfun-domain-capability-ops': '#06b6d4',
+    '--bitfun-domain-insights-positive': colors.semantic.success,
+    '--bitfun-domain-insights-time': purple[500],
+    '--bitfun-domain-insights-neutral': colors.semantic.warning,
+    '--bitfun-domain-insights-issue': colors.semantic.error,
+    '--bitfun-domain-progress-compacting': '#14b8a6',
+    '--bitfun-domain-template-memories': purple[500],
+    '--bitfun-domain-review-member-default': '#64748b',
+    '--bitfun-domain-review-worker': colors.accent[600],
+    '--bitfun-domain-review-judge': purple[500],
+    '--bitfun-domain-teal-action': '#14b8a6',
+    '--bitfun-domain-todo': '#14b8a6',
+    '--bitfun-domain-git-branch': colors.git.branch,
+    '--bitfun-domain-git-branch-background': colors.git.branchBg,
+    '--bitfun-domain-git-branch-background-hover': colors.element.medium,
+    '--bitfun-domain-git-changes': colors.git.changes,
+    '--bitfun-domain-git-added': colors.git.added,
+    '--bitfun-domain-git-deleted': colors.git.deleted,
+    '--bitfun-domain-git-staged': colors.git.staged,
+    '--bitfun-domain-git-lane-0': colors.accent[600],
+    '--bitfun-domain-git-lane-1': colors.semantic.success,
+    '--bitfun-domain-git-lane-2': colors.semantic.warning,
+    '--bitfun-domain-git-lane-3': purple[500],
+    '--bitfun-domain-git-lane-4': colors.semantic.error,
+    '--bitfun-domain-git-lane-5': '#06b6d4',
+    '--bitfun-domain-git-lane-6': '#14b8a6',
+    '--bitfun-domain-git-lane-7': '#64748b',
+    '--bitfun-domain-text-stroke-0': colors.semantic.warning,
+    '--bitfun-domain-text-stroke-1': colors.semantic.error,
+    '--bitfun-domain-text-stroke-2': colors.accent[600],
+    '--bitfun-domain-text-stroke-3': '#06b6d4',
+    '--bitfun-domain-text-stroke-4': purple[500],
+    '--bitfun-domain-inspector-active-border': colors.accent[600],
+    '--bitfun-domain-inspector-active-background': `color-mix(in srgb, ${colors.accent[600]} 15%, transparent)`,
+    '--bitfun-domain-inspector-active-border-subtle': `color-mix(in srgb, ${colors.accent[600]} 40%, transparent)`,
+    '--bitfun-domain-inspector-selected-border': colors.semantic.success,
+    '--bitfun-domain-inspector-selected-background': `color-mix(in srgb, ${colors.semantic.success} 18%, transparent)`,
+    '--bitfun-domain-inspector-browser-tooltip-background': 'rgba(10, 10, 10, 0.92)',
+    '--bitfun-domain-inspector-main-tooltip-background': 'rgba(15, 23, 42, 0.95)',
+    '--bitfun-domain-inspector-tooltip-text': '#e2e8f0',
+    '--bitfun-domain-inspector-tooltip-shadow': 'rgba(0, 0, 0, 0.5)',
+    '--bitfun-domain-language-blue': '#3178c6',
+    '--bitfun-domain-language-cyan': '#00add8',
+    '--bitfun-domain-language-yellow': '#f7df1e',
+    '--bitfun-domain-language-orange': '#e38c00',
+    '--bitfun-domain-language-red': colors.semantic.error,
+    '--bitfun-domain-language-green': colors.semantic.success,
+    '--bitfun-domain-language-purple': purple[500],
+    '--bitfun-domain-language-slate': '#64748b',
+    '--bitfun-domain-prism-light-foreground': '#24292f',
+    '--bitfun-domain-prism-light-comment': '#6e7781',
+    '--bitfun-domain-prism-light-keyword': '#cf222e',
+    '--bitfun-domain-prism-light-string': '#0550ae',
+    '--bitfun-domain-prism-light-function': '#8250df',
+    '--bitfun-domain-prism-light-number': '#0550ae',
+    '--bitfun-domain-prism-light-tag': '#116329',
+    '--bitfun-domain-prism-light-punctuation': '#57606a',
+    '--bitfun-domain-prism-light-property': '#953800',
+    '--bitfun-domain-prism-dark-foreground': '#d4d4d4',
+    '--bitfun-domain-prism-dark-comment': '#6a9955',
+    '--bitfun-domain-prism-dark-keyword': '#c586c0',
+    '--bitfun-domain-prism-dark-string': '#ce9178',
+    '--bitfun-domain-prism-dark-function': '#dcdcaa',
+    '--bitfun-domain-prism-dark-number': '#b5cea8',
+    '--bitfun-domain-prism-dark-tag': '#569cd6',
+    '--bitfun-domain-prism-dark-punctuation': '#d4d4d4',
+    '--bitfun-domain-prism-dark-property': '#9cdcfe',
   };
 }
 
@@ -469,7 +469,7 @@ export function buildBuiltinAppearance(palette: AppearancePalette): AppearancePa
   });
 
   return {
-    schema: 'openbitfun.appearance',
+    schema: 'bitfun.appearance',
     schemaVersion: 2,
     id: palette.id,
     name: palette.name,
@@ -511,7 +511,7 @@ export function buildBuiltinAppearance(palette: AppearancePalette): AppearancePa
       monaco: {
         version: 1,
         settings: {
-          id: `openbitfun-appearance-${palette.id}`,
+          id: `bitfun-appearance-${palette.id}`,
           base: monaco?.base ?? (palette.type === 'dark' ? 'vs-dark' : 'vs'),
           inherit: monaco?.inherit ?? true,
           rules: monaco?.rules ?? [],
@@ -586,7 +586,7 @@ export function buildBuiltinAppearance(palette: AppearancePalette): AppearancePa
           vars: createWidgetAppearanceVars(themeTokens),
         },
       },
-      'openbitfun-canvas': {
+      'bitfun-canvas': {
         version: 1,
         settings: {
           id: `builtin.${palette.id}`,

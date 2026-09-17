@@ -1,8 +1,8 @@
 //! Compatibility re-export for mode-aware built-in skill policy.
 //!
-//! The provider-neutral owner lives in `openbitfun-agent-runtime`.
+//! The provider-neutral owner lives in `bitfun-agent-runtime`.
 
-pub use openbitfun_agent_runtime::skills::resolve_builtin_default_enabled;
+pub use bitfun_agent_runtime::skills::resolve_builtin_default_enabled;
 
 #[cfg(test)]
 mod tests {
@@ -76,7 +76,7 @@ mod tests {
         );
         for mode_id in ["Standard", "Claw", "Creative", "Cowork", "DeepResearch"] {
             assert_eq!(
-                resolve_builtin_default_enabled("openbitfun-canvas", mode_id),
+                resolve_builtin_default_enabled("bitfun-canvas", mode_id),
                 Some(false),
                 "Canvas skills must stay opt-in for mode {mode_id}"
             );

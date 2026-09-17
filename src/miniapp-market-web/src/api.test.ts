@@ -19,7 +19,7 @@ describe('market API paths', () => {
 
   it('uses the broker camelCase return target contract', () => {
     expect(loginUrl('/miniapp/admin')).toBe(
-      'https://auth.openbitfun.com/sign-in?locale=en-US&returnTo=%2Fminiapp%2Fadmin',
+      'https://auth.bitfun.com/sign-in?locale=en-US&returnTo=%2Fminiapp%2Fadmin',
     );
   });
 });

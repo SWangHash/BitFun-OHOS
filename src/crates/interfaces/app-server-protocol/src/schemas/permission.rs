@@ -2,7 +2,7 @@
 
 #[cfg(feature = "rpc")]
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
-use openbitfun_product_domains::tool_permissions::{
+use bitfun_product_domains::tool_permissions::{
     PermissionAuditRecord, PermissionGrant, PermissionGrantKey, PermissionReply,
 };
 use serde::{Deserialize, Serialize};

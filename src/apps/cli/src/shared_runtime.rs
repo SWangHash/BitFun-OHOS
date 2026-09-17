@@ -1,23 +1,23 @@
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentModeCatalogQuery, AgentRuntime, AgentSessionDeleteRequest,
     AgentSessionForkBeforeTurnRequest, AgentSessionForkRequest, AgentSessionRenameRequest,
     AgentSessionRestoreRequest, AgentUserAnswersRequest, DialogSubmitOutcome, PermissionRequest,
     PermissionRequestEvent, PortErrorKind, RuntimeError, SessionTranscriptRequest,
 };
-use openbitfun_agent_runtime_ipc::{
+use bitfun_agent_runtime_ipc::{
     DiscoveryStore, RuntimeAgentModeSummary, RuntimeInstanceIdentity, RuntimeIpcClient,
     RuntimeIpcError, RuntimeIpcErrorCode, RuntimeIpcEvent, RuntimeIpcOperation,
     RuntimeIpcOperationResult, RuntimeIpcRequestHandler, RuntimeIpcServer, RuntimeIpcServerConfig,
     RuntimeIpcStreamInvalidationReason, RuntimeSessionProcessingPhase, RuntimeSessionRenameRequest,
     RuntimeSessionState, PROTOCOL_VERSION,
 };
-use openbitfun_core::product_runtime::CoreAgentRuntimeCompatibility;
-use openbitfun_core::runtime_ownership::CoreRuntimeOwnership;
-use openbitfun_events::{AgenticEvent, ToolEventData};
-use openbitfun_runtime_ports::{AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest};
-use openbitfun_services_core::runtime_ownership::RuntimeDeployment;
+use bitfun_core::product_runtime::CoreAgentRuntimeCompatibility;
+use bitfun_core::runtime_ownership::CoreRuntimeOwnership;
+use bitfun_events::{AgenticEvent, ToolEventData};
+use bitfun_runtime_ports::{AgentSessionWorkspaceBinding, AgentSessionWorkspaceRequest};
+use bitfun_services_core::runtime_ownership::RuntimeDeployment;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -246,7 +246,7 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
                         workspace_path: self.workspace.to_string_lossy().to_string(),
                         project_workspace_path: Some(self.workspace.to_string_lossy().to_string()),
                         execution_target: Some(
-                            openbitfun_runtime_ports::SessionExecutionTarget::local(
+                            bitfun_runtime_ports::SessionExecutionTarget::local(
                                 self.workspace.to_string_lossy().to_string(),
                             ),
                         ),
@@ -262,7 +262,7 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
                 }
                 let workspace = PathBuf::from(&binding.workspace_path);
                 if let Err(error) =
-                    openbitfun_core::external_sources::ensure_external_source_workspace_snapshot(
+                    bitfun_core::external_sources::ensure_external_source_workspace_snapshot(
                         Some(&workspace),
                     )
                     .await
@@ -545,7 +545,7 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
                 .steer_dialog_turn(request)
                 .await
                 .map(|outcome| match outcome {
-                    openbitfun_agent_runtime::sdk::DialogSteerOutcome::Buffered {
+                    bitfun_agent_runtime::sdk::DialogSteerOutcome::Buffered {
                         session_id,
                         turn_id,
                         steering_id,
@@ -681,9 +681,9 @@ impl RuntimeIpcRequestHandler for SharedRuntimeHandler {
 }
 
 fn runtime_session_state(
-    state: openbitfun_agent_runtime::sdk::SessionState,
+    state: bitfun_agent_runtime::sdk::SessionState,
 ) -> RuntimeSessionState {
-    use openbitfun_agent_runtime::sdk::{ProcessingPhase, SessionState};
+    use bitfun_agent_runtime::sdk::{ProcessingPhase, SessionState};
 
     match state {
         SessionState::Idle => RuntimeSessionState::Idle,
@@ -1077,7 +1077,7 @@ fn index_user_question(
 }
 
 pub(crate) async fn run_service(workspace: PathBuf, expected_identity: String) -> Result<()> {
-    openbitfun_services_core::process_manager::contain_current_process_tree()
+    bitfun_services_core::process_manager::contain_current_process_tree()
         .context("contain Shared Runtime process tree")?;
     prepare_client_environment().await?;
     let identity = instance_identity(&workspace)?;
@@ -1205,9 +1205,9 @@ fn require_interactive_tui(client: RuntimeIpcClient) -> Result<RuntimeIpcClient>
 
 async fn prepare_client_environment() -> Result<()> {
     crate::agent::agentic_system::select_agentic_system_profile(
-        openbitfun_core::product_assembly::DeliveryProfile::Cli,
+        bitfun_core::product_assembly::DeliveryProfile::Cli,
     )?;
-    openbitfun_core::service::config::initialize_global_config()
+    bitfun_core::service::config::initialize_global_config()
         .await
         .map_err(|error| anyhow!("Failed to initialize Shared TUI configuration: {error}"))
 }
@@ -1239,8 +1239,8 @@ struct StartupChild {
 
 impl StartupChild {
     fn spawn(workspace: &Path, identity: &str) -> Result<Self> {
-        let executable = std::env::current_exe().context("resolve OpenBitFun executable")?;
-        let mut command = openbitfun_services_core::process_manager::create_command(executable);
+        let executable = std::env::current_exe().context("resolve BitFun executable")?;
+        let mut command = bitfun_services_core::process_manager::create_command(executable);
         command
             .arg("__shared-runtime")
             .arg("--workspace")
@@ -1320,8 +1320,8 @@ fn ipc_root() -> Result<PathBuf> {
         .join(format!("ipc-v{PROTOCOL_VERSION}")))
 }
 
-fn path_manager() -> Result<Arc<openbitfun_core::infrastructure::PathManager>> {
-    openbitfun_core::infrastructure::try_get_path_manager_arc()
+fn path_manager() -> Result<Arc<bitfun_core::infrastructure::PathManager>> {
+    bitfun_core::infrastructure::try_get_path_manager_arc()
         .map_err(|error| anyhow!(error.to_string()))
 }
 
@@ -1400,13 +1400,13 @@ fn runtime_ipc_error(error: RuntimeError) -> RuntimeIpcError {
     }
 }
 
-fn core_ipc_error(error: openbitfun_core::util::errors::OpenBitFunError) -> RuntimeIpcError {
+fn core_ipc_error(error: bitfun_core::util::errors::BitFunError) -> RuntimeIpcError {
     let code = match &error {
-        openbitfun_core::util::errors::OpenBitFunError::Validation(_)
-        | openbitfun_core::util::errors::OpenBitFunError::NotFound(_) => {
+        bitfun_core::util::errors::BitFunError::Validation(_)
+        | bitfun_core::util::errors::BitFunError::NotFound(_) => {
             RuntimeIpcErrorCode::InvalidRequest
         }
-        openbitfun_core::util::errors::OpenBitFunError::SessionInUse { .. } => {
+        bitfun_core::util::errors::BitFunError::SessionInUse { .. } => {
             RuntimeIpcErrorCode::SessionInUse
         }
         _ => RuntimeIpcErrorCode::Unavailable,
@@ -1427,7 +1427,7 @@ mod tests {
         runtime_ipc_error, subscribe_session_events, SessionEventSenders, SubagentRoute,
         SubagentRoutes, EVENT_BUFFER,
     };
-    use openbitfun_agent_runtime::sdk::{
+    use bitfun_agent_runtime::sdk::{
         AgentRuntimeBuilder, AgentSessionCreateRequest, AgentSessionCreateResult,
         AgentSessionDeleteRequest, AgentSessionListRequest, AgentSessionManagementPort,
         AgentSessionRenameRequest, AgentSessionSummary, AgentSessionWorkspaceBinding,
@@ -1436,8 +1436,8 @@ mod tests {
         PermissionRequest, PermissionRequestEvent, PermissionRequestSource,
         PermissionRequestSourceKind, PortError, PortErrorKind, PortResult, RuntimeError,
     };
-    use openbitfun_agent_runtime_ipc::{RuntimeIpcErrorCode, RuntimeSessionRenameRequest};
-    use openbitfun_events::{AgenticEvent, ToolEventData, ToolEventIdentity};
+    use bitfun_agent_runtime_ipc::{RuntimeIpcErrorCode, RuntimeSessionRenameRequest};
+    use bitfun_events::{AgenticEvent, ToolEventData, ToolEventIdentity};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -1544,7 +1544,7 @@ mod tests {
 
         assert_eq!(
             error.code,
-            openbitfun_agent_runtime_ipc::RuntimeIpcErrorCode::SessionInUse
+            bitfun_agent_runtime_ipc::RuntimeIpcErrorCode::SessionInUse
         );
     }
 
@@ -1557,7 +1557,7 @@ mod tests {
 
         assert_eq!(
             error.code,
-            openbitfun_agent_runtime_ipc::RuntimeIpcErrorCode::InvalidRequest
+            bitfun_agent_runtime_ipc::RuntimeIpcErrorCode::InvalidRequest
         );
     }
 
@@ -1600,10 +1600,10 @@ mod tests {
 
     #[tokio::test]
     async fn shared_question_interaction_and_dismissal_use_the_runtime_mailbox() {
-        use openbitfun_agent_runtime::user_questions::{
+        use bitfun_agent_runtime::user_questions::{
             get_user_input_manager, PendingUserQuestion,
         };
-        use openbitfun_agent_runtime_ipc::{RuntimeIpcOperation, RuntimeIpcRequestHandler};
+        use bitfun_agent_runtime_ipc::{RuntimeIpcOperation, RuntimeIpcRequestHandler};
         let runtime = AgentRuntimeBuilder::new()
             .with_submission_port(Arc::new(RecordingSessionPort::default()))
             .build()
@@ -1742,18 +1742,18 @@ mod tests {
     #[tokio::test]
     async fn existing_runtime_connection_errors_are_not_hidden_as_absence() {
         let root = tempfile::tempdir().unwrap();
-        let identity = openbitfun_agent_runtime_ipc::RuntimeInstanceIdentity::for_workspace(
+        let identity = bitfun_agent_runtime_ipc::RuntimeInstanceIdentity::for_workspace(
             root.path(),
-            "openbitfun",
+            "bitfun",
             "stable",
             "fixture-user",
-            openbitfun_agent_runtime_ipc::PROTOCOL_VERSION,
+            bitfun_agent_runtime_ipc::PROTOCOL_VERSION,
         )
         .unwrap();
         let store =
-            openbitfun_agent_runtime_ipc::DiscoveryStore::new(root.path(), identity.clone());
+            bitfun_agent_runtime_ipc::DiscoveryStore::new(root.path(), identity.clone());
         store
-            .write(&openbitfun_agent_runtime_ipc::DiscoveryRecord::new(
+            .write(&bitfun_agent_runtime_ipc::DiscoveryRecord::new(
                 identity,
                 "invalid-endpoint".to_string(),
                 1,
@@ -1820,9 +1820,9 @@ mod tests {
             publish_event(
                 &events,
                 "noisy",
-                openbitfun_agent_runtime_ipc::RuntimeIpcEvent::StreamInvalidated {
+                bitfun_agent_runtime_ipc::RuntimeIpcEvent::StreamInvalidated {
                     reason:
-                        openbitfun_agent_runtime_ipc::RuntimeIpcStreamInvalidationReason::Lagged,
+                        bitfun_agent_runtime_ipc::RuntimeIpcStreamInvalidationReason::Lagged,
                 },
             );
         }
@@ -1833,7 +1833,7 @@ mod tests {
         invalidate_event_stream(
             &available,
             &events,
-            openbitfun_agent_runtime_ipc::RuntimeIpcStreamInvalidationReason::Lagged,
+            bitfun_agent_runtime_ipc::RuntimeIpcStreamInvalidationReason::Lagged,
         );
         assert!(quiet.try_recv().is_ok());
         assert!(subscribe_session_events(&events, &available, "late").is_err());
@@ -2011,7 +2011,7 @@ mod tests {
             },
             PermissionRequestEvent::Replied {
                 request_id: request.request_id,
-                reply: openbitfun_agent_runtime::sdk::PermissionReply::Once,
+                reply: bitfun_agent_runtime::sdk::PermissionReply::Once,
                 source: PermissionReplySource::User,
             },
         ];

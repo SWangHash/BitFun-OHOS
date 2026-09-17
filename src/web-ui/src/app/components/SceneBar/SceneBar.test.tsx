@@ -62,8 +62,8 @@ vi.mock('@/shared/utils/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -126,12 +126,12 @@ describe('SceneBar overflow navigation', () => {
 
   it('advertises the destination at dragstart, then distinguishes hover from availability', () => {
     renderSceneBar();
-    const bar = container.querySelector<HTMLElement>('.openbitfun-scene-bar')!;
+    const bar = container.querySelector<HTMLElement>('.bitfun-scene-bar')!;
     expect(bar.dataset.canvasDropState).toBeUndefined();
     let transfer!: DataTransfer;
     act(() => { transfer = startSessionTabDrag(); });
     expect(bar.dataset.canvasDropState).toBe('available');
-    const hint = container.querySelector<HTMLElement>('[data-openbitfun-part="dropHint"]')!;
+    const hint = container.querySelector<HTMLElement>('[data-bitfun-part="dropHint"]')!;
     expect(hint.querySelector('[aria-hidden="false"]')?.textContent).toBe('workbench.dragToPopOut');
     expect(container.querySelector('[data-canvas-drop-position]')).toBeNull();
     expect(useContentResourceStore.getState().resources).toEqual({});
@@ -145,7 +145,7 @@ describe('SceneBar overflow navigation', () => {
     expect(container.querySelector('[data-canvas-drop-position]')).toBeNull();
     act(() => window.dispatchEvent(new Event('dragend')));
     expect(bar.dataset.canvasDropState).toBeUndefined();
-    expect(container.querySelector('[data-openbitfun-part="dropHint"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
   });
 
@@ -157,7 +157,7 @@ describe('SceneBar overflow navigation', () => {
     document.body.appendChild(elsewhere);
     elsewhere.addEventListener('drop', event => event.stopPropagation());
     act(() => elsewhere.dispatchEvent(dragEvent('drop', transfer)));
-    expect(container.querySelector('[data-openbitfun-part="dropHint"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
     expect(useContentResourceStore.getState().resources).toEqual({});
     elsewhere.remove();
@@ -166,7 +166,7 @@ describe('SceneBar overflow navigation', () => {
   it.each(['end', 'remove', 'workspace-switch', 'device-switch'])('withdraws availability when the source is invalidated: %s', action => {
     renderSceneBar();
     act(() => { startSessionTabDrag(); });
-    expect(container.querySelector('[data-openbitfun-part="dropHint"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="dropHint"]')).not.toBeNull();
     act(() => {
       const store = useAgentCanvasStore.getState();
       if (action === 'end') store.endDrag();
@@ -174,15 +174,15 @@ describe('SceneBar overflow navigation', () => {
       if (action === 'workspace-switch') switchAgentCanvasWorkspace(undefined, 'another-workspace');
       if (action === 'device-switch') activateSurface('peer');
     });
-    expect(container.querySelector('[data-openbitfun-part="dropHint"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
     expect(container.querySelector('[data-canvas-drop-state]')).toBeNull();
   });
 
-  it.each(['Files', 'application/x-openbitfun-scene'])('does not offer pop-out for another drag format: %s', type => {
+  it.each(['Files', 'application/x-bitfun-scene'])('does not offer pop-out for another drag format: %s', type => {
     renderSceneBar();
     const transfer = { types: [type] } as unknown as DataTransfer;
     act(() => document.dispatchEvent(dragEvent('dragstart', transfer)));
-    expect(container.querySelector('[data-openbitfun-part="dropHint"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
   });
 
   it('accepts a session tab over an existing top tab and transfers it at the indicated position', () => {
@@ -208,7 +208,7 @@ describe('SceneBar overflow navigation', () => {
   it('accepts the empty area of the top bar and clears a canceled drag without moving content', () => {
     const transfer = startSessionTabDrag();
     renderSceneBar();
-    const bar = container.querySelector<HTMLElement>('.openbitfun-scene-bar')!;
+    const bar = container.querySelector<HTMLElement>('.bitfun-scene-bar')!;
     act(() => bar.dispatchEvent(dragEvent('dragover', transfer)));
     expect(bar.dataset.canvasDropTarget).toBe('true');
     act(() => window.dispatchEvent(new Event('dragend')));
@@ -222,7 +222,7 @@ describe('SceneBar overflow navigation', () => {
 
   it('ignores external file drags', () => {
     renderSceneBar();
-    const bar = container.querySelector<HTMLElement>('.openbitfun-scene-bar')!;
+    const bar = container.querySelector<HTMLElement>('.bitfun-scene-bar')!;
     const over = dragEvent('dragover', { types: ['Files'] } as unknown as DataTransfer);
     act(() => bar.dispatchEvent(over));
     expect(over.defaultPrevented).toBe(false);
@@ -241,30 +241,30 @@ describe('SceneBar overflow navigation', () => {
     sceneHarness.state.sessionTitle = 'Investigate top tabs';
     renderSceneBar();
 
-    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="session"]')!;
-    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="settings"]')!;
+    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="session"]')!;
+    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="settings"]')!;
 
-    expect(sessionTab.querySelector('[data-openbitfun-part="label"]')?.textContent)
+    expect(sessionTab.querySelector('[data-bitfun-part="label"]')?.textContent)
       .toBe('Investigate top tabs');
-    expect(settingsTab.querySelector('[data-openbitfun-part="label"]')?.textContent)
+    expect(settingsTab.querySelector('[data-bitfun-part="label"]')?.textContent)
       .toBe('Settings');
-    expect(sessionTab.querySelector('[data-openbitfun-part="icon"]')).toBeNull();
-    expect(sessionTab.closest('[data-openbitfun-part="item"]')?.getAttribute('data-has-icon'))
+    expect(sessionTab.querySelector('[data-bitfun-part="icon"]')).toBeNull();
+    expect(sessionTab.closest('[data-bitfun-part="item"]')?.getAttribute('data-has-icon'))
       .toBe('false');
-    expect(sessionTab.closest('[data-openbitfun-part="item"]')?.hasAttribute('data-overflow-trigger'))
+    expect(sessionTab.closest('[data-bitfun-part="item"]')?.hasAttribute('data-overflow-trigger'))
       .toBe(true);
-    expect(sessionTab.querySelector('[data-openbitfun-part="label"]')?.getAttribute('data-overflow-behavior'))
+    expect(sessionTab.querySelector('[data-bitfun-part="label"]')?.getAttribute('data-overflow-behavior'))
       .toBe('marquee');
     expect(container.querySelector('[data-scene-bar-part="tabs"]')?.getAttribute('data-size'))
       .toBe('sm');
-    expect(container.querySelector('.openbitfun-scene-bar__tab-subtitle')).toBeNull();
-    expect(container.querySelector('.openbitfun-scene-bar__tab-separator')).toBeNull();
+    expect(container.querySelector('.bitfun-scene-bar__tab-subtitle')).toBeNull();
+    expect(container.querySelector('.bitfun-scene-bar__tab-separator')).toBeNull();
   });
 
   it('delegates arrow and Home/End navigation to TabGroup', () => {
     renderSceneBar();
-    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="session"]');
-    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="settings"]');
+    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="session"]');
+    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="settings"]');
     expect(sessionTab).not.toBeNull();
     expect(settingsTab).not.toBeNull();
 
@@ -295,16 +295,16 @@ describe('SceneBar overflow navigation', () => {
     sessionSlot.session = { surfaceId: 'local', workspaceKey: 'workspace-a', sessionId: 'a' };
     sceneHarness.state.sessionTitle = 'First title';
     renderSceneBar();
-    const tab = container.querySelector<HTMLButtonElement>('[role="tab"][data-openbitfun-value="session"]')!;
-    const label = tab.querySelector('[data-openbitfun-component="rolling-text"]');
+    const tab = container.querySelector<HTMLButtonElement>('[role="tab"][data-bitfun-value="session"]')!;
+    const label = tab.querySelector('[data-bitfun-component="rolling-text"]');
     expect(label).not.toBeNull();
     tab.focus();
 
     sessionSlot.session = { ...sessionSlot.session, sessionId: 'b' };
     sceneHarness.state.sessionTitle = 'Second title';
     renderSceneBar();
-    expect(container.querySelector('[role="tab"][data-openbitfun-value="session"]')).toBe(tab);
-    expect(tab.querySelector('[data-openbitfun-component="rolling-text"]')).toBe(label);
+    expect(container.querySelector('[role="tab"][data-bitfun-value="session"]')).toBe(tab);
+    expect(tab.querySelector('[data-bitfun-component="rolling-text"]')).toBe(label);
     expect(document.activeElement).toBe(tab);
     expect(tab.textContent).toBe('Second title');
     expect(tab.textContent).not.toContain('workspace-a');
@@ -315,22 +315,22 @@ describe('SceneBar overflow navigation', () => {
     sceneHarness.state.pendingTabId = 'session';
     renderSceneBar();
     expect(container.querySelector('[data-scene-bar-part="tabs"]')?.getAttribute('aria-busy')).toBe('true');
-    const settings = container.querySelector<HTMLButtonElement>('[role="tab"][data-openbitfun-value="settings"]')!;
+    const settings = container.querySelector<HTMLButtonElement>('[role="tab"][data-bitfun-value="settings"]')!;
     act(() => settings.click());
     expect(sceneHarness.activateScene).toHaveBeenCalledWith('settings');
   });
 
   it('exposes overflow controls and translates a vertical wheel into horizontal movement', () => {
     renderSceneBar();
-    const region = container.querySelector<HTMLElement>('[data-openbitfun-component="scene-bar"][data-openbitfun-part="tabs"]')!;
+    const region = container.querySelector<HTMLElement>('[data-bitfun-component="scene-bar"][data-bitfun-part="tabs"]')!;
     const tabs = container.querySelector<HTMLElement>('[data-scene-bar-part="tabs"]')!;
     setOverflowMetrics(tabs, region);
 
     act(() => tabs.dispatchEvent(new Event('scroll')));
 
     expect(region.dataset.overflow).toBe('true');
-    expect(container.querySelector('[data-openbitfun-part="scrollPrevious"]')).not.toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="scrollNext"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="scrollPrevious"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="scrollNext"]')).not.toBeNull();
 
     act(() => {
       tabs.dispatchEvent(new WheelEvent('wheel', {
@@ -341,15 +341,15 @@ describe('SceneBar overflow navigation', () => {
     });
 
     expect(tabs.scrollLeft).toBe(72);
-    expect(container.querySelector<HTMLButtonElement>('[data-openbitfun-part="scrollPrevious"]')?.disabled).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>('[data-bitfun-part="scrollPrevious"]')?.disabled).toBe(false);
   });
 
   it('scrolls a newly active off-screen tab into view', () => {
     renderSceneBar();
-    const region = container.querySelector<HTMLElement>('[data-openbitfun-component="scene-bar"][data-openbitfun-part="tabs"]')!;
+    const region = container.querySelector<HTMLElement>('[data-bitfun-component="scene-bar"][data-bitfun-part="tabs"]')!;
     const tabs = container.querySelector<HTMLElement>('[data-scene-bar-part="tabs"]')!;
-    const gitTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="git"]')!;
-    const gitItem = gitTab.closest<HTMLElement>('[data-openbitfun-part="item"]')!;
+    const gitTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="git"]')!;
+    const gitItem = gitTab.closest<HTMLElement>('[data-bitfun-part="item"]')!;
     setOverflowMetrics(tabs, region);
     Object.defineProperty(gitItem, 'offsetLeft', { configurable: true, value: 420 });
     Object.defineProperty(gitItem, 'offsetWidth', { configurable: true, value: 100 });
@@ -367,11 +367,11 @@ describe('SceneBar overflow navigation', () => {
 
   it('renders close actions from closeability metadata, including the leading session tab', () => {
     renderSceneBar();
-    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="session"]')!;
-    const sessionItem = sessionTab.closest<HTMLElement>('[data-openbitfun-part="item"]')!;
+    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="session"]')!;
+    const sessionItem = sessionTab.closest<HTMLElement>('[data-bitfun-part="item"]')!;
     const sessionCloseButton = sessionItem.querySelector<HTMLButtonElement>('[data-scene-bar-part="closeTab"]')!;
-    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="settings"]')!;
-    const settingsItem = settingsTab.closest<HTMLElement>('[data-openbitfun-part="item"]')!;
+    const settingsTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="settings"]')!;
+    const settingsItem = settingsTab.closest<HTMLElement>('[data-bitfun-part="item"]')!;
     const closeButton = settingsItem.querySelector<HTMLButtonElement>('[data-scene-bar-part="closeTab"]')!;
 
     expect(sessionCloseButton).not.toBeNull();
@@ -395,7 +395,7 @@ describe('SceneBar overflow navigation', () => {
 
   it('supports standard middle-click and Delete-key close interactions for session', () => {
     renderSceneBar();
-    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value="session"]')!;
+    const sessionTab = container.querySelector<HTMLElement>('[role="tab"][data-bitfun-value="session"]')!;
 
     act(() => {
       sessionTab.dispatchEvent(new MouseEvent('auxclick', {

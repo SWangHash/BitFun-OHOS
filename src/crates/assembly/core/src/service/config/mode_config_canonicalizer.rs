@@ -12,8 +12,8 @@ use crate::service::config::types::{
     AgentProfileConfig, AgentProfileView, ParentSubagentOverrideConfig,
 };
 use crate::util::errors::*;
-use openbitfun_agent_runtime::skills::normalize_user_mode_skill_overrides;
-use openbitfun_runtime_ports::PermissionRule;
+use bitfun_agent_runtime::skills::normalize_user_mode_skill_overrides;
+use bitfun_runtime_ports::PermissionRule;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -282,7 +282,7 @@ fn canonicalize_agent_profile(
     raw_mode: Option<&Value>,
     default_tools: &[String],
     valid_tools: &HashSet<String>,
-) -> OpenBitFunResult<Option<AgentProfileConfig>> {
+) -> BitFunResult<Option<AgentProfileConfig>> {
     let Some(raw_mode) = raw_mode else {
         return Ok(None);
     };
@@ -292,7 +292,7 @@ fn canonicalize_agent_profile(
 
     let mut stored: AgentProfileConfig =
         serde_json::from_value(raw_mode.clone()).map_err(|error| {
-            OpenBitFunError::config(format!(
+            BitFunError::config(format!(
                 "Failed to deserialize agent profile '{}': {}",
                 profile_id, error
             ))
@@ -361,14 +361,14 @@ async fn get_profile_defaults() -> HashMap<String, Vec<String>> {
     defaults
 }
 
-pub async fn get_agent_profile_configs() -> OpenBitFunResult<HashMap<String, AgentProfileConfig>> {
+pub async fn get_agent_profile_configs() -> BitFunResult<HashMap<String, AgentProfileConfig>> {
     let config_service = GlobalConfigManager::get_service().await?;
     let raw = config_service.get_config(Some("ai.agent_profiles")).await?;
     let mut migrated =
-        openbitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
+        bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
             &raw,
         )
-        .map_err(OpenBitFunError::config)?;
+        .map_err(BitFunError::config)?;
     migrated.retain(|_, value| !value.is_null());
     let mut profiles: HashMap<String, AgentProfileConfig> =
         serde_json::from_value(Value::Object(migrated))?;
@@ -378,7 +378,7 @@ pub async fn get_agent_profile_configs() -> OpenBitFunResult<HashMap<String, Age
     Ok(profiles)
 }
 
-pub async fn get_agent_profile_views() -> OpenBitFunResult<HashMap<String, AgentProfileView>> {
+pub async fn get_agent_profile_views() -> BitFunResult<HashMap<String, AgentProfileView>> {
     let stored_configs = get_agent_profile_configs().await?;
     let mode_defaults = get_mode_defaults().await;
     let valid_tools = get_valid_tool_names().await;
@@ -398,25 +398,25 @@ pub async fn get_agent_profile_views() -> OpenBitFunResult<HashMap<String, Agent
     Ok(views)
 }
 
-pub async fn get_agent_profile_view(agent_id: &str) -> OpenBitFunResult<AgentProfileView> {
-    let agent_id = openbitfun_core_types::agent_identity::canonical_agent_id(agent_id);
+pub async fn get_agent_profile_view(agent_id: &str) -> BitFunResult<AgentProfileView> {
+    let agent_id = bitfun_core_types::agent_identity::canonical_agent_id(agent_id);
     let views = get_agent_profile_views().await?;
     views
         .get(agent_id)
         .cloned()
-        .ok_or_else(|| OpenBitFunError::config(format!("Agent does not exist: {}", agent_id)))
+        .ok_or_else(|| BitFunError::config(format!("Agent does not exist: {}", agent_id)))
 }
 
 pub async fn persist_agent_profile_from_value(
     agent_id: &str,
     config: Value,
-) -> OpenBitFunResult<()> {
-    let agent_id = openbitfun_core_types::agent_identity::canonical_agent_id(agent_id);
+) -> BitFunResult<()> {
+    let agent_id = bitfun_core_types::agent_identity::canonical_agent_id(agent_id);
     let config_service = GlobalConfigManager::get_service().await?;
     let agent_defaults = get_agent_defaults().await;
     let default_tools = agent_defaults
         .get(agent_id)
-        .ok_or_else(|| OpenBitFunError::config(format!("Agent does not exist: {}", agent_id)))?;
+        .ok_or_else(|| BitFunError::config(format!("Agent does not exist: {}", agent_id)))?;
     let valid_tools = get_valid_tool_names().await;
     let profile_id = resolve_profile_id(agent_id);
     config_service
@@ -427,7 +427,7 @@ pub async fn persist_agent_profile_from_value(
 
                 let enabled_tools = if let Some(tools) = config.get("enabled_tools") {
                     serde_json::from_value::<Vec<String>>(tools.clone()).map_err(|error| {
-                        OpenBitFunError::config(format!(
+                        BitFunError::config(format!(
                             "Invalid enabled_tools for mode '{}': {}",
                             agent_id, error
                         ))
@@ -445,7 +445,7 @@ pub async fn persist_agent_profile_from_value(
                         Some(Value::Null) | None => Vec::new(),
                         Some(value) => serde_json::from_value::<Vec<String>>(value.clone())
                             .map_err(|error| {
-                                OpenBitFunError::config(format!(
+                                BitFunError::config(format!(
                                     "Invalid disabled_user_skills for mode '{}': {}",
                                     agent_id, error
                                 ))
@@ -466,7 +466,7 @@ pub async fn persist_agent_profile_from_value(
                         Some(Value::Null) | None => Vec::new(),
                         Some(value) => serde_json::from_value::<Vec<String>>(value.clone())
                             .map_err(|error| {
-                                OpenBitFunError::config(format!(
+                                BitFunError::config(format!(
                                     "Invalid enabled_user_skills for mode '{}': {}",
                                     agent_id, error
                                 ))
@@ -488,7 +488,7 @@ pub async fn persist_agent_profile_from_value(
                         Some(value) => {
                             serde_json::from_value::<ParentSubagentOverrideConfig>(value.clone())
                                 .map_err(|error| {
-                                    OpenBitFunError::config(format!(
+                                    BitFunError::config(format!(
                                         "Invalid subagent_overrides for mode '{}': {}",
                                         agent_id, error
                                     ))
@@ -510,7 +510,7 @@ pub async fn persist_agent_profile_from_value(
                         Some(Value::Null) | None => Vec::new(),
                         Some(value) => serde_json::from_value::<Vec<PermissionRule>>(value.clone())
                             .map_err(|error| {
-                                OpenBitFunError::config(format!(
+                                BitFunError::config(format!(
                                     "Invalid tool_permission_rules for mode '{}': {}",
                                     agent_id, error
                                 ))
@@ -549,7 +549,7 @@ pub async fn persist_agent_profile_from_value(
         .await
 }
 
-pub async fn reset_agent_profile_to_default(agent_id: &str) -> OpenBitFunResult<()> {
+pub async fn reset_agent_profile_to_default(agent_id: &str) -> BitFunResult<()> {
     let config_service = GlobalConfigManager::get_service().await?;
     let profile_id = resolve_profile_id(agent_id);
 
@@ -579,7 +579,7 @@ pub async fn reset_agent_profile_to_default(agent_id: &str) -> OpenBitFunResult<
 
 /// Canonicalizes stored mode profile overrides.
 pub async fn canonicalize_agent_profile_configs(
-) -> OpenBitFunResult<AgentProfileConfigCanonicalizationReport> {
+) -> BitFunResult<AgentProfileConfigCanonicalizationReport> {
     let config_service = GlobalConfigManager::get_service().await?;
     let valid_tools = get_valid_tool_names().await;
     let profile_defaults = get_profile_defaults().await;
@@ -587,8 +587,8 @@ pub async fn canonicalize_agent_profile_configs(
         .update_config(
             "ai.agent_profiles",
             |raw_agent_profiles: &mut Map<String, Value>| {
-                let migrated = openbitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(raw_agent_profiles)
-                    .map_err(OpenBitFunError::config)?;
+                let migrated = bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(raw_agent_profiles)
+                    .map_err(BitFunError::config)?;
                 let mut rewritten_agent_profiles = Map::new();
                 let mut updated_profiles = Vec::new();
                 let mut removed_profile_configs = Vec::new();
@@ -660,7 +660,7 @@ mod tests {
     };
     use crate::agentic::agents::get_agent_registry;
     use crate::service::config::types::AgentSubagentOverrideState;
-    use openbitfun_runtime_ports::{PermissionEffect, PermissionRule};
+    use bitfun_runtime_ports::{PermissionEffect, PermissionRule};
     use serde_json::Value;
     use std::collections::HashSet;
 
@@ -712,23 +712,23 @@ mod tests {
     fn normalize_skill_override_lists_removes_duplicates_and_conflicts() {
         let (disabled, enabled) = normalize_skill_override_lists(
             vec![
-                "user::openbitfun-system::ppt-design".to_string(),
-                "user::openbitfun-system::ppt-design".to_string(),
+                "user::bitfun-system::ppt-design".to_string(),
+                "user::bitfun-system::ppt-design".to_string(),
             ],
             vec![
-                "user::openbitfun-system::ppt-design".to_string(),
-                "user::openbitfun-system::agent-browser".to_string(),
-                "user::openbitfun-system::agent-browser".to_string(),
+                "user::bitfun-system::ppt-design".to_string(),
+                "user::bitfun-system::agent-browser".to_string(),
+                "user::bitfun-system::agent-browser".to_string(),
             ],
         );
 
         assert_eq!(
             disabled,
-            vec!["user::openbitfun-system::ppt-design".to_string()]
+            vec!["user::bitfun-system::ppt-design".to_string()]
         );
         assert_eq!(
             enabled,
-            vec!["user::openbitfun-system::agent-browser".to_string()]
+            vec!["user::bitfun-system::agent-browser".to_string()]
         );
     }
 
@@ -740,7 +740,7 @@ mod tests {
             added_tools: Vec::new(),
             removed_tools: Vec::new(),
             disabled_user_skills: Vec::new(),
-            enabled_user_skills: vec!["user::openbitfun-system::ppt-design".to_string()],
+            enabled_user_skills: vec!["user::bitfun-system::ppt-design".to_string()],
             subagent_overrides: Default::default(),
             tool_permission_rules: Vec::new(),
             default_tools: &[],
@@ -751,7 +751,7 @@ mod tests {
         assert_eq!(stored.profile_id, "Standard");
         assert_eq!(
             stored.enabled_user_skills,
-            vec!["user::openbitfun-system::ppt-design".to_string()]
+            vec!["user::bitfun-system::ppt-design".to_string()]
         );
         assert!(stored.disabled_user_skills.is_empty());
     }

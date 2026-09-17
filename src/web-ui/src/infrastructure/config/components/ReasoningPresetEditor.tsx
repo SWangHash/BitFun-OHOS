@@ -1,4 +1,4 @@
-import { OverflowText, Button, Combobox, Icon, IconButton, Input, Listbox, ListboxEmpty, ListboxOption, Select, Switch, Textarea, Tooltip, type ComboboxOption, type SelectOption } from '@openbitfun/ui';
+import { OverflowText, Button, Combobox, Icon, IconButton, Input, Listbox, ListboxEmpty, ListboxOption, Select, Switch, Textarea, Tooltip, type ComboboxOption, type SelectOption } from '@bitfun/ui';
 import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
@@ -287,27 +287,27 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
 
   return (
     <div
-      className="openbitfun-reasoning-preset-editor"
-      data-openbitfun-component="reasoning-preset-editor"
-      data-openbitfun-part="root"
+      className="bitfun-reasoning-preset-editor"
+      data-bitfun-component="reasoning-preset-editor"
+      data-bitfun-part="root"
       data-testid="settings-reasoning-preset-editor"
     >
       <section
-        className="openbitfun-reasoning-preset-editor__section"
-        data-openbitfun-component="reasoning-preset-editor"
-        data-openbitfun-part="section"
+        className="bitfun-reasoning-preset-editor__section"
+        data-bitfun-component="reasoning-preset-editor"
+        data-bitfun-part="section"
       >
         <div
-          className="openbitfun-reasoning-preset-editor__primary-settings"
-          data-openbitfun-component="reasoning-preset-editor"
-          data-openbitfun-part="primarySettings"
+          className="bitfun-reasoning-preset-editor__primary-settings"
+          data-bitfun-component="reasoning-preset-editor"
+          data-bitfun-part="primarySettings"
         >
-          <div className="openbitfun-reasoning-preset-editor__primary-setting">
-            <span className="openbitfun-reasoning-preset-editor__primary-setting-label">
+          <div className="bitfun-reasoning-preset-editor__primary-setting">
+            <span className="bitfun-reasoning-preset-editor__primary-setting-label">
               {t('reasoningPresets.catalogSource')}
             </span>
             <Combobox
-              className="openbitfun-reasoning-preset-editor__primary-control"
+              className="bitfun-reasoning-preset-editor__primary-control"
               value={catalog.source}
               disabled={disabled}
               size="sm"
@@ -326,12 +326,12 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
               }}
             />
           </div>
-          <div className="openbitfun-reasoning-preset-editor__primary-setting">
-            <span className="openbitfun-reasoning-preset-editor__primary-setting-label">
+          <div className="bitfun-reasoning-preset-editor__primary-setting">
+            <span className="bitfun-reasoning-preset-editor__primary-setting-label">
               {t('reasoningPresets.defaultBehavior')}
             </span>
             <Select
-              className="openbitfun-reasoning-preset-editor__primary-control"
+              className="bitfun-reasoning-preset-editor__primary-control"
               value={value.default_preset ?? ''}
               disabled={disabled}
               size="sm"
@@ -344,20 +344,20 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
 
         {catalog.source === 'models_dev' && (
           <div
-            className="openbitfun-reasoning-preset-editor__models-dev-binding"
-            data-openbitfun-component="reasoning-preset-editor"
-            data-openbitfun-part="binding"
+            className="bitfun-reasoning-preset-editor__models-dev-binding"
+            data-bitfun-component="reasoning-preset-editor"
+            data-bitfun-part="binding"
           >
-            <div className="openbitfun-reasoning-preset-editor__models-dev-search">
-              <div className="openbitfun-reasoning-preset-editor__models-dev-search-field">
-                <div className="openbitfun-reasoning-preset-editor__models-dev-search-input">
+            <div className="bitfun-reasoning-preset-editor__models-dev-search">
+              <div className="bitfun-reasoning-preset-editor__models-dev-search-field">
+                <div className="bitfun-reasoning-preset-editor__models-dev-search-input">
                   <span>{t('reasoningPresets.catalogSearch')}</span>
                   <div
                     ref={modelsDevSearchAnchorRef}
-                    className="openbitfun-reasoning-preset-editor__models-dev-search-control"
+                    className="bitfun-reasoning-preset-editor__models-dev-search-control"
                   >
                     <Input
-                      className="openbitfun-reasoning-preset-editor__models-dev-search-field-control"
+                      className="bitfun-reasoning-preset-editor__models-dev-search-field-control"
                       value={modelsDevSearch}
                       disabled={disabled}
                       placeholder={t('reasoningPresets.catalogSearchPlaceholder')}
@@ -401,8 +401,8 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                     {showModelsDevSearchResults && createPortal(
                       <div
                         ref={modelsDevSearchPopoverRef}
-                        className="openbitfun-reasoning-preset-editor__models-dev-search-results"
-                        data-openbitfun-placement={modelsDevSearchLayout?.placement ?? 'bottom'}
+                        className="bitfun-reasoning-preset-editor__models-dev-search-results"
+                        data-bitfun-placement={modelsDevSearchLayout?.placement ?? 'bottom'}
                         style={{
                           top: `${modelsDevSearchLayout?.top ?? 0}px`,
                           left: `${modelsDevSearchLayout?.left ?? 0}px`,
@@ -414,7 +414,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                       >
                         <Listbox
                           aria-label={t('reasoningPresets.catalogSearchResults')}
-                          className="openbitfun-reasoning-preset-editor__models-dev-search-list"
+                          className="bitfun-reasoning-preset-editor__models-dev-search-list"
                           focusMode="virtual"
                           id={modelsDevSearchListboxId}
                         >
@@ -438,7 +438,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                           )}
                         </Listbox>
                         {modelsDevSearchResults.total > modelsDevSearchResults.items.length && (
-                          <div className="openbitfun-reasoning-preset-editor__models-dev-search-limit">
+                          <div className="bitfun-reasoning-preset-editor__models-dev-search-limit">
                             {t('reasoningPresets.catalogSearchLimit')}
                           </div>
                         )}
@@ -447,15 +447,15 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                     )}
                   </div>
                 </div>
-                <span className="openbitfun-reasoning-preset-editor__models-dev-search-hint">
+                <span className="bitfun-reasoning-preset-editor__models-dev-search-hint">
                   {t('reasoningPresets.catalogSearchHint')}
                 </span>
               </div>
             </div>
-            <div className="openbitfun-reasoning-preset-editor__binding-field">
+            <div className="bitfun-reasoning-preset-editor__binding-field">
               <span>{t('reasoningPresets.catalogProvider')}</span>
               <Combobox
-                className="openbitfun-reasoning-preset-editor__binding-control"
+                className="bitfun-reasoning-preset-editor__binding-control"
                 size="sm"
                 aria-label={t('reasoningPresets.catalogProvider')}
                 value={catalog.provider}
@@ -471,10 +471,10 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                 }}
               />
             </div>
-            <div className="openbitfun-reasoning-preset-editor__binding-field">
+            <div className="bitfun-reasoning-preset-editor__binding-field">
               <span>{t('reasoningPresets.catalogModel')}</span>
               <Combobox
-                className="openbitfun-reasoning-preset-editor__binding-control"
+                className="bitfun-reasoning-preset-editor__binding-control"
                 size="sm"
                 aria-label={t('reasoningPresets.catalogModel')}
                 value={catalog.model}
@@ -495,9 +495,9 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
 
         {catalog.source === 'models_dev' && unavailablePresetLabels.length > 0 && (
           <div
-            className="openbitfun-reasoning-preset-editor__unavailable-warning"
-            data-openbitfun-component="reasoning-preset-editor"
-            data-openbitfun-part="unavailableWarning"
+            className="bitfun-reasoning-preset-editor__unavailable-warning"
+            data-bitfun-component="reasoning-preset-editor"
+            data-bitfun-part="unavailableWarning"
             role="status"
           >
             <AlertTriangle size={16} aria-hidden="true" />
@@ -517,16 +517,16 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
           && (generatedProjection.presets?.some(preset => preset.source !== 'model_config') ?? false)
           && (
           <div
-            className="openbitfun-reasoning-preset-editor__generated"
-            data-openbitfun-component="reasoning-preset-editor"
-            data-openbitfun-part="generated"
+            className="bitfun-reasoning-preset-editor__generated"
+            data-bitfun-component="reasoning-preset-editor"
+            data-bitfun-part="generated"
           >
-            <div className="openbitfun-reasoning-preset-editor__generated-title">
+            <div className="bitfun-reasoning-preset-editor__generated-title">
               {t('reasoningPresets.generatedTitle')}
             </div>
-            <div className="openbitfun-reasoning-preset-editor__generated-list">
+            <div className="bitfun-reasoning-preset-editor__generated-list">
               {generatedProjection.presets?.filter(preset => preset.source !== 'model_config').map(preset => (
-                <span key={preset.id} className="openbitfun-reasoning-preset-editor__generated-item">
+                <span key={preset.id} className="bitfun-reasoning-preset-editor__generated-item">
                   {preset.label || preset.id}
                 </span>
               ))}
@@ -536,22 +536,22 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
       </section>
 
       <section
-        className="openbitfun-reasoning-preset-editor__section"
-        data-openbitfun-component="reasoning-preset-editor"
-        data-openbitfun-part="section"
+        className="bitfun-reasoning-preset-editor__section"
+        data-bitfun-component="reasoning-preset-editor"
+        data-bitfun-part="section"
       >
         <div
-          className="openbitfun-reasoning-preset-editor__header"
-          data-openbitfun-component="reasoning-preset-editor"
-          data-openbitfun-part="header"
+          className="bitfun-reasoning-preset-editor__header"
+          data-bitfun-component="reasoning-preset-editor"
+          data-bitfun-part="header"
         >
-          <div className="openbitfun-reasoning-preset-editor__section-title-group">
-            <div className="openbitfun-reasoning-preset-editor__section-title">
+          <div className="bitfun-reasoning-preset-editor__section-title-group">
+            <div className="bitfun-reasoning-preset-editor__section-title">
               {t('reasoningPresets.customTitle')}
             </div>
             <Tooltip content={t('reasoningPresets.customTooltip')} placement="top">
               <span
-                className="openbitfun-reasoning-preset-editor__section-title-info"
+                className="bitfun-reasoning-preset-editor__section-title-info"
                 role="button"
                 tabIndex={0}
                 aria-label={t('reasoningPresets.customTooltip')}
@@ -568,17 +568,17 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
 
         {presets.length === 0 ? (
           <div
-            className="openbitfun-reasoning-preset-editor__empty"
-            data-openbitfun-component="reasoning-preset-editor"
-            data-openbitfun-part="empty"
+            className="bitfun-reasoning-preset-editor__empty"
+            data-bitfun-component="reasoning-preset-editor"
+            data-bitfun-part="empty"
           >
             {t('reasoningPresets.empty')}
           </div>
         ) : (
           <div
-            className="openbitfun-reasoning-preset-editor__list"
-            data-openbitfun-component="reasoning-preset-editor"
-            data-openbitfun-part="list"
+            className="bitfun-reasoning-preset-editor__list"
+            data-bitfun-component="reasoning-preset-editor"
+            data-bitfun-part="list"
           >
             {presets.map((preset, presetIndex) => {
               const expanded = expandedPresetIndex === presetIndex;
@@ -597,30 +597,30 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
               return (
                 <div
                   key={`${preset.id}-${presetIndex}`}
-                  className="openbitfun-reasoning-preset-editor__row"
-                  data-openbitfun-component="reasoning-preset-editor"
-                  data-openbitfun-part="preset"
-                  data-openbitfun-state={expanded ? 'expanded' : undefined}
+                  className="bitfun-reasoning-preset-editor__row"
+                  data-bitfun-component="reasoning-preset-editor"
+                  data-bitfun-part="preset"
+                  data-bitfun-state={expanded ? 'expanded' : undefined}
                   data-expanded={expanded ? 'true' : 'false'}
                 >
                   <div
-                    className="openbitfun-reasoning-preset-editor__row-summary"
-                    data-openbitfun-component="reasoning-preset-editor"
-                    data-openbitfun-part="presetSummary"
+                    className="bitfun-reasoning-preset-editor__row-summary"
+                    data-bitfun-component="reasoning-preset-editor"
+                    data-bitfun-part="presetSummary"
                   >
                     <IconButton
                       type="button"
-                      className="openbitfun-reasoning-preset-editor__row-toggle"
+                      className="bitfun-reasoning-preset-editor__row-toggle"
                       onClick={() => setExpandedPresetIndex(expanded ? null : presetIndex)}
                       aria-expanded={expanded}
                       aria-label={preset.label?.trim() || preset.id}
                       icon={expanded ? <Icon name="chevron-down" size="sm" /> : <Icon name="chevron-right" size="sm" />}
                     />
-                    <div className="openbitfun-reasoning-preset-editor__row-content">
+                    <div className="bitfun-reasoning-preset-editor__row-content">
                       {expanded ? (
-                        <div className="openbitfun-reasoning-preset-editor__row-name-editor">
+                        <div className="bitfun-reasoning-preset-editor__row-name-editor">
                           <Input
-                            className="openbitfun-reasoning-preset-editor__row-name-input"
+                            className="bitfun-reasoning-preset-editor__row-name-input"
                             aria-label={t('reasoningPresets.label')}
                             value={preset.label ?? ''}
                             disabled={disabled}
@@ -634,21 +634,21 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                       ) : (
                         <button data-overflow-trigger
                           type="button"
-                          className="openbitfun-reasoning-preset-editor__row-name"
+                          className="bitfun-reasoning-preset-editor__row-name"
                           onClick={() => setExpandedPresetIndex(presetIndex)}
                         ><OverflowText>
                           {preset.label?.trim() || preset.id}
                         </OverflowText></button>
                       )}
                       {presetSummary && (
-                        <OverflowText className="openbitfun-reasoning-preset-editor__row-preview">
+                        <OverflowText className="bitfun-reasoning-preset-editor__row-preview">
                           {presetSummary}
                         </OverflowText>
                       )}
                     </div>
-                    <div className="openbitfun-reasoning-preset-editor__row-badges">
+                    <div className="bitfun-reasoning-preset-editor__row-badges">
                       {value.default_preset === preset.id && (
-                        <span className="openbitfun-reasoning-preset-editor__badge">
+                        <span className="bitfun-reasoning-preset-editor__badge">
                           {t('reasoningPresets.default')}
                         </span>
                       )}
@@ -707,18 +707,18 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
 
                   {expanded && (
                     <div
-                      className="openbitfun-reasoning-preset-editor__row-editor"
-                      data-openbitfun-component="reasoning-preset-editor"
-                      data-openbitfun-part="presetEditor"
+                      className="bitfun-reasoning-preset-editor__row-editor"
+                      data-bitfun-component="reasoning-preset-editor"
+                      data-bitfun-part="presetEditor"
                     >
                       {usesSinglePatchEditor ? (
                         <div
-                          className="openbitfun-reasoning-preset-editor__patch-editor"
-                          data-openbitfun-component="reasoning-preset-editor"
-                          data-openbitfun-part="patchEditor"
+                          className="bitfun-reasoning-preset-editor__patch-editor"
+                          data-bitfun-component="reasoning-preset-editor"
+                          data-bitfun-part="patchEditor"
                         >
-                          <div className="openbitfun-reasoning-preset-editor__patch-heading">
-                            <span className="openbitfun-reasoning-preset-editor__patch-title">
+                          <div className="bitfun-reasoning-preset-editor__patch-heading">
+                            <span className="bitfun-reasoning-preset-editor__patch-title">
                               {t('reasoningPresets.settingPatch')}
                             </span>
                           </div>
@@ -747,17 +747,17 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                         </div>
                       ) : (
                         <div
-                          className="openbitfun-reasoning-preset-editor__legacy"
-                          data-openbitfun-component="reasoning-preset-editor"
-                          data-openbitfun-part="legacy"
+                          className="bitfun-reasoning-preset-editor__legacy"
+                          data-bitfun-component="reasoning-preset-editor"
+                          data-bitfun-part="legacy"
                         >
                           <div
-                            className="openbitfun-reasoning-preset-editor__legacy-notice"
-                            data-openbitfun-component="reasoning-preset-editor"
-                            data-openbitfun-part="legacyNotice"
+                            className="bitfun-reasoning-preset-editor__legacy-notice"
+                            data-bitfun-component="reasoning-preset-editor"
+                            data-bitfun-part="legacyNotice"
                           >
                             <AlertTriangle size={16} aria-hidden="true" />
-                            <div className="openbitfun-reasoning-preset-editor__legacy-copy">
+                            <div className="bitfun-reasoning-preset-editor__legacy-copy">
                               <strong>{t('reasoningPresets.legacyTitle')}</strong>
                               <span>{t('reasoningPresets.legacyDescription')}</span>
                             </div>
@@ -776,18 +776,18 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                             </Button>
                           </div>
                           <div
-                            className="openbitfun-reasoning-preset-editor__actions"
-                            data-openbitfun-component="reasoning-preset-editor"
-                            data-openbitfun-part="actions"
+                            className="bitfun-reasoning-preset-editor__actions"
+                            data-bitfun-component="reasoning-preset-editor"
+                            data-bitfun-part="actions"
                           >
                             {actions.map((action, actionIndex) => (
                               <div
                                 key={`${presetIndex}:legacy:${actionIndex}`}
-                                className="openbitfun-reasoning-preset-editor__action"
-                                data-openbitfun-component="reasoning-preset-editor"
-                                data-openbitfun-part="action"
+                                className="bitfun-reasoning-preset-editor__action"
+                                data-bitfun-component="reasoning-preset-editor"
+                                data-bitfun-part="action"
                               >
-                                <span className="openbitfun-reasoning-preset-editor__legacy-action-type">
+                                <span className="bitfun-reasoning-preset-editor__legacy-action-type">
                                   {action.type === 'effort'
                                     ? t('reasoningPresets.settingEffort')
                                     : action.type === 'toggle'
@@ -796,7 +796,7 @@ export const ReasoningPresetEditor: React.FC<ReasoningPresetEditorProps> = ({
                                         ? t('reasoningPresets.settingBudget')
                                         : t('reasoningPresets.settingPatch')}
                                 </span>
-                                <pre className="openbitfun-reasoning-preset-editor__legacy-action-value">
+                                <pre className="bitfun-reasoning-preset-editor__legacy-action-value">
                                   {action.type === 'request_patch'
                                     ? JSON.stringify(action.body, null, 2)
                                     : action.type === 'toggle'

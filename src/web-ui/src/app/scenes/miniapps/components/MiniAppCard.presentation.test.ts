@@ -55,7 +55,7 @@ describe('Mini App card presentation', () => {
     expect(submissions.match(/className="miniapp-gallery-pane miniapp-submissions"/g)).toHaveLength(3);
     expect(submissions.match(/<GalleryPageHeader/g)).toHaveLength(3);
     expect(sceneStyles).toContain(
-      '$miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6)), 880px);',
+      '$miniapp-gallery-content-inline-size: min(calc(100% - var(--bitfun-space-6)), 880px);',
     );
     expect(sceneStyles).toMatch(
       /\.miniapp-gallery-pane \{[\s\S]*?\.gallery-page-header \{[\s\S]*?width: \$miniapp-gallery-content-inline-size;/,
@@ -139,10 +139,10 @@ describe('Mini App card presentation', () => {
     expect(row).toContain('<Icon name="arrow-down" size="xs"');
     expect(row).toContain('<HardDrive size={13}');
     expect(stylesheet).toMatch(
-      /&__summary \{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\) var\(--openbitfun-type-meta-line-height\);[\s\S]*?block-size: 126px;[\s\S]*?padding: var\(--openbitfun-space-3\) var\(--openbitfun-space-4\);/,
+      /&__summary \{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\) var\(--bitfun-type-meta-line-height\);[\s\S]*?block-size: 126px;[\s\S]*?padding: var\(--bitfun-space-3\) var\(--bitfun-space-4\);/,
     );
     expect(stylesheet).toMatch(
-      /&__meta \{[\s\S]*?align-self: end;[\s\S]*?block-size: var\(--openbitfun-type-meta-line-height\);/,
+      /&__meta \{[\s\S]*?align-self: end;[\s\S]*?block-size: var\(--bitfun-type-meta-line-height\);/,
     );
     expect(stylesheet).toMatch(
       /&__actions \{[\s\S]*?align-self: end;[\s\S]*?align-items: center;/,

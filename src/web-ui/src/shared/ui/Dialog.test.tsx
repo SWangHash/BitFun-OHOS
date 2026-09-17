@@ -3,7 +3,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Dialog, DialogBody, DialogDescription, DialogHeader, DialogHeading, DialogTitle, Sheet } from '@openbitfun/ui';
+import { Dialog, DialogBody, DialogDescription, DialogHeader, DialogHeading, DialogTitle, Sheet } from '@bitfun/ui';
 
 describe('overlay exit content', () => {
   let root: Root;
@@ -36,7 +36,7 @@ describe('overlay exit content', () => {
       <button>Inside</button>
     </Dialog>));
     expect(document.activeElement).toBe(before);
-    expect(host.querySelector('.custom-scrim')?.getAttribute('data-openbitfun-part')).toBe('overlay');
+    expect(host.querySelector('.custom-scrim')?.getAttribute('data-bitfun-part')).toBe('overlay');
     expect(host.querySelector('[data-product-overlay="preview"]')).not.toBeNull();
     after.focus();
     act(() => root.render(null));

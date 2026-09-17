@@ -10,6 +10,6 @@ export const copyableTextPreviewAppearanceDescriptor: AppearanceSurfaceDescripto
     { id: 'copyAction' },
   ],
   states: [
-    { id: 'copied', selector: { kind: 'self', suffix: '[data-openbitfun-state~="copied"]' } },
+    { id: 'copied', selector: { kind: 'self', suffix: '[data-bitfun-state~="copied"]' } },
   ],
 };

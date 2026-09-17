@@ -14,10 +14,10 @@ pub(crate) async fn list_ai_models_by_config(args: &Value) -> Result<Value, Stri
 }
 
 async fn create_transient_ai_client_for_config(
-    model_config: openbitfun_core::service::config::types::AIModelConfig,
-) -> Result<openbitfun_core::infrastructure::ai::AIClient, String> {
-    let global_config: openbitfun_core::service::config::GlobalConfig =
-        openbitfun_core::service::config::get_global_config_service()
+    model_config: bitfun_core::service::config::types::AIModelConfig,
+) -> Result<bitfun_core::infrastructure::ai::AIClient, String> {
+    let global_config: bitfun_core::service::config::GlobalConfig =
+        bitfun_core::service::config::get_global_config_service()
             .await
             .map_err(|e| e.to_string())?
             .get_config(None)
@@ -27,16 +27,16 @@ async fn create_transient_ai_client_for_config(
 }
 
 async fn build_transient_client(
-    model_config: openbitfun_core::service::config::types::AIModelConfig,
-    global_config: &openbitfun_core::service::config::GlobalConfig,
-) -> Result<openbitfun_core::infrastructure::ai::AIClient, String> {
+    model_config: bitfun_core::service::config::types::AIModelConfig,
+    global_config: &bitfun_core::service::config::GlobalConfig,
+) -> Result<bitfun_core::infrastructure::ai::AIClient, String> {
     let auth = model_config.auth.clone();
-    let stream_options = openbitfun_core::infrastructure::ai::build_stream_options_for_model(
+    let stream_options = bitfun_core::infrastructure::ai::build_stream_options_for_model(
         &global_config.ai,
         Some(&model_config),
     );
 
-    let mut ai_config: openbitfun_core::util::types::AIConfig = model_config
+    let mut ai_config: bitfun_core::util::types::AIConfig = model_config
         .try_into()
         .map_err(|e| format!("Failed to convert configuration: {}", e))?;
     let skip_ssl_verify = ai_config.skip_ssl_verify;
@@ -47,12 +47,12 @@ async fn build_transient_client(
         None
     };
     let subscription_options =
-        openbitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
+        bitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
             proxy_config.clone(),
             skip_ssl_verify,
         );
 
-    openbitfun_core::infrastructure::ai::client_factory::apply_subscription_auth_with_options(
+    bitfun_core::infrastructure::ai::client_factory::apply_subscription_auth_with_options(
         &auth,
         &mut ai_config,
         &subscription_options,
@@ -61,9 +61,9 @@ async fn build_transient_client(
     .map_err(|e| format!("Failed to resolve subscription auth: {}", e))?;
 
     Ok(
-        openbitfun_core::infrastructure::ai::client_factory::apply_subscription_request_profile(
+        bitfun_core::infrastructure::ai::client_factory::apply_subscription_request_profile(
             &auth,
-            openbitfun_core::infrastructure::ai::AIClient::new_with_runtime_options(
+            bitfun_core::infrastructure::ai::AIClient::new_with_runtime_options(
                 ai_config,
                 proxy_config,
                 stream_options,
@@ -73,19 +73,19 @@ async fn build_transient_client(
 }
 
 pub(crate) async fn get_ai_model_catalog() -> Result<Value, String> {
-    serde_json::to_value(openbitfun_core::get_ai_model_catalog().await?)
+    serde_json::to_value(bitfun_core::get_ai_model_catalog().await?)
         .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn project_ai_model_reasoning_catalog(args: &Value) -> Result<Value, String> {
     let request = serde_json::from_value(crate::peer_host::args::request_value(args).clone())
         .map_err(|error| format!("Invalid reasoning catalog request: {error}"))?;
-    serde_json::to_value(openbitfun_core::project_ai_model_reasoning_catalog(request).await)
+    serde_json::to_value(bitfun_core::project_ai_model_reasoning_catalog(request).await)
         .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn get_model_configs() -> Result<Value, String> {
-    let models = openbitfun_core::service::config::get_global_config_service()
+    let models = bitfun_core::service::config::get_global_config_service()
         .await
         .map_err(|error| error.to_string())?
         .get_ai_models()
@@ -95,17 +95,17 @@ pub(crate) async fn get_model_configs() -> Result<Value, String> {
 }
 
 pub(crate) async fn get_models_dev_catalog_status() -> Result<Value, String> {
-    serde_json::to_value(openbitfun_core::get_models_dev_catalog_status().await)
+    serde_json::to_value(bitfun_core::get_models_dev_catalog_status().await)
         .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn refresh_models_dev_catalog_now() -> Result<Value, String> {
-    serde_json::to_value(openbitfun_core::refresh_models_dev_catalog_now().await?)
+    serde_json::to_value(bitfun_core::refresh_models_dev_catalog_now().await?)
         .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn test_ai_config_connection(args: &Value) -> Result<Value, String> {
-    use openbitfun_core::service::config::types::{AIModelConfig, ModelCapability, ModelCategory};
+    use bitfun_core::service::config::types::{AIModelConfig, ModelCapability, ModelCategory};
     let request = crate::peer_host::args::request_value(args);
     let config: AIModelConfig =
         serde_json::from_value(request.get("config").cloned().ok_or("Missing config")?)
@@ -139,7 +139,7 @@ pub(crate) async fn test_ai_config_connection(args: &Value) -> Result<Value, Str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_core::service::config::{types::AIModelConfig, GlobalConfig};
+    use bitfun_core::service::config::{types::AIModelConfig, GlobalConfig};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]

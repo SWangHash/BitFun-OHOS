@@ -1,17 +1,17 @@
 [package]
-name = "openbitfun-plugin-runtime-client"
+name = "bitfun-plugin-runtime-client"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Default PluginRuntimeClient implementation for OpenBitFun extension execution"
+description = "Default PluginRuntimeClient implementation for BitFun extension execution"
 
 [lib]
-name = "openbitfun_plugin_runtime_client"
+name = "bitfun_plugin_runtime_client"
 crate-type = ["rlib"]
 
 [dependencies]
 async-trait = { workspace = true }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
 tokio = { workspace = true, features = ["sync", "time"] }
 
 [dev-dependencies]

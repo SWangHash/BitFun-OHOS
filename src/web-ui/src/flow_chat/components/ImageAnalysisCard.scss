@@ -3,14 +3,14 @@
  */
 
 .image-analysis-card {
-  --image-analysis-surface: var(--openbitfun-color-action-quiet-hover);
-  --image-analysis-background: var(--openbitfun-color-surface-canvas);
-  --image-analysis-border: var(--openbitfun-color-border-default);
-  --image-analysis-text: var(--openbitfun-color-content-primary);
-  --image-analysis-text-secondary: var(--openbitfun-color-content-secondary);
-  --image-analysis-primary: var(--openbitfun-color-accent-default);
-  --image-analysis-success: var(--openbitfun-color-status-success-content);
-  --image-analysis-error: var(--openbitfun-color-status-danger-content);
+  --image-analysis-surface: var(--bitfun-color-action-quiet-hover);
+  --image-analysis-background: var(--bitfun-color-surface-canvas);
+  --image-analysis-border: var(--bitfun-color-border-default);
+  --image-analysis-text: var(--bitfun-color-content-primary);
+  --image-analysis-text-secondary: var(--bitfun-color-content-secondary);
+  --image-analysis-primary: var(--bitfun-color-accent-default);
+  --image-analysis-success: var(--bitfun-color-status-success-content);
+  --image-analysis-error: var(--bitfun-color-status-danger-content);
 
   background: var(--image-analysis-surface);
   border: 1px solid var(--image-analysis-border);
@@ -86,8 +86,8 @@
 }
 
 .image-analysis-card__filename {
-  font-size: var(--openbitfun-type-body-md-font-size);
-  font-weight: var(--openbitfun-type-label-sm-font-weight);
+  font-size: var(--bitfun-type-body-md-font-size);
+  font-weight: var(--bitfun-type-label-sm-font-weight);
   color: var(--image-analysis-text);
   margin-bottom: 6px;
   overflow: hidden;
@@ -99,7 +99,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  font-size: var(--bitfun-type-flow-control-font-size);
   
   &.analyzing {
     color: var(--image-analysis-primary);
@@ -153,8 +153,8 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
   color: var(--image-analysis-text);
   
   .summary-icon {
@@ -183,17 +183,17 @@
     }
     
     h4 {
-      font-size: var(--openbitfun-type-flow-control-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      font-size: var(--bitfun-type-flow-control-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
       color: var(--image-analysis-text-secondary);
       margin: 0 0 6px 0;
       text-transform: uppercase;
-      letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+      letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
     }
     
     p {
-      font-size: var(--openbitfun-type-flow-control-font-size);
-      line-height: var(--openbitfun-type-flow-body-line-height);
+      font-size: var(--bitfun-type-flow-control-font-size);
+      line-height: var(--bitfun-type-flow-body-line-height);
       color: var(--image-analysis-text);
       margin: 0;
     }
@@ -207,7 +207,7 @@
     .tag {
       display: inline-block;
       padding: 4px 10px;
-      font-size: var(--openbitfun-type-flow-control-font-size);
+      font-size: var(--bitfun-type-flow-control-font-size);
       background: var(--image-analysis-surface);
       color: var(--image-analysis-text);
       border: 1px solid var(--image-analysis-border);
@@ -219,7 +219,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--openbitfun-type-flow-control-font-size);
+    font-size: var(--bitfun-type-flow-control-font-size);
     color: var(--image-analysis-text-secondary);
     
     .meta-separator {
@@ -237,17 +237,17 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--image-analysis-error) 10%, transparent);
   border-radius: 6px;
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  font-size: var(--bitfun-type-flow-control-font-size);
   color: var(--image-analysis-error);
 }
 
-:root[data-openbitfun-appearance-mode='dark'] .image-analysis-card {
-  --image-analysis-surface: var(--openbitfun-color-surface-raised);
-  --image-analysis-background: var(--openbitfun-color-surface-canvas);
-  --image-analysis-border: var(--openbitfun-color-border-default);
-  --image-analysis-text: var(--openbitfun-color-content-primary);
-  --image-analysis-text-secondary: var(--openbitfun-color-content-muted);
-  --image-analysis-primary: var(--openbitfun-color-accent-default);
-  --image-analysis-success: var(--openbitfun-color-status-success-content);
-  --image-analysis-error: var(--openbitfun-color-status-danger-content);
+:root[data-bitfun-appearance-mode='dark'] .image-analysis-card {
+  --image-analysis-surface: var(--bitfun-color-surface-raised);
+  --image-analysis-background: var(--bitfun-color-surface-canvas);
+  --image-analysis-border: var(--bitfun-color-border-default);
+  --image-analysis-text: var(--bitfun-color-content-primary);
+  --image-analysis-text-secondary: var(--bitfun-color-content-muted);
+  --image-analysis-primary: var(--bitfun-color-accent-default);
+  --image-analysis-success: var(--bitfun-color-status-success-content);
+  --image-analysis-error: var(--bitfun-color-status-danger-content);
 }

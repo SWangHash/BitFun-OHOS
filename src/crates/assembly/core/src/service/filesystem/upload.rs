@@ -1,5 +1,5 @@
 //! Product assembly for the runtime-owned workspace upload service.
-use openbitfun_services_core::workspace_transfer::{
+use bitfun_services_core::workspace_transfer::{
     TransferScope, UploadStatus, UploadTarget, UploadTransfers, MAX_UPLOAD_CHUNK,
 };
 use serde::{Deserialize, Serialize};

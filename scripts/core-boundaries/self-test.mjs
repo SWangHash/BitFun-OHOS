@@ -34,26 +34,26 @@ export function runManifestParserSelfTest({
   agentRuntimeIntegrationTestTargets,
 }) {
   const positiveCases = [
-    'openbitfun-core = { path = "../core" }',
-    '[dependencies.openbitfun-core]',
-    '[dev-dependencies."openbitfun-core"]',
-    "[target.'cfg(windows)'.dependencies.openbitfun-core]",
-    "[target.'cfg(unix)'.build-dependencies.\"openbitfun-core\"]",
+    'bitfun-core = { path = "../core" }',
+    '[dependencies.bitfun-core]',
+    '[dev-dependencies."bitfun-core"]',
+    "[target.'cfg(windows)'.dependencies.bitfun-core]",
+    "[target.'cfg(unix)'.build-dependencies.\"bitfun-core\"]",
   ];
   const negativeCases = [
-    '# openbitfun-core = { path = "../core" }',
+    '# bitfun-core = { path = "../core" }',
     '[dependencies]',
-    '[workspace.dependencies.openbitfun-core]',
-    '[dependencies.openbitfun-core-extra]',
+    '[workspace.dependencies.bitfun-core]',
+    '[dependencies.bitfun-core-extra]',
   ];
 
   for (const line of positiveCases) {
-    if (!isManifestDependencyDeclaration(line, 'openbitfun-core')) {
+    if (!isManifestDependencyDeclaration(line, 'bitfun-core')) {
       throw new Error(`manifest parser missed dependency declaration: ${line}`);
     }
   }
   for (const line of negativeCases) {
-    if (isManifestDependencyDeclaration(line, 'openbitfun-core')) {
+    if (isManifestDependencyDeclaration(line, 'bitfun-core')) {
       throw new Error(`manifest parser matched non-dependency declaration: ${line}`);
     }
   }
@@ -286,15 +286,15 @@ export function runManifestParserSelfTest({
     'rmcp = { version = "0.12.0", default-features = false, features = [',
     '    "auth",',
     '], optional = true }',
-    'openbitfun-core = { path = "../core", default-features = false, features = ["product-full"] }',
-    'single-quoted-opencode = { package = \'openbitfun-opencode-adapter\', path = "../adapters/opencode-adapter" }',
+    'bitfun-core = { path = "../core", default-features = false, features = ["product-full"] }',
+    'single-quoted-opencode = { package = \'bitfun-opencode-adapter\', path = "../adapters/opencode-adapter" }',
     '[dependencies.git2]',
     'workspace = true',
     'optional = true',
-    '[target.\'cfg(windows)\'.dependencies."openbitfun-cli"]',
+    '[target.\'cfg(windows)\'.dependencies."bitfun-cli"]',
     'path = "../../apps/cli"',
     '[dependencies.renamed-opencode]',
-    'package = "openbitfun-opencode-adapter"',
+    'package = "bitfun-opencode-adapter"',
     'path = "../adapters/opencode-adapter"',
     '[features]',
     'image = []',
@@ -312,7 +312,7 @@ export function runManifestParserSelfTest({
   if (parsedByName.get('git2')?.optional !== true) {
     throw new Error('dependency profile parser must detect optional dependency tables');
   }
-  if (parsedByName.get('openbitfun-cli')?.optional !== false) {
+  if (parsedByName.get('bitfun-cli')?.optional !== false) {
     throw new Error('dependency profile parser must detect non-optional target dependency tables');
   }
   if (parsedByName.get('renamed-opencode')?.optional !== false) {
@@ -321,7 +321,7 @@ export function runManifestParserSelfTest({
   if (
     !manifestDependencyMatches(
       parsedByName.get('single-quoted-opencode'),
-      'openbitfun-opencode-adapter',
+      'bitfun-opencode-adapter',
     )
   ) {
     throw new Error('dependency profile parser must detect single-quoted package aliases');
@@ -332,10 +332,10 @@ export function runManifestParserSelfTest({
   const parsedWorkspaceDeps = parseManifestDependencies(
     [
       '[workspace.dependencies]',
-      'opencode-fixture = { path = "src/crates/adapters/opencode-adapter", package = "openbitfun-opencode-adapter" }',
-      'opencode-fixture-single = { path = "src/crates/adapters/opencode-adapter", package = \'openbitfun-opencode-adapter\' }',
+      'opencode-fixture = { path = "src/crates/adapters/opencode-adapter", package = "bitfun-opencode-adapter" }',
+      'opencode-fixture-single = { path = "src/crates/adapters/opencode-adapter", package = \'bitfun-opencode-adapter\' }',
       '[workspace.dependencies.renamed-opencode-workspace]',
-      'package = "openbitfun-opencode-adapter"',
+      'package = "bitfun-opencode-adapter"',
       'path = "src/crates/adapters/opencode-adapter"',
     ],
     { includeWorkspace: true },
@@ -344,26 +344,26 @@ export function runManifestParserSelfTest({
   if (
     !manifestDependencyMatches(
       workspaceDepsByName.get('opencode-fixture'),
-      'openbitfun-opencode-adapter',
+      'bitfun-opencode-adapter',
     ) ||
     !manifestDependencyMatches(
       workspaceDepsByName.get('opencode-fixture-single'),
-      'openbitfun-opencode-adapter',
+      'bitfun-opencode-adapter',
     ) ||
     !manifestDependencyMatches(
       workspaceDepsByName.get('renamed-opencode-workspace'),
-      'openbitfun-opencode-adapter',
+      'bitfun-opencode-adapter',
     )
   ) {
     throw new Error('manifest parser must detect workspace aliases to forbidden packages');
   }
   const aliasedRuntimeDependency = parseManifestDependencies([
     '[dependencies]',
-    'runtime = { package = "openbitfun-agent-runtime", path = "../../execution/agent-runtime" }',
+    'runtime = { package = "bitfun-agent-runtime", path = "../../execution/agent-runtime" }',
   ])[0];
   if (
-    matchingForbiddenDependency(aliasedRuntimeDependency, ['openbitfun-agent-runtime']) !==
-    'openbitfun-agent-runtime'
+    matchingForbiddenDependency(aliasedRuntimeDependency, ['bitfun-agent-runtime']) !==
+    'bitfun-agent-runtime'
   ) {
     throw new Error('forbidden dependency checks must reject Cargo package aliases');
   }
@@ -409,8 +409,8 @@ export function runManifestParserSelfTest({
   const expectedClosedCoreProfiles = [
     [coreManifest, 'default', []],
     [coreManifest, 'i18n-runtime', ['dep:fluent-bundle', 'dep:unic-langid']],
-    [coreManifest, 'diagnostics', ['openbitfun-services-core/diagnostics']],
-    [coreManifest, 'diff', ['openbitfun-services-core/diff']],
+    [coreManifest, 'diagnostics', ['bitfun-services-core/diagnostics']],
+    [coreManifest, 'diff', ['bitfun-services-core/diff']],
     [servicesCoreManifest, 'default', []],
     [servicesCoreManifest, 'diagnostics', ['dep:regex']],
     [
@@ -425,7 +425,7 @@ export function runManifestParserSelfTest({
         'dep:base64',
         'dep:chrono',
         'dep:ignore',
-        'dep:openbitfun-core-types',
+        'dep:bitfun-core-types',
         'dep:regex',
         'dep:sha2',
         'dep:tokio',
@@ -434,14 +434,14 @@ export function runManifestParserSelfTest({
         'tokio/sync',
       ],
     ],
-    [servicesCoreManifest, 'product-identity', ['dep:openbitfun-core-types']],
+    [servicesCoreManifest, 'product-identity', ['dep:bitfun-core-types']],
     [servicesCoreManifest, 'memory-store', ['dep:rusqlite']],
     [
       servicesCoreManifest,
       'local-storage',
       [
-        'dep:openbitfun-core-types',
-        'dep:openbitfun-events',
+        'dep:bitfun-core-types',
+        'dep:bitfun-events',
         'dep:chrono',
         'dep:fs2',
         'dep:libc',
@@ -501,9 +501,9 @@ export function runManifestParserSelfTest({
       [
         'dep:anyhow',
         'dep:async-trait',
-        'dep:openbitfun-runtime-ports',
-        'openbitfun-runtime-ports/runtime-event-port',
-        'openbitfun-runtime-ports/workspace-ports',
+        'dep:bitfun-runtime-ports',
+        'bitfun-runtime-ports/runtime-event-port',
+        'bitfun-runtime-ports/workspace-ports',
         'dep:dunce',
         // WorkspaceFS metadata restoration is implemented by the local provider.
         'dep:filetime',
@@ -523,15 +523,15 @@ export function runManifestParserSelfTest({
     [
       coreManifest,
       'dispatch-store',
-      ['dep:base64', 'local-storage', 'openbitfun-services-core/dispatch-workspace'],
+      ['dep:base64', 'local-storage', 'bitfun-services-core/dispatch-workspace'],
     ],
-    [coreManifest, 'filesystem', ['openbitfun-services-core/filesystem']],
+    [coreManifest, 'filesystem', ['bitfun-services-core/filesystem']],
     [
       coreManifest,
       'local-storage',
-      ['dep:openbitfun-agent-tools', 'openbitfun-services-core/local-storage'],
+      ['dep:bitfun-agent-tools', 'bitfun-services-core/local-storage'],
     ],
-    [coreManifest, 'process-runtime', ['openbitfun-services-core/process-runtime']],
+    [coreManifest, 'process-runtime', ['bitfun-services-core/process-runtime']],
     [coreManifest, 'terminal', ['dep:terminal-core']],
     [
       coreManifest,
@@ -541,11 +541,11 @@ export function runManifestParserSelfTest({
         'filesystem',
         'local-storage',
         'process-runtime',
-        'openbitfun-services-core/markdown',
-        'openbitfun-services-core/workspace-identity',
-        'openbitfun-services-core/workspace-instructions',
-        'openbitfun-services-core/workspace-runtime',
-        'openbitfun-services-core/workspace-persistence',
+        'bitfun-services-core/markdown',
+        'bitfun-services-core/workspace-identity',
+        'bitfun-services-core/workspace-instructions',
+        'bitfun-services-core/workspace-runtime',
+        'bitfun-services-core/workspace-persistence',
       ],
     ],
     [coreManifest, 'workspace-watch', ['workspace-runtime', 'dep:notify']],
@@ -554,24 +554,24 @@ export function runManifestParserSelfTest({
       'remote-workspace',
       [
         'workspace-runtime',
-        'dep:openbitfun-services-integrations',
-        'openbitfun-services-integrations/remote-ssh',
+        'dep:bitfun-services-integrations',
+        'bitfun-services-integrations/remote-ssh',
       ],
     ],
     [
       coreManifest,
       'canvas-runtime',
-      ['dep:openbitfun-product-domains', 'openbitfun-services-integrations/canvas-runtime'],
+      ['dep:bitfun-product-domains', 'bitfun-services-integrations/canvas-runtime'],
     ],
-    [coreManifest, 'announcement', ['openbitfun-services-integrations/announcement']],
-    [coreManifest, 'file-watch', ['openbitfun-services-integrations/file-watch']],
-    [coreManifest, 'git', ['openbitfun-services-integrations/git']],
-    [coreManifest, 'review-platform', ['openbitfun-services-integrations/review-platform']],
+    [coreManifest, 'announcement', ['bitfun-services-integrations/announcement']],
+    [coreManifest, 'file-watch', ['bitfun-services-integrations/file-watch']],
+    [coreManifest, 'git', ['bitfun-services-integrations/git']],
+    [coreManifest, 'review-platform', ['bitfun-services-integrations/review-platform']],
     [coreManifest, 'service-integrations', ['announcement', 'file-watch', 'git', 'review-platform']],
     [
       coreManifest,
       'ssh-remote',
-      ['remote-workspace', 'openbitfun-services-integrations/remote-ssh-concrete'],
+      ['remote-workspace', 'bitfun-services-integrations/remote-ssh-concrete'],
     ],
   ];
   for (const [manifestPath, featureName, expectedReferences] of expectedClosedCoreProfiles) {
@@ -603,7 +603,7 @@ export function runManifestParserSelfTest({
     [
       'client',
       [
-        'openbitfun-agent-tools/acp-bridge',
+        'bitfun-agent-tools/acp-bridge',
         'dep:futures',
         'dep:serde',
         // The bundled DeepSeek Harness profile the ACP client materializes:
@@ -612,31 +612,31 @@ export function runManifestParserSelfTest({
         'dep:dirs',
         'dep:semver',
         'dep:tar',
-        'dep:openbitfun-core',
-        'openbitfun-core/agent-runtime',
-        'openbitfun-core/ssh-remote',
+        'dep:bitfun-core',
+        'bitfun-core/agent-runtime',
+        'bitfun-core/ssh-remote',
       ],
     ],
     [
       'server',
       [
-        'dep:openbitfun-agent-tools',
-        'dep:openbitfun-agent-runtime',
-        'openbitfun-agent-runtime/agent-runtime',
-        'dep:openbitfun-core-types',
-        'dep:openbitfun-core',
+        'dep:bitfun-agent-tools',
+        'dep:bitfun-agent-runtime',
+        'bitfun-agent-runtime/agent-runtime',
+        'dep:bitfun-core-types',
+        'dep:bitfun-core',
         'dep:sha2',
-        'openbitfun-core/agent-runtime',
-        'openbitfun-core/document-read',
-        'openbitfun-core/subscription-auth',
-        'openbitfun-core/external-sources',
-        'openbitfun-core/tools-basic',
-        'openbitfun-core/tools-git',
-        'openbitfun-core/tools-mcp',
-        'openbitfun-core/tools-browser-web',
-        'openbitfun-core/tools-computer-use',
-        'openbitfun-core/tools-image-analysis',
-        'openbitfun-core/tools-agent-control',
+        'bitfun-core/agent-runtime',
+        'bitfun-core/document-read',
+        'bitfun-core/subscription-auth',
+        'bitfun-core/external-sources',
+        'bitfun-core/tools-basic',
+        'bitfun-core/tools-git',
+        'bitfun-core/tools-mcp',
+        'bitfun-core/tools-browser-web',
+        'bitfun-core/tools-computer-use',
+        'bitfun-core/tools-image-analysis',
+        'bitfun-core/tools-agent-control',
       ],
     ],
   ]);
@@ -689,20 +689,20 @@ export function runManifestParserSelfTest({
     '    "git",',
     '    "review-platform",',
     ']',
-    'announcement = ["openbitfun-services-integrations/announcement"]',
-    'file-watch = ["openbitfun-services-integrations/file-watch"]',
-    'git = ["openbitfun-services-integrations/git"]',
-    'review-platform = ["openbitfun-services-integrations/review-platform"]',
+    'announcement = ["bitfun-services-integrations/announcement"]',
+    'file-watch = ["bitfun-services-integrations/file-watch"]',
+    'git = ["bitfun-services-integrations/git"]',
+    'review-platform = ["bitfun-services-integrations/review-platform"]',
     'service-integrations = ["announcement", "file-watch", "git", "review-platform"]',
-    'workspace-runtime = ["dep:serde_yaml", "openbitfun-services-core/workspace-runtime"]',
+    'workspace-runtime = ["dep:serde_yaml", "bitfun-services-core/workspace-runtime"]',
     'remote-workspace = [',
     '    "workspace-runtime",',
-    '    "dep:openbitfun-services-integrations",',
-    '    "openbitfun-services-integrations/remote-ssh",',
+    '    "dep:bitfun-services-integrations",',
+    '    "bitfun-services-integrations/remote-ssh",',
     ']',
     'ssh-remote = [',
     '    "remote-workspace",',
-    '    "openbitfun-services-integrations/remote-ssh-concrete",',
+    '    "bitfun-services-integrations/remote-ssh-concrete",',
     ']',
     '[dependencies]',
     'git2 = { workspace = true, optional = true }',
@@ -719,7 +719,7 @@ export function runManifestParserSelfTest({
   if (
     !parsedFeatures
       .get('ssh-remote')
-      ?.refs.includes('openbitfun-services-integrations/remote-ssh-concrete')
+      ?.refs.includes('bitfun-services-integrations/remote-ssh-concrete')
   ) {
     throw new Error('feature parser must detect dependency capability feature references');
   }
@@ -727,16 +727,16 @@ export function runManifestParserSelfTest({
     throw new Error('feature parser must detect local capability feature references');
   }
 
-  const acceptsGitFacadeLine = createFacadeLineChecker('openbitfun_services_integrations::git');
+  const acceptsGitFacadeLine = createFacadeLineChecker('bitfun_services_integrations::git');
   const facadePositiveCases = [
     '',
     '//! Compatibility facade.',
-    'pub use openbitfun_services_integrations::git::GitService;',
-    'pub use openbitfun_services_integrations::git::types::*;',
-    'pub use openbitfun_services_integrations::git::{',
+    'pub use bitfun_services_integrations::git::GitService;',
+    'pub use bitfun_services_integrations::git::types::*;',
+    'pub use bitfun_services_integrations::git::{',
     '    build_git_graph, build_git_graph_for_branch,',
     '};',
-    'pub use openbitfun_services_integrations::git::{build_git_graph, build_git_graph_for_branch};',
+    'pub use bitfun_services_integrations::git::{build_git_graph, build_git_graph_for_branch};',
   ];
   for (const line of facadePositiveCases) {
     if (!acceptsGitFacadeLine(line)) {
@@ -744,10 +744,10 @@ export function runManifestParserSelfTest({
     }
   }
 
-  const rejectsGitImplementationLine = createFacadeLineChecker('openbitfun_services_integrations::git');
+  const rejectsGitImplementationLine = createFacadeLineChecker('bitfun_services_integrations::git');
   const facadeNegativeCases = [
     'pub mod service;',
-    'use openbitfun_services_integrations::git::GitService;',
+    'use bitfun_services_integrations::git::GitService;',
     'fn parse_git_status() {}',
   ];
   for (const line of facadeNegativeCases) {
@@ -756,7 +756,7 @@ export function runManifestParserSelfTest({
     }
   }
 
-  const cliBoundaryDeps = ['openbitfun-cli', 'ratatui', 'crossterm', 'arboard', 'syntect-tui'];
+  const cliBoundaryDeps = ['bitfun-cli', 'ratatui', 'crossterm', 'arboard', 'syntect-tui'];
   const lightweightBoundaryCrateNames = lightweightBoundaryRules.map((rule) => rule.crateName);
   if (new Set(lightweightBoundaryCrateNames).size !== lightweightBoundaryCrateNames.length) {
     throw new Error('lightweight boundary rules must not duplicate crate names');
@@ -772,8 +772,8 @@ export function runManifestParserSelfTest({
   }
 
   const agentToolsRule = lightweightBoundaryRules.find((rule) => rule.crateName === 'agent-tools');
-  if (!agentToolsRule?.forbiddenDeps.includes('openbitfun-ai-adapters')) {
-    throw new Error('agent-tools lightweight boundary must forbid openbitfun-ai-adapters');
+  if (!agentToolsRule?.forbiddenDeps.includes('bitfun-ai-adapters')) {
+    throw new Error('agent-tools lightweight boundary must forbid bitfun-ai-adapters');
   }
   const coreToolFrameworkRuleText = forbiddenRuleTextForPath(
     'src/crates/assembly/core/src/agentic/tools/framework.rs',
@@ -908,8 +908,8 @@ export function runManifestParserSelfTest({
     throw new Error('missing core workspace path boundary rule');
   }
   const coreWorkspacePathContracts = [
-    'OPENBITFUN_RUNTIME_URI_PREFIX',
-    'ParsedOpenBitFunRuntimeUri',
+    'BITFUN_RUNTIME_URI_PREFIX',
+    'ParsedBitFunRuntimeUri',
     'posix_normalize_components',
     'Component::ParentDir',
   ];
@@ -1080,8 +1080,8 @@ export function runManifestParserSelfTest({
     'rustls-native-certs',
     'schannel',
     'win32job',
-    'openbitfun-relay-service',
-    'openbitfun-transport',
+    'bitfun-relay-service',
+    'bitfun-transport',
     'htmd',
     'legible',
     'readability-js',
@@ -1099,8 +1099,8 @@ export function runManifestParserSelfTest({
   const coreFullyMigratedDeps = new Set([
     'aes',
     'aes-gcm',
-    'openbitfun-relay-service',
-    'openbitfun-transport',
+    'bitfun-relay-service',
+    'bitfun-transport',
     'eventsource-stream',
     'git2',
     'glob',
@@ -1151,8 +1151,8 @@ export function runManifestParserSelfTest({
   }
   const expectedServicesCoreOwners = new Map([
     ['base64', ['filesystem']],
-    ['openbitfun-core-types', ['filesystem', 'local-storage', 'product-identity']],
-    ['openbitfun-events', ['local-storage']],
+    ['bitfun-core-types', ['filesystem', 'local-storage', 'product-identity']],
+    ['bitfun-events', ['local-storage']],
     ['chrono', ['filesystem', 'local-storage']],
     ['chrono-tz', ['token-usage-statistics']],
     ['fs2', ['json-io', 'local-storage', 'runtime-ownership']],
@@ -1230,11 +1230,11 @@ export function runManifestParserSelfTest({
   }
   for (const dep of [
     'aes',
-    'openbitfun-services-core',
-    'openbitfun-product-domains',
+    'bitfun-services-core',
+    'bitfun-product-domains',
     'dunce',
     'fs2',
-    'openbitfun-runtime-ports',
+    'bitfun-runtime-ports',
     'git2',
     'hex',
     'hostname',
@@ -1255,7 +1255,7 @@ export function runManifestParserSelfTest({
       throw new Error(`services-integrations optional dependency owner rule must cover ${dep}`);
     }
   }
-  for (const dep of ['openbitfun-product-domains', 'dunce', 'fs2', 'hex', 'libc', 'sha2', 'thiserror', 'uuid', 'windows']) {
+  for (const dep of ['bitfun-product-domains', 'dunce', 'fs2', 'hex', 'libc', 'sha2', 'thiserror', 'uuid', 'windows']) {
     const owner = servicesOptionalOwnerRule?.dependencies.find(
       (dependency) => dependency.depName === dep,
     );
@@ -1263,7 +1263,7 @@ export function runManifestParserSelfTest({
       throw new Error(`services-integrations plugin-source must own optional dependency ${dep}`);
     }
   }
-  for (const dep of ['aes-gcm', 'anyhow', 'base64', 'hostname', 'openbitfun-services-core', 'rand', 'sha2', 'windows']) {
+  for (const dep of ['aes-gcm', 'anyhow', 'base64', 'hostname', 'bitfun-services-core', 'rand', 'sha2', 'windows']) {
     const owner = servicesOptionalOwnerRule?.dependencies.find(
       (dependency) => dependency.depName === dep,
     );
@@ -1271,7 +1271,7 @@ export function runManifestParserSelfTest({
       throw new Error(`services-integrations remote-persistence must own optional dependency ${dep}`);
     }
   }
-  for (const dep of ['openbitfun-product-domains', 'image']) {
+  for (const dep of ['bitfun-product-domains', 'image']) {
     const owner = servicesOptionalOwnerRule?.dependencies.find(
       (dependency) => dependency.depName === dep,
     );
@@ -1287,7 +1287,7 @@ export function runManifestParserSelfTest({
       throw new Error(`services-integrations review-platform must own optional dependency ${dep}`);
     }
   }
-  for (const dep of ['openbitfun-services-core']) {
+  for (const dep of ['bitfun-services-core']) {
     const owner = servicesOptionalOwnerRule?.dependencies.find(
       (dependency) => dependency.depName === dep,
     );
@@ -1295,7 +1295,7 @@ export function runManifestParserSelfTest({
       throw new Error(`services-integrations process-tree must delegate to ${dep}`);
     }
   }
-  for (const dep of ['async-trait', 'openbitfun-runtime-ports']) {
+  for (const dep of ['async-trait', 'bitfun-runtime-ports']) {
     const owner = servicesOptionalOwnerRule?.dependencies.find(
       (dependency) => dependency.depName === dep,
     );
@@ -1395,7 +1395,7 @@ export function runManifestParserSelfTest({
     throw new Error('product-domains Command::new exception must stay scoped to MiniApp runtime detection');
   }
   const coreTypesProfile = dependencyProfileRules.find((rule) => rule.crateName === 'core-types');
-  if (!coreTypesProfile?.forbiddenNonOptionalDeps.includes('openbitfun-ai-adapters')) {
+  if (!coreTypesProfile?.forbiddenNonOptionalDeps.includes('bitfun-ai-adapters')) {
     throw new Error('core-types dependency profile must forbid ai-adapter dependencies');
   }
   const coreTypesAiRuleText = forbiddenRuleTextForPath(
@@ -1409,7 +1409,7 @@ export function runManifestParserSelfTest({
   const runtimePortsProfile = dependencyProfileRules.find(
     (rule) => rule.crateName === 'runtime-ports',
   );
-  if (!runtimePortsProfile?.forbiddenNonOptionalDeps.includes('openbitfun-services-core')) {
+  if (!runtimePortsProfile?.forbiddenNonOptionalDeps.includes('bitfun-services-core')) {
     throw new Error('runtime-ports dependency profile must forbid service implementations');
   }
   const pluginRuntimeContractRule = requiredContentRules.find(
@@ -1454,7 +1454,7 @@ export function runManifestParserSelfTest({
     'DeepSeek',
     'HookFunction',
     'serde_json',
-    'openbitfun_[a-z0-9_]+_adapter',
+    'bitfun_[a-z0-9_]+_adapter',
   ]) {
     if (!pluginCapabilityPublicationRuleText.includes(forbiddenDependency)) {
       throw new Error(
@@ -1951,7 +1951,7 @@ export function runManifestParserSelfTest({
     }
   }
   const opencodeManifestRule = forbiddenManifestDependencyRules.find((rule) =>
-    rule.dependencyNames?.includes('openbitfun-opencode-adapter'),
+    rule.dependencyNames?.includes('bitfun-opencode-adapter'),
   );
   if (!opencodeManifestRule) {
     throw new Error('OpenCode adapter must have a forbidden manifest dependency rule');
@@ -1984,9 +1984,9 @@ export function runManifestParserSelfTest({
     throw new Error('core speech ownership guard must forbid a speech service module');
   }
   for (const dependencyName of [
-    'openbitfun-claude-code-adapter',
-    'openbitfun-codex-adapter',
-    'openbitfun-static-hook-support',
+    'bitfun-claude-code-adapter',
+    'bitfun-codex-adapter',
+    'bitfun-static-hook-support',
   ]) {
     if (!forbiddenManifestDependencyRules.some(
       (rule) => rule.dependencyNames?.includes(dependencyName)
@@ -1995,7 +1995,7 @@ export function runManifestParserSelfTest({
       throw new Error(`${dependencyName} must have a workspace-wide manifest dependency guard`);
     }
   }
-  for (const scanRoot of ['src/apps', 'src/crates', 'OpenBitFun-Installer/src-tauri']) {
+  for (const scanRoot of ['src/apps', 'src/crates', 'BitFun-Installer/src-tauri']) {
     if (!opencodeManifestRule.scanRoots?.includes(scanRoot)) {
       throw new Error(`OpenCode adapter manifest guard must scan ${scanRoot}`);
     }
@@ -2020,16 +2020,16 @@ export function runManifestParserSelfTest({
   const opencodeSourceRules = forbiddenContentUnderRules.filter((rule) =>
     rule.reason.includes('OpenCode adapter production imports are limited'),
   );
-  for (const scanRoot of ['src', 'OpenBitFun-Installer/src-tauri']) {
+  for (const scanRoot of ['src', 'BitFun-Installer/src-tauri']) {
     if (!opencodeSourceRules.some((rule) => rule.path === scanRoot)) {
       throw new Error(`OpenCode adapter source guard must scan ${scanRoot}`);
     }
   }
   const opencodeSourceRegex = opencodeSourceRules[0]?.patterns?.[0]?.regex;
   if (
-    !opencodeSourceRegex?.test('use openbitfun_opencode_adapter as opencode;') ||
-    !opencodeSourceRegex?.test('extern crate openbitfun_opencode_adapter;') ||
-    !opencodeSourceRegex?.test('openbitfun_opencode_adapter::OpenCodePluginAdapter')
+    !opencodeSourceRegex?.test('use bitfun_opencode_adapter as opencode;') ||
+    !opencodeSourceRegex?.test('extern crate bitfun_opencode_adapter;') ||
+    !opencodeSourceRegex?.test('bitfun_opencode_adapter::OpenCodePluginAdapter')
   ) {
     throw new Error('OpenCode adapter source guard must catch direct, alias, and extern imports');
   }
@@ -2083,10 +2083,10 @@ export function runManifestParserSelfTest({
   const runtimeServicesRule = lightweightBoundaryRules.find(
     (rule) => rule.crateName === 'runtime-services',
   );
-  if (!runtimeServicesRule?.forbiddenDeps.includes('openbitfun-core')) {
-    throw new Error('runtime-services lightweight boundary must forbid openbitfun-core');
+  if (!runtimeServicesRule?.forbiddenDeps.includes('bitfun-core')) {
+    throw new Error('runtime-services lightweight boundary must forbid bitfun-core');
   }
-  if (!runtimeServicesRule?.forbiddenDeps.includes('openbitfun-services-integrations')) {
+  if (!runtimeServicesRule?.forbiddenDeps.includes('bitfun-services-integrations')) {
     throw new Error('runtime-services lightweight boundary must forbid concrete service integrations');
   }
   const runtimeServicesProfile = dependencyProfileRules.find(
@@ -2108,7 +2108,7 @@ export function runManifestParserSelfTest({
     crateLayoutRules.find((rule) => rule.crateName === 'agent-content')?.layer !== 'assembly'
     || !noCoreDependencyCrates.includes('agent-content')
   ) {
-    throw new Error('agent-content must stay an assembly-owned leaf independent from openbitfun-core');
+    throw new Error('agent-content must stay an assembly-owned leaf independent from bitfun-core');
   }
   for (const adapterCrate of ['claude-code-adapter', 'codex-adapter', 'static-hook-support']) {
     if (crateLayoutRules.find((rule) => rule.crateName === adapterCrate)?.layer !== 'adapters') {
@@ -2121,13 +2121,13 @@ export function runManifestParserSelfTest({
   const pluginRuntimeClientRule = lightweightBoundaryRules.find(
     (rule) => rule.crateName === 'plugin-runtime-client',
   );
-  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('openbitfun-core')) {
-    throw new Error('plugin-runtime-client lightweight boundary must forbid openbitfun-core');
+  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('bitfun-core')) {
+    throw new Error('plugin-runtime-client lightweight boundary must forbid bitfun-core');
   }
-  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('openbitfun-opencode-adapter')) {
+  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('bitfun-opencode-adapter')) {
     throw new Error('plugin-runtime-client must not depend on the OpenCode fixture adapter');
   }
-  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('openbitfun-services-integrations')) {
+  if (!pluginRuntimeClientRule?.forbiddenDeps.includes('bitfun-services-integrations')) {
     throw new Error('plugin-runtime-client must not depend on concrete service integrations');
   }
   const pluginRuntimeClientProfile = dependencyProfileRules.find(
@@ -2170,13 +2170,13 @@ export function runManifestParserSelfTest({
   const agentRuntimeRule = lightweightBoundaryRules.find(
     (rule) => rule.crateName === 'agent-runtime',
   );
-  if (!agentRuntimeRule?.forbiddenDeps.includes('openbitfun-core')) {
-    throw new Error('agent-runtime lightweight boundary must forbid openbitfun-core');
+  if (!agentRuntimeRule?.forbiddenDeps.includes('bitfun-core')) {
+    throw new Error('agent-runtime lightweight boundary must forbid bitfun-core');
   }
-  if (!agentRuntimeRule?.forbiddenDeps.includes('openbitfun-services-integrations')) {
+  if (!agentRuntimeRule?.forbiddenDeps.includes('bitfun-services-integrations')) {
     throw new Error('agent-runtime lightweight boundary must forbid concrete service integrations');
   }
-  if (!agentRuntimeRule?.forbiddenDeps.includes('openbitfun-product-capabilities')) {
+  if (!agentRuntimeRule?.forbiddenDeps.includes('bitfun-product-capabilities')) {
     throw new Error('agent-runtime lightweight boundary must forbid product assembly facts');
   }
   if (!agentRuntimeRule?.forbiddenDeps.includes('tool-runtime')) {
@@ -2188,7 +2188,7 @@ export function runManifestParserSelfTest({
   if (!agentRuntimeProfile?.forbiddenNonOptionalDeps.includes('tauri')) {
     throw new Error('agent-runtime dependency profile must forbid product surface dependencies');
   }
-  if (!agentRuntimeProfile?.forbiddenNonOptionalDeps.includes('openbitfun-product-capabilities')) {
+  if (!agentRuntimeProfile?.forbiddenNonOptionalDeps.includes('bitfun-product-capabilities')) {
     throw new Error('agent-runtime dependency profile must forbid product assembly facts');
   }
   if (!agentRuntimeProfile?.forbiddenNonOptionalDeps.includes('tool-runtime')) {
@@ -2199,12 +2199,12 @@ export function runManifestParserSelfTest({
   }
   const sdkHostRule = lightweightBoundaryRules.find((rule) => rule.crateName === 'sdk-host');
   for (const dependency of [
-    'openbitfun-core',
+    'bitfun-core',
     'terminal-core',
-    'openbitfun-services-core',
-    'openbitfun-services-integrations',
+    'bitfun-services-core',
+    'bitfun-services-integrations',
     'tool-runtime',
-    'openbitfun-cli',
+    'bitfun-cli',
   ]) {
     if (!sdkHostRule?.forbiddenDeps.includes(dependency)) {
       throw new Error(`SDK Host protocol boundary must forbid concrete dependency: ${dependency}`);
@@ -2213,10 +2213,10 @@ export function runManifestParserSelfTest({
   const productCapabilitiesRule = lightweightBoundaryRules.find(
     (rule) => rule.crateName === 'product-capabilities',
   );
-  if (!productCapabilitiesRule?.forbiddenDeps.includes('openbitfun-core')) {
-    throw new Error('product-capabilities lightweight boundary must forbid openbitfun-core');
+  if (!productCapabilitiesRule?.forbiddenDeps.includes('bitfun-core')) {
+    throw new Error('product-capabilities lightweight boundary must forbid bitfun-core');
   }
-  if (!productCapabilitiesRule?.forbiddenDeps.includes('openbitfun-product-domains')) {
+  if (!productCapabilitiesRule?.forbiddenDeps.includes('bitfun-product-domains')) {
     throw new Error(
       'product-capabilities lightweight boundary must forbid product-domain implementations',
     );
@@ -2227,8 +2227,8 @@ export function runManifestParserSelfTest({
   const productCapabilitiesProfile = dependencyProfileRules.find(
     (rule) => rule.crateName === 'product-capabilities',
   );
-  if (!productCapabilitiesProfile?.forbiddenNonOptionalDeps.includes('openbitfun-core')) {
-    throw new Error('product-capabilities dependency profile must forbid openbitfun-core');
+  if (!productCapabilitiesProfile?.forbiddenNonOptionalDeps.includes('bitfun-core')) {
+    throw new Error('product-capabilities dependency profile must forbid bitfun-core');
   }
   const agentToolsManifestRule = forbiddenContentUnderRules.find(
     (rule) => rule.path === 'src/crates/execution/tool-contracts/src',
@@ -2749,8 +2749,8 @@ export function runManifestParserSelfTest({
         'AgentRuntimeSdkStability',
         'AgentRuntimeSdkCompatibility',
         'impl AgentRuntimeSdkCompatibility',
-        'openbitfun_agent_tools',
-        'openbitfun_runtime_services',
+        'bitfun_agent_tools',
+        'bitfun_runtime_services',
         'PortResult',
         'RuntimeServicePort',
         'FileSystemPort',
@@ -2817,7 +2817,7 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/execution/agent-runtime/examples/sdk_minimal.rs',
       contracts: [
-        'openbitfun_agent_runtime::sdk',
+        'bitfun_agent_runtime::sdk',
         'AgentRuntimeSdkCompatibility::current',
         'impl AgentSubmissionPort for ExampleAgentProvider',
         'AgentRuntimeBuilder::new',
@@ -2890,7 +2890,7 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/execution/agent-runtime/tests/agent_definition_contracts/custom_subagent_discovery_contracts.rs',
       contracts: [
-        'custom_subagent_discovery_preserves_openbitfun_priority_and_ignores_foreign_agent_dirs',
+        'custom_subagent_discovery_preserves_bitfun_priority_and_ignores_foreign_agent_dirs',
         'custom_subagent_discovery_reports_parse_errors_without_dropping_valid_files',
       ],
     },
@@ -3272,7 +3272,7 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/agentic/coordination/state_manager.rs',
-      contracts: ['pub use openbitfun_agent_runtime::session_state_manager::SessionStateManager'],
+      contracts: ['pub use bitfun_agent_runtime::session_state_manager::SessionStateManager'],
     },
     {
       path: 'src/crates/execution/agent-runtime/src/event_router.rs',
@@ -3362,22 +3362,22 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/agentic/execution/types.rs',
-      contracts: ['openbitfun_agent_runtime::events::FinishReason'],
+      contracts: ['bitfun_agent_runtime::events::FinishReason'],
     },
     {
       path: 'src/crates/assembly/core/src/agentic/events/types.rs',
       contracts: [
-        'openbitfun_agent_runtime::session_state::session_state_label_for_state',
+        'bitfun_agent_runtime::session_state::session_state_label_for_state',
       ],
     },
     {
       path: 'src/crates/assembly/core/src/agentic/agents/prompt_builder/user_context.rs',
-      contracts: ['openbitfun_agent_runtime::prompt'],
+      contracts: ['bitfun_agent_runtime::prompt'],
     },
     {
       path: 'src/crates/assembly/core/src/agentic/subagent_runtime/mod.rs',
       contracts: [
-        'openbitfun_runtime_ports',
+        'bitfun_runtime_ports',
         'DelegationPolicy',
         'SubagentContextMode',
       ],
@@ -3510,7 +3510,7 @@ export function runManifestParserSelfTest({
       path: 'src/crates/assembly/product-capabilities/tests/product_capability_contracts/product_sdk_assembly.rs',
       contracts: [
         'product_runtime_parts_can_build_agent_runtime_sdk_without_core',
-        'sdk_delivery_profile_builds_shared_runtime_owner_ceiling_without_openbitfun_core',
+        'sdk_delivery_profile_builds_shared_runtime_owner_ceiling_without_bitfun_core',
         'DeliveryProfile::Cli',
         'DeliveryProfile::Sdk',
       ],
@@ -3534,7 +3534,7 @@ export function runManifestParserSelfTest({
       contracts: [
         'tool_restrictions_for_delegation_policy',
         'miniapp_headless_agent_tool_restrictions',
-        'impl From<ToolRestrictionError> for OpenBitFunError',
+        'impl From<ToolRestrictionError> for BitFunError',
         'is_local_path_within_root',
       ],
     },
@@ -3690,7 +3690,7 @@ export function runManifestParserSelfTest({
         'RemoteControlStatePort',
         'generic attachments',
         'DialogTriggerSource',
-        'openbitfun_agent_runtime::subagent_task::subagent_task_completion_result',
+        'bitfun_agent_runtime::subagent_task::subagent_task_completion_result',
       ],
     },
     {
@@ -3721,8 +3721,8 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/assembly/core/src/agentic/round_preempt.rs',
       contracts: [
-        'openbitfun_agent_runtime',
-        'openbitfun_runtime_ports',
+        'bitfun_agent_runtime',
+        'bitfun_runtime_ports',
         'DialogRoundInjectionSource',
         'RoundInjection',
         'RoundInjectionKind',
@@ -3733,7 +3733,7 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/assembly/core/src/agentic/goal_mode/mod.rs',
       contracts: [
-        'openbitfun_runtime_ports',
+        'bitfun_runtime_ports',
         'SetThreadGoalResult',
         'ThreadGoal',
         'ThreadGoalContinuationPlan',
@@ -3744,11 +3744,11 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/agentic/core/message.rs',
-      contracts: ['openbitfun_runtime_ports', 'CompressionContract', 'CompressionContractItem'],
+      contracts: ['bitfun_runtime_ports', 'CompressionContract', 'CompressionContractItem'],
     },
     {
       path: 'src/crates/assembly/core/src/service/workspace/manager.rs',
-      contracts: ['openbitfun_runtime_ports', 'RelatedPath'],
+      contracts: ['bitfun_runtime_ports', 'RelatedPath'],
     },
     {
       path: 'src/crates/assembly/core/src/service_agent_runtime.rs',
@@ -4246,7 +4246,7 @@ export function runManifestParserSelfTest({
         'deferred_tool_names',
         'GetToolSpec',
         'should_post_process_research_report',
-        'openbitfun_services_integrations::deep_research::run_for_session_workspace',
+        'bitfun_services_integrations::deep_research::run_for_session_workspace',
       ],
     },
     {
@@ -4401,7 +4401,7 @@ export function runManifestParserSelfTest({
       path: 'src/crates/assembly/core/src/agentic/tools/implementations/task/execution.rs',
       contracts: [
         'deep_review_task_adapter::deep_review_retry_guidance',
-        'openbitfun_agent_runtime::subagent_task::subagent_task_completion_result',
+        'bitfun_agent_runtime::subagent_task::subagent_task_completion_result',
         'DeepReviewProviderCapacityRetryRuntime::default',
         'DeepReviewProviderCapacityRetryDecision::WaitForCapacity',
       ],
@@ -4444,7 +4444,7 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/service/search/service.rs',
-      contracts: ['owner::WorkspaceSearchService::new_with_hooks', 'CoreWorkspaceSearchRuntimeHooks', 'WorkspaceSearchRepoConfig', 'get_global_config_service', 'ensure_workspace_gitignore_ignores_openbitfun'],
+      contracts: ['owner::WorkspaceSearchService::new_with_hooks', 'CoreWorkspaceSearchRuntimeHooks', 'WorkspaceSearchRepoConfig', 'get_global_config_service', 'ensure_workspace_gitignore_ignores_bitfun'],
     },
     {
       path: 'src/crates/assembly/core/src/service/search/remote.rs',
@@ -4484,26 +4484,26 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/assembly/core/Cargo.toml',
       contracts: [
-        'openbitfun-product-capabilities = \\{ path = "\\.\\.\\/product-capabilities", optional = true \\}',
-        'openbitfun-ai-adapters = \\{ path = "\\.\\.\\/\\.\\.\\/adapters\\/ai-adapters", optional = true \\}',
-        'openbitfun-tool-packs = \\{ path = "\\.\\.\\/\\.\\.\\/execution\\/tool-provider-groups", optional = true \\}',
-        'openbitfun-services-integrations = \\{ path = "\\.\\.\\/\\.\\.\\/services\\/services-integrations", optional = true \\}',
-        'openbitfun-product-domains = \\{ path = "\\.\\.\\/\\.\\.\\/contracts\\/product-domains", optional = true \\}',
-        'dep:openbitfun-ai-adapters',
+        'bitfun-product-capabilities = \\{ path = "\\.\\.\\/product-capabilities", optional = true \\}',
+        'bitfun-ai-adapters = \\{ path = "\\.\\.\\/\\.\\.\\/adapters\\/ai-adapters", optional = true \\}',
+        'bitfun-tool-packs = \\{ path = "\\.\\.\\/\\.\\.\\/execution\\/tool-provider-groups", optional = true \\}',
+        'bitfun-services-integrations = \\{ path = "\\.\\.\\/\\.\\.\\/services\\/services-integrations", optional = true \\}',
+        'bitfun-product-domains = \\{ path = "\\.\\.\\/\\.\\.\\/contracts\\/product-domains", optional = true \\}',
+        'dep:bitfun-ai-adapters',
         'ai-adapter-runtime',
         'canvas-runtime',
-        'openbitfun-services-integrations\\/canvas-runtime',
-        'openbitfun-services-integrations\\/function-agents',
-        'openbitfun-services-integrations\\/miniapp-runtime',
-        'dep:openbitfun-product-capabilities',
-        'dep:openbitfun-tool-packs',
+        'bitfun-services-integrations\\/canvas-runtime',
+        'bitfun-services-integrations\\/function-agents',
+        'bitfun-services-integrations\\/miniapp-runtime',
+        'dep:bitfun-product-capabilities',
+        'dep:bitfun-tool-packs',
         'tools-basic',
-        'openbitfun-tool-packs\\/basic',
+        'bitfun-tool-packs\\/basic',
         'agent-runtime',
-        'dep:openbitfun-product-domains',
-        'openbitfun-product-domains\\/external-sources',
-        'openbitfun-product-domains\\/function-agents',
-        'openbitfun-product-domains\\/miniapp',
+        'dep:bitfun-product-domains',
+        'bitfun-product-domains\\/external-sources',
+        'bitfun-product-domains\\/function-agents',
+        'bitfun-product-domains\\/miniapp',
       ],
     },
     {
@@ -4532,7 +4532,7 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/assembly/core/src/util/types/ai.rs',
       contracts: [
-        'openbitfun_core_types',
+        'bitfun_core_types',
         'feature = "ai-adapter-runtime"',
         'GeminiResponse',
         'GeminiUsage',
@@ -4731,7 +4731,7 @@ export function runManifestParserSelfTest({
       path: 'src/crates/assembly/core/src/miniapp/host_dispatch.rs',
       contracts: [
         'dispatch_host',
-        'openbitfun_services_integrations::miniapp::host_dispatch::dispatch_host',
+        'bitfun_services_integrations::miniapp::host_dispatch::dispatch_host',
         'map_host_dispatch_error',
       ],
     },
@@ -4768,7 +4768,7 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/assembly/core/src/miniapp/js_worker.rs',
       contracts: [
-        'pub use openbitfun_services_integrations::miniapp::worker::{',
+        'pub use bitfun_services_integrations::miniapp::worker::{',
         'MiniAppWorkerEventSink',
       ],
     },
@@ -4832,7 +4832,7 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/service/remote_ssh/mod.rs',
-      contracts: ['openbitfun_services_integrations::remote_ssh', 'pub mod manager', 'pub mod remote_fs', 'pub mod remote_terminal', 'pub mod workspace_state'],
+      contracts: ['bitfun_services_integrations::remote_ssh', 'pub mod manager', 'pub mod remote_fs', 'pub mod remote_terminal', 'pub mod workspace_state'],
     },
     {
       path: 'src/crates/services/services-integrations/src/remote_ssh/mod.rs',
@@ -5114,7 +5114,7 @@ export function runManifestParserSelfTest({
     },
     {
       path: 'src/crates/assembly/core/src/miniapp/runtime_detect.rs',
-      contracts: ['pub use openbitfun_product_domains::miniapp::runtime::{', 'detect_runtime'],
+      contracts: ['pub use bitfun_product_domains::miniapp::runtime::{', 'detect_runtime'],
     },
   ];
   for (const { path, contracts } of requiredContentContracts) {
@@ -5168,7 +5168,7 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
     'src/crates/execution/agent-runtime/tests/agent_session_contracts/sdk_smoke.rs',
   );
   for (const forbiddenSdkSmokeImport of [
-    'openbitfun_runtime_services::test_support',
+    'bitfun_runtime_services::test_support',
     'FakeRuntimeServicesProvider',
   ]) {
     if (!sdkSmokeRuleText.includes(forbiddenSdkSmokeImport)) {
@@ -5599,26 +5599,26 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
     (rule) => rule.crateName === 'agent-runtime-ipc',
   );
   for (const dependency of [
-    'openbitfun-agent-runtime',
-    'openbitfun-sdk-host',
-    'openbitfun-services-core',
-    'openbitfun-services-integrations',
+    'bitfun-agent-runtime',
+    'bitfun-sdk-host',
+    'bitfun-services-core',
+    'bitfun-services-integrations',
     'terminal-core',
     'tool-runtime',
     'tauri',
     'reqwest',
     'tokio-tungstenite',
-    'openbitfun-cli',
+    'bitfun-cli',
   ]) {
     if (!runtimeIpcBoundary?.forbiddenDeps.includes(dependency)) {
       throw new Error(`agent-runtime-ipc lightweight boundary must forbid ${dependency}`);
     }
   }
   for (const allowedDependency of [
-    'openbitfun-events',
-    'openbitfun-product-domains',
-    'openbitfun-runtime-ports',
-    'openbitfun-transport',
+    'bitfun-events',
+    'bitfun-product-domains',
+    'bitfun-runtime-ports',
+    'bitfun-transport',
   ]) {
     if (runtimeIpcBoundary?.forbiddenDeps.includes(allowedDependency)) {
       throw new Error(`agent-runtime-ipc must be allowed to reuse ${allowedDependency}`);
@@ -5627,7 +5627,7 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
   const runtimeIpcProfile = dependencyProfileRules.find(
     (rule) => rule.crateName === 'agent-runtime-ipc',
   );
-  for (const dependency of ['openbitfun-agent-runtime', 'openbitfun-services-core', 'tauri', 'reqwest']) {
+  for (const dependency of ['bitfun-agent-runtime', 'bitfun-services-core', 'tauri', 'reqwest']) {
     if (!runtimeIpcProfile?.forbiddenNonOptionalDeps.includes(dependency)) {
       throw new Error(`agent-runtime-ipc dependency profile must forbid ${dependency}`);
     }
@@ -5641,11 +5641,11 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
   const cliManifestPattern = cliManifestRule?.patterns[0]?.regex;
   if (
     !cliManifestPattern ||
-    cliManifestPattern.test('openbitfun-app-server = { path = "..." }') ||
-    !cliManifestPattern.test('openbitfun-app-server-client = { path = "..." }') ||
-    !cliManifestPattern.test('openbitfun-tui-management = { path = "..." }') ||
-    !cliManifestPattern.test('openbitfun-app-server-protocol = { path = "..." }') ||
-    cliManifestPattern.test('openbitfun-agent-runtime-ipc = { path = "..." }')
+    cliManifestPattern.test('bitfun-app-server = { path = "..." }') ||
+    !cliManifestPattern.test('bitfun-app-server-client = { path = "..." }') ||
+    !cliManifestPattern.test('bitfun-tui-management = { path = "..." }') ||
+    !cliManifestPattern.test('bitfun-app-server-protocol = { path = "..." }') ||
+    cliManifestPattern.test('bitfun-agent-runtime-ipc = { path = "..." }')
   ) {
     throw new Error('CLI manifest guard must allow the App Server stdio host while forbidding the typed client transport, wire DTOs, and shared TUI management implementations, and allowing contracts and Runtime IPC');
   }
@@ -5654,9 +5654,9 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
   );
   const cliServerHostPattern = cliServerHostRule?.patterns[0];
   if (!cliServerHostPattern) {
-    throw new Error('CLI source must carry a openbitfun_app_server import guard');
+    throw new Error('CLI source must carry a bitfun_app_server import guard');
   }
-  if (!cliServerHostPattern.regex.test('use openbitfun_app_server::OpenBitFunAppServer;')) {
+  if (!cliServerHostPattern.regex.test('use bitfun_app_server::BitFunAppServer;')) {
     throw new Error('CLI app-server import guard must match implementation imports');
   }
   if (
@@ -5746,47 +5746,47 @@ async fn release_baseline_claim(release: BaselineClaimRelease) -> Result<(), Dis
   )?.regex;
   if (
     !runtimeIpcSharedTransportPattern ||
-    !runtimeIpcSharedTransportPattern.test('use openbitfun_transport::TransportAdapter;') ||
-    !runtimeIpcSharedTransportPattern.test('use openbitfun_transport as transport;') ||
-    runtimeIpcSharedTransportPattern.test('use openbitfun_transport::encode_json_with_limit;') ||
-    runtimeIpcSharedTransportPattern.test('use openbitfun_transport::JsonCodecError;')
+    !runtimeIpcSharedTransportPattern.test('use bitfun_transport::TransportAdapter;') ||
+    !runtimeIpcSharedTransportPattern.test('use bitfun_transport as transport;') ||
+    runtimeIpcSharedTransportPattern.test('use bitfun_transport::encode_json_with_limit;') ||
+    runtimeIpcSharedTransportPattern.test('use bitfun_transport::JsonCodecError;')
   ) {
     throw new Error(
-      'agent-runtime-ipc may consume only the reviewed openbitfun-transport bounded JSON API',
+      'agent-runtime-ipc may consume only the reviewed bitfun-transport bounded JSON API',
     );
   }
   const runtimeIpcTransportFeatureRule = forbiddenContentRules.find(
     (rule) => rule.path === 'src/crates/adapters/agent-runtime-ipc/Cargo.toml' &&
-      rule.reason.includes('openbitfun-transport features'),
+      rule.reason.includes('bitfun-transport features'),
   );
   const runtimeIpcTransportFeaturePattern =
     runtimeIpcTransportFeatureRule?.patterns[0]?.regex;
   if (
     !runtimeIpcTransportFeaturePattern?.test(
-      'openbitfun-transport = { path = "../transport", features = ["tauri-adapter"] }',
+      'bitfun-transport = { path = "../transport", features = ["tauri-adapter"] }',
     ) ||
     runtimeIpcTransportFeaturePattern.test(
-      'openbitfun-transport = { path = "../transport" }',
+      'bitfun-transport = { path = "../transport" }',
     )
   ) {
-    throw new Error('agent-runtime-ipc must not enable openbitfun-transport features');
+    throw new Error('agent-runtime-ipc must not enable bitfun-transport features');
   }
   const runtimeIpcTransportDependencyRule = requiredContentRules.find(
     (rule) => rule.path === 'src/crates/adapters/agent-runtime-ipc/Cargo.toml' &&
-      rule.reason.includes('exact feature-free openbitfun-transport dependency'),
+      rule.reason.includes('exact feature-free bitfun-transport dependency'),
   );
   const runtimeIpcTransportDependencyPattern =
     runtimeIpcTransportDependencyRule?.patterns[0]?.regex;
   if (
     !runtimeIpcTransportDependencyPattern?.test(
-      'openbitfun-transport = { path = "../transport" }',
+      'bitfun-transport = { path = "../transport" }',
     ) ||
     runtimeIpcTransportDependencyPattern.test(
-      'openbitfun-transport = {\n  path = "../transport",\n  features = ["tauri-adapter"]\n}',
+      'bitfun-transport = {\n  path = "../transport",\n  features = ["tauri-adapter"]\n}',
     )
   ) {
     throw new Error(
-      'agent-runtime-ipc must keep the exact feature-free openbitfun-transport dependency',
+      'agent-runtime-ipc must keep the exact feature-free bitfun-transport dependency',
     );
   }
 }

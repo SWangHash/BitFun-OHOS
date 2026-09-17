@@ -1,4 +1,4 @@
-//! Full-viewport OpenBitFun account panel (Login / Account status).
+//! Full-viewport BitFun account panel (Login / Account status).
 //!
 //! Opened by `/login`. When already logged in, shows account info and connected devices instead of the credential form.
 
@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::ui::theme::{StyleKind, Theme};
-use openbitfun_product_domains::account::{AccountDevice, AccountInfo, GitHubAuthStart};
+use bitfun_product_domains::account::{AccountDevice, AccountInfo, GitHubAuthStart};
 
 /// Action returned after handling a key event.
 #[derive(Debug, Clone)]
@@ -108,7 +108,7 @@ impl LoginFormState {
 
     pub(crate) fn set_authorization(&mut self, authorization: GitHubAuthStart) {
         self.authorization = Some(authorization);
-        self.set_status("Complete OpenBitFun authorization, then press Enter.");
+        self.set_status("Complete BitFun authorization, then press Enter.");
     }
 
     pub(crate) fn insert_paste(&mut self, _text: &str) {}
@@ -188,7 +188,7 @@ impl LoginFormState {
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_style(theme.style(StyleKind::Primary))
-            .title(" OpenBitFun · Account Sign-in ")
+            .title(" BitFun · Account Sign-in ")
             .title_alignment(Alignment::Center);
         let inner = outer.inner(area);
         frame.render_widget(outer, area);
@@ -202,7 +202,7 @@ impl LoginFormState {
             ])
             .split(inner);
         frame.render_widget(
-            Paragraph::new("Use the same OpenBitFun account as the OpenBitFun marketplaces.")
+            Paragraph::new("Use the same BitFun account as the BitFun marketplaces.")
                 .style(theme.style(StyleKind::Muted))
                 .wrap(Wrap { trim: false }),
             rows[0],
@@ -231,7 +231,7 @@ impl LoginFormState {
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_style(theme.style(StyleKind::Primary))
-            .title(" OpenBitFun Account ")
+            .title(" BitFun Account ")
             .title_alignment(Alignment::Center);
         let inner = outer.inner(area);
         frame.render_widget(outer, area);

@@ -37,7 +37,7 @@ export const useWorkspaceResourceState = create<ResourceState>()(persist((set) =
     layouts: { ...state.layouts, [key]: normalizeResourceLayout({ ...state.layouts[key], ...update }) },
   })),
 }), {
-  name: 'openbitfun-workspace-resource-layouts',
+  name: 'bitfun-workspace-resource-layouts',
   version: 1,
   storage: createJSONStorage(() => localStorage),
   partialize: state => ({ layouts: state.layouts }),

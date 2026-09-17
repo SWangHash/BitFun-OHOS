@@ -47,7 +47,7 @@ describe('editor indentation settings', () => {
   it('renders consistent two-letter units using real number controls and does not save on load', async () => {
     persisted = { detect_indentation: true };
     await mount();
-    expect(Array.from(container.querySelectorAll('[data-openbitfun-part="unit"]'), el => el.textContent))
+    expect(Array.from(container.querySelectorAll('[data-bitfun-part="unit"]'), el => el.textContent))
       .toEqual(['px', 'em', 'ch']);
     expect(input('behavior.tabSize').value).toBe('4');
     expect(mocks.update).not.toHaveBeenCalled();

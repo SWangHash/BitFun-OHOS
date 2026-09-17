@@ -1,4 +1,4 @@
-# OpenBitFun Mobile Design System
+# BitFun Mobile Design System
 
 This directory is the source-neutral visual contract for the native HarmonyOS,
 Android, and iOS applications. It owns stable visual facts and deterministic
@@ -63,21 +63,21 @@ The native galleries can be launched without changing the normal app path:
 
 ```bash
 # Android (after installing the debug APK)
-adb shell am force-stop com.openbitfun.mobile.debug
+adb shell am force-stop com.bitfun.mobile.debug
 adb shell am start \
-  -n com.openbitfun.mobile.debug/com.openbitfun.mobile.app.MainActivity \
-  --ez openbitfun.design_preview true \
-  --es openbitfun.design_scenario connected-conversation
+  -n com.bitfun.mobile.debug/com.bitfun.mobile.app.MainActivity \
+  --ez bitfun.design_preview true \
+  --es bitfun.design_scenario connected-conversation
 
 # iOS Simulator (after installing the simulator app)
-xcrun simctl launch booted com.openbitfun.mobile.ios \
+xcrun simctl launch booted com.bitfun.mobile.ios \
   --design-preview connected-conversation
 
 # HarmonyOS emulator (after installing a locally signed debug HAP)
 hdc -t <emulator-tcp-target> shell aa force-stop <harmony-bundle-id>
 hdc -t <emulator-tcp-target> shell aa start \
   -a EntryAbility -b <harmony-bundle-id> \
-  --ps openbitfunDesignPreview connected-conversation
+  --ps bitfunDesignPreview connected-conversation
 ```
 
 Valid scenario ids come from `scenarios/mobile-preview-scenarios.json`. Save
@@ -132,7 +132,7 @@ reserved footer area until they own that capability, rather than presenting an
 inert MiniApp action. QR actions still use the existing account-device protocol;
 this UI change does not add guest credentials or bypass server authorization.
 HarmonyOS can render the isolated surface with the existing design-preview
-launch parameter `openbitfunDesignPreview=welcome-home`, without logging out an
+launch parameter `bitfunDesignPreview=welcome-home`, without logging out an
 active account or loading its connection state.
 
 The welcome and startup marks share the desktop AboutBrandMark contour geometry:

@@ -5,13 +5,13 @@
     "exaMcpFree": "Exa MCP (free)",
     "exaSearchApi": "Exa Search API",
     "tavily": "Tavily Search API",
-    "openbitfunSearchHttp": "Custom HTTP service"
+    "bitfunSearchHttp": "Custom HTTP service"
   },
   "providerDescriptions": {
     "exaMcpFree": "Use Exa's free search service without an API key or additional setup.",
     "exaSearchApi": "Use your Exa API key to access the search service. Enter and save your credential below.",
     "tavily": "Use your Tavily API key to access the search service. Enter and save your credential below.",
-    "openbitfunSearchHttp": "Connect a self-hosted or enterprise service that implements the BitFun search protocol. Enter its address below and configure authentication if needed."
+    "bitfunSearchHttp": "Connect a self-hosted or enterprise service that implements the BitFun search protocol. Enter its address below and configure authentication if needed."
   },
   "auth": {
     "none": "No authentication",

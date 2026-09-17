@@ -1,6 +1,6 @@
 //! Redacted catalog construction shared by static ecosystem adapters.
-use openbitfun_product_domains::external_hook_catalog::*;
-use openbitfun_product_domains::external_sources::*;
+use bitfun_product_domains::external_hook_catalog::*;
+use bitfun_product_domains::external_sources::*;
 use sha2::{Digest, Sha256};
 
 pub struct StaticHookCatalog {

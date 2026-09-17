@@ -96,7 +96,7 @@ export class HarmonyTaskCompletionNotificationPort implements TaskCompletionNoti
       });
       await notificationManager.publish({
         id: notificationId,
-        appMessageId: `openbitfun-task-completed:${observation.source}:${observation.sessionId}:${observation.turnId}`,
+        appMessageId: `bitfun-task-completed:${observation.source}:${observation.sessionId}:${observation.turnId}`,
         notificationSlotType: notificationManager.SlotType.SERVICE_INFORMATION,
         tapDismissed: true,
         wantAgent: launchAgent,

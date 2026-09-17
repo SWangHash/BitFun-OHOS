@@ -17,7 +17,7 @@ Read README.md for its user-facing contract.
   advisory and is honored only at engine-declared safe boundaries.
 - Reject unsupported data formats and unsafe directory overlaps. Preserve source
   data, old plans/reports, snapshots, journals, backups and owner conflict policies.
-- The UI uses public @openbitfun/design-tokens and @openbitfun/theme-openbitfun
+- The UI uses public @bitfun/design-tokens and @bitfun/theme-bitfun
   exports bundled in ui/generated/design-system.css. Regenerate through
   pnpm run data-migrator:theme:generate. Direct Cargo builds are offline;
   Desktop dev/build must never generate or build migrator assets.
@@ -30,8 +30,8 @@ Read README.md for its user-facing contract.
 ## Focused verification
 
 ```bash
-cargo test -p openbitfun-data-migrator -p openbitfun-legacy-migration-adapters -p openbitfun-legacy-migration --lib
-cargo test -p openbitfun-legacy-migration --test migration_engine_contracts
+cargo test -p bitfun-data-migrator -p bitfun-legacy-migration-adapters -p bitfun-legacy-migration --lib
+cargo test -p bitfun-legacy-migration --test migration_engine_contracts
 node --test scripts/data-migrator-tauri-build.test.mjs
 node --check src/apps/data-migrator/ui/app.js
 node --test scripts/data-migrator-report.test.mjs

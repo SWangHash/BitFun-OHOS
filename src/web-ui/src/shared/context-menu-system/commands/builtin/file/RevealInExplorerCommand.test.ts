@@ -153,7 +153,7 @@ describe('RevealInExplorerCommand', () => {
     expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
-  it.each(['', '   ', 'openbitfun://runtime/artifacts/note', 'https://example.com/note'])(
+  it.each(['', '   ', 'bitfun://runtime/artifacts/note', 'https://example.com/note'])(
     'disables non-filesystem targets without invoking the host: %s',
     async (filePath) => {
       const context = fileContext(ContextType.TAB, filePath);

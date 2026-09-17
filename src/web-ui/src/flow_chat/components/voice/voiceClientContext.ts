@@ -90,7 +90,7 @@ export function buildVoiceClientContext(
   const sceneState = useSceneStore.getState();
   const activeWorkspace = workspaceState.currentWorkspace;
   return {
-    scope: 'openbitfun_client',
+    scope: 'bitfun_client',
     captured_at: new Date().toISOString(),
     // Keep immutable call routing near the front of the bounded snapshot so it
     // remains prominent even when the client has many open workspaces/sessions.

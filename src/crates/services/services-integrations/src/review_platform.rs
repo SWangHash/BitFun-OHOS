@@ -14,7 +14,7 @@ use crate::review_platform_http::{
     ReviewHttpHeaders, ReviewHttpRequest, ReviewJsonResponse, ReviewTextResponse,
 };
 use futures::{stream, StreamExt};
-use openbitfun_services_core::process_manager;
+use bitfun_services_core::process_manager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -613,7 +613,7 @@ pub struct ReviewPlatformWorkspaceSnapshot {
 ///
 /// Review-platform only touches the workspace for repository discovery
 /// (`git rev-parse --show-toplevel`, `git remote -v`); provider data itself is
-/// fetched over HTTP from the host running OpenBitFun. Remote SSH workspaces are
+/// fetched over HTTP from the host running BitFun. Remote SSH workspaces are
 /// therefore fully supported as long as the product runtime can execute those
 /// Git probes on the remote host, which is what this port injects.
 #[async_trait::async_trait]
@@ -1557,7 +1557,7 @@ impl ReviewPlatformService {
     ) -> Result<(), ReviewPlatformError> {
         if platform == ReviewPlatformKind::Github {
             return Err(ReviewPlatformError::Api(format!(
-                "GitHub tokens are not stored by OpenBitFun. Authenticate the local GitHub CLI with `gh auth login --hostname {}`.",
+                "GitHub tokens are not stored by BitFun. Authenticate the local GitHub CLI with `gh auth login --hostname {}`.",
                 normalize_provider_host(host)?
             )));
         }
@@ -4479,7 +4479,7 @@ fn validate_current_stored_tokens(
 ) -> Result<(), ReviewPlatformError> {
     if stored.schema_version != REVIEW_PLATFORM_TOKEN_SCHEMA_VERSION {
         return Err(ReviewPlatformError::Parse(format!(
-            "Review platform token store schema {} is not supported by OpenBitFun 1.0.0; use the explicit data migration tool instead",
+            "Review platform token store schema {} is not supported by BitFun 1.0.0; use the explicit data migration tool instead",
             stored.schema_version
         )));
     }
@@ -4492,12 +4492,12 @@ fn validate_current_stored_tokens(
         })?;
         if canonical_key != *raw_key {
             return Err(ReviewPlatformError::Parse(format!(
-                "Review platform token authority '{raw_key}' is not canonical OpenBitFun data; use the explicit data migration tool instead"
+                "Review platform token authority '{raw_key}' is not canonical BitFun data; use the explicit data migration tool instead"
             )));
         }
         if canonical_key.starts_with("github:") {
             return Err(ReviewPlatformError::Parse(
-                "The review platform token store contains a pre-OpenBitFun GitHub token; use the explicit data migration tool or authenticate with the GitHub CLI"
+                "The review platform token store contains a pre-BitFun GitHub token; use the explicit data migration tool or authenticate with the GitHub CLI"
                     .to_string(),
             ));
         }
@@ -5324,7 +5324,7 @@ impl ReviewPlatformService {
                     .and_then(|version| u16::try_from(version).ok());
                 if schema_version != Some(REVIEW_PLATFORM_TOKEN_SCHEMA_VERSION) {
                     return Err(ReviewPlatformError::Parse(
-                        "Review platform token store is not in the OpenBitFun 1.0.0 format; use the explicit data migration tool instead"
+                        "Review platform token store is not in the BitFun 1.0.0 format; use the explicit data migration tool instead"
                             .to_string(),
                     ));
                 }
@@ -7879,7 +7879,7 @@ mod tests {
             .expect("system clock should be after unix epoch")
             .as_nanos();
         std::env::temp_dir().join(format!(
-            "openbitfun-review-platform-{name}-{}-{id}.json",
+            "bitfun-review-platform-{name}-{}-{id}.json",
             std::process::id()
         ))
     }
@@ -8062,13 +8062,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pre_openbitfun_github_token_is_rejected_without_modifying_store() {
-        let path = temp_token_store_path("pre-openbitfun-github-token");
+    async fn pre_bitfun_github_token_is_rejected_without_modifying_store() {
+        let path = temp_token_store_path("pre-bitfun-github-token");
         let original = serde_json::to_vec(&json!({
             "schemaVersion": 1,
             "tokens": {
                 "github:github.com": {
-                    "token": "pre-openbitfun-github-token",
+                    "token": "pre-bitfun-github-token",
                     "updatedAt": "2026-07-14T00:00:00Z"
                 },
                 "gitlab:gitlab.com": {
@@ -8086,9 +8086,9 @@ mod tests {
         let error = service
             .load_stored_tokens()
             .await
-            .expect_err("pre-OpenBitFun GitHub token must require explicit migration");
+            .expect_err("pre-BitFun GitHub token must require explicit migration");
 
-        assert!(error.to_string().contains("pre-OpenBitFun"), "{error}");
+        assert!(error.to_string().contains("pre-BitFun"), "{error}");
         assert!(error.to_string().contains("migration tool"), "{error}");
         assert_eq!(
             fs::read(&path).await.expect("read unchanged store"),
@@ -8388,7 +8388,7 @@ mod tests {
         let service = ReviewPlatformService::new(path, runtime.clone());
 
         let snapshot = service
-            .workspace_context("/srv/projects/openbitfun", None)
+            .workspace_context("/srv/projects/bitfun", None)
             .await
             .expect("remote workspace context should resolve through remote git");
 
@@ -8412,12 +8412,12 @@ mod tests {
             commands,
             vec![
                 (
-                    "/srv/projects/openbitfun".to_string(),
-                    "/srv/projects/openbitfun".to_string(),
+                    "/srv/projects/bitfun".to_string(),
+                    "/srv/projects/bitfun".to_string(),
                     vec!["rev-parse".to_string(), "--show-toplevel".to_string()],
                 ),
                 (
-                    "/srv/projects/openbitfun".to_string(),
+                    "/srv/projects/bitfun".to_string(),
                     "/srv/projects".to_string(),
                     vec!["remote".to_string(), "-v".to_string()],
                 ),
@@ -8435,7 +8435,7 @@ mod tests {
         assert!(
             service
                 .repository_trusts_provider_identity(
-                    "/srv/projects/openbitfun",
+                    "/srv/projects/bitfun",
                     ReviewPlatformKind::Gitlab,
                     "gitlab.com",
                     "example/repo",
@@ -8489,7 +8489,7 @@ mod tests {
     #[tokio::test]
     async fn repository_root_accepts_nested_and_file_paths() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-review-platform-git-root-{}-{}",
+            "bitfun-review-platform-git-root-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)

@@ -8,7 +8,7 @@ export type WorkspaceSessionOrdering = 'updated' | 'status' | 'created' | 'name'
 export type WorkspaceSessionShow = 'all' | 'unread' | 'attention';
 export type WorkspaceSessionStatus = 'running' | 'attention' | 'error' | 'completed' | 'idle';
 export type WorkspaceSessionEnvironment = 'local' | 'remote' | 'detached';
-export type WorkspaceSessionSource = 'openbitfun' | 'external';
+export type WorkspaceSessionSource = 'bitfun' | 'external';
 export type WorkspaceSessionWorktree = 'main' | 'worktree';
 
 export interface WorkspaceSessionFilters {
@@ -92,7 +92,7 @@ export const useWorkspaceSessionViewStore = create<WorkspaceSessionViewState>()(
       requestCollapseAll: () => set(state => ({ collapseAllRequestId: state.collapseAllRequestId + 1 })),
     }),
     {
-      name: 'openbitfun.workspace-session-view.v2',
+      name: 'bitfun.workspace-session-view.v2',
       version: 3,
       // The storage adapter falls back to memory when the WebView exposes
       // localStorage as null (HarmonyOS); zustand's default storage would throw.
@@ -129,7 +129,7 @@ export function deriveWorkspaceSessionEnvironment(session: Session): WorkspaceSe
 }
 
 export function deriveWorkspaceSessionSource(session: Session): WorkspaceSessionSource {
-  return session.config.agentType?.startsWith('acp:') ? 'external' : 'openbitfun';
+  return session.config.agentType?.startsWith('acp:') ? 'external' : 'bitfun';
 }
 
 export function deriveWorkspaceSessionWorktree(session: Session): WorkspaceSessionWorktree {

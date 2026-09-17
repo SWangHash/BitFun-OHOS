@@ -1,5 +1,5 @@
 import { Fragment, useRef, type ReactNode } from 'react';
-import { Button, DialogBody, Icon } from '@openbitfun/ui';
+import { Button, DialogBody, Icon } from '@bitfun/ui';
 import { Package, Server, Webhook } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 

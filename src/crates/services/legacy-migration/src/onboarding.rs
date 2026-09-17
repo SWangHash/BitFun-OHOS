@@ -1,7 +1,7 @@
 use crate::{
     atomic_write_json, LegacyMigrationError, LegacyMigrationResult, MigrationLayout, MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{MigrationOnboardingState, MigrationRunReport};
+use bitfun_product_domains::legacy_migration::{MigrationOnboardingState, MigrationRunReport};
 use serde_json::{Map, Value};
 use std::fs;
 use std::io::Read;
@@ -181,7 +181,7 @@ fn is_link_or_reparse(metadata: &fs::Metadata) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::legacy_migration::{MigrationPromptChoice, MigrationRunStatus};
+    use bitfun_product_domains::legacy_migration::{MigrationPromptChoice, MigrationRunStatus};
 
     fn roots(root: &Path) -> MigrationRoots {
         MigrationRoots {

@@ -4,23 +4,23 @@
   height: 100%;
   min-height: 0;
   background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent) 0, transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--openbitfun-color-surface-raised) 96%, transparent), var(--openbitfun-color-surface-canvas));
-  color: var(--openbitfun-color-content-primary);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent) 0, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent), var(--bitfun-color-surface-canvas));
+  color: var(--bitfun-color-content-primary);
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-4);
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-4);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
   }
 
   &__header-actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     flex: 0 0 auto;
     margin-left: auto;
   }
@@ -28,7 +28,7 @@
   &__title-group {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -40,16 +40,16 @@
 
     h2 {
       margin: 0;
-      font-size: var(--openbitfun-type-flow-lead-font-size);
-      line-height: var(--openbitfun-type-label-md-line-height);
+      font-size: var(--bitfun-type-flow-lead-font-size);
+      line-height: var(--bitfun-type-label-md-line-height);
     }
 
     p {
       margin: 4px 0 0;
       max-width: 100%;
-      color: var(--openbitfun-color-content-secondary);
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-flow-support-font-size);
+      color: var(--bitfun-color-content-secondary);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-flow-support-font-size);
       white-space: nowrap;
       overflow: hidden;
       display: block;
@@ -63,8 +63,8 @@
     width: 28px;
     height: 28px;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 14%, transparent);
-    color: var(--openbitfun-color-accent-default);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 14%, transparent);
+    color: var(--bitfun-color-accent-default);
     flex: 0 0 auto;
   }
 
@@ -72,17 +72,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-4) 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-flow-support-font-size);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2) var(--bitfun-space-4) 0;
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-support-font-size);
   }
 
   &__meta-status {
     display: flex;
     flex: 1 1 auto;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     min-width: 0;
 
     > span {
@@ -90,9 +90,9 @@
       align-items: center;
       gap: 4px;
       padding: 2px 7px;
-      border: 1px solid var(--openbitfun-color-border-default);
+      border: 1px solid var(--bitfun-color-border-default);
       border-radius: 999px;
-      background: color-mix(in srgb, var(--openbitfun-color-action-quiet-hover) 70%, transparent);
+      background: color-mix(in srgb, var(--bitfun-color-action-quiet-hover) 70%, transparent);
     }
   }
 
@@ -104,30 +104,30 @@
   &__error {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    margin: var(--openbitfun-space-3) var(--openbitfun-space-4) 0;
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    border-radius: var(--openbitfun-radius-base);
-    font-size: var(--openbitfun-type-flow-support-font-size);
+    gap: var(--bitfun-space-2);
+    margin: var(--bitfun-space-3) var(--bitfun-space-4) 0;
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-base);
+    font-size: var(--bitfun-type-flow-support-font-size);
   }
 
   &__notice {
-    border: 1px solid var(--openbitfun-color-status-warning-border);
-    background: var(--openbitfun-color-status-warning-surface);
-    color: var(--openbitfun-color-content-secondary);
+    border: 1px solid var(--bitfun-color-status-warning-border);
+    background: var(--bitfun-color-status-warning-surface);
+    color: var(--bitfun-color-content-secondary);
 
     > svg {
-      color: var(--openbitfun-color-status-warning-emphasis);
+      color: var(--bitfun-color-status-warning-emphasis);
     }
   }
 
   &__error {
-    border: 1px solid var(--openbitfun-color-status-danger-border);
-    background: var(--openbitfun-color-status-danger-surface);
-    color: var(--openbitfun-color-status-danger-content);
+    border: 1px solid var(--bitfun-color-status-danger-border);
+    background: var(--bitfun-color-status-danger-surface);
+    color: var(--bitfun-color-status-danger-content);
 
     > svg {
-      color: var(--openbitfun-color-status-danger-emphasis);
+      color: var(--bitfun-color-status-danger-emphasis);
     }
   }
 
@@ -136,37 +136,37 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    margin: var(--openbitfun-space-3) var(--openbitfun-space-4) var(--openbitfun-space-4);
+    margin: var(--bitfun-space-3) var(--bitfun-space-4) var(--bitfun-space-4);
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-border-default) 86%, transparent);
-    border-radius: var(--openbitfun-radius-lg);
-    background: var(--openbitfun-color-surface-scene);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default) 86%, transparent);
+    border-radius: var(--bitfun-radius-lg);
+    background: var(--bitfun-color-surface-scene);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-primary) 4%, transparent);
   }
 
   &__input-editor {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    margin: 0 var(--openbitfun-space-4) var(--openbitfun-space-4);
-    padding: var(--openbitfun-space-3);
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-border-default) 86%, transparent);
-    border-radius: var(--openbitfun-radius-lg);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-primary) 4%, transparent) inset;
+    gap: var(--bitfun-space-2);
+    margin: 0 var(--bitfun-space-4) var(--bitfun-space-4);
+    padding: var(--bitfun-space-3);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default) 86%, transparent);
+    border-radius: var(--bitfun-radius-lg);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-primary) 4%, transparent) inset;
   }
 
   &__input-textarea {
-    .openbitfun-textarea__field {
+    .bitfun-textarea__field {
       min-height: 74px;
       max-height: 180px;
       resize: vertical;
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-flow-support-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-flow-support-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
 
-    &--masked .openbitfun-textarea__field {
+    &--masked .bitfun-textarea__field {
       -webkit-text-security: disc;
     }
   }
@@ -175,23 +175,23 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__input-options {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__input-option {
-    .openbitfun-checkbox__label {
-      color: var(--openbitfun-color-content-secondary);
-      font-size: var(--openbitfun-type-flow-support-font-size);
+    .bitfun-checkbox__label {
+      color: var(--bitfun-color-content-secondary);
+      font-size: var(--bitfun-type-flow-support-font-size);
     }
 
-    &:hover .openbitfun-checkbox__label {
-      color: var(--openbitfun-color-content-primary);
+    &:hover .bitfun-checkbox__label {
+      color: var(--bitfun-color-content-primary);
     }
   }
 
@@ -199,7 +199,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__terminal-container {
@@ -225,10 +225,10 @@
     .xterm {
       height: 100%;
       padding: 0;
-      background: var(--openbitfun-color-surface-scene);
+      background: var(--bitfun-color-surface-scene);
 
       &:not(.allow-transparency) .xterm-viewport {
-        background-color: var(--openbitfun-color-surface-scene);
+        background-color: var(--bitfun-color-surface-scene);
       }
     }
   }
@@ -236,9 +236,9 @@
   &__projection-fallback {
     margin: 0;
     overflow: auto;
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    line-height: var(--openbitfun-type-flow-code-line-height);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    line-height: var(--bitfun-type-flow-code-line-height);
     white-space: pre-wrap;
   }
 
@@ -246,8 +246,8 @@
     display: grid;
     place-items: center;
     min-height: 240px;
-    color: color-mix(in srgb, var(--openbitfun-color-content-secondary) 82%, transparent);
-    font-size: var(--openbitfun-type-flow-control-font-size);
+    color: color-mix(in srgb, var(--bitfun-color-content-secondary) 82%, transparent);
+    font-size: var(--bitfun-type-flow-control-font-size);
   }
 
   @media (max-width: 520px) {

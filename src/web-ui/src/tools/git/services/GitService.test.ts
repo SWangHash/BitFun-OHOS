@@ -28,7 +28,7 @@ vi.mock('../state/GitStateManager', () => ({
   gitStateManager: gitStateManagerMock,
 }));
 
-const repositoryPath = 'D:/workspace/OpenBitFun';
+const repositoryPath = 'D:/workspace/BitFun';
 
 describe('GitService dangerous operation refresh guard', () => {
   beforeEach(() => {

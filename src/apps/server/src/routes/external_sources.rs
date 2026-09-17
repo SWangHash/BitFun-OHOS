@@ -1,4 +1,4 @@
-use openbitfun_core::external_sources::{
+use bitfun_core::external_sources::{
     external_source_read_only_snapshot, get_external_source_control_snapshot,
     ExternalSourceHostCapabilities, ExternalSourceOperationError, ExternalSourceOperationResult,
 };
@@ -67,7 +67,7 @@ pub(crate) async fn dispatch(
             let snapshot = external_source_read_only_snapshot(workspace, force_refresh)
                 .await
                 .map_err(
-                    openbitfun_core::external_sources::sanitize_external_source_operation_error,
+                    bitfun_core::external_sources::sanitize_external_source_operation_error,
                 )?;
             serde_json::to_value(snapshot.into_legacy_v0_compatible())
         }
@@ -85,7 +85,7 @@ pub(crate) async fn dispatch(
     }
     .map_err(|_| {
         ExternalSourceOperationError::new(
-            openbitfun_core::external_sources::ExternalSourceOperationErrorCode::Internal,
+            bitfun_core::external_sources::ExternalSourceOperationErrorCode::Internal,
             "External source response could not be encoded",
             false,
         )
@@ -118,7 +118,7 @@ fn external_workspace_root(
     };
     let owned = state.external_workspace_root.as_ref().ok_or_else(|| {
         ExternalSourceOperationError::new(
-            openbitfun_core::external_sources::ExternalSourceOperationErrorCode::HostUnavailable,
+            bitfun_core::external_sources::ExternalSourceOperationErrorCode::HostUnavailable,
             "The Server Host has no project workspace",
             false,
         )

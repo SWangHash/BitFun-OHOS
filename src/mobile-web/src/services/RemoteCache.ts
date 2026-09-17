@@ -6,7 +6,7 @@ import type {
 } from './RemoteSessionManager';
 import { mergeWorkspaceSessions } from './workspaceIdentity';
 
-const DB_NAME = 'openbitfun-mobile-remote-cache';
+const DB_NAME = 'bitfun-mobile-remote-cache';
 const DB_VERSION = 1;
 const SESSION_STORE = 'session_state';
 const TRANSCRIPT_STORE = 'transcripts';

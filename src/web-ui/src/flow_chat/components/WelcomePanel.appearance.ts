@@ -1,7 +1,7 @@
 import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const welcomePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'welcome-panel',
-  componentAttribute: 'data-openbitfun-product-component',
+  componentAttribute: 'data-bitfun-product-component',
   parts: [
     { id: 'root', propertyProfile: 'layout', visualRole: 'workspace' },
     { id: 'content', visualRole: 'card' },
@@ -21,6 +21,6 @@ export const welcomePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'hover', selector: { kind: 'self', suffix: ':hover:not(:disabled)' } },
     { id: 'focusVisible', selector: { kind: 'self', suffix: ':focus-visible' } },
     { id: 'disabled', selector: { kind: 'self', suffix: ':disabled' } },
-    { id: 'open', selector: { kind: 'self', suffix: '[data-openbitfun-state~="open"]' } },
+    { id: 'open', selector: { kind: 'self', suffix: '[data-bitfun-state~="open"]' } },
   ],
 };

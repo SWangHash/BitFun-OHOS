@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Toolbar } from '@openbitfun/ui';
+import { Toolbar } from '@bitfun/ui';
 import { WindowControls } from '@/app/components/WindowControls';
 import { supportsNativeWindowDragging, usesHostWindowControls } from '@/infrastructure/runtime';
 import { workspaceAPI } from '@/infrastructure/api';
@@ -24,7 +24,7 @@ function blocksWindowChromeInteraction(
   }
 
   // Tab count changes the tab hit target, never the surrounding window chrome.
-  if (!allowTabDragging && target.closest('[data-openbitfun-component="tab-group"] [data-openbitfun-part="item"]')) {
+  if (!allowTabDragging && target.closest('[data-bitfun-component="tab-group"] [data-bitfun-part="item"]')) {
     return true;
   }
   const interactive = target.closest(INTERACTIVE_SELECTOR);
@@ -82,31 +82,31 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   return (
     <Toolbar
       bordered={hasTabs}
-      className={`openbitfun-scene-top-bar ${className}`.trim()}
+      className={`bitfun-scene-top-bar ${className}`.trim()}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      data-openbitfun-scene="workbench"
-      data-openbitfun-part="topBar"
+      data-bitfun-scene="workbench"
+      data-bitfun-part="topBar"
       leading={<SceneBar />}
       size="md"
       trailing={<>
       <SceneChromeHost
-        className="openbitfun-scene-top-bar__actions"
-        data-openbitfun-scene="workbench"
-        data-openbitfun-part="sceneActions"
+        className="bitfun-scene-top-bar__actions"
+        data-bitfun-scene="workbench"
+        data-bitfun-part="sceneActions"
       />
       {showHostWindowChromePlaceholder ? (
         <div
-          className="openbitfun-scene-top-bar__window-controls openbitfun-scene-top-bar__window-controls--host"
-          data-openbitfun-component="scene-bar"
-          data-openbitfun-part="hostControls"
+          className="bitfun-scene-top-bar__window-controls bitfun-scene-top-bar__window-controls--host"
+          data-bitfun-component="scene-bar"
+          data-bitfun-part="hostControls"
           aria-hidden="true"
         />
       ) : hasWindowControls ? (
         <div
-          className="openbitfun-scene-top-bar__window-controls"
-          data-openbitfun-component="scene-bar"
-          data-openbitfun-part="controls"
+          className="bitfun-scene-top-bar__window-controls"
+          data-bitfun-component="scene-bar"
+          data-bitfun-part="controls"
         >
           <WindowControls
             onMinimize={onMinimize!}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Alert, Button, Card, CardHeader, DialogBody, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogHeaderActions, DialogHeading, DialogTitle, Icon, IconButton, LoadingState, OverflowText, ScrollArea, StatusPill } from '@openbitfun/ui';
+import { Alert, Button, Card, CardHeader, DialogBody, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogHeaderActions, DialogHeading, DialogTitle, Icon, IconButton, LoadingState, OverflowText, ScrollArea, StatusPill } from '@bitfun/ui';
 import { PawPrint } from 'lucide-react';
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { useI18n } from '@/infrastructure/i18n';

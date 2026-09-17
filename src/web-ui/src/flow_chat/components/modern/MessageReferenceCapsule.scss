@@ -8,25 +8,25 @@
   padding: 0.08rem 0.38rem;
   // Align the label's text baseline with surrounding text, not the padded box.
   vertical-align: baseline;
-  border: 1px solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-radius-sm);
-  background: var(--openbitfun-color-action-neutral-surface-hover);
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  font-weight: var(--openbitfun-type-label-sm-font-weight);
-  line-height: var(--openbitfun-type-meta-line-height);
+  border: 1px solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-sm);
+  background: var(--bitfun-color-action-neutral-surface-hover);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  font-weight: var(--bitfun-type-label-sm-font-weight);
+  line-height: var(--bitfun-type-meta-line-height);
   white-space: nowrap;
   user-select: none;
 
   svg,
-  [data-openbitfun-component='icon'] {
+  [data-bitfun-component='icon'] {
     flex: 0 0 auto;
   }
 }
 
 .message-reference-capsule--session-reference,
 .user-message-item__reference--session-reference {
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .message-reference-capsule__label,

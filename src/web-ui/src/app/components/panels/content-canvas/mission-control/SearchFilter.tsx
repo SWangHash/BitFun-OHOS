@@ -6,7 +6,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 ;
-import { Icon, SearchField } from '@openbitfun/ui';
+import { Icon, SearchField } from '@bitfun/ui';
 import './SearchFilter.scss';
 
 export interface SearchFilterProps {
@@ -35,7 +35,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
     : t('canvas.filesCount', { count: totalCount });
 
   return (
-    <div data-openbitfun-component="content-canvas" data-openbitfun-part="searchFilter" className="canvas-search-filter">
+    <div data-bitfun-component="content-canvas" data-bitfun-part="searchFilter" className="canvas-search-filter">
       <SearchField
         value={value}
         onValueChange={onChange}

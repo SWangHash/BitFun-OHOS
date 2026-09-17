@@ -8,7 +8,7 @@
  */
 export function watchSourcePlugin(sourceDirectory) {
   return {
-    name: "openbitfun:watch-ui-source",
+    name: "bitfun:watch-ui-source",
     apply: "serve",
     configureServer(server) {
       server.watcher.add(sourceDirectory);

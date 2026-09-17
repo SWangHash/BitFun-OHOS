@@ -89,8 +89,8 @@ vi.mock('./components/ToolGroupPicker', () => ({
   ),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Select: () => <div />,
   Switch: () => <input type="checkbox" readOnly />,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -250,7 +250,7 @@ describeWithJsdom('AgentsScene', () => {
     });
 
     expect(container.querySelector('[data-testid="create-agent-page"]')).toBeTruthy();
-    expect(container.querySelector('.openbitfun-agents-scene--page')).toBeTruthy();
+    expect(container.querySelector('.bitfun-agents-scene--page')).toBeTruthy();
   }, 10_000);
 
   it('keeps agent subpages stretched across the active scene viewport', () => {
@@ -283,22 +283,22 @@ describeWithJsdom('AgentsScene', () => {
       root.render(<AgentsScene />);
     });
 
-    const presentation = container.querySelector('.openbitfun-agents-scene__harness-presentation');
+    const presentation = container.querySelector('.bitfun-agents-scene__harness-presentation');
     expect(presentation?.tagName).toBe('UL');
     expect(presentation?.getAttribute('role')).toBe('list');
     expect(presentation?.getAttribute('aria-label')).toBe('harnessZone.title');
     expect(presentation?.querySelectorAll(':scope > li')).toHaveLength(4);
-    expect(presentation?.querySelectorAll('[data-openbitfun-component="harness-profile-step"]')).toHaveLength(4);
+    expect(presentation?.querySelectorAll('[data-bitfun-component="harness-profile-step"]')).toHaveLength(4);
 
     for (const id of ['Minimal', 'Standard', 'Ultimate', 'Creative']) {
       const profile = container.querySelector<HTMLElement>(`[data-testid="agents-harness-${id}"]`);
-      expect(profile?.dataset.openbitfunProfile).toBe(id);
+      expect(profile?.dataset.bitfunProfile).toBe(id);
       expect(profile?.textContent).toContain(`harnessZone.profiles.${id}.name`);
       expect(profile?.textContent).toContain(`harnessZone.profiles.${id}.purpose`);
       expect(profile?.tagName).toBe('BUTTON');
-      expect(profile?.querySelector('.openbitfun-agents-scene__harness-profile-icon')).not.toBeNull();
-      expect(profile?.querySelector('.openbitfun-agents-scene__harness-route svg')).not.toBeNull();
-      expect(profile?.dataset.openbitfunState).toBeUndefined();
+      expect(profile?.querySelector('.bitfun-agents-scene__harness-profile-icon')).not.toBeNull();
+      expect(profile?.querySelector('.bitfun-agents-scene__harness-route svg')).not.toBeNull();
+      expect(profile?.dataset.bitfunState).toBeUndefined();
     }
     expect(presentation?.querySelectorAll('button')).toHaveLength(4);
     expect(presentation?.textContent).not.toMatch(/harnessZone\.(task|result|connected|comingSoon)/);

@@ -2,7 +2,7 @@
 
 [English](./feishu-bot-setup.md)
 
-适用于通过飞书机器人完成 OpenBitFun 远程连接配对。
+适用于通过飞书机器人完成 BitFun 远程连接配对。
 
 ## 接收生成的图片和文件
 
@@ -47,7 +47,7 @@ Agent 执行期间切换选中的工作区，不会改变输出文件的来源�
 
 ### 第六步
 
-打开 OpenBitFun 并启动飞书机器人连接：
+打开 BitFun 并启动飞书机器人连接：
 
 远程连接 - IM 机器人 - 飞书机器人 - 填写 App ID 和 App Secret - 连接
 
@@ -85,4 +85,4 @@ Agent 执行期间切换选中的工作区，不会改变输出文件的来源�
 
 ### 第十二步
 
-输入 OpenBitFun Desktop 显示的 6 位配对码，发送后等待连接成功。
+输入 BitFun Desktop 显示的 6 位配对码，发送后等待连接成功。

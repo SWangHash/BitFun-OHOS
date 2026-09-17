@@ -3,8 +3,8 @@
   min-height: 0;
   max-height: min(78vh, 720px);
   flex-direction: column;
-  color: var(--openbitfun-color-content-primary);
-  font-size: var(--openbitfun-type-label-md-font-size);
+  color: var(--bitfun-color-content-primary);
+  font-size: var(--bitfun-type-label-md-font-size);
 
   // The one scrolling region. Keeps the footer reachable on short viewports,
   // which the section stack used to push off-screen.
@@ -21,15 +21,15 @@
     }
 
     > [role='alert'] {
-      margin-bottom: var(--openbitfun-space-3);
+      margin-bottom: var(--bitfun-space-3);
     }
   }
 
   &__section {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3) 0;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3) 0;
 
     &:first-child {
       padding-top: 0;
@@ -40,32 +40,32 @@
     }
 
     + .dispatch-install-dialog__section {
-      border-top: 1px solid var(--openbitfun-color-border-subtle);
+      border-top: 1px solid var(--bitfun-color-border-subtle);
     }
   }
 
   &__section-title {
     margin: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   &__hint {
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
   }
 
   &__field {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__field-label {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   // A read-only path, not a code sample: drop the global `code` pill so the
@@ -75,20 +75,20 @@
     border: 0;
     background: none;
     overflow-wrap: anywhere;
-    color: var(--openbitfun-color-content-secondary);
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__base-ref {
     min-inline-size: 0;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     cursor: text;
 
     // Input owns its border, surface, sizing, and focus state on the wrapper.
     input {
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-label-sm-font-size);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-label-sm-font-size);
     }
   }
 
@@ -103,34 +103,34 @@
     > div {
       display: grid;
       grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
-      gap: var(--openbitfun-space-2);
-      padding: var(--openbitfun-space-2) 0;
+      gap: var(--bitfun-space-2);
+      padding: var(--bitfun-space-2) 0;
 
       + div {
-        border-top: 1px solid var(--openbitfun-color-border-subtle);
+        border-top: 1px solid var(--bitfun-color-border-subtle);
       }
 
       > span {
-        color: var(--openbitfun-color-content-muted);
-        font-size: var(--openbitfun-type-label-sm-font-size);
+        color: var(--bitfun-color-content-muted);
+        font-size: var(--bitfun-type-label-sm-font-size);
       }
 
       > strong {
         min-width: 0;
         overflow-wrap: anywhere;
-        font-weight: var(--openbitfun-type-label-sm-font-weight);
+        font-weight: var(--bitfun-type-label-sm-font-weight);
       }
 
       &[data-state='ok'] > strong {
-        color: var(--openbitfun-color-status-success-content);
+        color: var(--bitfun-color-status-success-content);
       }
 
       &[data-state='blocked'] > strong {
-        color: var(--openbitfun-color-status-warning-content);
+        color: var(--bitfun-color-status-warning-content);
       }
 
       &[data-state='pending'] > strong {
-        color: var(--openbitfun-color-content-secondary);
+        color: var(--bitfun-color-content-secondary);
       }
     }
   }
@@ -139,9 +139,9 @@
   &__retry {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__retry {
@@ -154,12 +154,12 @@
 
   &__details {
     width: 100%;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
 
     dl {
       display: grid;
-      gap: var(--openbitfun-space-1);
+      gap: var(--bitfun-space-1);
       width: 100%;
       margin: 0;
     }
@@ -167,18 +167,18 @@
     dl > div {
       display: grid;
       grid-template-columns: 84px minmax(0, 1fr);
-      gap: var(--openbitfun-space-2);
+      gap: var(--bitfun-space-2);
     }
 
     dt {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
 
     dd {
       min-width: 0;
       margin: 0;
       overflow-wrap: anywhere;
-      font-family:var(--openbitfun-type-code-md-font-family);
+      font-family:var(--bitfun-type-code-md-font-family);
     }
   }
 

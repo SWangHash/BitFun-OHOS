@@ -10,8 +10,8 @@ use crate::mcp::protocol::{InitializeResult, MCPMessage, MCPServerInfo, MCPTrans
 use crate::mcp::server::is_mcp_auth_error_message;
 use crate::mcp::{MCPRuntimeError, MCPRuntimeResult};
 use log::{debug, error, info, warn};
-use openbitfun_services_core::process_manager;
-use openbitfun_services_core::process_tree::ProcessTreeChild;
+use bitfun_services_core::process_manager;
+use bitfun_services_core::process_tree::ProcessTreeChild;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -320,7 +320,7 @@ impl MCPServerProcess {
         );
 
         let result: InitializeResult = connection
-            .initialize("OpenBitFun", env!("CARGO_PKG_VERSION"))
+            .initialize("BitFun", env!("CARGO_PKG_VERSION"))
             .await?;
 
         info!(
@@ -586,7 +586,7 @@ mod tests {
 
     #[test]
     fn mcp_process_timeout_child() {
-        if std::env::var_os("OPENBITFUN_MCP_PROCESS_TIMEOUT_CHILD").is_some() {
+        if std::env::var_os("BITFUN_MCP_PROCESS_TIMEOUT_CHILD").is_some() {
             std::thread::sleep(Duration::from_secs(30));
         }
     }
@@ -600,7 +600,7 @@ mod tests {
             "--nocapture".to_string(),
         ];
         let environment = HashMap::from([(
-            "OPENBITFUN_MCP_PROCESS_TIMEOUT_CHILD".to_string(),
+            "BITFUN_MCP_PROCESS_TIMEOUT_CHILD".to_string(),
             "1".to_string(),
         )]);
         let mut process = MCPServerProcess::new(

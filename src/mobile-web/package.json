@@ -1,5 +1,5 @@
 {
-  "name": "openbitfun-mobile-web",
+  "name": "bitfun-mobile-web",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -27,8 +27,8 @@
     "@noble/ciphers": "^2.1.1",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
-    "@openbitfun/theme-openbitfun": "workspace:^",
-    "@openbitfun/ui": "workspace:^",
+    "@bitfun/theme-bitfun": "workspace:^",
+    "@bitfun/ui": "workspace:^",
     "@xterm/addon-fit": "0.12.0-beta.141",
     "@xterm/xterm": "6.1.0-beta.141",
     "lucide-react": "^0.541.0",

@@ -1,4 +1,4 @@
-//! GitHub identity exchange for versioned OpenBitFun Relay device sessions.
+//! GitHub identity exchange for versioned BitFun Relay device sessions.
 
 use axum::extract::{ConnectInfo, State};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -319,7 +319,7 @@ pub(crate) async fn verify_identity_credentials(
     })
 }
 
-/// Exchange a shared OpenBitFun GitHub session for a device-scoped relay token.
+/// Exchange a shared BitFun GitHub session for a device-scoped relay token.
 pub(crate) async fn login(
     State(state): State<AppState>,
     connect_info: Option<Extension<ConnectInfo<SocketAddr>>>,

@@ -1,7 +1,7 @@
 impl ChatView {
     pub(crate) fn show_prompt_command_shell_review(
         &mut self,
-        plan: openbitfun_product_domains::external_sources::PromptCommandShellReviewPlan,
+        plan: bitfun_product_domains::external_sources::PromptCommandShellReviewPlan,
     ) {
         self.prompt_command_shell_review =
             Some(crate::ui::prompt_command_shell_review::PromptCommandShellReviewPrompt::new(plan));
@@ -59,7 +59,7 @@ impl ChatView {
 
     pub(crate) fn show_workspace_diff(
         &mut self,
-        snapshot: openbitfun_agent_runtime::sdk::WorkspaceDiffSnapshot,
+        snapshot: bitfun_agent_runtime::sdk::WorkspaceDiffSnapshot,
     ) {
         self.workspace_diff.show(snapshot);
         self.popup_stack.push(PopupType::WorkspaceDiff);
@@ -525,7 +525,7 @@ impl ChatView {
 
     pub(crate) fn show_session_lineage_selector(
         &mut self,
-        snapshot: &openbitfun_agent_runtime::sdk::AgentSessionLineageSnapshot,
+        snapshot: &bitfun_agent_runtime::sdk::AgentSessionLineageSnapshot,
     ) {
         self.session_lineage_selector.show(snapshot);
         self.popup_stack.push(PopupType::SessionLineageSelector);
@@ -644,7 +644,7 @@ impl ChatView {
 
     pub(crate) fn show_provider_selector(
         &mut self,
-        provider_catalog: openbitfun_core_types::ProviderCatalog,
+        provider_catalog: bitfun_core_types::ProviderCatalog,
     ) {
         self.provider_selector.show(provider_catalog);
         self.popup_stack.push(PopupType::ProviderSelector);
@@ -758,7 +758,7 @@ impl ChatView {
 
     pub(crate) fn login_form_set_authorization(
         &mut self,
-        authorization: openbitfun_product_domains::account::GitHubAuthStart,
+        authorization: bitfun_product_domains::account::GitHubAuthStart,
     ) {
         self.login_form.set_authorization(authorization);
     }
@@ -775,8 +775,8 @@ impl ChatView {
 
     pub(crate) fn show_account_panel(
         &mut self,
-        info: openbitfun_product_domains::account::AccountInfo,
-        devices: Vec<openbitfun_product_domains::account::AccountDevice>,
+        info: bitfun_product_domains::account::AccountInfo,
+        devices: Vec<bitfun_product_domains::account::AccountDevice>,
     ) {
         self.login_form.show_account(info, devices);
         self.popup_stack.push(PopupType::LoginForm);

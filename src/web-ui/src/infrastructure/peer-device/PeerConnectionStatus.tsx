@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Tooltip } from '@openbitfun/ui';
+import { Button, Tooltip } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { usePeerDeviceModeOptional } from './peerDeviceContextState';
 import { WifiOff } from 'lucide-react';
@@ -33,13 +33,13 @@ export const PeerConnectionStatus: React.FC = () => {
   return (
     <div
       className="peer-connection-status"
-      data-openbitfun-component="peer-device"
-      data-openbitfun-part="connectionStatus"
+      data-bitfun-component="peer-device"
+      data-bitfun-part="connectionStatus"
     >
       <div
         className="peer-connection-status__content"
-        data-openbitfun-component="peer-device"
-        data-openbitfun-part="connectionStatusContent"
+        data-bitfun-component="peer-device"
+        data-bitfun-part="connectionStatusContent"
       >
         <Tooltip content={t('peerConnection.reconnecting', { name: peer.peerMode.deviceName })}>
           <span className="peer-connection-status__label" role="status" aria-live="polite">

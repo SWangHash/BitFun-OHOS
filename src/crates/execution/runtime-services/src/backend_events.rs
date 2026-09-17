@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use log::{error, trace, warn};
-use openbitfun_events::{
+use bitfun_events::{
     BackgroundCommandLifecycleInfo, EventEmitter, ToolExecutionProgressInfo, ToolTerminalReadyInfo,
 };
 use serde::{Deserialize, Serialize};
@@ -108,7 +108,7 @@ pub async fn emit_global_event(event: BackendEvent) -> Result<()> {
 mod tests {
     use super::{BackendEvent, BackendEventSystem};
     use async_trait::async_trait;
-    use openbitfun_events::{
+    use bitfun_events::{
         BackgroundCommandLifecycleInfo, EventEmitter, ToolExecutionProgressInfo,
         ToolTerminalReadyInfo,
     };

@@ -1,7 +1,7 @@
 /**
  * Textarea component styles
  */
-.openbitfun-textarea {
+.bitfun-textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -157,18 +157,18 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .openbitfun-textarea__field:hover:not(:disabled) {
+  .bitfun-textarea__field:hover:not(:disabled) {
     border-color: var(--bf-appearance-token-border-medium);
     background: var(--bf-appearance-token-element-bg-soft);
   }
 
-  .openbitfun-textarea--filled .openbitfun-textarea__field:hover:not(:disabled) {
+  .bitfun-textarea--filled .bitfun-textarea__field:hover:not(:disabled) {
     background: var(--bf-appearance-token-element-bg-base);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-textarea__field {
+  .bitfun-textarea__field {
     transition-duration: var(--bf-appearance-token-motion-instant);
   }
 }

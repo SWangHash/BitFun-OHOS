@@ -1,6 +1,6 @@
 //! Tauri commands for the OpenHarmony Matrix skill market.
 //!
-//! These commands wrap the independent `openbitfun-matrix-adapter` crate so the
+//! These commands wrap the independent `bitfun-matrix-adapter` crate so the
 //! frontend can invoke Matrix market operations (`list_matrix_tags`,
 //! `list_matrix_skills`, `list_matrix_categories`, `list_matrix_organizations`,
 //! `install_matrix_skill`, `check_matrix_skill_checksum`) via the standard
@@ -22,9 +22,9 @@
 use tauri::State;
 
 use crate::api::AppState;
-use openbitfun_core::agentic::tools::implementations::skills::SkillLocation;
-use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use openbitfun_matrix_adapter::{
+use bitfun_core::agentic::tools::implementations::skills::SkillLocation;
+use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use bitfun_matrix_adapter::{
     check_checksum, install_skill_to_root, list_categories, list_organizations, list_skills,
     list_tags, resolve_matrix_skills_root, MatrixApiError, MatrixApiErrorKind, MatrixCategoryItem,
     MatrixHttpClient, MatrixOrgSidebarPage, MatrixOrgSidebarRequest, MatrixSkillChecksum,
@@ -34,7 +34,7 @@ use std::path::PathBuf;
 
 /// Browse Matrix platform skill tags.
 ///
-/// Wraps `openbitfun_matrix_adapter::list_tags` with `serviceType=skill` by
+/// Wraps `bitfun_matrix_adapter::list_tags` with `serviceType=skill` by
 /// default. The frontend can pass `serviceType=agent`/`model`/`datatest` to
 /// browse other taxonomies; only the `skill` array is parsed in any case.
 #[tauri::command]
@@ -69,7 +69,7 @@ pub async fn list_matrix_tags(
 
 /// Paginate-query the Matrix skill list.
 ///
-/// Wraps `openbitfun_matrix_adapter::list_skills` with the
+/// Wraps `bitfun_matrix_adapter::list_skills` with the
 /// `MatrixSkillsListRequest` body (pageNum / pageSize / keyword / categoryId
 /// / orgId / tagIds). Returns a `MatrixSkillsPage` containing `count` and
 /// `list`.
@@ -103,7 +103,7 @@ pub async fn list_matrix_skills(
 
 /// Browse Matrix skill categories with counts (sidebar for "鎸夊垎绫?).
 ///
-/// Wraps `openbitfun_matrix_adapter::list_categories`, which calls
+/// Wraps `bitfun_matrix_adapter::list_categories`, which calls
 /// `POST /api/registry/skill/countByCategory` with an empty body. Returns the
 /// category list used to populate the "by category" browse section chips.
 #[tauri::command]
@@ -128,7 +128,7 @@ pub async fn list_matrix_categories(
 
 /// Browse Matrix skill organizations with counts (sidebar for "鎸夌粍缁?).
 ///
-/// Wraps `openbitfun_matrix_adapter::list_organizations`, which calls
+/// Wraps `bitfun_matrix_adapter::list_organizations`, which calls
 /// `POST /api/registry/skill/org/list`. The frontend passes an optional
 /// `MatrixOrgSidebarRequest` (keyword / pageNum / pageSize); when omitted or
 /// incomplete, `pageNum=1` and `pageSize=1000` defaults are applied so the
@@ -170,7 +170,7 @@ pub async fn list_matrix_organizations(
 
 /// Download, verify, and install a Matrix skill by `en_name`.
 ///
-/// Wraps `openbitfun_matrix_adapter::install_skill_to_root`. The full flow:
+/// Wraps `bitfun_matrix_adapter::install_skill_to_root`. The full flow:
 /// download ZIP 鈫?fetch SHA-256 鈫?verify 鈫?unzip to staging dir with path
 /// traversal guard 鈫?atomic rename to `<install_root>/<en_name>/`. Returns a
 /// `MatrixSkillInstallResult` on success. Staging directories are cleaned up
@@ -243,7 +243,7 @@ pub async fn install_matrix_skill(
 
 /// Fetch the latest SHA-256 for a Matrix skill (standalone).
 ///
-/// Wraps `openbitfun_matrix_adapter::check_checksum`. Useful for future
+/// Wraps `bitfun_matrix_adapter::check_checksum`. Useful for future
 /// "check for updates" flows: the frontend can call this independently of
 /// `install_matrix_skill` to compare the latest Matrix SHA-256 against a
 /// previously-installed skill's hash and decide whether to re-install.

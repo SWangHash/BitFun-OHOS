@@ -22,7 +22,7 @@ pub fn is_swarm_delegate_agent_type(agent_type: &str) -> bool {
 }
 
 pub fn resolve_mode_config_profile_id<'a>(mode_id: &'a str) -> Cow<'a, str> {
-    Cow::Borrowed(openbitfun_core_types::agent_identity::canonical_agent_config_id(mode_id))
+    Cow::Borrowed(bitfun_core_types::agent_identity::canonical_agent_config_id(mode_id))
 }
 
 pub fn mode_config_profile_member_mode_ids(profile_id: &str) -> &'static [&'static str] {

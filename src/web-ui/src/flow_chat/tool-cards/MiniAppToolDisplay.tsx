@@ -2,11 +2,11 @@
  * MiniAppToolDisplay — InitMiniApp result on the prominent FlowChat framework.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { OverflowText, Button, Icon } from '@openbitfun/ui';
+import { OverflowText, Button, Icon } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 
 import type { ToolCardProps } from '../types/flow-chat';
-import { ProminentToolCard, ProminentToolCardSummary, ToolProcessingDots } from '@openbitfun/ui/flow-chat';
+import { ProminentToolCard, ProminentToolCardSummary, ToolProcessingDots } from '@bitfun/ui/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
 import './MiniAppToolDisplay.scss';
@@ -89,8 +89,8 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
       icon={<span className="miniapp-icon"><Icon name="floating-window" size="md" /></span>}
       action={`${t('toolCards.initMiniApp.title')}:`}
       content={
-        <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="info" className="miniapp-tool-info">
-          <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="operation" className="operation-tag">
+        <span data-bitfun-component="mini-app-tool-display" data-bitfun-part="info" className="miniapp-tool-info">
+          <span data-bitfun-component="mini-app-tool-display" data-bitfun-part="operation" className="operation-tag">
             {isLoading
               ? t('toolCards.initMiniApp.operationInit')
               : isFailed
@@ -98,8 +98,8 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
                 : t('toolCards.initMiniApp.skeletonReady')}
           </span>
           <OverflowText
-            data-openbitfun-component="mini-app-tool-display"
-            data-openbitfun-part="command"
+            data-bitfun-component="mini-app-tool-display"
+            data-bitfun-part="command"
             className="command-text"
             data-testid="chat-miniapp-title"
             data-app-id={appId || ''}
@@ -111,12 +111,12 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
       extra={
         <>
           {success && appId && status === 'completed' && (
-            <OverflowText data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="output" className="output-summary" title={appId}>
+            <OverflowText data-bitfun-component="mini-app-tool-display" data-bitfun-part="output" className="output-summary" title={appId}>
               {appId}
             </OverflowText>
           )}
           {isFailed && (
-            <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="errorIndicator" className="error-indicator">
+            <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="errorIndicator" className="error-indicator">
               <span className="error-text">{t('toolCards.initMiniApp.failed')}</span>
             </div>
           )}
@@ -129,31 +129,31 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   const renderExpandedSuccess = () => {
     if (!appId) return null;
     return (
-      <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="result" className="miniapp-result-container">
-        <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="rows" className="miniapp-result-rows" data-testid="chat-miniapp-file-list">
-          <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="row" className="miniapp-result-row">
-            <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelAppId')}</span>
-            <OverflowText data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="value" className="miniapp-result-value" title={appId}>
+      <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="result" className="miniapp-result-container">
+        <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="rows" className="miniapp-result-rows" data-testid="chat-miniapp-file-list">
+          <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="row" className="miniapp-result-row">
+            <span data-bitfun-component="mini-app-tool-display" data-bitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelAppId')}</span>
+            <OverflowText data-bitfun-component="mini-app-tool-display" data-bitfun-part="value" className="miniapp-result-value" title={appId}>
               {appId}
             </OverflowText>
           </div>
           {miniAppFiles.map(filePath => (
             <div
               key={filePath}
-              data-openbitfun-component="mini-app-tool-display"
-              data-openbitfun-part="row"
+              data-bitfun-component="mini-app-tool-display"
+              data-bitfun-part="row"
               className="miniapp-result-row"
               data-testid="chat-miniapp-file-row"
               data-path={filePath}
             >
-              <span data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelPath')}</span>
-              <OverflowText data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="value" className="miniapp-result-value" title={filePath}>
+              <span data-bitfun-component="mini-app-tool-display" data-bitfun-part="label" className="miniapp-result-label">{t('toolCards.initMiniApp.labelPath')}</span>
+              <OverflowText data-bitfun-component="mini-app-tool-display" data-bitfun-part="value" className="miniapp-result-value" title={filePath}>
                 {filePath}
               </OverflowText>
             </div>
           ))}
         </div>
-        <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="footer" className="miniapp-result-footer miniapp-action-buttons">
+        <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="footer" className="miniapp-result-footer miniapp-action-buttons">
           <Button
             type="button"
             variant="outline"
@@ -172,7 +172,7 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   };
 
   const renderExpandedError = () => (
-    <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="error" className="error-content">
+    <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="error" className="error-content">
       <div className="error-message">{getErrorMessage()}</div>
       {name ? (
         <div className="error-meta">
@@ -193,8 +193,8 @@ export const InitMiniAppDisplay: React.FC<ToolCardProps> = ({ toolItem }) => {
   };
 
   return (
-    <div data-openbitfun-component="mini-app-tool-display" data-openbitfun-part="root"
-      data-openbitfun-state={[isExpanded && 'expanded', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
+    <div data-bitfun-component="mini-app-tool-display" data-bitfun-part="root"
+      data-bitfun-state={[isExpanded && 'expanded', isFailed && 'failed', isLoading && 'loading'].filter(Boolean).join(' ')}
       ref={cardRootRef}
       data-testid="chat-miniapp-card"
       data-tool-card-id={toolId ?? ''}

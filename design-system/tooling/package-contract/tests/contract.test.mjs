@@ -26,7 +26,7 @@ test("UI CSS consumes only generated public token variables", async () => {
     themeCssPath: path.join(
       designSystemDirectory,
       "packages",
-      "theme-openbitfun",
+      "theme-bitfun",
       "dist",
       "themes.css",
     ),
@@ -45,7 +45,7 @@ test("UI source does not introduce raw color values", async () => {
 });
 
 test("public package manifests expose only built artifacts", async () => {
-  for (const packageName of ["design-tokens", "theme-openbitfun", "ui"]) {
+  for (const packageName of ["design-tokens", "theme-bitfun", "ui"]) {
     const failures = await validatePublishedPackageManifest(
       path.join(designSystemDirectory, "packages", packageName, "package.json"),
     );

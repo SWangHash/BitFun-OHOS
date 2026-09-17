@@ -40,14 +40,14 @@ describe('pull request Review linking', () => {
       remoteId: 'old-origin-name',
       platform: 'github',
       host: 'HTTPS://GitHub.com/',
-      projectPath: '/GCWing/OpenBitFun/',
+      projectPath: '/GCWing/BitFun/',
       pullRequestId: '1502',
       number: 1502,
-      webUrl: 'https://github.com/GCWing/OpenBitFun/pull/1502',
+      webUrl: 'https://github.com/GCWing/BitFun/pull/1502',
     }, {
       platform: 'github',
       host: 'github.com',
-      projectPath: 'gcwing/openbitfun',
+      projectPath: 'gcwing/bitfun',
       pullRequestId: '1502',
     })).toBe(true);
   });
@@ -77,7 +77,7 @@ describe('pull request Review linking', () => {
     const first = pullRequestReviewLaunchKey({
       platform: 'GitHub',
       host: 'HTTPS://GitHub.com/',
-      projectPath: '/GCWing/OpenBitFun/',
+      projectPath: '/GCWing/BitFun/',
       pullRequestId: '1503',
       baseRevision,
       headRevision,
@@ -85,7 +85,7 @@ describe('pull request Review linking', () => {
     const second = pullRequestReviewLaunchKey({
       platform: 'github',
       host: 'github.com',
-      projectPath: 'gcwing/openbitfun',
+      projectPath: 'gcwing/bitfun',
       pullRequestId: '1503',
       baseRevision: baseRevision.toUpperCase(),
       headRevision: headRevision.toUpperCase(),

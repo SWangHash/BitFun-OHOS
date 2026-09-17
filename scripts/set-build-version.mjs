@@ -14,8 +14,8 @@ export function setBuildVersion(root, version) {
   for (const relative of [
     'package.json',
     'package-lock.json',
-    'OpenBitFun-Installer/package.json',
-    'OpenBitFun-Installer/package-lock.json',
+    'BitFun-Installer/package.json',
+    'BitFun-Installer/package-lock.json',
     'src/web-ui/package.json',
     'src/mobile-web/package.json',
     'src/mobile-web/package-lock.json',
@@ -42,7 +42,7 @@ export function setBuildVersion(root, version) {
     `version = "${version}" # x-release-please-version`,
   );
   replaceVersion(
-    path.join(root, 'OpenBitFun-Installer/src-tauri/Cargo.toml'),
+    path.join(root, 'BitFun-Installer/src-tauri/Cargo.toml'),
     /^version = "[^"]+"$/m,
     `version = "${version}"`,
   );
@@ -63,7 +63,7 @@ export function setBuildVersion(root, version) {
     `$1${version}$2`,
   );
   replaceVersion(
-    path.join(root, 'src/apps/mobile/ios/OpenBitFun/Info.plist'),
+    path.join(root, 'src/apps/mobile/ios/BitFun/Info.plist'),
     /(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]+(<\/string>)/m,
     `$1${version}$2`,
   );

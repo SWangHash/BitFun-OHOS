@@ -1,6 +1,6 @@
 //! First-party product assembly for local Agent Runtime ownership.
 //!
-//! The reusable lock primitive lives in `openbitfun-services-core`. This owner
+//! The reusable lock primitive lives in `bitfun-services-core`. This owner
 //! selects one deployment for the process, retains acquired workspace leases,
 //! and keeps that deployment fact out of Agent Runtime SDK and wire contracts.
 
@@ -9,9 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use log::{info, warn};
-use openbitfun_services_core::product_identity::product_id;
-pub use openbitfun_services_core::runtime_ownership::RuntimeDeployment;
-use openbitfun_services_core::runtime_ownership::{
+use bitfun_services_core::product_identity::product_id;
+pub use bitfun_services_core::runtime_ownership::RuntimeDeployment;
+use bitfun_services_core::runtime_ownership::{
     RuntimeOwnershipError, RuntimeOwnershipKey, WorkspaceRuntimeOwnership,
 };
 
@@ -304,9 +304,9 @@ impl CoreRuntimeOwnershipError {
             return prefix;
         }
         let guidance = match deployment {
-            RuntimeDeployment::Embedded if entrypoint == "cli-interactive" => "A Shared TUI Runtime owns this workspace; use `openbitfun chat --shared`, or close its clients and wait up to 30 seconds",
+            RuntimeDeployment::Embedded if entrypoint == "cli-interactive" => "A Shared TUI Runtime owns this workspace; use `bitfun chat --shared`, or close its clients and wait up to 30 seconds",
             RuntimeDeployment::Embedded => "A Shared TUI Runtime owns this workspace; close its clients and wait up to 30 seconds before retrying this application",
-            RuntimeDeployment::Shared => "An Embedded OpenBitFun process owns this workspace; close it before using `--shared`",
+            RuntimeDeployment::Shared => "An Embedded BitFun process owns this workspace; close it before using `--shared`",
         };
         format!("{prefix}. {guidance}")
     }

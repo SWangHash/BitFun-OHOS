@@ -11,8 +11,8 @@ use crate::agentic::events::{
     ModelRoundAttemptToolDiagnostic, ToolEventData,
 };
 use crate::agentic::memories::{
-    parse_openbitfun_memory_citation, parse_openbitfun_memory_citation_payloads,
-    strip_openbitfun_memory_citations,
+    parse_bitfun_memory_citation, parse_bitfun_memory_citation_payloads,
+    strip_bitfun_memory_citations,
 };
 use crate::agentic::permission_policy::{
     permission_mode_from_context, resolve_effective_permission_policy,
@@ -34,18 +34,18 @@ use crate::service::config::types::AgentProfileConfig;
 use crate::service::config::types::SubagentBatchExecutionPolicy as ConfigSubagentBatchExecutionPolicy;
 use crate::service::config::GlobalConfigManager;
 use crate::util::elapsed_ms_u64;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::Message as AIMessage;
 use crate::util::types::ToolDefinition;
 use log::{debug, error, warn};
-use openbitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
-use openbitfun_agent_tools::{parse_call_deferred_tool_input, CALL_DEFERRED_TOOL_NAME};
-use openbitfun_ai_adapters::{
+use bitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
+use bitfun_agent_tools::{parse_call_deferred_tool_input, CALL_DEFERRED_TOOL_NAME};
+use bitfun_ai_adapters::{
     ModelExchangeRequestTraceHandle, ModelExchangeResponseTrace, ModelExchangeTraceConfig,
 };
-use openbitfun_core_types::errors::{AiProviderError, ErrorCategory};
-use openbitfun_core_types::ModelResponseReplay;
-use openbitfun_runtime_ports::PermissionRule;
+use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
+use bitfun_core_types::ModelResponseReplay;
+use bitfun_runtime_ports::PermissionRule;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
@@ -116,13 +116,13 @@ impl ModelRoundLifecycle {
 }
 
 impl RoundExecutor {
-    const MAX_STREAM_ATTEMPTS: usize = openbitfun_agent_stream::retry::MAX_MODEL_ATTEMPTS;
+    const MAX_STREAM_ATTEMPTS: usize = bitfun_agent_stream::retry::MAX_MODEL_ATTEMPTS;
 
     fn should_retry_provider_error(category: &ErrorCategory) -> bool {
-        openbitfun_agent_stream::retry::should_retry(category)
+        bitfun_agent_stream::retry::should_retry(category)
     }
 
-    fn terminal_request_error(error: &anyhow::Error, attempts: u32) -> OpenBitFunError {
+    fn terminal_request_error(error: &anyhow::Error, attempts: u32) -> BitFunError {
         let mut provider_error = error
             .downcast_ref::<AiProviderError>()
             .cloned()
@@ -132,15 +132,15 @@ impl RoundExecutor {
             provider_error.message
         );
         if provider_error.category == ErrorCategory::ContextOverflow {
-            OpenBitFunError::RecoverableContextOverflow(provider_error)
+            BitFunError::RecoverableContextOverflow(provider_error)
         } else {
-            OpenBitFunError::AIProvider(provider_error)
+            BitFunError::AIProvider(provider_error)
         }
     }
 
     /// Legacy name kept for the existing call sites and tests that predate the
     /// provider-neutral retry policy rename.
-    fn exhausted_request_error(error: &anyhow::Error, attempts: u32) -> OpenBitFunError {
+    fn exhausted_request_error(error: &anyhow::Error, attempts: u32) -> BitFunError {
         Self::terminal_request_error(error, attempts)
     }
 
@@ -237,8 +237,8 @@ impl RoundExecutor {
             .map(|block| block.payload.as_str())
             .collect::<Vec<_>>();
 
-        parse_openbitfun_memory_citation_payloads(payloads)
-            .or_else(|| parse_openbitfun_memory_citation(&stream_result.full_text))
+        parse_bitfun_memory_citation_payloads(payloads)
+            .or_else(|| parse_bitfun_memory_citation(&stream_result.full_text))
             .map(Into::into)
     }
 
@@ -268,12 +268,12 @@ impl RoundExecutor {
 
     fn resolve_permission_policy(
         global: &crate::service::config::types::GlobalConfig,
-        mode: openbitfun_runtime_ports::PermissionMode,
+        mode: bitfun_runtime_ports::PermissionMode,
         project_rules: &[PermissionRule],
         agent_profile: Option<&AgentProfileConfig>,
-        agent_definition_constraints: &openbitfun_runtime_ports::PermissionConstraintLayer,
-        parent_runtime_ceiling: Option<&openbitfun_runtime_ports::PermissionRuntimeCeiling>,
-    ) -> openbitfun_runtime_ports::ResolvedPermissionPolicy {
+        agent_definition_constraints: &bitfun_runtime_ports::PermissionConstraintLayer,
+        parent_runtime_ceiling: Option<&bitfun_runtime_ports::PermissionRuntimeCeiling>,
+    ) -> bitfun_runtime_ports::ResolvedPermissionPolicy {
         resolve_effective_permission_policy(
             global,
             Some(mode),
@@ -293,16 +293,16 @@ impl RoundExecutor {
     fn resolve_permission_mode(
         global: &crate::service::config::types::GlobalConfig,
         context_vars: &std::collections::HashMap<String, String>,
-    ) -> openbitfun_runtime_ports::PermissionMode {
+    ) -> bitfun_runtime_ports::PermissionMode {
         permission_mode_from_context(global, context_vars)
     }
 
     async fn sleep_with_cancellation(
         delay_ms: u64,
         cancel_token: &CancellationToken,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         tokio::select! {
-            _ = cancel_token.cancelled() => Err(OpenBitFunError::Cancelled("Execution cancelled".to_string())),
+            _ = cancel_token.cancelled() => Err(BitFunError::Cancelled("Execution cancelled".to_string())),
             _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => Ok(()),
         }
     }
@@ -334,7 +334,7 @@ impl RoundExecutor {
         ai_messages: Vec<AIMessage>,
         tool_definitions: Option<Vec<ToolDefinition>>,
         context_window: Option<usize>,
-    ) -> OpenBitFunResult<RoundResult> {
+    ) -> BitFunResult<RoundResult> {
         let mut lifecycle = ModelRoundLifecycle::new();
         self.execute_round_with_lifecycle(
             ai_client,
@@ -357,7 +357,7 @@ impl RoundExecutor {
         context_window: Option<usize>,
         lifecycle: &mut ModelRoundLifecycle,
         session_manager: Option<&SessionManager>,
-    ) -> OpenBitFunResult<RoundResult> {
+    ) -> BitFunResult<RoundResult> {
         let round_started_at = lifecycle.started_at;
         let subagent_parent_info = context.subagent_parent_info.clone();
         let is_subagent = subagent_parent_info.is_some();
@@ -410,7 +410,7 @@ impl RoundExecutor {
                     "Cancel token detected before AI request, stopping execution: session_id={}",
                     context.session_id
                 );
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Execution cancelled".to_string(),
                 ));
             }
@@ -437,7 +437,7 @@ impl RoundExecutor {
             );
             let send_result = tokio::select! {
                 _ = cancel_token.cancelled() => {
-                    return Err(OpenBitFunError::Cancelled("Execution cancelled".to_string()));
+                    return Err(BitFunError::Cancelled("Execution cancelled".to_string()));
                 }
                 result = send_future => result,
             };
@@ -521,7 +521,7 @@ impl RoundExecutor {
                     "Cancel token detected after AI stream opened, stopping execution: session_id={}",
                     context.session_id
                 );
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Execution cancelled".to_string(),
                 ));
             }
@@ -663,7 +663,7 @@ impl RoundExecutor {
                             ),
                         )
                         .await;
-                        return Err(OpenBitFunError::AIClient(format!(
+                        return Err(BitFunError::AIClient(format!(
                             "Stream retry budget exhausted after {} attempts: {}",
                             max_attempts, err_msg
                         )));
@@ -728,7 +728,7 @@ impl RoundExecutor {
                             ),
                         )
                         .await;
-                        return Err(OpenBitFunError::AIClient(format!(
+                        return Err(BitFunError::AIClient(format!(
                             "Stream retry budget exhausted after {} attempts: {}",
                             max_attempts, err_msg
                         )));
@@ -787,7 +787,7 @@ impl RoundExecutor {
                             ),
                         )
                         .await;
-                        return Err(OpenBitFunError::AIClient(format!(
+                        return Err(BitFunError::AIClient(format!(
                             "Stream retry budget exhausted after {} attempts: {}",
                             max_attempts, err_msg
                         )));
@@ -816,7 +816,7 @@ impl RoundExecutor {
                     );
                 }
                 Err(stream_err) => {
-                    if matches!(&stream_err.error, OpenBitFunError::Cancelled(_)) {
+                    if matches!(&stream_err.error, BitFunError::Cancelled(_)) {
                         Self::complete_model_exchange_trace(
                             trace_config.as_ref(),
                             trace_handle.as_ref(),
@@ -829,8 +829,8 @@ impl RoundExecutor {
                     let stream_error_category = stream_err.error.error_category();
                     let retryable = Self::should_retry_provider_error(&stream_error_category);
                     let provider_error = match &stream_err.error {
-                        OpenBitFunError::AIProvider(error)
-                        | OpenBitFunError::RecoverableContextOverflow(error) => Some(error),
+                        BitFunError::AIProvider(error)
+                        | BitFunError::RecoverableContextOverflow(error) => Some(error),
                         _ => None,
                     };
                     Self::complete_model_exchange_trace(
@@ -883,13 +883,13 @@ impl RoundExecutor {
                     );
                     if stream_error_category == ErrorCategory::ContextOverflow {
                         let provider_error = match stream_err.error {
-                            OpenBitFunError::AIProvider(error)
-                            | OpenBitFunError::RecoverableContextOverflow(error) => error,
+                            BitFunError::AIProvider(error)
+                            | BitFunError::RecoverableContextOverflow(error) => error,
                             _ => {
                                 AiProviderError::classified(err_msg, ErrorCategory::ContextOverflow)
                             }
                         };
-                        return Err(OpenBitFunError::RecoverableContextOverflow(provider_error));
+                        return Err(BitFunError::RecoverableContextOverflow(provider_error));
                     }
                     return Err(stream_err.error);
                 }
@@ -948,7 +948,7 @@ impl RoundExecutor {
                 "Cancel token detected after stream processing, stopping execution: session_id={}",
                 context.session_id
             );
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Execution cancelled".to_string(),
             ));
         }
@@ -1003,7 +1003,7 @@ impl RoundExecutor {
             let parsed_memory_citation =
                 Self::parsed_memory_citation_from_stream_result(&stream_result);
             let model_response_replay = Self::model_response_replay(&stream_result);
-            let (clean_text, _) = strip_openbitfun_memory_citations(&stream_result.full_text);
+            let (clean_text, _) = strip_bitfun_memory_citations(&stream_result.full_text);
             let assistant_message =
                 Message::assistant_with_reasoning(reasoning, clean_text, vec![])
                     .with_turn_id(context.dialog_turn_id.clone())
@@ -1060,7 +1060,7 @@ impl RoundExecutor {
         let parsed_memory_citation =
             Self::parsed_memory_citation_from_stream_result(&stream_result);
         let model_response_replay = Self::model_response_replay(&stream_result);
-        let (clean_text, _) = strip_openbitfun_memory_citations(&stream_result.full_text);
+        let (clean_text, _) = strip_bitfun_memory_citations(&stream_result.full_text);
         let assistant_message =
             Message::assistant_with_reasoning(reasoning, clean_text, tool_calls.clone())
                 .with_turn_id(context.dialog_turn_id.clone())
@@ -1087,7 +1087,7 @@ impl RoundExecutor {
                 "Cancel token detected before tool execution, stopping execution: session_id={}",
                 context.session_id
             );
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Execution cancelled".to_string(),
             ));
         }
@@ -1346,7 +1346,7 @@ impl RoundExecutor {
     }
 
     /// Cancel dialog turn (using dialog_turn_id)
-    pub async fn cancel_dialog_turn(&self, dialog_turn_id: &str) -> OpenBitFunResult<()> {
+    pub async fn cancel_dialog_turn(&self, dialog_turn_id: &str) -> BitFunResult<()> {
         debug!("Cancelling dialog turn: dialog_turn_id={}", dialog_turn_id);
 
         if self.cancellation_tokens.cancel(dialog_turn_id) {
@@ -1421,7 +1421,7 @@ impl RoundExecutor {
                     attempt_id: None,
                     attempt_index: None,
                     tool_event: ToolEventData::Failed {
-                        identity: openbitfun_events::ToolEventIdentity::direct(
+                        identity: bitfun_events::ToolEventIdentity::direct(
                             tool_call.tool_id.clone(),
                             tool_call.tool_name.clone(),
                         ),
@@ -1562,7 +1562,7 @@ impl RoundExecutor {
         error_message: &str,
         provider_error: Option<&AiProviderError>,
     ) -> u64 {
-        openbitfun_agent_stream::retry::delay_ms(attempt_index, error_message, provider_error)
+        bitfun_agent_stream::retry::delay_ms(attempt_index, error_message, provider_error)
     }
 }
 
@@ -1605,14 +1605,14 @@ pub(super) mod tests {
     use crate::agentic::execution::types::RoundContext;
     use crate::agentic::tools::ToolRuntimeRestrictions;
     use crate::service::config::types::{AgentProfileConfig, GlobalConfig};
-    use crate::util::errors::OpenBitFunError;
+    use crate::util::errors::BitFunError;
     use crate::util::types::ai::GeminiUsage;
-    use openbitfun_agent_runtime::permission::{
+    use bitfun_agent_runtime::permission::{
         AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY,
     };
-    use openbitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
-    use openbitfun_core_types::errors::{AiProviderError, ErrorCategory};
-    use openbitfun_runtime_ports::{
+    use bitfun_agent_runtime::turn_cancellation::DialogTurnCancellationTokenStore;
+    use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
+    use bitfun_runtime_ports::{
         DelegationPolicy, PermissionEffect, PermissionEvaluator, PermissionPolicyPreset,
         PermissionRule,
     };
@@ -1649,7 +1649,7 @@ pub(super) mod tests {
     fn deferred_tool_replay_uses_canonical_gateway_arguments() {
         let mut tool_calls = vec![ToolCall {
             tool_id: "call-1".to_string(),
-            tool_name: openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string(),
+            tool_name: bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME.to_string(),
             arguments: json!({
                 "tool_name": "CreatePlan",
                 "overview": "outside",
@@ -1846,7 +1846,7 @@ pub(super) mod tests {
             &self,
         ) -> Arc<crate::infrastructure::ai::AIClient> {
             Arc::new(crate::infrastructure::ai::AIClient::new(
-                openbitfun_core_types::AIConfig {
+                bitfun_core_types::AIConfig {
                     name: "retry-test".to_string(),
                     base_url: self.url.clone(),
                     request_url: self.url.clone(),
@@ -1907,7 +1907,7 @@ pub(super) mod tests {
         fn name(&self) -> &str {
             "SemanticCommitTest"
         }
-        async fn description(&self) -> super::OpenBitFunResult<String> {
+        async fn description(&self) -> super::BitFunResult<String> {
             Ok("semantic commit test".into())
         }
         fn short_description(&self) -> String {
@@ -1935,7 +1935,7 @@ pub(super) mod tests {
             &self,
             _: &serde_json::Value,
             _: &crate::agentic::tools::framework::ToolUseContext,
-        ) -> super::OpenBitFunResult<Vec<crate::agentic::tools::framework::ToolResult>> {
+        ) -> super::BitFunResult<Vec<crate::agentic::tools::framework::ToolResult>> {
             self.entered.notify_one();
             self.release.notified().await;
             Ok(vec![crate::agentic::tools::framework::ToolResult::Result {
@@ -2103,7 +2103,7 @@ pub(super) mod tests {
         })
         .await
         .expect("live stream should be cancelled after its first output");
-        assert!(matches!(result, Err(OpenBitFunError::Cancelled(_))));
+        assert!(matches!(result, Err(BitFunError::Cancelled(_))));
         events.extend(executor.event_queue.dequeue_batch(100).await);
         assert!(!events.iter().any(|event| matches!(
             event.event,
@@ -2242,7 +2242,7 @@ pub(super) mod tests {
 
         let resolved = RoundExecutor::resolve_permission_policy(
             &global,
-            openbitfun_runtime_ports::PermissionMode::Ask,
+            bitfun_runtime_ports::PermissionMode::Ask,
             &project_rules,
             Some(&agent),
             &Default::default(),
@@ -2270,11 +2270,11 @@ pub(super) mod tests {
 
     #[test]
     fn permission_mode_context_overrides_persisted_default_mode() {
-        use openbitfun_runtime_ports::PermissionMode;
+        use bitfun_runtime_ports::PermissionMode;
 
         let mut global = GlobalConfig::default();
         global.tool_permissions.policy.preset =
-            openbitfun_runtime_ports::PermissionPolicyPreset::Ask;
+            bitfun_runtime_ports::PermissionPolicyPreset::Ask;
         global.tool_permissions.interaction.auto_approve_ask = true;
         let mut context_vars = std::collections::HashMap::new();
 
@@ -2428,7 +2428,7 @@ pub(super) mod tests {
         token.cancel();
 
         let result = waiter.await.expect("sleep task should join");
-        assert!(matches!(result, Err(OpenBitFunError::Cancelled(_))));
+        assert!(matches!(result, Err(BitFunError::Cancelled(_))));
     }
 
     #[tokio::test]
@@ -2505,7 +2505,7 @@ pub(super) mod tests {
     fn error_trace_response_from_stream_result_preserves_structured_context() {
         let stream_result = StreamResult {
             full_thinking: "reasoning".to_string(),
-            reasoning_content_kind: Some(openbitfun_core_types::ReasoningContentKind::Reasoning),
+            reasoning_content_kind: Some(bitfun_core_types::ReasoningContentKind::Reasoning),
             reasoning_content_present: true,
             thinking_signature: Some("sig".to_string()),
             full_text: String::new(),
@@ -2671,7 +2671,7 @@ pub(super) mod tests {
             .provider_message
             .unwrap()
             .contains("after 10 attempts"));
-        let OpenBitFunError::AIProvider(provider) = error else {
+        let BitFunError::AIProvider(provider) = error else {
             panic!("expected provider error")
         };
         let encoded = serde_json::to_value(&provider).unwrap();
@@ -2694,7 +2694,7 @@ pub(super) mod tests {
         ));
         assert!(matches!(
             RoundExecutor::exhausted_request_error(&source, 10),
-            OpenBitFunError::RecoverableContextOverflow(_)
+            BitFunError::RecoverableContextOverflow(_)
         ));
     }
 
@@ -2717,7 +2717,7 @@ pub(super) mod tests {
 
     #[test]
     fn provider_retry_after_is_only_a_delay_hint() {
-        let permission_error = openbitfun_core_types::errors::AiProviderError::from_parts(
+        let permission_error = bitfun_core_types::errors::AiProviderError::from_parts(
             "permission denied".to_string(),
             Some("openai".to_string()),
             None,
@@ -2733,7 +2733,7 @@ pub(super) mod tests {
             1_000
         );
 
-        let rate_limit_error = openbitfun_core_types::errors::AiProviderError::from_parts(
+        let rate_limit_error = bitfun_core_types::errors::AiProviderError::from_parts(
             "too many requests".to_string(),
             Some("openai".to_string()),
             None,

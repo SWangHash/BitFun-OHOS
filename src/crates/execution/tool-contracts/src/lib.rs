@@ -48,19 +48,19 @@ pub use framework::{
     build_get_tool_spec_assistant_detail, build_get_tool_spec_catalog_description,
     build_get_tool_spec_catalog_description_from_provider, build_get_tool_spec_description,
     build_get_tool_spec_detail_result, build_get_tool_spec_duplicate_load_hint,
-    build_get_tool_spec_duplicate_load_result, build_openbitfun_current_session_uri,
-    build_openbitfun_runtime_uri, build_prompt_visible_tool_manifest_definitions,
+    build_get_tool_spec_duplicate_load_result, build_bitfun_current_session_uri,
+    build_bitfun_runtime_uri, build_prompt_visible_tool_manifest_definitions,
     build_tool_manifest_policy_tools, build_tool_path_policy_denial_message,
     build_tool_runtime_artifact_reference, build_tool_session_runtime_artifact_reference,
     collect_loaded_deferred_tool_specs, get_tool_spec_input_schema,
     get_tool_spec_is_concurrency_safe, get_tool_spec_is_readonly, get_tool_spec_short_description,
     is_miniapp_headless_agent_run, is_miniapp_market_strict_agent_run,
-    is_openbitfun_current_session_uri, is_openbitfun_runtime_uri, is_openbitfun_tool_uri,
+    is_bitfun_current_session_uri, is_bitfun_runtime_uri, is_bitfun_tool_uri,
     is_remote_posix_path_within_root, is_tool_path_allowed_by_resolved_roots,
     materialize_static_tool_provider_groups, miniapp_agent_run_tool_restrictions,
     miniapp_headless_agent_tool_restrictions, miniapp_market_strict_agent_tool_restrictions,
     normalize_absolute_posix_path, normalize_host_path, normalize_runtime_relative_path,
-    parse_openbitfun_current_session_uri, parse_openbitfun_runtime_uri,
+    parse_bitfun_current_session_uri, parse_bitfun_runtime_uri,
     posix_resolve_path_with_workspace, posix_style_path_is_absolute,
     render_get_tool_spec_tool_use_message, resolve_contextual_tool_manifest,
     resolve_contextual_tool_manifest_from_provider, resolve_contextual_visible_tools,
@@ -77,8 +77,8 @@ pub use framework::{
     ContextualToolManifestItem, ContextualVisibleTools, DeferredToolUsageError, DynamicMcpToolInfo,
     DynamicToolInfo, GetToolSpecCatalogProvider, GetToolSpecDeferredToolSummary, GetToolSpecDetail,
     GetToolSpecExecutionError, GetToolSpecExecutionPlan, GetToolSpecLoadObservation,
-    GetToolSpecRuntime, LoadedDeferredToolSpec, ParsedOpenBitFunCurrentSessionUri,
-    ParsedOpenBitFunRuntimeUri, PortableToolContextProvider, PromptVisibleToolManifestItem,
+    GetToolSpecRuntime, LoadedDeferredToolSpec, ParsedBitFunCurrentSessionUri,
+    ParsedBitFunRuntimeUri, PortableToolContextProvider, PromptVisibleToolManifestItem,
     SnapshotToolDecorator, SnapshotToolWrapper, SnapshotToolWrapperRef,
     StaticToolMaterializationError, StaticToolProvider, StaticToolProviderFactory,
     StaticToolProviderGroup, StaticToolProviderPlan, ToolCatalogRuntime,
@@ -87,7 +87,7 @@ pub use framework::{
     ToolPathBackend, ToolPathContractError, ToolPathOperation, ToolPathPolicy, ToolPathResolution,
     ToolRef, ToolRegistry, ToolRegistryItem, ToolRenderOptions, ToolRestrictionError, ToolResult,
     ToolRuntimeAssembly, ToolRuntimeRestrictions, ToolWorkspaceKind, ValidationResult,
-    GET_TOOL_SPEC_TOOL_NAME, OPENBITFUN_CURRENT_SESSION_URI_PREFIX, OPENBITFUN_RUNTIME_URI_PREFIX,
+    GET_TOOL_SPEC_TOOL_NAME, BITFUN_CURRENT_SESSION_URI_PREFIX, BITFUN_RUNTIME_URI_PREFIX,
 };
 pub use input_validator::InputValidator;
 #[cfg(feature = "mcp-bridge")]
@@ -99,8 +99,8 @@ pub use mcp_tool_bridge::{
     McpToolBridgeDefinition, McpToolBridgeDefinitionInput, McpToolBridgeToolInfo,
     MCP_TOOL_DELIMITER, MCP_TOOL_PREFIX,
 };
-pub use openbitfun_core_types::ToolImageAttachment;
-pub use openbitfun_runtime_ports::{
+pub use bitfun_core_types::ToolImageAttachment;
+pub use bitfun_runtime_ports::{
     DynamicToolDescriptor, DynamicToolProvider, PortError, PortErrorKind, PortResult, ToolDecorator,
 };
 pub use permission_intent::PermissionIntent;

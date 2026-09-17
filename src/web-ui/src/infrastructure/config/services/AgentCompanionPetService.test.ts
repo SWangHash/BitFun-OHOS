@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import girlManifest from '../../../../public/agent-companion-pets/openbitfun-girl/pet.json';
+import girlManifest from '../../../../public/agent-companion-pets/bitfun-girl/pet.json';
 
 const invoke = vi.fn();
 
@@ -20,12 +20,12 @@ describe('AgentCompanionPetService built-in presets', () => {
     invoke.mockReset();
   });
 
-  it('defaults to the blue-golden cat while retaining the previous OpenBitFun preset', async () => {
+  it('defaults to the blue-golden cat while retaining the previous BitFun preset', async () => {
     const { DEFAULT_AGENT_COMPANION_PET, listAgentCompanionPets } = await import('./AgentCompanionPetService');
 
     const pets = await listAgentCompanionPets();
     const blueGolden = pets.find(pet => pet.id === 'blue-golden');
-    const openbitfun = pets.find(pet => pet.id === 'openbitfun');
+    const bitfun = pets.find(pet => pet.id === 'bitfun');
 
     expect(DEFAULT_AGENT_COMPANION_PET).toMatchObject({
       id: 'blue-golden',
@@ -40,10 +40,10 @@ describe('AgentCompanionPetService built-in presets', () => {
       previewSrc: '/agent-companion-pets/blue-golden/spritesheet.png',
     });
     expect(pets[0]).toMatchObject(DEFAULT_AGENT_COMPANION_PET);
-    expect(openbitfun).toMatchObject({
-      displayName: 'OpenBitFun',
-      packagePath: '/agent-companion-pets/openbitfun',
-      spritesheetPath: '/agent-companion-pets/openbitfun/spritesheet.webp',
+    expect(bitfun).toMatchObject({
+      displayName: 'BitFun',
+      packagePath: '/agent-companion-pets/bitfun',
+      spritesheetPath: '/agent-companion-pets/bitfun/spritesheet.webp',
     });
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -54,7 +54,7 @@ describe('AgentCompanionPetService built-in presets', () => {
     const girl = pets[1];
 
     expect(pets.slice(0, 3).map(pet => pet.id)).toEqual([
-      'blue-golden', 'openbitfun-girl', 'deepseek-goldwhale',
+      'blue-golden', 'bitfun-girl', 'deepseek-goldwhale',
     ]);
     expect(girl).toMatchObject({
       ...girlManifest,

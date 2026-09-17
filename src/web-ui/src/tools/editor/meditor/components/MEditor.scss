@@ -5,29 +5,29 @@
   overflow: hidden;
   
   &-toolbar {
-    padding: var(--openbitfun-space-2);
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-action-quiet-hover);
+    padding: var(--bitfun-space-2);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-quiet-hover);
     backdrop-filter: blur(8px);
   }
 
   &-notice {
     display: flex;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    border-bottom: 1px solid color-mix(in srgb, var(--openbitfun-color-status-warning-content) 30%, transparent);
-    background: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 8%, transparent);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-bottom: 1px solid color-mix(in srgb, var(--bitfun-color-status-warning-content) 30%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 8%, transparent);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
 
     &__icon {
       flex: 0 0 auto;
       width: 16px;
       height: 16px;
       margin-top: 2px;
-      color: var(--openbitfun-color-status-warning-content);
+      color: var(--bitfun-color-status-warning-content);
     }
   }
   
@@ -49,13 +49,13 @@
     resize: none;
     border: 0;
     outline: 0;
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
     box-sizing: border-box;
-    background: var(--openbitfun-color-surface-scene);
-    color: var(--openbitfun-color-content-primary);
+    background: var(--bitfun-color-surface-scene);
+    color: var(--bitfun-color-content-primary);
     font: inherit;
-    font-family:var(--openbitfun-type-code-md-font-family);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    font-family:var(--bitfun-type-code-md-font-family);
+    line-height: var(--bitfun-type-body-lg-line-height);
     white-space: pre-wrap;
     overflow: auto;
   }
@@ -71,45 +71,45 @@
   &-mode-split {
     .m-editor-content {
       > .m-editor-edit-panel {
-        border-right: 1px solid var(--openbitfun-color-border-default);
+        border-right: 1px solid var(--bitfun-color-border-default);
       }
     }
   }
   
   &-dark {
-    background: var(--openbitfun-color-surface-scene);
-    color: var(--openbitfun-color-content-primary);
+    background: var(--bitfun-color-surface-scene);
+    color: var(--bitfun-color-content-primary);
     
     .m-editor-textarea {
-      color: var(--openbitfun-color-content-secondary);
+      color: var(--bitfun-color-content-secondary);
     }
     
     .m-editor-toolbar {
-      background: var(--openbitfun-color-action-quiet-hover);
-      border-bottom-color: var(--openbitfun-color-border-default);
+      background: var(--bitfun-color-action-quiet-hover);
+      border-bottom-color: var(--bitfun-color-border-default);
     }
     
     .m-editor-edit-panel {
-      border-right-color: var(--openbitfun-color-border-default) !important;
+      border-right-color: var(--bitfun-color-border-default) !important;
     }
   }
   
   &-light {
-    background: var(--openbitfun-color-surface-scene);
-    color: var(--openbitfun-color-content-primary);
-    border: 1px solid var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-surface-scene);
+    color: var(--bitfun-color-content-primary);
+    border: 1px solid var(--bitfun-color-border-default);
     
     .m-editor-textarea {
-      color: var(--openbitfun-color-content-secondary);
+      color: var(--bitfun-color-content-secondary);
     }
     
     .m-editor-toolbar {
-      background: var(--openbitfun-color-action-quiet-hover);
-      border-bottom-color: var(--openbitfun-color-border-default);
+      background: var(--bitfun-color-action-quiet-hover);
+      border-bottom-color: var(--bitfun-color-border-default);
     }
     
     .m-editor-edit-panel {
-      border-right-color: var(--openbitfun-color-border-default) !important;
+      border-right-color: var(--bitfun-color-border-default) !important;
     }
 
   }

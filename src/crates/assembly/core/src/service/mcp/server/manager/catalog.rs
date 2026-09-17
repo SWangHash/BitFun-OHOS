@@ -5,7 +5,7 @@ impl MCPServerManager {
         &self,
         server_id: &str,
         connection: Arc<MCPConnection>,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         self.runtime
             .refresh_resources(server_id, connection)
             .await
@@ -16,7 +16,7 @@ impl MCPServerManager {
         &self,
         server_id: &str,
         connection: Arc<MCPConnection>,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         self.runtime
             .refresh_prompts(server_id, connection)
             .await
@@ -45,17 +45,17 @@ impl MCPServerManager {
     pub async fn refresh_server_resource_catalog(
         &self,
         server_id: &str,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         let connection = self.get_connection(server_id).await.ok_or_else(|| {
-            OpenBitFunError::NotFound(format!("MCP server connection not found: {}", server_id))
+            BitFunError::NotFound(format!("MCP server connection not found: {}", server_id))
         })?;
         self.refresh_resources_catalog(server_id, connection).await
     }
 
     /// Refreshes prompts catalog cache for one server.
-    pub async fn refresh_server_prompt_catalog(&self, server_id: &str) -> OpenBitFunResult<usize> {
+    pub async fn refresh_server_prompt_catalog(&self, server_id: &str) -> BitFunResult<usize> {
         let connection = self.get_connection(server_id).await.ok_or_else(|| {
-            OpenBitFunError::NotFound(format!("MCP server connection not found: {}", server_id))
+            BitFunError::NotFound(format!("MCP server connection not found: {}", server_id))
         })?;
         self.refresh_prompts_catalog(server_id, connection).await
     }

@@ -37,7 +37,7 @@ impl ChatMode {
                     anyhow::bail!("Model management is unavailable for a Remote workspace")
                 }
                 let config_owner =
-                    openbitfun_core::service::config::get_global_config_service().await?;
+                    bitfun_core::service::config::get_global_config_service().await?;
                 let model = crate::model_selection::model_from_mutation(mutation, None)?;
                 let added_model_id = model.id.clone();
                 config_owner
@@ -45,11 +45,11 @@ impl ChatMode {
                     .await
                     .map_err(|error| anyhow!(error.to_string()))?;
                 if make_primary_if_empty {
-                    let config: openbitfun_core::service::config::GlobalConfig = config_owner
+                    let config: bitfun_core::service::config::GlobalConfig = config_owner
                         .get_config(None)
                         .await
                         .map_err(|error| anyhow!(error.to_string()))?;
-                    if openbitfun_core::service::config::model_projection::selector_is_unset(
+                    if bitfun_core::service::config::model_projection::selector_is_unset(
                         &config.ai.default_models.primary,
                     ) {
                         config_owner
@@ -91,7 +91,7 @@ impl ChatMode {
                     anyhow::bail!("Model management is unavailable for a Remote workspace")
                 }
                 let config_owner =
-                    openbitfun_core::service::config::get_global_config_service().await?;
+                    bitfun_core::service::config::get_global_config_service().await?;
                 let model = config_owner
                     .get_ai_models()
                     .await
@@ -135,7 +135,7 @@ impl ChatMode {
                     anyhow::bail!("Model update identity does not match the request target")
                 }
                 let config_owner =
-                    openbitfun_core::service::config::get_global_config_service().await?;
+                    bitfun_core::service::config::get_global_config_service().await?;
                 let existing = config_owner
                     .get_ai_models()
                     .await

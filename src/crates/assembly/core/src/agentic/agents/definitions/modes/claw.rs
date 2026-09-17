@@ -48,7 +48,7 @@ impl ClawMode {
                 // Local desktop/system control is delegated to the ComputerUse
                 // agent/tool instead of being surfaced as a ControlHub domain.
                 "ControlHub".to_string(),
-                "OpenBitFunControl".to_string(),
+                "BitFunControl".to_string(),
                 "PublishAppearance".to_string(),
                 "PageDeploy".to_string(),
                 "PagePublish".to_string(),
@@ -99,7 +99,7 @@ impl Agent for ClawMode {
 mod tests {
     use super::ClawMode;
     use crate::agentic::agents::{Agent, PromptBuilderContext};
-    use openbitfun_agent_runtime::prompt::UserContextSection;
+    use bitfun_agent_runtime::prompt::UserContextSection;
 
     #[test]
     fn claw_mode_excludes_creation_only_tools_from_defaults() {

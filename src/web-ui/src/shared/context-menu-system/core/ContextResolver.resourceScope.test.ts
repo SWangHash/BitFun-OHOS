@@ -11,7 +11,7 @@ describe('file menu origin', () => {
       resourceWorkspacePath: '/repo', resourceConnectionId: 'ssh-b',
     });
     const tree = document.createElement('div');
-    tree.className = 'openbitfun-file-explorer';
+    tree.className = 'bitfun-file-explorer';
     tree.dataset.workspaceRoot = '/repo';
     const node = document.createElement('div');
     node.dataset.filePath = '/repo/test.ts';

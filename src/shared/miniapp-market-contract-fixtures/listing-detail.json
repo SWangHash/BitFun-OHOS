@@ -12,7 +12,7 @@
     "avatarUrl": "https://avatars.githubusercontent.com/u/24753352"
   },
   "latestRelease": 2,
-  "minOpenBitFunVersion": "1.0.0",
+  "minBitFunVersion": "1.0.0",
   "permissions": {
     "node": {
       "enabled": false
@@ -42,13 +42,13 @@
   "license": {
     "spdxExpression": "MIT"
   },
-  "repositoryUrl": "https://github.com/openbitfun/regex-playground",
+  "repositoryUrl": "https://github.com/bitfun/regex-playground",
   "releases": [
     {
       "releaseId": "release-fixture-2",
       "listingId": "listing-fixture-1",
       "releaseNumber": 2,
-      "minOpenBitFunVersion": "1.0.0",
+      "minBitFunVersion": "1.0.0",
       "changelog": "Adds named capture highlighting.",
       "packageSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "packageSize": 4096,

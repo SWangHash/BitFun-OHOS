@@ -1,13 +1,13 @@
 [package]
-name = "openbitfun-product-domains"
+name = "bitfun-product-domains"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "OpenBitFun product domain owner crate"
+description = "BitFun product domain owner crate"
 autotests = false
 
 [lib]
-name = "openbitfun_product_domains"
+name = "bitfun_product_domains"
 crate-type = ["rlib"]
 
 [[test]]

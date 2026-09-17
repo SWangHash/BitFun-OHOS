@@ -8,7 +8,7 @@ plugins {
 sqldelight {
     databases {
         create("MobileDatabase") {
-            packageName.set("com.openbitfun.mobile.core.persistence.db")
+            packageName.set("com.bitfun.mobile.core.persistence.db")
         }
     }
 }
@@ -19,7 +19,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "com.openbitfun.mobile.core.persistence"
+        namespace = "com.bitfun.mobile.core.persistence"
         compileSdk = libs.versions.androidCompileSdk.get().toInt()
         minSdk = libs.versions.androidMinSdk.get().toInt()
         withHostTest {}

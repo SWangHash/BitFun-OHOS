@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .visibleLabel,
   .control,
@@ -22,7 +22,7 @@
 
   .root,
   .popover {
-    --_combobox-height: var(--openbitfun-control-height-md);
+    --_combobox-height: var(--bitfun-control-height-md);
   }
 
   .root {
@@ -31,36 +31,36 @@
     inline-size: 100%;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-content-primary);
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-primary);
   }
 
   .root[data-size="sm"],
   .popover[data-size="sm"] {
-    --_combobox-height: var(--openbitfun-control-height-sm);
+    --_combobox-height: var(--bitfun-control-height-sm);
   }
 
   .root[data-size="lg"],
   .popover[data-size="lg"] {
-    --_combobox-height: var(--openbitfun-control-height-lg);
+    --_combobox-height: var(--bitfun-control-height-lg);
   }
 
   .visibleLabel {
-    color: var(--openbitfun-color-content-secondary);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   }
 
   .error {
-    color: var(--openbitfun-color-status-danger-content);
-    font-family: var(--openbitfun-type-support-font-family);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    color: var(--bitfun-color-status-danger-content);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
   }
 
   .control {
@@ -82,42 +82,42 @@
     min-block-size: 0;
     margin: 0;
     padding-block: 0;
-    padding-inline-start: var(--openbitfun-control-select-padding-inline);
+    padding-inline-start: var(--bitfun-control-select-padding-inline);
     padding-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      + var(--openbitfun-control-select-indicator-size)
-      + var(--openbitfun-control-select-content-gap)
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
     );
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
-    border-radius: var(--openbitfun-control-select-radius);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: var(--bitfun-control-select-radius);
     outline: 0;
     color: inherit;
-    background: var(--openbitfun-color-field-background);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    background: var(--bitfun-color-field-background);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
     text-align: start;
     cursor: pointer;
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .root:has(.clear) .trigger {
     padding-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      + var(--openbitfun-control-select-indicator-size)
-      + var(--openbitfun-control-select-content-gap)
-      + var(--openbitfun-control-height-sm)
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
+      + var(--bitfun-control-height-sm)
     );
   }
 
   .trigger:not(:disabled):hover {
-    border-color: var(--openbitfun-color-field-border-hover);
-    background: var(--openbitfun-color-field-background-hover);
+    border-color: var(--bitfun-color-field-border-hover);
+    background: var(--bitfun-color-field-background-hover);
   }
 
   .root[data-field-surface="ambient"] .trigger,
@@ -126,8 +126,8 @@
   }
 
   .trigger:focus-visible {
-    border-color: var(--openbitfun-color-field-border-focus);
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-open="true"] .control {
@@ -136,12 +136,12 @@
   }
 
   .root[data-invalid="true"] .trigger {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
-    opacity: var(--openbitfun-opacity-disabled);
+    color: var(--bitfun-color-content-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   .trigger:disabled {
@@ -159,18 +159,18 @@
   }
 
   .singleValue {
-    gap: var(--openbitfun-control-select-content-gap);
+    gap: var(--bitfun-control-select-content-gap);
   }
 
   .valueLeading {
     display: inline-flex;
-    flex: 0 0 var(--openbitfun-control-select-indicator-size);
-    inline-size: var(--openbitfun-control-select-indicator-size);
-    block-size: var(--openbitfun-control-select-indicator-size);
+    flex: 0 0 var(--bitfun-control-select-indicator-size);
+    inline-size: var(--bitfun-control-select-indicator-size);
+    block-size: var(--bitfun-control-select-indicator-size);
   }
 
   .valueLeading > :where(svg, img),
-  .valueLeading > [data-openbitfun-component="icon"] {
+  .valueLeading > [data-bitfun-component="icon"] {
     inline-size: 100%;
     block-size: 100%;
   }
@@ -182,37 +182,37 @@
   }
 
   .placeholder {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .tags {
-    gap: var(--openbitfun-space-1);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    gap: var(--bitfun-space-1);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   }
 
   .control[data-tags="true"] .tags {
     z-index: 2;
     grid-area: 1 / 1;
     align-self: center;
-    margin-inline-start: var(--openbitfun-control-select-padding-inline);
+    margin-inline-start: var(--bitfun-control-select-padding-inline);
     margin-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      + var(--openbitfun-control-select-indicator-size)
-      + var(--openbitfun-control-select-content-gap)
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
     );
     pointer-events: none;
   }
 
   .root:has(.clear) .control[data-tags="true"] .tags {
     margin-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      + var(--openbitfun-control-select-indicator-size)
-      + var(--openbitfun-control-select-content-gap)
-      + var(--openbitfun-control-height-sm)
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
+      + var(--bitfun-control-height-sm)
     );
   }
 
@@ -225,13 +225,13 @@
     overflow: hidden;
     align-items: center;
     max-inline-size: 10rem;
-    min-block-size: var(--openbitfun-control-icon-button-xs-size);
-    gap: var(--openbitfun-space-1);
-    padding-inline: var(--openbitfun-space-2);
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-pill);
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-surface-tertiary);
+    min-block-size: var(--bitfun-control-icon-button-xs-size);
+    gap: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-pill);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-tertiary);
     pointer-events: auto;
     white-space: nowrap;
   }
@@ -254,9 +254,9 @@
 
   .clear {
     margin-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      + var(--openbitfun-control-select-indicator-size)
-      + var(--openbitfun-control-select-content-gap)
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
     );
   }
 
@@ -264,16 +264,16 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    inline-size: var(--openbitfun-control-select-indicator-size);
-    block-size: var(--openbitfun-control-select-indicator-size);
-    margin-inline-end: var(--openbitfun-control-select-trailing-inset);
-    color: var(--openbitfun-color-content-muted);
+    inline-size: var(--bitfun-control-select-indicator-size);
+    block-size: var(--bitfun-control-select-indicator-size);
+    margin-inline-end: var(--bitfun-control-select-trailing-inset);
+    color: var(--bitfun-color-content-muted);
     pointer-events: none;
-    transition: transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .indicator > svg,
-  .indicator > [data-openbitfun-component="icon"] {
+  .indicator > [data-bitfun-component="icon"] {
     inline-size: 100%;
     block-size: 100%;
   }
@@ -284,20 +284,20 @@
 
   .popover {
     position: fixed;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     display: flex;
     min-inline-size: 0;
-    max-inline-size: calc(100vw - var(--openbitfun-space-4));
+    max-inline-size: calc(100vw - var(--bitfun-space-4));
     min-block-size: 0;
     flex-direction: column;
     overflow: hidden;
     padding: 0;
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-overlay-menu-surface-radius);
-    color: var(--openbitfun-color-action-neutral-content);
-    background: var(--openbitfun-color-surface-panel);
-    box-shadow: var(--openbitfun-shadow-menu);
-    animation: openbitfun-combobox-in var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-enter);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-overlay-menu-surface-radius);
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-menu);
+    animation: bitfun-combobox-in var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-enter);
   }
 
   .popover[data-placement="top"] {
@@ -305,32 +305,32 @@
   }
 
   .popover:focus-within {
-    border-color: var(--openbitfun-color-field-border-focus);
+    border-color: var(--bitfun-color-field-border-focus);
   }
 
   .popover[data-invalid="true"] {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .search {
     display: flex;
     flex: 0 0 calc(
       var(--_combobox-height)
-      - var(--openbitfun-border-width-default)
-      - var(--openbitfun-border-width-default)
+      - var(--bitfun-border-width-default)
+      - var(--bitfun-border-width-default)
     );
     block-size: calc(
       var(--_combobox-height)
-      - var(--openbitfun-border-width-default)
-      - var(--openbitfun-border-width-default)
+      - var(--bitfun-border-width-default)
+      - var(--bitfun-border-width-default)
     );
     align-items: center;
     min-inline-size: 0;
-    gap: var(--openbitfun-control-select-content-gap);
-    padding-inline-start: var(--openbitfun-control-select-padding-inline);
+    gap: var(--bitfun-control-select-content-gap);
+    padding-inline-start: var(--bitfun-control-select-padding-inline);
     padding-inline-end: calc(
-      var(--openbitfun-control-select-trailing-inset)
-      - (var(--openbitfun-control-icon-button-xs-size) - var(--openbitfun-control-select-indicator-size)) / 2
+      var(--bitfun-control-select-trailing-inset)
+      - (var(--bitfun-control-icon-button-xs-size) - var(--bitfun-control-select-indicator-size)) / 2
     );
   }
 
@@ -346,9 +346,9 @@
   }
 
   .divider {
-    flex: 0 0 var(--openbitfun-border-width-default);
-    block-size: var(--openbitfun-border-width-default);
-    background: var(--openbitfun-color-border-subtle);
+    flex: 0 0 var(--bitfun-border-width-default);
+    block-size: var(--bitfun-border-width-default);
+    background: var(--bitfun-color-border-subtle);
   }
 
   .options {
@@ -357,7 +357,7 @@
     overflow: hidden;
     min-inline-size: 0;
     min-block-size: 0;
-    padding: var(--openbitfun-overlay-menu-surface-padding);
+    padding: var(--bitfun-overlay-menu-surface-padding);
   }
 
   .listbox {
@@ -366,37 +366,37 @@
     min-block-size: 0;
   }
 
-  .listbox [data-openbitfun-part="list"],
-  .listbox [data-openbitfun-part="group-options"] {
-    gap: calc(var(--openbitfun-space-1) / 2);
+  .listbox [data-bitfun-part="list"],
+  .listbox [data-bitfun-part="group-options"] {
+    gap: calc(var(--bitfun-space-1) / 2);
   }
 
-  .listbox [data-openbitfun-part="group"] {
-    gap: var(--openbitfun-overlay-menu-section-gap);
+  .listbox [data-bitfun-part="group"] {
+    gap: var(--bitfun-overlay-menu-section-gap);
   }
 
-  .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="label"] {
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+  .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="label"] {
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
-  .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="indicator"] {
-    color: var(--openbitfun-color-control-highlight-background);
+  .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="indicator"] {
+    color: var(--bitfun-color-control-highlight-background);
   }
 
   .message {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   .spinner {
-    inline-size: var(--openbitfun-overlay-menu-item-icon-size);
-    block-size: var(--openbitfun-overlay-menu-item-icon-size);
-    animation: openbitfun-combobox-spin var(--openbitfun-motion-duration-loop) linear infinite;
+    inline-size: var(--bitfun-overlay-menu-item-icon-size);
+    block-size: var(--bitfun-overlay-menu-item-icon-size);
+    animation: bitfun-combobox-spin var(--bitfun-motion-duration-loop) linear infinite;
   }
 
-  @keyframes openbitfun-combobox-spin {
+  @keyframes bitfun-combobox-spin {
     to {
       transform: rotate(360deg);
     }
@@ -425,15 +425,15 @@
     .trigger:focus-visible,
     .popover:focus-within {
       border-color: Highlight;
-      box-shadow: 0 0 0 var(--openbitfun-focus-width) Highlight;
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
     }
 
-    .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="indicator"] {
+    .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="indicator"] {
       color: Highlight;
     }
   }
 
-  @keyframes openbitfun-combobox-in {
+  @keyframes bitfun-combobox-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }

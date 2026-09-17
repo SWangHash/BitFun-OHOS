@@ -16,7 +16,7 @@ export interface SkillImportReceipt {
 
 const receipts = new Map<string, SkillImportReceipt>();
 const receiptKey = (sourcePath: string, workspacePath?: string) =>
-  `openbitfun:external-skill-import:${JSON.stringify([workspacePath ?? '', sourcePath])}`;
+  `bitfun:external-skill-import:${JSON.stringify([workspacePath ?? '', sourcePath])}`;
 
 /** Only native copy identities are saved; external content and credentials never enter browser storage. */
 export function readSkillImportReceipt(sourcePath: string, workspacePath?: string): SkillImportReceipt | null {
@@ -72,7 +72,7 @@ export async function prepareMcpUndo(candidateId: string): Promise<ImportUndoRev
   const servers = config?.mcpServers;
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) throw new Error('Invalid MCP configuration');
   const matches = Object.entries(servers).filter(([, server]) => (
-    (server as { _openbitfunImport?: { sourceCandidateId?: string } })?._openbitfunImport?.sourceCandidateId === candidateId
+    (server as { _bitfunImport?: { sourceCandidateId?: string } })?._bitfunImport?.sourceCandidateId === candidateId
   ));
   if (matches.length !== 1) throw new Error('Imported MCP copy could not be identified');
   const [target] = matches[0];

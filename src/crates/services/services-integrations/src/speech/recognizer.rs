@@ -1,5 +1,5 @@
 use super::types::{SpeechRecognizerKind, SpeechTranscribeRequest, SpeechTranscriptionResult};
-use super::OpenBitFunResult;
+use super::BitFunResult;
 use async_trait::async_trait;
 use std::path::PathBuf;
 
@@ -12,12 +12,12 @@ pub(super) struct SpeechRecognizerWarmupRequest {
 
 #[async_trait]
 pub(super) trait SpeechRecognizer: Send + Sync {
-    async fn warmup(&self, request: SpeechRecognizerWarmupRequest) -> OpenBitFunResult<()>;
+    async fn warmup(&self, request: SpeechRecognizerWarmupRequest) -> BitFunResult<()>;
 
-    async fn unload(&self) -> OpenBitFunResult<()>;
+    async fn unload(&self) -> BitFunResult<()>;
 
     async fn transcribe(
         &self,
         request: SpeechTranscribeRequest,
-    ) -> OpenBitFunResult<SpeechTranscriptionResult>;
+    ) -> BitFunResult<SpeechTranscriptionResult>;
 }

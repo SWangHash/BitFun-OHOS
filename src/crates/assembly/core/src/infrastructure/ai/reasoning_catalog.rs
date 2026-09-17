@@ -6,22 +6,22 @@ use std::time::{Duration, Instant};
 
 #[cfg(feature = "model-catalog")]
 use log::debug;
-use openbitfun_ai_adapters::models_dev::{
+use bitfun_ai_adapters::models_dev::{
     project_reasoning_catalog_with_limit_and_auto_binding, ModelsDevCatalog,
 };
 #[cfg(feature = "model-catalog")]
-use openbitfun_core_types::ReasoningCatalogProjectionRequest;
+use bitfun_core_types::ReasoningCatalogProjectionRequest;
 #[cfg(feature = "model-catalog")]
-use openbitfun_core_types::{
+use bitfun_core_types::{
     ModelsDevCatalogSource, ModelsDevCatalogStatus, ModelsDevRefreshResult, ModelsDevRefreshStatus,
 };
-use openbitfun_core_types::{
+use bitfun_core_types::{
     ReasoningCatalogBinding, ReasoningCatalogProjection, ReasoningPresetDescriptor,
 };
 #[cfg(feature = "model-catalog")]
-use openbitfun_events::{AIModelCatalogUpdatedEvent, AI_MODEL_CATALOG_UPDATED_EVENT};
+use bitfun_events::{AIModelCatalogUpdatedEvent, AI_MODEL_CATALOG_UPDATED_EVENT};
 #[cfg(feature = "model-catalog")]
-use openbitfun_services_integrations::models_dev::{
+use bitfun_services_integrations::models_dev::{
     ModelsDevCatalogService, ModelsDevRefreshOutcome, ModelsDevSnapshot, ModelsDevSnapshotSource,
 };
 use sha2::{Digest, Sha256};
@@ -443,7 +443,7 @@ pub(crate) fn apply_selected_reasoning_preset(
 
 #[cfg(test)]
 mod tests {
-    use openbitfun_core_types::{
+    use bitfun_core_types::{
         ReasoningCatalogBinding, ReasoningCatalogProjectionRequest, ReasoningConfig,
         ReasoningPreset, ReasoningPresetAction, ReasoningPresetDescriptor, ReasoningPresetSource,
     };
@@ -599,10 +599,10 @@ mod tests {
     }
 
     #[test]
-    fn openbitfun_models_use_their_exact_upstream_reasoning_catalogs() {
+    fn bitfun_models_use_their_exact_upstream_reasoning_catalogs() {
         for (provider, base_url) in [
-            ("anthropic", "https://api.openbitfun.com"),
-            ("openai", "https://api.openbitfun.com/v1"),
+            ("anthropic", "https://api.bitfun.com"),
+            ("openai", "https://api.bitfun.com/v1"),
         ] {
             for (model_name, expected_provider, expected_presets) in [
                 ("glm-5.2", "zhipuai", vec!["off", "on", "high", "max"]),
@@ -619,7 +619,7 @@ mod tests {
             ] {
                 let projection = project_model_reasoning_catalog(
                     &AIModelConfig {
-                        id: format!("openbitfun-{provider}-{model_name}"),
+                        id: format!("bitfun-{provider}-{model_name}"),
                         name: model_name.to_string(),
                         provider: provider.to_string(),
                         model_name: model_name.to_string(),
@@ -852,14 +852,14 @@ mod tests {
                 version: 1,
                 sha256: "one".to_string(),
                 source:
-                    openbitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
+                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
             },
         });
         let updated = super::ModelsDevReasoningCatalogSnapshot {
             catalog: None,
             version: 2,
             sha256: "two".to_string(),
-            source: openbitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
+            source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
         };
 
         assert!(super::replace_cached_catalog(&mut cache, updated));
@@ -877,20 +877,20 @@ mod tests {
                 version: 1,
                 sha256: "same".to_string(),
                 source:
-                    openbitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled,
+                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled,
             },
         });
         let updated = super::ModelsDevReasoningCatalogSnapshot {
             catalog: Some(catalog),
             version: 1,
             sha256: "same".to_string(),
-            source: openbitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
+            source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache,
         };
 
         assert!(super::replace_cached_catalog(&mut cache, updated));
         assert_eq!(
             cache.as_ref().map(|value| value.snapshot.source),
-            Some(openbitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache)
+            Some(bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache)
         );
     }
 }

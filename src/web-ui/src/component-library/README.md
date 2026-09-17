@@ -1,10 +1,10 @@
 [中文](README.zh-CN.md) | **English**
 
-# OpenBitFun Component Library
+# BitFun Component Library
 
 ## Overview
 
-This is the OpenBitFun component preview system for quickly viewing and testing UI components.
+This is the BitFun component preview system for quickly viewing and testing UI components.
 
 ## Quick Start
 

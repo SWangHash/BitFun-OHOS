@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     WorkspaceDiffContent, WorkspaceDiffFile, WorkspaceDiffFileStatus, WorkspaceDiffSnapshot,
 };
 use ratatui::{
@@ -439,7 +439,7 @@ fn expand_tabs(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    use openbitfun_agent_runtime::sdk::{
+    use bitfun_agent_runtime::sdk::{
         WorkspaceDiffContent, WorkspaceDiffFile, WorkspaceDiffFileStatus, WorkspaceDiffSnapshot,
     };
     use ratatui::{backend::TestBackend, Terminal};

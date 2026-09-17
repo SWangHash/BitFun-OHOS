@@ -1,6 +1,6 @@
 # Release Channels
 
-OpenBitFun packages use an immutable build-time release channel. End users do not
+BitFun packages use an immutable build-time release channel. End users do not
 switch channels at runtime.
 
 ## Stable
@@ -63,14 +63,14 @@ commit separately.
 Public beta assets are stored on the immutable version tag. After every asset
 and signature is verified, the workflow updates only the `latest-v1.json` asset on
 the `channel-v1-beta` pre-release. Beta Desktop builds read that pointer and fall
-back to `https://openbitfun.com/release/beta/latest-v1.json`.
+back to `https://bitfun.com/release/beta/latest-v1.json`.
 Beta releases include Desktop and Installer assets, Linux CLI and Relay Server
 archives for x86_64 and aarch64, and a multi-platform Relay image for linux/amd64
 and linux/arm64. Release publication requires every producer to succeed. Archives
 include checksums and signatures; `linux-binaries-v1.json` and the signed
 `relay-image.json` descriptor live on the immutable version release.
 
-Relay images use `ghcr.io/<repository-owner>/openbitfun-relay-server` with the
+Relay images use `ghcr.io/<repository-owner>/bitfun-relay-server` with the
 version tags `v1.0.0-beta.N` and `1.0.0-beta.N`. Beta never updates the `latest`
 image tag. Fork builds publish to the fork owner's image namespace and their
 own GitHub Release URLs. GHCR credentials must permit package publication, and
@@ -81,7 +81,7 @@ With `upload_to_release` disabled, the workflow keeps CLI/Relay archives in
 Actions artifacts and validates the runtime image build without pushing it.
 The explicit `relay_image_only` backfill mode remains a publishing operation.
 It resolves the same immutable tag as the existing archives, rather than the
-current workflow commit. Releases predating the current OpenBitFun artifact
+current workflow commit. Releases predating the current BitFun artifact
 layout are not image-rebuild inputs.
 
 Install Beta CLI archives manually and deploy the Relay with an explicit Beta
@@ -98,7 +98,7 @@ The selected ref must resolve to a commit in the protected `main` history. The
 workflow pins that SHA before dispatching platform jobs and rejects an existing
 release tag if it points somewhere else. Configure the signing secrets and the
 public beta approval policy so untrusted pull-request code cannot access them.
-This protected-history requirement applies to the canonical `GCWing/OpenBitFun`
+This protected-history requirement applies to the canonical `GCWing/BitFun`
 repository; forks may run packaging from their own test branches. A fork beta
 uses that fork's `channel-v1-beta` release as both updater origins, so it cannot
 silently consume or mutate the canonical beta channel.
@@ -115,15 +115,15 @@ Installing beta replaces stable; side-by-side installation is not supported.
 The mirror script defaults to stable. Run a separate beta sync with:
 
 ```bash
-OPENBITFUN_RELEASE_CHANNEL=beta scripts/openbitfun-release-sync.sh
+BITFUN_RELEASE_CHANNEL=beta scripts/bitfun-release-sync.sh
 ```
 
 The beta invocation writes below `/release/beta` and intentionally skips the
 stable-only CLI and Relay floating manifests.
 
-Production cron must run this in-repo script from the OpenBitFun checkout. Do not
+Production cron must run this in-repo script from the BitFun checkout. Do not
 create a detached copy. Host paths, Nginx, and the rest of the origin restore
-steps live in [`deploy/openbitfun-host/README.md`](../../deploy/openbitfun-host/README.md).
+steps live in [`deploy/bitfun-host/README.md`](../../deploy/bitfun-host/README.md).
 The sync resolves the exact release directory from the updater manifest once;
 Relay and Linux metadata use that same directory to avoid mixed-version reads
 when GitHub's latest-release pointer changes. Publication also compares the
@@ -168,7 +168,7 @@ These checks exercise release conditions, image tag selection, Beta manifest
 generation, and asset collection with fixtures; they do not build or publish packages.
 
 The inaugural public `1.0.0-beta` release supports marketplace packages declaring
-minimum OpenBitFun `1.0.0`. This is an explicit product compatibility exception;
+minimum BitFun `1.0.0`. This is an explicit product compatibility exception;
 numbered beta and RC builds retain their normal SemVer ordering, and updater
 version comparisons are unchanged. Requirements above `1.0.0` still reject this
 release. The shared policy lives in `product-domains::product_release`.

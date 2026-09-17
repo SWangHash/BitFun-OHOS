@@ -1,1 +1,1 @@
-pub use openbitfun_services_integrations::mcp::server::{MCPConnection, MCPConnectionPool};
+pub use bitfun_services_integrations::mcp::server::{MCPConnection, MCPConnectionPool};

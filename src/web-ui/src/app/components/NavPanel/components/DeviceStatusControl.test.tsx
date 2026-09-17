@@ -96,10 +96,10 @@ describe('device status card', () => {
     const card = element('nav-device-status-popover');
     expect(card.dataset.radius).toBe('lg');
     expect(card.dataset.padding).toBe('none');
-    expect(card.querySelector('[data-openbitfun-part="header"]')?.getAttribute('data-content-align')).toBe('center');
+    expect(card.querySelector('[data-bitfun-part="header"]')?.getAttribute('data-content-align')).toBe('center');
     expect(card.querySelector('[data-artwork="device"]')).not.toBeNull();
-    expect(element('nav-device-status-summary').querySelector('.openbitfun-device-overview__device-name')?.textContent).toBe('Workstation');
-    expect(element('nav-device-status-manage').getAttribute('data-openbitfun-variant')).toBe('primary');
+    expect(element('nav-device-status-summary').querySelector('.bitfun-device-overview__device-name')?.textContent).toBe('Workstation');
+    expect(element('nav-device-status-manage').getAttribute('data-bitfun-variant')).toBe('primary');
     expect(card.querySelector('[data-testid="nav-device-status-connected-devices"]')).toBeNull();
     act(() => element('nav-device-status-manage').click());
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -168,7 +168,7 @@ describe('device status card', () => {
       remoteStatusState: 'unavailable',
     });
     render();
-    const retry = document.querySelector<HTMLButtonElement>('.openbitfun-device-overview__notice');
+    const retry = document.querySelector<HTMLButtonElement>('.bitfun-device-overview__notice');
     expect(retry?.textContent).toContain('deviceOverview.statusUnavailable');
     const previousRefreshes = state.refresh.mock.calls.length;
     act(() => retry?.click());
@@ -185,7 +185,7 @@ describe('device status card', () => {
     const name = 'Engineering workstation with a very long device name';
     state.overview = overview({ localDeviceName: name });
     render();
-    expect(element('nav-device-status-summary').querySelector('.openbitfun-device-overview__device-name')?.textContent).toBe(name);
+    expect(element('nav-device-status-summary').querySelector('.bitfun-device-overview__device-name')?.textContent).toBe(name);
     expect(element('nav-device-status-summary').querySelector('[title]')?.getAttribute('title')).toBe(name);
     expect(element('nav-footer-device-status').getAttribute('aria-label')).toContain(name);
   });

@@ -23,7 +23,7 @@ export class EditorDocument {
     return missing && !!path && this.observedFiles.has(resourcePathKey(path, this.scope));
   }
   constructor(readonly id: string, readonly scope: ContentResourceScope, filePath?: string) {
-    this.modelKey = `openbitfun-document://model/${encodeURIComponent(id)}/${encodeURIComponent(filePath?.split(/[/\\]/).pop() ?? 'document')}`;
+    this.modelKey = `bitfun-document://model/${encodeURIComponent(id)}/${encodeURIComponent(filePath?.split(/[/\\]/).pop() ?? 'document')}`;
   }
   capture(content: string, isDirty: boolean, savedContent?: string): void {
     this.snapshot = { content, isDirty,

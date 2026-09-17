@@ -63,7 +63,7 @@ import {
   type ContrastMode,
   type DensityMode,
   type TokenOverrides,
-} from "@openbitfun/ui";
+} from "@bitfun/ui";
 import {
   MobileBadge,
   MobileBanner,
@@ -84,8 +84,8 @@ import {
   MobileStatus,
   MobileTextField,
   MobileTextarea,
-} from "@openbitfun/ui/mobile";
-import { componentRegistry, type ComponentMeta } from "@openbitfun/ui/registry";
+} from "@bitfun/ui/mobile";
+import { componentRegistry, type ComponentMeta } from "@bitfun/ui/registry";
 import { useI18n } from "../i18n";
 import {
   getComponentCategoryLabel,
@@ -171,7 +171,7 @@ function ComponentCardPreview({ component }: { component: ComponentMeta }) {
   const { t } = useI18n();
   if (component.name === "VoiceCallPanel") return <VoiceCallPreview compact />;
   if (component.name === "VoiceParticleLogo") return <VoiceParticlePreview />;
-  if (component.name === "Combobox") return <Combobox label={t("components.preview.modalProviderName")} defaultValue="openbitfun" options={[{ value: "openbitfun", label: "OpenBitFun" }, { value: "custom", label: t("components.preview.add") }]} />;
+  if (component.name === "Combobox") return <Combobox label={t("components.preview.modalProviderName")} defaultValue="bitfun" options={[{ value: "bitfun", label: "BitFun" }, { value: "custom", label: t("components.preview.add") }]} />;
   const flowChatPreview = getFlowChatPreviewDefinition(component.name);
 
   if (flowChatPreview) {
@@ -399,7 +399,7 @@ function ComponentCardPreview({ component }: { component: ComponentMeta }) {
           <FieldGroup>
             <FieldRow>
               <Field controlWidth="fill" label={t("components.preview.modalProviderName")} labelWidth="sm" orientation="horizontal">
-                <Input defaultValue="OpenBitFun" readOnly />
+                <Input defaultValue="BitFun" readOnly />
               </Field>
             </FieldRow>
           </FieldGroup>

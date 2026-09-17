@@ -18,7 +18,7 @@ pub const MASTER_KEY_LEN: usize = 32;
 pub fn is_retired_official_relay(value: &str) -> bool {
     reqwest::Url::parse(value).is_ok_and(|url| {
         url.scheme() == "https"
-            && url.host_str() == Some("remote.openbitfun.com")
+            && url.host_str() == Some("remote.bitfun.com")
             && url.username().is_empty()
             && url.password().is_none()
             && url.port().is_none()
@@ -222,14 +222,14 @@ impl Default for AccountClient {
 }
 
 impl AccountClient {
-    /// Reuse the shared GitHub login used by the OpenBitFun marketplaces.
+    /// Reuse the shared GitHub login used by the BitFun marketplaces.
     pub async fn login_with_identity(
         &self,
         relay_url: &str,
         device: &DeviceIdentity,
     ) -> Result<(
         AccountSession,
-        openbitfun_product_domains::account::GitHubUser,
+        bitfun_product_domains::account::GitHubUser,
     )> {
         let mut identity =
             crate::account_identity::AccountIdentityClient::from_environment().await?;
@@ -642,16 +642,16 @@ mod tests {
 
     #[test]
     fn retired_official_endpoint_does_not_capture_custom_relays() {
-        let old = ["https://remote.openbitfun.com", "/v/1.0.0"].concat();
+        let old = ["https://remote.bitfun.com", "/v/1.0.0"].concat();
         assert!(is_retired_official_relay(&old));
         assert!(is_retired_official_relay(&format!("{old}/")));
         for endpoint in [
-            "https://remote.openbitfun.com/v/1.0.1",
+            "https://remote.bitfun.com/v/1.0.1",
             "https://custom.example/v/1.0.0",
             "http://127.0.0.1:9700",
-            "https://remote.openbitfun.com/relay",
-            "https://user@remote.openbitfun.com/v/1.0.0",
-            "https://remote.openbitfun.com:444/v/1.0.0",
+            "https://remote.bitfun.com/relay",
+            "https://user@remote.bitfun.com/v/1.0.0",
+            "https://remote.bitfun.com:444/v/1.0.0",
         ] {
             assert!(!is_retired_official_relay(endpoint));
         }

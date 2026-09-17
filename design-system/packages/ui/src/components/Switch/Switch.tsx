@@ -25,7 +25,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
   return (
     <span
       className={classNames(styles.switch, className)}
-      data-openbitfun-component="switch"
+      data-bitfun-component="switch"
     >
       <input
         {...props}

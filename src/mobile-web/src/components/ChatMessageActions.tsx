@@ -1,6 +1,6 @@
 import { Copy as LucideCopy, RotateCw as LucideRotateCw, Trash2 as LucideTrash2 } from 'lucide-react';
 import React from 'react';
-import { MobileActionSheet, type MobileActionSheetItem } from '@openbitfun/ui/mobile';
+import { MobileActionSheet, type MobileActionSheetItem } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { ChatMessage } from '../services/RemoteSessionManager';
 

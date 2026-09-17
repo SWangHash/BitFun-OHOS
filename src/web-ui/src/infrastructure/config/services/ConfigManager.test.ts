@@ -38,7 +38,7 @@ describe('ConfigManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configManager.clearCache();
-    delete globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__;
+    delete globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__;
   });
 
   it('does not let a late legacy-model read overwrite an explicit save', async () => {
@@ -127,12 +127,12 @@ describe('ConfigManager', () => {
         'session.new': 'Ctrl+Shift+N',
       },
     };
-    globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__ = storedKeybindings;
+    globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__ = storedKeybindings;
     configApiMocks.getConfig.mockResolvedValueOnce({ version: 1, bindings: {} });
 
     await expect(configManager.getOptionalConfig('app.keybindings')).resolves.toEqual(storedKeybindings);
     expect(configApiMocks.getConfig).not.toHaveBeenCalled();
-    expect(Object.prototype.hasOwnProperty.call(globalThis, '__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(globalThis, '__BITFUN_BOOTSTRAP_KEYBINDINGS__')).toBe(false);
 
     await expect(configManager.getOptionalConfig('app.keybindings')).resolves.toEqual({ version: 1, bindings: {} });
     expect(configApiMocks.getConfig).toHaveBeenCalledTimes(1);
@@ -143,7 +143,7 @@ describe('ConfigManager', () => {
   });
 
   it('does not reuse bootstrap keybindings after the config path is updated', async () => {
-    globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__ = {
+    globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__ = {
       version: 1,
       bindings: {
         'session.new': 'Ctrl+Shift+N',
@@ -179,7 +179,7 @@ describe('ConfigManager', () => {
   });
 
   it('clears bootstrap keybindings with the config cache', async () => {
-    globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__ = {
+    globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__ = {
       version: 1,
       bindings: {
         'session.new': 'Ctrl+Shift+N',
@@ -578,7 +578,7 @@ describe('ConfigManager', () => {
     const stored = {
       version: 1, overrides: { 'session.new': { key: 'n', alt: true } },
     };
-    globalThis.__OPENBITFUN_BOOTSTRAP_KEYBINDINGS__ = stored;
+    globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__ = stored;
     await expect(configManager.getOptionalConfig('app.keybindings')).resolves.toEqual(stored);
     const watcher = vi.fn();
     const unwatch = configManager.watch('app.keybindings', watcher);

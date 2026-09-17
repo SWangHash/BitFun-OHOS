@@ -7,7 +7,7 @@
 
 .export-image-menu {
   position: fixed;
-  z-index: var(--openbitfun-layer-popover);
+  z-index: var(--bitfun-layer-popover);
 }
 
 // Export content container
@@ -16,9 +16,9 @@
      Padding matches ModelRoundItem (3rem ≈ 48px each side) so the
      effective content width is identical to the live chat. */
   padding: 24px 48px;
-  background: var(--openbitfun-color-surface-scene);
+  background: var(--bitfun-color-surface-scene);
   box-sizing: border-box;
-  font-family:var(--openbitfun-type-body-sm-font-family);
+  font-family:var(--bitfun-type-body-sm-font-family);
   /* Use a fixed 800px layout context so text wraps at exactly the same
      width regardless of the wrapper's position or viewport. */
   container-type: inline-size;
@@ -26,9 +26,9 @@
   /* Prevent unwanted wrapping of short inline text */
   .thinking-label,
   .thinking-collapsed-header,
-  [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='action'],
-  [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='content'],
-  [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='extra'],
+  [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='action'],
+  [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='content'],
+  [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='extra'],
   .export-content__title,
   .export-content__subtitle,
   .export-content__timestamp,
@@ -67,7 +67,7 @@
     gap: 12px;
     margin-bottom: 20px;
     padding-bottom: 16px;
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
   }
 
   &__logo {
@@ -95,22 +95,22 @@
   }
 
   &__title {
-    font-size: var(--openbitfun-type-flow-title-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-title-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     display: inline-block;
   }
 
   &__subtitle {
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-muted);
     display: inline-block;
   }
 
   &__timestamp {
     margin-left: auto;
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-muted);
     display: inline-block;
     flex-shrink: 0;
   }
@@ -121,13 +121,13 @@
   }
 
   &__user-bubble {
-    background: var(--openbitfun-color-action-neutral-surface-hover);
-    border: 1px solid var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    border: 1px solid var(--bitfun-color-border-default);
     border-radius: 12px;
     padding: 14px 16px;
-    font-size: var(--openbitfun-type-body-md-font-size);
-    line-height: var(--openbitfun-type-flow-body-line-height);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-body-md-font-size);
+    line-height: var(--bitfun-type-flow-body-line-height);
+    color: var(--bitfun-color-content-primary);
     white-space: pre-wrap !important;
     word-break: break-word;
     word-wrap: break-word;
@@ -143,7 +143,7 @@
   }
 
   &__text-item {
-    margin-bottom: var(--openbitfun-control-flow-chat-flow-item-gap);
+    margin-bottom: var(--bitfun-control-flow-chat-flow-item-gap);
     
     // Ensure FlowTextBlock styles render correctly.
     .flow-text-block {
@@ -151,7 +151,7 @@
   }
 
   &__thinking-item {
-    margin-bottom: var(--openbitfun-control-flow-chat-flow-item-gap);
+    margin-bottom: var(--bitfun-control-flow-chat-flow-item-gap);
   }
 
   &__thinking-item--expanded {
@@ -177,12 +177,12 @@
   }
 
   &__tool-item {
-    margin-bottom: var(--openbitfun-control-flow-chat-flow-item-gap);
+    margin-bottom: var(--bitfun-control-flow-chat-flow-item-gap);
     
     // Hide tool card action buttons and expanded content.
     .tool-card__actions,
-    [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='actionRegion'],
-    [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='expanded'] {
+    [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='actionRegion'],
+    [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='expanded'] {
       display: none !important;
     }
   }
@@ -191,13 +191,13 @@
   &__footer {
     margin-top: 20px;
     padding-top: 14px;
-    border-top: 1px solid var(--openbitfun-color-border-default);
+    border-top: 1px solid var(--bitfun-color-border-default);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     
     span {
@@ -208,8 +208,8 @@
   }
 
   &__footer-brand {
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
     white-space: nowrap;
   }
 }

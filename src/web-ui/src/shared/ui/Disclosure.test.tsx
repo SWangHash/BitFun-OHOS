@@ -3,7 +3,7 @@
 import React, { act, createRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Disclosure } from '@openbitfun/ui';
+import { Disclosure } from '@bitfun/ui';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 

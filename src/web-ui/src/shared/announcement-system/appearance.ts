@@ -20,6 +20,6 @@ export const announcementAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'releaseLetterMarks' },
   ],
   facets: [
-    { id: 'depth', attribute: 'data-openbitfun-depth', values: ['1', '2'] },
+    { id: 'depth', attribute: 'data-bitfun-depth', values: ['1', '2'] },
   ],
 };

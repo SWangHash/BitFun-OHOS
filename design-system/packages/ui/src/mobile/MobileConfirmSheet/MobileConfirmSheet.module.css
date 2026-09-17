@@ -1,23 +1,23 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .content {
     display: flex;
     min-inline-size: 0;
     flex-direction: column;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     text-align: center;
   }
 
   .icon {
     display: grid;
     place-items: center;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   .actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   @media (max-width: 359px) {

@@ -2,7 +2,7 @@
 
 use crate::api::app_state::AppState;
 use log::error;
-use openbitfun_core::function_agents::{CommitMessage, CommitMessageOptions, GitFunctionAgent};
+use bitfun_core::function_agents::{CommitMessage, CommitMessageOptions, GitFunctionAgent};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::State;

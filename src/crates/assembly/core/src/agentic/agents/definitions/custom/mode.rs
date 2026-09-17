@@ -1,9 +1,9 @@
 use super::common::CustomAgentData;
 use crate::agentic::agents::Agent;
 use crate::agentic::agents::{PromptBuilderContext, UserContextPolicy};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use openbitfun_agent_runtime::custom_agent::{
+use bitfun_agent_runtime::custom_agent::{
     custom_agent_read_markdown_file, default_custom_agent_user_context_policy,
     CustomAgentDefinition, CustomAgentKind, CustomAgentLevel,
 };
@@ -48,18 +48,18 @@ impl CustomMode {
         )
     }
 
-    pub fn from_file(path: &str, level: CustomAgentLevel) -> OpenBitFunResult<Self> {
+    pub fn from_file(path: &str, level: CustomAgentLevel) -> BitFunResult<Self> {
         let parsed =
-            custom_agent_read_markdown_file(path, level).map_err(OpenBitFunError::Agent)?;
+            custom_agent_read_markdown_file(path, level).map_err(BitFunError::Agent)?;
         if parsed.definition.kind != CustomAgentKind::Mode {
-            return Err(OpenBitFunError::Agent(
+            return Err(BitFunError::Agent(
                 "Expected custom mode file".to_string(),
             ));
         }
         Ok(Self::from_definition(path.to_string(), parsed.definition))
     }
 
-    pub fn save_to_file(&self, model: Option<&str>) -> OpenBitFunResult<()> {
+    pub fn save_to_file(&self, model: Option<&str>) -> BitFunResult<()> {
         self.data.save_to_file(model, None)
     }
 }
@@ -93,7 +93,7 @@ impl Agent for CustomMode {
         self.data.system_prompt_cache_identity()
     }
 
-    async fn build_prompt(&self, context: &PromptBuilderContext) -> OpenBitFunResult<String> {
+    async fn build_prompt(&self, context: &PromptBuilderContext) -> BitFunResult<String> {
         self.data.build_prompt(context).await
     }
 

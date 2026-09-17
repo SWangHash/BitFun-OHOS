@@ -3,5 +3,5 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance/ty
 export const taskRunningIndicatorAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'task-running-indicator',
   parts: [{ id: 'root' }, { id: 'bar' }],
-  facets: [{ id: 'size', attribute: 'data-openbitfun-size', values: ['xs', 'sm', 'md', 'lg'] }],
+  facets: [{ id: 'size', attribute: 'data-bitfun-size', values: ['xs', 'sm', 'md', 'lg'] }],
 };

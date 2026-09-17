@@ -2,9 +2,9 @@
 
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ValidationResult};
 use crate::agentic::tools::tool_context_runtime::ToolUseContext;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use openbitfun_agent_tools::{
+use bitfun_agent_tools::{
     call_deferred_tool_description, call_deferred_tool_input_schema,
     call_deferred_tool_short_description, parse_call_deferred_tool_input, CALL_DEFERRED_TOOL_NAME,
 };
@@ -30,7 +30,7 @@ impl Tool for CallDeferredTool {
         CALL_DEFERRED_TOOL_NAME
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(call_deferred_tool_description())
     }
 
@@ -74,8 +74,8 @@ impl Tool for CallDeferredTool {
         &self,
         _input: &Value,
         _context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
-        Err(OpenBitFunError::Validation(
+    ) -> BitFunResult<Vec<ToolResult>> {
+        Err(BitFunError::Validation(
             "CallDeferredTool must be resolved by the tool pipeline".to_string(),
         ))
     }

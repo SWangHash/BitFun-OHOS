@@ -1,5 +1,5 @@
 import React, { Suspense, useMemo } from 'react';
-import { TabGroup } from '@openbitfun/ui';
+import { TabGroup } from '@bitfun/ui';
 import { useSettingsStore } from '../settingsStore';
 import type { SettingsPageProps, SettingsViewId } from '../settingsTypes';
 import './SettingsViewPage.scss';
@@ -39,15 +39,15 @@ export const SettingsViewPage: React.FC<SettingsViewPageProps> = ({
 
   return (
     <div
-      className="openbitfun-settings-view-page"
-      data-openbitfun-component="settings-view-page"
-      data-openbitfun-part="root"
-      data-openbitfun-view={activeViewId}
+      className="bitfun-settings-view-page"
+      data-bitfun-component="settings-view-page"
+      data-bitfun-part="root"
+      data-bitfun-view={activeViewId}
     >
-      <div className="openbitfun-settings-view-page__tabs">
+      <div className="bitfun-settings-view-page__tabs">
         <TabGroup
           size="sm"
-          className="openbitfun-settings-view-page__tab-list"
+          className="bitfun-settings-view-page__tab-list"
           items={tabItems}
           onValueChange={handleChange}
           value={activeViewId}
@@ -55,21 +55,21 @@ export const SettingsViewPage: React.FC<SettingsViewPageProps> = ({
         {activeView && (
           <div
             aria-labelledby={`settings-view-${activeView.id}-tab`}
-            className="openbitfun-settings-view-page__tab-content"
+            className="bitfun-settings-view-page__tab-content"
             id={`settings-view-${activeView.id}-panel`}
             role="tabpanel"
           >
             <Suspense fallback={(
               <div
-                className="openbitfun-settings-view-page__loading"
-                data-openbitfun-component="settings-view-page"
-                data-openbitfun-part="loading"
+                className="bitfun-settings-view-page__loading"
+                data-bitfun-component="settings-view-page"
+                data-bitfun-part="loading"
                 aria-busy="true"
                 aria-hidden="true"
               >
-                <span className="openbitfun-settings-view-page__loading-line" data-openbitfun-component="settings-view-page" data-openbitfun-part="loadingLine" />
-                <span className="openbitfun-settings-view-page__loading-line" data-openbitfun-component="settings-view-page" data-openbitfun-part="loadingLine" />
-                <span className="openbitfun-settings-view-page__loading-block" data-openbitfun-component="settings-view-page" data-openbitfun-part="loadingBlock" />
+                <span className="bitfun-settings-view-page__loading-line" data-bitfun-component="settings-view-page" data-bitfun-part="loadingLine" />
+                <span className="bitfun-settings-view-page__loading-line" data-bitfun-component="settings-view-page" data-bitfun-part="loadingLine" />
+                <span className="bitfun-settings-view-page__loading-block" data-bitfun-component="settings-view-page" data-bitfun-part="loadingBlock" />
               </div>
             )}>
               {activeView.content}

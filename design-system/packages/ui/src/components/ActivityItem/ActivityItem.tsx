@@ -46,15 +46,15 @@ function ActivityItemContent({
   return (
     <>
       {leading !== undefined && leading !== null && (
-        <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+        <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
           {leading}
         </span>
       )}
-      <span className={styles.content} data-openbitfun-part="content">
+      <span className={styles.content} data-bitfun-part="content">
         {label !== undefined && label !== null && (
-          <OverflowText className={styles.label} data-openbitfun-part="label">{label}</OverflowText>
+          <OverflowText className={styles.label} data-bitfun-part="label">{label}</OverflowText>
         )}
-        <OverflowText className={styles.description} data-openbitfun-part="description">{children}</OverflowText>
+        <OverflowText className={styles.description} data-bitfun-part="description">{children}</OverflowText>
       </span>
     </>
   );
@@ -87,7 +87,7 @@ export const ActivityItem = forwardRef<HTMLSpanElement, ActivityItemProps>(
         aria-disabled={disabled || undefined}
         className={classNames(styles.root, className)}
         data-appearance={appearance}
-        data-openbitfun-component="activity-item"
+        data-bitfun-component="activity-item"
         data-disabled={disabled ? "true" : "false"}
         data-has-detail={hasDetail ? "true" : "false"}
         ref={ref}
@@ -96,7 +96,7 @@ export const ActivityItem = forwardRef<HTMLSpanElement, ActivityItemProps>(
           <button
             data-overflow-trigger
             className={styles.trigger}
-            data-openbitfun-part="trigger"
+            data-bitfun-part="trigger"
             disabled={disabled}
             onClick={onActivate}
             type="button"
@@ -104,15 +104,15 @@ export const ActivityItem = forwardRef<HTMLSpanElement, ActivityItemProps>(
             {content}
           </button>
         ) : (
-          <span className={styles.body} data-openbitfun-part="body">{content}</span>
+          <span className={styles.body} data-bitfun-part="body">{content}</span>
         )}
         {metadata !== undefined && metadata !== null && (
-          <span className={styles.metadata} data-openbitfun-part="metadata">{metadata}</span>
+          <span className={styles.metadata} data-bitfun-part="metadata">{metadata}</span>
         )}
         {actions.length > 0 && (
           <>
-            <span aria-hidden="true" className={styles.divider} data-openbitfun-part="divider" />
-            <span className={styles.actions} data-openbitfun-part="actions">
+            <span aria-hidden="true" className={styles.divider} data-bitfun-part="divider" />
+            <span className={styles.actions} data-bitfun-part="actions">
               {actions.map((action) => (
                 <IconButton
                   aria-label={action.label}
@@ -129,7 +129,7 @@ export const ActivityItem = forwardRef<HTMLSpanElement, ActivityItemProps>(
           </>
         )}
         {hasDetail && (
-          <span className={styles.detail} data-openbitfun-part="detail">{detail}</span>
+          <span className={styles.detail} data-bitfun-part="detail">{detail}</span>
         )}
       </span>
     );
@@ -142,11 +142,11 @@ export const ChangeCount = forwardRef<HTMLSpanElement, ChangeCountProps>(
       <span
         {...props}
         className={classNames(styles.changeCount, className)}
-        data-openbitfun-component="change-count"
+        data-bitfun-component="change-count"
         ref={ref}
       >
-        <span className={styles.additions} data-openbitfun-part="additions">+{Math.abs(additions)}</span>
-        <span className={styles.deletions} data-openbitfun-part="deletions">-{Math.abs(deletions)}</span>
+        <span className={styles.additions} data-bitfun-part="additions">+{Math.abs(additions)}</span>
+        <span className={styles.deletions} data-bitfun-part="deletions">-{Math.abs(deletions)}</span>
       </span>
     );
   },

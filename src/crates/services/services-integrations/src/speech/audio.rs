@@ -1,8 +1,8 @@
-use super::{OpenBitFunError, OpenBitFunResult};
+use super::{BitFunError, BitFunResult};
 
-pub(super) fn pcm16_le_to_f32_samples(bytes: &[u8]) -> OpenBitFunResult<Vec<f32>> {
+pub(super) fn pcm16_le_to_f32_samples(bytes: &[u8]) -> BitFunResult<Vec<f32>> {
     if !bytes.len().is_multiple_of(2) {
-        return Err(OpenBitFunError::validation(
+        return Err(BitFunError::validation(
             "PCM16 audio payload must have an even number of bytes",
         ));
     }

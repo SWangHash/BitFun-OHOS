@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const suspendedPaint = process.argv.includes('--suspended-paint');
-const root = await mkdtemp(path.join(tmpdir(), 'openbitfun-creation-e2e-'));
+const root = await mkdtemp(path.join(tmpdir(), 'bitfun-creation-e2e-'));
 const userRoot = path.join(root, 'user');
 const productHome = path.join(root, 'home');
 const workbench = path.join(userRoot, 'data/frontend-workbench');
@@ -35,7 +35,7 @@ if (suspendedPaint) {
       const pending = new Map(); let next = 1;
       window.requestAnimationFrame = callback => { const id = next++; pending.set(id, callback); return id; };
       window.cancelAnimationFrame = id => pending.delete(id);
-      window.__openbitfunResumeTestPaint = () => {
+      window.__bitfunResumeTestPaint = () => {
         window.requestAnimationFrame = request; window.cancelAnimationFrame = cancel;
         for (const callback of pending.values()) request(callback);
         pending.clear();
@@ -46,8 +46,8 @@ if (suspendedPaint) {
 await mkdir(overlay, { recursive: true });
 await mkdir(productHome, { recursive: true });
 await writeFile(path.join(overlay, '.creation-overlay.json'), JSON.stringify({ apiVersion: 1 }));
-await writeFile(path.join(overlay, 'openbitfun-creation.css'), '[data-testid="creation-native-output"] { white-space: pre-wrap; }');
-await writeFile(path.join(overlay, 'openbitfun-creation.js'), `
+await writeFile(path.join(overlay, 'bitfun-creation.css'), '[data-testid="creation-native-output"] { white-space: pre-wrap; }');
+await writeFile(path.join(overlay, 'bitfun-creation.js'), `
 export default function activate(ui) {
   const root = ui.mount('sidebar-footer');
   const output = document.createElement('pre');
@@ -104,13 +104,13 @@ const probe = createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'l
 const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
 const endpoint = 'http://127.0.0.1:' + port;
 const log = await open(path.join(root, 'desktop.log'), 'w');
-const app = spawn(path.join(repo, 'target/debug/openbitfun-desktop' + (process.platform === 'win32' ? '.exe' : '')), [], {
+const app = spawn(path.join(repo, 'target/debug/bitfun-desktop' + (process.platform === 'win32' ? '.exe' : '')), [], {
   cwd: repo, windowsHide: true, stdio: ['ignore', log.fd, log.fd],
-  env: { ...process.env, OPENBITFUN_USER_ROOT: userRoot, OPENBITFUN_E2E_USER_ROOT: userRoot,
-    OPENBITFUN_HOME: productHome, OPENBITFUN_E2E_HOME: productHome, OPENBITFUN_E2E_STORAGE_GUARD: '1',
-    OPENBITFUN_E2E_PACKAGED_FRONTEND: '1', OPENBITFUN_E2E_FRONTEND_DIR: frontendSnapshot,
-    OPENBITFUN_E2E_LOG_DIR: path.join(root, 'logs'),
-    OPENBITFUN_WEBDRIVER_PORT: String(port), OPENBITFUN_WEBDRIVER_LABEL: 'main' },
+  env: { ...process.env, BITFUN_USER_ROOT: userRoot, BITFUN_E2E_USER_ROOT: userRoot,
+    BITFUN_HOME: productHome, BITFUN_E2E_HOME: productHome, BITFUN_E2E_STORAGE_GUARD: '1',
+    BITFUN_E2E_PACKAGED_FRONTEND: '1', BITFUN_E2E_FRONTEND_DIR: frontendSnapshot,
+    BITFUN_E2E_LOG_DIR: path.join(root, 'logs'),
+    BITFUN_WEBDRIVER_PORT: String(port), BITFUN_WEBDRIVER_LABEL: 'main' },
 });
 let exitError;
 app.on('error', error => { exitError = error; });
@@ -137,10 +137,10 @@ const execute = script => request('/session/' + session + '/execute/sync', { scr
 const readOutput = () => execute('() => document.querySelector("[data-testid=creation-native-output]")?.textContent');
 async function resumePaint() {
   if (!suspendedPaint) return;
-  const phase = await execute('() => window.__OPENBITFUN_STARTUP_TRACE__?.snapshot().phases.events.find(event => event.phase === "interactive_shell_ready")');
+  const phase = await execute('() => window.__BITFUN_STARTUP_TRACE__?.snapshot().phases.events.find(event => event.phase === "interactive_shell_ready")');
   assert.equal(phase?.reason, 'startup-overlay-hidden');
   assert.equal(phase?.afterPaint, false);
-  await execute('() => { window.__openbitfunResumeTestPaint(); return true; }');
+  await execute('() => { window.__bitfunResumeTestPaint(); return true; }');
 }
 async function click(name) {
   await execute('() => document.querySelector("[data-testid=creation-native-' + name + ']").click()');
@@ -154,7 +154,7 @@ try {
   await request('/session/' + session + '/timeouts', { script: 5000 });
   const initial = JSON.parse(await until(readOutput, 'packaged customization activation'));
   const url = await execute('() => location.href');
-  assert.match(url, /openbitfun-ui/);
+  assert.match(url, /bitfun-ui/);
   assert.equal(initial.counter, 0);
   assert.ok(initial.snapshot.commands.some(command => command.id === 'test.increment'));
   await resumePaint();
@@ -181,7 +181,7 @@ try {
   console.log(JSON.stringify(report));
 } catch (error) {
   if (session) {
-    const diagnostics = await execute('() => ({ url: location.href, ready: document.readyState, text: document.body?.innerText.slice(0, 3000), scripts: [...document.scripts].map(script => script.src), creationStyles: document.querySelectorAll("[data-openbitfun-creation]").length, startup: window.__OPENBITFUN_STARTUP_TRACE__?.snapshot() })').catch(String);
+    const diagnostics = await execute('() => ({ url: location.href, ready: document.readyState, text: document.body?.innerText.slice(0, 3000), scripts: [...document.scripts].map(script => script.src), creationStyles: document.querySelectorAll("[data-bitfun-creation]").length, startup: window.__BITFUN_STARTUP_TRACE__?.snapshot() })').catch(String);
     await writeFile(path.join(root, 'failure.json'), JSON.stringify(diagnostics, null, 2));
     const browserLogs = await request('/session/' + session + '/se/log', { type: 'browser' }).catch(String);
     await writeFile(path.join(root, 'browser-errors.json'), JSON.stringify(browserLogs, null, 2));

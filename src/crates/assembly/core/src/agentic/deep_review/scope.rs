@@ -1,6 +1,6 @@
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_agent_runtime::deep_review::{
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_agent_runtime::deep_review::{
     FocusedReviewAssignment, FocusedReviewPathAccess, ReviewTargetEvidence,
 };
 use serde_json::Value;
@@ -8,28 +8,28 @@ use std::path::{Path, PathBuf};
 
 fn focused_scope(
     context: &ToolUseContext,
-) -> OpenBitFunResult<Option<(FocusedReviewAssignment, ReviewTargetEvidence)>> {
+) -> BitFunResult<Option<(FocusedReviewAssignment, ReviewTargetEvidence)>> {
     let Some(raw_manifest) = context.custom_data.get("deep_review_run_manifest") else {
         return Ok(None);
     };
     let parsed;
     let manifest = if let Some(serialized) = raw_manifest.as_str() {
         parsed = serde_json::from_str::<Value>(serialized).map_err(|_| {
-            OpenBitFunError::tool("Focused Review manifest is malformed".to_string())
+            BitFunError::tool("Focused Review manifest is malformed".to_string())
         })?;
         &parsed
     } else {
         raw_manifest
     };
     let Some(assignment) = FocusedReviewAssignment::from_manifest(manifest)
-        .map_err(|violation| OpenBitFunError::tool(violation.to_tool_error_message()))?
+        .map_err(|violation| BitFunError::tool(violation.to_tool_error_message()))?
     else {
         return Ok(None);
     };
     let evidence = ReviewTargetEvidence::from_manifest(manifest)
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?
+        .map_err(|error| BitFunError::tool(error.to_string()))?
         .ok_or_else(|| {
-            OpenBitFunError::tool("Focused Review target evidence is missing".to_string())
+            BitFunError::tool("Focused Review target evidence is missing".to_string())
         })?;
     Ok(Some((assignment, evidence)))
 }
@@ -37,7 +37,7 @@ fn focused_scope(
 pub fn ensure_focused_review_path_allowed(
     context: &ToolUseContext,
     path: &str,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     let Some((assignment, evidence)) = focused_scope(context)? else {
         return Ok(());
     };
@@ -47,31 +47,31 @@ pub fn ensure_focused_review_path_allowed(
 pub fn ensure_focused_review_resolved_path_allowed(
     context: &ToolUseContext,
     resolved_path: &str,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     let Some((assignment, evidence)) = focused_scope(context)? else {
         return Ok(());
     };
     if context.is_remote() {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "Focused Review file access is unavailable for remote workspaces because target scope cannot be guaranteed"
                 .to_string(),
         ));
     }
     let root = context.workspace_root().ok_or_else(|| {
-        OpenBitFunError::tool("Focused Review file access requires a workspace root".to_string())
+        BitFunError::tool("Focused Review file access requires a workspace root".to_string())
     })?;
     let resolved_path = Path::new(resolved_path);
     ensure_focused_local_path_syntax_safe(resolved_path)?;
     let path = local_workspace_relative_path(resolved_path, root).ok_or_else(|| {
-        OpenBitFunError::tool(
+        BitFunError::tool(
             "Focused Review file access is limited to the current workspace".to_string(),
         )
     })?;
     ensure_focused_relative_path_syntax_safe(&path)?;
     if tool_runtime::fs::path_has_multiple_hard_links(resolved_path).map_err(|_| {
-        OpenBitFunError::tool("Focused Review could not verify the local file identity".to_string())
+        BitFunError::tool("Focused Review could not verify the local file identity".to_string())
     })? {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "Focused Review file access cannot use a hard-link alias".to_string(),
         ));
     }
@@ -83,14 +83,14 @@ pub fn ensure_focused_review_resolved_path_allowed(
     ) {
         let canonical_relative = local_workspace_relative_path(&canonical_path, &canonical_root)
             .ok_or_else(|| {
-                OpenBitFunError::tool(
+                BitFunError::tool(
                     "Focused Review file access cannot follow links outside the current workspace"
                         .to_string(),
                 )
             })?;
         ensure_local_path_allowed(&assignment, &evidence, &canonical_relative)?;
         if !workspace_relative_path_eq(&path, &canonical_relative) {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "Focused Review file access cannot use a linked path alias".to_string(),
             ));
         }
@@ -98,12 +98,12 @@ pub fn ensure_focused_review_resolved_path_allowed(
     Ok(())
 }
 
-fn ensure_focused_local_path_syntax_safe(path: &Path) -> OpenBitFunResult<()> {
+fn ensure_focused_local_path_syntax_safe(path: &Path) -> BitFunResult<()> {
     #[cfg(windows)]
     {
         let normalized = path.to_string_lossy().replace('/', "\\");
         if normalized.starts_with(r"\\?\") || normalized.starts_with(r"\\.\") {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "Focused Review file access cannot use a Windows device path".to_string(),
             ));
         }
@@ -113,10 +113,10 @@ fn ensure_focused_local_path_syntax_safe(path: &Path) -> OpenBitFunResult<()> {
     Ok(())
 }
 
-fn ensure_focused_relative_path_syntax_safe(path: &str) -> OpenBitFunResult<()> {
+fn ensure_focused_relative_path_syntax_safe(path: &str) -> BitFunResult<()> {
     #[cfg(windows)]
     if path.split('/').any(|component| component.contains(':')) {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "Focused Review file access cannot use a Windows alternate data stream".to_string(),
         ));
     }
@@ -129,7 +129,7 @@ fn ensure_path_allowed(
     assignment: &FocusedReviewAssignment,
     evidence: &ReviewTargetEvidence,
     path: &str,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     ensure_access_allowed(assignment.path_access_with_evidence(evidence, path), path)
 }
 
@@ -137,16 +137,16 @@ fn ensure_local_path_allowed(
     assignment: &FocusedReviewAssignment,
     evidence: &ReviewTargetEvidence,
     path: &str,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     ensure_access_allowed(
         assignment.path_access_with_local_evidence(evidence, path),
         path,
     )
 }
 
-fn ensure_access_allowed(access: FocusedReviewPathAccess, path: &str) -> OpenBitFunResult<()> {
+fn ensure_access_allowed(access: FocusedReviewPathAccess, path: &str) -> BitFunResult<()> {
     if access == FocusedReviewPathAccess::UnassignedChange {
-        return Err(OpenBitFunError::tool(format!(
+        return Err(BitFunError::tool(format!(
             "Focused Review scope excludes changed file '{path}'; inspect only assigned changes or unchanged dependencies needed as evidence"
         )));
     }
@@ -191,12 +191,12 @@ fn workspace_relative_path_eq(left: &str, right: &str) -> bool {
 
 pub fn focused_review_excluded_changed_paths(
     context: &ToolUseContext,
-) -> OpenBitFunResult<Option<Vec<PathBuf>>> {
+) -> BitFunResult<Option<Vec<PathBuf>>> {
     let Some((assignment, evidence)) = focused_scope(context)? else {
         return Ok(None);
     };
     let root = context.workspace_root().ok_or_else(|| {
-        OpenBitFunError::tool("Focused Review grep requires a local workspace root".to_string())
+        BitFunError::tool("Focused Review grep requires a local workspace root".to_string())
     })?;
     let excluded = evidence
         .files()

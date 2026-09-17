@@ -63,7 +63,7 @@ mod tests {
     #[tokio::test]
     async fn stores_only_the_plain_anonymous_identity() {
         let directory = std::env::temp_dir().join(format!(
-            "openbitfun-feedback-identity-{}-{}",
+            "bitfun-feedback-identity-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));

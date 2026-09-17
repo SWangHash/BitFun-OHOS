@@ -8,7 +8,7 @@ This file applies to `tests/e2e`. Use the top-level `AGENTS.md` for repository-w
 
 ## What matters here
 
-Desktop E2E tests built with WebDriverIO plus OpenBitFun's embedded WebDriver.
+Desktop E2E tests built with WebDriverIO plus BitFun's embedded WebDriver.
 
 Levels from `E2E-TESTING-GUIDE.md`:
 
@@ -26,7 +26,7 @@ Core rules:
 ## Commands
 
 ```bash
-cargo build -p openbitfun-desktop
+cargo build -p bitfun-desktop
 pnpm --dir tests/e2e install
 pnpm --dir tests/e2e run test:l0
 pnpm --dir tests/e2e run test:l0:all
@@ -69,7 +69,7 @@ After building Desktop, verify the public Huawei endpoint through settings,
 health checks, document search, and document retrieval with isolated storage:
 
 ```bash
-OPENBITFUN_E2E_HUAWEI_MCP=1 OPENBITFUN_E2E_STORAGE_ROOT="$(mktemp -d /tmp/openbitfun-huawei-e2e.XXXXXX)" pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/l1-mcp-huawei-health.spec.ts"
+BITFUN_E2E_HUAWEI_MCP=1 BITFUN_E2E_STORAGE_ROOT="$(mktemp -d /tmp/bitfun-huawei-e2e.XXXXXX)" pnpm --dir tests/e2e exec wdio run ./config/wdio.conf.ts --spec "./specs/l1-mcp-huawei-health.spec.ts"
 ```
 
 The spec is skipped by default, uses no account credentials, and restores the

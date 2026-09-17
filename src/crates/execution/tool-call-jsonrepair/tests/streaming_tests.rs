@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Read, Write};
 
-use openbitfun_tool_call_jsonrepair::{
+use bitfun_tool_call_jsonrepair::{
     jsonrepair, jsonrepair_reader_to_writer, JsonRepairStreamError,
 };
 

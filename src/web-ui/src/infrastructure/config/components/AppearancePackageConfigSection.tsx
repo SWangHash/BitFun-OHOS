@@ -1,8 +1,8 @@
-import { ActionCard } from '@openbitfun/ui';
+import { ActionCard } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Button, Icon, IconButton, Select, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Button, Icon, IconButton, Select, Tooltip } from '@bitfun/ui';
 
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {
@@ -17,7 +17,7 @@ import { notificationService } from '@/shared/notification-system';
 import { AppearanceMarketDialog } from './AppearanceMarketDialog';
 import { ConfigPageSection, formatStandaloneUiText } from './common';
 
-const DEFAULT_APPEARANCE_PREVIEW_SRC = '/assets/appearance/openbitfun-default-preview@4x.png';
+const DEFAULT_APPEARANCE_PREVIEW_SRC = '/assets/appearance/bitfun-default-preview@4x.png';
 
 function downloadArchive(bytes: ArrayBuffer, filename: string): void {
   const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
@@ -77,13 +77,13 @@ export function AppearancePackageFailurePanel({
       className="appearance-package-config__diagnostics"
       role="alert"
       aria-live="polite"
-      data-openbitfun-component="appearance-settings"
-      data-openbitfun-part="packageDiagnostics"
+      data-bitfun-component="appearance-settings"
+      data-bitfun-part="packageDiagnostics"
     >
       <div
         className="appearance-package-config__diagnostics-header"
-        data-openbitfun-component="appearance-settings"
-        data-openbitfun-part="packageDiagnosticsHeader"
+        data-bitfun-component="appearance-settings"
+        data-bitfun-part="packageDiagnosticsHeader"
       >
         <AlertTriangle size={17} aria-hidden="true" />
         <div>
@@ -107,8 +107,8 @@ export function AppearancePackageFailurePanel({
             <section
               key={group.key}
               className="appearance-package-config__diagnostics-group"
-              data-openbitfun-component="appearance-settings"
-              data-openbitfun-part="packageDiagnosticsGroup"
+              data-bitfun-component="appearance-settings"
+              data-bitfun-part="packageDiagnosticsGroup"
             >
               <h4>
                 {group.surfaceKind === 'component'
@@ -121,8 +121,8 @@ export function AppearancePackageFailurePanel({
                 {group.issues.map(issue => (
                   <li
                     key={`${issue.code}:${issue.path}`}
-                    data-openbitfun-component="appearance-settings"
-                    data-openbitfun-part="packageDiagnosticIssue"
+                    data-bitfun-component="appearance-settings"
+                    data-bitfun-part="packageDiagnosticIssue"
                   >
                     <span>{issueText(issue, t)}</span>
                     <code>{issue.path}</code>
@@ -132,8 +132,8 @@ export function AppearancePackageFailurePanel({
               {group.allowedParts.length > 0 && (
                 <details
                   className="appearance-package-config__diagnostics-parts"
-                  data-openbitfun-component="appearance-settings"
-                  data-openbitfun-part="packageDiagnosticAllowedParts"
+                  data-bitfun-component="appearance-settings"
+                  data-bitfun-part="packageDiagnosticAllowedParts"
                 >
                   <summary>{t('package.diagnostics.allowedParts')}</summary>
                   <div>{group.allowedParts.map(part => <code key={part}>{part}</code>)}</div>
@@ -247,10 +247,10 @@ function AppearancePackagePreview({
       aria-label={appearanceName}
       data-testid="appearance-package-card"
       data-appearance-id={appearanceId}
-      data-openbitfun-component="appearance-settings"
-      data-openbitfun-part="packagePreview"
-      data-openbitfun-package-type={packageType}
-      data-openbitfun-state={state || undefined}
+      data-bitfun-component="appearance-settings"
+      data-bitfun-part="packagePreview"
+      data-bitfun-package-type={packageType}
+      data-bitfun-state={state || undefined}
     >
       {onSelect ? (
         <ActionCard
@@ -368,7 +368,7 @@ export function AppearancePackageConfigSection() {
 
   const handleExport = async (id: string) => {
     try {
-      downloadArchive(await exportPackage(id), `${id}.openbitfun-appearance`);
+      downloadArchive(await exportPackage(id), `${id}.bitfun-appearance`);
     } catch (error) {
       notificationService.error(t('package.exportFailed', {
         error: error instanceof Error ? error.message : String(error),
@@ -408,8 +408,8 @@ export function AppearancePackageConfigSection() {
       extra={(
         <div
           className="appearance-package-config__actions"
-          data-openbitfun-component="appearance-settings"
-          data-openbitfun-part="packageActions"
+          data-bitfun-component="appearance-settings"
+          data-bitfun-part="packageActions"
         >
           <Button
             variant="outline"
@@ -449,16 +449,16 @@ export function AppearancePackageConfigSection() {
           )}
         </div>
       )}
-      data-openbitfun-component="appearance-settings"
-      data-openbitfun-part="packageSection"
-      data-openbitfun-package-type={selectedAppearance ? 'imported' : 'native'}
-      data-openbitfun-state={busy ? 'disabled' : undefined}
+      data-bitfun-component="appearance-settings"
+      data-bitfun-part="packageSection"
+      data-bitfun-package-type={selectedAppearance ? 'imported' : 'native'}
+      data-bitfun-state={busy ? 'disabled' : undefined}
     >
       <input
         ref={inputRef}
         className="appearance-package-config__file-input"
         type="file"
-        accept=".openbitfun-appearance,.zip,application/zip"
+        accept=".bitfun-appearance,.zip,application/zip"
         onChange={handleImport}
       />
       <div className="appearance-package-config__gallery">
@@ -475,8 +475,8 @@ export function AppearancePackageConfigSection() {
         >
           <span
             className="appearance-package-config__builtin-theme-select"
-            data-openbitfun-component="appearance-settings"
-            data-openbitfun-part="packageBuiltinTheme"
+            data-bitfun-component="appearance-settings"
+            data-bitfun-part="packageBuiltinTheme"
           >
             <Select
               size="sm"
@@ -511,8 +511,8 @@ export function AppearancePackageConfigSection() {
       {unavailableSelectionId && (
         <div
           className="appearance-package-config__missing-selection"
-          data-openbitfun-component="appearance-settings"
-          data-openbitfun-part="packageMissingSelection"
+          data-bitfun-component="appearance-settings"
+          data-bitfun-part="packageMissingSelection"
         >
           <AlertTriangle size={16} aria-hidden="true" />
           <span>{t('package.missingSelection', { id: unavailableSelectionId })}</span>

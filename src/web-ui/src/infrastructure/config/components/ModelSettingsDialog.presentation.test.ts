@@ -23,7 +23,7 @@ describe('ModelSettingsPage dialog presentation', () => {
 
     expect(editorDialogStart).toBeGreaterThan(-1);
     expect(editingFormStart).toBeGreaterThan(-1);
-    expect(editorDialog).toContain('className="openbitfun-model-settings__editor-dialog"');
+    expect(editorDialog).toContain('className="bitfun-model-settings__editor-dialog"');
     expect(editorDialog).toContain('size="xl"');
     expect(editorDialog).not.toContain('size="2xl"');
     expect(editorDialog).toMatch(
@@ -40,15 +40,15 @@ describe('ModelSettingsPage dialog presentation', () => {
     expect(editorDialog).toContain('loading={isEditorSaving}');
     expect(editingForm.match(/fieldSurface="default"/g)).toHaveLength(2);
     expect(editingForm).not.toContain('<ScrollArea');
-    expect(editingForm).toContain('className="openbitfun-model-settings__form-content"');
-    expect(editorDialog).not.toContain('openbitfun-model-settings__editor-dialog-footer');
-    expect(editorDialog).not.toContain('openbitfun-model-settings__editor-dialog-cancel');
+    expect(editingForm).toContain('className="bitfun-model-settings__form-content"');
+    expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-footer');
+    expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-cancel');
     expect(styles).toMatch(
-      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--openbitfun-overlay-dialog-viewport-gutter\)\)\s*\);/,
+      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--bitfun-overlay-dialog-viewport-gutter\)\)\s*\);/,
     );
     expect(styles).not.toContain('&__editor-dialog-footer');
     expect(styles).not.toContain('&__editor-dialog-cancel');
-    expect(styles).toMatch(/&__selected-model-row\s*{[\s\S]*?background:\s*var\(--openbitfun-color-surface-tertiary\);/);
+    expect(styles).toMatch(/&__selected-model-row\s*{[\s\S]*?background:\s*var\(--bitfun-color-surface-tertiary\);/);
     expect(styles).toMatch(/&__reasoning-summary\s*{[\s\S]*?background:\s*transparent;/);
   });
 

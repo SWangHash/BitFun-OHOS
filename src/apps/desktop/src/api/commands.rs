@@ -15,18 +15,18 @@ use crate::api::search_api::{
 };
 use crate::api::workspace_activation::spawn_workspace_background_warmup;
 use crate::startup_trace::DesktopStartupTrace;
-use openbitfun_core::infrastructure::{
+use bitfun_core::infrastructure::{
     BatchedFileSearchProgressSink, FileSearchResult, FileSearchResultGroup, FileTreeNode,
     SearchMatchType,
 };
-use openbitfun_core::service::file_watch;
-use openbitfun_core::service::remote_ssh::get_remote_workspace_manager;
-use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use openbitfun_core::service::remote_ssh::{
+use bitfun_core::service::file_watch;
+use bitfun_core::service::remote_ssh::get_remote_workspace_manager;
+use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use bitfun_core::service::remote_ssh::{
     search_remote_file_names, shell_quote_posix, RemoteFileNameSearch,
 };
-use openbitfun_core::service::workspace::WorkspaceInfoRuntimeExt;
-use openbitfun_core::service::workspace::{
+use bitfun_core::service::workspace::WorkspaceInfoRuntimeExt;
+use bitfun_core::service::workspace::{
     ScanOptions, WorkspaceInfo, WorkspaceKind, WorkspaceOpenOptions,
 };
 use log::{debug, error, info, warn};
@@ -68,7 +68,7 @@ fn remote_workspace_from_info(info: &WorkspaceInfo) -> Option<crate::api::Remote
         .and_then(|v| v.as_str())
         .unwrap_or(&cid)
         .to_string();
-    let rp = openbitfun_core::service::remote_ssh::normalize_remote_workspace_path(
+    let rp = bitfun_core::service::remote_ssh::normalize_remote_workspace_path(
         &info.root_path.to_string_lossy(),
     );
     let ssh_host = info
@@ -349,7 +349,7 @@ struct SearchCommandResponse {
 }
 
 fn serialize_search_response(
-    outcome: openbitfun_core::infrastructure::FileSearchOutcome,
+    outcome: bitfun_core::infrastructure::FileSearchOutcome,
     limit: usize,
     search_metadata: Option<SearchMetadataResponse>,
 ) -> serde_json::Value {
@@ -448,17 +448,17 @@ pub struct UpdateWorkspaceInfoRequest {
     pub description: Option<String>,
     pub tags: Option<Vec<String>>,
     #[serde(default)]
-    pub related_paths: Option<Vec<openbitfun_core::service::workspace::RelatedPath>>,
+    pub related_paths: Option<Vec<bitfun_core::service::workspace::RelatedPath>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TestAIConfigConnectionRequest {
-    pub config: openbitfun_core::service::config::types::AIModelConfig,
+    pub config: bitfun_core::service::config::types::AIModelConfig,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ListAIModelsByConfigRequest {
-    pub config: openbitfun_core::service::config::types::AIModelConfig,
+    pub config: bitfun_core::service::config::types::AIModelConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -502,7 +502,7 @@ pub struct DeleteAgentCompanionPetPackageRequest {
     pub package_path: String,
 }
 
-pub use openbitfun_services_core::pet_packages::PetPackage as AgentCompanionPetPackageDto;
+pub use bitfun_services_core::pet_packages::PetPackage as AgentCompanionPetPackageDto;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -520,7 +520,7 @@ pub struct ListAgentCompanionPetsResponse {
     pub import_operations_version: u32,
     pub builtin_import_version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub external: Option<openbitfun_services_core::pet_packages::PetCatalog>,
+    pub external: Option<bitfun_services_core::pet_packages::PetCatalog>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -831,7 +831,7 @@ async fn clear_active_workspace_context(
 async fn apply_active_workspace_context(
     state: &State<'_, AppState>,
     app: &AppHandle,
-    workspace_info: &openbitfun_core::service::workspace::manager::WorkspaceInfo,
+    workspace_info: &bitfun_core::service::workspace::manager::WorkspaceInfo,
     startup_trace: Option<&DesktopStartupTrace>,
 ) {
     #[cfg(not(target_os = "macos"))]
@@ -992,7 +992,7 @@ pub async fn test_ai_connection(state: State<'_, AppState>) -> Result<bool, Stri
 #[tauri::command]
 pub async fn initialize_ai(state: State<'_, AppState>) -> Result<String, String> {
     let config_service = &state.config_service;
-    let global_config: openbitfun_core::service::config::GlobalConfig = config_service
+    let global_config: bitfun_core::service::config::GlobalConfig = config_service
         .get_config(None)
         .await
         .map_err(|e| format!("Failed to get configuration: {}", e))?;
@@ -1026,21 +1026,21 @@ pub async fn initialize_ai(state: State<'_, AppState>) -> Result<String, String>
 
 async fn create_transient_ai_client_for_config(
     state: &State<'_, AppState>,
-    model_config: openbitfun_core::service::config::types::AIModelConfig,
-) -> Result<openbitfun_core::infrastructure::ai::AIClient, String> {
+    model_config: bitfun_core::service::config::types::AIModelConfig,
+) -> Result<bitfun_core::infrastructure::ai::AIClient, String> {
     let auth = model_config.auth.clone();
 
-    let global_config: openbitfun_core::service::config::GlobalConfig = state
+    let global_config: bitfun_core::service::config::GlobalConfig = state
         .config_service
         .get_config(None)
         .await
         .map_err(|e| format!("Failed to get configuration: {}", e))?;
-    let stream_options = openbitfun_core::infrastructure::ai::build_stream_options_for_model(
+    let stream_options = bitfun_core::infrastructure::ai::build_stream_options_for_model(
         &global_config.ai,
         Some(&model_config),
     );
 
-    let mut ai_config: openbitfun_core::util::types::AIConfig = model_config
+    let mut ai_config: bitfun_core::util::types::AIConfig = model_config
         .try_into()
         .map_err(|e| format!("Failed to convert configuration: {}", e))?;
     let skip_ssl_verify = ai_config.skip_ssl_verify;
@@ -1051,12 +1051,12 @@ async fn create_transient_ai_client_for_config(
         None
     };
     let subscription_options =
-        openbitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
+        bitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
             proxy_config.clone(),
             skip_ssl_verify,
         );
 
-    openbitfun_core::infrastructure::ai::client_factory::apply_subscription_auth_with_options(
+    bitfun_core::infrastructure::ai::client_factory::apply_subscription_auth_with_options(
         &auth,
         &mut ai_config,
         &subscription_options,
@@ -1065,9 +1065,9 @@ async fn create_transient_ai_client_for_config(
     .map_err(|e| format!("Failed to resolve subscription auth: {}", e))?;
 
     Ok(
-        openbitfun_core::infrastructure::ai::client_factory::apply_subscription_request_profile(
+        bitfun_core::infrastructure::ai::client_factory::apply_subscription_request_profile(
             &auth,
-            openbitfun_core::infrastructure::ai::AIClient::new_with_runtime_options(
+            bitfun_core::infrastructure::ai::AIClient::new_with_runtime_options(
                 ai_config,
                 proxy_config,
                 stream_options,
@@ -1080,16 +1080,16 @@ async fn create_transient_ai_client_for_config(
 pub async fn test_ai_config_connection(
     state: State<'_, AppState>,
     request: TestAIConfigConnectionRequest,
-) -> Result<openbitfun_core::util::types::ConnectionTestResult, String> {
+) -> Result<bitfun_core::util::types::ConnectionTestResult, String> {
     let model_name = request.config.name.clone();
     let supports_image_input = request.config.capabilities.iter().any(|cap| {
         matches!(
             cap,
-            openbitfun_core::service::config::types::ModelCapability::ImageUnderstanding
+            bitfun_core::service::config::types::ModelCapability::ImageUnderstanding
         )
     }) || matches!(
         request.config.category,
-        openbitfun_core::service::config::types::ModelCategory::Multimodal
+        bitfun_core::service::config::types::ModelCategory::Multimodal
     );
 
     let ai_client = create_transient_ai_client_for_config(&state, request.config)
@@ -1116,7 +1116,7 @@ pub async fn test_ai_config_connection(
                             result.response_time_ms + image_result.response_time_ms;
 
                         if !image_result.success {
-                            let merged = openbitfun_core::util::types::ConnectionTestResult {
+                            let merged = bitfun_core::util::types::ConnectionTestResult {
                                 success: false,
                                 response_time_ms,
                                 model_response: image_result
@@ -1132,7 +1132,7 @@ pub async fn test_ai_config_connection(
                             return Ok(merged);
                         }
 
-                        let merged = openbitfun_core::util::types::ConnectionTestResult {
+                        let merged = bitfun_core::util::types::ConnectionTestResult {
                             success: true,
                             response_time_ms,
                             model_response: image_result.model_response.or(result.model_response),
@@ -1175,7 +1175,7 @@ pub async fn test_ai_config_connection(
 pub async fn list_ai_models_by_config(
     state: State<'_, AppState>,
     request: ListAIModelsByConfigRequest,
-) -> Result<Vec<openbitfun_core::util::types::RemoteModelInfo>, String> {
+) -> Result<Vec<bitfun_core::util::types::RemoteModelInfo>, String> {
     let config_name = request.config.name.clone();
     let ai_client = create_transient_ai_client_for_config(&state, request.config).await?;
 
@@ -1270,9 +1270,9 @@ pub async fn open_remote_workspace(
     app: tauri::AppHandle,
     request: OpenRemoteWorkspaceRequest,
 ) -> Result<WorkspaceInfoDto, String> {
-    use openbitfun_core::service::remote_ssh::normalize_remote_workspace_path;
-    use openbitfun_core::service::remote_ssh::workspace_state::remote_workspace_stable_id;
-    use openbitfun_core::service::workspace::WorkspaceCreateOptions;
+    use bitfun_core::service::remote_ssh::normalize_remote_workspace_path;
+    use bitfun_core::service::remote_ssh::workspace_state::remote_workspace_stable_id;
+    use bitfun_core::service::workspace::WorkspaceCreateOptions;
 
     let ssh = state.get_ssh_manager_async().await?;
     let saved = ssh
@@ -1587,13 +1587,13 @@ pub async fn delete_assistant_workspace(
     Ok(())
 }
 
-/// Remove a workspace from the registry and delete its OpenBitFun-managed runtime
+/// Remove a workspace from the registry and delete its BitFun-managed runtime
 /// data on disk.
 ///
 /// This is the destructive counterpart to "close": close unloads but keeps the
 /// workspace in the list and leaves files on disk; delete removes the workspace
-/// from the list and recursively deletes the OpenBitFun-managed runtime directory
-/// at `~/.openbitfun/projects/<workspace-slug>/` (sessions, snapshots, plans,
+/// from the list and recursively deletes the BitFun-managed runtime directory
+/// at `~/.bitfun/projects/<workspace-slug>/` (sessions, snapshots, plans,
 /// locks, config, request-traces). The user's actual workspace source directory
 /// (`root_path`) is never touched. It:
 ///   1. Closes the workspace if it is the active one.
@@ -1604,7 +1604,7 @@ pub async fn delete_assistant_workspace(
 ///   5. Reapplies (or clears) the active workspace context.
 ///
 /// Remote workspaces cannot be deleted locally; their `root_path` lives on the
-/// remote host and their local mirror under `~/.openbitfun/remote_ssh/` is not
+/// remote host and their local mirror under `~/.bitfun/remote_ssh/` is not
 /// removed by this command.
 #[tauri::command]
 pub async fn delete_workspace(
@@ -1792,7 +1792,7 @@ pub async fn reset_assistant_workspace(
 
     clear_directory_contents(&workspace_info.root_path).await?;
 
-    openbitfun_core::service::reset_workspace_persona_files_to_default(&workspace_info.root_path)
+    bitfun_core::service::reset_workspace_persona_files_to_default(&workspace_info.root_path)
         .await
         .map_err(|e| format!("Failed to restore assistant workspace persona files: {}", e))?;
 
@@ -1930,7 +1930,7 @@ pub async fn update_workspace_info(
     app: tauri::AppHandle,
     request: UpdateWorkspaceInfoRequest,
 ) -> Result<WorkspaceInfoDto, String> {
-    let updates = openbitfun_core::service::workspace::WorkspaceInfoUpdates {
+    let updates = bitfun_core::service::workspace::WorkspaceInfoUpdates {
         name: request.name,
         description: request.description,
         tags: request.tags,
@@ -2356,7 +2356,7 @@ pub async fn scan_workspace_info(
 }
 
 async fn ensure_directory_request_path(path: &str) -> Result<(), String> {
-    use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+    use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
     use std::path::Path;
 
     if is_remote_path(path).await {
@@ -2483,7 +2483,7 @@ async fn get_directory_children_paginated_response(
         .await
     {
         Ok(mut nodes) => {
-            openbitfun_core::service::filesystem::sort_directory_nodes(
+            bitfun_core::service::filesystem::sort_directory_nodes(
                 &mut nodes,
                 request.sort_by.as_deref(),
                 request.sort_order.as_deref(),
@@ -2682,12 +2682,12 @@ mod pet_package_tests {
     fn installed_builtin_pets_can_be_previewed_and_imported() {
         let temp = tempfile::tempdir().unwrap();
         let sources =
-            openbitfun_core::external_sources::external_builtin_pet_sources("codex", None);
+            bitfun_core::external_sources::external_builtin_pet_sources("codex", None);
         assert!(sources.diagnostics.is_empty(), "{:?}", sources.diagnostics);
         assert!(!sources.pets.is_empty());
         for source in sources.pets {
             let identity = format!("codex:builtin:{}", source.id);
-            let candidate = openbitfun_services_core::pet_packages::candidate_from_bytes(
+            let candidate = bitfun_services_core::pet_packages::candidate_from_bytes(
                 temp.path(),
                 &identity,
                 &source.archive_path,
@@ -2841,22 +2841,22 @@ pub async fn list_agent_companion_pets(
         .is_some_and(|r| r.builtin_import_version == Some(1));
     let mut response = list_agent_companion_pets_impl(&state).await?;
     if request.is_some_and(|r| r.include_external) {
-        let source_root = openbitfun_core::external_sources::external_pet_source_root("codex")
+        let source_root = bitfun_core::external_sources::external_pet_source_root("codex")
             .ok_or("Pet source is unavailable")?;
         let installed_root = companion_user_packages_dir(&state);
         response.external = Some(
             tokio::task::spawn_blocking(move || {
                 let mut catalog =
-                    openbitfun_services_core::pet_packages::catalog(&source_root, &installed_root);
+                    bitfun_services_core::pet_packages::catalog(&source_root, &installed_root);
                 if !include_builtins {
                     return catalog;
                 }
                 let bundled =
-                    openbitfun_core::external_sources::external_builtin_pet_sources("codex", None);
+                    bitfun_core::external_sources::external_builtin_pet_sources("codex", None);
                 catalog.diagnostics.extend(bundled.diagnostics);
                 for source in bundled.pets {
                     let identity = format!("codex:builtin:{}", source.id);
-                    match openbitfun_services_core::pet_packages::candidate_from_bytes(
+                    match bitfun_services_core::pet_packages::candidate_from_bytes(
                         &installed_root,
                         &identity,
                         &source.archive_path,
@@ -2914,7 +2914,7 @@ fn import_pet_request(
             .as_deref()
             .ok_or("Built-in pet import requires a reviewed fingerprint")?;
         let mut catalog =
-            openbitfun_core::external_sources::external_builtin_pet_sources("codex", Some(&id));
+            bitfun_core::external_sources::external_builtin_pet_sources("codex", Some(&id));
         let source = catalog.pets.pop().ok_or_else(|| {
             if catalog.diagnostics.is_empty() {
                 "Built-in pet is unavailable".to_string()
@@ -2922,7 +2922,7 @@ fn import_pet_request(
                 catalog.diagnostics.join("; ")
             }
         })?;
-        return openbitfun_services_core::pet_packages::import_bytes(
+        return bitfun_services_core::pet_packages::import_bytes(
             &root,
             &format!("codex:builtin:{id}"),
             &source.manifest,
@@ -2930,7 +2930,7 @@ fn import_pet_request(
             expected,
         );
     }
-    openbitfun_services_core::pet_packages::import(
+    bitfun_services_core::pet_packages::import(
         &root,
         Path::new(&request.path),
         request.expected_fingerprint.as_deref(),
@@ -2944,7 +2944,7 @@ pub(crate) async fn import_agent_companion_pet_package_impl(
     let root = companion_user_packages_dir(state);
     let source_path = source_path.to_string();
     tokio::task::spawn_blocking(move || {
-        openbitfun_services_core::pet_packages::import(&root, Path::new(&source_path), None)
+        bitfun_services_core::pet_packages::import(&root, Path::new(&source_path), None)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -3005,7 +3005,7 @@ pub async fn write_file_content(
         request.remote_connection_id.as_deref(),
     )
     .await?;
-    use openbitfun_core::service::filesystem::path_operations::{
+    use bitfun_core::service::filesystem::path_operations::{
         write_local_text_checked, write_text_checked,
     };
     match target {
@@ -3051,7 +3051,7 @@ pub async fn reset_workspace_persona_files(
         ));
     }
 
-    openbitfun_core::service::reset_workspace_persona_files_to_default(&workspace_path)
+    bitfun_core::service::reset_workspace_persona_files_to_default(&workspace_path)
         .await
         .map_err(|e| {
             error!(
@@ -3843,7 +3843,7 @@ if [ -L "$dest_path" ] || {{ [ -e "$dest_path" ] && [ ! -d "$dest_path" ]; }}; t
     echo "Extraction destination is not a directory: $dest_path" >&2
     exit 1
 fi
-stage=$(mktemp -d './.openbitfun-extract.XXXXXXXX') || exit 1
+stage=$(mktemp -d './.bitfun-extract.XXXXXXXX') || exit 1
 {extract_command}
 status=$?
 if [ "$status" -ne 0 ]; then
@@ -3930,7 +3930,7 @@ struct ExtractionStagingDirectory {
 
 impl ExtractionStagingDirectory {
     fn create(parent: &Path) -> Result<Self, String> {
-        let path = parent.join(format!(".openbitfun-extract-{}", uuid::Uuid::new_v4().simple()));
+        let path = parent.join(format!(".bitfun-extract-{}", uuid::Uuid::new_v4().simple()));
         std::fs::create_dir(&path)
             .map_err(|e| format!("Failed to create extraction staging directory: {}", e))?;
         Ok(Self { path })
@@ -4561,7 +4561,7 @@ mod archive_tests {
             Some(&legacy_wrapper),
         );
 
-        assert!(command.contains("mktemp -d './.openbitfun-extract.XXXXXXXX'"));
+        assert!(command.contains("mktemp -d './.bitfun-extract.XXXXXXXX'"));
         assert!(command.contains("legacy_wrapper_rel=home/developer/project"));
         assert!(command.contains(r#"if [ "$relative_chain" = "$legacy_wrapper_rel" ]"#));
         assert!(command.contains(r#"cp -a "$source_root"/. "$dest_path"/"#));
@@ -4860,7 +4860,7 @@ pub(crate) fn reveal_local_path_in_explorer(
     {
         if is_directory {
             let normalized_path = path_str.replace("/", "\\");
-            openbitfun_core::util::process_manager::create_command("explorer")
+            bitfun_core::util::process_manager::create_command("explorer")
                 .arg(&normalized_path)
                 .spawn()
                 .map_err(|e| format!("Failed to open explorer: {}", e))?;
@@ -4876,12 +4876,12 @@ pub(crate) fn reveal_local_path_in_explorer(
     #[cfg(target_os = "macos")]
     {
         if is_directory {
-            openbitfun_core::util::process_manager::create_command("open")
+            bitfun_core::util::process_manager::create_command("open")
                 .arg(&path_str)
                 .spawn()
                 .map_err(|e| format!("Failed to open finder: {}", e))?;
         } else {
-            openbitfun_core::util::process_manager::create_command("open")
+            bitfun_core::util::process_manager::create_command("open")
                 .args(["-R", &path_str])
                 .spawn()
                 .map_err(|e| format!("Failed to open finder: {}", e))?;
@@ -4891,7 +4891,7 @@ pub(crate) fn reveal_local_path_in_explorer(
     #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     {
         if is_directory {
-            openbitfun_core::util::process_manager::create_command("xdg-open")
+            bitfun_core::util::process_manager::create_command("xdg-open")
                 .arg(&path_str)
                 .spawn()
                 .map_err(|e| format!("Failed to open file manager: {}", e))?;
@@ -4910,7 +4910,7 @@ pub(crate) fn reveal_local_path_in_explorer(
                 .collect::<Vec<_>>()
                 .join("/");
             let file_uri = format!("file://{}", encoded_path);
-            let dbus_ok = match openbitfun_core::util::process_manager::create_command("dbus-send")
+            let dbus_ok = match bitfun_core::util::process_manager::create_command("dbus-send")
                 .args([
                     "--session",
                     "--print-reply",
@@ -4930,7 +4930,7 @@ pub(crate) fn reveal_local_path_in_explorer(
                 let parent = path
                     .parent()
                     .ok_or_else(|| "Failed to get parent directory".to_string())?;
-                openbitfun_core::util::process_manager::create_command("xdg-open")
+                bitfun_core::util::process_manager::create_command("xdg-open")
                     .arg(parent)
                     .spawn()
                     .map_err(|e| format!("Failed to open file manager: {}", e))?;
@@ -4946,7 +4946,7 @@ pub async fn search_files(
     state: State<'_, AppState>,
     request: SearchFilesRequest,
 ) -> Result<serde_json::Value, String> {
-    use openbitfun_core::service::filesystem::FileSearchOptions;
+    use bitfun_core::service::filesystem::FileSearchOptions;
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -5084,7 +5084,7 @@ pub async fn search_filenames(
     state: State<'_, AppState>,
     request: SearchFilenamesRequest,
 ) -> Result<serde_json::Value, String> {
-    use openbitfun_core::service::filesystem::FileSearchOptions;
+    use bitfun_core::service::filesystem::FileSearchOptions;
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -5124,8 +5124,8 @@ pub async fn search_filenames(
                 progress_sink: None,
             })
             .await
-            .map_err(openbitfun_core::util::errors::OpenBitFunError::service),
-            Err(error) => Err(openbitfun_core::util::errors::OpenBitFunError::service(format!(
+            .map_err(bitfun_core::util::errors::BitFunError::service),
+            Err(error) => Err(bitfun_core::util::errors::BitFunError::service(format!(
                 "Remote file service not available: {}",
                 error
             ))),
@@ -5136,7 +5136,7 @@ pub async fn search_filenames(
                 .search_file_names(&request.root_path, &request.pattern, options, cancel_flag)
                 .await
         }
-        Err(error) => Err(openbitfun_core::util::errors::OpenBitFunError::service(error)),
+        Err(error) => Err(bitfun_core::util::errors::BitFunError::service(error)),
     };
     unregister_search(&state, search_id.as_deref());
 
@@ -5167,7 +5167,7 @@ pub async fn search_file_contents(
     state: State<'_, AppState>,
     request: SearchFileContentsRequest,
 ) -> Result<serde_json::Value, String> {
-    use openbitfun_core::service::filesystem::FileSearchOptions;
+    use bitfun_core::service::filesystem::FileSearchOptions;
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -5235,7 +5235,7 @@ pub async fn start_search_filenames_stream(
     state: State<'_, AppState>,
     request: SearchFilenamesRequest,
 ) -> Result<serde_json::Value, String> {
-    use openbitfun_core::service::filesystem::FileSearchOptions;
+    use bitfun_core::service::filesystem::FileSearchOptions;
 
     let search_id = ensure_search_id(request.search_id.clone(), "filenames-stream");
     let cancel_flag = register_search(&state, Some(&search_id));
@@ -5317,7 +5317,7 @@ pub async fn start_search_filenames_stream(
                 progress_sink: Some(progress_sink),
             })
             .await
-            .map_err(openbitfun_core::util::errors::OpenBitFunError::service)
+            .map_err(bitfun_core::util::errors::BitFunError::service)
         } else {
             filesystem_service
                 .search_file_names_with_progress(
@@ -5381,7 +5381,7 @@ pub async fn start_search_file_contents_stream(
     state: State<'_, AppState>,
     request: SearchFileContentsRequest,
 ) -> Result<serde_json::Value, String> {
-    use openbitfun_core::service::filesystem::FileSearchOptions;
+    use bitfun_core::service::filesystem::FileSearchOptions;
 
     let search_id = ensure_search_id(request.search_id.clone(), "content-stream");
     let cancel_flag = register_search(&state, Some(&search_id));
@@ -5454,18 +5454,18 @@ pub async fn start_search_file_contents_stream(
                     .is_some_and(|flag| flag.load(Ordering::Relaxed))
                 {
                     for group in group_search_results(outcome.results.clone()) {
-                        openbitfun_core::infrastructure::FileSearchProgressSink::report(
+                        bitfun_core::infrastructure::FileSearchProgressSink::report(
                             progress_sink.as_ref(),
                             group,
                         );
                     }
-                    openbitfun_core::infrastructure::FileSearchProgressSink::flush(
+                    bitfun_core::infrastructure::FileSearchProgressSink::flush(
                         progress_sink.as_ref(),
                     );
                 }
             }
             result.map_err(|error| {
-                openbitfun_core::util::errors::OpenBitFunError::service(format!(
+                bitfun_core::util::errors::BitFunError::service(format!(
                     "Failed to search file contents via workspace search: {}",
                     error
                 ))
@@ -5545,7 +5545,7 @@ pub async fn cancel_search(
 
 #[tauri::command]
 pub async fn get_global_config_status() -> Result<bool, String> {
-    Ok(openbitfun_core::service::config::GlobalConfigManager::is_initialized())
+    Ok(bitfun_core::service::config::GlobalConfigManager::is_initialized())
 }
 
 #[tauri::command]
@@ -5571,31 +5571,31 @@ pub async fn get_model_configs(
 }
 
 #[tauri::command]
-pub async fn get_ai_model_catalog() -> Result<openbitfun_core::AIModelCatalog, String> {
-    openbitfun_core::get_ai_model_catalog().await
+pub async fn get_ai_model_catalog() -> Result<bitfun_core::AIModelCatalog, String> {
+    bitfun_core::get_ai_model_catalog().await
 }
 
 #[tauri::command]
 pub async fn project_ai_model_reasoning_catalog(
-    request: openbitfun_core_types::ReasoningCatalogProjectionRequest,
-) -> openbitfun_core_types::ReasoningCatalogProjection {
-    openbitfun_core::project_ai_model_reasoning_catalog(request).await
+    request: bitfun_core_types::ReasoningCatalogProjectionRequest,
+) -> bitfun_core_types::ReasoningCatalogProjection {
+    bitfun_core::project_ai_model_reasoning_catalog(request).await
 }
 
 #[tauri::command]
-pub async fn get_models_dev_catalog_status() -> openbitfun_core_types::ModelsDevCatalogStatus {
-    openbitfun_core::get_models_dev_catalog_status().await
+pub async fn get_models_dev_catalog_status() -> bitfun_core_types::ModelsDevCatalogStatus {
+    bitfun_core::get_models_dev_catalog_status().await
 }
 
 #[tauri::command]
 pub async fn refresh_models_dev_catalog_now(
-) -> Result<openbitfun_core_types::ModelsDevRefreshResult, String> {
-    openbitfun_core::refresh_models_dev_catalog_now().await
+) -> Result<bitfun_core_types::ModelsDevRefreshResult, String> {
+    bitfun_core::refresh_models_dev_catalog_now().await
 }
 
 #[tauri::command]
 pub async fn reveal_models_dev_cache_directory() -> Result<(), String> {
-    let status = openbitfun_core::get_models_dev_catalog_status().await;
+    let status = bitfun_core::get_models_dev_catalog_status().await;
     let cache_path = std::path::PathBuf::from(&status.cache_path);
     let directory = cache_path
         .parent()
@@ -5646,22 +5646,22 @@ pub async fn get_watched_paths() -> Result<Vec<String>, String> {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionProviderRequest {
-    pub provider: openbitfun_core::infrastructure::subscription_auth::SubscriptionProvider,
+    pub provider: bitfun_core::infrastructure::subscription_auth::SubscriptionProvider,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionLoginRequest {
-    pub provider: openbitfun_core::infrastructure::subscription_auth::SubscriptionProvider,
+    pub provider: bitfun_core::infrastructure::subscription_auth::SubscriptionProvider,
     pub session_id: String,
     #[serde(default)]
-    pub method: Option<openbitfun_core::infrastructure::subscription_auth::SubscriptionLoginMethod>,
+    pub method: Option<bitfun_core::infrastructure::subscription_auth::SubscriptionLoginMethod>,
 }
 
 async fn configured_ai_proxy(
     state: &State<'_, AppState>,
-) -> Result<Option<openbitfun_core::service::config::types::ProxyConfig>, String> {
-    let global_config: openbitfun_core::service::config::GlobalConfig = state
+) -> Result<Option<bitfun_core::service::config::types::ProxyConfig>, String> {
+    let global_config: bitfun_core::service::config::GlobalConfig = state
         .config_service
         .get_config(None)
         .await
@@ -5676,21 +5676,21 @@ async fn configured_ai_proxy(
 
 #[tauri::command]
 pub async fn list_subscription_accounts(
-) -> Result<Vec<openbitfun_core::infrastructure::subscription_auth::SubscriptionAccount>, String> {
-    Ok(openbitfun_core::infrastructure::subscription_auth::list_accounts().await)
+) -> Result<Vec<bitfun_core::infrastructure::subscription_auth::SubscriptionAccount>, String> {
+    Ok(bitfun_core::infrastructure::subscription_auth::list_accounts().await)
 }
 
 #[tauri::command]
 pub async fn start_subscription_login(
     state: State<'_, AppState>,
     request: SubscriptionLoginRequest,
-) -> Result<openbitfun_core::infrastructure::subscription_auth::LoginStartResult, String> {
+) -> Result<bitfun_core::infrastructure::subscription_auth::LoginStartResult, String> {
     let proxy_config = configured_ai_proxy(&state).await?;
-    let options = openbitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
+    let options = bitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
         proxy_config,
         false,
     );
-    openbitfun_core::infrastructure::subscription_auth::start_login_with_method_and_options(
+    bitfun_core::infrastructure::subscription_auth::start_login_with_method_and_options(
         request.provider,
         request.session_id,
         request.method,
@@ -5703,8 +5703,8 @@ pub async fn start_subscription_login(
 #[tauri::command]
 pub async fn get_subscription_login_status(
     request: SubscriptionLoginRequest,
-) -> Result<openbitfun_core::infrastructure::subscription_auth::LoginSessionSnapshot, String> {
-    openbitfun_core::infrastructure::subscription_auth::login_status(
+) -> Result<bitfun_core::infrastructure::subscription_auth::LoginSessionSnapshot, String> {
+    bitfun_core::infrastructure::subscription_auth::login_status(
         request.provider,
         &request.session_id,
     )
@@ -5714,7 +5714,7 @@ pub async fn get_subscription_login_status(
 
 #[tauri::command]
 pub async fn cancel_subscription_login(request: SubscriptionLoginRequest) -> Result<(), String> {
-    openbitfun_core::infrastructure::subscription_auth::cancel_login(
+    bitfun_core::infrastructure::subscription_auth::cancel_login(
         request.provider,
         &request.session_id,
     )
@@ -5725,8 +5725,8 @@ pub async fn cancel_subscription_login(request: SubscriptionLoginRequest) -> Res
 #[tauri::command]
 pub async fn logout_subscription_account(
     request: SubscriptionProviderRequest,
-) -> Result<openbitfun_core::infrastructure::subscription_auth::SubscriptionLogoutResult, String> {
-    openbitfun_core::infrastructure::subscription_auth::logout(request.provider)
+) -> Result<bitfun_core::infrastructure::subscription_auth::SubscriptionLogoutResult, String> {
+    bitfun_core::infrastructure::subscription_auth::logout(request.provider)
         .await
         .map_err(|e| format!("Failed to logout subscription account: {e:#}"))
 }
@@ -5735,13 +5735,13 @@ pub async fn logout_subscription_account(
 pub async fn refresh_subscription_account(
     state: State<'_, AppState>,
     request: SubscriptionProviderRequest,
-) -> Result<openbitfun_core::infrastructure::subscription_auth::SubscriptionAccount, String> {
+) -> Result<bitfun_core::infrastructure::subscription_auth::SubscriptionAccount, String> {
     let proxy_config = configured_ai_proxy(&state).await?;
-    let options = openbitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
+    let options = bitfun_core::infrastructure::subscription_auth::SubscriptionHttpOptions::new(
         proxy_config,
         false,
     );
-    openbitfun_core::infrastructure::subscription_auth::refresh_account_with_options(
+    bitfun_core::infrastructure::subscription_auth::refresh_account_with_options(
         request.provider,
         &options,
     )
@@ -5789,8 +5789,8 @@ const LOCAL_MODEL_PULL_PROGRESS_EVENT: &str = "local-model-pull-progress";
 pub async fn detect_local_model_service(
     app: AppHandle,
     request: DetectLocalModelServiceRequest,
-) -> Result<openbitfun_core::service::config::types::LocalServiceStatus, String> {
-    use openbitfun_core::service::local_model_client;
+) -> Result<bitfun_core::service::config::types::LocalServiceStatus, String> {
+    use bitfun_core::service::local_model_client;
 
     let port = if request.port == 0 {
         local_model_client::default_port()
@@ -5809,7 +5809,7 @@ pub async fn detect_local_model_service(
             log::warn!("[local-model-command] detect failed: {}", e);
             // Return a "not available" status instead of erroring so the UI
             // can show a friendly "service unavailable" state.
-            let unavailable = openbitfun_core::service::config::types::LocalServiceStatus {
+            let unavailable = bitfun_core::service::config::types::LocalServiceStatus {
                 available: false,
                 port,
                 service_name: None,
@@ -5831,8 +5831,8 @@ pub async fn detect_local_model_service(
 #[tauri::command]
 pub async fn list_local_models(
     request: ListLocalModelsRequest,
-) -> Result<Vec<openbitfun_core::service::config::types::LocalModel>, String> {
-    use openbitfun_core::service::local_model_client;
+) -> Result<Vec<bitfun_core::service::config::types::LocalModel>, String> {
+    use bitfun_core::service::local_model_client;
 
     let port = if request.port == 0 {
         local_model_client::default_port()
@@ -5854,7 +5854,7 @@ pub async fn pull_local_model(
     app: AppHandle,
     request: PullLocalModelRequest,
 ) -> Result<(), String> {
-    use openbitfun_core::service::local_model_client;
+    use bitfun_core::service::local_model_client;
 
     let port = if request.port == 0 {
         local_model_client::default_port()
@@ -5903,7 +5903,7 @@ pub async fn pull_local_model(
 pub async fn pause_local_model_download(
     request: PauseLocalModelDownloadRequest,
 ) -> Result<bool, String> {
-    use openbitfun_core::service::local_model_client;
+    use bitfun_core::service::local_model_client;
 
     let port = if request.port == 0 {
         local_model_client::default_port()
@@ -5927,14 +5927,14 @@ pub async fn pause_local_model_download(
 
 #[tauri::command]
 pub async fn workspace_file_upload(
-    request: openbitfun_core::service::filesystem::upload::WorkspaceUploadRequest,
+    request: bitfun_core::service::filesystem::upload::WorkspaceUploadRequest,
 ) -> Result<serde_json::Value, String> {
     let account = crate::api::remote_connect_api::account_status()
         .await?
         .user_id
         .ok_or("Sign in to use workspace transfers")?;
     let status =
-        openbitfun_core::service::filesystem::upload::workspace_file_upload(account, request)
+        bitfun_core::service::filesystem::upload::workspace_file_upload(account, request)
             .await?;
     serde_json::to_value(status).map_err(|error| error.to_string())
 }

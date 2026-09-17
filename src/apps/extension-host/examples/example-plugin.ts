@@ -25,7 +25,7 @@ const ExamplePlugin: Plugin = async (input) => {
 
   return {
     config: async (config) => {
-      config.openbitfunDemo = {
+      config.bitfunDemo = {
         enabled: true,
         directory: input.directory,
       }
@@ -33,27 +33,27 @@ const ExamplePlugin: Plugin = async (input) => {
         ...(config.agent ?? {}),
         Cowork: {
           mode: "primary",
-          description: "Demo agent for exercising the OpenBitFun OpenCode plugin bridge",
-          prompt: "Use the openbitfun_demo_echo tool when the user asks you to echo text.",
+          description: "Demo agent for exercising the BitFun OpenCode plugin bridge",
+          prompt: "Use the bitfun_demo_echo tool when the user asks you to echo text.",
           permission: {
-            openbitfun_demo_echo: "allow",
+            bitfun_demo_echo: "allow",
           },
         },
       }
     },
     tool: {
-      openbitfun_demo_echo: tool({
-        description: "Echo text from the OpenBitFun OpenCode plugin demo",
+      bitfun_demo_echo: tool({
+        description: "Echo text from the BitFun OpenCode plugin demo",
         args: {
           text: z.string().describe("Text to echo"),
         },
         async execute(args, context) {
           context.metadata({
-            title: "Preparing OpenBitFun demo echo",
+            title: "Preparing BitFun demo echo",
             metadata: { phase: "before-ask" },
           })
           await context.ask({
-            permission: "openbitfun_demo_echo",
+            permission: "bitfun_demo_echo",
             patterns: ["demo-echo"],
             always: ["demo-echo"],
             metadata: {
@@ -61,11 +61,11 @@ const ExamplePlugin: Plugin = async (input) => {
             },
           })
           context.metadata({
-            title: "OpenBitFun demo echo approved",
+            title: "BitFun demo echo approved",
             metadata: { phase: "after-ask" },
           })
           return {
-            title: "OpenBitFun demo echo",
+            title: "BitFun demo echo",
             output: `${args.text}:${input.directory}`,
           }
         },

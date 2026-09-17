@@ -1,6 +1,6 @@
-//! OpenBitFun Agent Client Protocol integration.
+//! BitFun Agent Client Protocol integration.
 //!
-//! This crate owns the ACP client and server surfaces over OpenBitFun's assembled
+//! This crate owns the ACP client and server surfaces over BitFun's assembled
 //! runtime. Product hosts select the additive `client` and `server` features
 //! explicitly; the compatibility default enables both roles.
 
@@ -18,6 +18,6 @@ pub use agent_client_protocol as protocol;
 #[cfg(feature = "client")]
 pub use client::AcpClientService;
 #[cfg(feature = "server")]
-pub use runtime::OpenBitFunAcpRuntime;
+pub use runtime::BitFunAcpRuntime;
 #[cfg(feature = "server")]
 pub use server::AcpServer;

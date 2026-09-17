@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$BinDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'OpenBitFun\bin'),
+    [string]$BinDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'BitFun\bin'),
     [switch]$SkipPathUpdate
 )
 
@@ -25,7 +25,7 @@ function Resolve-RepoRoot {
         $candidate = $parent
     }
 
-    throw "Could not locate the OpenBitFun repository root from $PSScriptRoot"
+    throw "Could not locate the BitFun repository root from $PSScriptRoot"
 }
 
 function Resolve-TargetRoot([string]$RepoRoot) {
@@ -78,9 +78,9 @@ function Assert-CommandSucceeded([string]$Description) {
 
 function Assert-Entrypoint([string]$Executable) {
     & $Executable --version | Out-Null
-    Assert-CommandSucceeded 'openbitfun --version'
+    Assert-CommandSucceeded 'bitfun --version'
     & $Executable --help | Out-Null
-    Assert-CommandSucceeded 'openbitfun --help'
+    Assert-CommandSucceeded 'bitfun --help'
 }
 
 function Assert-PluginHostResources([string]$Directory) {
@@ -92,18 +92,18 @@ function Assert-PluginHostResources([string]$Directory) {
     }
 }
 
-function Install-OpenBitFunCli(
+function Install-BitFunCli(
     [string]$PrimarySource,
     [string]$PluginHostSource,
     [string]$Destination
 ) {
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    $stageDir = Join-Path $Destination ".openbitfun-install-$([guid]::NewGuid().ToString('N'))"
-    $stagedPrimary = Join-Path $stageDir 'openbitfun.exe'
+    $stageDir = Join-Path $Destination ".bitfun-install-$([guid]::NewGuid().ToString('N'))"
+    $stagedPrimary = Join-Path $stageDir 'bitfun.exe'
     $stagedPluginHost = Join-Path $stageDir 'ext-host'
-    $primaryTarget = Join-Path $Destination 'openbitfun.exe'
+    $primaryTarget = Join-Path $Destination 'bitfun.exe'
     $pluginHostTarget = Join-Path $Destination 'resources\ext-host'
-    $primaryBackup = Join-Path $stageDir 'previous-openbitfun.exe'
+    $primaryBackup = Join-Path $stageDir 'previous-bitfun.exe'
     $pluginHostBackup = Join-Path $stageDir 'previous-ext-host'
     $primaryBackedUp = $false
     $pluginHostBackedUp = $false
@@ -150,7 +150,7 @@ function Install-OpenBitFunCli(
             New-Item -ItemType Directory -Path (Split-Path -Parent $pluginHostTarget) -Force | Out-Null
             Move-Item -LiteralPath $pluginHostBackup -Destination $pluginHostTarget -Force
         }
-        throw "CLI installation failed; the previous OpenBitFun CLI was restored. $installError"
+        throw "CLI installation failed; the previous BitFun CLI was restored. $installError"
     }
     finally {
         Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -159,9 +159,9 @@ function Install-OpenBitFunCli(
 
 $repoRoot = Resolve-RepoRoot
 $releaseDir = Resolve-ReleaseDir $repoRoot
-$primarySource = Join-Path $releaseDir 'openbitfun.exe'
+$primarySource = Join-Path $releaseDir 'bitfun.exe'
 $pluginHostSource = Join-Path $repoRoot 'src\apps\extension-host\dist'
-$primaryInstalled = Join-Path $BinDir 'openbitfun.exe'
+$primaryInstalled = Join-Path $BinDir 'bitfun.exe'
 
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     throw 'cargo was not found. Install Rust from https://rustup.rs and re-run.'
@@ -170,14 +170,14 @@ if (-not (Get-Command rustc -ErrorAction SilentlyContinue)) {
     throw 'rustc was not found. Install Rust from https://rustup.rs and re-run.'
 }
 
-Write-Host '=== OpenBitFun CLI Install ==='
+Write-Host '=== BitFun CLI Install ==='
 Write-Host "Repo: $repoRoot"
 Write-Host "Install dir: $BinDir"
 
 Push-Location $repoRoot
 try {
-    Write-Host '[1/3] Building openbitfun...'
-    & cargo build -p openbitfun-cli --release --bin openbitfun
+    Write-Host '[1/3] Building bitfun...'
+    & cargo build -p bitfun-cli --release --bin bitfun
     Assert-CommandSucceeded 'cargo build'
 }
 finally {
@@ -190,7 +190,7 @@ if (-not (Test-Path -LiteralPath $primarySource -PathType Leaf)) {
 Assert-PluginHostResources $pluginHostSource
 
 Write-Host '[2/3] Installing executable...'
-Install-OpenBitFunCli $primarySource $pluginHostSource $BinDir
+Install-BitFunCli $primarySource $pluginHostSource $BinDir
 Write-Host "Installed: $primaryInstalled"
 Write-Host "Installed plugin Host resources: $(Join-Path $BinDir 'resources\ext-host')"
 
@@ -201,11 +201,11 @@ else {
     Write-Host 'Skipped the user PATH update (-SkipPathUpdate).'
 }
 
-Write-Host '[3/3] Verifying openbitfun...'
+Write-Host '[3/3] Verifying bitfun...'
 Assert-Entrypoint $primaryInstalled
 Assert-PluginHostResources (Join-Path $BinDir 'resources\ext-host')
 
 Write-Host '=== Install complete ==='
-Write-Host 'Open a new terminal, then run: openbitfun'
-Write-Host "Current PowerShell: `$env:Path = `"$([IO.Path]::GetFullPath($BinDir));`$env:Path`"; openbitfun"
+Write-Host 'Open a new terminal, then run: bitfun'
+Write-Host "Current PowerShell: `$env:Path = `"$([IO.Path]::GetFullPath($BinDir));`$env:Path`"; bitfun"
 Write-Host "Direct path: $primaryInstalled"

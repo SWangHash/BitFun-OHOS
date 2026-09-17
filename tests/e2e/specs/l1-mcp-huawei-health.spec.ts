@@ -10,13 +10,13 @@ async function invoke<T>(command: string, args: unknown = {}): Promise<T> {
 }
 
 // Live opt-in: exercises the documented public endpoint without account credentials.
-const live = process.env.OPENBITFUN_E2E_HUAWEI_MCP === '1' ? describe : describe.skip;
+const live = process.env.BITFUN_E2E_HUAWEI_MCP === '1' ? describe : describe.skip;
 live('L1 Huawei knowledge MCP health and document search', () => {
   const page = new MCPSettingsPage();
   const serverId = 'e2e-huawei-knowledge';
   let original: Snapshot;
   before(async () => {
-    if (process.env.OPENBITFUN_E2E_STORAGE_GUARD !== '1') throw new Error('Isolated E2E storage required');
+    if (process.env.BITFUN_E2E_STORAGE_GUARD !== '1') throw new Error('Isolated E2E storage required');
     original = await invoke<Snapshot>('load_mcp_json_config');
     await page.open();
     await page.openEditor();

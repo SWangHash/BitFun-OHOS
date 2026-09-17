@@ -58,7 +58,7 @@ describe('UserMessageItem metadata visibility', () => {
     expect(meta).not.toMatch(/position:\s*(absolute|fixed);/);
     expect(meta).not.toMatch(/(?:^|\n)\s*(?:max-)?height:/);
     expect(meta).toContain('justify-content: flex-end;');
-    expect(meta).toContain('padding: var(--openbitfun-space-1) 0 0;');
+    expect(meta).toContain('padding: var(--bitfun-space-1) 0 0;');
     expect(meta).toContain('pointer-events: auto;');
     expect(stylesheet).toContain('margin: 0;');
     expect(shell).not.toContain('.user-message-item__timestamp');

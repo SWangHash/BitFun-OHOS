@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { versionInjectionPlugin } from "./vite.config.version-plugin";
-import { openbitfunCanvasRuntimeBundlePlugin } from "./vite.config.canvas-runtime-plugin";
+import { bitfunCanvasRuntimeBundlePlugin } from "./vite.config.canvas-runtime-plugin";
 import { watchSourcePlugin } from "../../design-system/tooling/vite/watch-source.mjs";
 import {
   APPLE_SYSTEM_FONT_PROFILE,
@@ -25,7 +25,7 @@ const designSystemUiSourceDirectory = path.resolve(
   '../../design-system/packages/ui/src',
 );
 const fontAssetDirectory = path.resolve(__dirname, 'src/assets/fonts');
-const FONT_PROFILE_STYLESHEET_MARKER = '<!-- OPENBITFUN_FONT_PROFILE_STYLESHEET -->';
+const FONT_PROFILE_STYLESHEET_MARKER = '<!-- BITFUN_FONT_PROFILE_STYLESHEET -->';
 
 export function createWebFontProfilePlugin(
   profile: typeof APPLE_SYSTEM_FONT_PROFILE | typeof HARMONY_BUNDLED_FONT_PROFILE,
@@ -38,7 +38,7 @@ export function createWebFontProfilePlugin(
   }
 
   return {
-    name: 'openbitfun-web-font-profile',
+    name: 'bitfun-web-font-profile',
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
@@ -48,11 +48,11 @@ export function createWebFontProfilePlugin(
         return html
           .replace(
             FONT_PROFILE_STYLESHEET_MARKER,
-            `<link rel="stylesheet" href="${stylesheetPath}" data-openbitfun-font-profile-stylesheet="${profile}" />`,
+            `<link rel="stylesheet" href="${stylesheetPath}" data-bitfun-font-profile-stylesheet="${profile}" />`,
           )
           .replace(
             '<html lang="zh-CN">',
-            `<html lang="zh-CN" data-openbitfun-font-profile="${profile}">`,
+            `<html lang="zh-CN" data-bitfun-font-profile="${profile}">`,
           );
       },
     },
@@ -95,19 +95,19 @@ export function createDesignSystemSourceAliases(command: 'serve' | 'build') {
 
   return [
     {
-      find: /^@openbitfun\/ui\/flow-chat$/,
+      find: /^@bitfun\/ui\/flow-chat$/,
       replacement: path.join(designSystemUiSourceDirectory, 'flow-chat.ts'),
     },
     {
-      find: /^@openbitfun\/ui\/registry$/,
+      find: /^@bitfun\/ui\/registry$/,
       replacement: path.join(designSystemUiSourceDirectory, 'registry.ts'),
     },
     {
-      find: /^@openbitfun\/ui\/styles\.css$/,
+      find: /^@bitfun\/ui\/styles\.css$/,
       replacement: path.join(designSystemUiSourceDirectory, 'styles/layers.css'),
     },
     {
-      find: /^@openbitfun\/ui$/,
+      find: /^@bitfun\/ui$/,
       replacement: path.join(designSystemUiSourceDirectory, 'index.ts'),
     },
   ];
@@ -135,7 +135,7 @@ function warnIfNativeWatchUnreliable(): void {
     cwd.startsWith("\\\\") || /^\/mnt\/[a-z]\//i.test(cwd);
   if (looksLikeNetworkOrWslMount) {
     console.warn(
-      `[openbitfun] Project path "${cwd}" looks like a network share or WSL mount; ` +
+      `[bitfun] Project path "${cwd}" looks like a network share or WSL mount; ` +
         "native file watching may miss changes here. " +
         "Set VITE_USE_POLLING=1 to restore polling-based HMR.",
     );
@@ -162,7 +162,7 @@ export default defineConfig(({ mode, command }) => {
       createWebFontProfilePlugin(fontProfile, command),
       react(),
       watchSourcePlugin(designSystemUiSourceDirectory),
-      openbitfunCanvasRuntimeBundlePlugin(),
+      bitfunCanvasRuntimeBundlePlugin(),
       versionInjectionPlugin()
     ],
 
@@ -236,9 +236,9 @@ export default defineConfig(({ mode, command }) => {
   optimizeDeps: {
     // Exclude dependencies that need to be dynamically loaded
     exclude: [
-      '@openbitfun/design-tokens',
-      '@openbitfun/theme-openbitfun',
-      '@openbitfun/ui',
+      '@bitfun/design-tokens',
+      '@bitfun/theme-bitfun',
+      '@bitfun/ui',
     ],
     // Force pre-building dependencies
     // Resolve Vite 7 and React 18 compatibility issues

@@ -2,15 +2,15 @@
 @use '../../../styles/surface-stagger';
 
 // Same as GalleryLayout.scss — nursery sub-pages align with Agents / gallery lists
-$nursery-scene-gutter: clamp(var(--openbitfun-space-4), 3cqi, var(--openbitfun-space-8));
+$nursery-scene-gutter: clamp(var(--bitfun-space-4), 3cqi, var(--bitfun-space-8));
 $nursery-gallery-content-max: 936px;
 $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 
 // ── Gallery overview ───────────────────────────────────────────────────────
 
 .nursery-gallery {
-  background: var(--openbitfun-color-surface-scene);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-scene);
+  color: var(--bitfun-color-content-primary);
 
   &__header,
   .gallery-zones {
@@ -23,19 +23,19 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__header {
     flex: 0 0 auto;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-4);
-    padding-block: var(--openbitfun-space-6);
+    gap: var(--bitfun-space-4);
+    padding-block: var(--bitfun-space-6);
   }
 
   .gallery-zones {
-    gap: var(--openbitfun-space-6);
-    padding-block: 0 var(--openbitfun-space-8);
+    gap: var(--bitfun-space-6);
+    padding-block: 0 var(--bitfun-space-8);
   }
 
   &__assistant-grid {
     align-items: stretch;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
   }
 
   &__assistant-zone {
@@ -44,26 +44,26 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 
   &__empty {
     min-height: 180px;
-    background: var(--openbitfun-color-surface-tertiary);
-    color: var(--openbitfun-color-content-muted);
+    background: var(--bitfun-color-surface-tertiary);
+    color: var(--bitfun-color-content-muted);
 
     > span {
       display: flex;
       max-width: 420px;
       flex-direction: column;
       align-items: center;
-      gap: var(--openbitfun-space-1);
+      gap: var(--bitfun-space-1);
     }
 
     strong {
-      color: var(--openbitfun-color-content-primary);
-      font-size: var(--openbitfun-type-label-md-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
 
     small {
-      font-size: var(--openbitfun-type-body-sm-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-size: var(--bitfun-type-body-sm-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
   }
 }
@@ -72,7 +72,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 
 .nursery-defaults {
   min-width: 0;
-  animation: nursery-card-in var(--openbitfun-motion-duration-normal) var(--openbitfun-motion-easing-decelerate) both;
+  animation: nursery-card-in var(--bitfun-motion-duration-normal) var(--bitfun-motion-easing-decelerate) both;
 
   &__surface {
     display: grid;
@@ -84,60 +84,60 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__title-row {
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     flex-wrap: wrap;
   }
 
   &__title {
     margin: 0;
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-heading-section-font-family);
-    font-size: var(--openbitfun-type-heading-section-font-size);
-    font-weight: var(--openbitfun-type-heading-section-font-weight);
-    line-height: var(--openbitfun-type-heading-section-line-height);
-    letter-spacing: var(--openbitfun-type-heading-section-letter-spacing);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-section-font-family);
+    font-size: var(--bitfun-type-heading-section-font-size);
+    font-weight: var(--bitfun-type-heading-section-font-weight);
+    line-height: var(--bitfun-type-heading-section-line-height);
+    letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
   }
 
   &__subtitle {
     margin: 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__stats {
     display: flex;
     min-height: 20px;
     align-items: center;
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
     flex-wrap: wrap;
   }
 
   &__stat {
     display: inline-flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
     white-space: nowrap;
 
     &--error {
-      color: var(--openbitfun-color-status-danger-content);
+      color: var(--bitfun-color-status-danger-content);
     }
   }
 
   &__stat-skeleton {
     width: 72px;
     height: 16px;
-    border-radius: var(--openbitfun-radius-sm);
-    background: var(--openbitfun-color-action-neutral-surface);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-action-neutral-surface);
     animation: nursery-skeleton-pulse 1.2s ease-in-out infinite;
 
     &:last-child {
@@ -157,11 +157,11 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   display: flex;
   min-width: 0;
   min-height: 148px;
-  animation: nursery-card-in var(--openbitfun-motion-duration-normal) var(--openbitfun-motion-easing-decelerate) both;
+  animation: nursery-card-in var(--bitfun-motion-duration-normal) var(--bitfun-motion-easing-decelerate) both;
   @include surface-stagger.animation-delay(40ms);
 
   &--busy {
-    opacity: var(--openbitfun-opacity-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   &__surface {
@@ -169,15 +169,15 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     isolation: isolate;
     flex: 1;
     min-width: 0;
-    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:has(> .assistant-card__main:not(:disabled)):hover,
     &:focus-within {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
     }
 
     &:has(> .assistant-card__main:active) {
-      background: var(--openbitfun-color-action-neutral-surface-pressed);
+      background: var(--bitfun-color-action-neutral-surface-pressed);
     }
   }
 
@@ -195,8 +195,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     cursor: pointer;
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-      outline-offset: calc(-1 * var(--openbitfun-focus-width));
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: calc(-1 * var(--bitfun-focus-width));
     }
 
     &:disabled {
@@ -207,9 +207,9 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__header {
     min-width: 0;
 
-    > [data-openbitfun-part='header-content'] > :where(
-      [data-openbitfun-part='title'],
-      [data-openbitfun-part='description']
+    > [data-bitfun-part='header-content'] > :where(
+      [data-bitfun-part='title'],
+      [data-bitfun-part='description']
     ) {
       align-self: stretch;
     }
@@ -223,47 +223,47 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__title-row {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
   }
 
   &__name {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__metadata {
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__chevron {
     flex: 0 0 auto;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__vibe {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
 
     &--empty {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
   &__creature {
     flex: 0 1 auto;
     min-width: 0;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__metadata-separator {
     flex: 0 0 auto;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__primary-badge {
@@ -275,7 +275,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     position: relative;
     z-index: 2;
     flex-wrap: wrap;
-    padding-block-start: var(--openbitfun-space-1);
+    padding-block-start: var(--bitfun-space-1);
     pointer-events: none;
   }
 
@@ -283,7 +283,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: inline-flex;
     min-width: 0;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     flex-wrap: wrap;
     justify-content: flex-end;
     pointer-events: auto;
@@ -292,7 +292,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__footer-actions {
     display: inline-flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 }
 
@@ -304,19 +304,19 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: var(--openbitfun-color-surface-scene);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-scene);
+  color: var(--bitfun-color-content-primary);
   overflow: hidden;
-  animation: nursery-page-in 0.22s var(--openbitfun-motion-easing-decelerate) both;
+  animation: nursery-page-in 0.22s var(--bitfun-motion-easing-decelerate) both;
 
   &__header {
     flex: 0 0 auto;
-    padding: var(--openbitfun-space-5) $nursery-scene-gutter;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    padding: var(--bitfun-space-5) $nursery-scene-gutter;
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__heading {
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   // ── Top bar (back icon only, left) ─────────────────────────────────────
@@ -326,7 +326,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding: 2px 0 2px var(--openbitfun-space-1);
+    padding: 2px 0 2px var(--bitfun-space-1);
     border-bottom: none;
     background: none;
     min-height: 0;
@@ -339,17 +339,17 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     width: 28px;
     height: 28px;
     padding: 0;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     background: transparent;
     border: none;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     cursor: pointer;
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-content-primary);
-      background: var(--openbitfun-color-surface-subtle);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-surface-subtle);
     }
   }
 
@@ -359,8 +359,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    padding: 0 $nursery-scene-gutter var(--openbitfun-space-3);
+    gap: var(--bitfun-space-2) var(--bitfun-space-3);
+    padding: 0 $nursery-scene-gutter var(--bitfun-space-3);
 
     .nursery-page__reset {
       margin-left: auto;
@@ -368,15 +368,15 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   }
 
   &__title {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     margin: 0;
   }
 
   &__subtitle {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__reset {
@@ -387,21 +387,21 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     width: 26px;
     height: 26px;
     padding: 0;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     background: transparent;
     cursor: pointer;
-    color: var(--openbitfun-color-content-muted);
-    border-radius: var(--openbitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    border-radius: var(--bitfun-radius-sm);
     transition:
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-content-secondary);
-      border-color: var(--openbitfun-color-field-border-hover);
-      background: var(--openbitfun-color-action-neutral-surface);
+      color: var(--bitfun-color-content-secondary);
+      border-color: var(--bitfun-color-field-border-hover);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 
@@ -418,10 +418,10 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__content {
     flex: 1;
     overflow-x: hidden;
-    padding: var(--openbitfun-space-6) $nursery-scene-gutter;
+    padding: var(--bitfun-space-6) $nursery-scene-gutter;
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-6);
+    gap: var(--bitfun-space-6);
   }
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -431,30 +431,30 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     align-items: center;
     justify-content: center;
     height: 120px;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 }
 
 // ── Nursery tabs (inside nursery-page__body) ───────────────────────────────
 
 .nursery-tabs {
-  .openbitfun-tabs__nav {
+  .bitfun-tabs__nav {
     padding: 0 $nursery-scene-gutter;
     position: sticky;
     top: 0;
     z-index: 5;
-    background: var(--openbitfun-color-surface-scene);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    background: var(--bitfun-color-surface-scene);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 }
 
 // ── Tab content ────────────────────────────────────────────────────────────
 
 .nursery-tab-content {
-  padding: var(--openbitfun-space-5) $nursery-scene-gutter;
+  padding: var(--bitfun-space-5) $nursery-scene-gutter;
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-5);
+  gap: var(--bitfun-space-5);
 
   &--centered {
     align-items: center;
@@ -466,22 +466,22 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .nursery-section {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-3);
+  gap: var(--bitfun-space-3);
 
   &__head {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-height: 24px;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__title {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
     flex: 1;
   }
 
@@ -490,11 +490,11 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     align-items: center;
     justify-content: center;
     padding: 1px 7px;
-    border-radius: var(--openbitfun-radius-pill);
-    background: var(--openbitfun-color-action-neutral-surface-hover);
-    font-size: var(--openbitfun-type-micro-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-muted);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    font-size: var(--bitfun-type-micro-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-muted);
     font-variant-numeric: tabular-nums;
   }
 
@@ -508,17 +508,17 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     border: none;
     background: transparent;
     cursor: pointer;
-    color: var(--openbitfun-color-content-muted);
-    border-radius: var(--openbitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    border-radius: var(--bitfun-radius-sm);
     transition:
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-content-secondary);
-      background: var(--openbitfun-color-action-neutral-surface);
+      color: var(--bitfun-color-content-secondary);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 }
@@ -528,35 +528,35 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .nursery-model-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--openbitfun-space-3);
+  gap: var(--bitfun-space-3);
 }
 
 .nursery-model-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-2);
-  padding: var(--openbitfun-space-3);
-  border: 1px solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-radius-base);
-  background: var(--openbitfun-color-surface-subtle);
+  gap: var(--bitfun-space-2);
+  padding: var(--bitfun-space-3);
+  border: 1px solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-base);
+  background: var(--bitfun-color-surface-subtle);
 
   &__meta {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-content-muted);
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__label {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
     flex: 1;
   }
 
   &__desc {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 }
 
@@ -565,47 +565,47 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .nursery-token-breakdown {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-2);
-  padding: var(--openbitfun-space-3);
-  border-radius: var(--openbitfun-radius-base);
-  background: var(--openbitfun-color-surface-subtle);
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  gap: var(--bitfun-space-2);
+  padding: var(--bitfun-space-3);
+  border-radius: var(--bitfun-radius-base);
+  background: var(--bitfun-color-surface-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .nursery-token-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  color: var(--openbitfun-color-content-muted);
-  gap: var(--openbitfun-space-2);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  color: var(--bitfun-color-content-muted);
+  gap: var(--bitfun-space-2);
 
   &--total {
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
-    padding-top: var(--openbitfun-space-2);
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
-    margin-top: var(--openbitfun-space-1);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    padding-top: var(--bitfun-space-2);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
+    margin-top: var(--bitfun-space-1);
   }
 }
 
 .nursery-token-bar {
   height: 3px;
   border-radius: 2px;
-  background: var(--openbitfun-color-action-neutral-surface-hover);
+  background: var(--bitfun-color-action-neutral-surface-hover);
   overflow: hidden;
-  margin-top: var(--openbitfun-space-1);
+  margin-top: var(--bitfun-space-1);
 
   &__fill {
     height: 100%;
-    background: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
     border-radius: 2px;
-    transition: width 0.4s var(--openbitfun-motion-easing-decelerate);
+    transition: width 0.4s var(--bitfun-motion-easing-decelerate);
   }
 
   &__label {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
     margin-top: 3px;
     text-align: right;
   }
@@ -622,13 +622,13 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .nursery-tool-row {
   display: flex;
   align-items: center;
-  gap: var(--openbitfun-space-3);
-  padding: 5px var(--openbitfun-space-2);
-  border-radius: var(--openbitfun-radius-sm);
-  transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+  gap: var(--bitfun-space-3);
+  padding: 5px var(--bitfun-space-2);
+  border-radius: var(--bitfun-radius-sm);
+  transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:hover {
-    background: var(--openbitfun-color-surface-subtle);
+    background: var(--bitfun-color-surface-subtle);
   }
 
   &__meta {
@@ -640,14 +640,14 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   }
 
   &__name {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__desc {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
     overflow: hidden;
     white-space: nowrap;
   }
@@ -658,25 +658,25 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .nursery-skill-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--openbitfun-space-1);
+  gap: var(--bitfun-space-1);
 }
 
 .nursery-skill-chip {
-  font-size: var(--openbitfun-type-meta-font-size);
-  padding: 3px var(--openbitfun-space-2);
-  border-radius: var(--openbitfun-radius-pill);
-  border: 1px solid var(--openbitfun-color-border-subtle);
-  color: var(--openbitfun-color-content-muted);
-  background: var(--openbitfun-color-surface-subtle);
+  font-size: var(--bitfun-type-meta-font-size);
+  padding: 3px var(--bitfun-space-2);
+  border-radius: var(--bitfun-radius-pill);
+  border: 1px solid var(--bitfun-color-border-subtle);
+  color: var(--bitfun-color-content-muted);
+  background: var(--bitfun-color-surface-subtle);
   transition:
-    border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &.is-on {
-    border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
-    color: var(--openbitfun-color-accent-default);
-    background: var(--openbitfun-color-action-secondary-background);
+    border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent);
+    color: var(--bitfun-color-accent-default);
+    background: var(--bitfun-color-action-secondary-background);
   }
 }
 
@@ -686,22 +686,22 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__dims {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     width: 100%;
     max-width: 320px;
-    margin-top: var(--openbitfun-space-4);
+    margin-top: var(--bitfun-space-4);
   }
 
   &__dim-row {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__dim-label {
     width: 60px;
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
     flex-shrink: 0;
   }
 
@@ -709,30 +709,30 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     flex: 1;
     height: 3px;
     border-radius: 2px;
-    background: var(--openbitfun-color-action-neutral-surface-hover);
+    background: var(--bitfun-color-action-neutral-surface-hover);
     overflow: hidden;
   }
 
   &__dim-fill {
     height: 100%;
-    background: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
     border-radius: 2px;
-    transition: width 0.4s var(--openbitfun-motion-easing-decelerate);
+    transition: width 0.4s var(--bitfun-motion-easing-decelerate);
   }
 
   &__dim-val {
     width: 26px;
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
     text-align: right;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
   }
 
   &__hint {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
-    margin-top: var(--openbitfun-space-3);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
+    margin-top: var(--bitfun-space-3);
     text-align: center;
   }
 }
@@ -741,74 +741,74 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 
 .nursery-identity {
   &__name {
-    font-size: var(--openbitfun-type-heading-dialog-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-heading-dialog-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     cursor: pointer;
     margin: 0;
-    letter-spacing: var(--openbitfun-type-heading-dialog-letter-spacing);
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-accent-default);
+      color: var(--bitfun-color-accent-default);
     }
   }
 
   &__name-input {
-    font-size: var(--openbitfun-type-heading-dialog-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-heading-dialog-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   &__meta-row {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    margin-bottom: var(--openbitfun-space-4);
-    padding: var(--openbitfun-space-3);
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-base);
-    background: var(--openbitfun-color-surface-subtle);
+    gap: var(--bitfun-space-2);
+    margin-bottom: var(--bitfun-space-4);
+    padding: var(--bitfun-space-3);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-base);
+    background: var(--bitfun-color-surface-subtle);
   }
 
   &__meta-pill {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__meta-label {
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-muted);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
     width: 52px;
     flex-shrink: 0;
   }
 
   &__meta-value {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
     cursor: pointer;
-    padding: 2px var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-sm);
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    padding: 2px var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-sm);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     flex: 1;
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
     }
 
     &.is-empty {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
       font-style: italic;
     }
   }
 
   &__body {
     min-height: 200px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-base);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-base);
     overflow: hidden;
   }
 }
@@ -816,10 +816,10 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 // ── Empty state ────────────────────────────────────────────────────────────
 
 .nursery-empty {
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  color: var(--openbitfun-color-content-muted);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  color: var(--bitfun-color-content-muted);
   font-style: italic;
-  padding: var(--openbitfun-space-3) 0;
+  padding: var(--bitfun-space-3) 0;
 }
 
 // ── Spinner ────────────────────────────────────────────────────────────────
@@ -882,12 +882,12 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 @container assistant-scene (max-width: 680px) {
   .nursery-gallery__header,
   .nursery-gallery .gallery-zones {
-    padding-inline: var(--openbitfun-space-4);
+    padding-inline: var(--bitfun-space-4);
   }
 
   .nursery-defaults__surface {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
   }
 
   .nursery-defaults__action {
@@ -908,8 +908,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr);
   overflow: hidden;
   margin-inline: auto;
-  padding: var(--openbitfun-space-6) $nursery-scene-gutter;
-  gap: var(--openbitfun-space-6);
+  padding: var(--bitfun-space-6) $nursery-scene-gutter;
+  gap: var(--bitfun-space-6);
 
   &__left,
   &__right {
@@ -926,8 +926,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .acp-left-header {
   display: flex;
   align-items: center;
-  gap: var(--openbitfun-space-4);
-  padding: var(--openbitfun-space-2) var(--openbitfun-space-1) var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
+  padding: var(--bitfun-space-2) var(--bitfun-space-1) var(--bitfun-space-4);
   flex: 0 0 auto;
 
   &__info {
@@ -935,7 +935,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__name,
@@ -945,32 +945,32 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-width: 0;
     max-width: 100%;
     margin: 0;
-    padding: var(--openbitfun-space-1);
+    padding: var(--bitfun-space-1);
     border: 0;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     background: transparent;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
     font: inherit;
     text-align: start;
     cursor: pointer;
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-quiet-hover);
+      background: var(--bitfun-color-action-quiet-hover);
     }
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-      outline-offset: var(--openbitfun-focus-offset);
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: var(--bitfun-focus-offset);
     }
   }
 
   &__name {
     align-self: flex-start;
-    font-size: var(--openbitfun-type-heading-page-font-size);
-    font-weight: var(--openbitfun-type-heading-page-font-weight);
-    line-height: var(--openbitfun-type-heading-page-line-height);
-    letter-spacing: var(--openbitfun-type-heading-page-letter-spacing);
+    font-size: var(--bitfun-type-heading-page-font-size);
+    font-weight: var(--bitfun-type-heading-page-font-weight);
+    line-height: var(--bitfun-type-heading-page-line-height);
+    letter-spacing: var(--bitfun-type-heading-page-letter-spacing);
   }
 
   &__name-input {
@@ -981,22 +981,22 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     min-width: 0;
   }
 
   &__meta-tag {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
 
     &.is-empty {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
   &__meta-dot {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     user-select: none;
   }
 
@@ -1020,24 +1020,24 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     justify-content: center;
     padding: 0;
     overflow: visible;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 50%;
     background: transparent;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     cursor: pointer;
     transition:
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover,
     &.is-open {
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 46%, var(--openbitfun-color-border-subtle));
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 46%, var(--bitfun-color-border-subtle));
       background: transparent;
     }
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
       outline-offset: 2px;
     }
   }
@@ -1048,21 +1048,21 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    font-size: var(--openbitfun-type-display-sm-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    font-size: var(--bitfun-type-display-sm-font-size);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     white-space: nowrap;
   }
 
   &__section-label {
-    margin-bottom: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    margin-bottom: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
 
     &.is-secondary {
-      margin-top: var(--openbitfun-space-3);
-      padding-top: var(--openbitfun-space-3);
-      border-top: 1px solid var(--openbitfun-color-border-subtle);
+      margin-top: var(--bitfun-space-3);
+      padding-top: var(--bitfun-space-3);
+      border-top: 1px solid var(--bitfun-color-border-subtle);
     }
   }
 
@@ -1075,32 +1075,32 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     height: 19px;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-sm);
-    background: var(--openbitfun-color-surface-raised);
-    color: var(--openbitfun-color-content-secondary);
-    box-shadow: var(--openbitfun-shadow-xs);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-surface-raised);
+    color: var(--bitfun-color-content-secondary);
+    box-shadow: var(--bitfun-shadow-xs);
   }
 
   &__popover {
     @include surfaces.floating;
 
     position: fixed;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     width: 328px;
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
-    padding: var(--openbitfun-space-3);
-    color: var(--openbitfun-color-content-primary);
-    font-family:var(--openbitfun-type-body-sm-font-family);
+    padding: var(--bitfun-space-3);
+    color: var(--bitfun-color-content-primary);
+    font-family:var(--bitfun-type-body-sm-font-family);
   }
 
   &__header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
-    margin-bottom: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
+    margin-bottom: var(--bitfun-space-3);
   }
 
   &__heading {
@@ -1110,23 +1110,23 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     gap: 2px;
 
     strong {
-      color: var(--openbitfun-color-content-primary);
-      font-size: var(--openbitfun-type-label-md-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      color: var(--bitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
 
     span {
-      color: var(--openbitfun-color-content-muted);
-      font-size: var(--openbitfun-type-meta-font-size);
-      line-height: var(--openbitfun-type-body-lg-line-height);
+      color: var(--bitfun-color-content-muted);
+      font-size: var(--bitfun-type-meta-font-size);
+      line-height: var(--bitfun-type-body-lg-line-height);
     }
   }
 
   &__grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__option {
@@ -1137,29 +1137,29 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     justify-content: center;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     background: transparent;
-    font-size: var(--openbitfun-type-flow-section-title-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    font-size: var(--bitfun-type-flow-section-title-font-size);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     cursor: pointer;
     transition:
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-quiet-hover);
+      background: var(--bitfun-color-action-quiet-hover);
       transform: translateY(-1px);
     }
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
       outline-offset: 1px;
     }
 
     &.is-selected {
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 48%, var(--openbitfun-color-border-subtle));
-      background: color-mix(in srgb, var(--openbitfun-color-accent-default) 12%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 48%, var(--bitfun-color-border-subtle));
+      background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
     }
 
     &.is-official {
@@ -1171,10 +1171,10 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__custom {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    margin-top: var(--openbitfun-space-3);
-    padding-top: var(--openbitfun-space-3);
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
+    gap: var(--bitfun-space-2);
+    margin-top: var(--bitfun-space-3);
+    padding-top: var(--bitfun-space-3);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__custom-input {
@@ -1187,23 +1187,23 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-height: 18px;
     align-items: center;
     justify-content: flex-end;
-    margin-top: var(--openbitfun-space-2);
+    margin-top: var(--bitfun-space-2);
   }
 
   &__status {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
 
     &.is-saved {
-      color: var(--openbitfun-color-status-success-content);
+      color: var(--bitfun-color-status-success-content);
     }
 
     &.is-error {
-      color: var(--openbitfun-color-status-danger-content);
+      color: var(--bitfun-color-status-danger-content);
     }
   }
 }
@@ -1217,39 +1217,39 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   flex: 1;
   min-height: 0;
   overflow-x: hidden;
-  padding: var(--openbitfun-space-4) var(--openbitfun-space-1) var(--openbitfun-space-2);
+  padding: var(--bitfun-space-4) var(--bitfun-space-1) var(--bitfun-space-2);
 
   &__title {
-    margin-bottom: var(--openbitfun-space-3);
+    margin-bottom: var(--bitfun-space-3);
   }
 
   // Override SessionsSection's built-in NavPanel indentation so rows
   // align flush with the chat input above; slightly roomier than nav but not loose.
-  .openbitfun-nav-panel__inline-list {
+  .bitfun-nav-panel__inline-list {
     padding-inline: 0;
-    padding-block: var(--openbitfun-space-1);
+    padding-block: var(--bitfun-space-1);
     margin-inline: 0;
     margin-left: 0;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
-  .openbitfun-nav-panel__inline-item {
+  .bitfun-nav-panel__inline-item {
     height: auto;
     min-height: 34px;
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-lg);
-    font-size: var(--openbitfun-type-body-md-font-size);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-lg);
+    font-size: var(--bitfun-type-body-md-font-size);
   }
 
-  .openbitfun-nav-panel__inline-item.is-child {
+  .bitfun-nav-panel__inline-item.is-child {
     min-height: 30px;
-    padding-left: calc(var(--openbitfun-space-2) + 22px);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    padding-left: calc(var(--bitfun-space-2) + 22px);
+    font-size: var(--bitfun-type-label-md-font-size);
   }
 
-  .openbitfun-nav-panel__inline-empty {
-    padding: var(--openbitfun-space-3) 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
+  .bitfun-nav-panel__inline-empty {
+    padding: var(--bitfun-space-3) 0;
+    font-size: var(--bitfun-type-label-md-font-size);
   }
 
 }
@@ -1274,7 +1274,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .acp-right-shell__divider {
   flex: 0 0 auto;
   height: 1px;
-  background: var(--openbitfun-color-border-subtle);
+  background: var(--bitfun-color-border-subtle);
 }
 
 // ── Identity card ────────────────────────────────────────────────────────────
@@ -1282,16 +1282,16 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .acp-identity-card {
   display: flex;
   align-items: flex-start;
-  gap: var(--openbitfun-space-3);
-  padding: var(--openbitfun-space-3) var(--openbitfun-space-3);
-  border-radius: var(--openbitfun-radius-base);
+  gap: var(--bitfun-space-3);
+  padding: var(--bitfun-space-3) var(--bitfun-space-3);
+  border-radius: var(--bitfun-radius-base);
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--openbitfun-color-status-success-content) 6%, transparent) 0%,
-    color-mix(in srgb, var(--openbitfun-color-accent-hover) 4%, transparent) 55%,
-    color-mix(in srgb, var(--openbitfun-color-accent-secondary) 6%, transparent) 100%
+    color-mix(in srgb, var(--bitfun-color-status-success-content) 6%, transparent) 0%,
+    color-mix(in srgb, var(--bitfun-color-accent-hover) 4%, transparent) 55%,
+    color-mix(in srgb, var(--bitfun-color-accent-secondary) 6%, transparent) 100%
   );
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
 
   &__avatar {
     flex-shrink: 0;
@@ -1301,26 +1301,26 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    background: var(--openbitfun-color-action-neutral-surface-hover);
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    border: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__emoji {
-    font-size: var(--openbitfun-type-heading-dialog-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    font-size: var(--bitfun-type-heading-dialog-font-size);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     cursor: pointer;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     padding: 2px;
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 
   &__emoji-input {
     width: 38px;
-    font-size: var(--openbitfun-type-flow-title-font-size);
+    font-size: var(--bitfun-type-flow-title-font-size);
     text-align: center;
   }
 
@@ -1329,31 +1329,31 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     padding-top: 1px;
   }
 
   &__name {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     cursor: pointer;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     padding: 1px 4px;
     margin-left: -4px;
-    letter-spacing: var(--openbitfun-type-flow-title-letter-spacing);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard), background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    letter-spacing: var(--bitfun-type-flow-title-letter-spacing);
+    line-height: var(--bitfun-type-label-md-line-height);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-accent-default);
-      background: var(--openbitfun-color-surface-subtle);
+      color: var(--bitfun-color-accent-default);
+      background: var(--bitfun-color-surface-subtle);
     }
   }
 
   &__name-input {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
     width: 100%;
   }
 
@@ -1367,38 +1367,38 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__meta-row {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
   }
 
   &__meta-label {
     flex-shrink: 0;
-    font-size: var(--openbitfun-type-micro-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-micro-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
-    color: var(--openbitfun-color-content-muted);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
+    color: var(--bitfun-color-content-muted);
     width: 44px;
   }
 
   &__meta-value {
     flex: 1;
     min-width: 0;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
     cursor: pointer;
-    padding: 1px var(--openbitfun-space-1);
-    border-radius: var(--openbitfun-radius-sm);
+    padding: 1px var(--bitfun-space-1);
+    border-radius: var(--bitfun-radius-sm);
     overflow: hidden;
     white-space: nowrap;
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
     }
 
     &.is-empty {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
       font-style: italic;
     }
   }
@@ -1418,15 +1418,15 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     height: 24px;
     padding: 0;
     border: none;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     cursor: pointer;
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard), background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-content-secondary);
-      background: var(--openbitfun-color-action-neutral-surface);
+      color: var(--bitfun-color-content-secondary);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 }
@@ -1456,31 +1456,31 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__head {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-4);
     background: transparent;
   }
 
   &__title {
     flex: 1;
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
-    color: var(--openbitfun-color-content-muted);
+    letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__body {
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__schedule-body {
     flex: 1;
     min-height: 0;
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
 
     // Outer frame is .acp-right-shell — drop nested list chrome
     .asv__list {
@@ -1495,8 +1495,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .acp-persona-doc-list {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-2);
-  padding: 0 var(--openbitfun-space-4) var(--openbitfun-space-4);
+  gap: var(--bitfun-space-2);
+  padding: 0 var(--bitfun-space-4) var(--bitfun-space-4);
 }
 
 .acp-persona-doc-row {
@@ -1510,18 +1510,18 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 // ── Empty / loading states ────────────────────────────────────────────────────
 
 .acp-empty {
-  font-size: var(--openbitfun-type-label-md-font-size);
-  color: var(--openbitfun-color-content-muted);
-  padding: var(--openbitfun-space-4) 0;
-  line-height: var(--openbitfun-type-body-lg-line-height);
+  font-size: var(--bitfun-type-label-md-font-size);
+  color: var(--bitfun-color-content-muted);
+  padding: var(--bitfun-space-4) 0;
+  line-height: var(--bitfun-type-body-lg-line-height);
 }
 
 .acp-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--openbitfun-space-6) 0;
-  color: var(--openbitfun-color-content-muted);
+  padding: var(--bitfun-space-6) 0;
+  color: var(--bitfun-color-content-muted);
 }
 
 // ── Persona doc editor ────────────────────────────────────────────────────────
@@ -1535,13 +1535,13 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 
   &__head {
     flex: 0 0 auto;
-    padding: var(--openbitfun-space-4);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    padding: var(--bitfun-space-4);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__heading {
     width: 100%;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__body {
@@ -1550,14 +1550,14 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
   }
 
   &__error {
-    margin: 0 0 var(--openbitfun-space-3);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-status-danger-content);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    margin: 0 0 var(--bitfun-space-3);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-status-danger-content);
+    line-height: var(--bitfun-type-body-lg-line-height);
   }
 
   &__meditor {
@@ -1599,7 +1599,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__frontmatter {
@@ -1615,7 +1615,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   &__divider {
     flex: 0 0 auto;
     height: 1px;
-    background: var(--openbitfun-color-border-subtle);
+    background: var(--bitfun-color-border-subtle);
   }
 
   &__body-editor {
@@ -1642,8 +1642,8 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     grid-template-rows: max-content max-content;
     align-content: start;
     overflow-y: auto;
-    gap: var(--openbitfun-space-5);
-    padding-block: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-5);
+    padding-block: var(--bitfun-space-4);
 
     &__left,
     &__right {

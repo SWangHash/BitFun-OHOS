@@ -55,7 +55,7 @@ members = [
 ]
 
 exclude = [
-    "OpenBitFun-Installer/src-tauri",
+    "BitFun-Installer/src-tauri",
     "third_party/eioc",
 ]
 
@@ -64,7 +64,7 @@ resolver = "2"
 # Shared package metadata 鈥?single source of truth for version
 [workspace.package]
 version = "1.0.0" # x-release-please-version
-authors = ["OpenBitFun Team"]
+authors = ["BitFun Team"]
 edition = "2021"
 
 [workspace.lints.rust]
@@ -143,7 +143,7 @@ encoding_rs = "0.8.35"
 url = "2"
 
 # Internal adapter crates (path-pinned for workspace = true consumers)
-openbitfun-matrix-adapter = { path = "src/crates/adapters/matrix-adapter" }
+bitfun-matrix-adapter = { path = "src/crates/adapters/matrix-adapter" }
 
 # HTTP client
 reqwest = { version = "0.13.4", default-features = false }

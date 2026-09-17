@@ -4,16 +4,16 @@ use crate::infrastructure::events::{emit_global_event, BackendEvent};
 use crate::miniapp::js_worker::{JsWorker, MiniAppWorkerEvent, MiniAppWorkerEventFuture};
 use crate::miniapp::runtime_detect::DetectedRuntime;
 use crate::miniapp::types::{NodePermissions, NpmDep};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_product_domains::miniapp::ports::{
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_product_domains::miniapp::ports::{
     MiniAppInstallDepsRequest, MiniAppPortError, MiniAppPortErrorKind, MiniAppPortFuture,
     MiniAppRuntimePort,
 };
-pub use openbitfun_product_domains::miniapp::worker::InstallResult;
-use openbitfun_services_integrations::miniapp::worker::{
+pub use bitfun_product_domains::miniapp::worker::InstallResult;
+use bitfun_services_integrations::miniapp::worker::{
     MiniAppWorkerEventSink, SharedMiniAppWorkerEventSink,
 };
-use openbitfun_services_integrations::miniapp::worker_pool::{
+use bitfun_services_integrations::miniapp::worker_pool::{
     JsWorkerPool as ServiceJsWorkerPool, MiniAppWorkerPoolError, MiniAppWorkerPoolErrorKind,
 };
 use serde_json::Value;
@@ -29,7 +29,7 @@ impl JsWorkerPool {
     pub fn new(
         path_manager: Arc<crate::infrastructure::PathManager>,
         worker_host_path: PathBuf,
-    ) -> OpenBitFunResult<Self> {
+    ) -> BitFunResult<Self> {
         let event_sink: SharedMiniAppWorkerEventSink = Arc::new(CoreMiniAppWorkerEventSink);
         ServiceJsWorkerPool::new(
             path_manager.miniapps_dir(),
@@ -50,7 +50,7 @@ impl JsWorkerPool {
         worker_revision: &str,
         policy_json: &str,
         node_perms: Option<&NodePermissions>,
-    ) -> OpenBitFunResult<Arc<Mutex<JsWorker>>> {
+    ) -> BitFunResult<Arc<Mutex<JsWorker>>> {
         self.inner
             .get_or_spawn(app_id, worker_revision, policy_json, node_perms)
             .await
@@ -65,7 +65,7 @@ impl JsWorkerPool {
         worker_revision: &str,
         policy_json: &str,
         node_perms: Option<&NodePermissions>,
-    ) -> OpenBitFunResult<Arc<Mutex<JsWorker>>> {
+    ) -> BitFunResult<Arc<Mutex<JsWorker>>> {
         self.inner
             .get_or_spawn_with_app_dir(
                 worker_key,
@@ -87,7 +87,7 @@ impl JsWorkerPool {
         permissions: Option<&NodePermissions>,
         method: &str,
         params: Value,
-    ) -> OpenBitFunResult<Value> {
+    ) -> BitFunResult<Value> {
         self.inner
             .call(
                 app_id,
@@ -111,7 +111,7 @@ impl JsWorkerPool {
         permissions: Option<&NodePermissions>,
         method: &str,
         params: Value,
-    ) -> OpenBitFunResult<Value> {
+    ) -> BitFunResult<Value> {
         self.inner
             .call_with_app_dir(
                 worker_key,
@@ -155,7 +155,7 @@ impl JsWorkerPool {
         &self,
         app_id: &str,
         deps: &[NpmDep],
-    ) -> OpenBitFunResult<InstallResult> {
+    ) -> BitFunResult<InstallResult> {
         self.inner
             .install_deps(app_id, deps)
             .await
@@ -166,7 +166,7 @@ impl JsWorkerPool {
         &self,
         app_dir: &Path,
         deps: &[NpmDep],
-    ) -> OpenBitFunResult<InstallResult> {
+    ) -> BitFunResult<InstallResult> {
         self.inner
             .install_deps_in_dir(app_dir, deps)
             .await
@@ -207,37 +207,37 @@ impl MiniAppRuntimePort for JsWorkerPool {
     }
 }
 
-fn map_worker_pool_error(error: MiniAppWorkerPoolError) -> OpenBitFunError {
+fn map_worker_pool_error(error: MiniAppWorkerPoolError) -> BitFunError {
     match error.kind() {
         MiniAppWorkerPoolErrorKind::NotFound => {
-            OpenBitFunError::NotFound(error.message().to_string())
+            BitFunError::NotFound(error.message().to_string())
         }
         MiniAppWorkerPoolErrorKind::Validation => {
-            OpenBitFunError::validation(error.message().to_string())
+            BitFunError::validation(error.message().to_string())
         }
-        MiniAppWorkerPoolErrorKind::Io => OpenBitFunError::io(error.message().to_string()),
+        MiniAppWorkerPoolErrorKind::Io => BitFunError::io(error.message().to_string()),
         MiniAppWorkerPoolErrorKind::RuntimeUnavailable => {
-            OpenBitFunError::ProcessError(error.message().to_string())
+            BitFunError::ProcessError(error.message().to_string())
         }
         MiniAppWorkerPoolErrorKind::Backend => {
-            OpenBitFunError::service(error.message().to_string())
+            BitFunError::service(error.message().to_string())
         }
     }
 }
 
-fn map_miniapp_runtime_port_error(error: OpenBitFunError) -> MiniAppPortError {
+fn map_miniapp_runtime_port_error(error: BitFunError) -> MiniAppPortError {
     let kind = match &error {
-        OpenBitFunError::NotFound(_) => MiniAppPortErrorKind::NotFound,
-        OpenBitFunError::Validation(_) | OpenBitFunError::Deserialization(_) => {
+        BitFunError::NotFound(_) => MiniAppPortErrorKind::NotFound,
+        BitFunError::Validation(_) | BitFunError::Deserialization(_) => {
             MiniAppPortErrorKind::InvalidInput
         }
-        OpenBitFunError::Io(io_error)
+        BitFunError::Io(io_error)
             if io_error.kind() == std::io::ErrorKind::PermissionDenied =>
         {
             MiniAppPortErrorKind::PermissionDenied
         }
-        OpenBitFunError::Io(_) => MiniAppPortErrorKind::Io,
-        OpenBitFunError::ProcessError(_) | OpenBitFunError::Timeout(_) => {
+        BitFunError::Io(_) => MiniAppPortErrorKind::Io,
+        BitFunError::ProcessError(_) | BitFunError::Timeout(_) => {
             MiniAppPortErrorKind::RuntimeUnavailable
         }
         _ => MiniAppPortErrorKind::Backend,
@@ -268,7 +268,7 @@ impl MiniAppWorkerEventSink for CoreMiniAppWorkerEventSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::miniapp::runtime::RuntimeKind;
+    use bitfun_product_domains::miniapp::runtime::RuntimeKind;
     use std::fs;
 
     struct TestTempDir {
@@ -295,7 +295,7 @@ mod tests {
 
     #[tokio::test]
     async fn runtime_port_adapter_preserves_existing_runtime_and_noop_install() {
-        let root = TestTempDir::new("openbitfun-miniapp-runtime-port");
+        let root = TestTempDir::new("bitfun-miniapp-runtime-port");
         let path_manager = Arc::new(
             crate::infrastructure::PathManager::with_user_root_for_tests(root.path().to_path_buf()),
         );
@@ -335,7 +335,7 @@ mod tests {
 
     #[tokio::test]
     async fn install_deps_in_dir_noops_without_package_json() {
-        let root = TestTempDir::new("openbitfun-miniapp-runtime-draft-port");
+        let root = TestTempDir::new("bitfun-miniapp-runtime-draft-port");
         let path_manager = Arc::new(
             crate::infrastructure::PathManager::with_user_root_for_tests(root.path().to_path_buf()),
         );

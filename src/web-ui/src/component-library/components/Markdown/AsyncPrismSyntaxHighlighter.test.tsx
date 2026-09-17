@@ -46,7 +46,7 @@ describe('AsyncPrismSyntaxHighlighter appearance contract', () => {
       );
     });
 
-    expect(container.querySelector('pre[data-openbitfun-part="codePre"]')).not.toBeNull();
-    expect(container.querySelector('code[data-openbitfun-part="codeContent"]')).not.toBeNull();
+    expect(container.querySelector('pre[data-bitfun-part="codePre"]')).not.toBeNull();
+    expect(container.querySelector('code[data-bitfun-part="codeContent"]')).not.toBeNull();
   });
 });

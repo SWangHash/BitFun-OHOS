@@ -2,7 +2,7 @@
 
 Scope: this guide applies to `src/crates/adapters/webdriver`.
 
-`openbitfun-webdriver` owns the embedded desktop WebDriver bridge. It is a
+`bitfun-webdriver` owns the embedded desktop WebDriver bridge. It is a
 platform-integration crate, not a product runtime or tool-policy owner.
 
 ## Guardrails
@@ -18,7 +18,7 @@ platform-integration crate, not a product runtime or tool-policy owner.
 ## Verification
 
 ```bash
-cargo check -p openbitfun-webdriver
+cargo check -p bitfun-webdriver
 ```
 
 For documentation-only changes, run `git diff --check`.

@@ -14,11 +14,11 @@ test('release version metadata is synchronized', () => {
 });
 
 test('prepares a versioned custom Windows installer asset', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-manual-installer-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-manual-installer-'));
   const assets = path.join(temp, 'assets', 'nested');
   const out = path.join(temp, 'manual');
   fs.mkdirSync(assets, { recursive: true });
-  fs.writeFileSync(path.join(assets, 'openbitfun-installer.exe'), 'installer');
+  fs.writeFileSync(path.join(assets, 'bitfun-installer.exe'), 'installer');
 
   const result = run('scripts/prepare-windows-installer-asset.mjs', [
     '--assets-dir', path.join(temp, 'assets'),
@@ -27,23 +27,23 @@ test('prepares a versioned custom Windows installer asset', () => {
   ]);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(
-    fs.readFileSync(path.join(out, 'OpenBitFun_1.2.3_windows-x86_64-installer.exe'), 'utf8'),
+    fs.readFileSync(path.join(out, 'BitFun_1.2.3_windows-x86_64-installer.exe'), 'utf8'),
     'installer'
   );
 });
 
 test('1.0.0-beta manifest keeps the updater URL separate from the manual installer URL', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-latest-manual-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-latest-manual-'));
   const updater = path.join(temp, 'updater');
   const manual = path.join(temp, 'manual');
   const out = path.join(temp, 'latest-v1.json');
   fs.mkdirSync(updater, { recursive: true });
   fs.mkdirSync(manual, { recursive: true });
 
-  const updaterName = 'OpenBitFun_1.0.0-beta_windows-x86_64-setup.exe';
+  const updaterName = 'BitFun_1.0.0-beta_windows-x86_64-setup.exe';
   fs.writeFileSync(path.join(updater, updaterName), 'setup');
   fs.writeFileSync(path.join(updater, `${updaterName}.sig`), 'inline-updater-signature');
-  const installerName = 'OpenBitFun_1.0.0-beta_windows-x86_64-installer.exe';
+  const installerName = 'BitFun_1.0.0-beta_windows-x86_64-installer.exe';
   fs.writeFileSync(path.join(manual, installerName), 'installer');
   fs.writeFileSync(path.join(manual, `${installerName}.sig`), 'detached-signature');
 
@@ -52,7 +52,7 @@ test('1.0.0-beta manifest keeps the updater URL separate from the manual install
     '--manual-assets-dir', manual,
     '--version', '1.0.0-beta',
     '--tag', 'v1.0.0-beta',
-    '--repo', 'GCWing/OpenBitFun',
+    '--repo', 'GCWing/BitFun',
     '--out', out,
     '--required-platforms', 'windows-x86_64',
   ]);
@@ -76,7 +76,7 @@ test('1.0.0-beta manifest keeps the updater URL separate from the manual install
 });
 
 test('stages GitHub release assets in a flat directory', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-release-assets-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-release-assets-'));
   const first = path.join(temp, 'updater', 'latest.json');
   const second = path.join(temp, 'manual', 'installer.exe');
   const out = path.join(temp, 'staged');
@@ -97,9 +97,9 @@ test('stages GitHub release assets in a flat directory', () => {
 });
 
 test('rejects duplicate GitHub release asset names before upload', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-release-duplicates-'));
-  const first = path.join(temp, 'macos-x64', 'OpenBitFun.app.tar.gz.sig');
-  const second = path.join(temp, 'macos-arm64', 'OpenBitFun.app.tar.gz.sig');
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-release-duplicates-'));
+  const first = path.join(temp, 'macos-x64', 'BitFun.app.tar.gz.sig');
+  const second = path.join(temp, 'macos-arm64', 'BitFun.app.tar.gz.sig');
   const out = path.join(temp, 'staged');
   fs.mkdirSync(path.dirname(first), { recursive: true });
   fs.mkdirSync(path.dirname(second), { recursive: true });
@@ -113,19 +113,19 @@ test('rejects duplicate GitHub release asset names before upload', () => {
   ]);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Duplicate release asset name OpenBitFun\.app\.tar\.gz\.sig/);
+  assert.match(result.stderr, /Duplicate release asset name BitFun\.app\.tar\.gz\.sig/);
   assert.match(result.stderr, /macos-x64/);
   assert.match(result.stderr, /macos-arm64/);
 });
 
 for (const version of ['1.0.0-beta', '1.0.0-beta.3']) {
 test(`${version} Linux CLI and Relay manifests keep signed assets on the versioned repository release`, (t) => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'openbitfun-beta-linux-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-beta-linux-'));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const tag = `v${version}`;
   const assets = [];
   for (const target of ['x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu']) {
-    for (const name of [`openbitfun-cli-${version}-${target}.tar.gz`, `openbitfun-relay-server-${target}.tar.gz`]) {
+    for (const name of [`bitfun-cli-${version}-${target}.tar.gz`, `bitfun-relay-server-${target}.tar.gz`]) {
       for (const suffix of ['', '.sha256', '.sig', '.sha256.sig']) {
         const filename = path.join(temp, name + suffix);
         fs.writeFileSync(filename, `fixture ${name}${suffix}`);
@@ -136,7 +136,7 @@ test(`${version} Linux CLI and Relay manifests keep signed assets on the version
   const out = path.join(temp, 'linux-binaries-v1.json');
   const result = run('scripts/generate-linux-binaries-manifest.mjs', [
     '--assets-dir', temp, '--version', version, '--tag', tag,
-    '--repo', 'test-owner/OpenBitFun', '--out', out,
+    '--repo', 'test-owner/BitFun', '--out', out,
   ]);
   assert.equal(result.status, 0, result.stderr);
   const manifest = JSON.parse(fs.readFileSync(out, 'utf8'));
@@ -145,7 +145,7 @@ test(`${version} Linux CLI and Relay manifests keep signed assets on the version
   assert.deepEqual(Object.keys(manifest.platforms).sort(), ['linux-aarch64', 'linux-x86_64']);
   for (const platform of Object.values(manifest.platforms)) {
     for (const artifact of [platform.cli, platform.relay]) {
-      assert.equal(artifact.url, `https://github.com/test-owner/OpenBitFun/releases/download/${tag}/${artifact.filename}`);
+      assert.equal(artifact.url, `https://github.com/test-owner/BitFun/releases/download/${tag}/${artifact.filename}`);
       assert.equal(artifact.sha256Url, `${artifact.url}.sha256`);
       assert.equal(artifact.sigUrl, `${artifact.url}.sig`);
       assert.equal(artifact.sha256SigUrl, `${artifact.url}.sha256.sig`);
@@ -158,7 +158,7 @@ test(`${version} Linux CLI and Relay manifests keep signed assets on the version
   fs.unlinkSync(assets.find((file) => file.endsWith('.tar.gz')));
   const missing = run('scripts/generate-linux-binaries-manifest.mjs', [
     '--assets-dir', temp, '--version', version, '--tag', tag,
-    '--repo', 'test-owner/OpenBitFun', '--out', out,
+    '--repo', 'test-owner/BitFun', '--out', out,
   ]);
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /Required Linux release asset was not found/);

@@ -15,7 +15,7 @@ Main areas:
 - `src/api/`: Tauri commands
 - `src/api/peer_host_invoke.rs`: Peer Device Mode host-invoke bridge + control attach;
   allow/deny and capabilities come from the Product Operation Registry
-  (`openbitfun_product_domains::remote_surface`), not from a local table
+  (`bitfun_product_domains::remote_surface`), not from a local table
 - `src/api/remote_workspace_policy.rs`: closure test proving every registered Tauri
   command has one registry row
 - `src/lib.rs`, `src/main.rs`: app setup and wiring
@@ -76,7 +76,7 @@ required. The default dev profile keeps line tables while reducing PDB size.
 
 ## Target cache GC
 
-`desktop:dev` (on exit), `desktop:preview:debug` (on shutdown), and `desktop:build*` prune stale `target/<profile>` cache generations. Incremental roots keep the latest crate/session. Cargo fingerprint JSON identifies distinct lib, test, bin, and build-script units; GC keeps the latest generation of each unit plus every generation whose Cargo-managed `invoked.timestamp` was refreshed within the last 24 hours, then removes orphaned `deps` files and `build` directories. Busy detection is scoped to Cargo lock files in the selected profile, so an unrelated worktree build does not suppress GC. Manual: `pnpm run target:gc -- --profile debug`. Disable with `OPENBITFUN_TARGET_GC=0`; dry-run with `OPENBITFUN_TARGET_GC_DRY_RUN=1`; adjust the grace window with `OPENBITFUN_TARGET_GC_MIN_AGE_HOURS`.
+`desktop:dev` (on exit), `desktop:preview:debug` (on shutdown), and `desktop:build*` prune stale `target/<profile>` cache generations. Incremental roots keep the latest crate/session. Cargo fingerprint JSON identifies distinct lib, test, bin, and build-script units; GC keeps the latest generation of each unit plus every generation whose Cargo-managed `invoked.timestamp` was refreshed within the last 24 hours, then removes orphaned `deps` files and `build` directories. Busy detection is scoped to Cargo lock files in the selected profile, so an unrelated worktree build does not suppress GC. Manual: `pnpm run target:gc -- --profile debug`. Disable with `BITFUN_TARGET_GC=0`; dry-run with `BITFUN_TARGET_GC_DRY_RUN=1`; adjust the grace window with `BITFUN_TARGET_GC_MIN_AGE_HOURS`.
 
 `release-fast` profile (`Cargo.toml`): inherits `release` but disables LTO, increases `codegen-units` to 16, enables incremental compilation. Significantly faster at the cost of binary size and marginal runtime performance.
 
@@ -105,43 +105,43 @@ Before distributing, run `bash scripts/ci/verify-macos-microphone.sh <signed-app
 and recording in the signed app on macOS. Ad-hoc fixture tests do not prove TCC behavior.
 
 ```bash
-cargo check -p openbitfun-desktop && cargo test -p openbitfun-desktop
+cargo check -p bitfun-desktop && cargo test -p bitfun-desktop
 ```
 
 For tray unread synchronization, run
 `pnpm --dir src/web-ui run test:run src/flow_chat/services/trayUnreadService.test.ts src/flow_chat/services/sessionNavStatusService.test.ts`
-and `cargo test -p openbitfun-desktop --lib remote_workspace_policy` after command changes.
+and `cargo test -p bitfun-desktop --lib remote_workspace_policy` after command changes.
 
 For shared GitHub sign-in and token redaction, use
-`cargo test -p openbitfun-desktop --lib api::account_identity_api::tests`.
+`cargo test -p bitfun-desktop --lib api::account_identity_api::tests`.
 For the matching cross-entry UI state, run
 `pnpm --dir src/web-ui run test:run src/infrastructure/account-identity/AccountIdentityService.test.ts src/features/market-account/AccountIdentityControls.test.tsx src/app/components/RemoteConnectDialog/ensureAccountSession.test.ts`.
 
 For skill discovery response compatibility and timeouts, use
-`cargo test -p openbitfun-desktop --lib api::skill_api::tests`.
+`cargo test -p bitfun-desktop --lib api::skill_api::tests`.
 For companion pet manifest versions and package metadata, use
-`cargo test -p openbitfun-desktop --lib api::commands::pet_package_tests`.
+`cargo test -p bitfun-desktop --lib api::commands::pet_package_tests`.
 For content-search routing and remote fallback protection, use
-`cargo test --locked -p openbitfun-desktop --lib api::search_api::tests`.
+`cargo test --locked -p bitfun-desktop --lib api::search_api::tests`.
 For controller-local peer download staging, atomic replacement, and failed transfer cleanup,
-run `cargo test -p openbitfun-desktop --lib api::local_file_download::tests`.
+run `cargo test -p bitfun-desktop --lib api::local_file_download::tests`.
 After changing its registration, also run
-`cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+`cargo test -p bitfun-desktop --lib remote_workspace_policy`.
 
 For Windows external-file drag previews, run
-`cargo test --locked -p openbitfun-desktop --lib file_drop_preview_api` and
+`cargo test --locked -p bitfun-desktop --lib file_drop_preview_api` and
 `pnpm --dir src/web-ui run test:run src/infrastructure/files/useWindowsFileDropPreview.test.tsx src/app/scenes/session/FileDropPreviewCards.test.tsx`.
 After rebuilding Desktop, manually check Explorer drags with one image, more than
 four images, mixed file formats, Escape, leaving the pane, and a scene switch.
 Verify HTML text/tab/file-tree drags still work. The temporary OLE child only
 covers the active chat target during an external file drag; do not enable Wry's
 window-wide Windows handler as a replacement. After command registration changes,
-also run `cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+also run `cargo test -p bitfun-desktop --lib remote_workspace_policy`.
 
 The layered receiver requires the compatibility declaration in
 `windows-app.manifest`; keep it wired through `build.rs` for dev and release.
 After changes to that contract, run
-`node --test scripts/desktop-tauri-build.test.mjs` and `cargo build -p openbitfun-desktop`.
+`node --test scripts/desktop-tauri-build.test.mjs` and `cargo build -p bitfun-desktop`.
 The focused native test creates and destroys 50 real, hidden receiver windows.
 The Shell regression also uses a real `IDataObject` and drag-image helpers to
 verify 20 takeovers leave no `SysDragImage`, and that the next target can restore
@@ -154,27 +154,27 @@ using the Windows SDK `mt.exe`, then run the `file_drop_preview_api` filter on
 that copy. A Common Controls-only manifest cannot exercise layered children.
 
 For staged application-update cache and signature behavior, use
-`cargo test -p openbitfun-desktop --lib api::update_api::tests`.
+`cargo test -p bitfun-desktop --lib api::update_api::tests`.
 For peer system-info response compatibility, run
-`cargo test -p openbitfun-desktop --lib system_info_home_contract`.
+`cargo test -p bitfun-desktop --lib system_info_home_contract`.
 For window geometry recovery, legacy state compatibility, and snapshot persistence,
-run `cargo test -p openbitfun-desktop --lib window_state_support::tests`.
+run `cargo test -p bitfun-desktop --lib window_state_support::tests`.
 For the matching startup wiring contract, run
 `pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts`.
 For native sidebar material and appearance bootstrap, run
-`cargo test -p openbitfun-desktop --no-default-features --lib appearance::startup_appearance_tests`
+`cargo test -p bitfun-desktop --no-default-features --lib appearance::startup_appearance_tests`
 and `pnpm --dir src/web-ui run test:run src/infrastructure/appearance/adapters/ThemeTokenAppearanceAdapter.test.ts`.
 For embedded browser preview encoding and target correlation, run
-`cargo test -p openbitfun-desktop --lib api::browser_api::tests`.
+`cargo test -p bitfun-desktop --lib api::browser_api::tests`.
 After browser command registration changes, also run
-`cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+`cargo test -p bitfun-desktop --lib remote_workspace_policy`.
 After changing updater command registration, also run
-`cargo test -p openbitfun-desktop --lib remote_workspace_policy`.
+`cargo test -p bitfun-desktop --lib remote_workspace_policy`.
 
 If the change affects startup, WebDriver, browser/computer-use, or packaged behavior, also run:
 
 ```bash
-cargo build -p openbitfun-desktop
+cargo build -p bitfun-desktop
 ```
 
 To exercise packaged UI customization in an isolated native window without a
@@ -182,22 +182,22 @@ development server, build Web UI assets, then use the focused Creation harness:
 
 ```bash
 pnpm run build:web
-cargo build -p openbitfun-desktop --features devtools
+cargo build -p bitfun-desktop --features devtools
 node tests/e2e/scripts/run-creation-runtime.mjs
 node tests/e2e/scripts/run-creation-runtime.mjs --suspended-paint  # occluded WebKit startup and reload
 ```
 
 The harness copies a completed build into an independent frontend snapshot so
 concurrent builds cannot replace its lazy modules. It uses temporary product storage, a private WebView store, and
-`OPENBITFUN_E2E_PACKAGED_FRONTEND=1`. It checks state across document reloads;
+`BITFUN_E2E_PACKAGED_FRONTEND=1`. It checks state across document reloads;
 the private test store intentionally does not survive process exit.
 That debug-only switch takes effect only with the existing E2E storage guard;
 release builds always use the packaged protocol.
 
 For alternate dev-server ports and preview startup URL changes, run
 `node --test scripts/dev-startup.test.mjs` and
-`cargo test -p openbitfun-desktop --no-default-features --lib appearance::development_frontend_tests`.
-`OPENBITFUN_DEV_PORT` selects the HTTP port; `OPENBITFUN_DEV_HMR_PORT` defaults
+`cargo test -p bitfun-desktop --no-default-features --lib appearance::development_frontend_tests`.
+`BITFUN_DEV_PORT` selects the HTTP port; `BITFUN_DEV_HMR_PORT` defaults
 to the previous port. Desktop and Vite must use the same values. Development
 launchers reuse the locked Sherpa library/archive cache across Git worktrees,
 or download the archive through curl when absent; explicit SHERPA_ONNX overrides win.

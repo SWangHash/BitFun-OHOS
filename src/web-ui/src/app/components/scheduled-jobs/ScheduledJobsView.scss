@@ -3,7 +3,7 @@
 .asv {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-3);
+  gap: var(--bitfun-space-3);
   width: 100%;
 
   // ── Header ─────────────────────────────────────────────────────────────────
@@ -11,8 +11,8 @@
   &__head {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
-    padding-bottom: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
+    padding-bottom: var(--bitfun-space-3);
     min-width: 0;
 
     &--actions-only {
@@ -22,11 +22,11 @@
 
   &__head-title {
     flex: 1;
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
-    color: var(--openbitfun-color-content-muted);
+    letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__target {
@@ -34,8 +34,8 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-secondary);
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__target-kind {
@@ -44,13 +44,13 @@
     align-items: center;
     height: 22px;
     padding: 0 8px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-action-neutral-surface) 78%, transparent);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-action-neutral-surface) 78%, transparent);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     white-space: nowrap;
   }
 
@@ -64,15 +64,15 @@
   &__target-main {
     flex: 0 1 auto;
     max-width: 42%;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__target-sub {
     flex: 1 1 auto;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__new-job {
@@ -90,23 +90,23 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-10) var(--openbitfun-space-5);
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-10) var(--bitfun-space-5);
     text-align: center;
   }
 
   &__empty-title {
     margin: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__empty-text {
     margin: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    color: var(--openbitfun-color-content-muted);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-muted);
+    line-height: var(--bitfun-type-body-lg-line-height);
   }
 
   // ── Job list ────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@
   &__list {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     border: none;
     border-radius: 0;
     overflow: visible;
@@ -126,40 +126,40 @@
   &__item {
       display: flex;
       align-items: flex-start;
-      gap: var(--openbitfun-space-2);
-      padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
+      gap: var(--bitfun-space-2);
+      padding: var(--bitfun-space-2) var(--bitfun-space-3);
     border: none;
-    border-radius: var(--openbitfun-radius-lg);
-    background: var(--openbitfun-color-action-neutral-surface);
+    border-radius: var(--bitfun-radius-lg);
+    background: var(--bitfun-color-action-neutral-surface);
     cursor: pointer;
     position: relative;
     transform: translateY(0);
     box-shadow: none;
     transition:
-      background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
       z-index: 1;
-      background: var(--openbitfun-color-action-quiet-hover);
+      background: var(--bitfun-color-action-quiet-hover);
       transform: translateY(-2px);
-      box-shadow: var(--openbitfun-shadow-sm);
+      box-shadow: var(--bitfun-shadow-sm);
     }
 
     &:active {
       transform: translateY(-1px);
-      box-shadow: var(--openbitfun-shadow-xs);
+      box-shadow: var(--bitfun-shadow-xs);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--openbitfun-color-accent-default);
+      outline: 2px solid var(--bitfun-color-accent-default);
       outline-offset: 2px;
     }
 
     &.is-expanded {
-      background: var(--openbitfun-color-action-quiet-hover);
-      box-shadow: var(--openbitfun-shadow-xs);
+      background: var(--bitfun-color-action-quiet-hover);
+      box-shadow: var(--bitfun-shadow-xs);
     }
   }
 
@@ -174,7 +174,7 @@
   &__item-top {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
     justify-content: space-between;
   }
@@ -182,9 +182,9 @@
   &__item-name {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     overflow: hidden;
     white-space: nowrap;
   }
@@ -193,20 +193,20 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     min-width: 0;
   }
 
   &__item-meta {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-secondary);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    line-height: var(--bitfun-type-body-lg-line-height);
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
 
     &--dim {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
       flex-shrink: 0;
     }
   }
@@ -216,9 +216,9 @@
   }
 
   &__item-error {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-status-danger-content);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-status-danger-content);
+    line-height: var(--bitfun-type-body-lg-line-height);
     word-break: break-word;
   }
 
@@ -226,7 +226,7 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__switch-wrap {
@@ -242,14 +242,14 @@
   &__editor {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-xl);
+    gap: var(--bitfun-space-2);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-xl);
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--openbitfun-color-action-quiet-hover) 82%, transparent), var(--openbitfun-color-surface-subtle));
+      linear-gradient(180deg, color-mix(in srgb, var(--bitfun-color-action-quiet-hover) 82%, transparent), var(--bitfun-color-surface-subtle));
     box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-on-dark) 4%, transparent),
-      0 10px 24px color-mix(in srgb, var(--openbitfun-color-content-on-light) 8%, transparent);
+      inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-on-dark) 4%, transparent),
+      0 10px 24px color-mix(in srgb, var(--bitfun-color-content-on-light) 8%, transparent);
     overflow: hidden;
   }
 
@@ -258,8 +258,8 @@
   &__form {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
   }
 
   &__form-row {
@@ -269,14 +269,14 @@
     &--inline {
       display: grid;
       grid-template-columns: minmax(72px, 88px) minmax(0, 1fr);
-      gap: var(--openbitfun-space-2);
+      gap: var(--bitfun-space-2);
       align-items: center;
     }
 
     &--two {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: var(--openbitfun-space-4);
+      gap: var(--bitfun-space-4);
       align-items: start;
     }
 
@@ -298,23 +298,23 @@
   }
 
   &__field-label {
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-secondary);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
     text-transform: uppercase;
   }
 
   &__field-note {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
   }
 
   &__control-grid {
     display: grid;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
 
     &--schedule {
@@ -332,14 +332,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     box-sizing: border-box;
     height: 28px;
     min-height: 28px;
     padding: 0 10px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-action-neutral-surface) 78%, transparent);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-action-neutral-surface) 78%, transparent);
     white-space: nowrap;
     min-width: 126px;
 
@@ -349,16 +349,16 @@
   }
 
   &__toggle-label {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__agent-option {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     width: 100%;
     min-width: 0;
   }
@@ -373,25 +373,25 @@
   &__agent-option-label {
     flex: 0 0 auto;
     max-width: 40%;
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__agent-option-description {
     flex: 1 1 auto;
     text-align: right;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__warning {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-status-danger-content);
-    line-height: var(--openbitfun-type-body-lg-line-height);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 6%, transparent);
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-status-danger-content) 20%, transparent);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-status-danger-content);
+    line-height: var(--bitfun-type-body-lg-line-height);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-status-danger-content) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-status-danger-content) 20%, transparent);
   }
 
   &__prompt-textarea {
@@ -401,10 +401,10 @@
   &__form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: var(--openbitfun-space-2);
-    padding-top: var(--openbitfun-space-3);
-    margin-top: var(--openbitfun-space-1);
-    border-top: 1px solid color-mix(in srgb, var(--openbitfun-color-border-subtle) 70%, transparent);
+    gap: var(--bitfun-space-2);
+    padding-top: var(--bitfun-space-3);
+    margin-top: var(--bitfun-space-1);
+    border-top: 1px solid color-mix(in srgb, var(--bitfun-color-border-subtle) 70%, transparent);
   }
 
   &__action-btn {
@@ -422,7 +422,7 @@
     &__form-row {
       &--inline {
         grid-template-columns: 1fr;
-        gap: var(--openbitfun-space-2);
+        gap: var(--bitfun-space-2);
       }
     }
 
@@ -443,7 +443,7 @@
     &__target {
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--openbitfun-space-1);
+      gap: var(--bitfun-space-1);
     }
 
     &__target-main,
@@ -456,7 +456,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .asv__item {
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover,
     &:active {

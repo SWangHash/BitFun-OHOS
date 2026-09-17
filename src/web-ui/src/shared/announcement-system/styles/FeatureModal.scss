@@ -4,16 +4,16 @@
 .feature-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--openbitfun-color-content-on-light) 55%, transparent);
-  z-index: calc(var(--openbitfun-layer-modal) + 10);
+  background: color-mix(in srgb, var(--bitfun-color-content-on-light) 55%, transparent);
+  z-index: calc(var(--bitfun-layer-modal) + 10);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: openbitfun-feature-modal-backdrop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: bitfun-feature-modal-backdrop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
   &--exiting {
-    animation: openbitfun-feature-modal-backdrop-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+    animation: bitfun-feature-modal-backdrop-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
   }
 }
 
@@ -25,10 +25,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: openbitfun-feature-modal-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: bitfun-feature-modal-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
   &--exiting {
-    animation: openbitfun-feature-modal-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+    animation: bitfun-feature-modal-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
   }
 
   // Fixed portrait sizes
@@ -60,20 +60,20 @@
     will-change: opacity, transform;
 
     &[data-state='active'][data-direction='forward'] {
-      animation: openbitfun-feature-page-forward-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      animation: bitfun-feature-page-forward-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
     }
 
     &[data-state='active'][data-direction='backward'] {
-      animation: openbitfun-feature-page-backward-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      animation: bitfun-feature-page-backward-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
     }
 
     &[data-state='leaving'][data-direction='forward'] {
-      animation: openbitfun-feature-page-forward-out 140ms ease both;
+      animation: bitfun-feature-page-forward-out 140ms ease both;
       pointer-events: none;
     }
 
     &[data-state='leaving'][data-direction='backward'] {
-      animation: openbitfun-feature-page-backward-out 140ms ease both;
+      animation: bitfun-feature-page-backward-out 140ms ease both;
       pointer-events: none;
     }
   }
@@ -84,8 +84,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 24px 14px;
-    border-top: 1px solid var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-surface-canvas);
+    border-top: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-canvas);
     flex-shrink: 0;
   }
 
@@ -99,24 +99,24 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--openbitfun-color-surface-tertiary);
-    border: 1px solid var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-surface-tertiary);
+    border: 1px solid var(--bitfun-color-border-default);
     cursor: pointer;
     transition:
-      background-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-      width var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      width var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
 
     &--active {
       width: 18px;
       border-radius: 3px;
-      background: var(--openbitfun-color-accent-default);
-      border-color: var(--openbitfun-color-accent-default);
+      background: var(--bitfun-color-accent-default);
+      border-color: var(--bitfun-color-accent-default);
     }
 
     @media (hover: hover) and (pointer: fine) {
       &:hover:not(&--active) {
-        background: var(--openbitfun-color-content-muted);
+        background: var(--bitfun-color-content-muted);
       }
     }
   }
@@ -124,7 +124,7 @@
   &__nav {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
 }
@@ -145,7 +145,7 @@
     width: 100%;
     max-height: 220px;
     overflow: hidden;
-    background: var(--openbitfun-color-surface-panel);
+    background: var(--bitfun-color-surface-panel);
     flex-shrink: 0;
 
     img, video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -156,7 +156,7 @@
     flex-shrink: 0;
     width: 180px;
     overflow: hidden;
-    background: var(--openbitfun-color-surface-panel);
+    background: var(--bitfun-color-surface-panel);
   }
 
   &--fullscreen_media {
@@ -192,7 +192,7 @@
       width: 28px;
       height: 3px;
       border-radius: 2px;
-      background: var(--openbitfun-color-accent-default);
+      background: var(--bitfun-color-accent-default);
       flex-shrink: 0;
     }
   }
@@ -200,11 +200,11 @@
   // Large display title
   &__title {
     margin: 0;
-    font-size: var(--openbitfun-type-heading-dialog-font-size);
-    font-weight: var(--openbitfun-type-heading-page-font-weight);
-    color: var(--openbitfun-color-content-primary);
-    line-height: var(--openbitfun-type-modifier-leading-dense-line-height);
-    letter-spacing: var(--openbitfun-type-heading-dialog-letter-spacing);
+    font-size: var(--bitfun-type-heading-dialog-font-size);
+    font-weight: var(--bitfun-type-heading-page-font-weight);
+    color: var(--bitfun-color-content-primary);
+    line-height: var(--bitfun-type-modifier-leading-dense-line-height);
+    letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
     // Tight, impactful — like a magazine headline
   }
 
@@ -212,23 +212,23 @@
   &__rule {
     width: 100%;
     height: 1px;
-    background: var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-border-default);
     margin: 20px 0;
     flex-shrink: 0;
   }
 
   // Body text: comfortable reading
   &__body {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    color: var(--openbitfun-color-content-secondary);
-    line-height: var(--openbitfun-type-modifier-leading-spacious-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-secondary);
+    line-height: var(--bitfun-type-modifier-leading-spacious-line-height);
     flex: 1;
 
     // First paragraph lead: slightly larger
     p:first-child {
-      font-size: var(--openbitfun-type-body-md-font-size);
-      color: var(--openbitfun-color-content-primary);
-      line-height: var(--openbitfun-type-body-lg-line-height);
+      font-size: var(--bitfun-type-body-md-font-size);
+      color: var(--bitfun-color-content-primary);
+      line-height: var(--bitfun-type-body-lg-line-height);
       margin: 0 0 1em;
     }
 
@@ -240,19 +240,19 @@
 
     // Inline code
     code {
-      background: var(--openbitfun-color-surface-panel);
-      border: 1px solid var(--openbitfun-color-border-default);
-      border-radius: var(--openbitfun-radius-sm);
+      background: var(--bitfun-color-surface-panel);
+      border: 1px solid var(--bitfun-color-border-default);
+      border-radius: var(--bitfun-radius-sm);
       padding: 1px 5px;
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      font-family: var(--openbitfun-type-code-md-font-family);
-      color: var(--openbitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      font-family: var(--bitfun-type-code-md-font-family);
+      color: var(--bitfun-color-content-primary);
       white-space: nowrap;
     }
 
     strong {
-      color: var(--openbitfun-color-content-primary);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-primary);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
 
     // Bullet lists (rendered as <p> with leading dash from markdown)
@@ -261,27 +261,27 @@
       width: 100%;
       border-collapse: collapse;
       margin: 0.5em 0 1em;
-      font-size: var(--openbitfun-type-label-sm-font-size);
+      font-size: var(--bitfun-type-label-sm-font-size);
 
       th, td {
         padding: 6px 12px;
         text-align: left;
-        border: 1px solid var(--openbitfun-color-border-default);
-        line-height: var(--openbitfun-type-body-sm-line-height);
+        border: 1px solid var(--bitfun-color-border-default);
+        line-height: var(--bitfun-type-body-sm-line-height);
         vertical-align: middle;
       }
 
       thead th {
-        background: var(--openbitfun-color-surface-panel);
-        font-weight: var(--openbitfun-type-label-selected-font-weight);
-        color: var(--openbitfun-color-content-primary);
-        font-size: var(--openbitfun-type-meta-font-size);
-        letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+        background: var(--bitfun-color-surface-panel);
+        font-weight: var(--bitfun-type-label-selected-font-weight);
+        color: var(--bitfun-color-content-primary);
+        font-size: var(--bitfun-type-meta-font-size);
+        letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
         text-transform: uppercase;
       }
 
       tbody tr:nth-child(even) {
-        background: color-mix(in srgb, var(--openbitfun-color-surface-panel) 50%, transparent);
+        background: color-mix(in srgb, var(--bitfun-color-surface-panel) 50%, transparent);
       }
     }
   }
@@ -309,41 +309,41 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-md-font-size);
   }
 }
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
-@keyframes openbitfun-feature-modal-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes openbitfun-feature-modal-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes bitfun-feature-modal-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bitfun-feature-modal-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
 
-@keyframes openbitfun-feature-modal-in {
+@keyframes bitfun-feature-modal-in {
   from { opacity: 0; transform: scale(0.985) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-@keyframes openbitfun-feature-modal-out {
+@keyframes bitfun-feature-modal-out {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0; transform: scale(0.985); }
 }
 
-@keyframes openbitfun-feature-page-forward-in {
+@keyframes bitfun-feature-page-forward-in {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes openbitfun-feature-page-forward-out {
+@keyframes bitfun-feature-page-forward-out {
   from { opacity: 1; transform: translateX(0); }
   to { opacity: 0; transform: translateX(-6px); }
 }
 
-@keyframes openbitfun-feature-page-backward-in {
+@keyframes bitfun-feature-page-backward-in {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes openbitfun-feature-page-backward-out {
+@keyframes bitfun-feature-page-backward-out {
   from { opacity: 1; transform: translateX(0); }
   to { opacity: 0; transform: translateX(6px); }
 }

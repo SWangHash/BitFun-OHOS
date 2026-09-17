@@ -28,10 +28,10 @@ Publish the six standalone binaries and SHA256SUMS to the public binary reposito
 as Release assets, without publishing private source or MCP bundles. Verify the
 release, then update VERSION.json with its tag and asset checksums/sizes. Do not use
 `latest` or replace assets of an already consumed release; publish a new version.
-OpenBitFun builds only need public download access, with no private-repository token.
+BitFun builds only need public download access, with no private-repository token.
 
 ## Focused verification
 
 ```sh
-node --test scripts/prepare-flashgrep-resource.test.mjs scripts/desktop-tauri-build.test.mjs OpenBitFun-Installer/scripts/build-installer.test.cjs
+node --test scripts/prepare-flashgrep-resource.test.mjs scripts/desktop-tauri-build.test.mjs BitFun-Installer/scripts/build-installer.test.cjs
 ```

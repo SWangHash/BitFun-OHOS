@@ -5,7 +5,7 @@
  * deck.renderPage → hidden host WebView slide rasterization (export),
  * chat.* → floating session bubble composer claims and session focus,
  * clipboard.* → Host navigator.clipboard.
- * Also handles openbitfun/request-appearance and pushes Appearance changes to the iframe.
+ * Also handles bitfun/request-appearance and pushes Appearance changes to the iframe.
  */
 import { useLayoutEffect, useRef, useEffect, useState, RefObject } from 'react';
 import { miniAppAPI } from '@/infrastructure/api/service-api/MiniAppAPI';
@@ -129,24 +129,24 @@ export function useMiniAppBridge(
           '*',
         );
 
-      if (method === 'openbitfun/request-appearance') {
+      if (method === 'bitfun/request-appearance') {
         const payload = buildMiniAppAppearancePayload(appearanceRef.current);
         if (payload && iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage(
-            { type: 'openbitfun:event', event: 'appearanceChange', payload },
+            { type: 'bitfun:event', event: 'appearanceChange', payload },
             '*',
           );
         }
         return;
       }
 
-      if (method === 'openbitfun/request-locale') {
+      if (method === 'bitfun/request-locale') {
         // Reply with the current locale id (e.g. "zh-CN" / "en-US"). The MiniApp
         // can use this both as the initial value and to look up its own i18n bundle.
         reply({ locale: localeRef.current });
         if (iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage(
-            { type: 'openbitfun:event', event: 'localeChange', payload: { locale: localeRef.current } },
+            { type: 'bitfun:event', event: 'localeChange', payload: { locale: localeRef.current } },
             '*',
           );
         }
@@ -670,7 +670,7 @@ export function useMiniAppBridge(
     const payload = buildMiniAppAppearancePayload(currentAppearance);
     if (!payload || !iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(
-      { type: 'openbitfun:event', event: 'appearanceChange', payload },
+      { type: 'bitfun:event', event: 'appearanceChange', payload },
       '*',
     );
   }, [currentAppearance, iframeRef]);
@@ -681,7 +681,7 @@ export function useMiniAppBridge(
     if (!bridgeReady) return;
     if (!iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(
-      { type: 'openbitfun:event', event: 'localeChange', payload: { locale: currentLanguage } },
+      { type: 'bitfun:event', event: 'localeChange', payload: { locale: currentLanguage } },
       '*',
     );
   }, [bridgeReady, currentLanguage, iframeRef]);
@@ -710,7 +710,7 @@ export function useMiniAppBridge(
         ...(detail.source !== undefined ? { source: detail.source } : {}),
       };
       iframeRef.current?.contentWindow?.postMessage(
-        { type: 'openbitfun:event', event: 'chat:userMessage', payload },
+        { type: 'bitfun:event', event: 'chat:userMessage', payload },
         '*',
       );
     };
@@ -741,7 +741,7 @@ export function useMiniAppBridge(
       if (payload.appId !== currentAppId) return;
       iframeRef.current.contentWindow.postMessage(
         {
-          type: 'openbitfun:event',
+          type: 'bitfun:event',
           event: 'ai:stream',
           payload: {
             streamId: payload.streamId,
@@ -801,7 +801,7 @@ export function useMiniAppBridge(
           if (!ownsSession) return;
           iframeRef.current.contentWindow.postMessage(
             {
-              type: 'openbitfun:event',
+              type: 'bitfun:event',
               event: 'agent:event',
               payload: { sourceEvent: eventName, ...payload },
             },
@@ -827,7 +827,7 @@ export function useMiniAppBridge(
         if (!iframeRef.current?.contentWindow) return;
         iframeRef.current.contentWindow.postMessage(
           {
-            type: 'openbitfun:event',
+            type: 'bitfun:event',
             event: 'worker:event',
             payload: {
               event: payload.event,

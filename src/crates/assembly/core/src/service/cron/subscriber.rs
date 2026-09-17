@@ -3,7 +3,7 @@
 use super::service::CronService;
 use crate::agentic::events::{AgenticEvent, EventSubscriber};
 use log::error;
-use openbitfun_agent_runtime::event_bus::{EventBusError, EventSubscriberResult};
+use bitfun_agent_runtime::event_bus::{EventBusError, EventSubscriberResult};
 use std::sync::Arc;
 
 pub struct CronEventSubscriber {

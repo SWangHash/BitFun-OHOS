@@ -1,6 +1,6 @@
 .aqi {
   // Keep composer and session rows on the same content edge.
-  padding: var(--openbitfun-space-2) var(--openbitfun-space-1) var(--openbitfun-space-4);
+  padding: var(--bitfun-space-2) var(--bitfun-space-1) var(--bitfun-space-4);
 
   &__composer {
     width: 100%;
@@ -14,7 +14,7 @@
   &__footer-left {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     min-width: 0;
     flex: 1 1 auto;
   }
@@ -24,8 +24,8 @@
   }
 
   &__hint {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
     user-select: none;
     white-space: nowrap;
     overflow: hidden;

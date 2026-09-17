@@ -46,18 +46,18 @@ export const MobileComposer = forwardRef<HTMLDivElement, MobileComposerProps>(
       <div
         {...props}
         className={classNames(styles.root, className)}
-        data-openbitfun-component="mobile-composer"
+        data-bitfun-component="mobile-composer"
         data-expanded={expanded ? "true" : "false"}
         data-interactive={interactive ? "true" : "false"}
         ref={ref}
       >
         {leading !== undefined && leading !== null && (
-          <div className={styles.leading} data-openbitfun-part="leading">{leading}</div>
+          <div className={styles.leading} data-bitfun-part="leading">{leading}</div>
         )}
         <div
           aria-label={interactive ? ariaLabel : undefined}
           className={styles.editor}
-          data-openbitfun-part="editor"
+          data-bitfun-part="editor"
           onClick={interactive ? onActivate : undefined}
           onKeyDown={handleKeyDown}
           role={interactive ? "button" : undefined}
@@ -65,11 +65,11 @@ export const MobileComposer = forwardRef<HTMLDivElement, MobileComposerProps>(
         >
           {children}
         </div>
-        <div className={styles.toolbar} data-openbitfun-part="toolbar">
-          <div className={styles.startActions} data-openbitfun-part="start-actions">
+        <div className={styles.toolbar} data-bitfun-part="toolbar">
+          <div className={styles.startActions} data-bitfun-part="start-actions">
             {startActions}
           </div>
-          <div className={styles.endActions} data-openbitfun-part="end-actions">
+          <div className={styles.endActions} data-bitfun-part="end-actions">
             {endActions}
           </div>
         </div>

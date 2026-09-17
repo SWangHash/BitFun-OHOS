@@ -3,8 +3,8 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ListboxOption, OverflowText, Select, Tooltip } from '@openbitfun/ui';
-import { CommandToolCard } from '@openbitfun/ui/flow-chat';
+import { ListboxOption, OverflowText, Select, Tooltip } from '@bitfun/ui';
+import { CommandToolCard } from '@bitfun/ui/flow-chat';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -100,7 +100,7 @@ describe('overflow text full-content access', () => {
   it('keeps the command tooltip open when portal enter precedes native trigger leave', () => {
     render(<CommandToolCard action="Run" command={longLabel} emptyCommand="Empty" isExpanded={false} status="completed" />);
     expect(host.querySelector('[title]')).toBeNull();
-    const label = host.querySelector('[data-openbitfun-part="command"] [data-overflow]')!;
+    const label = host.querySelector('[data-bitfun-part="command"] [data-overflow]')!;
     const trigger = label.closest('[data-overflow-trigger]') ?? label;
     hover(trigger);
     reveal();
@@ -121,11 +121,11 @@ describe('overflow text full-content access', () => {
     const onToggle = vi.fn();
     render(<CommandToolCard action="Run" command={longLabel} emptyCommand="Empty"
       isExpanded={false} status="completed" output="Output" onToggle={onToggle} />);
-    const label = host.querySelector<HTMLElement>('[data-openbitfun-part="command"] [data-overflow]')!;
+    const label = host.querySelector<HTMLElement>('[data-bitfun-part="command"] [data-overflow]')!;
     hover(label.closest('[data-overflow-trigger]') ?? label);
     reveal();
     const popup = tooltip()!;
-    act(() => popup.querySelector<HTMLElement>('[data-openbitfun-part="body"]')!.click());
+    act(() => popup.querySelector<HTMLElement>('[data-bitfun-part="body"]')!.click());
     expect(onToggle).not.toHaveBeenCalled();
     expect(tooltip()).toBe(popup);
     act(() => label.click());
@@ -270,7 +270,7 @@ describe('overflow text full-content access', () => {
 
   it('covers both the settings Select value and its portalled options', () => {
     render(<Select size="sm" aria-label="Task concurrency" options={[{ label: longLabel, value: 'parallel' }]} />);
-    const trigger = host.querySelector<HTMLButtonElement>('[data-openbitfun-part="trigger"]')!;
+    const trigger = host.querySelector<HTMLButtonElement>('[data-bitfun-part="trigger"]')!;
     hover(trigger);
     reveal();
     expect(tooltip()?.textContent).toBe(longLabel);

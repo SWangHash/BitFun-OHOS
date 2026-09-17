@@ -9,12 +9,12 @@ export const voiceInputDiagnosticsAppearanceDescriptor: AppearanceSurfaceDescrip
   facets: [
     {
       id: 'phase',
-      attribute: 'data-openbitfun-phase',
+      attribute: 'data-bitfun-phase',
       values: ['idle', 'preparing', 'recording', 'transcribing'],
     },
   ],
   states: [
-    { id: 'testingRecognition', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="testing-recognition"]' } },
-    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="error"]' } },
+    { id: 'testingRecognition', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="testing-recognition"]' } },
+    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="error"]' } },
   ],
 };

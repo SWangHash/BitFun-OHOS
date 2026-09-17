@@ -1,10 +1,10 @@
 //! Remote announcement fetcher compatibility wrapper.
 //!
 //! HTTP fetch, cache TTL, and cache hydration live in
-//! `openbitfun-services-integrations`; core only supplies product configuration.
+//! `bitfun-services-integrations`; core only supplies product configuration.
 
 use crate::infrastructure::app_paths::PathManager;
-use openbitfun_services_integrations::announcement::{
+use bitfun_services_integrations::announcement::{
     AnnouncementRemoteFetchRequest, RemoteAnnouncementFetcher,
 };
 use std::sync::Arc;

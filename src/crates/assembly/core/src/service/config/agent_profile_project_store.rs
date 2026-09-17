@@ -1,7 +1,7 @@
 use crate::infrastructure::get_path_manager_arc;
 use crate::service::config::types::{AgentSubagentOverrideState, ParentSubagentOverrideConfig};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_core_types::product_identity::hidden_data_directory;
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_core_types::product_identity::hidden_data_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -113,13 +113,13 @@ pub fn normalize_project_agent_profiles_document(
 
 pub fn deserialize_project_agent_profiles_document(
     content: &str,
-) -> OpenBitFunResult<ProjectAgentProfilesDocument> {
+) -> BitFunResult<ProjectAgentProfilesDocument> {
     let raw = serde_json::from_str(content)?;
     let migrated =
-        openbitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
+        bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
             &raw,
         )
-        .map_err(OpenBitFunError::config)?;
+        .map_err(BitFunError::config)?;
     Ok(normalize_project_agent_profiles_document(
         serde_json::from_value(serde_json::Value::Object(migrated))?,
     ))
@@ -127,7 +127,7 @@ pub fn deserialize_project_agent_profiles_document(
 
 pub fn serialize_project_agent_profiles_document(
     document: &ProjectAgentProfilesDocument,
-) -> OpenBitFunResult<Vec<u8>> {
+) -> BitFunResult<Vec<u8>> {
     Ok(serde_json::to_vec_pretty(
         &deserialize_project_agent_profiles_document(&serde_json::to_string(document)?)?,
     )?)
@@ -144,14 +144,14 @@ pub fn project_agent_profiles_path_for_remote(remote_root: &str) -> String {
 
 pub async fn load_project_agent_profiles_document_local(
     workspace_root: &Path,
-) -> OpenBitFunResult<ProjectAgentProfilesDocument> {
+) -> BitFunResult<ProjectAgentProfilesDocument> {
     let path = get_path_manager_arc().project_agent_profiles_file(workspace_root);
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => deserialize_project_agent_profiles_document(&content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(ProjectAgentProfilesDocument::new())
         }
-        Err(error) => Err(OpenBitFunError::config(format!(
+        Err(error) => Err(BitFunError::config(format!(
             "Failed to read project agent profiles file '{}': {}",
             path.display(),
             error
@@ -162,7 +162,7 @@ pub async fn load_project_agent_profiles_document_local(
 pub async fn save_project_agent_profiles_document_local(
     workspace_root: &Path,
     document: &ProjectAgentProfilesDocument,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     let path = get_path_manager_arc().project_agent_profiles_file(workspace_root);
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;

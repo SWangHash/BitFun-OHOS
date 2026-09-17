@@ -57,7 +57,7 @@ pub async fn read_text(
 /// Empty hash means create-only; absent hash preserves ordinary runtime writes.
 /// External editors are not participants in this in-process critical section.
 async fn write_guard(key: String) -> std::sync::Arc<tokio::sync::Mutex<()>> {
-    openbitfun_services_core::file_write_lock::write_guard(key)
+    bitfun_services_core::file_write_lock::write_guard(key)
 }
 
 pub async fn write_text(
@@ -171,7 +171,7 @@ async fn write_target_checked(
             .write_file_with_options(
                 path,
                 content,
-                openbitfun_services_core::filesystem::FileOperationOptions {
+                bitfun_services_core::filesystem::FileOperationOptions {
                     // Interactive saves do not request retained sibling backups.
                     // Explicit backup operations retain their own policy.
                     backup_on_overwrite: false,

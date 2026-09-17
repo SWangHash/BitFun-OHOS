@@ -28,10 +28,10 @@ export const sessionConfigAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'restartModal' },
   ],
   facets: [
-    { id: 'view', attribute: 'data-openbitfun-view', values: ['personalization', 'permissions'] },
+    { id: 'view', attribute: 'data-bitfun-view', values: ['personalization', 'permissions'] },
   ],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
   ],
 };

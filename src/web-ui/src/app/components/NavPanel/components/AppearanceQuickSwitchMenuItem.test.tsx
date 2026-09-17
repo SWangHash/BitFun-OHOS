@@ -12,8 +12,8 @@ vi.mock('@/infrastructure/appearance', () => ({
   useAppearance: () => ({
     appearances: [
       {
-        id: 'openbitfun-light',
-        name: 'OpenBitFun Light',
+        id: 'bitfun-light',
+        name: 'BitFun Light',
         version: '1.0.0',
         mode: 'light',
         source: 'builtin',
@@ -26,10 +26,10 @@ vi.mock('@/infrastructure/appearance', () => ({
         source: 'imported',
       },
     ],
-    current: { id: 'openbitfun-light', name: 'OpenBitFun Light' },
+    current: { id: 'bitfun-light', name: 'BitFun Light' },
     initialized: true,
     select: selectAppearance,
-    selectedAppearanceId: 'openbitfun-light',
+    selectedAppearanceId: 'bitfun-light',
     status: 'ready',
   }),
 }));
@@ -40,7 +40,7 @@ vi.mock('@/infrastructure/i18n/hooks/useI18n', () => ({
       const translations: Record<string, string> = namespace === 'settings/application'
         ? {
             'appearance.systemAppearance': 'Match system',
-            'appearance.presets.openbitfun-light.name': 'Light',
+            'appearance.presets.bitfun-light.name': 'Light',
           }
         : {
             'nav.settingsMenu.theme': 'Theme',
@@ -120,7 +120,7 @@ describe('AppearanceQuickSwitchMenuItem', () => {
 
     const submenu = document.querySelector('[data-testid="nav-settings-appearance-menu"]');
     const selected = document.querySelector(
-      '[data-testid="nav-settings-appearance-option"][data-appearance-id="openbitfun-light"]',
+      '[data-testid="nav-settings-appearance-option"][data-appearance-id="bitfun-light"]',
     );
     expect(submenu).not.toBeNull();
     expect(selected?.getAttribute('role')).toBe('menuitemradio');

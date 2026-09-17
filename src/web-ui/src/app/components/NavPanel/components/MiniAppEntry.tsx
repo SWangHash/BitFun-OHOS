@@ -3,7 +3,7 @@ import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useMiniAppStore } from '@/app/scenes/miniapps/miniAppStore';
 import { useMiniAppActivity } from '@/app/scenes/miniapps/hooks/useMiniAppActivity';
 import { renderMiniAppIcon, getMiniAppIconGradient } from '@/app/scenes/miniapps/utils/miniAppIcons';
-import { OverflowText, Icon, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Icon, Tooltip } from '@bitfun/ui';
 
 const MAX_VISIBLE_ACTIVE_APPS = 3;
 
@@ -44,10 +44,10 @@ const MiniAppEntry: React.FC<MiniAppEntryProps> = ({
   const overflowCount = Math.max(0, activeApps.length - visibleApps.length);
 
   return (
-    <div className="openbitfun-nav-panel__miniapp-entry-wrap">
+    <div className="bitfun-nav-panel__miniapp-entry-wrap">
       <div data-overflow-trigger
         className={[
-          'openbitfun-nav-panel__miniapp-entry',
+          'bitfun-nav-panel__miniapp-entry',
           isActive && 'is-active',
           activeApps.length > 0 && 'has-running-apps',
           hasCustomizingApps && 'has-customizing-apps',
@@ -65,16 +65,16 @@ const MiniAppEntry: React.FC<MiniAppEntryProps> = ({
         data-testid="nav-miniapps-entry"
         aria-label={t('scenes.miniApps')}
       >
-        <span className="openbitfun-nav-panel__miniapp-entry-main">
-          <span className="openbitfun-nav-panel__miniapp-entry-icon" aria-hidden="true">
+        <span className="bitfun-nav-panel__miniapp-entry-main">
+          <span className="bitfun-nav-panel__miniapp-entry-icon" aria-hidden="true">
             <Icon name="mini-app" size="md" />
           </span>
-          <span className="openbitfun-nav-panel__miniapp-entry-copy">
-            <OverflowText className="openbitfun-nav-panel__miniapp-entry-title">{t('scenes.miniApps')}</OverflowText>
+          <span className="bitfun-nav-panel__miniapp-entry-copy">
+            <OverflowText className="bitfun-nav-panel__miniapp-entry-title">{t('scenes.miniApps')}</OverflowText>
           </span>
         </span>
 
-        <span className="openbitfun-nav-panel__miniapp-entry-apps">
+        <span className="bitfun-nav-panel__miniapp-entry-apps">
           {visibleApps.length > 0 ? (
             <>
               {visibleApps.map((app) => {
@@ -83,7 +83,7 @@ const MiniAppEntry: React.FC<MiniAppEntryProps> = ({
                   <Tooltip key={app.id} content={app.name} placement="right">
                     <span
                       className={[
-                        'openbitfun-nav-panel__miniapp-bubble',
+                        'bitfun-nav-panel__miniapp-bubble',
                         isAppActive && 'is-active',
                         customizingIdSet.has(app.id) && 'is-customizing',
                       ].filter(Boolean).join(' ')}
@@ -108,14 +108,14 @@ const MiniAppEntry: React.FC<MiniAppEntryProps> = ({
                     >
                       {renderMiniAppIcon(app.icon || 'box', 14)}
                       {customizingIdSet.has(app.id) && (
-                        <span className="openbitfun-nav-panel__miniapp-bubble-customize-dot" aria-hidden="true" />
+                        <span className="bitfun-nav-panel__miniapp-bubble-customize-dot" aria-hidden="true" />
                       )}
                     </span>
                   </Tooltip>
                 );
               })}
               {overflowCount > 0 ? (
-                <span className="openbitfun-nav-panel__miniapp-bubble openbitfun-nav-panel__miniapp-bubble--more">
+                <span className="bitfun-nav-panel__miniapp-bubble bitfun-nav-panel__miniapp-bubble--more">
                   +{overflowCount}
                 </span>
               ) : null}

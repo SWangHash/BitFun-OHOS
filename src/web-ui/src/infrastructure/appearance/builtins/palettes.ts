@@ -1,35 +1,35 @@
-export { openOpenBitFunDarkPalette } from './dark';
-export { openOpenBitFunLightPalette } from './light';
-export { openOpenBitFunMonochromePalette } from './monochrome';
-export { openOpenBitFunMidnightPalette } from './midnight';
-export { openOpenBitFunChinaStylePalette } from './chinaStyle';
-export { openOpenBitFunChinaNightPalette } from './chinaNight';
-export { openOpenBitFunCyberPalette } from './cyber';
-export { openOpenBitFunSlatePalette } from './slate';
-export { openOpenBitFunTokyoNightPalette } from './tokyoNight';
+export { bitFunDarkPalette } from './dark';
+export { bitFunLightPalette } from './light';
+export { bitFunMonochromePalette } from './monochrome';
+export { bitFunMidnightPalette } from './midnight';
+export { bitFunChinaStylePalette } from './chinaStyle';
+export { bitFunChinaNightPalette } from './chinaNight';
+export { bitFunCyberPalette } from './cyber';
+export { bitFunSlatePalette } from './slate';
+export { bitFunTokyoNightPalette } from './tokyoNight';
 
-import { openOpenBitFunDarkPalette } from './dark';
-import { openOpenBitFunLightPalette } from './light';
-import { openOpenBitFunMonochromePalette } from './monochrome';
-import { openOpenBitFunMidnightPalette } from './midnight';
-import { openOpenBitFunChinaStylePalette } from './chinaStyle';
-import { openOpenBitFunChinaNightPalette } from './chinaNight';
-import { openOpenBitFunCyberPalette } from './cyber';
-import { openOpenBitFunSlatePalette } from './slate';
-import { openOpenBitFunTokyoNightPalette } from './tokyoNight';
+import { bitFunDarkPalette } from './dark';
+import { bitFunLightPalette } from './light';
+import { bitFunMonochromePalette } from './monochrome';
+import { bitFunMidnightPalette } from './midnight';
+import { bitFunChinaStylePalette } from './chinaStyle';
+import { bitFunChinaNightPalette } from './chinaNight';
+import { bitFunCyberPalette } from './cyber';
+import { bitFunSlatePalette } from './slate';
+import { bitFunTokyoNightPalette } from './tokyoNight';
 import type { AppearancePalette, AppearancePaletteId } from './AppearancePalette';
 
-export const DEFAULT_LIGHT_APPEARANCE_ID: AppearancePaletteId = 'openbitfun-light';
-export const DEFAULT_DARK_APPEARANCE_ID: AppearancePaletteId = 'openbitfun-dark';
+export const DEFAULT_LIGHT_APPEARANCE_ID: AppearancePaletteId = 'bitfun-light';
+export const DEFAULT_DARK_APPEARANCE_ID: AppearancePaletteId = 'bitfun-dark';
 
 export const builtinAppearancePalettes: readonly AppearancePalette[] = Object.freeze([
-  openOpenBitFunLightPalette,
-  openOpenBitFunMonochromePalette,
-  openOpenBitFunSlatePalette,
-  openOpenBitFunDarkPalette,
-  openOpenBitFunMidnightPalette,
-  openOpenBitFunChinaStylePalette,
-  openOpenBitFunChinaNightPalette,
-  openOpenBitFunCyberPalette,
-  openOpenBitFunTokyoNightPalette,
+  bitFunLightPalette,
+  bitFunMonochromePalette,
+  bitFunSlatePalette,
+  bitFunDarkPalette,
+  bitFunMidnightPalette,
+  bitFunChinaStylePalette,
+  bitFunChinaNightPalette,
+  bitFunCyberPalette,
+  bitFunTokyoNightPalette,
 ]);

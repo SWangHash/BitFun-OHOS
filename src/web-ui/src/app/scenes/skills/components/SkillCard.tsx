@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Card, CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@openbitfun/ui';
+import { Button, Card, CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@bitfun/ui';
 import { Package } from 'lucide-react';
 import './SkillCard.scss';
 
@@ -50,14 +50,14 @@ const SkillCard: React.FC<SkillCardProps> = ({
     : <Icon name="extension" size="md" />;
 
   return (
-    <div data-openbitfun-component="skill-card" data-openbitfun-part="root"
+    <div data-bitfun-component="skill-card" data-bitfun-part="root"
       {...rootProps}
       className={['skill-card', className].filter(Boolean).join(' ')}
       style={{
         ...style,
         '--surface-stagger-index': index,
       } as React.CSSProperties}
-      data-openbitfun-variant={iconKind}
+      data-bitfun-variant={iconKind}
       data-overflow-trigger
     >
       <Card appearance="subtle" padding="md" gap="md" className="skill-card__surface">
@@ -73,51 +73,51 @@ const SkillCard: React.FC<SkillCardProps> = ({
           align="center"
           className="skill-card__header"
           leading={(
-            <div className="skill-card__icon-area" data-openbitfun-component="skill-card" data-openbitfun-part="iconArea">
-              <div className="skill-card__icon" data-openbitfun-component="skill-card" data-openbitfun-part="icon">
+            <div className="skill-card__icon-area" data-bitfun-component="skill-card" data-bitfun-part="iconArea">
+              <div className="skill-card__icon" data-bitfun-component="skill-card" data-bitfun-part="icon">
                 {glyph}
               </div>
             </div>
           )}
           title={(
-            <div className="skill-card__title-row" data-openbitfun-component="skill-card" data-openbitfun-part="titleRow">
-              <span className="skill-card__name" data-openbitfun-component="skill-card" data-openbitfun-part="name">
+            <div className="skill-card__title-row" data-bitfun-component="skill-card" data-bitfun-part="titleRow">
+              <span className="skill-card__name" data-bitfun-component="skill-card" data-bitfun-part="name">
                 <OverflowText>{name}</OverflowText>
               </span>
-              {badges && <div className="skill-card__badges" data-openbitfun-component="skill-card" data-openbitfun-part="badges">{badges}</div>}
+              {badges && <div className="skill-card__badges" data-bitfun-component="skill-card" data-bitfun-part="badges">{badges}</div>}
             </div>
           )}
           description={source?.trim() ? (
-            <span className="skill-card__source" data-openbitfun-component="skill-card" data-openbitfun-part="source">
+            <span className="skill-card__source" data-bitfun-component="skill-card" data-bitfun-part="source">
               <OverflowText>{source.trim()}</OverflowText>
             </span>
           ) : undefined}
-          data-openbitfun-component="skill-card"
-          data-openbitfun-part="header"
+          data-bitfun-component="skill-card"
+          data-bitfun-part="header"
         />
 
-        <CardBody data-openbitfun-component="skill-card" data-openbitfun-part="body">
+        <CardBody data-bitfun-component="skill-card" data-bitfun-part="body">
           {description?.trim() && (
-            <OverflowText as="p" lines={2} className="skill-card__desc" data-openbitfun-component="skill-card" data-openbitfun-part="description">{description.trim()}</OverflowText>
+            <OverflowText as="p" lines={2} className="skill-card__desc" data-bitfun-component="skill-card" data-bitfun-part="description">{description.trim()}</OverflowText>
           )}
         </CardBody>
 
         {(meta || actions.length > 0) && (
-          <CardFooter align="between" className="skill-card__footer" data-openbitfun-component="skill-card" data-openbitfun-part="footer">
+          <CardFooter align="between" className="skill-card__footer" data-bitfun-component="skill-card" data-bitfun-part="footer">
             {meta && (
-              <div className="skill-card__meta" data-openbitfun-component="skill-card" data-openbitfun-part="meta">
+              <div className="skill-card__meta" data-bitfun-component="skill-card" data-bitfun-part="meta">
                 {meta}
               </div>
             )}
-            <div className="skill-card__actions" data-openbitfun-component="skill-card" data-openbitfun-part="actions">
+            <div className="skill-card__actions" data-bitfun-component="skill-card" data-bitfun-part="actions">
               {actions.map((action) => (
                 <span
                   key={action.id}
                   className="skill-card__action"
-                  data-openbitfun-component="skill-card"
-                  data-openbitfun-part="action"
-                  data-openbitfun-tone={action.tone}
-                  data-openbitfun-state={action.disabled || action.loading ? 'disabled' : undefined}
+                  data-bitfun-component="skill-card"
+                  data-bitfun-part="action"
+                  data-bitfun-tone={action.tone}
+                  data-bitfun-state={action.disabled || action.loading ? 'disabled' : undefined}
                 >
                   <Button
                     size="sm"

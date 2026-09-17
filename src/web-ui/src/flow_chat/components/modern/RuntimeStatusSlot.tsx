@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Spinner } from '@openbitfun/ui';
+import { OverflowText, Spinner } from '@bitfun/ui';
 import { useRuntimeStatusStore } from '../../store/runtimeStatusStore';
 import './RuntimeStatusSlot.scss';
 
@@ -39,23 +39,23 @@ export const RuntimeStatusSlot: React.FC<RuntimeStatusSlotProps> = ({
   return (
     <div
       className={`runtime-status-slot runtime-status-slot--${placement} ${visible ? 'runtime-status-slot--visible' : ''} ${className}`.trim()}
-      data-openbitfun-component="runtime-status-slot"
-      data-openbitfun-part="root"
+      data-bitfun-component="runtime-status-slot"
+      data-bitfun-part="root"
       aria-hidden={!visible}
       data-runtime-status-visible={visible ? 'true' : 'false'}
     >
       <div
         className="runtime-status-slot__content"
-        data-openbitfun-component="runtime-status-slot"
-        data-openbitfun-part="content"
+        data-bitfun-component="runtime-status-slot"
+        data-bitfun-part="content"
       >
-        <span className="runtime-status-slot__icon" data-openbitfun-component="runtime-status-slot" data-openbitfun-part="leadingIcon" aria-hidden="true">
+        <span className="runtime-status-slot__icon" data-bitfun-component="runtime-status-slot" data-bitfun-part="leadingIcon" aria-hidden="true">
           <Spinner size="sm" />
         </span>
         <OverflowText
           className="runtime-status-slot__hint"
-          data-openbitfun-component="runtime-status-slot"
-          data-openbitfun-part="hint"
+          data-bitfun-component="runtime-status-slot"
+          data-bitfun-part="hint"
         >
           {hint}
         </OverflowText>

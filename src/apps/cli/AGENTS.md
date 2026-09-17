@@ -1,4 +1,4 @@
-# OpenBitFun CLI Agent Guide
+# BitFun CLI Agent Guide
 
 Scope: `src/apps/cli`.
 
@@ -50,12 +50,12 @@ behavior and call the existing owner/service APIs directly for the non-Runtime
 operations they use. There is no catch-all TUI client, unified TUI management
 module, domain service interface layer, or owner adapter. Controllers must not
 reference Runtime IPC or Runtime implementation types, and they must not import
-`openbitfun-app-server-protocol` wire DTOs. Non-Runtime projections come from the
-stable contracts layer (`openbitfun-core-types` / `openbitfun-product-domains`) or the
+`bitfun-app-server-protocol` wire DTOs. Non-Runtime projections come from the
+stable contracts layer (`bitfun-core-types` / `bitfun-product-domains`) or the
 existing owner API. Controller-local calls reject Remote workspace scope before
 touching local state. The `server` command is an independent stdio Server Host assembled in
 `server_host.rs`, which is the only module allowed to import the
-`openbitfun-app-server` implementation; it injects an explicit method allowlist,
+`bitfun-app-server` implementation; it injects an explicit method allowlist,
 canonical cwd scope, transport limits, and the stdin EOF disconnect lifecycle.
 App Server wiring is independent and does not constrain
 the TUI path. Side-effecting operations need stable identities, controller/idle
@@ -105,7 +105,7 @@ restrictions remain enforced.
 
 - Assemble CLI through `DeliveryProfile::Cli` and validated product Runtime
   parts. Hiding a command is not a backend capability restriction.
-- The CLI selects the reviewed `openbitfun-core` owner-feature closure
+- The CLI selects the reviewed `bitfun-core` owner-feature closure
   (`agent-runtime`, `external-sources`, `plugin-runtime`, `remote-connect`, and
   `ssh-remote`) plus the Code Agent atomic tool owners and the independent
   `tools-pages` owner. Pages binds to the executing host's AccountRuntime;
@@ -140,16 +140,16 @@ pnpm run cli:install
 Run the smallest checks matching the changed path:
 
 ```bash
-cargo check -p openbitfun-cli
-cargo test -p openbitfun-cli
-cargo test -p openbitfun-cli --bin openbitfun peer_host::
-cargo test -p openbitfun-cli --bin openbitfun system_info_home_contract
+cargo check -p bitfun-cli
+cargo test -p bitfun-cli
+cargo test -p bitfun-cli --bin bitfun peer_host::
+cargo test -p bitfun-cli --bin bitfun system_info_home_contract
 ```
 
 For streaming `exec` retry, context recovery, and final-event contracts:
 
 ```bash
-cargo test --locked -p openbitfun-cli --test cli_command_contracts exec_cli_contracts::stream_json_
+cargo test --locked -p bitfun-cli --test cli_command_contracts exec_cli_contracts::stream_json_
 ```
 
 When a CLI change crosses a shared boundary, use the focused command maintained
@@ -162,6 +162,6 @@ Use [`README.md`](README.md) for user-facing behavior and installation. Keep
 developer internals here or in architecture docs instead of expanding the user
 guide.
 
-For unattended question lifecycle changes, run `cargo test --locked -p openbitfun-cli --bin openbitfun shared_runtime::` and `cargo test --locked -p openbitfun-agent-runtime-ipc protocol_contract_tests::`.
+For unattended question lifecycle changes, run `cargo test --locked -p bitfun-cli --bin bitfun shared_runtime::` and `cargo test --locked -p bitfun-agent-runtime-ipc protocol_contract_tests::`.
 
-For Pages account adapters, use the focused Core command in its guide and `cargo check -p openbitfun-cli`.
+For Pages account adapters, use the focused Core command in its guide and `cargo check -p bitfun-cli`.

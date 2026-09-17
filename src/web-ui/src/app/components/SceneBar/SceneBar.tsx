@@ -12,7 +12,7 @@ import { useContextMenuStore } from '@/shared/context-menu-system/store/ContextM
 import { ContextType } from '@/shared/context-menu-system/types/context.types';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 
-import { Icon, TabGroup, type TabGroupItem } from '@openbitfun/ui';
+import { Icon, TabGroup, type TabGroupItem } from '@bitfun/ui';
 import { useSceneTabNavigation } from './useSceneTabNavigation';
 import { useSceneManager } from '../../hooks/useSceneManager';
 import { useSessionTabLabels } from '../../hooks/useSessionTabLabels';
@@ -28,9 +28,9 @@ import './SceneBar.scss';
 
 function getSceneIdFromTabTarget(target: EventTarget | null): SceneTabId | undefined {
   if (!(target instanceof HTMLElement)) return undefined;
-  const item = target.closest<HTMLElement>('[data-openbitfun-part="item"]');
-  const tab = item?.querySelector<HTMLElement>('[role="tab"][data-openbitfun-value]');
-  return tab?.dataset.openbitfunValue as SceneTabId | undefined;
+  const item = target.closest<HTMLElement>('[data-bitfun-part="item"]');
+  const tab = item?.querySelector<HTMLElement>('[role="tab"][data-bitfun-value]');
+  return tab?.dataset.bitfunValue as SceneTabId | undefined;
 }
 
 interface SceneBarProps {
@@ -64,7 +64,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
   const [canvasDrop, setCanvasDrop] = useState<{ target?: WorkbenchTabDropTarget } | null>(null);
   const canAcceptCanvasTab = Boolean(offeredCanvasTabId && offeredCanvasTabId === draggingCanvasTabId);
   const activeCanvasDrop = canAcceptCanvasTab ? canvasDrop : null;
-  const sceneBarClassName = `openbitfun-scene-bar ${className}`.trim();
+  const sceneBarClassName = `bitfun-scene-bar ${className}`.trim();
   const {
     tabRegionRef,
     tabsRef,
@@ -223,7 +223,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
   }, []);
 
   return (
-    <div data-openbitfun-component="scene-bar" data-openbitfun-part="root"
+    <div data-bitfun-component="scene-bar" data-bitfun-part="root"
       className={sceneBarClassName}
       data-canvas-drop-state={canAcceptCanvasTab ? (activeCanvasDrop ? 'active' : 'available') : undefined}
       data-canvas-drop-target={activeCanvasDrop ? 'true' : undefined}
@@ -251,21 +251,21 @@ const SceneBar: React.FC<SceneBarProps> = ({
     >
       <div
         ref={tabRegionRef}
-        className="openbitfun-scene-bar__tab-region"
+        className="bitfun-scene-bar__tab-region"
         data-overflow={tabScrollState.hasOverflow ? 'true' : 'false'}
-        data-openbitfun-component="scene-bar"
-        data-openbitfun-part="tabs"
+        data-bitfun-component="scene-bar"
+        data-bitfun-part="tabs"
       >
         {tabScrollState.hasOverflow && (
           <button
             type="button"
-            className="openbitfun-scene-bar__scroll-button"
+            className="bitfun-scene-bar__scroll-button"
             aria-label={t('sceneBar.scrollPrevious')}
             title={t('sceneBar.scrollPrevious')}
             disabled={!tabScrollState.canScrollBackward}
             onClick={() => scrollTabsByPage(-1)}
-            data-openbitfun-component="scene-bar"
-            data-openbitfun-part="scrollPrevious"
+            data-bitfun-component="scene-bar"
+            data-bitfun-part="scrollPrevious"
           >
             <Icon name="chevron-left" size="sm" aria-hidden="true" />
           </button>
@@ -273,7 +273,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
 
         <TabGroup
           ref={tabsRef}
-          className="openbitfun-scene-bar__tabs"
+          className="bitfun-scene-bar__tabs"
           aria-label={t('sceneBar.tabsLabel')}
           items={tabItems}
           renderItem={(item, node) => {
@@ -281,11 +281,11 @@ const SceneBar: React.FC<SceneBarProps> = ({
             const tab = openTabs.find(candidate => candidate.id === tabId);
             const resource = tab?.contentId ? resources[tab.contentId] : undefined;
             const title = resource?.target.kind === 'file' ? [resource.scope.surfaceId, resource.scope.remoteConnectionId, resource.target.path].filter(Boolean).join(' · ') : undefined;
-            return <div className="openbitfun-scene-bar__item" draggable title={title}
+            return <div className="bitfun-scene-bar__item" draggable title={title}
               data-scene-tab-id={tabId}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}
               onContextMenu={event => handleContextMenu(event, tabId)}
-              onDragStart={event => { draggingTab.current = tabId; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-openbitfun-scene', tabId); }}
+              onDragStart={event => { draggingTab.current = tabId; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-bitfun-scene', tabId); }}
               onDragEnd={() => { draggingTab.current = null; }}
               onDragOver={event => { if (draggingTab.current && draggingTab.current !== tabId) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}
               onDrop={event => { if (!draggingTab.current) return; event.preventDefault(); useSceneStore.getState().reorderScene(draggingTab.current, tabId, event.clientX >= event.currentTarget.getBoundingClientRect().x + event.currentTarget.getBoundingClientRect().width / 2 ? 'after' : 'before'); draggingTab.current = null; }}
@@ -306,21 +306,21 @@ const SceneBar: React.FC<SceneBarProps> = ({
         {tabScrollState.hasOverflow && (
           <button
             type="button"
-            className="openbitfun-scene-bar__scroll-button"
+            className="bitfun-scene-bar__scroll-button"
             aria-label={t('sceneBar.scrollNext')}
             title={t('sceneBar.scrollNext')}
             disabled={!tabScrollState.canScrollForward}
             onClick={() => scrollTabsByPage(1)}
-            data-openbitfun-component="scene-bar"
-            data-openbitfun-part="scrollNext"
+            data-bitfun-component="scene-bar"
+            data-bitfun-part="scrollNext"
           >
             <Icon name="chevron-right" size="sm" aria-hidden="true" />
           </button>
         )}
       </div>
       {canAcceptCanvasTab && (
-        <div className="openbitfun-scene-bar__drop-hint" role="status"
-          data-openbitfun-component="scene-bar" data-openbitfun-part="dropHint">
+        <div className="bitfun-scene-bar__drop-hint" role="status"
+          data-bitfun-component="scene-bar" data-bitfun-part="dropHint">
           {/* Both labels reserve the same slot, keeping drop geometry stable. */}
           <span aria-hidden={Boolean(activeCanvasDrop)}>{tComponents('workbench.dragToPopOut')}</span>
           <span aria-hidden={!activeCanvasDrop}>{tComponents('workbench.releaseToPopOut')}</span>

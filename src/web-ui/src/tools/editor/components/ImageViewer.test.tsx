@@ -14,7 +14,7 @@ vi.mock('@/infrastructure/i18n', () => {
   const t = (key: string) => key;
   return { useI18n: () => ({ t }) };
 });
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@bitfun/ui', () => ({
   OverflowText: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, onClick }: React.PropsWithChildren<{ onClick?: () => void }>) => <button onClick={onClick}>{children}</button>,
   Icon: () => null,

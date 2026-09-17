@@ -42,19 +42,19 @@ export class TaskBoardPage extends BasePage {
 
   async ensureLightAppearance(): Promise<void> {
     const isLight = await browser.execute(() => (
-      document.documentElement.getAttribute('data-openbitfun-appearance') === 'openbitfun-light'
+      document.documentElement.getAttribute('data-bitfun-appearance') === 'bitfun-light'
     ));
     if (isLight) return;
 
     await this.clickByTestId('nav-footer-settings-item', 10_000);
     await this.clickByTestId('nav-settings-theme-item', 10_000);
     await this.clickByTestId('appearance-palette-select', 10_000);
-    const lightOption = await $('[data-testid="appearance-palette-option"][data-appearance-id="openbitfun-light"]');
+    const lightOption = await $('[data-testid="appearance-palette-option"][data-appearance-id="bitfun-light"]');
     await lightOption.waitForClickable({ timeout: 10_000 });
     await lightOption.click();
 
     await browser.waitUntil(async () => browser.execute(() => (
-      document.documentElement.getAttribute('data-openbitfun-appearance') === 'openbitfun-light'
+      document.documentElement.getAttribute('data-bitfun-appearance') === 'bitfun-light'
     )), {
       timeout: 10_000,
       timeoutMsg: 'Task Board E2E could not switch the native app to the light Appearance',
@@ -150,7 +150,7 @@ export class TaskBoardPage extends BasePage {
     let emptyCell: WebdriverIO.Element | null = null;
     for (const cell of cells) {
       const className = await cell.getAttribute('class');
-      if (!className.includes('openbitfun-todos__calendar-cell--has-items')) {
+      if (!className.includes('bitfun-todos__calendar-cell--has-items')) {
         emptyCell = cell;
         break;
       }
@@ -185,10 +185,10 @@ export class TaskBoardPage extends BasePage {
   }
 
   private async deleteTaskRow(row: WebdriverIO.Element): Promise<void> {
-    const deleteButton = await row.$('.openbitfun-todos__row-action-buttons button:last-child');
+    const deleteButton = await row.$('.bitfun-todos__row-action-buttons button:last-child');
     await deleteButton.click();
 
-    const confirm = await $('[data-openbitfun-component="confirm-dialog"][data-openbitfun-part="actions"] button:last-child');
+    const confirm = await $('[data-bitfun-component="confirm-dialog"][data-bitfun-part="actions"] button:last-child');
     await confirm.waitForClickable({ timeout: 10_000 });
     await confirm.click();
   }
@@ -196,15 +196,15 @@ export class TaskBoardPage extends BasePage {
   async getLayoutMetrics(): Promise<TaskBoardLayoutMetrics | null> {
     return browser.execute(() => {
       const root = document.querySelector<HTMLElement>('[data-testid="todos-scene"]');
-      const header = document.querySelector<HTMLElement>('.openbitfun-todos__head');
-      const panes = document.querySelector<HTMLElement>('[data-openbitfun-part="panes"]');
+      const header = document.querySelector<HTMLElement>('.bitfun-todos__head');
+      const panes = document.querySelector<HTMLElement>('[data-bitfun-part="panes"]');
       const list = document.querySelector<HTMLElement>('[data-testid="todos-list-pane"]');
       const overview = document.querySelector<HTMLElement>('[data-testid="todos-overview"]');
       const calendar = document.querySelector<HTMLElement>('[data-testid="todos-calendar"]');
       const newButton = document.querySelector<HTMLElement>('[data-testid="todos-new"]');
-      const todayButton = document.querySelector<HTMLElement>('.openbitfun-todos__today-button');
+      const todayButton = document.querySelector<HTMLElement>('.bitfun-todos__today-button');
       const navigationButton = document.querySelector<HTMLElement>('[data-testid="todos-calendar-prev"]');
-      const weekdays = Array.from(document.querySelectorAll<HTMLElement>('.openbitfun-todos__calendar-weekday'));
+      const weekdays = Array.from(document.querySelectorAll<HTMLElement>('.bitfun-todos__calendar-weekday'));
       const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="todos-calendar-cell"]'));
       if (
         !root || !header || !panes || !list || !overview || !calendar

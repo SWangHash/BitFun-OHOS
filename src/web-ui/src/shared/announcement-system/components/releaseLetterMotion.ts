@@ -1,4 +1,4 @@
-// Choreography and connected rig from the authored openbitfun-letter.html.
+// Choreography and connected rig from the authored bitfun-letter.html.
 // Sampling is independent of the DOM so seeking, replay, and reduced motion agree.
 export const INTRO_MS = 4800;
 export const HANDOFF_MS = 1800;

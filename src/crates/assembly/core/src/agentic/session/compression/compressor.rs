@@ -8,7 +8,7 @@ use crate::agentic::core::{
     MessageSemanticKind,
 };
 use crate::service::session::TranscriptLineRange;
-use crate::util::errors::OpenBitFunResult;
+use crate::util::errors::BitFunResult;
 use log::{debug, trace};
 use std::borrow::Cow;
 
@@ -70,7 +70,7 @@ impl ContextCompressor {
         runtime_messages: &[Message],
         context_window: usize,
         recent_target_tokens: usize,
-    ) -> OpenBitFunResult<Option<CompressionPlan>> {
+    ) -> BitFunResult<Option<CompressionPlan>> {
         self.plan_compression_internal(
             session_id,
             None,
@@ -87,7 +87,7 @@ impl ContextCompressor {
         runtime_messages: &[Message],
         context_window: usize,
         recent_target_tokens: usize,
-    ) -> OpenBitFunResult<Option<CompressionPlan>> {
+    ) -> BitFunResult<Option<CompressionPlan>> {
         self.plan_compression_internal(
             session_id,
             Some(current_turn_id),
@@ -104,7 +104,7 @@ impl ContextCompressor {
         runtime_messages: &[Message],
         context_window: usize,
         recent_target_tokens: usize,
-    ) -> OpenBitFunResult<Option<CompressionPlan>> {
+    ) -> BitFunResult<Option<CompressionPlan>> {
         let runtime_messages = if runtime_messages.iter().any(|message| {
             message
                 .internal_reminder_kind()
@@ -345,7 +345,7 @@ impl ContextCompressor {
         mut plan: CompressionPlan,
         runtime_messages: &[Message],
         current_turn_id: &str,
-    ) -> OpenBitFunResult<Option<CompressionPlan>> {
+    ) -> BitFunResult<Option<CompressionPlan>> {
         let conversation = Self::canonical_conversation(runtime_messages)
             .cloned()
             .collect::<Vec<_>>();
@@ -410,9 +410,9 @@ impl ContextCompressor {
         plan: CompressionPlan,
         contract: Option<CompressionContract>,
         model_summary: String,
-    ) -> OpenBitFunResult<CompressionResult> {
+    ) -> BitFunResult<CompressionResult> {
         let summary = Self::normalize_model_summary_output(&model_summary).ok_or_else(|| {
-            crate::OpenBitFunError::AIClient(
+            crate::BitFunError::AIClient(
                 "Context compression requires a non-empty model summary".to_string(),
             )
         })?;
@@ -1284,7 +1284,7 @@ mod tests {
             render_system_reminder(ContextCompressor::COMPRESSION_CONTINUATION_REMINDER)
         );
 
-        let uri = "openbitfun://current-session/artifacts/compression-transcripts/12-a3f9.txt";
+        let uri = "bitfun://current-session/artifacts/compression-transcripts/12-a3f9.txt";
         let index_range = TranscriptLineRange {
             start_line: 1,
             end_line: 14,

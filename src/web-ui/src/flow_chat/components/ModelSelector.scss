@@ -8,7 +8,7 @@
  * - Border: light gray; blue-purple gradient on hover/active
  * - Shadow: layered soft shadows, avoid harsh glow
  */
-.openbitfun-model-selector {
+.bitfun-model-selector {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -24,9 +24,9 @@
     border-radius: 10px;
     border: none;
     background: transparent;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
     cursor: pointer;
     transition:
       color 140ms ease,
@@ -37,28 +37,28 @@
     outline: none;
     opacity: 0.72;
     white-space: nowrap;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
 
     // More visible while input is focused
-    .openbitfun-chat-input__box:focus-within & {
+    .bitfun-chat-input__box:focus-within & {
       opacity: 1;
     }
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      color: var(--openbitfun-color-content-primary);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      color: var(--bitfun-color-content-primary);
       opacity: 1;
     }
 
     &:focus-visible {
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 40%, transparent);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--openbitfun-color-accent-default) 20%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 20%, transparent);
       opacity: 1;
     }
 
     &--open {
-      background: color-mix(in srgb, var(--openbitfun-color-accent-default) 15%, transparent);
-      color: var(--openbitfun-color-content-primary);
+      background: color-mix(in srgb, var(--bitfun-color-accent-default) 15%, transparent);
+      color: var(--bitfun-color-content-primary);
       opacity: 1;
     }
 
@@ -78,15 +78,15 @@
     min-width: 0;
     max-width: 72px;
     overflow: hidden;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     white-space: nowrap;
   }
 
   &__fast-icon {
-    color: var(--openbitfun-color-status-warning-emphasis);
+    color: var(--bitfun-color-status-warning-emphasis);
     flex-shrink: 0;
   }
 
@@ -96,12 +96,12 @@
     justify-content: center;
     padding: 1px 4px;
     border-radius: 3px;
-    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 15%, transparent);
-    color: color-mix(in srgb, var(--openbitfun-color-accent-default) 90%, var(--openbitfun-color-content-primary));
-    font-size: var(--openbitfun-type-flow-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 15%, transparent);
+    color: color-mix(in srgb, var(--bitfun-color-accent-default) 90%, var(--bitfun-color-content-primary));
+    font-size: var(--bitfun-type-flow-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
   }
 
   &__tooltip {
@@ -118,13 +118,13 @@
   }
 
   &__tooltip-label {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
   }
 
   &__tooltip-value {
     min-width: 0;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
     text-align: right;
     overflow-wrap: anywhere;
   }
@@ -132,16 +132,16 @@
   &__tooltip-warning {
     margin-top: 3px;
     padding-top: 6px;
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
-    color: var(--openbitfun-color-status-warning-content);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
+    color: var(--bitfun-color-status-warning-content);
   }
 
   &__chevron {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     flex-shrink: 0;
     transition: transform 0.2s ease;
 
-    .openbitfun-model-selector__trigger--open & {
+    .bitfun-model-selector__trigger--open & {
       transform: rotate(180deg);
     }
   }
@@ -149,12 +149,12 @@
   // ==================== Dropdown menu ====================
 
   &__dropdown {
-    --openbitfun-model-dropdown-offset: -4px;
+    --bitfun-model-dropdown-offset: -4px;
 
     position: fixed;
     min-width: clamp(0px, 220px, calc(100vw - 16px));
     max-width: clamp(0px, 280px, calc(100vw - 16px));
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     transform-origin: center top;
     transition:
       opacity 100ms ease,
@@ -163,18 +163,18 @@
     &[data-open='true']:not([data-keyboard-open='true']) {
       @starting-style {
         opacity: 0;
-        transform: translateY(var(--openbitfun-model-dropdown-offset)) scale(0.98);
+        transform: translateY(var(--bitfun-model-dropdown-offset)) scale(0.98);
       }
     }
 
     &[data-placement='top'] {
-      --openbitfun-model-dropdown-offset: 4px;
+      --bitfun-model-dropdown-offset: 4px;
       transform-origin: center bottom;
     }
 
     &[data-open='false'] {
       opacity: 0;
-      transform: translateY(var(--openbitfun-model-dropdown-offset)) scale(0.98);
+      transform: translateY(var(--bitfun-model-dropdown-offset)) scale(0.98);
       pointer-events: none;
     }
 
@@ -189,7 +189,7 @@
     min-width: clamp(0px, 220px, calc(100vw - 16px));
     max-width: clamp(0px, 280px, calc(100vw - 16px));
     overflow-y: auto;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     transform-origin: left bottom;
     transition:
       opacity 100ms ease,
@@ -269,16 +269,16 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
     white-space: nowrap;
     overflow: hidden;
   }
 
   &__option-desc {
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     overflow: hidden;
 
@@ -296,11 +296,11 @@
 
   &__option-selected-check {
     flex-shrink: 0;
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
 
   &__option-provider {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__option-meta {
@@ -311,8 +311,8 @@
   }
 
   &__option-subdesc {
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     overflow: hidden;
   }
@@ -320,14 +320,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-model-selector__trigger,
-  .openbitfun-model-selector__chevron,
-  .openbitfun-model-selector__submenu,
-  .openbitfun-model-selector__level {
+  .bitfun-model-selector__trigger,
+  .bitfun-model-selector__chevron,
+  .bitfun-model-selector__submenu,
+  .bitfun-model-selector__level {
     transition-duration: 0ms;
   }
 
-  .openbitfun-model-selector__dropdown {
+  .bitfun-model-selector__dropdown {
     animation: none;
   }
 }

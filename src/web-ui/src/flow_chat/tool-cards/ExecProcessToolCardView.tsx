@@ -8,7 +8,7 @@ import {
 import {
   CommandToolCard,
   type CommandToolCardFooterItem,
-} from '@openbitfun/ui/flow-chat';
+} from '@bitfun/ui/flow-chat';
 import { ToolCardCopyAction } from './ToolCardCopyAction';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
 import { useCopyTextAction } from '../hooks/useCopyTextAction';
@@ -319,7 +319,7 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   )));
 
   return (
-    <div ref={cardRootRef} data-openbitfun-adapter="exec-process-tool-card" data-tool-card-id={toolId ?? ''}>
+    <div ref={cardRootRef} data-bitfun-adapter="exec-process-tool-card" data-tool-card-id={toolId ?? ''}>
       <CommandToolCard
         action={model.actionLabel}
         command={model.primaryText}
@@ -330,7 +330,7 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
           label: t('toolCards.execProcess.copyPrimary'),
           onPress: copyPrimary,
         }}
-        data-openbitfun-state={rejectedOrCancelled ? 'cancelled' : status === 'completed' ? 'completed' : 'active'}
+        data-bitfun-state={rejectedOrCancelled ? 'cancelled' : status === 'completed' ? 'completed' : 'active'}
         emptyCommand={model.emptyText}
         error={status === 'error'
           ? toolItem.toolResult?.error || t('toolCards.terminal.executionFailed')

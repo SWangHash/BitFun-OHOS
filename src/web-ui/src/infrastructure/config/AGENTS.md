@@ -5,7 +5,7 @@ Follow `src/web-ui/AGENTS.md` for shared frontend rules.
 ## Field sizing
 
 - Settings selection fields (`Select`, `Combobox`, `MultiSelect`) use
-  `@openbitfun/ui` with explicit `size="sm"`, including filters and dialogs.
+  `@bitfun/ui` with explicit `size="sm"`, including filters and dialogs.
   The application chooses the size; the design system owns its height through
   `control.height.sm` and the active density. Do not assume every form component
   has the same default size.

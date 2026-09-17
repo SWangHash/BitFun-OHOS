@@ -511,7 +511,7 @@ mod tests {
             ),
             (
                 "GET",
-                "/experimental/tool?provider=openbitfun&model=primary",
+                "/experimental/tool?provider=bitfun&model=primary",
                 OpenCodeClientRoute::ToolList,
             ),
             ("GET", "/provider", OpenCodeClientRoute::ProviderList),

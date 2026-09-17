@@ -36,9 +36,9 @@ test('app reset stays below shared component padding and focus styles', async ()
   const reset = await readFile(path.join(sourceDirectory, 'styles/reset.scss'), 'utf8');
   const global = await readFile(path.join(sourceDirectory, 'styles/global.scss'), 'utf8');
   const adaptive = await readFile(path.join(sourceDirectory, 'styles/components/adaptive-shell.scss'), 'utf8');
-  assert.ok(main.indexOf("'./styles/reset.scss'") < main.indexOf("'@openbitfun/ui/mobile.css'"));
-  assert.match(reset, /@layer openbitfun\.reset, openbitfun\.components;/);
-  assert.match(reset, /@layer openbitfun\.reset\s*\{[\s\S]*?\*\s*\{[\s\S]*?padding:\s*0;/);
+  assert.ok(main.indexOf("'./styles/reset.scss'") < main.indexOf("'@bitfun/ui/mobile.css'"));
+  assert.match(reset, /@layer bitfun\.reset, bitfun\.components;/);
+  assert.match(reset, /@layer bitfun\.reset\s*\{[\s\S]*?\*\s*\{[\s\S]*?padding:\s*0;/);
   assert.doesNotMatch(global, /^\*\s*\{/m, 'an unlayered universal reset erases component spacing');
   assert.doesNotMatch(html, /\*\s*\{[^}]*\b(?:padding|margin)\s*:/, 'HTML must not duplicate universal spacing resets');
   assert.doesNotMatch(adaptive, /^input:focus-visible,/m, 'generic focus styles must not override text-field focus ownership');
@@ -68,7 +68,7 @@ test('visible mobile controls use the shared mobile component entry', async () =
       assert.doesNotMatch(
         source,
         new RegExp(`<${tag}\\b`),
-        `${file} renders a raw <${tag}> instead of an @openbitfun/ui/mobile component`,
+        `${file} renders a raw <${tag}> instead of an @bitfun/ui/mobile component`,
       );
     }
     assert.doesNotMatch(
@@ -112,7 +112,7 @@ test('mobile-web imports only components published by the shared mobile entry', 
   ].map((match) => match[1]));
   const sources = await readProductSources();
   const importedComponentNames = sources.flatMap(({ source }) => (
-    [...source.matchAll(/import\s*\{([\s\S]*?)\}\s*from\s*['"]@openbitfun\/ui\/mobile['"]/g)]
+    [...source.matchAll(/import\s*\{([\s\S]*?)\}\s*from\s*['"]@bitfun\/ui\/mobile['"]/g)]
       .flatMap((match) => match[1]
         .split(',')
         .map((name) => name.trim())

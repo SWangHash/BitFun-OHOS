@@ -7,7 +7,7 @@
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -35,7 +35,7 @@ impl Tool for CheckCppFilesTool {
         "check_cpp_files"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Run static C/C++ syntax check on native source files via devecocli MCP.
 
 Use for native modules (.c, .cc, .cpp, .cxx, .h, .hh, .hpp, .hxx) before a full native build.
@@ -107,7 +107,7 @@ Provide absolute or workspace-relative paths to source files."#.to_string())
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let all_files: Vec<String> = input
             .get("files")
             .and_then(|v| v.as_array())
@@ -133,7 +133,7 @@ Provide absolute or workspace-relative paths to source files."#.to_string())
             .collect();
 
         if cpp_files.is_empty() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "No C/C++ files provided. All files were filtered out.".to_string(),
             ));
         }

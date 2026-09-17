@@ -31,37 +31,37 @@ describe('model service collapsed presentation', () => {
 
   it('includes the leading card inset in the provider toggle hit area', () => {
     expect(modelSettingsStyles).toMatch(
-      /&__provider-group-header\s*\{[\s\S]*?padding-inline:\s*0 var\(--openbitfun-space-4\)/,
+      /&__provider-group-header\s*\{[\s\S]*?padding-inline:\s*0 var\(--bitfun-space-4\)/,
     );
     expect(modelSettingsStyles).toMatch(
-      /&__provider-group-toggle\s*\{[\s\S]*?align-self:\s*stretch[\s\S]*?padding-inline-start:\s*var\(--openbitfun-space-4\)/,
+      /&__provider-group-toggle\s*\{[\s\S]*?align-self:\s*stretch[\s\S]*?padding-inline-start:\s*var\(--bitfun-space-4\)/,
     );
   });
 
   it('matches the subscription group radius without an outer border', () => {
     expect(modelSettingsStyles).toMatch(
-      /&__provider-group\s*\{[\s\S]*?border:\s*0;[\s\S]*?border-radius:\s*var\(--openbitfun-layout-field-group-radius\)/,
+      /&__provider-group\s*\{[\s\S]*?border:\s*0;[\s\S]*?border-radius:\s*var\(--bitfun-layout-field-group-radius\)/,
     );
   });
 
   it('keeps provider headers and models on one theme-adaptive grouped surface', () => {
     expect(modelSettingsStyles).toMatch(
-      /&__provider-group\s*\{[^}]*background:\s*var\(--openbitfun-color-surface-tertiary\)/,
+      /&__provider-group\s*\{[^}]*background:\s*var\(--bitfun-color-surface-tertiary\)/,
     );
     expect(modelSettingsStyles).toMatch(
       /&__provider-group-header\s*\{[^}]*background:\s*transparent/,
     );
     expect(modelSettingsStyles).toMatch(
-      /\.openbitfun-collection-item__details\s*\{[^}]*background:\s*transparent/,
+      /\.bitfun-collection-item__details\s*\{[^}]*background:\s*transparent/,
     );
   });
 
   it('draws one consistent divider between provider headers and model rows', () => {
     expect(modelSettingsStyles).toMatch(
-      /&\[data-expanded='true'\]\s*\{[^}]*border-bottom:\s*1px solid var\(--openbitfun-color-border-subtle\)/,
+      /&\[data-expanded='true'\]\s*\{[^}]*border-bottom:\s*1px solid var\(--bitfun-color-border-subtle\)/,
     );
     expect(collectionItemStyles).toMatch(
-      /& \+ \.openbitfun-collection-item\s*\{[^}]*border-top:\s*1px solid var\(--openbitfun-color-border-subtle\)/,
+      /& \+ \.bitfun-collection-item\s*\{[^}]*border-top:\s*1px solid var\(--bitfun-color-border-subtle\)/,
     );
     expect(modelSettingsStyles).not.toContain('&:not(:last-child)');
   });
@@ -74,9 +74,9 @@ describe('model service collapsed presentation', () => {
 
   it('keeps the enable switch at the trailing edge and reveals secondary model actions on interaction', () => {
     expect(modelSettingsSource).toMatch(
-      /<span className="openbitfun-model-settings__model-enable">[\s\S]*?<Switch[\s\S]*?<div[\s\S]*?className="openbitfun-model-settings__model-actions"/,
+      /<span className="bitfun-model-settings__model-enable">[\s\S]*?<Switch[\s\S]*?<div[\s\S]*?className="bitfun-model-settings__model-actions"/,
     );
-    expect(modelSettingsSource).toContain('data-openbitfun-part="modelActions"');
+    expect(modelSettingsSource).toContain('data-bitfun-part="modelActions"');
     expect(modelSettingsSource).toContain('toggleOnRowClick');
   });
 
@@ -86,7 +86,7 @@ describe('model service collapsed presentation', () => {
     const badgeSource = modelSettingsSource.slice(badgeStart, detailsStart);
 
     expect(badgeSource).toContain('{(isTesting || testResult) && (');
-    expect(badgeSource).toContain('openbitfun-model-settings__status-dot');
+    expect(badgeSource).toContain('bitfun-model-settings__status-dot');
     expect(badgeSource).not.toContain('<StatusPill');
     expect(badgeSource).toContain('role="status"');
     expect(badgeSource).toContain('aria-live="polite"');
@@ -99,7 +99,7 @@ describe('model service collapsed presentation', () => {
 
   it('uses the semantic highlight color for each provider model count', () => {
     expect(modelSettingsStyles).toMatch(
-      /&__provider-group-count\s*\{[\s\S]*?color:\s*var\(--openbitfun-color-content-required-indicator\)/,
+      /&__provider-group-count\s*\{[\s\S]*?color:\s*var\(--bitfun-color-content-required-indicator\)/,
     );
   });
 });

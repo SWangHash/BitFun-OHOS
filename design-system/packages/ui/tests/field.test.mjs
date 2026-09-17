@@ -17,11 +17,11 @@ test("Field associates label, description, and required state with its control",
     })),
   );
 
-  assert.match(markup, /data-openbitfun-component="field"/);
+  assert.match(markup, /data-bitfun-component="field"/);
   assert.match(markup, /data-orientation="vertical"/);
   assert.match(markup, /data-required="true"/);
   assert.match(markup, /<label[^>]+for="project-name"/);
-  assert.match(markup, /data-openbitfun-part="required"[^>]*>\*<\/span>/);
+  assert.match(markup, /data-bitfun-part="required"[^>]*>\*<\/span>/);
   assert.match(markup, /id="project-name-description"/);
   assert.match(markup, /aria-describedby="project-help project-name-description"/);
   assert.match(markup, /id="project-name"/);
@@ -40,7 +40,7 @@ test("Field renders a validation message wired to the control accessibility cont
 
   assert.match(markup, /data-invalid="true"/);
   assert.match(markup, /aria-invalid="true"/);
-  assert.match(markup, /data-openbitfun-part="error"[^>]*id="project-name-error"/);
+  assert.match(markup, /data-bitfun-part="error"[^>]*id="project-name-error"/);
   assert.match(markup, /aria-describedby="project-name-error"/);
   assert.match(markup, /Name is already taken/);
 });
@@ -54,8 +54,8 @@ test("Field exposes horizontal layout independently from its control", () => {
   );
 
   assert.match(markup, /data-orientation="horizontal"/);
-  assert.match(markup, /data-openbitfun-part="content"/);
-  assert.match(markup, /data-openbitfun-part="control"/);
+  assert.match(markup, /data-bitfun-part="content"/);
+  assert.match(markup, /data-bitfun-part="control"/);
   assert.match(markup, /type="checkbox"/);
 });
 
@@ -85,10 +85,10 @@ test("Field keeps label and control adornments outside the associated control", 
     }, createElement(Input, { id: "appearance" })),
   );
 
-  assert.match(markup, /data-openbitfun-part="label-row"/);
-  assert.match(markup, /data-openbitfun-part="label-action"[^>]*><button[^>]*>Help/);
-  assert.match(markup, /data-openbitfun-part="control-leading"[^>]*><button[^>]*>Toggle/);
-  assert.match(markup, /data-openbitfun-part="control-trailing"[^>]*><button[^>]*>More/);
+  assert.match(markup, /data-bitfun-part="label-row"/);
+  assert.match(markup, /data-bitfun-part="label-action"[^>]*><button[^>]*>Help/);
+  assert.match(markup, /data-bitfun-part="control-leading"[^>]*><button[^>]*>Toggle/);
+  assert.match(markup, /data-bitfun-part="control-trailing"[^>]*><button[^>]*>More/);
   assert.match(markup, /<label[^>]+for="appearance"/);
   const labelMarkup = /<label[^>]*>.*?<\/label>/s.exec(markup)?.[0] ?? "";
   assert.doesNotMatch(labelMarkup, /<button/);
@@ -97,15 +97,15 @@ test("Field keeps label and control adornments outside the associated control", 
 test("Field styles consume shared content and typography tokens", async () => {
   const styles = await readFile(new URL("../src/components/Field/Field.module.css", import.meta.url), "utf8");
 
-  assert.match(styles, /--openbitfun-color-content-primary/);
-  assert.match(styles, /--openbitfun-color-content-secondary/);
-  assert.match(styles, /--openbitfun-color-content-required-indicator/);
-  assert.doesNotMatch(styles, /--openbitfun-color-status-danger-content[^\n]*required/);
-  assert.match(styles, /--openbitfun-type-label-selected-font-size/);
-  assert.match(styles, /--openbitfun-type-support-font-size/);
-  assert.match(styles, /--openbitfun-layout-field-root-gap/);
-  assert.match(styles, /--openbitfun-layout-field-label-action-gap/);
-  assert.match(styles, /--openbitfun-layout-field-control-gap/);
-  assert.match(styles, /--openbitfun-layout-field-horizontal-gap-wide/);
-  assert.match(styles, /--openbitfun-layout-field-label-width-md/);
+  assert.match(styles, /--bitfun-color-content-primary/);
+  assert.match(styles, /--bitfun-color-content-secondary/);
+  assert.match(styles, /--bitfun-color-content-required-indicator/);
+  assert.doesNotMatch(styles, /--bitfun-color-status-danger-content[^\n]*required/);
+  assert.match(styles, /--bitfun-type-label-selected-font-size/);
+  assert.match(styles, /--bitfun-type-support-font-size/);
+  assert.match(styles, /--bitfun-layout-field-root-gap/);
+  assert.match(styles, /--bitfun-layout-field-label-action-gap/);
+  assert.match(styles, /--bitfun-layout-field-control-gap/);
+  assert.match(styles, /--bitfun-layout-field-horizontal-gap-wide/);
+  assert.match(styles, /--bitfun-layout-field-label-width-md/);
 });

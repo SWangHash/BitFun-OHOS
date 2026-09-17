@@ -30,11 +30,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => {
+vi.mock('@bitfun/ui', async importOriginal => {
   const ReactModule = await import('react');
 
   return {
-    ...await importOriginal<typeof import('@openbitfun/ui')>(),
+    ...await importOriginal<typeof import('@bitfun/ui')>(),
     Tooltip: ({ children }: { children: React.ReactNode }) => (
       <ReactModule.Fragment>{children}</ReactModule.Fragment>
     ),
@@ -57,8 +57,8 @@ vi.mock('@openbitfun/ui', async importOriginal => {
         ref={ref}
         type="button"
         title={tooltip}
-        data-openbitfun-shape={shape}
-        data-openbitfun-variant={variant}
+        data-bitfun-shape={shape}
+        data-bitfun-variant={variant}
         data-size={size}
         {...props}
       >
@@ -130,7 +130,7 @@ describe('FlowChatHeader', () => {
     act(() => {
       root.unmount();
     });
-    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
+    document.querySelector('[data-bitfun-overlay-host="true"]')?.remove();
     container.remove();
     vi.restoreAllMocks();
   });
@@ -147,8 +147,8 @@ describe('FlowChatHeader', () => {
     });
 
     expect(container.querySelector('.flowchat-header')).not.toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="message"]')).toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="turnBadge"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="message"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="turnBadge"]')).toBeNull();
   });
 
   it('contributes only active Session actions to the shared scene top bar', () => {
@@ -173,15 +173,15 @@ describe('FlowChatHeader', () => {
     expect(host?.querySelector('[data-testid="flowchat-header-search"]')).toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-session-overview"]')).not.toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-right-panel"]')).not.toBeNull();
-    expect(host?.querySelector('[data-testid="flowchat-header-session-overview"] [data-openbitfun-name="settings"]')).not.toBeNull();
-    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"] [data-openbitfun-name="sidebar-right"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="flowchat-header-session-overview"] [data-bitfun-name="settings"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"] [data-bitfun-name="sidebar-right"]')).not.toBeNull();
 
     act(() => renderInScene('settings'));
     expect(host?.childElementCount).toBe(0);
 
     act(() => renderInScene('session', true));
     expect(host?.querySelector('[data-testid="flowchat-header-search"]')).not.toBeNull();
-    expect(host?.querySelector('[data-testid="flowchat-header-search"] [data-openbitfun-name="search"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="flowchat-header-search"] [data-bitfun-name="search"]')).not.toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-search"]')?.getAttribute('data-size')).toBe('xs');
     expect(host?.querySelector('[data-testid="flowchat-header-session-overview"]')?.getAttribute('data-size')).toBe('xs');
     expect(host?.querySelector('[data-testid="flowchat-header-right-panel"]')?.getAttribute('data-size')).toBe('xs');
@@ -210,8 +210,8 @@ describe('FlowChatHeader', () => {
     );
     expect(trigger?.getAttribute('aria-label')).toBe('common:header.expandRightPanel');
     expect(trigger?.getAttribute('aria-pressed')).toBe('false');
-    expect(trigger?.getAttribute('data-openbitfun-state')).toBe('collapsed');
-    expect(trigger?.querySelector('[data-openbitfun-name="sidebar-right"]')).not.toBeNull();
+    expect(trigger?.getAttribute('data-bitfun-state')).toBe('collapsed');
+    expect(trigger?.querySelector('[data-bitfun-name="sidebar-right"]')).not.toBeNull();
     const getRightActions = () => container.querySelector(
       '.flowchat-header__actions:not(.flowchat-header__actions--left)',
     );
@@ -236,16 +236,16 @@ describe('FlowChatHeader', () => {
     expect(container.querySelector('[data-testid="flowchat-header-right-panel"]')).toBeNull();
 
     const searchBar = container.querySelector('[data-testid="flowchat-header-search-bar"]');
-    const searchField = searchBar?.querySelector('[data-openbitfun-component="search-field"]');
+    const searchField = searchBar?.querySelector('[data-bitfun-component="search-field"]');
     const searchInput = searchField?.querySelector('input');
     const searchClose = searchBar?.querySelector<HTMLButtonElement>('.flowchat-header__search-close');
     expect(searchField).not.toBeNull();
-    expect(searchBar?.getAttribute('data-openbitfun-state')).toBe('active');
+    expect(searchBar?.getAttribute('data-bitfun-state')).toBe('active');
     expect(searchInput?.type).toBe('search');
     expect(searchInput?.placeholder).toBe('flowChatHeader.searchPlaceholder');
-    expect(searchBar?.querySelector('[data-openbitfun-part="searchControls"]')).not.toBeNull();
-    expect(searchClose?.getAttribute('data-openbitfun-shape')).toBe('circle');
-    expect(searchClose?.querySelector('[data-openbitfun-name="xmark"]')).not.toBeNull();
+    expect(searchBar?.querySelector('[data-bitfun-part="searchControls"]')).not.toBeNull();
+    expect(searchClose?.getAttribute('data-bitfun-shape')).toBe('circle');
+    expect(searchClose?.querySelector('[data-bitfun-name="xmark"]')).not.toBeNull();
 
     act(() => {
       searchClose?.click();
@@ -279,9 +279,9 @@ describe('FlowChatHeader', () => {
     );
     expect(openTrigger?.getAttribute('aria-label')).toBe('common:header.collapseRightPanel');
     expect(openTrigger?.getAttribute('aria-pressed')).toBe('true');
-    expect(openTrigger?.getAttribute('data-openbitfun-state')).toBe('open');
+    expect(openTrigger?.getAttribute('data-bitfun-state')).toBe('open');
     expect(openTrigger?.classList.contains('flowchat-header__right-panel-trigger--active')).toBe(true);
-    expect(openTrigger?.querySelector('[data-openbitfun-name="sidebar-right"]')).not.toBeNull();
+    expect(openTrigger?.querySelector('[data-bitfun-name="sidebar-right"]')).not.toBeNull();
   });
 
   it('keeps match navigation on Enter while the compact search field is open', () => {
@@ -340,10 +340,10 @@ describe('FlowChatHeader', () => {
     };
 
     renderSearch();
-    const searchField = container.querySelector('[data-openbitfun-component="search-field"]');
+    const searchField = container.querySelector('[data-bitfun-component="search-field"]');
     const searchInput = searchField?.querySelector('input');
     expect(searchField?.getAttribute('data-variant')).toBe('default');
-    expect(searchField?.querySelector('[data-openbitfun-part="footer"]')).toBeNull();
+    expect(searchField?.querySelector('[data-bitfun-part="footer"]')).toBeNull();
     searchInput?.focus();
 
     renderSearch('device', 7, 1);
@@ -357,8 +357,8 @@ describe('FlowChatHeader', () => {
 
     const previous = searchField?.querySelector<HTMLButtonElement>('[aria-label="flowChatHeader.searchPrevious"]');
     const next = searchField?.querySelector<HTMLButtonElement>('[aria-label="flowChatHeader.searchNext"]');
-    expect(previous?.querySelector('[data-openbitfun-name="arrow-up"]')).not.toBeNull();
-    expect(next?.querySelector('[data-openbitfun-name="arrow-down"]')).not.toBeNull();
+    expect(previous?.querySelector('[data-bitfun-name="arrow-up"]')).not.toBeNull();
+    expect(next?.querySelector('[data-bitfun-name="arrow-down"]')).not.toBeNull();
     expect(previous?.disabled).toBe(false);
     expect(next?.disabled).toBe(false);
 
@@ -388,7 +388,7 @@ describe('FlowChatHeader', () => {
 
     renderSearch('   ');
     expect(searchField?.getAttribute('data-variant')).toBe('default');
-    expect(searchField?.querySelector('[data-openbitfun-part="footer"]')).toBeNull();
+    expect(searchField?.querySelector('[data-bitfun-part="footer"]')).toBeNull();
     expect(searchField?.querySelector('input')).toBe(searchInput);
     expect(container.querySelector('[role="status"]')?.textContent).toBe('');
     expect(container.querySelector('[data-testid="flowchat-header-session-overview"]')).toBeNull();
@@ -415,7 +415,7 @@ describe('FlowChatHeader', () => {
     const overviewButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="flowchat-header-session-overview"]',
     );
-    expect(overviewButton?.querySelector('[data-openbitfun-name="settings"]')).not.toBeNull();
+    expect(overviewButton?.querySelector('[data-bitfun-name="settings"]')).not.toBeNull();
     expect(overviewButton?.querySelector('.lucide-activity')).toBeNull();
     await act(async () => {
       overviewButton?.click();
@@ -423,7 +423,7 @@ describe('FlowChatHeader', () => {
     });
 
     const panel = document.querySelector('[data-testid="flowchat-header-session-overview-panel"]');
-    expect(panel?.hasAttribute('data-openbitfun-native-webview-occlusion')).toBe(true);
+    expect(panel?.hasAttribute('data-bitfun-native-webview-occlusion')).toBe(true);
     const items = [...(panel?.querySelector(
       '.flowchat-header__session-overview-list',
     )?.children ?? [])] as HTMLElement[];
@@ -470,9 +470,9 @@ describe('FlowChatHeader', () => {
 
     const panel = document.querySelector<HTMLElement>('.flowchat-header__session-overview-panel');
     expect(commandSection?.textContent).toContain('flowChatHeader.backgroundCommandEmpty');
-    expect(panel?.parentElement?.getAttribute('data-openbitfun-overlay-host')).toBe('true');
+    expect(panel?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
     expect(panel?.style.visibility).toBe('visible');
-    expect(panel?.hasAttribute('data-openbitfun-view')).toBe(false);
+    expect(panel?.hasAttribute('data-bitfun-view')).toBe(false);
   });
 
   it('renders the Agent tree immediately without a back-navigation state', async () => {
@@ -596,7 +596,7 @@ describe('FlowChatHeader', () => {
     getWorkspaceSnapshotMock.mockResolvedValueOnce({
       pullRequests: [{
         id: '42',
-        providerId: 'origin:github:openbitfun',
+        providerId: 'origin:github:bitfun',
         number: 42,
         title: 'Keep status lists compact',
         webUrl: 'https://example.test/pull/42',
@@ -619,7 +619,7 @@ describe('FlowChatHeader', () => {
     );
     expect(pullRequestItem?.textContent).toBe('#42 Keep status lists compact');
     expect(
-      pullRequestItem?.querySelector('[data-openbitfun-component="icon"][data-openbitfun-name="chevron-right"]'),
+      pullRequestItem?.querySelector('[data-bitfun-component="icon"][data-bitfun-name="chevron-right"]'),
     ).not.toBeNull();
 
     act(() => {
@@ -629,7 +629,7 @@ describe('FlowChatHeader', () => {
     expect(getWorkspaceSnapshotMock).toHaveBeenCalledWith('/workspace', null, 1, 3);
     expect(createReviewPlatformPullRequestDetailTabMock).toHaveBeenCalledWith({
       workspacePath: '/workspace',
-      remoteId: 'origin:github:openbitfun',
+      remoteId: 'origin:github:bitfun',
       pullRequestId: '42',
       pullRequestUrl: 'https://example.test/pull/42',
       title: '#42 Keep status lists compact',
@@ -660,7 +660,7 @@ describe('FlowChatHeader', () => {
       '.flowchat-header__session-overview-section-header--action',
     );
 
-    expect(section?.dataset.openbitfunState).toBe('unavailable');
+    expect(section?.dataset.bitfunState).toBe('unavailable');
     expect(unavailable?.textContent).toBe('flowChatHeader.pullRequestNotGitRepository');
     expect(headerButton?.disabled).toBe(true);
     expect(getWorkspaceSnapshotMock).not.toHaveBeenCalled();

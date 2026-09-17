@@ -12,19 +12,19 @@ COPY design-system/tsconfig.base.json design-system/tsconfig.base.json
 COPY design-system/packages/ui/package.json design-system/packages/ui/package.json
 COPY design-system/tooling/token-engine/package.json design-system/tooling/token-engine/package.json
 COPY design-system/packages/design-tokens/package.json design-system/packages/design-tokens/package.json
-COPY design-system/packages/theme-openbitfun/package.json design-system/packages/theme-openbitfun/package.json
+COPY design-system/packages/theme-bitfun/package.json design-system/packages/theme-bitfun/package.json
 COPY src/skin-market-web/package.json src/skin-market-web/package.json
-RUN --mount=type=cache,id=openbitfun-skin-market-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
-    pnpm install --frozen-lockfile --ignore-scripts --filter openbitfun-skin-market-web...
+RUN --mount=type=cache,id=bitfun-skin-market-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
+    pnpm install --frozen-lockfile --ignore-scripts --filter bitfun-skin-market-web...
 
 COPY design-system/packages/ui/ design-system/packages/ui/
 COPY design-system/tooling/token-engine/ design-system/tooling/token-engine/
 COPY design-system/packages/design-tokens/ design-system/packages/design-tokens/
-COPY design-system/packages/theme-openbitfun/ design-system/packages/theme-openbitfun/
+COPY design-system/packages/theme-bitfun/ design-system/packages/theme-bitfun/
 COPY src/skin-market-web/ src/skin-market-web/
 COPY src/shared/appearance-market-contract-fixtures/ src/shared/appearance-market-contract-fixtures/
 RUN pnpm --dir design-system/packages/design-tokens build \
-    && pnpm --dir design-system/packages/theme-openbitfun build \
+    && pnpm --dir design-system/packages/theme-bitfun build \
     && pnpm --dir design-system/packages/ui build \
     && pnpm --dir src/skin-market-web build
 
@@ -48,18 +48,18 @@ COPY Cargo.toml Cargo.lock ./
 COPY third_party/eioc/ third_party/eioc/
 COPY src/ src/
 
-RUN --mount=type=cache,id=openbitfun-skin-market-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=openbitfun-skin-market-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=openbitfun-skin-market-target,target=/build/target,sharing=locked \
+RUN --mount=type=cache,id=bitfun-skin-market-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=bitfun-skin-market-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=bitfun-skin-market-target,target=/build/target,sharing=locked \
     { [ -n "${CARGO_BUILD_JOBS:-}" ] || unset CARGO_BUILD_JOBS; } \
-    && cargo build --locked --release -p openbitfun-skin-market-server \
-    && cp target/release/openbitfun-skin-market-server /tmp/openbitfun-skin-market-server \
-    && strip /tmp/openbitfun-skin-market-server
+    && cargo build --locked --release -p bitfun-skin-market-server \
+    && cp target/release/bitfun-skin-market-server /tmp/bitfun-skin-market-server \
+    && strip /tmp/bitfun-skin-market-server
 
 FROM debian:bookworm-slim AS runtime
 
 ARG MARKET_GIT_COMMIT=unknown
-LABEL org.opencontainers.image.title="OpenBitFun Skin Market" \
+LABEL org.opencontainers.image.title="BitFun Skin Market" \
       org.opencontainers.image.revision="${MARKET_GIT_COMMIT}"
 
 RUN apt-get update \
@@ -69,7 +69,7 @@ RUN apt-get update \
     && useradd --uid 10002 --gid 10002 --no-create-home --shell /usr/sbin/nologin market
 
 WORKDIR /app
-COPY --from=rust-builder /tmp/openbitfun-skin-market-server /app/openbitfun-skin-market-server
+COPY --from=rust-builder /tmp/bitfun-skin-market-server /app/bitfun-skin-market-server
 COPY --from=web-builder /build/src/skin-market-web/dist/ /app/web/
 
 RUN mkdir -p /app/data /app/artifacts \
@@ -87,4 +87,4 @@ EXPOSE 9720
 HEALTHCHECK --interval=20s --timeout=5s --start-period=15s --retries=5 \
   CMD curl -fsS http://127.0.0.1:9720/skin/api/v1/health || exit 1
 
-ENTRYPOINT ["/app/openbitfun-skin-market-server"]
+ENTRYPOINT ["/app/bitfun-skin-market-server"]

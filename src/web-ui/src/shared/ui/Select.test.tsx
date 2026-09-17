@@ -2,7 +2,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Field, Select, type SelectProps } from '@openbitfun/ui';
+import { Field, Select, type SelectProps } from '@bitfun/ui';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,7 +24,7 @@ describe('public Select product integration', () => {
       {...props}
     />,
   ));
-  const trigger = () => host.querySelector<HTMLButtonElement>('[data-openbitfun-part="trigger"]')!;
+  const trigger = () => host.querySelector<HTMLButtonElement>('[data-bitfun-part="trigger"]')!;
   const activeCombobox = () => document.querySelector<HTMLButtonElement>('button[role="combobox"]')!;
   const key = (element: Element, value: string) => act(() => {
     element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: value }));
@@ -49,8 +49,8 @@ describe('public Select product integration', () => {
     const comboboxId = anchor.id;
     act(() => anchor.click());
 
-    const popup = document.querySelector<HTMLElement>('[data-openbitfun-component="select-popup"]')!;
-    const header = popup.querySelector<HTMLButtonElement>('[data-openbitfun-part="header"]')!;
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="select-popup"]')!;
+    const header = popup.querySelector<HTMLButtonElement>('[data-bitfun-part="header"]')!;
     const listbox = document.querySelector<HTMLElement>('[role="listbox"]')!;
     const selected = listbox.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')!;
     expect(popup.parentElement).toBe(document.body);
@@ -58,11 +58,11 @@ describe('public Select product integration', () => {
     expect(popup.contains(header)).toBe(true);
     expect(popup.contains(listbox)).toBe(true);
     expect(popup.children[0]).toBe(header);
-    expect(popup.children[1]?.getAttribute('data-openbitfun-part')).toBe('divider');
-    expect(popup.children[2]?.getAttribute('data-openbitfun-part')).toBe('options');
+    expect(popup.children[1]?.getAttribute('data-bitfun-part')).toBe('divider');
+    expect(popup.children[2]?.getAttribute('data-bitfun-part')).toBe('options');
     expect(listbox.querySelectorAll('[role="group"]')).toHaveLength(2);
     expect(selected.textContent).toContain('Ask');
-    expect(selected.querySelector('[data-openbitfun-part="indicator"]')).not.toBeNull();
+    expect(selected.querySelector('[data-bitfun-part="indicator"]')).not.toBeNull();
     expect(anchor.getAttribute('aria-hidden')).toBe('true');
     expect(anchor.getAttribute('role')).toBeNull();
     expect(anchor.id).toBe('');
@@ -94,7 +94,7 @@ describe('public Select product integration', () => {
     const content = [...anchor.childNodes];
 
     act(() => anchor.click());
-    const popup = document.querySelector<HTMLElement>('[data-openbitfun-component="select-popup"]')!;
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="select-popup"]')!;
     expect(field.dataset.size).toBe(size);
     expect(popup.dataset.size).toBe(size);
     expect([...anchor.childNodes]).toEqual(content);
@@ -102,7 +102,7 @@ describe('public Select product integration', () => {
     expect(anchor.tabIndex).toBe(-1);
 
     key(document.activeElement!, 'Escape');
-    expect(document.querySelector('[data-openbitfun-component="select-popup"]')).toBeNull();
+    expect(document.querySelector('[data-bitfun-component="select-popup"]')).toBeNull();
     expect([...anchor.childNodes]).toEqual(content);
     expect(field.dataset.size).toBe(size);
     expect(document.activeElement).toBe(anchor);
@@ -135,7 +135,7 @@ describe('public Select product integration', () => {
 
   it('moves Field semantics to a unified popup that exactly covers the anchor rectangle', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.dataset.openbitfunComponent === 'select-popup') return new DOMRect(0, 0, 240, 180);
+      if (this.dataset.bitfunComponent === 'select-popup') return new DOMRect(0, 0, 240, 180);
       return new DOMRect(40, 20, 240, 32);
     });
     act(() => root.render(
@@ -150,8 +150,8 @@ describe('public Select product integration', () => {
     expect(button.getAttribute('aria-describedby')).not.toBeNull();
 
     act(() => button.click());
-    const popup = document.querySelector<HTMLElement>('[data-openbitfun-component="select-popup"]')!;
-    const header = popup.querySelector<HTMLButtonElement>('[data-openbitfun-part="header"]')!;
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="select-popup"]')!;
+    const header = popup.querySelector<HTMLButtonElement>('[data-bitfun-part="header"]')!;
     expect(popup.style.left).toBe('40px');
     expect(popup.style.top).toBe('20px');
     expect(popup.style.width).toBe('240px');

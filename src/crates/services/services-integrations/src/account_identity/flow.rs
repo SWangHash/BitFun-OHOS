@@ -1,6 +1,6 @@
 //! Host-owned GitHub authorization transactions shared by native surfaces.
 use super::{AccountIdentityClient, DesktopAuthPollRequest, MarketClientError};
-use openbitfun_product_domains::account::{
+use bitfun_product_domains::account::{
     GitHubAuthPollRequest, GitHubAuthPollResponse, GitHubAuthStart,
 };
 use std::{

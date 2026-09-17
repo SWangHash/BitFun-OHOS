@@ -100,9 +100,9 @@ describe('ContextList removal presence', () => {
     expect([...(container?.querySelectorAll('[data-context-id]') ?? [])]
       .map(element => element.getAttribute('data-context-id'))).toEqual(['a', 'b', 'c']);
     expect(container?.querySelector('[data-context-id="b"]')
-      ?.closest('.openbitfun-context-list__item')?.getAttribute('data-exiting')).toBe('true');
+      ?.closest('.bitfun-context-list__item')?.getAttribute('data-exiting')).toBe('true');
     expect(container?.querySelector('[data-context-id="c"]')
-      ?.closest('.openbitfun-context-list__item')?.getAttribute('data-exiting')).toBe('true');
+      ?.closest('.bitfun-context-list__item')?.getAttribute('data-exiting')).toBe('true');
     expect(contextIds()).toEqual(['a', 'b', 'c']);
 
     act(() => vi.advanceTimersByTime(159));

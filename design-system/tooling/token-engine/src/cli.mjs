@@ -12,8 +12,8 @@ import {
 function readArguments(argv) {
   const options = {
     inputs: [],
-    layer: "openbitfun.tokens",
-    prefix: "openbitfun",
+    layer: "bitfun.tokens",
+    prefix: "bitfun",
     selector: ":root",
   };
 

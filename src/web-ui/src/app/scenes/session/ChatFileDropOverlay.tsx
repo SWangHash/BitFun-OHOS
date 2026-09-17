@@ -39,19 +39,19 @@ export function ChatFileDropOverlay({ preview, positionRef }: {
   }, [positionRef, showPreview]);
 
   return (
-    <div ref={overlayRef} className="openbitfun-chat-pane__drop-overlay" role="status"
+    <div ref={overlayRef} className="bitfun-chat-pane__drop-overlay" role="status"
       data-testid="chat-pane-drop-overlay">
-      <div className="openbitfun-chat-pane__drop-content">
-        <FileText className="openbitfun-chat-pane__drop-emblem"
+      <div className="bitfun-chat-pane__drop-content">
+        <FileText className="bitfun-chat-pane__drop-emblem"
           size={56} strokeWidth={1.5} aria-hidden="true" />
-        <div className="openbitfun-chat-pane__drop-copy">
-          <div className="openbitfun-chat-pane__drop-title">{t('context.dropToAdd')}</div>
-          <div className="openbitfun-chat-pane__drop-description">
+        <div className="bitfun-chat-pane__drop-copy">
+          <div className="bitfun-chat-pane__drop-title">{t('context.dropToAdd')}</div>
+          <div className="bitfun-chat-pane__drop-description">
             {t(preview?.unavailable ? 'context.dropPreviewUnavailable' : 'context.dropFilesHint')}
           </div>
         </div>
       </div>
-      {showPreview && preview && <div ref={cursorRef} className="openbitfun-chat-pane__drop-cursor">
+      {showPreview && preview && <div ref={cursorRef} className="bitfun-chat-pane__drop-cursor">
         <FileDropPreviewCards preview={preview} />
       </div>}
     </div>

@@ -1,4 +1,4 @@
-export const APPEARANCE_SCHEMA = 'openbitfun.appearance' as const;
+export const APPEARANCE_SCHEMA = 'bitfun.appearance' as const;
 export const APPEARANCE_SCHEMA_VERSION = 2 as const;
 export const SYSTEM_APPEARANCE_ID = 'system' as const;
 
@@ -384,15 +384,15 @@ export type AppearanceRendererId =
   | 'xterm'
   | 'mermaid'
   | 'generative-widget'
-  | 'openbitfun-canvas';
+  | 'bitfun-canvas';
 
 export type AppearanceThemeTokenName =
-  | `--openbitfun-color-${string}`
-  | `--openbitfun-shadow-${string}`
-  | `--openbitfun-effect-${string}`
-  | `--openbitfun-opacity-${string}`
-  | `--openbitfun-domain-${string}`
-  | `--openbitfun-component-${string}`;
+  | `--bitfun-color-${string}`
+  | `--bitfun-shadow-${string}`
+  | `--bitfun-effect-${string}`
+  | `--bitfun-opacity-${string}`
+  | `--bitfun-domain-${string}`
+  | `--bitfun-component-${string}`;
 
 export type AppearanceThemeScopeId = 'chrome';
 
@@ -509,7 +509,7 @@ export interface AppearanceRendererSettingsMap {
   xterm: XtermAppearanceSettings;
   mermaid: MermaidAppearanceSettings;
   'generative-widget': WidgetAppearanceSettings;
-  'openbitfun-canvas': CanvasAppearanceSettings;
+  'bitfun-canvas': CanvasAppearanceSettings;
 }
 
 export type AppearanceRendererSettings = AppearanceRendererSettingsMap[AppearanceRendererId];
@@ -577,7 +577,7 @@ export interface AppearancePartDescriptor {
 
 export interface AppearanceFacetDescriptor {
   id: string;
-  attribute: `data-openbitfun-${string}`;
+  attribute: `data-bitfun-${string}`;
   values: readonly string[];
 }
 
@@ -592,7 +592,7 @@ export interface AppearanceSurfaceDescriptor {
   id: string;
   /** Current DOM surface id used when this descriptor reads a legacy persisted id. */
   hostSelectorId?: string;
-  componentAttribute?: 'data-openbitfun-component' | 'data-openbitfun-product-component';
+  componentAttribute?: 'data-bitfun-component' | 'data-bitfun-product-component';
   parts: readonly AppearancePartDescriptor[];
   facets?: readonly AppearanceFacetDescriptor[];
   states?: readonly AppearanceStateDescriptor[];

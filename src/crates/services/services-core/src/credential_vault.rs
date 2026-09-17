@@ -372,7 +372,7 @@ mod tests {
 
     fn test_vault(label: &str) -> (PathBuf, CredentialVault) {
         let dir = std::env::temp_dir().join(format!(
-            "openbitfun-credential-vault-{label}-{}-{}",
+            "bitfun-credential-vault-{label}-{}-{}",
             std::process::id(),
             rand::random::<u64>()
         ));

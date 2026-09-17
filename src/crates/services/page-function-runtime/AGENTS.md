@@ -1,6 +1,6 @@
 # Page Function Runtime
 
-This crate owns the embedded JavaScript runtime used to execute OpenBitFun Page
+This crate owns the embedded JavaScript runtime used to execute BitFun Page
 Functions (rquickjs).
 
 ## Ownership
@@ -17,5 +17,5 @@ Functions (rquickjs).
 
 ## Verification
 
-Run `cargo test -p openbitfun-page-function-runtime` and
+Run `cargo test -p bitfun-page-function-runtime` and
 `node scripts/check-core-boundaries.mjs` after changes.

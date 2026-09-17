@@ -44,8 +44,8 @@ fn parse_legacy_type(value: &str) -> Option<(Option<MCPServerType>, Option<MCPSe
 
 pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
     let mut cursor_config = serde_json::Map::new();
-    if let Some(origin) = config.settings.get("_openbitfunImport") {
-        cursor_config.insert("_openbitfunImport".into(), origin.clone());
+    if let Some(origin) = config.settings.get("_bitfunImport") {
+        cursor_config.insert("_bitfunImport".into(), origin.clone());
     }
 
     let type_str = match (config.server_type, config.resolved_transport()) {
@@ -305,9 +305,9 @@ pub fn parse_cursor_format(
                             })
                             .unwrap_or_default();
                         if let Some(value) =
-                            obj.get("_openbitfunImport").filter(|value| value.is_object())
+                            obj.get("_bitfunImport").filter(|value| value.is_object())
                         {
-                            settings.insert("_openbitfunImport".to_string(), value.clone());
+                            settings.insert("_bitfunImport".to_string(), value.clone());
                         }
                         settings
                     },

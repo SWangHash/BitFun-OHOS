@@ -126,22 +126,22 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       ariaLabelledBy={titleId}
       closeOnOverlayClick={closeOnOverlayClick}
     >
-      <div className={`confirm-dialog confirm-dialog--${type}`} data-openbitfun-component="confirm-dialog" data-openbitfun-part="root" data-openbitfun-type={type}>
-        <div className="confirm-dialog__icon" aria-hidden data-openbitfun-component="confirm-dialog" data-openbitfun-part="icon">
+      <div className={`confirm-dialog confirm-dialog--${type}`} data-bitfun-component="confirm-dialog" data-bitfun-part="root" data-bitfun-type={type}>
+        <div className="confirm-dialog__icon" aria-hidden data-bitfun-component="confirm-dialog" data-bitfun-part="icon">
           {iconMap[type]}
         </div>
 
-        <div className="confirm-dialog__content" data-openbitfun-component="confirm-dialog" data-openbitfun-part="content">
+        <div className="confirm-dialog__content" data-bitfun-component="confirm-dialog" data-bitfun-part="content">
           <h3
             className={`confirm-dialog__title${hasMessage ? '' : ' confirm-dialog__title--compact'}`}
             id={titleId}
-            data-openbitfun-component="confirm-dialog"
-            data-openbitfun-part="title"
+            data-bitfun-component="confirm-dialog"
+            data-bitfun-part="title"
           >
             {title}
           </h3>
           {hasMessage ? (
-            <div className="confirm-dialog__message" role="region" aria-labelledby={titleId} data-openbitfun-component="confirm-dialog" data-openbitfun-part="message">
+            <div className="confirm-dialog__message" role="region" aria-labelledby={titleId} data-bitfun-component="confirm-dialog" data-bitfun-part="message">
               {message}
             </div>
           ) : null}
@@ -149,8 +149,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           {preview && (
             <div
               className="confirm-dialog__preview"
-              data-openbitfun-component="confirm-dialog"
-              data-openbitfun-part="preview"
+              data-bitfun-component="confirm-dialog"
+              data-bitfun-part="preview"
               style={{ maxHeight: previewMaxHeight }}
             >
               <pre>{preview}</pre>
@@ -158,7 +158,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           )}
         </div>
 
-        <div className="confirm-dialog__actions" data-openbitfun-component="confirm-dialog" data-openbitfun-part="actions">
+        <div className="confirm-dialog__actions" data-bitfun-component="confirm-dialog" data-bitfun-part="actions">
           {showCancel && (
             <Button
               variant="secondary"

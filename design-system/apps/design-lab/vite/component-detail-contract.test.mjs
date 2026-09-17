@@ -22,8 +22,8 @@ test("copyable examples and color-page controls use the same catalog as previews
   const source = await readFile(detailSource, "utf8");
   const styles = await readFile(stylesSource, "utf8");
   assert.doesNotMatch(source, /<(MessageCircle|MoreHorizontal|SearchIcon|Check|Copy|Download|Terminal|Settings|ChevronDown)(?:\s|\/>)/);
-  assert.match(styles, /\.colors-select-field > :is\(svg, \[data-openbitfun-component="icon"\]\)/);
-  assert.match(styles, /\.colors-expand-button :is\(svg, \[data-openbitfun-component="icon"\]\)\[data-expanded\]/);
+  assert.match(styles, /\.colors-select-field > :is\(svg, \[data-bitfun-component="icon"\]\)/);
+  assert.match(styles, /\.colors-expand-button :is\(svg, \[data-bitfun-component="icon"\]\)\[data-expanded\]/);
 });
 
 test("every preview matrix declares its state-column count", async () => {
@@ -358,7 +358,7 @@ test("ActivityItem preview exposes inline and surfaced anatomy without product b
   assert.match(detail, /actions=\{surface \? \[/);
   assert.match(detail, /setActivityItemAppearance/);
   assert.match(styles, /\.component-activity-item-example\s*\{[^}]*max-inline-size:\s*680px/s);
-  assert.match(styles, /\[data-openbitfun-component="activity-item"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-bitfun-component="activity-item"\]\.lab-force-focus/);
 });
 
 test("ActionItem preview reserves a full-width column for its complete anatomy", async () => {
@@ -370,7 +370,7 @@ test("ActionItem preview reserves a full-width column for its complete anatomy",
   );
   assert.match(
     source,
-    /\.component-preview-matrix\[data-component="action-item"\]\s+\[data-openbitfun-component="action-item"\]\s*\{[^}]*inline-size:\s*100%/s,
+    /\.component-preview-matrix\[data-component="action-item"\]\s+\[data-bitfun-component="action-item"\]\s*\{[^}]*inline-size:\s*100%/s,
   );
 });
 
@@ -430,11 +430,11 @@ test("Input, KeyHint, and SearchField previews expose composable slot and state 
   assert.match(source, /readOnly=\{state === "read-only"\}/);
 
   const styles = await readFile(stylesSource, "utf8");
-  const fieldFocus = styles.match(/\[data-openbitfun-component="input"\]\.lab-force-focus,[^{]+\{([^}]+)\}/)?.[1];
+  const fieldFocus = styles.match(/\[data-bitfun-component="input"\]\.lab-force-focus,[^{]+\{([^}]+)\}/)?.[1];
   assert.ok(fieldFocus, "Input and SearchField must share their preview focus treatment");
-  assert.match(fieldFocus, /border-color: var\(--openbitfun-color-field-border-active\)/);
+  assert.match(fieldFocus, /border-color: var\(--bitfun-color-field-border-active\)/);
   assert.match(fieldFocus, /box-shadow: none/);
-  assert.doesNotMatch(fieldFocus, /border-width:|outline:|--openbitfun-focus-width/);
+  assert.doesNotMatch(fieldFocus, /border-width:|outline:|--bitfun-focus-width/);
   assert.doesNotMatch(styles, /input\.lab-force-focus\s*\{/);
 });
 
@@ -466,7 +466,7 @@ test("Menu preview exposes grouped anatomy, item states, and scrollbar control",
   assert.match(detail, /"scrolling", "focus-within", "disabled-item", "checked-item"/);
   assert.match(detail, /scrollbarVisibility=\{menuShowScrollbar \? "auto" : "hidden"\}/);
   assert.match(detail, /role=\{state === "checked-item"/);
-  assert.match(styles, /\[data-openbitfun-component="action-item"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-bitfun-component="action-item"\]\.lab-force-focus/);
 });
 
 test("NavigationPanel preview exposes header, grouped navigation, selected items, scrolling, and footer", async () => {
@@ -505,7 +505,7 @@ test("Composer preview exposes context, editor, and action regions independently
   assert.match(detail, /setComposerShowContext/);
   assert.match(detail, /setComposerShowToolbar/);
   assert.match(styles, /\.component-composer-example\s*\{[^}]*max-inline-size:\s*680px/s);
-  assert.match(styles, /\[data-openbitfun-component="composer"\]\.lab-force-focus/);
+  assert.match(styles, /\[data-bitfun-component="composer"\]\.lab-force-focus/);
 });
 
 test("Field preview exposes label and control composition independently from layout orientation", async () => {
@@ -524,7 +524,7 @@ test("Field preview exposes label and control composition independently from lay
   assert.match(source, /setFieldShowLabelAction/);
   assert.match(source, /setFieldShowControlLeading/);
   assert.match(source, /setFieldShowControlTrailing/);
-  assert.match(styles, /\.component-field-example\[data-orientation="horizontal"\] \[data-openbitfun-part="control"\]\s*\{[^}]*inline-size:\s*150px/s);
+  assert.match(styles, /\.component-field-example\[data-orientation="horizontal"\] \[data-bitfun-part="control"\]\s*\{[^}]*inline-size:\s*150px/s);
 });
 
 test("FieldGroup preview exposes section, surface, row, and field composition contracts", async () => {
@@ -618,7 +618,7 @@ test("form previews preserve specimen width and their simulated field states", a
   const styles = await readFile(stylesSource, "utf8");
   assert.match(styles, /\.component-field-group-example\s*\{[^}]*min-inline-size:\s*440px/);
   assert.match(styles, /\.component-textarea-example\s*\{[^}]*inline-size:\s*280px/);
-  assert.match(styles, /\.component-textarea-example\.lab-state-hover textarea[^{}]*\{[^}]*--openbitfun-color-field-border-hover/);
-  assert.match(styles, /\.component-textarea-example\.lab-state-focus-visible textarea[^{}]*\{[^}]*--openbitfun-color-focus-ring/);
+  assert.match(styles, /\.component-textarea-example\.lab-state-hover textarea[^{}]*\{[^}]*--bitfun-color-field-border-hover/);
+  assert.match(styles, /\.component-textarea-example\.lab-state-focus-visible textarea[^{}]*\{[^}]*--bitfun-color-focus-ring/);
   assert.match(styles, /\.component-preview-matrix\[data-state-count="7"\]\s*\{[^}]*repeat\(7,/);
 });

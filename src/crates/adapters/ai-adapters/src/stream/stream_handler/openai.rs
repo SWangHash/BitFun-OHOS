@@ -6,7 +6,7 @@ use crate::stream::types::unified::UnifiedResponse;
 use anyhow::{anyhow, Result};
 use eventsource_stream::Eventsource;
 use log::{error, trace, warn};
-use openbitfun_core_types::errors::AiProviderError;
+use bitfun_core_types::errors::AiProviderError;
 use reqwest::Response;
 use serde_json::Value;
 use std::time::Duration;
@@ -296,7 +296,7 @@ mod tests {
     use super::{
         extract_sse_api_error, extract_sse_api_error_message, is_valid_chat_completion_chunk_weak,
     };
-    use openbitfun_core_types::errors::ErrorCategory;
+    use bitfun_core_types::errors::ErrorCategory;
 
     #[test]
     fn weak_filter_accepts_chat_completion_chunk() {

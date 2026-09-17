@@ -1,5 +1,5 @@
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -24,7 +24,7 @@ impl Tool for TodoWriteTool {
         "TodoWrite"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r###"Create and manage the structured task list for the current session. Use it to keep multi-step work visible, prevent missed follow-ups, and track verification.
 
 Use TodoWrite when:
@@ -115,24 +115,24 @@ Each item must include:
         &self,
         input: &Value,
         _context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         // Parse todos array
         let todos = input
             .get("todos")
             .and_then(|v| v.as_array())
-            .ok_or(OpenBitFunError::validation("Missing required field: todos"))?;
+            .ok_or(BitFunError::validation("Missing required field: todos"))?;
 
         let mut processed_todos = Vec::new();
         for todo in todos {
             let mut todo_obj = todo.clone();
             if let Some(obj) = todo_obj.as_object_mut() {
                 if !obj.contains_key("status") {
-                    return Err(OpenBitFunError::validation(
+                    return Err(BitFunError::validation(
                         "Todo item missing status field",
                     ));
                 }
                 if !obj.contains_key("content") {
-                    return Err(OpenBitFunError::validation(
+                    return Err(BitFunError::validation(
                         "Todo item missing content field",
                     ));
                 }

@@ -1,4 +1,4 @@
-import { Textarea, Button, Disclosure } from '@openbitfun/ui';
+import { Textarea, Button, Disclosure } from '@bitfun/ui';
 import { GithubLogo } from '@phosphor-icons/react';
 import { RefreshCw as ArrowClockwise, ShieldCheck, CircleAlert as WarningCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -193,7 +193,7 @@ export function AdminPage({ account, accountResolved, locale, t }: AdminPageProp
                     </div>
                     <div><dt>{t('packageIdentity')}</dt><dd>{detail.submission.packageId || t('notDeclared')}</dd></div>
                     <div><dt>{t('version')}</dt><dd>{detail.submission.packageVersion || t('notDeclared')}</dd></div>
-                    <div><dt>{t('compatibility')}</dt><dd>{detail.submission.minOpenBitFunVersion}</dd></div>
+                    <div><dt>{t('compatibility')}</dt><dd>{detail.submission.minBitFunVersion}</dd></div>
                     <div><dt>{t('license')}</dt><dd>{detail.submission.license.spdxExpression || t('customLicense')}</dd></div>
                   </dl>
                   <section className="review-section"><h3>{t('requiredCapabilities')}</h3><div className="capability-list">{detail.submission.requiredCapabilities.length > 0 ? detail.submission.requiredCapabilities.map(value => <code key={value}>{value}</code>) : <span>{t('noExtraCapabilities')}</span>}</div></section>

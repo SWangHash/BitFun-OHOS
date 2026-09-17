@@ -94,7 +94,7 @@ mod tests {
     #[test]
     #[ignore = "run through scripts/test-browser-snapshot.mjs with a real Chromium payload"]
     fn real_browser_snapshot_survives_rust_presentation() {
-        let path = std::env::var("OPENBITFUN_BROWSER_SNAPSHOT_FIXTURE")
+        let path = std::env::var("BITFUN_BROWSER_SNAPSHOT_FIXTURE")
             .expect("real browser fixture path");
         let source = std::fs::read_to_string(path).unwrap();
         let mut parsed = parse_snapshot_result(&json!({"result":{"value":source}})).unwrap();

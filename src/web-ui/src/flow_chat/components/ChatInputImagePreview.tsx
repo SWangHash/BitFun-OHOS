@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '@openbitfun/ui';
+import { Icon } from '@bitfun/ui';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { useI18n } from '@/infrastructure/i18n';
@@ -37,12 +37,12 @@ export function ChatInputImagePreview({ image, surfaceEpoch }: {
   }, [embedded, path, image.mimeType, surfaceEpoch]);
 
   return source && !error ? (
-    <img className="openbitfun-chat-input__image-chip-thumb"
-      data-openbitfun-component="chat-input" data-openbitfun-part="imagePreview"
+    <img className="bitfun-chat-input__image-chip-thumb"
+      data-bitfun-component="chat-input" data-bitfun-part="imagePreview"
       src={source} alt={image.imageName} onError={() => setError(image.imageName)} />
   ) : (
-    <div className="openbitfun-chat-input__image-chip-thumb openbitfun-chat-input__image-chip-thumb--placeholder"
-      data-openbitfun-component="chat-input" data-openbitfun-part="imagePreview"
+    <div className="bitfun-chat-input__image-chip-thumb bitfun-chat-input__image-chip-thumb--placeholder"
+      data-bitfun-component="chat-input" data-bitfun-part="imagePreview"
       role={error ? 'img' : undefined}
       aria-label={error ? t('editor.imageViewer.loadImageFailedWithMessage', { message: error }) : undefined}
       title={error ? t('editor.imageViewer.loadImageFailedWithMessage', { message: error }) : image.imageName}>

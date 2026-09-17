@@ -16,7 +16,7 @@
 //! `current_capture()` seam injected at startup.
 
 use async_trait::async_trait;
-use openbitfun_services_core::screen_capture::{CapturedImage, DisplayInfo, ScreenCapture};
+use bitfun_services_core::screen_capture::{CapturedImage, DisplayInfo, ScreenCapture};
 use serde::{Deserialize, Serialize};
 
 const ARKTS_FUNCTION: &str = "screen_capture";
@@ -75,7 +75,7 @@ impl OhosScreenCapture {
     async fn call(&self, request: CaptureRequest) -> Result<CaptureResponse, String> {
         let input = serde_json::to_string(&request)
             .map_err(|error| format!("encode screen capture request: {error}"))?;
-        let output = openbitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
+        let output = bitfun_core::util::call_arkts_string_function(ARKTS_FUNCTION, input)
             .await
             .map_err(|error| format!("call OpenHarmony screen capture: {error}"))?;
         serde_json::from_str(&output)

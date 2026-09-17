@@ -5,7 +5,7 @@
 //! its own rounds, tools, cancellation, and cleanup lifecycle.
 
 use crate::agentic::core::{Message, Session, SessionConfig};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 
 /// Immutable snapshot of a parent session's runtime context at fork time.
 #[derive(Debug, Clone)]
@@ -26,13 +26,13 @@ impl ForkAgentContextSnapshot {
     pub fn from_parent_session(
         parent_session: &Session,
         messages: Vec<Message>,
-    ) -> OpenBitFunResult<Self> {
+    ) -> BitFunResult<Self> {
         let workspace_path = parent_session
             .config
             .workspace_path
             .clone()
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "workspace_path is required when forking session: {}",
                     parent_session.session_id
                 ))
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn forked_session_inherits_the_parent_permission_mode_selection() {
-        use openbitfun_runtime_ports::PermissionMode;
+        use bitfun_runtime_ports::PermissionMode;
 
         let mut parent = parent_session();
         parent.config.permission_mode = Some(PermissionMode::FullAccess);

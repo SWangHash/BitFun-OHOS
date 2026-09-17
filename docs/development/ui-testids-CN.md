@@ -2,7 +2,7 @@
 
 # UI Test IDs
 
-本文档记录 OpenBitFun UI 自动化使用的稳定 `data-testid` 值。
+本文档记录 BitFun UI 自动化使用的稳定 `data-testid` 值。
 测试 ID 按产品区域分组，只应在自动化流程确实需要稳定定位点时添加。
 
 规则：
@@ -239,7 +239,7 @@
 | 模型列表 | `settings-model-list` | 已配置模型行的容器。 |
 | 创建第一个模型配置按钮 | `settings-model-create-first-config-btn` | 从空状态启动第一个模型提供商配置流程。 |
 | 自定义模型配置按钮 | `settings-model-custom-config-btn` | 启动自定义提供商配置。包含 `data-provider-id="custom"`。 |
-| 模型提供商选项 | `settings-model-provider-option` | 重复的提供商行。配合 `data-provider-id` 使用，例如 `openbitfun`。列表默认只展示前几项，取用列表外的提供商需先经搜索框或下方展开按钮。 |
+| 模型提供商选项 | `settings-model-provider-option` | 重复的提供商行。配合 `data-provider-id` 使用，例如 `bitfun`。列表默认只展示前几项，取用列表外的提供商需先经搜索框或下方展开按钮。 |
 | 模型提供商搜索框 | `settings-model-provider-search` | 按提供商名称、id 或模型名称过滤预设提供商列表。 |
 | 模型提供商展开按钮 | `settings-model-provider-expand-btn` | 将截断的预设提供商列表展开为全部提供商，再次点击收起。 |
 | 模型提供商名称输入框 | `settings-model-provider-name-input` | 提供商/配置展示名称字段，例如 mock LLM 提供商名称。 |
@@ -270,7 +270,7 @@
 | Appearance 语言选项 | `appearance-language-option` | 重复的语言下拉选项。包含 `data-locale-id`，并带有 Select 组件提供的 `data-selected`。 |
 | Appearance 主题选择器 | `appearance-theme-select` | Appearance 中 theme Select 的真实触发节点。 |
 | Appearance 外观选项 | `appearance-palette-option` | 重复的外观下拉选项。包含 `data-appearance-id`，并带有 Select 组件提供的 `data-selected`。 |
-| Appearance UI 字号分组 | `appearance-ui-font-level-group` | UI font size 预置级别控件根节点。预置级别渲染为设计系统 SegmentedControl 分段，可通过 `[data-openbitfun-part="segment"][data-openbitfun-value="<level>"]` 定位，选中分段带 `aria-checked="true"`。 |
+| Appearance UI 字号分组 | `appearance-ui-font-level-group` | UI font size 预置级别控件根节点。预置级别渲染为设计系统 SegmentedControl 分段，可通过 `[data-bitfun-part="segment"][data-bitfun-value="<level>"]` 定位，选中分段带 `aria-checked="true"`。 |
 | Appearance UI 自定义字号控制区 | `appearance-ui-font-custom-controls` | custom UI 字号控制区根节点，仅在 custom 激活时渲染。 |
 | Appearance UI 自定义字号输入框 | `appearance-ui-font-custom-input` | custom UI 字号 px 输入框。包含 `data-font-level="custom"`。 |
 | Appearance UI 自定义字号减一按钮 | `appearance-ui-font-custom-step-minus` | custom UI 字号减一按钮。 |

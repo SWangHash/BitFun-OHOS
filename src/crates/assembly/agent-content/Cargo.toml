@@ -1,5 +1,5 @@
 [package]
-name = "openbitfun-agent-content"
+name = "bitfun-agent-content"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

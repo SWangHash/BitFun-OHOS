@@ -10,7 +10,7 @@ use super::{
     SESSION_STORAGE_SCHEMA_VERSION,
 };
 use crate::json_store::{JsonFileStore, JsonFileStoreError};
-use openbitfun_core_types::validate_session_id;
+use bitfun_core_types::validate_session_id;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -206,12 +206,12 @@ mod tests {
             metadata: stored_metadata.metadata,
             turns: vec![stored_turn.turn],
         };
-        let temp_root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let temp_root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("E:/tmp"));
         fs::create_dir_all(&temp_root).unwrap();
         let temp = tempfile::Builder::new()
-            .prefix("openbitfun-offline-session-")
+            .prefix("bitfun-offline-session-")
             .tempdir_in(temp_root)
             .unwrap();
         let store = OfflineSessionImportStore::new(temp.path());

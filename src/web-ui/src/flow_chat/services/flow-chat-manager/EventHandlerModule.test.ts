@@ -85,14 +85,14 @@ describe('Claw bootstrap cancellation', () => {
 describe('built-in browser open request projection', () => {
   it('correlates replacement and new-tab requests with distinct stable keys', () => {
     expect(buildBuiltInBrowserTabOptions({
-      url: ' https://openbitfun.com/ ',
+      url: ' https://bitfun.com/ ',
       title: ' Docs ',
       requestId: ' request-1 ',
       replaceExisting: true,
     })).toMatchObject({
       title: 'Docs',
       data: {
-        url: 'https://openbitfun.com/',
+        url: 'https://bitfun.com/',
         openRequestId: 'request-1',
       },
       duplicateCheckKey: 'browser-panel',
@@ -100,7 +100,7 @@ describe('built-in browser open request projection', () => {
     });
 
     expect(buildBuiltInBrowserTabOptions({
-      url: 'https://openbitfun.com/',
+      url: 'https://bitfun.com/',
       requestId: 'request-2',
       replaceExisting: false,
     })).toMatchObject({
@@ -630,7 +630,7 @@ describe('dispatch optimistic turn reconciliation', () => {
       status: 'pending',
     });
     expect(turns?.[0]?.userMessage.metadata)
-      .not.toHaveProperty('__openbitfunOptimisticDispatchJobId');
+      .not.toHaveProperty('__bitfunOptimisticDispatchJobId');
     expect(context.deferredStorageIdentitySaves).not.toContain(
       'dispatch-session:dispatch_pending_job-1',
     );

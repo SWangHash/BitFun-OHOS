@@ -1,4 +1,4 @@
-use openbitfun_product_domains::legacy_migration::MigrationDomainId;
+use bitfun_product_domains::legacy_migration::MigrationDomainId;
 use std::path::PathBuf;
 
 pub type LegacyMigrationResult<T> = Result<T, LegacyMigrationError>;

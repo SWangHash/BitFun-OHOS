@@ -1,14 +1,14 @@
 use crate::agentic::core::message::MemoryCitation;
 use crate::infrastructure::PathManager;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_services_core::memory_store::{
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_services_core::memory_store::{
     decode_memory_job, decode_memory_record, initialize_memory_schema, upsert_memory_record,
 };
-pub use openbitfun_services_core::memory_store::{
+pub use bitfun_services_core::memory_store::{
     MemoryJobRecord as MemoryJobRow, MemoryRecord as MemoryRow,
 };
 #[cfg(test)]
-use openbitfun_services_core::memory_store::{EXPECTED_JOBS_COLUMNS, EXPECTED_STAGE1_COLUMNS};
+use bitfun_services_core::memory_store::{EXPECTED_JOBS_COLUMNS, EXPECTED_STAGE1_COLUMNS};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -81,12 +81,12 @@ impl MemoryDatabase {
         &self.db_path
     }
 
-    pub async fn initialize(&self) -> OpenBitFunResult<()> {
+    pub async fn initialize(&self) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             if let Some(parent) = db_path.parent() {
                 std::fs::create_dir_all(parent).map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to create memories database directory {}: {}",
                         parent.display(),
                         error
@@ -100,13 +100,13 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories init task failed: {}", error))
+            BitFunError::service(format!("Memories init task failed: {}", error))
         })?
     }
 
-    pub async fn reset_memory_state(&self) -> OpenBitFunResult<()> {
+    pub async fn reset_memory_state(&self) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             if !db_path.exists() {
                 return Ok(());
             }
@@ -118,14 +118,14 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories reset task failed: {}", error))
+            BitFunError::service(format!("Memories reset task failed: {}", error))
         })?
     }
 
-    pub async fn upsert_memory(&self, row: &MemoryRow) -> OpenBitFunResult<()> {
+    pub async fn upsert_memory(&self, row: &MemoryRow) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
         let row = row.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             upsert_stage1_output_conn(&conn, &row, true)?;
@@ -133,7 +133,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -141,17 +141,17 @@ impl MemoryDatabase {
         &self,
         session_id: &str,
         session_finished_at_unix_secs: i64,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             phase1_source_needs_update_in_conn(&conn, &session_id, session_finished_at_unix_secs)
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories read task failed: {}", error))
+            BitFunError::service(format!("Memories read task failed: {}", error))
         })?
     }
 
@@ -162,17 +162,17 @@ impl MemoryDatabase {
         session_finished_at_unix_secs: i64,
         lease_seconds: i64,
         max_running_jobs: usize,
-    ) -> OpenBitFunResult<MemoryPhase1ClaimOutcome> {
+    ) -> BitFunResult<MemoryPhase1ClaimOutcome> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
         let worker_id = worker_id.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<MemoryPhase1ClaimOutcome> {
+        task::spawn_blocking(move || -> BitFunResult<MemoryPhase1ClaimOutcome> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let tx = conn
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to begin memory phase1 claim transaction: {}",
                         error
                     ))
@@ -186,7 +186,7 @@ impl MemoryDatabase {
                 max_running_jobs,
             )?;
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory phase1 claim transaction: {}",
                     error
                 ))
@@ -195,7 +195,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -203,15 +203,15 @@ impl MemoryDatabase {
         &self,
         row: &MemoryRow,
         ownership_token: &str,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let row = row.clone();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let tx = conn.transaction().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to begin memory phase1 success transaction: {}",
                     error
                 ))
@@ -245,14 +245,14 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to mark memory phase1 job succeeded: {}",
                         error
                     ))
                 })?;
             if rows_affected == 0 {
                 tx.commit().map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to commit memory phase1 success transaction: {}",
                         error
                     ))
@@ -262,7 +262,7 @@ impl MemoryDatabase {
 
             upsert_stage1_output_tx(&tx, &row, false)?;
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory phase1 success transaction: {}",
                     error
                 ))
@@ -271,7 +271,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -279,15 +279,15 @@ impl MemoryDatabase {
         &self,
         session_id: &str,
         ownership_token: &str,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let tx = conn.transaction().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to begin memory phase1 no-output transaction: {}",
                     error
                 ))
@@ -321,7 +321,7 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to mark memory phase1 no-output job succeeded: {}",
                         error
                     ))
@@ -336,14 +336,14 @@ impl MemoryDatabase {
                     params![session_id, input_watermark],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to remove stale memory phase1 output: {}",
                         error
                     ))
                 })?;
             }
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory phase1 no-output transaction: {}",
                     error
                 ))
@@ -352,7 +352,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -360,11 +360,11 @@ impl MemoryDatabase {
         &self,
         session_id: &str,
         ownership_token: &str,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let rows_affected = conn
@@ -393,13 +393,13 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!("Failed to release memory phase1 claim: {}", error))
+                    BitFunError::io(format!("Failed to release memory phase1 claim: {}", error))
                 })?;
             Ok(rows_affected > 0)
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -409,11 +409,11 @@ impl MemoryDatabase {
         ownership_token: &str,
         retry_backoff_seconds: i64,
         error: String,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let now = current_unix_secs();
@@ -445,7 +445,7 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to mark memory phase1 job failed: {}",
                         error
                     ))
@@ -454,7 +454,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -465,16 +465,16 @@ impl MemoryDatabase {
         _citing_round_id: Option<&str>,
         _citing_message_id: &str,
         citation: &MemoryCitation,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
         let citation = citation.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let resolved_session_ids =
                 resolve_citation_session_ids(&conn, &citation).unwrap_or_default();
             let tx = conn.transaction().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to begin memory citation usage transaction: {}",
                     error
                 ))
@@ -494,14 +494,14 @@ impl MemoryDatabase {
                     params![session_id, now],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to update memory usage from citation: {}",
                         error
                     ))
                 })?;
             }
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory citation usage transaction: {}",
                     error
                 ))
@@ -510,7 +510,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -518,7 +518,7 @@ impl MemoryDatabase {
         &self,
         limit: usize,
         max_unused_days: i64,
-    ) -> OpenBitFunResult<Vec<MemoryPhase2CandidateRow>> {
+    ) -> BitFunResult<Vec<MemoryPhase2CandidateRow>> {
         self.list_phase2_candidates_inner(limit, max_unused_days, true)
             .await
     }
@@ -527,7 +527,7 @@ impl MemoryDatabase {
         &self,
         limit: usize,
         max_unused_days: i64,
-    ) -> OpenBitFunResult<Vec<MemoryPhase2CandidateRow>> {
+    ) -> BitFunResult<Vec<MemoryPhase2CandidateRow>> {
         self.list_phase2_candidates_inner(limit, max_unused_days, false)
             .await
     }
@@ -536,13 +536,13 @@ impl MemoryDatabase {
         &self,
         max_unused_days: i64,
         limit: usize,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         if limit == 0 {
             return Ok(0);
         }
 
         let db_path = self.db_path.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<usize> {
+        task::spawn_blocking(move || -> BitFunResult<usize> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let cutoff = current_unix_secs() - max_unused_days.max(0) * 24 * 60 * 60;
@@ -565,7 +565,7 @@ impl MemoryDatabase {
                     params![cutoff, limit as i64],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to prune stale memory stage1 outputs: {}",
                         error
                     ))
@@ -574,7 +574,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories prune task failed: {}", error))
+            BitFunError::service(format!("Memories prune task failed: {}", error))
         })?
     }
 
@@ -583,13 +583,13 @@ impl MemoryDatabase {
         limit: usize,
         max_unused_days: i64,
         only_unselected: bool,
-    ) -> OpenBitFunResult<Vec<MemoryPhase2CandidateRow>> {
+    ) -> BitFunResult<Vec<MemoryPhase2CandidateRow>> {
         if limit == 0 {
             return Ok(Vec::new());
         }
 
         let db_path = self.db_path.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<Vec<MemoryPhase2CandidateRow>> {
+        task::spawn_blocking(move || -> BitFunResult<Vec<MemoryPhase2CandidateRow>> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let cutoff = current_unix_secs() - max_unused_days.max(0) * 24 * 60 * 60;
@@ -621,7 +621,7 @@ impl MemoryDatabase {
                 "#,
             );
             let mut stmt = conn.prepare(&sql).map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to prepare memory phase2 candidate query: {}",
                     error
                 ))
@@ -629,7 +629,7 @@ impl MemoryDatabase {
             let rows = stmt
                 .query_map(params![cutoff, limit as i64], row_to_phase2_candidate)
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to query memory phase2 candidates: {}",
                         error
                     ))
@@ -638,7 +638,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories read task failed: {}", error))
+            BitFunError::service(format!("Memories read task failed: {}", error))
         })?
     }
 
@@ -646,14 +646,14 @@ impl MemoryDatabase {
         &self,
         session_ids: &[String],
         source_updated_at_unix_secs: i64,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
         let session_ids = session_ids.to_vec();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let tx = conn.transaction().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to begin memory phase2 selection transaction: {}",
                     error
                 ))
@@ -669,7 +669,7 @@ impl MemoryDatabase {
                 [],
             )
             .map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to clear previous memory phase2 selection: {}",
                     error
                 ))
@@ -685,14 +685,14 @@ impl MemoryDatabase {
                     params![session_id, source_updated_at_unix_secs],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to mark memory row selected for phase2: {}",
                         error
                     ))
                 })?;
             }
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory phase2 selection transaction: {}",
                     error
                 ))
@@ -701,7 +701,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -709,7 +709,7 @@ impl MemoryDatabase {
         &self,
         job_key: &str,
         selected_rows: &[MemoryPhase2CandidateRow],
-    ) -> OpenBitFunResult<Option<MemoryPhase2SelectionRow>> {
+    ) -> BitFunResult<Option<MemoryPhase2SelectionRow>> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
         let max_source_updated_at = selected_rows
@@ -718,7 +718,7 @@ impl MemoryDatabase {
             .max()
             .unwrap_or_default();
         task::spawn_blocking(
-            move || -> OpenBitFunResult<Option<MemoryPhase2SelectionRow>> {
+            move || -> BitFunResult<Option<MemoryPhase2SelectionRow>> {
                 let conn = open_connection(&db_path)?;
                 initialize_schema(&conn)?;
                 let existing =
@@ -746,7 +746,7 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to upsert memory phase2 selection: {}",
                         error
                     ))
@@ -759,14 +759,14 @@ impl MemoryDatabase {
         )
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
-    pub async fn phase2_selected_for_session(&self, session_id: &str) -> OpenBitFunResult<bool> {
+    pub async fn phase2_selected_for_session(&self, session_id: &str) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let session_id = session_id.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let selected = conn
@@ -777,7 +777,7 @@ impl MemoryDatabase {
                 )
                 .optional()
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to query memory phase2 selection: {}",
                         error
                     ))
@@ -786,7 +786,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories read task failed: {}", error))
+            BitFunError::service(format!("Memories read task failed: {}", error))
         })?
     }
 
@@ -794,10 +794,10 @@ impl MemoryDatabase {
         &self,
         job_key: &str,
         input_watermark: i64,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<()> {
+        task::spawn_blocking(move || -> BitFunResult<()> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             conn.execute(
@@ -824,21 +824,21 @@ impl MemoryDatabase {
                 ],
             )
             .map_err(|error| {
-                OpenBitFunError::io(format!("Failed to enqueue memory phase2 job: {}", error))
+                BitFunError::io(format!("Failed to enqueue memory phase2 job: {}", error))
             })?;
             Ok(())
         })
         .await
-        .map_err(|error| OpenBitFunError::service(format!("Memories write task failed: {}", error)))?
+        .map_err(|error| BitFunError::service(format!("Memories write task failed: {}", error)))?
     }
 
-    pub async fn list_recent(&self, limit: usize) -> OpenBitFunResult<Vec<MemoryRow>> {
+    pub async fn list_recent(&self, limit: usize) -> BitFunResult<Vec<MemoryRow>> {
         if limit == 0 {
             return Ok(Vec::new());
         }
 
         let db_path = self.db_path.clone();
-        task::spawn_blocking(move || -> OpenBitFunResult<Vec<MemoryRow>> {
+        task::spawn_blocking(move || -> BitFunResult<Vec<MemoryRow>> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let mut stmt = conn
@@ -854,32 +854,32 @@ impl MemoryDatabase {
                     "#,
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!("Failed to prepare memory list query: {}", error))
+                    BitFunError::io(format!("Failed to prepare memory list query: {}", error))
                 })?;
             let rows = stmt
                 .query_map(params![limit as i64], row_to_memory)
                 .map_err(|error| {
-                    OpenBitFunError::io(format!("Failed to query memory rows: {}", error))
+                    BitFunError::io(format!("Failed to query memory rows: {}", error))
                 })?;
             collect_rows(rows, "memory row")
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories read task failed: {}", error))
+            BitFunError::service(format!("Memories read task failed: {}", error))
         })?
     }
 
-    pub async fn get_phase2_job(&self, job_key: &str) -> OpenBitFunResult<Option<MemoryJobRow>> {
+    pub async fn get_phase2_job(&self, job_key: &str) -> BitFunResult<Option<MemoryJobRow>> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<Option<MemoryJobRow>> {
+        task::spawn_blocking(move || -> BitFunResult<Option<MemoryJobRow>> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             get_job_in_connection(&conn, JOB_KIND_MEMORY_CONSOLIDATE_GLOBAL, &job_key)
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories read task failed: {}", error))
+            BitFunError::service(format!("Memories read task failed: {}", error))
         })?
     }
 
@@ -889,17 +889,17 @@ impl MemoryDatabase {
         ownership_token: &str,
         input_watermark: i64,
         lease_seconds: i64,
-    ) -> OpenBitFunResult<MemoryPhase2ClaimOutcome> {
+    ) -> BitFunResult<MemoryPhase2ClaimOutcome> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<MemoryPhase2ClaimOutcome> {
+        task::spawn_blocking(move || -> BitFunResult<MemoryPhase2ClaimOutcome> {
             let mut conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let tx = conn
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to begin memory phase2 claim transaction: {}",
                         error
                     ))
@@ -914,7 +914,7 @@ impl MemoryDatabase {
                         .is_some_and(|lease_until| lease_until > now)
                 {
                     tx.commit().map_err(|error| {
-                        OpenBitFunError::io(format!(
+                        BitFunError::io(format!(
                             "Failed to commit memory phase2 running skip transaction: {}",
                             error
                         ))
@@ -926,7 +926,7 @@ impl MemoryDatabase {
                     .is_some_and(|retry_at| retry_at > now)
                 {
                     tx.commit().map_err(|error| {
-                        OpenBitFunError::io(format!(
+                        BitFunError::io(format!(
                             "Failed to commit memory phase2 retry skip transaction: {}",
                             error
                         ))
@@ -969,10 +969,10 @@ impl MemoryDatabase {
                 ],
             )
             .map_err(|error| {
-                OpenBitFunError::io(format!("Failed to claim memory phase2 job: {}", error))
+                BitFunError::io(format!("Failed to claim memory phase2 job: {}", error))
             })?;
             tx.commit().map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Failed to commit memory phase2 claim transaction: {}",
                     error
                 ))
@@ -981,7 +981,7 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -990,7 +990,7 @@ impl MemoryDatabase {
         job_key: &str,
         ownership_token: &str,
         input_watermark: i64,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.complete_phase2_job(job_key, ownership_token, input_watermark, true, None)
             .await
     }
@@ -1000,7 +1000,7 @@ impl MemoryDatabase {
         job_key: &str,
         ownership_token: &str,
         input_watermark: i64,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.complete_phase2_job(job_key, ownership_token, input_watermark, false, None)
             .await
     }
@@ -1012,11 +1012,11 @@ impl MemoryDatabase {
         input_watermark: i64,
         successful_consolidation: bool,
         error: Option<String>,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let now = current_unix_secs();
@@ -1059,13 +1059,13 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!("Failed to complete memory phase2 job: {}", error))
+                    BitFunError::io(format!("Failed to complete memory phase2 job: {}", error))
                 })?;
             Ok(rows_affected > 0)
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -1075,11 +1075,11 @@ impl MemoryDatabase {
         ownership_token: &str,
         retry_after_unix_secs: i64,
         error: String,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let now = current_unix_secs();
@@ -1111,13 +1111,13 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!("Failed to fail memory phase2 job: {}", error))
+                    BitFunError::io(format!("Failed to fail memory phase2 job: {}", error))
                 })?;
             Ok(rows_affected > 0)
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 
@@ -1127,11 +1127,11 @@ impl MemoryDatabase {
         ownership_token: &str,
         heartbeat_at_unix_secs: i64,
         lease_seconds: i64,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let db_path = self.db_path.clone();
         let job_key = job_key.to_string();
         let ownership_token = ownership_token.to_string();
-        task::spawn_blocking(move || -> OpenBitFunResult<bool> {
+        task::spawn_blocking(move || -> BitFunResult<bool> {
             let conn = open_connection(&db_path)?;
             initialize_schema(&conn)?;
             let lease_until = heartbeat_at_unix_secs.saturating_add(lease_seconds.max(0));
@@ -1153,7 +1153,7 @@ impl MemoryDatabase {
                     ],
                 )
                 .map_err(|error| {
-                    OpenBitFunError::io(format!(
+                    BitFunError::io(format!(
                         "Failed to update memory phase2 heartbeat: {}",
                         error
                     ))
@@ -1162,14 +1162,14 @@ impl MemoryDatabase {
         })
         .await
         .map_err(|error| {
-            OpenBitFunError::service(format!("Memories write task failed: {}", error))
+            BitFunError::service(format!("Memories write task failed: {}", error))
         })?
     }
 }
 
-fn open_connection(path: &Path) -> OpenBitFunResult<Connection> {
+fn open_connection(path: &Path) -> BitFunResult<Connection> {
     Connection::open(path).map_err(|error| {
-        OpenBitFunError::io(format!(
+        BitFunError::io(format!(
             "Failed to open memories database {}: {}",
             path.display(),
             error
@@ -1177,18 +1177,18 @@ fn open_connection(path: &Path) -> OpenBitFunResult<Connection> {
     })
 }
 
-fn initialize_schema(conn: &Connection) -> OpenBitFunResult<()> {
+fn initialize_schema(conn: &Connection) -> BitFunResult<()> {
     initialize_memory_schema(conn).map_err(|error| {
-        OpenBitFunError::io(format!("Failed to initialize memories schema: {error}"))
+        BitFunError::io(format!("Failed to initialize memories schema: {error}"))
     })
 }
 
 #[cfg(test)]
-fn table_columns(conn: &Connection, table_name: &str) -> OpenBitFunResult<Vec<String>> {
+fn table_columns(conn: &Connection, table_name: &str) -> BitFunResult<Vec<String>> {
     let mut stmt = conn
         .prepare(&format!("PRAGMA table_info({table_name})"))
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to inspect memories table {}: {}",
                 table_name, error
             ))
@@ -1196,7 +1196,7 @@ fn table_columns(conn: &Connection, table_name: &str) -> OpenBitFunResult<Vec<St
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(1))
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memories table {} columns: {}",
                 table_name, error
             ))
@@ -1204,7 +1204,7 @@ fn table_columns(conn: &Connection, table_name: &str) -> OpenBitFunResult<Vec<St
     let mut columns = Vec::new();
     for row in rows {
         let column = row.map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to decode memories table {} column: {}",
                 table_name, error
             ))
@@ -1214,14 +1214,14 @@ fn table_columns(conn: &Connection, table_name: &str) -> OpenBitFunResult<Vec<St
     Ok(columns)
 }
 
-fn clear_memory_state_in_conn(conn: &Connection) -> OpenBitFunResult<()> {
+fn clear_memory_state_in_conn(conn: &Connection) -> BitFunResult<()> {
     conn.execute_batch(
         r#"
         DELETE FROM stage1_outputs;
         DELETE FROM jobs;
         "#,
     )
-    .map_err(|error| OpenBitFunError::io(format!("Failed to clear memories state: {}", error)))?;
+    .map_err(|error| BitFunError::io(format!("Failed to clear memories state: {}", error)))?;
     Ok(())
 }
 
@@ -1229,9 +1229,9 @@ fn upsert_stage1_output_conn(
     conn: &Connection,
     row: &MemoryRow,
     overwrite_usage_and_selection: bool,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     upsert_memory_record(conn, row, overwrite_usage_and_selection).map_err(|error| {
-        OpenBitFunError::io(format!("Failed to upsert memory stage1 output: {error}"))
+        BitFunError::io(format!("Failed to upsert memory stage1 output: {error}"))
     })
 }
 
@@ -1239,9 +1239,9 @@ fn upsert_stage1_output_tx(
     tx: &Transaction<'_>,
     row: &MemoryRow,
     overwrite_usage_and_selection: bool,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     upsert_memory_record(tx, row, overwrite_usage_and_selection).map_err(|error| {
-        OpenBitFunError::io(format!("Failed to upsert memory stage1 output: {error}"))
+        BitFunError::io(format!("Failed to upsert memory stage1 output: {error}"))
     })
 }
 
@@ -1249,7 +1249,7 @@ fn phase1_source_needs_update_in_conn(
     conn: &Connection,
     session_id: &str,
     session_finished_at_unix_secs: i64,
-) -> OpenBitFunResult<bool> {
+) -> BitFunResult<bool> {
     let output_watermark = conn
         .query_row(
             "SELECT source_updated_at FROM stage1_outputs WHERE thread_id = ?1",
@@ -1258,7 +1258,7 @@ fn phase1_source_needs_update_in_conn(
         )
         .optional()
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memory stage1 output state: {}",
                 error
             ))
@@ -1279,7 +1279,7 @@ fn phase1_source_needs_update_in_conn(
         )
         .optional()
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memory phase1 job watermark: {}",
                 error
             ))
@@ -1295,7 +1295,7 @@ fn try_claim_phase1_job_in_tx(
     session_finished_at_unix_secs: i64,
     lease_seconds: i64,
     max_running_jobs: usize,
-) -> OpenBitFunResult<MemoryPhase1ClaimOutcome> {
+) -> BitFunResult<MemoryPhase1ClaimOutcome> {
     if !phase1_source_needs_update_in_tx(tx, session_id, session_finished_at_unix_secs)? {
         return Ok(MemoryPhase1ClaimOutcome::SkippedUpToDate);
     }
@@ -1315,7 +1315,7 @@ fn try_claim_phase1_job_in_tx(
             |row| row.get::<_, i64>(0),
         )
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to count running memory phase1 jobs: {}",
                 error
             ))
@@ -1386,7 +1386,7 @@ fn try_claim_phase1_job_in_tx(
         ],
     )
     .map_err(|error| {
-        OpenBitFunError::io(format!("Failed to claim memory phase1 job: {}", error))
+        BitFunError::io(format!("Failed to claim memory phase1 job: {}", error))
     })?;
 
     Ok(MemoryPhase1ClaimOutcome::Claimed { ownership_token })
@@ -1396,7 +1396,7 @@ fn phase1_source_needs_update_in_tx(
     tx: &Transaction<'_>,
     session_id: &str,
     session_finished_at_unix_secs: i64,
-) -> OpenBitFunResult<bool> {
+) -> BitFunResult<bool> {
     let output_watermark = tx
         .query_row(
             "SELECT source_updated_at FROM stage1_outputs WHERE thread_id = ?1",
@@ -1405,7 +1405,7 @@ fn phase1_source_needs_update_in_tx(
         )
         .optional()
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memory stage1 output state: {}",
                 error
             ))
@@ -1426,7 +1426,7 @@ fn phase1_source_needs_update_in_tx(
         )
         .optional()
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memory phase1 job watermark: {}",
                 error
             ))
@@ -1439,7 +1439,7 @@ fn phase1_owned_input_watermark(
     tx: &Transaction<'_>,
     session_id: &str,
     ownership_token: &str,
-) -> OpenBitFunResult<i64> {
+) -> BitFunResult<i64> {
     tx.query_row(
         r#"
         SELECT input_watermark
@@ -1458,7 +1458,7 @@ fn phase1_owned_input_watermark(
         |row| row.get::<_, i64>(0),
     )
     .map_err(|error| {
-        OpenBitFunError::io(format!(
+        BitFunError::io(format!(
             "Memory phase1 job ownership is no longer valid for session {}: {}",
             session_id, error
         ))
@@ -1469,7 +1469,7 @@ fn get_job_in_connection(
     conn: &Connection,
     kind: &str,
     job_key: &str,
-) -> OpenBitFunResult<Option<MemoryJobRow>> {
+) -> BitFunResult<Option<MemoryJobRow>> {
     conn.query_row(
         r#"
         SELECT kind, job_key, status, worker_id, ownership_token, started_at,
@@ -1482,14 +1482,14 @@ fn get_job_in_connection(
         row_to_job,
     )
     .optional()
-    .map_err(|error| OpenBitFunError::io(format!("Failed to query memory job: {}", error)))
+    .map_err(|error| BitFunError::io(format!("Failed to query memory job: {}", error)))
 }
 
 fn get_job_in_tx(
     tx: &Transaction<'_>,
     kind: &str,
     job_key: &str,
-) -> OpenBitFunResult<Option<MemoryJobRow>> {
+) -> BitFunResult<Option<MemoryJobRow>> {
     tx.query_row(
         r#"
         SELECT kind, job_key, status, worker_id, ownership_token, started_at,
@@ -1502,7 +1502,7 @@ fn get_job_in_tx(
         row_to_job,
     )
     .optional()
-    .map_err(|error| OpenBitFunError::io(format!("Failed to query memory job: {}", error)))
+    .map_err(|error| BitFunError::io(format!("Failed to query memory job: {}", error)))
 }
 
 fn row_to_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryJobRow> {
@@ -1533,11 +1533,11 @@ fn row_to_phase2_candidate(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryPh
 fn collect_rows<T>(
     rows: rusqlite::MappedRows<'_, impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>,
     label: &str,
-) -> OpenBitFunResult<Vec<T>> {
+) -> BitFunResult<Vec<T>> {
     let mut items = Vec::new();
     for row in rows {
         items.push(row.map_err(|error| {
-            OpenBitFunError::io(format!("Failed to decode {}: {}", label, error))
+            BitFunError::io(format!("Failed to decode {}: {}", label, error))
         })?);
     }
     Ok(items)
@@ -1553,11 +1553,11 @@ fn current_unix_secs() -> i64 {
 fn resolve_citation_session_ids(
     conn: &Connection,
     citation: &MemoryCitation,
-) -> OpenBitFunResult<Vec<String>> {
+) -> BitFunResult<Vec<String>> {
     let mut stmt = conn
         .prepare("SELECT thread_id FROM stage1_outputs")
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to prepare memory citation resolution query: {}",
                 error
             ))
@@ -1565,7 +1565,7 @@ fn resolve_citation_session_ids(
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
         .map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to query memory citation sessions: {}",
                 error
             ))
@@ -1573,7 +1573,7 @@ fn resolve_citation_session_ids(
     let mut known_session_ids = Vec::new();
     for row in rows {
         known_session_ids.push(row.map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to decode memory citation session: {}",
                 error
             ))

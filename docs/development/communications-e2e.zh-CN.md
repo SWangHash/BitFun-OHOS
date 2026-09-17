@@ -1,6 +1,6 @@
-# OpenBitFun 通信能力端到端验证手册
+# BitFun 通信能力端到端验证手册
 
-适用范围：OpenBitFun 1.0 系列的 SSH / Docker 工作区、Remote Connect、mobile-web、飞书 / Telegram / 微信 bot、Peer Device Mode、Detached Dispatch，以及它们依赖的账号、同步、权限、文件和事件通道。补充覆盖 Server / App Server、Shared TUI IPC、MCP、ACP、模型流式连接。此文是可重复执行的验证规范；用例存在、代码审阅或单测通过均不表示真机通过。
+适用范围：BitFun 1.0 系列的 SSH / Docker 工作区、Remote Connect、mobile-web、飞书 / Telegram / 微信 bot、Peer Device Mode、Detached Dispatch，以及它们依赖的账号、同步、权限、文件和事件通道。补充覆盖 Server / App Server、Shared TUI IPC、MCP、ACP、模型流式连接。此文是可重复执行的验证规范；用例存在、代码审阅或单测通过均不表示真机通过。
 
 本手册不要求兼容 0.2.xx 旧产品。1.0 的通信双方仍需协商协议、产品身份和行为能力，不能用版本字符串相同代替能力检查。拒绝不兼容连接应保留用户数据；不能借升级重置账号、会话或远程配置。
 
@@ -8,7 +8,7 @@
 
 | 链路 | 请求和状态的所有者 | 验证时必须区分的事实 |
 | --- | --- | --- |
-| SSH / Docker 工作区 | [SSH 服务](../../src/crates/services/services-integrations/src/remote_ssh)、[工作区传输设计](../architecture/remote-workspace-transport.md) | Agent Runtime 在 OpenBitFun 宿主，工作区文件和子进程在所选 SSH / 容器目标；目标不需要安装 Agent 守护程序 |
+| SSH / Docker 工作区 | [SSH 服务](../../src/crates/services/services-integrations/src/remote_ssh)、[工作区传输设计](../architecture/remote-workspace-transport.md) | Agent Runtime 在 BitFun 宿主，工作区文件和子进程在所选 SSH / 容器目标；目标不需要安装 Agent 守护程序 |
 | 手机房间通道 | [mobile-web](../../src/mobile-web)、[RemoteCommand](../../src/crates/services/services-integrations/src/remote_connect.rs)、[Relay](../../src/crates/services/relay-service) | 手机发 HTTP，Relay 经宿主 WebSocket 桥接；二维码配对与账号设备身份是不同通道 |
 | IM bot | [共享 provider](../../src/crates/services/services-integrations/src/remote_connect/bot)、[产品路由](../../src/crates/assembly/core/src/service/remote_connect/bot) | provider 投递游标、聊天对象、设备选择、会话及交互请求各有范围；IM 平台是外部依赖 |
 | Peer Device | [设计](../architecture/peer-device-mode.md)、[前端不变量](../../src/web-ui/src/infrastructure/peer-device/README.md)、[CLI host](../../src/apps/cli/src/peer_host) | A 保持本地界面，B 拥有产品执行；切换所显示设备不等于取消 B 的任务 |
@@ -57,7 +57,7 @@ Git 夹具包含：已推送提交、仅本地提交、未暂存/已暂存/未�
 导出逐项工作表（输出目录必须尚不存在，避免覆盖已填写证据）：
 
 ```bash
-node scripts/diagnostics/export-communications-matrix.mjs --output /tmp/openbitfun-communications-run-001
+node scripts/diagnostics/export-communications-matrix.mjs --output /tmp/bitfun-communications-run-001
 ```
 
 输出包括全部产品操作、全部 `RemoteCommand`、本手册场景和注册表 digest。每个 bot provider、OS、设备方向和网络条件复制独立执行行；工作表只是范围清单，不是自动测试结果。
@@ -301,16 +301,16 @@ pnpm run check:core-boundaries
 ```
 
 ```bash
-cargo test --locked -p openbitfun-relay-service
-cargo test --locked -p openbitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::
-cargo test --locked -p openbitfun-services-integrations --no-default-features --features remote-connect --test remote_connect_contracts
-cargo test --locked -p openbitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::
-cargo test --locked -p openbitfun-services-integrations --no-default-features --features remote-ssh --test remote_ssh_contracts
-cargo test --locked -p openbitfun-cli --bin openbitfun dispatch::
-cargo test --locked -p openbitfun-cli --bin openbitfun peer_host::
-cargo test --locked -p openbitfun-agent-runtime-ipc
-cargo test --locked -p openbitfun-app-server --lib server::wire::tests
-cargo test --locked -p openbitfun-app-server-protocol --test legacy_wire_contracts
+cargo test --locked -p bitfun-relay-service
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --test remote_connect_contracts
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-ssh --test remote_ssh_contracts
+cargo test --locked -p bitfun-cli --bin bitfun dispatch::
+cargo test --locked -p bitfun-cli --bin bitfun peer_host::
+cargo test --locked -p bitfun-agent-runtime-ipc
+cargo test --locked -p bitfun-app-server --lib server::wire::tests
+cargo test --locked -p bitfun-app-server-protocol --test legacy_wire_contracts
 ```
 
 ```bash
@@ -320,7 +320,7 @@ pnpm --dir src/web-ui run test:run src/infrastructure/peer-device src/infrastruc
 真实 Docker 集成测试需显式提供测试容器名（该容器允许创建及删除测试文件）：
 
 ```bash
-OPENBITFUN_TEST_DOCKER_CONTAINER=openbitfun-comm-fixture cargo test --locked -p openbitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::manager::tests::local_docker_workspace_round_trip -- --ignored
+BITFUN_TEST_DOCKER_CONTAINER=bitfun-comm-fixture cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::manager::tests::local_docker_workspace_round_trip -- --ignored
 ```
 
 Desktop 命令闭包和 Core 行为变更还需执行其最近 [Desktop guide](../../src/apps/desktop/AGENTS.md)、[Core guide](../../src/crates/assembly/core/AGENTS.md) 指定的检查；MCP、ACP 和 SDK 分别遵循各 owner guide。清单没有运行日志时，不得把这里的命令标成已通过。

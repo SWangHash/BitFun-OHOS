@@ -20,8 +20,8 @@ window.addEventListener('message',event=>{
  if(event.source!==frame.contentWindow)return;
  const data=event.data;
  if(!data||typeof data!=='object')return;
- if(data.method==='openbitfun/request-locale'){
-   frame.contentWindow.postMessage({type:'openbitfun:event',event:'localeChange',payload:{locale:${language},unsupported:${unsupported}}},'*');return;
+ if(data.method==='bitfun/request-locale'){
+   frame.contentWindow.postMessage({type:'bitfun:event',event:'localeChange',payload:{locale:${language},unsupported:${unsupported}}},'*');return;
  }
  if(typeof data.id!=='string'||typeof data.method!=='string'||pending.has(data.id))return;
  const replyError=message=>window.__miniappReply({jsonrpc:'2.0',id:data.id,error:{message}});
@@ -32,7 +32,7 @@ window.addEventListener('message',event=>{
 });
 const url=URL.createObjectURL(new Blob([${source}],{type:'text/html'}));
 frame.src=url;
-frame.addEventListener('load',()=>frame.contentWindow.postMessage({type:'openbitfun:event',event:'activate',payload:{}},'*'));
+frame.addEventListener('load',()=>frame.contentWindow.postMessage({type:'bitfun:event',event:'activate',payload:{}},'*'));
 })();
 </script></body></html>`;
   }

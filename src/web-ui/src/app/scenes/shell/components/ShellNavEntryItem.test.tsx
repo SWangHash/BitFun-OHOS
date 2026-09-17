@@ -23,7 +23,7 @@ it('keeps opening, quick actions and the context menu independent in a two-line 
       getEntryMenuItems={() => [{ id: 'stop', label: 'Stop' }]}
       onOpen={onOpen} onOpenContextMenu={onContext}
     />));
-    const primary = container.querySelector<HTMLButtonElement>('[data-openbitfun-part="trigger"]')!;
+    const primary = container.querySelector<HTMLButtonElement>('[data-bitfun-part="trigger"]')!;
     const stop = container.querySelector<HTMLButtonElement>('[aria-label="Stop"]')!;
     expect(container.querySelector('button button')).toBeNull();
     expect(primary.textContent).toContain('/srv/project');

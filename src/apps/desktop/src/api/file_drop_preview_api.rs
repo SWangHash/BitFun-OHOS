@@ -120,7 +120,7 @@ mod native {
         },
     };
 
-    const EVENT: &str = "openbitfun://file-drop-preview";
+    const EVENT: &str = "bitfun://file-drop-preview";
     const TIMER: usize = 1;
     const PREVIEW_FILES: usize = 1;
 
@@ -211,7 +211,7 @@ mod native {
     fn create_preview_window(parent: HWND) -> Result<HWND, String> {
         let instance =
             unsafe { GetModuleHandleW(None) }.map_err(|e| native_error("GetModuleHandleW", e))?;
-        let class = w!("OpenBitFunFilePreviewTarget");
+        let class = w!("BitFunFilePreviewTarget");
         let wc = WNDCLASSW {
             lpfnWndProc: Some(window_proc),
             hInstance: instance.into(),

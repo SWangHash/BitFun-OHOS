@@ -13,7 +13,7 @@
 
 /* Minimal, borderless layout.
  * WebKit (Tauri/macOS) baseline-quirk fix:
- * — Collapsed summary uses `--openbitfun-type-flow-control-font-size` + shared support line-height to match
+ * — Collapsed summary uses `--bitfun-type-flow-control-font-size` + shared support line-height to match
  *   `.explore-region--collapsible` (e.g. “执行了 N 个命令”).
  * — Keep the fixed-size leading-icon swap box and the label in simple `inline`
  *   flow so flex `align-items: center` stays stable. */
@@ -25,26 +25,26 @@
   border: 0;
   box-sizing: border-box;
   /* Collapsed summary line: match `.explore-region--collapsible` (e.g. command count). */
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
   transition: padding 0.2s ease;
 }
 
 .thinking-collapsed-header {
-  min-block-size: max(1lh, var(--openbitfun-control-tool-card-ambient-row-min-block-size));
+  min-block-size: max(1lh, var(--bitfun-control-tool-card-ambient-row-min-block-size));
   display: flex;
   align-items: center;
-  gap: var(--openbitfun-control-flow-chat-row-icon-gap);
+  gap: var(--bitfun-control-flow-chat-row-icon-gap);
   padding: 0;
   border-radius: 4px;
   cursor: pointer;
   background: transparent;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
 
   &:hover {
     .thinking-label {
-      color: var(--openbitfun-color-content-secondary);
+      color: var(--bitfun-color-content-secondary);
       opacity: 1;
     }
 
@@ -63,16 +63,16 @@
 
   .thinking-leading-icon {
     position: relative;
-    width: var(--openbitfun-control-flow-chat-row-icon-size);
-    height: var(--openbitfun-control-flow-chat-row-icon-size);
+    width: var(--bitfun-control-flow-chat-row-icon-size);
+    height: var(--bitfun-control-flow-chat-row-icon-size);
     flex-shrink: 0;
-    color: var(--openbitfun-color-content-caption);
+    color: var(--bitfun-color-content-caption);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: opacity 0.15s ease;
 
-    > [data-openbitfun-component='icon'] {
+    > [data-bitfun-component='icon'] {
       position: absolute;
       inset: 0;
       transition: opacity 0.15s ease;
@@ -90,10 +90,10 @@
 
   .thinking-label {
     min-width: 0;
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    color: var(--openbitfun-color-content-secondary);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    line-height: var(--bitfun-type-flow-support-line-height);
   }
 }
 
@@ -110,7 +110,7 @@
 }
 
 .flow-thinking-item.summary .thinking-label {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
 }
 
 .flow-thinking-item.expanded {
@@ -148,14 +148,14 @@
 .thinking-content {
   @include markdownTypography.apply;
 
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  font-weight: var(--openbitfun-type-flow-control-font-weight);
-  line-height: var(--openbitfun-type-flow-body-line-height);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  font-weight: var(--bitfun-type-flow-control-font-weight);
+  line-height: var(--bitfun-type-flow-body-line-height);
   /* Match FlowChat body text (sans); mono stack + generic monospace yields Songti-like CJK on Windows. */
-  font-family:var(--openbitfun-type-body-sm-font-family);
+  font-family:var(--bitfun-type-body-sm-font-family);
   word-break: break-word;
-  color: var(--openbitfun-color-content-muted);
-  padding: var(--openbitfun-control-flow-chat-card-expanded-padding-block) var(--openbitfun-control-flow-chat-card-expanded-padding-inline) 0 0;
+  color: var(--bitfun-color-content-muted);
+  padding: var(--bitfun-control-flow-chat-card-expanded-padding-block) var(--bitfun-control-flow-chat-card-expanded-padding-inline) 0 0;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -169,7 +169,7 @@
 }
 
 .flow-thinking-item.streaming .thinking-content {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 /* Content wrapper with fade gradients */
@@ -181,7 +181,7 @@
    * Use a solid fill + mask fade so we never interpolate theme colors with `transparent` in sRGB
    * (that pulls toward black and looks wrong on near-black themes).
    */
-  --thinking-scroll-fade-base: var(--openbitfun-color-surface-scene);
+  --thinking-scroll-fade-base: var(--bitfun-color-surface-scene);
 
   /* Top fade */
   &::before {
@@ -197,8 +197,8 @@
     transition: opacity 0.2s ease;
 
     background: var(--thinking-scroll-fade-base);
-    -webkit-mask-image: linear-gradient(to bottom, var(--openbitfun-color-content-on-light) 0%, var(--openbitfun-color-content-on-light) 22%, transparent 100%);
-    mask-image: linear-gradient(to bottom, var(--openbitfun-color-content-on-light) 0%, var(--openbitfun-color-content-on-light) 22%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, var(--bitfun-color-content-on-light) 0%, var(--bitfun-color-content-on-light) 22%, transparent 100%);
+    mask-image: linear-gradient(to bottom, var(--bitfun-color-content-on-light) 0%, var(--bitfun-color-content-on-light) 22%, transparent 100%);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -219,8 +219,8 @@
     transition: opacity 0.2s ease;
 
     background: var(--thinking-scroll-fade-base);
-    -webkit-mask-image: linear-gradient(to top, var(--openbitfun-color-content-on-light) 0%, var(--openbitfun-color-content-on-light) 22%, transparent 100%);
-    mask-image: linear-gradient(to top, var(--openbitfun-color-content-on-light) 0%, var(--openbitfun-color-content-on-light) 22%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to top, var(--bitfun-color-content-on-light) 0%, var(--bitfun-color-content-on-light) 22%, transparent 100%);
+    mask-image: linear-gradient(to top, var(--bitfun-color-content-on-light) 0%, var(--bitfun-color-content-on-light) 22%, transparent 100%);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -248,22 +248,22 @@
 
 /* Markdown body: same sans as rest of chat; code stays mono via Appearance. */
 .thinking-content .markdown-renderer.thinking-markdown {
-  --markdown-font-heading: var(--openbitfun-type-flow-title-font-family);
-  --markdown-font-size: var(--openbitfun-type-flow-control-font-size);
-  --markdown-font-size-sm: var(--openbitfun-type-flow-control-font-size);
-  --markdown-code-font-size: var(--openbitfun-type-flow-support-font-size);
-  --markdown-line-height: var(--openbitfun-type-flow-body-line-height);
+  --markdown-font-heading: var(--bitfun-type-flow-title-font-family);
+  --markdown-font-size: var(--bitfun-type-flow-control-font-size);
+  --markdown-font-size-sm: var(--bitfun-type-flow-control-font-size);
+  --markdown-code-font-size: var(--bitfun-type-flow-support-font-size);
+  --markdown-line-height: var(--bitfun-type-flow-body-line-height);
   --markdown-block-gap: #{markdown.$block-gap};
   --markdown-paragraph-gap: #{markdown.$paragraph-gap};
 
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  line-height: var(--openbitfun-type-flow-body-line-height);
-  color: var(--openbitfun-color-content-muted);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  line-height: var(--bitfun-type-flow-body-line-height);
+  color: var(--bitfun-color-content-muted);
   animation: none;
 
   h1, h2, h3, h4, h5, h6,
   strong {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   p,
@@ -272,35 +272,35 @@
   li,
   blockquote,
   .custom-blockquote {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   em {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   hr {
-    background: color-mix(in srgb, var(--openbitfun-color-content-muted) 25%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 25%, transparent);
   }
 
   blockquote,
   .custom-blockquote {
-    border-left: 2px solid color-mix(in srgb, var(--openbitfun-color-content-muted) 35%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--bitfun-color-content-muted) 35%, transparent);
     background: transparent;
   }
 
   .inline-code {
-    font-family:var(--openbitfun-type-code-md-font-family);
+    font-family:var(--bitfun-type-code-md-font-family);
     border-radius: 0;
     background: transparent;
     border: none;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   .code-block-wrapper {
     border-radius: 6px;
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-muted) 18%, transparent);
-    background: color-mix(in srgb, var(--openbitfun-color-content-muted) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-content-muted) 18%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 8%, transparent);
   }
 
   .code-block-toolbar {
@@ -309,14 +309,14 @@
   }
 
   .code-block-lang {
-    font-size: var(--openbitfun-type-micro-font-size);
-    line-height: var(--openbitfun-type-flow-meta-line-height);
+    font-size: var(--bitfun-type-micro-font-size);
+    line-height: var(--bitfun-type-flow-meta-line-height);
   }
 
   .code-block-wrapper pre[class*='language-'],
   .code-block-wrapper pre[style] {
-    font-size: var(--openbitfun-type-flow-support-font-size) !important;
-    line-height: var(--openbitfun-type-flow-support-line-height) !important;
+    font-size: var(--bitfun-type-flow-support-font-size) !important;
+    line-height: var(--bitfun-type-flow-support-line-height) !important;
     border-radius: 6px !important;
   }
 
@@ -329,7 +329,7 @@
 
   .code-block-wrapper .copy-button:hover {
     background: transparent !important;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .code-block-wrapper .copy-button:active {
@@ -337,25 +337,25 @@
   }
 
   .code-block-wrapper .copy-button.copy-success:hover {
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
 
   .table-wrapper {
-    font-size: var(--openbitfun-type-flow-control-font-size);
+    font-size: var(--bitfun-type-flow-control-font-size);
   }
 
   .table-wrapper th,
   .table-wrapper td {
-    color: var(--openbitfun-color-content-muted);
-    border-color: color-mix(in srgb, var(--openbitfun-color-content-muted) 22%, transparent);
+    color: var(--bitfun-color-content-muted);
+    border-color: color-mix(in srgb, var(--bitfun-color-content-muted) 22%, transparent);
   }
 
   .table-wrapper th {
-    color: var(--openbitfun-color-content-secondary);
-    background: color-mix(in srgb, var(--openbitfun-color-content-muted) 6%, transparent);
+    color: var(--bitfun-color-content-secondary);
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 6%, transparent);
   }
 
   .table-wrapper tbody tr:nth-child(2n) {
-    background: color-mix(in srgb, var(--openbitfun-color-content-muted) 5%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 5%, transparent);
   }
 }

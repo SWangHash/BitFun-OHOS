@@ -2,9 +2,9 @@
 //!
 //! Defines all configuration-related types shared between backend and frontend.
 
-use openbitfun_core_types::{product_identity, WorktreeSettings};
-pub use openbitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
-use openbitfun_product_domains::tool_permissions::{PermissionRule, ToolPermissionConfig};
+use bitfun_core_types::{product_identity, WorktreeSettings};
+pub use bitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
+use bitfun_product_domains::tool_permissions::{PermissionRule, ToolPermissionConfig};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -81,7 +81,7 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font: Option<FontPreferenceSnapshot>,
     /// Version of the persisted configuration schema. This is intentionally
-    /// independent from the OpenBitFun application version stored in `version`.
+    /// independent from the BitFun application version stored in `version`.
     pub schema_version: u32,
     /// Application build that most recently wrote this document. Informational
     /// only; compatibility is determined by `schema_version`.
@@ -202,7 +202,7 @@ pub struct AppConfig {
 ///
 /// Hook declarations themselves live in `hooks.json` documents (user scope:
 /// `config/hooks.json` next to this file; project scope:
-/// `{project}/.openbitfun/config/hooks.json`), not in this settings document.
+/// `{project}/.bitfun/config/hooks.json`), not in this settings document.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct AgentHooksConfig {
@@ -334,13 +334,13 @@ pub struct AppFlowChatConfig {
     /// Optional fixed ChatInput mode id.
     #[serde(
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub default_mode_id: Option<String>,
     /// Most recent mode explicitly selected from the ChatInput Harness control.
     #[serde(
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_mode_id: Option<String>,
     /// Whether the chat input exposes the global permission-mode shortcut.
@@ -1057,7 +1057,7 @@ pub struct AIConfig {
     #[serde(default)]
     pub web_search: WebSearchConfig,
 
-    /// Reattach to an already-running browser when OpenBitFun starts. Off by
+    /// Reattach to an already-running browser when BitFun starts. Off by
     /// default: the browser forgets its approval when it restarts, so this can
     /// put an approval dialog in front of the user before they asked for the
     /// browser at all.
@@ -1082,13 +1082,13 @@ fn default_tavily_credential_id() -> String {
     "tavily-search-api".to_string()
 }
 
-fn default_openbitfun_search_http_credential_id() -> String {
-    "openbitfun-search-http".to_string()
+fn default_bitfun_search_http_credential_id() -> String {
+    "bitfun-search-http".to_string()
 }
 
 /// Non-secret WebSearch settings that are safe to persist and synchronize.
 /// Unknown fields are retained so a newer provider configuration survives an
-/// older OpenBitFun build reading and writing the document.
+/// older BitFun build reading and writing the document.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct WebSearchConfig {
@@ -1115,7 +1115,7 @@ impl Default for WebSearchConfig {
 pub struct WebSearchProviderConfigs {
     pub exa_search_api: WebSearchCredentialProviderConfig,
     pub tavily: WebSearchCredentialProviderConfig,
-    pub openbitfun_search_http: OpenBitFunSearchHttpConfig,
+    pub bitfun_search_http: BitFunSearchHttpConfig,
     #[serde(flatten)]
     pub unknown: serde_json::Map<String, serde_json::Value>,
 }
@@ -1131,7 +1131,7 @@ impl Default for WebSearchProviderConfigs {
                 credential_id: default_tavily_credential_id(),
                 unknown: serde_json::Map::new(),
             },
-            openbitfun_search_http: OpenBitFunSearchHttpConfig::default(),
+            bitfun_search_http: BitFunSearchHttpConfig::default(),
             unknown: serde_json::Map::new(),
         }
     }
@@ -1156,18 +1156,18 @@ impl Default for WebSearchCredentialProviderConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
-pub struct OpenBitFunSearchHttpConfig {
+pub struct BitFunSearchHttpConfig {
     pub endpoint: String,
-    pub auth: OpenBitFunSearchHttpAuthConfig,
+    pub auth: BitFunSearchHttpAuthConfig,
     #[serde(flatten)]
     pub unknown: serde_json::Map<String, serde_json::Value>,
 }
 
-impl Default for OpenBitFunSearchHttpConfig {
+impl Default for BitFunSearchHttpConfig {
     fn default() -> Self {
         Self {
             endpoint: String::new(),
-            auth: OpenBitFunSearchHttpAuthConfig::default(),
+            auth: BitFunSearchHttpAuthConfig::default(),
             unknown: serde_json::Map::new(),
         }
     }
@@ -1175,7 +1175,7 @@ impl Default for OpenBitFunSearchHttpConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
-pub struct OpenBitFunSearchHttpAuthConfig {
+pub struct BitFunSearchHttpAuthConfig {
     /// `none`, `bearer`, or `header`. Kept as a string so unknown future modes
     /// round-trip and fail explicitly only when selected at runtime.
     pub mode: String,
@@ -1185,11 +1185,11 @@ pub struct OpenBitFunSearchHttpAuthConfig {
     pub unknown: serde_json::Map<String, serde_json::Value>,
 }
 
-impl Default for OpenBitFunSearchHttpAuthConfig {
+impl Default for BitFunSearchHttpAuthConfig {
     fn default() -> Self {
         Self {
             mode: "none".to_string(),
-            credential_id: default_openbitfun_search_http_credential_id(),
+            credential_id: default_bitfun_search_http_credential_id(),
             header_name: String::new(),
             unknown: serde_json::Map::new(),
         }
@@ -1538,7 +1538,7 @@ pub struct AIModelConfig {
     /// Context window size (total token limit for input + output).
     pub context_window: Option<u32>,
     /// Optional advanced override for the request output limit. When absent,
-    /// OpenBitFun derives a tiered limit from the context window at runtime.
+    /// BitFun derives a tiered limit from the context window at runtime.
     pub max_tokens: Option<u32>,
     pub temperature: Option<f64>,
     pub top_p: Option<f64>,
@@ -1663,7 +1663,7 @@ pub enum AuthConfig {
     /// Use the inline `api_key` string (default).
     #[default]
     ApiKey,
-    /// Use OpenBitFun in-app subscription OAuth for the named provider.
+    /// Use BitFun in-app subscription OAuth for the named provider.
     Subscription {
         provider: SubscriptionProvider,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1671,7 +1671,7 @@ pub enum AuthConfig {
     },
 }
 
-pub use openbitfun_core_types::ProxyConfig;
+pub use bitfun_core_types::ProxyConfig;
 
 /// Configuration change event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2167,7 +2167,7 @@ mod tests {
         NotificationConfig, OpenCodePlan, SubagentBatchExecutionPolicy, SubagentModelSelection,
         SubscriptionProvider, UserSkillGroupsConfig, UserToolGroupsConfig, WebSearchConfig,
     };
-    use openbitfun_product_domains::tool_permissions::ToolPermissionConfig;
+    use bitfun_product_domains::tool_permissions::ToolPermissionConfig;
 
     fn current_global_config_with(overrides: serde_json::Value) -> serde_json::Value {
         let mut value =
@@ -3598,7 +3598,7 @@ fn config_validation_message(message: String) -> String {
     message
 }
 
-pub fn validate_openbitfun_product_identity(
+pub fn validate_bitfun_product_identity(
     persisted_product_id: &str,
     context: &str,
 ) -> Result<(), String> {
@@ -3647,13 +3647,13 @@ pub fn validate_current_config_value(value: &Value, context: &str) -> Result<(),
             "{context} is missing required field 'last_modified'"
         )));
     }
-    validate_openbitfun_product_identity(product_id, context)?;
+    validate_bitfun_product_identity(product_id, context)?;
     reject_retired_config_fields(root, context)
 }
 
 fn retired_config_field(context: &str, path: &str) -> String {
     config_validation_message(format!(
-        "{context} contains retired pre-OpenBitFun field '{path}'; use the explicit data migration tool instead"
+        "{context} contains retired pre-BitFun field '{path}'; use the explicit data migration tool instead"
     ))
 }
 

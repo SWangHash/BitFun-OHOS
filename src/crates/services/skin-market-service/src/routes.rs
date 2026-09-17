@@ -14,7 +14,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
-use openbitfun_product_domains::appearance_market::{
+use bitfun_product_domains::appearance_market::{
     compute_appearance_review_bundle_hash, validate_appearance_market_slug,
     AppearanceAdminSubmissionDetail, AppearanceCursorPage, AppearanceMarketListingDetail,
     AppearanceMarketListingSummary, AppearanceMarketPackageMeta, AppearanceMarketPublicationStatus,
@@ -339,7 +339,7 @@ async fn download_release(
     response.headers_mut().insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!(
-            "attachment; filename=\"{}-{}.openbitfun-appearance\"",
+            "attachment; filename=\"{}-{}.bitfun-appearance\"",
             slug, meta.package_version
         ))
         .map_err(SkinMarketError::internal)?,
@@ -1310,7 +1310,7 @@ fn summary_from_row(
         mode: meta.mode,
         package_version: meta.package_version,
         latest_release: row.get::<i64, _>("release_number") as u32,
-        min_openbitfun_version: draft.min_openbitfun_version,
+        min_bitfun_version: draft.min_bitfun_version,
         required_capabilities: meta.required_capabilities,
         owner: AppearanceMarketUserSummary {
             account_id: row.get("account_id"),
@@ -1339,7 +1339,7 @@ fn release_from_row(row: &sqlx::sqlite::SqliteRow) -> SkinMarketResult<Appearanc
         listing_id: row.get("listing_id"),
         release_number: row.get::<i64, _>("release_number") as u32,
         package_version: meta.package_version,
-        min_openbitfun_version: draft.min_openbitfun_version,
+        min_bitfun_version: draft.min_bitfun_version,
         package_sha256: row.get("package_sha256"),
         package_size: row.get::<i64, _>("package_size") as u64,
         review_bundle_hash: row.get("review_bundle_hash"),
@@ -1487,7 +1487,7 @@ fn submission_from_row(
         author: meta.as_ref().and_then(|meta| meta.author.clone()),
         mode: meta.as_ref().map(|meta| meta.mode),
         package_version: meta.as_ref().map(|meta| meta.package_version.clone()),
-        min_openbitfun_version: draft.min_openbitfun_version,
+        min_bitfun_version: draft.min_bitfun_version,
         required_capabilities: meta
             .map(|meta| meta.required_capabilities)
             .unwrap_or_default(),
@@ -1605,7 +1605,7 @@ fn validate_draft(request: &AppearanceMarketSubmissionDraftRequest) -> SkinMarke
             "Appearance release numbers start at 1.",
         ));
     }
-    validate_min_openbitfun_version(&request.min_openbitfun_version)?;
+    validate_min_bitfun_version(&request.min_bitfun_version)?;
     if request.changelog.chars().count() > 2_000 {
         return Err(SkinMarketError::bad_request(
             "invalid_changelog",
@@ -1624,11 +1624,11 @@ fn validate_draft(request: &AppearanceMarketSubmissionDraftRequest) -> SkinMarke
     Ok(())
 }
 
-fn validate_min_openbitfun_version(value: &str) -> SkinMarketResult<()> {
+fn validate_min_bitfun_version(value: &str) -> SkinMarketResult<()> {
     Version::parse(value).map_err(|_| {
         SkinMarketError::bad_request(
-            "invalid_min_openbitfun_version",
-            "minOpenBitFunVersion must use semantic version syntax, for example 1.0.0.",
+            "invalid_min_bitfun_version",
+            "minBitFunVersion must use semantic version syntax, for example 1.0.0.",
         )
     })?;
     Ok(())
@@ -1636,20 +1636,20 @@ fn validate_min_openbitfun_version(value: &str) -> SkinMarketResult<()> {
 
 #[cfg(test)]
 mod minimum_version_tests {
-    use super::validate_min_openbitfun_version;
+    use super::validate_min_bitfun_version;
 
     #[test]
-    fn minimum_openbitfun_version_only_requires_semver_syntax() {
-        assert!(validate_min_openbitfun_version("1.0.0").is_ok());
-        assert!(validate_min_openbitfun_version("1.2.0").is_ok());
-        assert!(validate_min_openbitfun_version("0.9.0").is_ok());
-        assert!(validate_min_openbitfun_version("1.0.0-rc.1").is_ok());
-        assert!(validate_min_openbitfun_version("not-a-version").is_err());
+    fn minimum_bitfun_version_only_requires_semver_syntax() {
+        assert!(validate_min_bitfun_version("1.0.0").is_ok());
+        assert!(validate_min_bitfun_version("1.2.0").is_ok());
+        assert!(validate_min_bitfun_version("0.9.0").is_ok());
+        assert!(validate_min_bitfun_version("1.0.0-rc.1").is_ok());
+        assert!(validate_min_bitfun_version("not-a-version").is_err());
     }
 }
 
 fn validate_license(
-    license: &openbitfun_product_domains::appearance_market::AppearanceMarketLicense,
+    license: &bitfun_product_domains::appearance_market::AppearanceMarketLicense,
 ) -> SkinMarketResult<()> {
     let spdx = license
         .spdx_expression

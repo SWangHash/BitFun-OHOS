@@ -6,7 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { componentRegistry } from '../components/registry';
 import type { ComponentCategory } from '../types';
 import { FullPageLayout, LargeCardLayout, GridLayout, DemoLayout, ColumnLayout } from './layouts';
-import { Select } from '@openbitfun/ui';
+import { Select } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { useAppearance } from '@/infrastructure/appearance';
 import './preview.css';
@@ -48,16 +48,16 @@ export const PreviewApp: React.FC = () => {
   return (
     <div
       className="preview-app"
-      data-openbitfun-component="component-preview"
-      data-openbitfun-part="root"
+      data-bitfun-component="component-preview"
+      data-bitfun-part="root"
     >
-      <header className="preview-header" data-openbitfun-component="component-preview" data-openbitfun-part="header">
-        <div className="preview-logo" data-openbitfun-component="component-preview" data-openbitfun-part="logo">
+      <header className="preview-header" data-bitfun-component="component-preview" data-bitfun-part="header">
+        <div className="preview-logo" data-bitfun-component="component-preview" data-bitfun-part="logo">
           <h1>{t('componentLibrary.previewApp.title')}</h1>
           <span className="preview-version">v0.2.15</span>
         </div>
-        <div className="preview-header-actions" data-openbitfun-component="component-preview" data-openbitfun-part="headerActions">
-          <label className="preview-appearance-selector" data-openbitfun-component="component-preview" data-openbitfun-part="appearanceSelector">
+        <div className="preview-header-actions" data-bitfun-component="component-preview" data-bitfun-part="headerActions">
+          <label className="preview-appearance-selector" data-bitfun-component="component-preview" data-bitfun-part="appearanceSelector">
             <span className="preview-appearance-selector__label">
               {t('componentLibrary.previewApp.appearanceLabel')}
             </span>
@@ -80,14 +80,14 @@ export const PreviewApp: React.FC = () => {
         </div>
       </header>
 
-      <div className="preview-container" data-openbitfun-component="component-preview" data-openbitfun-part="container">
+      <div className="preview-container" data-bitfun-component="component-preview" data-bitfun-part="container">
         <aside
           className={`preview-sidebar ${isSidebarCollapsed ? 'preview-sidebar--collapsed' : ''}`}
-          data-openbitfun-component="component-preview"
-          data-openbitfun-part="sidebar"
-          data-openbitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
+          data-bitfun-component="component-preview"
+          data-bitfun-part="sidebar"
+          data-bitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
         >
-          <div className="preview-sidebar-header" data-openbitfun-component="component-preview" data-openbitfun-part="sidebarHeader">
+          <div className="preview-sidebar-header" data-bitfun-component="component-preview" data-bitfun-part="sidebarHeader">
             {!isSidebarCollapsed && (
               <span className="preview-sidebar-title">
                 {t('componentLibrary.previewApp.sidebarTitle')}
@@ -103,9 +103,9 @@ export const PreviewApp: React.FC = () => {
               title={isSidebarCollapsed
                 ? t('componentLibrary.previewApp.expandSidebar')
                 : t('componentLibrary.previewApp.collapseSidebar')}
-              data-openbitfun-component="component-preview"
-              data-openbitfun-part="sidebarToggle"
-              data-openbitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
+              data-bitfun-component="component-preview"
+              data-bitfun-part="sidebarToggle"
+              data-bitfun-state={isSidebarCollapsed ? 'collapsed' : undefined}
             >
               <span className={`preview-sidebar-toggle__icon ${isSidebarCollapsed ? 'is-collapsed' : ''}`}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -114,7 +114,7 @@ export const PreviewApp: React.FC = () => {
               </span>
             </button>
           </div>
-          <nav className="preview-nav" data-openbitfun-component="component-preview" data-openbitfun-part="navigation">
+          <nav className="preview-nav" data-bitfun-component="component-preview" data-bitfun-part="navigation">
             {componentRegistry.map((category: ComponentCategory) => (
               <div key={category.id} className="category-section">
                 <button
@@ -123,9 +123,9 @@ export const PreviewApp: React.FC = () => {
                   }`}
                   onClick={() => handleCategorySelect(category.id)}
                   title={category.name}
-                  data-openbitfun-component="component-preview"
-                  data-openbitfun-part="category"
-                  data-openbitfun-state={selectedCategory === category.id ? 'active' : undefined}
+                  data-bitfun-component="component-preview"
+                  data-bitfun-part="category"
+                  data-bitfun-state={selectedCategory === category.id ? 'active' : undefined}
                 >
                   <span className="category-button__dot" />
                   <span className="category-name">
@@ -144,13 +144,13 @@ export const PreviewApp: React.FC = () => {
 
         <main
           className={`preview-main ${currentCategory?.layoutType === 'full-page' ? 'preview-main--full' : ''}`}
-          data-openbitfun-component="component-preview"
-          data-openbitfun-part="main"
+          data-bitfun-component="component-preview"
+          data-bitfun-part="main"
         >
           {currentCategory ? (
             <>
               {currentCategory.layoutType !== 'full-page' && (
-                <div className="component-header" data-openbitfun-component="component-preview" data-openbitfun-part="componentHeader">
+                <div className="component-header" data-bitfun-component="component-preview" data-bitfun-part="componentHeader">
                   <h2 className="component-title">{currentCategory.name}</h2>
                   <p className="component-description">
                     {currentCategory.description}
@@ -175,7 +175,7 @@ export const PreviewApp: React.FC = () => {
               )}
             </>
           ) : (
-            <div className="empty-state" data-openbitfun-component="component-preview" data-openbitfun-part="emptyState">
+            <div className="empty-state" data-bitfun-component="component-preview" data-bitfun-part="emptyState">
               <p>{t('componentLibrary.previewApp.emptyState')}</p>
             </div>
           )}

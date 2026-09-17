@@ -1,4 +1,4 @@
-import { Button, Icon } from '@openbitfun/ui';
+import { Button, Icon } from '@bitfun/ui';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pause, Play, SkipForward } from 'lucide-react';

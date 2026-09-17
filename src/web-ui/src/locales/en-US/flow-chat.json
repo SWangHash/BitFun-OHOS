@@ -1861,7 +1861,7 @@
       "saveToProject": "Save to Project",
       "savingToProject": "Saving plan to project...",
       "saveToProjectUnavailable": "A workspace is required to save the plan",
-      "saveToProjectSuccess": "Plan saved to .openbitfun/plans",
+      "saveToProjectSuccess": "Plan saved to .bitfun/plans",
       "saveToProjectFailed": "Failed to save plan to project",
       "revealPlanInExplorer": "Reveal plan file in file manager",
       "revealPlanUnavailable": "Plan files can only be revealed for local workspaces",

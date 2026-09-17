@@ -1,4 +1,4 @@
-import { Icon, Textarea, type IconName } from '@openbitfun/ui';
+import { Icon, Textarea, type IconName } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -914,10 +914,10 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
   return (
     <div
-      data-openbitfun-product-component="deep-review-action-bar"
-      data-openbitfun-product-part="root"
-      data-openbitfun-phase={phase}
-      data-openbitfun-variant={phaseConfig.variant}
+      data-bitfun-product-component="deep-review-action-bar"
+      data-bitfun-product-part="root"
+      data-bitfun-phase={phase}
+      data-bitfun-variant={phaseConfig.variant}
       className={`deep-review-action-bar deep-review-action-bar--${phaseConfig.variant}`}
       onWheel={stopNestedScrollPropagation}
       onTouchMove={stopNestedScrollPropagation}
@@ -937,8 +937,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           className="deep-review-action-bar__progress"
           role="status"
           aria-live="polite"
-          data-openbitfun-product-component="deep-review-action-bar"
-          data-openbitfun-product-part="progress"
+          data-bitfun-product-component="deep-review-action-bar"
+          data-bitfun-product-part="progress"
         >
           <span className="deep-review-action-bar__progress-text">
             {t('deepReviewActionBar.managedCoverageProgress', {
@@ -959,7 +959,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
       {/* Running progress */}
       {(['review_running', 'fix_running', 'resume_running'].includes(phase)) && progressSummary && (
-        <div className="deep-review-action-bar__progress" data-openbitfun-product-component="deep-review-action-bar" data-openbitfun-product-part="progress">
+        <div className="deep-review-action-bar__progress" data-bitfun-product-component="deep-review-action-bar" data-bitfun-product-part="progress">
           <span className="deep-review-action-bar__progress-text">
             {progressText}
           </span>
@@ -1009,8 +1009,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       {showInterruptionDetails && errorAttribution && (
         <div
           className={`deep-review-action-bar__attribution deep-review-action-bar__attribution--${errorAttribution.severity}`}
-          data-openbitfun-product-component="deep-review-action-bar"
-          data-openbitfun-product-part="attribution"
+          data-bitfun-product-component="deep-review-action-bar"
+          data-bitfun-product-part="attribution"
           role="status"
           aria-live="polite"
         >
@@ -1027,7 +1027,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
       {/* Context overflow degradation options */}
       {showInterruptionDetails && interruption?.errorDetail?.category === 'context_overflow' && (
-        <div className="deep-review-action-bar__degradation" data-openbitfun-product-component="deep-review-action-bar" data-openbitfun-product-part="degradation">
+        <div className="deep-review-action-bar__degradation" data-bitfun-product-component="deep-review-action-bar" data-bitfun-product-part="degradation">
           <span className="deep-review-action-bar__degradation-title">
             {t('deepReviewActionBar.contextOverflowTitle')}
           </span>
@@ -1036,8 +1036,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
               key={option.type}
               type="button"
               className="deep-review-action-bar__degradation-option"
-              data-openbitfun-product-component="deep-review-action-bar"
-              data-openbitfun-product-part="degradationOption"
+              data-bitfun-product-component="deep-review-action-bar"
+              data-bitfun-product-part="degradationOption"
               disabled={!option.enabled}
               onClick={() => handleDegradationAction(option.type)}
             >
@@ -1093,7 +1093,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
       {/* Friendly message when review completed with no remediation items */}
       {phase === 'review_completed' && remediationItems.length === 0 && (
-        <div className="deep-review-action-bar__no-issues" data-openbitfun-product-component="deep-review-action-bar" data-openbitfun-product-part="noIssues">
+        <div className="deep-review-action-bar__no-issues" data-bitfun-product-component="deep-review-action-bar" data-bitfun-product-part="noIssues">
           <Icon name="check-circle" size="lg" style={{ width: 18, height: 18 }} className="deep-review-action-bar__no-issues-icon" />
           <span className="deep-review-action-bar__no-issues-text">
             {t('reviewActionBar.noIssuesFound')}
@@ -1103,7 +1103,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
       {/* Fix completed — show success message */}
       {phase === 'fix_completed' && (
-        <div className="deep-review-action-bar__fix-done" data-openbitfun-product-component="deep-review-action-bar" data-openbitfun-product-part="fixDone">
+        <div className="deep-review-action-bar__fix-done" data-bitfun-product-component="deep-review-action-bar" data-bitfun-product-part="fixDone">
           <Icon name="check-circle" size="md" className="deep-review-action-bar__fix-done-icon" />
           <span className="deep-review-action-bar__fix-done-text">
             {t('deepReviewActionBar.fixCompletedMessage')}
@@ -1115,9 +1115,9 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       {phase === 'review_completed' && remediationItems.length > 0 && !pendingDecisionAction && (
         <div
           className="deep-review-action-bar__custom"
-          data-openbitfun-product-component="deep-review-action-bar"
-          data-openbitfun-product-part="custom"
-          data-openbitfun-state={showCustomInput ? 'expanded' : undefined}
+          data-bitfun-product-component="deep-review-action-bar"
+          data-bitfun-product-part="custom"
+          data-bitfun-state={showCustomInput ? 'expanded' : undefined}
         >
           <button
             type="button"
@@ -1134,8 +1134,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           {showCustomInput && (
             <Textarea
               className="deep-review-action-bar__custom-textarea"
-              data-openbitfun-product-component="deep-review-action-bar"
-              data-openbitfun-product-part="customInput"
+              data-bitfun-product-component="deep-review-action-bar"
+              data-bitfun-product-part="customInput"
               placeholder={t('deepReviewActionBar.customInstructionsPlaceholder')}
               value={customInstructions}
               onChange={(e) => store.setCustomInstructions(e.target.value, childSessionId ?? undefined)}

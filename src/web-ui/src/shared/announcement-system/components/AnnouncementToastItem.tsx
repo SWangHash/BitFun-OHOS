@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Icon, IconButton, OverflowText } from '@openbitfun/ui';
+import { Button, Icon, IconButton, OverflowText } from '@bitfun/ui';
 import type { AnnouncementCard } from '../types';
 import { useAnnouncementStore } from '../store/announcementStore';
 import { useAnnouncementI18n } from '../hooks/useAnnouncementI18n';

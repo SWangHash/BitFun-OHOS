@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .native,
   .trigger,
@@ -15,7 +15,7 @@
 
   .root,
   .popover {
-    --_select-height: var(--openbitfun-control-height-md);
+    --_select-height: var(--bitfun-control-height-md);
   }
 
   .root {
@@ -25,17 +25,17 @@
     min-inline-size: 0;
     inline-size: 100%;
     block-size: var(--_select-height);
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
   }
 
   .root[data-size="sm"],
   .popover[data-size="sm"] {
-    --_select-height: var(--openbitfun-control-height-sm);
+    --_select-height: var(--bitfun-control-height-sm);
   }
 
   .root[data-size="lg"],
   .popover[data-size="lg"] {
-    --_select-height: var(--openbitfun-control-height-lg);
+    --_select-height: var(--bitfun-control-height-lg);
   }
 
   .native {
@@ -58,41 +58,41 @@
     min-inline-size: 0;
     inline-size: 100%;
     block-size: var(--_select-height);
-    gap: var(--openbitfun-control-select-content-gap);
+    gap: var(--bitfun-control-select-content-gap);
     margin: 0;
     padding-block: 0;
-    padding-inline: var(--openbitfun-control-select-padding-inline);
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
-    border-radius: var(--openbitfun-control-select-radius);
+    padding-inline: var(--bitfun-control-select-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: var(--bitfun-control-select-radius);
     outline: 0;
     color: inherit;
-    background: var(--openbitfun-color-field-background);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    background: var(--bitfun-color-field-background);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
     text-align: start;
     cursor: pointer;
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .trigger:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
-    border-color: var(--openbitfun-color-field-border-hover);
-    background: var(--openbitfun-color-field-background-hover);
+  .trigger:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    border-color: var(--bitfun-color-field-border-hover);
+    background: var(--bitfun-color-field-background-hover);
   }
 
   .root[data-field-surface="ambient"] .trigger,
-  .root[data-field-surface="ambient"] .trigger:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
+  .root[data-field-surface="ambient"] .trigger:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
     background: transparent;
   }
 
-  .trigger:is(:focus-visible, [data-openbitfun-preview-state="focus-visible"]) {
-    border-color: var(--openbitfun-color-field-border-focus);
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+  .trigger:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-open="true"] > .trigger {
@@ -101,16 +101,16 @@
   }
 
   .root[data-invalid="true"] .trigger {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
-  .root[data-invalid="true"] .trigger:is(:focus-visible, [data-openbitfun-preview-state="focus-visible"]) {
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-status-danger-surface);
+  .root[data-invalid="true"] .trigger:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-status-danger-surface);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
-    opacity: var(--openbitfun-opacity-disabled);
+    color: var(--bitfun-color-content-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   .trigger:disabled {
@@ -119,21 +119,21 @@
 
   .leading,
   .indicator {
-    --openbitfun-opacity-icon-artwork: 1;
+    --bitfun-opacity-icon-artwork: 1;
     display: inline-flex;
-    flex: 0 0 var(--openbitfun-control-select-indicator-size);
+    flex: 0 0 var(--bitfun-control-select-indicator-size);
     align-items: center;
     justify-content: center;
-    inline-size: var(--openbitfun-control-select-indicator-size);
-    block-size: var(--openbitfun-control-select-indicator-size);
-    color: var(--openbitfun-color-field-placeholder);
+    inline-size: var(--bitfun-control-select-indicator-size);
+    block-size: var(--bitfun-control-select-indicator-size);
+    color: var(--bitfun-color-field-placeholder);
     pointer-events: none;
   }
 
   .leading > :where(svg, img),
-  .leading > [data-openbitfun-component="icon"],
+  .leading > [data-bitfun-component="icon"],
   .indicator > :where(svg, img),
-  .indicator > [data-openbitfun-component="icon"] {
+  .indicator > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -148,12 +148,12 @@
   }
 
   .placeholder {
-    color: var(--openbitfun-color-field-placeholder);
+    color: var(--bitfun-color-field-placeholder);
   }
 
   .indicator {
     margin-inline-start: auto;
-    transition: transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .popoverHeader .indicator {
@@ -162,63 +162,63 @@
 
   .popover {
     position: fixed;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     display: flex;
     min-inline-size: 0;
-    max-inline-size: calc(100vw - var(--openbitfun-space-4));
+    max-inline-size: calc(100vw - var(--bitfun-space-4));
     min-block-size: 0;
     flex-direction: column;
     overflow: hidden;
     padding: 0;
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-overlay-menu-surface-radius);
-    color: var(--openbitfun-color-action-neutral-content);
-    background: var(--openbitfun-color-surface-panel);
-    box-shadow: var(--openbitfun-shadow-menu);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-overlay-menu-surface-radius);
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-menu);
     transform-origin: top center;
-    animation: openbitfun-select-popover-in var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-enter);
+    animation: bitfun-select-popover-in var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-enter);
   }
 
   .popover[data-invalid="true"] {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .popover[data-placement="top"] {
     flex-direction: column-reverse;
     transform-origin: bottom center;
-    animation-name: openbitfun-select-popover-in-top;
+    animation-name: bitfun-select-popover-in-top;
   }
 
   .popoverHeader {
     flex: 0 0 calc(
       var(--_select-height)
-      - var(--openbitfun-border-width-default)
-      - var(--openbitfun-border-width-default)
+      - var(--bitfun-border-width-default)
+      - var(--bitfun-border-width-default)
     );
     block-size: calc(
       var(--_select-height)
-      - var(--openbitfun-border-width-default)
-      - var(--openbitfun-border-width-default)
+      - var(--bitfun-border-width-default)
+      - var(--bitfun-border-width-default)
     );
     border: 0;
     border-radius: 0;
     background: transparent;
   }
 
-  .popoverHeader:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
+  .popoverHeader:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
     border-color: transparent;
-    background: var(--openbitfun-color-field-background-hover);
+    background: var(--bitfun-color-field-background-hover);
   }
 
-  .popoverHeader:is(:focus-visible, [data-openbitfun-preview-state="focus-visible"]) {
+  .popoverHeader:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
     border-color: transparent;
-    box-shadow: inset 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    box-shadow: inset 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .divider {
-    flex: 0 0 var(--openbitfun-border-width-default);
-    block-size: var(--openbitfun-border-width-default);
-    background: var(--openbitfun-color-border-subtle);
+    flex: 0 0 var(--bitfun-border-width-default);
+    block-size: var(--bitfun-border-width-default);
+    background: var(--bitfun-color-border-subtle);
   }
 
   .options {
@@ -227,7 +227,7 @@
     flex: 1 1 auto;
     min-inline-size: 0;
     min-block-size: 0;
-    padding: var(--openbitfun-overlay-menu-surface-padding);
+    padding: var(--bitfun-overlay-menu-surface-padding);
   }
 
   .listbox {
@@ -236,28 +236,28 @@
     min-block-size: 0;
   }
 
-  .listbox [data-openbitfun-part="list"],
-  .listbox [data-openbitfun-part="group-options"] {
-    gap: calc(var(--openbitfun-space-1) / 2);
+  .listbox [data-bitfun-part="list"],
+  .listbox [data-bitfun-part="group-options"] {
+    gap: calc(var(--bitfun-space-1) / 2);
   }
 
-  .listbox [data-openbitfun-part="group"] {
-    gap: var(--openbitfun-overlay-menu-section-gap);
+  .listbox [data-bitfun-part="group"] {
+    gap: var(--bitfun-overlay-menu-section-gap);
   }
 
-  .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="label"] {
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+  .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="label"] {
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
-  .listbox [data-openbitfun-listbox-option][data-selected="true"] {
-    background: var(--openbitfun-color-selection-surface);
+  .listbox [data-bitfun-listbox-option][data-selected="true"] {
+    background: var(--bitfun-color-selection-surface);
   }
 
-  .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="indicator"] {
-    color: var(--openbitfun-color-control-highlight-background);
+  .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="indicator"] {
+    color: var(--bitfun-color-control-highlight-background);
   }
 
-  @keyframes openbitfun-select-popover-in {
+  @keyframes bitfun-select-popover-in {
     from {
       opacity: 0;
       transform: translateY(-2px);
@@ -269,7 +269,7 @@
     }
   }
 
-  @keyframes openbitfun-select-popover-in-top {
+  @keyframes bitfun-select-popover-in-top {
     from {
       opacity: 0;
       transform: translateY(2px);
@@ -305,10 +305,10 @@
 
     .trigger:focus-visible {
       border-color: Highlight;
-      box-shadow: 0 0 0 var(--openbitfun-focus-width) Highlight;
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
     }
 
-    .listbox [data-openbitfun-listbox-option][data-selected="true"] [data-openbitfun-part="indicator"] {
+    .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="indicator"] {
       color: Highlight;
     }
   }

@@ -23,7 +23,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(mainNav).toContain("activateProductAction('surface.ecosystemCompatibility.open')");
     expect(mainNav).not.toContain("activateProductAction('settings.external-sources.open')");
     expect(mainNav).toContain('useExternalAppAwareness(');
-    expect(mainNav).toContain('openbitfun-nav-panel__top-action-unseen');
+    expect(mainNav).toContain('bitfun-nav-panel__top-action-unseen');
     expect(activator).toContain("case 'surface.ecosystemCompatibility.open':");
     expect(activator).toContain('openEcosystemCompatibility();');
     expect(navigation).toContain("openScene('ecosystem-compatibility')");
@@ -49,7 +49,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(scene).toContain('onSnapshotChange={setSnapshot}');
     expect(scene).toContain('<AcpAgentsConfig');
     expect(scene).toContain('clientIds={[...selectedRuntime.acpClients.map((client) => client.id)');
-    expect(scene).toContain("new CustomEvent('openbitfun:create-acp-session'");
+    expect(scene).toContain("new CustomEvent('bitfun:create-acp-session'");
     expect(scene).toContain("t('run.session.title')");
     expect(scene).toContain("t('run.subagent.title')");
     expect(scene).toContain("t('run.subagent.responsibilityLabel')");
@@ -301,8 +301,8 @@ describe('ecosystem compatibility scene presentation contract', () => {
   it('lets the page inherit the surrounding scene surface', () => {
     const styles = source('./EcosystemCompatibilityScene.scss');
 
-    expect(styles).not.toContain('background: var(--openbitfun-color-surface-scene);');
-    expect(styles).not.toContain('background: var(--openbitfun-color-surface-canvas);');
+    expect(styles).not.toContain('background: var(--bitfun-color-surface-scene);');
+    expect(styles).not.toContain('background: var(--bitfun-color-surface-canvas);');
   });
 
   it('keeps Oh My Pi and generic ACP agents out of the product catalog', () => {
@@ -351,11 +351,11 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(scene).not.toContain("'other-acp'");
   });
 
-  it('does not expose the removed use-OpenBitFun-in-product view', () => {
+  it('does not expose the removed use-BitFun-in-product view', () => {
     const scene = source('./EcosystemCompatibilityScene.tsx');
     const model = source('./ecosystemCompatibilityModel.ts');
 
-    expect(scene).not.toContain("'use-openbitfun'");
-    expect(model).not.toContain("'use-openbitfun'");
+    expect(scene).not.toContain("'use-bitfun'");
+    expect(model).not.toContain("'use-bitfun'");
   });
 });

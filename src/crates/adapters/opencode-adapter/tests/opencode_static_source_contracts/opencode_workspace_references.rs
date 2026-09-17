@@ -1,9 +1,9 @@
-use openbitfun_opencode_adapter::{
+use bitfun_opencode_adapter::{
     OpenCodeCommandProviderOptions, OpenCodeWorkspaceReferenceProvider,
     OpenCodeWorkspaceReferenceProviderOptions,
 };
-use openbitfun_product_domains::external_sources::{ExecutionDomainId, ExternalSourceContext};
-use openbitfun_product_domains::workspace_references::ExternalWorkspaceReferenceSourceProvider;
+use bitfun_product_domains::external_sources::{ExecutionDomainId, ExternalSourceContext};
+use bitfun_product_domains::workspace_references::ExternalWorkspaceReferenceSourceProvider;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -312,7 +312,7 @@ fn inline_references_override_file_layers_and_resolve_from_the_opened_workspace(
     assert!(snapshot.sources.iter().any(|source| {
         source.location == "OPENCODE_CONFIG_CONTENT"
             && source.scope
-                == openbitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal
+                == bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal
     }));
 }
 
@@ -361,7 +361,7 @@ fn invalid_reference_diagnostics_are_bounded_and_summarized() {
     assert_eq!(snapshot.sources[0].diagnostics.len(), 255);
     assert_eq!(
         snapshot.sources[0].health,
-        openbitfun_product_domains::external_sources::ExternalSourceHealth::Partial
+        bitfun_product_domains::external_sources::ExternalSourceHealth::Partial
     );
     assert_eq!(
         snapshot.diagnostics.last().unwrap().code,

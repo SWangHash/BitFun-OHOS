@@ -1,4 +1,4 @@
-use openbitfun_tool_call_jsonrepair::{
+use bitfun_tool_call_jsonrepair::{
     jsonrepair, jsonrepair_to_writer_with_options, jsonrepair_with_options, JsonRepairErrorKind,
     RepairOptions,
 };
@@ -52,7 +52,7 @@ fn strict_mode_is_available_for_writer_helpers() {
 
     assert!(matches!(
         err,
-        openbitfun_tool_call_jsonrepair::JsonRepairWriteError::Repair(repair_err)
+        bitfun_tool_call_jsonrepair::JsonRepairWriteError::Repair(repair_err)
             if repair_err.kind == JsonRepairErrorKind::StrictModeViolation
     ));
     assert!(output.is_empty());

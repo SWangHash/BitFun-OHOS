@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OpenBitFun Relay Server — one-click deploy script.
+# BitFun Relay Server — one-click deploy script.
 # Usage:  bash deploy.sh [--build-from-source] [--cn-mirror|--global-mirror]
 #
 # Run this script on the target server itself after SSH login.
@@ -14,7 +14,7 @@
 #   RELAY_CARGO_BUILD_JOBS=1 bash deploy.sh
 #
 # China hosts: auto-detects mainland China and configures apt/Docker/cargo/GitHub
-# mirrors (override with OPENBITFUN_MIRROR=cn|global or --cn-mirror/--global-mirror).
+# mirrors (override with BITFUN_MIRROR=cn|global or --cn-mirror/--global-mirror).
 
 set -euo pipefail
 
@@ -33,7 +33,7 @@ MIRROR_ARGS=()
 
 usage() {
   cat <<'EOF'
-OpenBitFun Relay Server deploy script
+BitFun Relay Server deploy script
 
 Usage:
   bash deploy.sh [options]
@@ -57,11 +57,11 @@ Environment:
   RELAY_HOST_BIND_IP       Host bind address for published port (default 0.0.0.0)
   RELAY_CARGO_BUILD_JOBS   Limit rustc parallelism inside Docker (e.g. 1 on small VPS)
   DOCKER_DEFAULT_PLATFORM  Leave unset for native host builds (recommended)
-  OPENBITFUN_MIRROR            auto|cn|global (default auto)
-  OPENBITFUN_APT_MIRROR        Debian/Ubuntu apt host (default mirrors.aliyun.com)
-  OPENBITFUN_DOCKER_REGISTRY_MIRRORS  Space/comma-separated Docker Hub mirrors
-  OPENBITFUN_CARGO_SPARSE_URL  Cargo sparse registry URL (default rsproxy)
-  OPENBITFUN_GITHUB_PROXY      GitHub HTTPS proxy prefix (default https://ghfast.top/)
+  BITFUN_MIRROR            auto|cn|global (default auto)
+  BITFUN_APT_MIRROR        Debian/Ubuntu apt host (default mirrors.aliyun.com)
+  BITFUN_DOCKER_REGISTRY_MIRRORS  Space/comma-separated Docker Hub mirrors
+  BITFUN_CARGO_SPARSE_URL  Cargo sparse registry URL (default rsproxy)
+  BITFUN_GITHUB_PROXY      GitHub HTTPS proxy prefix (default https://ghfast.top/)
 EOF
 }
 
@@ -87,14 +87,14 @@ done
 
 HOST_ARCH="$(host_arch_label)"
 
-echo "=== OpenBitFun Relay Server Deploy ==="
+echo "=== BitFun Relay Server Deploy ==="
 echo "Target: current machine ($(uname -s) / ${HOST_ARCH}, uname=$(uname -m))"
 echo "Note: run this script on the target server after SSH login."
 
 assert_supported_arch
 # Detect region and persist host mirrors before Docker pulls / image build.
 # Validate the host first so unsupported machines are not modified.
-openbitfun_mirror_init "${MIRROR_ARGS[@]+"${MIRROR_ARGS[@]}"}"
+bitfun_mirror_init "${MIRROR_ARGS[@]+"${MIRROR_ARGS[@]}"}"
 require_docker_daemon
 warn_if_forced_foreign_platform
 
@@ -107,7 +107,7 @@ if [ "$BUILD_FROM_SOURCE" = true ]; then
   echo "[1/2] Skipping the published image (--build-from-source)"
 elif [ "$SKIP_BUILD" = true ]; then
   echo "[1/2] Skipping the published image (--skip-build)"
-elif openbitfun_try_release_deploy; then
+elif bitfun_try_release_deploy; then
   RELAY_PORT="${RELAY_PORT:-9700}"
   echo ""
   echo "=== Deploy complete (published image) ==="
@@ -139,16 +139,16 @@ export RELAY_GIT_COMMIT
 # Persist compose build-args for CN builds (and subsequent restarts).
 touch .env
 chmod 600 .env 2>/dev/null || true
-# Refresh OpenBitFun-managed mirror keys without wiping unrelated .env entries.
+# Refresh BitFun-managed mirror keys without wiping unrelated .env entries.
 if [ -f .env ]; then
   tmp_env="$(mktemp)"
-  grep -Ev '^(OPENBITFUN_USE_CN_MIRROR|OPENBITFUN_APT_MIRROR|OPENBITFUN_CARGO_SPARSE_URL|RELAY_GIT_COMMIT)=' .env >"$tmp_env" || true
+  grep -Ev '^(BITFUN_USE_CN_MIRROR|BITFUN_APT_MIRROR|BITFUN_CARGO_SPARSE_URL|RELAY_GIT_COMMIT)=' .env >"$tmp_env" || true
   mv "$tmp_env" .env
 fi
 {
-  echo "OPENBITFUN_USE_CN_MIRROR=${OPENBITFUN_USE_CN_MIRROR:-0}"
-  echo "OPENBITFUN_APT_MIRROR=${OPENBITFUN_APT_MIRROR:-mirrors.aliyun.com}"
-  echo "OPENBITFUN_CARGO_SPARSE_URL=${OPENBITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}"
+  echo "BITFUN_USE_CN_MIRROR=${BITFUN_USE_CN_MIRROR:-0}"
+  echo "BITFUN_APT_MIRROR=${BITFUN_APT_MIRROR:-mirrors.aliyun.com}"
+  echo "BITFUN_CARGO_SPARSE_URL=${BITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}"
   echo "RELAY_GIT_COMMIT=${RELAY_GIT_COMMIT}"
 } >>.env
 
@@ -162,10 +162,10 @@ else
     BUILD_ARGS+=(--build-arg "CARGO_BUILD_JOBS=${RELAY_CARGO_BUILD_JOBS}")
     echo "  Using CARGO_BUILD_JOBS=${RELAY_CARGO_BUILD_JOBS}"
   fi
-  BUILD_ARGS+=(--build-arg "OPENBITFUN_USE_CN_MIRROR=${OPENBITFUN_USE_CN_MIRROR:-0}")
-  BUILD_ARGS+=(--build-arg "OPENBITFUN_APT_MIRROR=${OPENBITFUN_APT_MIRROR:-mirrors.aliyun.com}")
-  BUILD_ARGS+=(--build-arg "OPENBITFUN_CARGO_SPARSE_URL=${OPENBITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}")
-  if [ "${OPENBITFUN_USE_CN_MIRROR:-0}" = "1" ]; then
+  BUILD_ARGS+=(--build-arg "BITFUN_USE_CN_MIRROR=${BITFUN_USE_CN_MIRROR:-0}")
+  BUILD_ARGS+=(--build-arg "BITFUN_APT_MIRROR=${BITFUN_APT_MIRROR:-mirrors.aliyun.com}")
+  BUILD_ARGS+=(--build-arg "BITFUN_CARGO_SPARSE_URL=${BITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}")
+  if [ "${BITFUN_USE_CN_MIRROR:-0}" = "1" ]; then
     echo "  Using China mirrors inside Docker build (apt + cargo)"
   fi
   # BuildKit is required for Dockerfile cargo registry/git/target cache mounts.
@@ -176,19 +176,19 @@ else
   echo "  Using Docker BuildKit (cargo cache mounts enabled)"
   # Do not pass --platform unless the user explicitly set DOCKER_DEFAULT_PLATFORM;
   # native builds on amd64/arm64 servers are the supported path.
-  # Compose V2 wants --progress as a global flag; honor OPENBITFUN_DOCKER_MODE from common.sh.
-  case "${OPENBITFUN_DOCKER_MODE:-direct}" in
+  # Compose V2 wants --progress as a global flag; honor BITFUN_DOCKER_MODE from common.sh.
+  case "${BITFUN_DOCKER_MODE:-direct}" in
     sudo)
       sudo env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 BUILDKIT_PROGRESS="${BUILDKIT_PROGRESS}" \
-        OPENBITFUN_USE_CN_MIRROR="${OPENBITFUN_USE_CN_MIRROR:-0}" \
-        OPENBITFUN_APT_MIRROR="${OPENBITFUN_APT_MIRROR:-mirrors.aliyun.com}" \
-        OPENBITFUN_CARGO_SPARSE_URL="${OPENBITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}" \
+        BITFUN_USE_CN_MIRROR="${BITFUN_USE_CN_MIRROR:-0}" \
+        BITFUN_APT_MIRROR="${BITFUN_APT_MIRROR:-mirrors.aliyun.com}" \
+        BITFUN_CARGO_SPARSE_URL="${BITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}" \
         RELAY_GIT_COMMIT="${RELAY_GIT_COMMIT}" \
         docker compose --progress=plain build "${BUILD_ARGS[@]}"
       ;;
     sg)
       # shellcheck disable=SC2086
-      sg docker -c "env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 BUILDKIT_PROGRESS='${BUILDKIT_PROGRESS}' OPENBITFUN_USE_CN_MIRROR='${OPENBITFUN_USE_CN_MIRROR:-0}' OPENBITFUN_APT_MIRROR='${OPENBITFUN_APT_MIRROR:-mirrors.aliyun.com}' OPENBITFUN_CARGO_SPARSE_URL='${OPENBITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}' RELAY_GIT_COMMIT='${RELAY_GIT_COMMIT}' docker compose --progress=plain build ${BUILD_ARGS[*]}"
+      sg docker -c "env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 BUILDKIT_PROGRESS='${BUILDKIT_PROGRESS}' BITFUN_USE_CN_MIRROR='${BITFUN_USE_CN_MIRROR:-0}' BITFUN_APT_MIRROR='${BITFUN_APT_MIRROR:-mirrors.aliyun.com}' BITFUN_CARGO_SPARSE_URL='${BITFUN_CARGO_SPARSE_URL:-sparse+https://rsproxy.cn/index/}' RELAY_GIT_COMMIT='${RELAY_GIT_COMMIT}' docker compose --progress=plain build ${BUILD_ARGS[*]}"
       ;;
     *)
       if [ "${#COMPOSE[@]}" -ge 2 ] && [ "${COMPOSE[0]}" = "docker" ] && [ "${COMPOSE[1]}" = "compose" ]; then
@@ -216,7 +216,7 @@ echo "Relay server running on port ${RELAY_PORT} (host arch: ${HOST_ARCH})"
 echo ""
 check_relay_accounts_or_remind
 echo ""
-echo "Point OpenBitFun Desktop / CLI Auth Server URL to:"
+echo "Point BitFun Desktop / CLI Auth Server URL to:"
 echo "  Direct:   http://<YOUR_SERVER_IP>:${RELAY_PORT}"
 echo "  Proxy:    https://<YOUR_DOMAIN>/relay  (recommended, matches official server)"
 echo "See README.md for reverse proxy setup, sync, and Peer Device Mode."

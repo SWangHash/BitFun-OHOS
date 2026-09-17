@@ -22,7 +22,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@bitfun/ui', () => ({
   Icon: ({ name }: { name: string }) => <span data-testid={`icon-${name}`} />,
   OverflowText: ({ children, behavior: _behavior, marqueeActive: _marqueeActive, ...props }: any) => <span {...props}>{children}</span>,
   Tooltip: ({
@@ -66,7 +66,7 @@ describe('FlowChatTurnRail', () => {
   const emphasizedBars = () => {
     const selectors = Array.from(style.sheet!.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.style.getPropertyValue('background') === 'var(--openbitfun-color-content-primary)')
+      .filter(rule => rule.style.getPropertyValue('background') === 'var(--bitfun-color-content-primary)')
       .map(rule => rule.selectorText);
     expect(selectors.length).toBeGreaterThan(0);
     // Both current and hover may use primary ink, but their compiled selectors

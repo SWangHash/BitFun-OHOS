@@ -3,7 +3,7 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    match openbitfun_data_migrator_lib::run() {
+    match bitfun_data_migrator_lib::run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::from(1),
     }

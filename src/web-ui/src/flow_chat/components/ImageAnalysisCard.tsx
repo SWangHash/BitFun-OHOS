@@ -3,7 +3,7 @@
  * Displays analysis progress and results.
  */
 
-import { OverflowText, Button, Icon } from '@openbitfun/ui';
+import { OverflowText, Button, Icon } from '@bitfun/ui';
 import React, { useState } from 'react';
 import { Loader, AlertCircle } from 'lucide-react';
 import type { FlowImageAnalysisItem } from '../types/flow-chat';
@@ -27,35 +27,35 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
     : '';
   
   return (
-    <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="root" data-openbitfun-status={status} data-openbitfun-state={expanded ? 'expanded' : ''} className="image-analysis-card" data-status={status}>
-      <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="header" className="image-analysis-card__header">
-        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="thumbnail" className="image-analysis-card__thumbnail">
+    <div data-bitfun-component="image-analysis-card" data-bitfun-part="root" data-bitfun-status={status} data-bitfun-state={expanded ? 'expanded' : ''} className="image-analysis-card" data-status={status}>
+      <div data-bitfun-component="image-analysis-card" data-bitfun-part="header" className="image-analysis-card__header">
+        <div data-bitfun-component="image-analysis-card" data-bitfun-part="thumbnail" className="image-analysis-card__thumbnail">
           {imageContext.thumbnailUrl || imageContext.dataUrl ? (
             <img 
               src={imageContext.thumbnailUrl || imageContext.dataUrl} 
               alt={imageContext.imageName}
             />
           ) : (
-            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="placeholder" className="image-analysis-card__thumbnail-placeholder">
+            <div data-bitfun-component="image-analysis-card" data-bitfun-part="placeholder" className="image-analysis-card__thumbnail-placeholder">
               <Icon name="eye" size="lg" />
             </div>
           )}
         </div>
         
-        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="info" className="image-analysis-card__info">
-          <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="filename" className="image-analysis-card__filename"><OverflowText>
+        <div data-bitfun-component="image-analysis-card" data-bitfun-part="info" className="image-analysis-card__info">
+          <div data-bitfun-component="image-analysis-card" data-bitfun-part="filename" className="image-analysis-card__filename"><OverflowText>
             {imageContext.imageName}
           </OverflowText></div>
           
           {status === 'analyzing' && (
-            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status analyzing">
+            <div data-bitfun-component="image-analysis-card" data-bitfun-part="status" className="image-analysis-card__status analyzing">
               <Loader className="spinner" size={14} />
               <span>AI is analyzing the image...</span>
             </div>
           )}
           
           {status === 'completed' && result && (
-            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status completed">
+            <div data-bitfun-component="image-analysis-card" data-bitfun-part="status" className="image-analysis-card__status completed">
               <Icon name="check-circle" size="sm" className="icon" />
               <span>Analysis complete</span>
               {duration && (
@@ -65,7 +65,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
           )}
           
           {status === 'error' && (
-            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="status" className="image-analysis-card__status error">
+            <div data-bitfun-component="image-analysis-card" data-bitfun-part="status" className="image-analysis-card__status error">
               <AlertCircle className="icon" size={14} />
               <span>Analysis failed</span>
               {onRetry && (
@@ -84,8 +84,8 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
       </div>
       
       {status === 'completed' && result && (
-        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="content" className="image-analysis-card__content">
-          <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="summary" className="image-analysis-card__summary">
+        <div data-bitfun-component="image-analysis-card" data-bitfun-part="content" className="image-analysis-card__content">
+          <div data-bitfun-component="image-analysis-card" data-bitfun-part="summary" className="image-analysis-card__summary">
             <Icon name="spark" size="sm" className="summary-icon" />
             <span>{result.summary}</span>
           </div>
@@ -101,16 +101,16 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
           </Button>
           
           {expanded && (
-            <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="details" className="image-analysis-card__detailed">
-              <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="section" className="detail-section">
+            <div data-bitfun-component="image-analysis-card" data-bitfun-part="details" className="image-analysis-card__detailed">
+              <div data-bitfun-component="image-analysis-card" data-bitfun-part="section" className="detail-section">
                 <h4>Detailed description</h4>
                 <p>{result.detailed_description}</p>
               </div>
               
               {result.detected_elements.length > 0 && (
-                <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="section" className="detail-section">
+                <div data-bitfun-component="image-analysis-card" data-bitfun-part="section" className="detail-section">
                   <h4>Key elements detected</h4>
-                  <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="tags" className="tags">
+                  <div data-bitfun-component="image-analysis-card" data-bitfun-part="tags" className="tags">
                     {result.detected_elements.map((elem, idx) => (
                       <span key={idx} className="tag">{elem}</span>
                     ))}
@@ -118,7 +118,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
                 </div>
               )}
               
-              <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="metadata" className="detail-section metadata">
+              <div data-bitfun-component="image-analysis-card" data-bitfun-part="metadata" className="detail-section metadata">
                 <span className="meta-item">
                   Confidence: {(result.confidence * 100).toFixed(1)}%
                 </span>
@@ -133,7 +133,7 @@ export const ImageAnalysisCard: React.FC<ImageAnalysisCardProps> = ({
       )}
       
       {status === 'error' && error && (
-        <div data-openbitfun-component="image-analysis-card" data-openbitfun-part="error" className="image-analysis-card__error">
+        <div data-bitfun-component="image-analysis-card" data-bitfun-part="error" className="image-analysis-card__error">
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>

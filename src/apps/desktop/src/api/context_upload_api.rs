@@ -2,11 +2,11 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use log::warn;
-use openbitfun_core::agentic::tools::image_context::{
+use bitfun_core::agentic::tools::image_context::{
     create_image_context_provider as create_core_image_context_provider, store_image_contexts,
     GlobalImageContextProvider, ImageContextData as CoreImageContextData,
 };
-use openbitfun_core::infrastructure::try_get_path_manager_arc;
+use bitfun_core::infrastructure::try_get_path_manager_arc;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -135,7 +135,7 @@ fn uploaded_image_dir() -> Result<PathBuf, String> {
     let root = try_get_path_manager_arc()
         .map(|manager| manager.temp_dir())
         .unwrap_or_else(|_| {
-            std::env::temp_dir().join(openbitfun_core_types::product_identity::data_namespace())
+            std::env::temp_dir().join(bitfun_core_types::product_identity::data_namespace())
         });
     Ok(root.join("attachments").join("images"))
 }

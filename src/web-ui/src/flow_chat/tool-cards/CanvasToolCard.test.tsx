@@ -42,7 +42,7 @@ function canvasToolItem(toolName: string): FlowToolItem {
       success: true,
       result: {
         action: toolName,
-        artifactReference: 'openbitfun-canvas://session/test/canvas/canvas_123',
+        artifactReference: 'bitfun-canvas://session/test/canvas/canvas_123',
         compiled: true,
         canvas: {
           status: 'compiled',
@@ -115,12 +115,12 @@ describe('CanvasToolCard', () => {
     });
 
     const card = container.querySelector<HTMLElement>(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"]',
     );
     act(() => card?.click());
 
     expect(mocks.openCanvasArtifactTab).toHaveBeenCalledWith(expect.objectContaining({
-      artifactReference: 'openbitfun-canvas://session/test/canvas/canvas_123',
+      artifactReference: 'bitfun-canvas://session/test/canvas/canvas_123',
       title: 'Architecture Map',
       sourceMetadata: expect.objectContaining({
         type: 'tool-call',

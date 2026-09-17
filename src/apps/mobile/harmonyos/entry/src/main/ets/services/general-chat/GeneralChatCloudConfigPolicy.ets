@@ -107,7 +107,7 @@ export class GeneralChatCloudConfigPolicy {
   private static normalizedApiUrl(model: CloudModelWire): string {
     const baseUrl = GeneralChatCloudConfigPolicy.stringValue(model.base_url).trim().replace(/\/+$/, '');
     const provider = GeneralChatCloudConfigPolicy.stringValue(model.provider).trim().toLowerCase();
-    if (provider === 'anthropic' && baseUrl.indexOf('openbitfun.com') < 0 && !baseUrl.endsWith('/v1/messages')) {
+    if (provider === 'anthropic' && baseUrl.indexOf('bitfun.com') < 0 && !baseUrl.endsWith('/v1/messages')) {
       return `${baseUrl}/v1/messages`;
     }
     return baseUrl;

@@ -12,6 +12,6 @@ export const globalSearchAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'footer' },
   ],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
   ],
 };

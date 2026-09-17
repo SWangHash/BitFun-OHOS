@@ -224,7 +224,7 @@ pub(crate) struct ChatView {
     inactive_session_composers: HashMap<String, InactiveSessionComposer>,
     /// Drafts accepted by the Runtime, isolated by Session for local undo/redo identity.
     submitted_drafts: SubmittedDraftHistory,
-    workspace_references: Vec<openbitfun_agent_runtime::sdk::AgentWorkspaceReference>,
+    workspace_references: Vec<bitfun_agent_runtime::sdk::AgentWorkspaceReference>,
     image_attachments: Vec<ComposerImageAttachment>,
     workspace_reference_popup: WorkspaceReferencePopupState,
     /// History position

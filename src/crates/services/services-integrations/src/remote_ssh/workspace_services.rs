@@ -5,7 +5,7 @@
 //! used; this crate owns the concrete SSH-backed implementation.
 
 use async_trait::async_trait;
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     WorkspaceCommandOptions, WorkspaceCommandResult, WorkspaceDirEntry, WorkspaceFileSystem,
     WorkspacePathKind, WorkspaceServices, WorkspaceShell,
 };
@@ -105,7 +105,7 @@ impl WorkspaceFileSystem for RemoteWorkspaceFs {
     async fn open_write_new(
         &self,
         path: &str,
-    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+    ) -> anyhow::Result<bitfun_runtime_ports::WorkspaceWriter> {
         self.file_service
             .open_write_new(&self.connection_id, path)
             .await
@@ -121,7 +121,7 @@ impl WorkspaceFileSystem for RemoteWorkspaceFs {
     async fn open_read(
         &self,
         path: &str,
-    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceReader> {
+    ) -> anyhow::Result<bitfun_runtime_ports::WorkspaceReader> {
         self.file_service.open_read(&self.connection_id, path).await
     }
 
@@ -130,7 +130,7 @@ impl WorkspaceFileSystem for RemoteWorkspaceFs {
         &self,
         path: &str,
         follow_symlinks: bool,
-    ) -> anyhow::Result<Option<openbitfun_runtime_ports::WorkspaceMetadata>> {
+    ) -> anyhow::Result<Option<bitfun_runtime_ports::WorkspaceMetadata>> {
         self.file_service
             .workspace_metadata(&self.connection_id, path, follow_symlinks)
             .await
@@ -339,14 +339,14 @@ mod bounded_read_tests {
     #[test]
     fn remote_workspace_paths_keep_posix_syntax_for_absolute_home_and_relative_roots() {
         for (root, expected) in [
-            ("/", "/.openbitfun/report.md"),
-            ("~", "~/.openbitfun/report.md"),
-            ("~/repo", "~/repo/.openbitfun/report.md"),
-            ("repo", "repo/.openbitfun/report.md"),
-            (".", "./.openbitfun/report.md"),
+            ("/", "/.bitfun/report.md"),
+            ("~", "~/.bitfun/report.md"),
+            ("~/repo", "~/repo/.bitfun/report.md"),
+            ("repo", "repo/.bitfun/report.md"),
+            (".", "./.bitfun/report.md"),
         ] {
             assert_eq!(
-                join_posix_path(root, &[".openbitfun", "report.md"]),
+                join_posix_path(root, &[".bitfun", "report.md"]),
                 expected
             );
         }

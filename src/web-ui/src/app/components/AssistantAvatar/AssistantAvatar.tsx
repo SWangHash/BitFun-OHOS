@@ -47,11 +47,11 @@ const AssistantAvatar: React.FC<AssistantAvatarProps> = ({
   return (
     <span
       className={classes}
-      data-openbitfun-component="assistant-avatar"
-      data-openbitfun-part="root"
-      data-openbitfun-family={usesPreset ? preset.family : 'emoji'}
-      data-openbitfun-preset={usesPreset ? preset.id : undefined}
-      data-openbitfun-state={[active && 'active', status !== 'idle' && status].filter(Boolean).join(' ') || undefined}
+      data-bitfun-component="assistant-avatar"
+      data-bitfun-part="root"
+      data-bitfun-family={usesPreset ? preset.family : 'emoji'}
+      data-bitfun-preset={usesPreset ? preset.id : undefined}
+      data-bitfun-state={[active && 'active', status !== 'idle' && status].filter(Boolean).join(' ') || undefined}
       style={{ '--assistant-avatar-size': `${size}px` } as React.CSSProperties}
       role={decorative ? undefined : 'img'}
       aria-hidden={decorative ? 'true' : undefined}

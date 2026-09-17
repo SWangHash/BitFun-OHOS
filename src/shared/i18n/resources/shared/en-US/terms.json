@@ -37,7 +37,7 @@
   },
   "connectionMethods": {
     "lan": "LAN",
-    "openbitfunServer": "BitFun Server",
+    "bitfunServer": "BitFun Server",
     "customServer": "Custom Server",
     "botFeishu": "Feishu Bot",
     "botTelegram": "Telegram Bot",

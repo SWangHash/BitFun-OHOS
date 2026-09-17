@@ -10,6 +10,6 @@ export const searchAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'button', propertyProfile: 'control', visualRole: 'control' },
     { id: 'message', propertyProfile: 'paint', visualRole: 'content' },
   ],
-  facets: [{ id: 'size', attribute: 'data-openbitfun-size', values: ['small', 'medium', 'large'] }],
-  states: [{ id: 'hover', selector: { kind: 'self', suffix: '[data-openbitfun-state~="hover"]' } }, { id: 'focusWithin', selector: { kind: 'self', suffix: '[data-openbitfun-state~="focused"]' } }, { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } }, { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } }, { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } }, { id: 'expandable', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expandable"]' } }],
+  facets: [{ id: 'size', attribute: 'data-bitfun-size', values: ['small', 'medium', 'large'] }],
+  states: [{ id: 'hover', selector: { kind: 'self', suffix: '[data-bitfun-state~="hover"]' } }, { id: 'focusWithin', selector: { kind: 'self', suffix: '[data-bitfun-state~="focused"]' } }, { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } }, { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } }, { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } }, { id: 'expandable', selector: { kind: 'self', suffix: '[data-bitfun-state~="expandable"]' } }],
 };

@@ -72,20 +72,20 @@ export const CubeLogo: React.FC<CubeLogoProps> = ({
       <div
         key={key}
         className="cube-logo__block"
-        data-openbitfun-component="cube-logo"
-        data-openbitfun-part="block"
+        data-bitfun-component="cube-logo"
+        data-bitfun-part="block"
         style={{
           width: actualSize,
           height: actualSize,
           transform: `translate3d(${x * blockSize}px, ${-y * blockSize}px, ${z * blockSize}px)`
         }}
       >
-        <div className="cube-logo__face cube-logo__face--front" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateZ(${actualSize/2}px)` }} />
-        <div className="cube-logo__face cube-logo__face--back" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateZ(${-actualSize/2}px) rotateY(180deg)` }} />
-        <div className="cube-logo__face cube-logo__face--top" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateY(${-actualSize/2}px) rotateX(90deg)` }} />
-        <div className="cube-logo__face cube-logo__face--bottom" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateY(${actualSize/2}px) rotateX(-90deg)` }} />
-        <div className="cube-logo__face cube-logo__face--right" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateX(${actualSize/2}px) rotateY(90deg)` }} />
-        <div className="cube-logo__face cube-logo__face--left" data-openbitfun-component="cube-logo" data-openbitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateX(${-actualSize/2}px) rotateY(-90deg)` }} />
+        <div className="cube-logo__face cube-logo__face--front" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateZ(${actualSize/2}px)` }} />
+        <div className="cube-logo__face cube-logo__face--back" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateZ(${-actualSize/2}px) rotateY(180deg)` }} />
+        <div className="cube-logo__face cube-logo__face--top" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateY(${-actualSize/2}px) rotateX(90deg)` }} />
+        <div className="cube-logo__face cube-logo__face--bottom" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateY(${actualSize/2}px) rotateX(-90deg)` }} />
+        <div className="cube-logo__face cube-logo__face--right" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateX(${actualSize/2}px) rotateY(90deg)` }} />
+        <div className="cube-logo__face cube-logo__face--left" data-bitfun-component="cube-logo" data-bitfun-part="face" style={{ width: actualSize, height: actualSize, transform: `translateX(${-actualSize/2}px) rotateY(-90deg)` }} />
       </div>
     );
   };
@@ -93,9 +93,9 @@ export const CubeLogo: React.FC<CubeLogoProps> = ({
   return (
     <div 
       className={`cube-logo ${isCompact ? 'cube-logo--compact' : ''} ${className}`}
-      data-openbitfun-component="cube-logo"
-      data-openbitfun-part="root"
-      data-openbitfun-variant={variant}
+      data-bitfun-component="cube-logo"
+      data-bitfun-part="root"
+      data-bitfun-variant={variant}
       style={{ 
         width: size, 
         height: size,
@@ -103,13 +103,13 @@ export const CubeLogo: React.FC<CubeLogoProps> = ({
       }}
     >
       {showParticles && (
-        <div className="cube-logo__particles" data-openbitfun-component="cube-logo" data-openbitfun-part="particles">
+        <div className="cube-logo__particles" data-bitfun-component="cube-logo" data-bitfun-part="particles">
           {particles.map(p => (
             <span
               key={p.id}
               className="cube-logo__particle"
-              data-openbitfun-component="cube-logo"
-              data-openbitfun-part="particle"
+              data-bitfun-component="cube-logo"
+              data-bitfun-part="particle"
               style={{
                 left: `${p.x}%`,
                 top: `${p.y}%`,
@@ -124,8 +124,8 @@ export const CubeLogo: React.FC<CubeLogoProps> = ({
         </div>
       )}
       
-      <div className="cube-logo__scene" data-openbitfun-component="cube-logo" data-openbitfun-part="scene">
-        <div className="cube-logo__cube" data-openbitfun-component="cube-logo" data-openbitfun-part="cube">
+      <div className="cube-logo__scene" data-bitfun-component="cube-logo" data-bitfun-part="scene">
+        <div className="cube-logo__cube" data-bitfun-component="cube-logo" data-bitfun-part="cube">
           {blocks.map(({ x, y, z, key }) => renderBlock(x, y, z, key))}
         </div>
       </div>

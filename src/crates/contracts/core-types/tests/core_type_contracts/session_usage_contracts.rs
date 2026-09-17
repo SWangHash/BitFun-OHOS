@@ -1,4 +1,4 @@
-use openbitfun_core_types::{
+use bitfun_core_types::{
     SessionUsageReport, UsageCoverageLevel, UsageToolCategory, SESSION_USAGE_REPORT_SCHEMA_VERSION,
 };
 

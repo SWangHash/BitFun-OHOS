@@ -1,7 +1,7 @@
 //! Core service owner crate.
 //!
 //! This crate owns platform-agnostic service building blocks that can be
-//! tested without compiling the full OpenBitFun product runtime.
+//! tested without compiling the full BitFun product runtime.
 
 pub mod bounded_fs;
 #[cfg(feature = "coordination-store")]
@@ -61,7 +61,7 @@ pub mod workspace_records;
     feature = "local-storage",
     feature = "product-identity"
 ))]
-pub use openbitfun_core_types::product_identity;
+pub use bitfun_core_types::product_identity;
 #[cfg(feature = "runtime-ownership")]
 pub mod runtime_ownership;
 #[cfg(feature = "local-storage")]

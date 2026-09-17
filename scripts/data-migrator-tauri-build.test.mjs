@@ -12,8 +12,8 @@ const APP = join(ROOT, 'src/apps/data-migrator');
 test('independent bundle owns version, offline assets, icons and identity', () => {
   const output = prepareDataMigratorTauriConfig(join(APP, 'tauri.conf.json'), mkdtempSync(join(tmpdir(), 'migrator-config-')));
   const config = JSON.parse(readFileSync(output, 'utf8'));
-  assert.equal(config.productName, 'OpenBitFun Data Migrator');
-  assert.equal(config.identifier, 'com.openbitfun.data-migrator');
+  assert.equal(config.productName, 'BitFun Data Migrator');
+  assert.equal(config.identifier, 'com.bitfun.data-migrator');
   assert.equal(config.version, releaseVersion());
   assert.deepEqual(config.build, { frontendDist: 'ui' });
   assert.equal(config.plugins?.updater, undefined);
@@ -23,10 +23,10 @@ test('independent bundle owns version, offline assets, icons and identity', () =
 });
 
 test('a Desktop product environment cannot change the migration destination identity', () => {
-  const env = dataMigratorEnvironment({ OPENBITFUN_PRODUCT_ID: 'acme', OPENBITFUN_DATA_NAMESPACE: 'acme', OPENBITFUN_DESKTOP_BINARY_NAME: 'acme', CI: '1' });
-  assert.equal(env.OPENBITFUN_PRODUCT_ID, 'openbitfun');
-  assert.equal(env.OPENBITFUN_DATA_NAMESPACE, 'openbitfun');
-  assert.equal(env.OPENBITFUN_DESKTOP_BINARY_NAME, undefined);
+  const env = dataMigratorEnvironment({ BITFUN_PRODUCT_ID: 'acme', BITFUN_DATA_NAMESPACE: 'acme', BITFUN_DESKTOP_BINARY_NAME: 'acme', CI: '1' });
+  assert.equal(env.BITFUN_PRODUCT_ID, 'bitfun');
+  assert.equal(env.BITFUN_DATA_NAMESPACE, 'bitfun');
+  assert.equal(env.BITFUN_DESKTOP_BINARY_NAME, undefined);
   assert.equal(env.CI, 'true');
 });
 
@@ -42,7 +42,7 @@ test('Desktop package generation has no migrator payload or build hook', () => {
 
 test('migrator dependency and command closure exclude the main app and restart handshake', () => {
   const manifest = readFileSync(join(APP, 'Cargo.toml'), 'utf8');
-  assert.doesNotMatch(manifest, /^openbitfun-core\s*=|product-full|product-capabilities|plugin-runtime/m);
+  assert.doesNotMatch(manifest, /^bitfun-core\s*=|product-full|product-capabilities|plugin-runtime/m);
   const source = readFileSync(join(APP, 'src/app_state.rs'), 'utf8');
   assert.doesNotMatch(source, /HandoffStore|MigrationOnboardingStore|restart_desktop|TrustedInstallationResolver/);
   const capability = readFileSync(join(APP, 'capabilities/migrator.json'), 'utf8');

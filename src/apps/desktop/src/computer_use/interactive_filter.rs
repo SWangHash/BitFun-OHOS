@@ -17,7 +17,7 @@
 
 #![allow(dead_code)]
 
-use openbitfun_core::agentic::tools::computer_use_host::{
+use bitfun_core::agentic::tools::computer_use_host::{
     AxNode, ComputerScreenshot, InteractiveElement,
 };
 
@@ -362,7 +362,7 @@ fn project_global_to_image(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_core::agentic::tools::computer_use_host::ComputerUseImageGlobalBounds;
+    use bitfun_core::agentic::tools::computer_use_host::ComputerUseImageGlobalBounds;
 
     fn node(idx: u32, role: &str, frame: Option<(f64, f64, f64, f64)>) -> AxNode {
         AxNode {
@@ -520,7 +520,7 @@ mod tests {
     fn projection_respects_padding_negative_origin_and_partial_intersection() {
         let mut shot = screenshot();
         shot.image_content_rect = Some(
-            openbitfun_core::agentic::tools::computer_use_host::ComputerUseImageContentRect {
+            bitfun_core::agentic::tools::computer_use_host::ComputerUseImageContentRect {
                 left: 100,
                 top: 80,
                 width: 800,

@@ -260,11 +260,11 @@ describe('ContextMenu presence', () => {
     ]} />));
     act(() => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
     for (const part of ['root', 'item', 'separator', 'icon', 'label', 'shortcut', 'submenuArrow', 'submenu']) {
-      expect(document.querySelector(`[data-openbitfun-product-component="context-menu"][data-openbitfun-product-part="${part}"]`)).not.toBeNull();
+      expect(document.querySelector(`[data-bitfun-product-component="context-menu"][data-bitfun-product-part="${part}"]`)).not.toBeNull();
     }
-    expect(document.querySelector('[data-openbitfun-component="menu"][data-openbitfun-product-part="root"]')).not.toBeNull();
-    expect(document.querySelector('[data-openbitfun-product-part="item"][data-openbitfun-state="disabled"]')?.getAttribute('aria-disabled')).toBe('true');
-    expect(document.querySelector('[data-openbitfun-product-part="item"][data-openbitfun-state="submenu-active"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelector('[data-bitfun-component="menu"][data-bitfun-product-part="root"]')).not.toBeNull();
+    expect(document.querySelector('[data-bitfun-product-part="item"][data-bitfun-state="disabled"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(document.querySelector('[data-bitfun-product-part="item"][data-bitfun-state="submenu-active"]')?.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('resolves the file explorer terminal icon and forwards layout classes through product slots', () => {
@@ -279,15 +279,15 @@ describe('ContextMenu presence', () => {
     });
     act(() => root.render(<ContextMenuRenderer />));
     const terminal = document.querySelector('[data-menu-id="file-new-terminal"]')!;
-    expect(terminal.querySelector('[data-openbitfun-name="terminal"] svg')).not.toBeNull();
+    expect(terminal.querySelector('[data-bitfun-name="terminal"] svg')).not.toBeNull();
     expect(terminal.querySelector('i.Terminal')).toBeNull();
-    const iconSlots = Array.from(document.querySelectorAll<HTMLElement>('[data-openbitfun-product-part="icon"]'));
+    const iconSlots = Array.from(document.querySelectorAll<HTMLElement>('[data-bitfun-product-part="icon"]'));
     expect(iconSlots).toHaveLength(3);
     for (const slot of iconSlots) {
       expect(slot.className).not.toBe('');
-      expect(slot.parentElement?.getAttribute('data-openbitfun-part')).toBe('leading');
+      expect(slot.parentElement?.getAttribute('data-bitfun-part')).toBe('leading');
       expect(slot.querySelector('svg')).not.toBeNull();
     }
-    expect(document.querySelector<HTMLElement>('[data-openbitfun-product-part="submenuArrow"]')?.className).toBeTruthy();
+    expect(document.querySelector<HTMLElement>('[data-bitfun-product-part="submenuArrow"]')?.className).toBeTruthy();
   });
 });

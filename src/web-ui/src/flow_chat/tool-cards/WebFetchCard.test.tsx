@@ -21,8 +21,8 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@openbitfun/ui', () => ({
-  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
+vi.mock('@bitfun/ui', () => ({
+  Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
   IconButton: ({
     children,
     tooltip,
@@ -148,7 +148,7 @@ describe('WebFetchCard', () => {
     expect(container.textContent).not.toContain('Fetched body content');
 
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
     expect(card).not.toBeNull();
 
@@ -162,7 +162,7 @@ describe('WebFetchCard', () => {
     expect(container.querySelector('button[aria-label="Copy result"]')).not.toBeNull();
 
     const detailPills = Array.from(container.querySelectorAll(
-      '[data-openbitfun-tool-card="web-fetch"] [data-openbitfun-part="detail"]',
+      '[data-bitfun-tool-card="web-fetch"] [data-bitfun-part="detail"]',
     ))
       .map((node) => node.textContent?.trim());
     expect(detailPills).toEqual(expect.arrayContaining(['text', '20 chars']));
@@ -179,14 +179,14 @@ describe('WebFetchCard', () => {
     });
 
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
     act(() => {
       card?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
 
     const linkRow = container.querySelector(
-      '[data-openbitfun-tool-card="web-fetch"] [data-openbitfun-part="sourceLink"]',
+      '[data-bitfun-tool-card="web-fetch"] [data-bitfun-part="sourceLink"]',
     );
     expect(linkRow).not.toBeNull();
 
@@ -208,7 +208,7 @@ describe('WebFetchCard', () => {
     });
 
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
     act(() => {
       card?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));

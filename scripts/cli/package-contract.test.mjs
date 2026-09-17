@@ -45,7 +45,7 @@ for (const workflow of [
 }
 
 const releaseWorkflow = read('.github/workflows/cli-package.yml');
-assert.match(releaseWorkflow, /primary_binary:\s*"openbitfun"/);
+assert.match(releaseWorkflow, /primary_binary:\s*"bitfun"/);
 assert.doesNotMatch(releaseWorkflow, /deprecated_binary|deprecated:\s*true/);
 assert.match(releaseWorkflow, /post-publication/i);
 assert.doesNotMatch(releaseWorkflow, /Homebrew release gate/i);

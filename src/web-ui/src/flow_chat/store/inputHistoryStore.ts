@@ -91,7 +91,7 @@ export const useInputHistoryStore = create<InputHistoryState>()(
       },
     }),
     {
-      name: 'openbitfun-input-history',
+      name: 'bitfun-input-history',
       version: 2, // Bump version to migrate from old format
       storage: createJSONStorage(() => storage),
       migrate: (persistedState: any, version: number) => {

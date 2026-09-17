@@ -47,7 +47,7 @@ export function useFlowChatSearchPresentation(
     const observer = new MutationObserver(records => {
       // Our marker's geometry must not trigger another presentation update.
       if (records.some(record => !(record.target instanceof Element)
-        || !record.target.closest('[data-openbitfun-part="searchLine"]'))) scheduleRefresh();
+        || !record.target.closest('[data-bitfun-part="searchLine"]'))) scheduleRefresh();
     });
     observer.observe(wrapper, {
       childList: true,

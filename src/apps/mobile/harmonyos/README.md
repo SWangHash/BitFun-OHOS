@@ -1,6 +1,6 @@
-# OpenBitFun HarmonyOS
+# BitFun HarmonyOS
 
-Native HarmonyOS controller for OpenBitFun desktop and CLI hosts on phones,
+Native HarmonyOS controller for BitFun desktop and CLI hosts on phones,
 foldables, and tablets. Sign in with GitHub, select an account device, then send
 tasks and view results from that host. The phone does not run an Agent Runtime or
 store model-provider configuration. Model selection applies to the selected host.
@@ -86,7 +86,7 @@ appearance, and a live resize/fold transition on supported hardware.
 
 ### Home and launch presentation
 
-Cold launches reuse the desktop contour mark and reveal the OpenBitFun wordmark
+Cold launches reuse the desktop contour mark and reveal the BitFun wordmark
 letter by letter in approximately 1.3 seconds. This presentation does not wait
 for network/account initialization, is dismissed when backgrounded, and does not
 replay on foreground. The system reduced-motion preference skips it where the

@@ -37,7 +37,7 @@
   },
   "connectionMethods": {
     "lan": "區域網路",
-    "openbitfunServer": "BitFun Server",
+    "bitfunServer": "BitFun Server",
     "customServer": "自訂伺服器",
     "botFeishu": "飛書機器人",
     "botTelegram": "Telegram Bot",

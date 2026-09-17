@@ -11,8 +11,8 @@
 //! dropped, so the two never describe the same thing at the same time.
 
 use super::session_projection_format::LoggedEvent;
-use openbitfun_agent_runtime::sdk::{SessionEventProjectionStore, StoredSessionEvents};
-use openbitfun_events::AgenticEvent;
+use bitfun_agent_runtime::sdk::{SessionEventProjectionStore, StoredSessionEvents};
+use bitfun_events::AgenticEvent;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -170,7 +170,7 @@ mod tests {
     use super::*;
 
     fn temp_root() -> PathBuf {
-        std::env::temp_dir().join(format!("openbitfun-evlog-{}", uuid::Uuid::new_v4()))
+        std::env::temp_dir().join(format!("bitfun-evlog-{}", uuid::Uuid::new_v4()))
     }
 
     fn text(session_id: &str, value: &str) -> AgenticEvent {
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn a_session_id_cannot_escape_the_log_directory() {
-        let root = PathBuf::from("/tmp/openbitfun-evlog-root");
+        let root = PathBuf::from("/tmp/bitfun-evlog-root");
         assert_eq!(
             log_path(&root, "../../etc/passwd").parent(),
             Some(root.as_path())

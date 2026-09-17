@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@openbitfun/ui/styles.css';
-import '@openbitfun/design-tokens/tokens.css';
-import '@openbitfun/theme-openbitfun/default.css';
+import '@bitfun/ui/styles.css';
+import '@bitfun/design-tokens/tokens.css';
+import '@bitfun/theme-bitfun/default.css';
 import '../../src/app/styles/index.scss';
 import { I18nProvider, i18nService } from '../../src/infrastructure/i18n';
-import { OpenBitFunDesignSystemProvider } from '../../src/infrastructure/design-system';
-import { appearanceRuntime, buildBuiltinAppearance, openOpenBitFunDarkPalette } from '../../src/infrastructure/appearance';
+import { BitFunDesignSystemProvider } from '../../src/infrastructure/design-system';
+import { appearanceRuntime, buildBuiltinAppearance, bitFunDarkPalette } from '../../src/infrastructure/appearance';
 import { workspaceAPI } from '../../src/infrastructure/api';
 import MarkdownEditor from '../../src/tools/editor/components/MarkdownEditor';
 import { Preview } from '../../src/tools/editor/meditor/components/Preview';
@@ -21,7 +21,7 @@ workspaceAPI.writeFileContent = async (_workspace, _file, content) => {
   if (!response.ok) throw new Error('Fixture file write failed');
 };
 await i18nService.initialize();
-await appearanceRuntime.initialize(buildBuiltinAppearance(openOpenBitFunDarkPalette));
+await appearanceRuntime.initialize(buildBuiltinAppearance(bitFunDarkPalette));
 
 const showReference = new URLSearchParams(location.search).has('reference');
 const referenceContent = showReference ? await workspaceAPI.readFileContent('/workspace/test.md') : '';
@@ -29,13 +29,13 @@ const referenceContent = showReference ? await workspaceAPI.readFileContent('/wo
 function Fixture() {
   const [dirty, setDirty] = useState(false);
   const [readonly, setReadonly] = useState(false);
-  return <I18nProvider><OpenBitFunDesignSystemProvider>
+  return <I18nProvider><BitFunDesignSystemProvider>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', maxWidth: 960, margin: 'auto' }}>
       <div><button data-testid="readonly" onClick={() => setReadonly(!readonly)}>Toggle readonly</button>
         <output data-testid="dirty">{dirty ? 'Unsaved' : 'Saved'}</output></div>
       {showReference ? <Preview value={referenceContent} /> : <MarkdownEditor filePath="/workspace/test.md" workspacePath="/workspace" readOnly={readonly}
         onContentChange={(_content, changed) => setDirty(changed)} />}
     </div>
-  </OpenBitFunDesignSystemProvider></I18nProvider>;
+  </BitFunDesignSystemProvider></I18nProvider>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture />);

@@ -23,8 +23,8 @@ use core_foundation::base::{CFGetTypeID, CFTypeRef, TCFType};
 use core_foundation::boolean::{CFBoolean, CFBooleanGetTypeID, CFBooleanRef};
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::geometry::{CGPoint, CGSize};
-use openbitfun_core::agentic::tools::computer_use_host::{AppStateSnapshot, AxNode};
-use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
+use bitfun_core::agentic::tools::computer_use_host::{AppStateSnapshot, AxNode};
+use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use std::collections::{HashMap, VecDeque};
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
@@ -470,10 +470,10 @@ fn is_closed_menu_container(role: &str, frame: Option<(f64, f64, f64, f64)>) -> 
     }
 }
 
-pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> OpenBitFunResult<AppStateSnapshot> {
+pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnapshot> {
     let app = unsafe { AXUIElementCreateApplication(pid) };
     if app.is_null() {
-        return Err(OpenBitFunError::tool(format!(
+        return Err(BitFunError::tool(format!(
             "AXUIElementCreateApplication returned null for pid={}",
             pid
         )));
@@ -661,7 +661,7 @@ equivalents, or AXPress the menu first.\n",
     {
         let mut cache = snapshot_cache()
             .lock()
-            .map_err(|_| OpenBitFunError::tool("AX snapshot cache poisoned".to_string()))?;
+            .map_err(|_| BitFunError::tool("AX snapshot cache poisoned".to_string()))?;
         cache.insert(
             pid,
             CachedSnapshot {
@@ -672,7 +672,7 @@ equivalents, or AXPress the menu first.\n",
     }
 
     Ok(AppStateSnapshot {
-        app: openbitfun_core::agentic::tools::computer_use_host::AppInfo {
+        app: bitfun_core::agentic::tools::computer_use_host::AppInfo {
             name: window_title.clone().unwrap_or_default(),
             bundle_id: None,
             pid: Some(pid),
@@ -842,7 +842,7 @@ mod tests {
     #[test]
     #[ignore = "run scripts/test-native-ax-context.mjs with macOS Accessibility permission"]
     fn native_ax_fixture_round_trips_tree_and_cached_targets() {
-        let pid: i32 = std::env::var("OPENBITFUN_AX_FIXTURE_PID")
+        let pid: i32 = std::env::var("BITFUN_AX_FIXTURE_PID")
             .expect("isolated fixture PID")
             .parse()
             .unwrap();
@@ -889,7 +889,7 @@ mod tests {
             serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
         assert_eq!(restored, snapshot);
     }
-    use openbitfun_core::agentic::tools::computer_use_host::AxNode;
+    use bitfun_core::agentic::tools::computer_use_host::AxNode;
 
     fn n(idx: u32, parent: Option<u32>, role: &str, title: Option<&str>) -> AxNode {
         AxNode {

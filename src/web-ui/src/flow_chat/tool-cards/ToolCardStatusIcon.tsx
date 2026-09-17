@@ -21,8 +21,8 @@ export const ToolCardStatusIcon: React.FC<ToolCardStatusIconProps> = ({
   return (
     <div
       className={`tool-card-status-icon${withDivider ? ' tool-card-status-icon--with-divider' : ''}${className ? ` ${className}` : ''}`}
-      data-openbitfun-component="tool-card"
-      data-openbitfun-part="status"
+      data-bitfun-component="tool-card"
+      data-bitfun-part="status"
     >
       {icon}
     </div>

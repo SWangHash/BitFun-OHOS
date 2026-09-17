@@ -1,30 +1,30 @@
 use anyhow::{anyhow, Context, Result};
-use openbitfun_agent_runtime::sdk::AgentSessionUsageRequest;
-use openbitfun_core::agentic::get_agent_registry;
-use openbitfun_core::infrastructure::try_get_path_manager_arc;
-use openbitfun_core::plugin_runtime::{
+use bitfun_agent_runtime::sdk::AgentSessionUsageRequest;
+use bitfun_core::agentic::get_agent_registry;
+use bitfun_core::infrastructure::try_get_path_manager_arc;
+use bitfun_core::plugin_runtime::{
     activate_managed_plugin, deactivate_managed_plugin, preview_managed_plugin_activation,
     ManagedPluginActivationView, ManagedPluginDeactivationResult,
 };
-use openbitfun_core::plugin_source::{
+use bitfun_core::plugin_source::{
     refresh_managed_plugin_sources, set_managed_plugin_trust, ManagedPluginSourceError,
     ManagedPluginSourceIssue, ManagedPluginSourceSnapshot, ManagedPluginTrustDecision,
     ManagedPluginTrustLevel,
 };
-use openbitfun_core::product_assembly::ProductRuntimeParts;
-use openbitfun_core::runtime_ports::PluginRuntimeAvailability;
-use openbitfun_core::service::config::initialize_global_config;
-use openbitfun_core::service::session_usage::render_usage_report_markdown;
+use bitfun_core::product_assembly::ProductRuntimeParts;
+use bitfun_core::runtime_ports::PluginRuntimeAvailability;
+use bitfun_core::service::config::initialize_global_config;
+use bitfun_core::service::session_usage::render_usage_report_markdown;
 use std::io::Write;
 use std::path::Path;
 use std::time::Duration;
 
 async fn ensure_global_config_service(
-) -> Result<std::sync::Arc<openbitfun_core::service::config::ConfigService>> {
+) -> Result<std::sync::Arc<bitfun_core::service::config::ConfigService>> {
     initialize_global_config()
         .await
         .context("Failed to initialize global config service")?;
-    openbitfun_core::service::config::get_global_config_service()
+    bitfun_core::service::config::get_global_config_service()
         .await
         .context("Failed to get global config service")
 }
@@ -33,7 +33,7 @@ pub(crate) async fn print_agents(workspace: Option<&Path>) -> Result<()> {
     let registry = get_agent_registry();
     if workspace.is_some() {
         if let Err(error) =
-            openbitfun_core::external_sources::ensure_external_source_workspace_snapshot(workspace)
+            bitfun_core::external_sources::ensure_external_source_workspace_snapshot(workspace)
                 .await
         {
             eprintln!(
@@ -91,7 +91,7 @@ pub(crate) async fn print_agents(workspace: Option<&Path>) -> Result<()> {
 pub(crate) async fn print_models() -> Result<()> {
     let config_service = ensure_global_config_service().await?;
     let models = config_service.get_ai_models().await?;
-    let global_config: openbitfun_core::service::config::GlobalConfig =
+    let global_config: bitfun_core::service::config::GlobalConfig =
         config_service.get_config(None).await?;
 
     let primary_model_id = global_config.ai.default_models.primary.clone();
@@ -127,7 +127,7 @@ pub(crate) async fn print_models() -> Result<()> {
 
 pub(crate) async fn print_mcp_servers() -> Result<()> {
     let config_service = ensure_global_config_service().await?;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service.clone())
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service.clone())
         .map_err(|error| anyhow!(error.to_string()))?;
     let configs = mcp_service.config_service().load_all_configs().await?;
 
@@ -155,12 +155,12 @@ pub(crate) async fn print_mcp_servers() -> Result<()> {
         };
 
         let endpoint = match config.server_type {
-            openbitfun_core::service::mcp::server::MCPServerType::Local => config
+            bitfun_core::service::mcp::server::MCPServerType::Local => config
                 .command
                 .as_ref()
                 .map(|cmd| format!("{} {}", cmd, config.args.join(" ")))
                 .unwrap_or_else(|| "<missing command>".to_string()),
-            openbitfun_core::service::mcp::server::MCPServerType::Remote => config
+            bitfun_core::service::mcp::server::MCPServerType::Remote => config
                 .url
                 .clone()
                 .unwrap_or_else(|| "<missing url>".to_string()),
@@ -192,7 +192,7 @@ pub(crate) async fn set_default_model(model_id: &str) -> Result<()> {
 
 pub(crate) async fn set_mcp_server_enabled(server_id: &str, enabled: bool) -> Result<()> {
     let config_service = ensure_global_config_service().await?;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service.clone())
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service.clone())
         .map_err(|error| anyhow!(error.to_string()))?;
     let mut config = mcp_service
         .config_service()
@@ -213,7 +213,7 @@ pub(crate) async fn set_mcp_server_enabled(server_id: &str, enabled: bool) -> Re
     Ok(())
 }
 
-/// User-facing input for `openbitfun mcp add`.
+/// User-facing input for `bitfun mcp add`.
 ///
 /// All fields are optional so the CLI can pre-fill any subset via flags and
 /// resolve the rest through the three-step wizard.
@@ -246,7 +246,7 @@ impl Drop for RawModeGuard {
 /// persisted via `MCPConfigService::save_server_config`.
 pub(crate) async fn add_mcp_server(input: McpAddInput) -> Result<()> {
     let config_service = ensure_global_config_service().await?;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service.clone())
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service.clone())
         .map_err(|error| anyhow!(error.to_string()))?;
 
     println!("Add MCP Server (1/3) — Name");
@@ -262,14 +262,14 @@ pub(crate) async fn add_mcp_server(input: McpAddInput) -> Result<()> {
     println!("Add MCP Server (2/3) — Type");
     let is_local = select_server_type(input.r#type.as_deref(), input.non_interactive)?;
     let server_type = if is_local {
-        openbitfun_core::service::mcp::MCPServerType::Local
+        bitfun_core::service::mcp::MCPServerType::Local
     } else {
-        openbitfun_core::service::mcp::MCPServerType::Remote
+        bitfun_core::service::mcp::MCPServerType::Remote
     };
     let transport = if is_local {
-        openbitfun_core::service::mcp::MCPServerTransport::Stdio
+        bitfun_core::service::mcp::MCPServerTransport::Stdio
     } else {
-        openbitfun_core::service::mcp::MCPServerTransport::StreamableHttp
+        bitfun_core::service::mcp::MCPServerTransport::StreamableHttp
     };
 
     println!("Add MCP Server (3/3) — Connection");
@@ -290,7 +290,7 @@ pub(crate) async fn add_mcp_server(input: McpAddInput) -> Result<()> {
         (None, Vec::new(), Some(url_value))
     };
 
-    let config = openbitfun_core::service::mcp::MCPServerConfig {
+    let config = bitfun_core::service::mcp::MCPServerConfig {
         id: name.clone(),
         name: name.clone(),
         server_type,
@@ -304,7 +304,7 @@ pub(crate) async fn add_mcp_server(input: McpAddInput) -> Result<()> {
         url,
         auto_start: true,
         enabled: true,
-        location: openbitfun_core::service::mcp::ConfigLocation::User,
+        location: bitfun_core::service::mcp::ConfigLocation::User,
         capabilities: Vec::new(),
         settings: std::collections::HashMap::new(),
         oauth: None,
@@ -334,7 +334,7 @@ pub(crate) async fn add_mcp_server(input: McpAddInput) -> Result<()> {
 
     println!("MCP server '{}' added.", name);
     println!(
-        "Run `openbitfun mcp list` to verify, `openbitfun mcp disable {}` to toggle.",
+        "Run `bitfun mcp list` to verify, `bitfun mcp disable {}` to toggle.",
         name
     );
     Ok(())
@@ -509,7 +509,7 @@ fn read_required_field(
 }
 pub(crate) async fn print_mcp_json_config() -> Result<()> {
     let config_service = ensure_global_config_service().await?;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service.clone())
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service.clone())
         .map_err(|error| anyhow!(error.to_string()))?;
     let snapshot = mcp_service.config_service().load_mcp_json_config().await?;
     println!("{}", snapshot.json_config);
@@ -522,7 +522,7 @@ pub(crate) async fn run_mcp_import(command: crate::mcp_import::McpImportCommand)
 }
 
 fn validate_usage_session_id(session_id: &str) -> Result<()> {
-    openbitfun_agent_runtime::session_control::validate_session_id(session_id)
+    bitfun_agent_runtime::session_control::validate_session_id(session_id)
         .map_err(anyhow::Error::msg)
 }
 
@@ -541,7 +541,7 @@ pub(crate) async fn print_usage_report(session_id: Option<&str>) -> Result<()> {
         Some(session_id) if !session_id.trim().is_empty() => session_id.to_string(),
         _ => runtime
             .agent_runtime()
-            .list_sessions(openbitfun_runtime_ports::AgentSessionListRequest {
+            .list_sessions(bitfun_runtime_ports::AgentSessionListRequest {
                 workspace_path: workspace_path.to_string_lossy().to_string(),
                 remote_connection_id: None,
                 remote_ssh_host: None,
@@ -655,7 +655,7 @@ pub(crate) async fn activate_plugin(package_id: &str, confirm: Option<&str>) -> 
         let diagnostic = crate::plugin_diagnostics::escape_terminal_text(&error.to_string());
         if confirm.is_some() {
             anyhow!(
-                "{}\nRe-run `openbitfun plugins activate {}` to preview the current content, then confirm with the new content hash.",
+                "{}\nRe-run `bitfun plugins activate {}` to preview the current content, then confirm with the new content hash.",
                 diagnostic,
                 crate::plugin_diagnostics::escape_terminal_text(package_id)
             )
@@ -668,7 +668,7 @@ pub(crate) async fn activate_plugin(package_id: &str, confirm: Option<&str>) -> 
     if confirm.is_none() {
         println!();
         println!(
-            "No activation state changed. Re-run `openbitfun plugins activate {} --confirm {}` to confirm this exact package content.",
+            "No activation state changed. Re-run `bitfun plugins activate {} --confirm {}` to confirm this exact package content.",
             crate::plugin_diagnostics::escape_terminal_text(package_id),
             crate::plugin_diagnostics::escape_terminal_text(&view.content_hash)
         );
@@ -687,7 +687,7 @@ pub(crate) async fn deactivate_plugin(package_id: &str) -> Result<()> {
                 ManagedPluginSourceError::DeactivationPersistenceUncertain { .. }
             ) {
                 anyhow!(
-                    "{diagnostic}\nThe saved state may already be cleared. Retry `openbitfun plugins deactivate {}` to confirm the result; the operation is idempotent.",
+                    "{diagnostic}\nThe saved state may already be cleared. Retry `bitfun plugins deactivate {}` to confirm the result; the operation is idempotent.",
                     crate::plugin_diagnostics::escape_terminal_text(package_id)
                 )
             } else {
@@ -912,7 +912,7 @@ fn plugin_trust_label(trust_level: ManagedPluginTrustLevel) -> &'static str {
 
 pub(crate) async fn print_mcp_config_summary() -> Result<()> {
     let config_service = ensure_global_config_service().await?;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service)
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service)
         .map_err(|error| anyhow!(error.to_string()))?;
     let configs = mcp_service.config_service().load_all_configs().await?;
 
@@ -933,7 +933,7 @@ pub(crate) async fn print_doctor(product_runtime: &ProductRuntimeParts) -> Resul
     let models = config_service.get_ai_models().await?;
     let agent_registry = get_agent_registry();
     let external_source_error =
-        openbitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
+        bitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
             &workspace,
         ))
         .await
@@ -944,7 +944,7 @@ pub(crate) async fn print_doctor(product_runtime: &ProductRuntimeParts) -> Resul
     let subagents = agent_registry
         .get_subagents_info(Some(workspace.as_path()))
         .await;
-    let mcp_service = openbitfun_core::service::mcp::MCPService::new(config_service.clone())
+    let mcp_service = bitfun_core::service::mcp::MCPService::new(config_service.clone())
         .map_err(|error| anyhow!(error.to_string()))?;
     let mcp_configs = mcp_service.config_service().load_all_configs().await?;
     let plugin_sources = refresh_managed_plugin_sources(&workspace)
@@ -973,14 +973,14 @@ pub(crate) async fn print_doctor(product_runtime: &ProductRuntimeParts) -> Resul
     let plugin_sources_ready =
         crate::plugin_diagnostics::plugin_source_check_passes(plugin_error_count);
 
-    println!("OpenBitFun CLI doctor");
+    println!("BitFun CLI doctor");
     println!();
     println!(
         "[ok] Product runtime: {} assembly-ready",
         product_runtime.plan().profile().id()
     );
     println!("[ok] Runtime capability registrations: complete");
-    println!("[info] Execution owner: openbitfun-core compatibility");
+    println!("[info] Execution owner: bitfun-core compatibility");
     match product_runtime.plugin_runtime().availability() {
         PluginRuntimeAvailability::Disabled { reason } => {
             println!("[info] Plugin runtime: disabled ({reason})");

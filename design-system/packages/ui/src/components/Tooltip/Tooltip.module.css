@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .arrow,
   .content,
@@ -11,109 +11,109 @@
     --_enter-y: 0px;
 
     position: fixed;
-    z-index: var(--openbitfun-layer-tooltip);
+    z-index: var(--bitfun-layer-tooltip);
     opacity: 0;
     pointer-events: none;
     transform: translate3d(var(--_enter-x), var(--_enter-y), 0) scale(0.98);
     transition:
-      opacity var(--openbitfun-motion-duration-fast) ease,
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      opacity var(--bitfun-motion-duration-fast) ease,
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .root[data-openbitfun-state="visible"] {
+  .root[data-bitfun-state="visible"] {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
 
-  .root[data-openbitfun-interactive="true"][data-openbitfun-state="visible"] {
+  .root[data-bitfun-interactive="true"][data-bitfun-state="visible"] {
     pointer-events: auto;
   }
 
   .content {
     position: relative;
     z-index: 1;
-    max-inline-size: min(var(--openbitfun-overlay-tooltip-max-inline-size), calc(100vw - 16px));
-    max-block-size: min(var(--openbitfun-overlay-tooltip-max-block-size), calc(100vh - 24px));
+    max-inline-size: min(var(--bitfun-overlay-tooltip-max-inline-size), calc(100vw - 16px));
+    max-block-size: min(var(--bitfun-overlay-tooltip-max-block-size), calc(100vh - 24px));
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: var(--openbitfun-overlay-tooltip-padding-block) var(--openbitfun-overlay-tooltip-padding-inline);
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-overlay-tooltip-surface-radius);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 96%, transparent);
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-support-font-family);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    padding: var(--bitfun-overlay-tooltip-padding-block) var(--bitfun-overlay-tooltip-padding-inline);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-overlay-tooltip-surface-radius);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     user-select: text;
-    box-shadow: var(--openbitfun-shadow-sm);
-    backdrop-filter: var(--openbitfun-effect-blur-base);
-    -webkit-backdrop-filter: var(--openbitfun-effect-blur-base);
+    box-shadow: var(--bitfun-shadow-sm);
+    backdrop-filter: var(--bitfun-effect-blur-base);
+    -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
   }
 
   .arrow {
     position: absolute;
     z-index: 0;
-    inline-size: var(--openbitfun-overlay-tooltip-arrow-size);
-    block-size: var(--openbitfun-overlay-tooltip-arrow-size);
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 96%, transparent);
+    inline-size: var(--bitfun-overlay-tooltip-arrow-size);
+    block-size: var(--bitfun-overlay-tooltip-arrow-size);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent);
     transform: rotate(45deg);
   }
 
-  .root[data-openbitfun-placement="top"] .arrow,
-  .root[data-openbitfun-placement="bottom"] .arrow {
-    left: calc(50% - var(--openbitfun-overlay-tooltip-arrow-size) / 2);
+  .root[data-bitfun-placement="top"] .arrow,
+  .root[data-bitfun-placement="bottom"] .arrow {
+    left: calc(50% - var(--bitfun-overlay-tooltip-arrow-size) / 2);
   }
 
-  .root[data-openbitfun-placement="left"] .arrow,
-  .root[data-openbitfun-placement="right"] .arrow {
-    top: calc(50% - var(--openbitfun-overlay-tooltip-arrow-size) / 2);
+  .root[data-bitfun-placement="left"] .arrow,
+  .root[data-bitfun-placement="right"] .arrow {
+    top: calc(50% - var(--bitfun-overlay-tooltip-arrow-size) / 2);
   }
 
-  .root[data-openbitfun-placement="top"] .arrow {
+  .root[data-bitfun-placement="top"] .arrow {
     bottom: -3px;
     border-top: 0;
     border-left: 0;
   }
 
-  .root[data-openbitfun-placement="bottom"] .arrow {
+  .root[data-bitfun-placement="bottom"] .arrow {
     top: -3px;
     border-right: 0;
     border-bottom: 0;
   }
 
-  .root[data-openbitfun-placement="left"] .arrow {
+  .root[data-bitfun-placement="left"] .arrow {
     right: -3px;
     border-bottom: 0;
     border-left: 0;
   }
 
-  .root[data-openbitfun-placement="right"] .arrow {
+  .root[data-bitfun-placement="right"] .arrow {
     left: -3px;
     border-top: 0;
     border-right: 0;
   }
 
-  .root[data-openbitfun-placement="top"] {
+  .root[data-bitfun-placement="top"] {
     --_enter-y: 3px;
     transform-origin: center bottom;
   }
 
-  .root[data-openbitfun-placement="bottom"] {
+  .root[data-bitfun-placement="bottom"] {
     --_enter-y: -3px;
     transform-origin: center top;
   }
 
-  .root[data-openbitfun-placement="left"] {
+  .root[data-bitfun-placement="left"] {
     --_enter-x: 3px;
     transform-origin: right center;
   }
 
-  .root[data-openbitfun-placement="right"] {
+  .root[data-bitfun-placement="right"] {
     --_enter-x: -3px;
     transform-origin: left center;
   }
@@ -125,7 +125,7 @@
   @media (prefers-contrast: more) {
     .content,
     .arrow {
-      border-color: var(--openbitfun-color-border-strong);
+      border-color: var(--bitfun-color-border-strong);
     }
   }
 
@@ -144,7 +144,7 @@
       transform: none;
     }
 
-    .root[data-openbitfun-state="visible"] {
+    .root[data-bitfun-state="visible"] {
       transform: none;
     }
 

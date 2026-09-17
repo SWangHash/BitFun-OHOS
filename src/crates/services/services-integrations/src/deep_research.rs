@@ -1,13 +1,13 @@
 //! Citation renumbering hook for finalized DeepResearch reports.
 //!
 //! This module owns the best-effort filesystem hook and sidecar persistence.
-//! The deterministic report rewrite stays in `openbitfun-agent-workflows`.
+//! The deterministic report rewrite stays in `bitfun-agent-workflows`.
 
 use log::{debug, info, warn};
-use openbitfun_agent_workflows::deep_research::{
+use bitfun_agent_workflows::deep_research::{
     renumber_research_report, ResearchCitationDisplayMapEntry,
 };
-use openbitfun_runtime_ports::WorkspaceFileSystem;
+use bitfun_runtime_ports::WorkspaceFileSystem;
 use serde_json::json;
 use std::fmt;
 use std::path::PathBuf;
@@ -61,7 +61,7 @@ pub struct RenumberStats {
 /// fire-and-await without affecting the surrounding agent flow.
 ///
 /// Operates on the per-session WORK_DIR at
-/// `<workspace>/.openbitfun/sessions/<session_id>/research/`, where both the
+/// `<workspace>/.bitfun/sessions/<session_id>/research/`, where both the
 /// report and the audit files live.
 pub async fn run_for_session_workspace(
     fs: &dyn WorkspaceFileSystem,
@@ -71,7 +71,7 @@ pub async fn run_for_session_workspace(
     let work_dir = fs.join_path(
         workspace_root,
         &[
-            openbitfun_core_types::product_identity::hidden_data_directory(),
+            bitfun_core_types::product_identity::hidden_data_directory(),
             "sessions",
             session_id,
             "research",
@@ -243,7 +243,7 @@ fn workspace_io_error(error: anyhow::Error) -> std::io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_runtime_ports::{WorkspaceDirEntry, WorkspaceFileSystem, WorkspacePathKind};
+    use bitfun_runtime_ports::{WorkspaceDirEntry, WorkspaceFileSystem, WorkspacePathKind};
     use std::collections::HashMap;
     use std::env;
     use std::path::Path;
@@ -421,7 +421,7 @@ mod tests {
                 .expect("system clock before unix epoch")
                 .as_nanos();
             let path =
-                env::temp_dir().join(format!("openbitfun-citation-renumber-{}-{}", label, unique));
+                env::temp_dir().join(format!("bitfun-citation-renumber-{}-{}", label, unique));
             std::fs::create_dir_all(&path).unwrap();
             Self(path)
         }
@@ -518,7 +518,7 @@ cit_005 | claim c | url=u3 | authority=medium
 
         let work_dir = dir
             .path()
-            .join(openbitfun_core_types::product_identity::hidden_data_directory())
+            .join(bitfun_core_types::product_identity::hidden_data_directory())
             .join("sessions")
             .join("incomplete-session")
             .join("research");
@@ -534,7 +534,7 @@ cit_005 | claim c | url=u3 | authority=medium
 
         let work_dir = dir
             .path()
-            .join(openbitfun_core_types::product_identity::hidden_data_directory())
+            .join(bitfun_core_types::product_identity::hidden_data_directory())
             .join("sessions")
             .join(session_id)
             .join("research");
@@ -580,7 +580,7 @@ Para 1 references cit_005 first. Para 2 references cit_001.
         let session_id = "remote-session";
         let work_dir = format!(
             "{workspace_root}/{}/sessions/{session_id}/research",
-            openbitfun_core_types::product_identity::hidden_data_directory()
+            bitfun_core_types::product_identity::hidden_data_directory()
         );
         let report_path = format!("{work_dir}/report.md");
         let citations_path = format!("{work_dir}/citations.md");
@@ -622,7 +622,7 @@ Para 1 references cit_005 first. Para 2 references cit_001.
         let session_id = "remote-session";
         let host_work_dir = host_workspace
             .path()
-            .join(openbitfun_core_types::product_identity::hidden_data_directory())
+            .join(bitfun_core_types::product_identity::hidden_data_directory())
             .join("sessions")
             .join(session_id)
             .join("research");
@@ -647,7 +647,7 @@ Para 1 references cit_005 first. Para 2 references cit_001.
                 remote_fs.join_path(
                     &workspace_root,
                     &[
-                        openbitfun_core_types::product_identity::hidden_data_directory(),
+                        bitfun_core_types::product_identity::hidden_data_directory(),
                         "sessions",
                         session_id,
                         "research",

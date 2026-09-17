@@ -69,31 +69,31 @@ describe('composer context track layout', () => {
     }
 
     expect(branchPicker).toMatch(
-      /branch-quick-switch__item \{[\s\S]*?min-height: var\(--openbitfun-control-height-sm\);/,
+      /branch-quick-switch__item \{[\s\S]*?min-height: var\(--bitfun-control-height-sm\);/,
     );
     expect(branchPicker).toMatch(
-      /branch-quick-switch__list \[data-openbitfun-part='list'\] \{[\s\S]*?gap: calc\(var\(--openbitfun-space-1\) \/ 2\);/,
+      /branch-quick-switch__list \[data-bitfun-part='list'\] \{[\s\S]*?gap: calc\(var\(--bitfun-space-1\) \/ 2\);/,
     );
     expect(targetPicker).toMatch(
-      /&__option-row \{[\s\S]*?min-height: var\(--openbitfun-control-height-md\);/,
+      /&__option-row \{[\s\S]*?min-height: var\(--bitfun-control-height-md\);/,
     );
     expect(targetPicker).toMatch(
-      /&__menu \{[\s\S]*?--openbitfun-overlay-menu-section-gap: var\(--openbitfun-space-1\);/,
+      /&__menu \{[\s\S]*?--bitfun-overlay-menu-section-gap: var\(--bitfun-space-1\);/,
     );
     expect(targetPicker).toMatch(
-      /&__status \{[\s\S]*?min-height: var\(--openbitfun-overlay-menu-heading-height\);/,
+      /&__status \{[\s\S]*?min-height: var\(--bitfun-overlay-menu-heading-height\);/,
     );
     expect(targetPicker).toMatch(
-      /strong \{[\s\S]*?font-size: var\(--openbitfun-type-label-md-font-size\);/,
+      /strong \{[\s\S]*?font-size: var\(--bitfun-type-label-md-font-size\);/,
     );
     expect(targetPicker).toMatch(
-      /small \{[\s\S]*?font-size: var\(--openbitfun-type-meta-font-size\);/,
+      /small \{[\s\S]*?font-size: var\(--bitfun-type-meta-font-size\);/,
     );
     expect(targetPicker).toMatch(
-      /\&\[data-openbitfun-part='option'\] \{[\s\S]*?strong \{[\s\S]*?color: var\(--openbitfun-color-content-secondary\);[\s\S]*?opacity: var\(--openbitfun-opacity-focus\);/,
+      /\&\[data-bitfun-part='option'\] \{[\s\S]*?strong \{[\s\S]*?color: var\(--bitfun-color-content-secondary\);[\s\S]*?opacity: var\(--bitfun-opacity-focus\);/,
     );
     expect(targetPicker).toMatch(
-      /small \{[\s\S]*?color: var\(--openbitfun-color-content-muted\);[\s\S]*?opacity: 0\.5;/,
+      /small \{[\s\S]*?color: var\(--bitfun-color-content-muted\);[\s\S]*?opacity: 0\.5;/,
     );
   });
 
@@ -104,7 +104,7 @@ describe('composer context track layout', () => {
       /branch-quick-switch__list \{[\s\S]*?block-size: clamp\(0px, calc\(100vh - 96px\), 280px\);/,
     );
     expect(branchPicker).toMatch(
-      /branch-quick-switch__list \[data-openbitfun-part='list'\] \{[\s\S]*?min-block-size: 100%;/,
+      /branch-quick-switch__list \[data-bitfun-part='list'\] \{[\s\S]*?min-block-size: 100%;/,
     );
     expect(branchPicker).toMatch(
       /branch-quick-switch__loading,[\s\S]*?branch-quick-switch__empty \{[\s\S]*?flex: 1 1 auto;/,
@@ -119,12 +119,12 @@ describe('composer context track layout', () => {
     // facts inherit it; every control restates the same step through the
     // shared mixin, so the row reads as a single hushed line.
     expect(stylesheet).toContain(
-      'font-size: var(--openbitfun-type-flow-meta-font-size);\n  line-height:',
+      'font-size: var(--bitfun-type-flow-meta-font-size);\n  line-height:',
     );
     expect(stylesheet).toMatch(/&__workspace \{[\s\S]*?font-size: inherit;/);
     expect(stylesheet).toMatch(/&__branch \{[\s\S]*?font-size: inherit;/);
     expect(stylesheet).toMatch(
-      /@mixin strip-control \{[\s\S]*?font-size: var\(--openbitfun-type-flow-meta-font-size\);/,
+      /@mixin strip-control \{[\s\S]*?font-size: var\(--bitfun-type-flow-meta-font-size\);/,
     );
     // No control names a size of its own — that is how the track drifted into
     // four of them before.
@@ -142,7 +142,7 @@ describe('composer context track layout', () => {
     // across five neighbouring controls is what "unified" is the fix for.
     const mixin = stylesheet.slice(
       stylesheet.indexOf('@mixin strip-control {'),
-      stylesheet.indexOf('.openbitfun-chat-input-workspace-strip {'),
+      stylesheet.indexOf('.bitfun-chat-input-workspace-strip {'),
     );
     expect(mixin).toContain('height: 18px;');
     expect(mixin).toContain('border-radius: 999px;');
@@ -169,7 +169,7 @@ describe('composer context track layout', () => {
     expect(stylesheet).toMatch(/&__workspace \{[\s\S]*?border-radius: 999px;/);
     expect(stylesheet).toMatch(/&__workspace \{[\s\S]*?cursor: default;/);
     expect(stylesheet).toMatch(
-      /&__workspace--switchable \{[\s\S]*?&:hover:not\(:disabled\)[\s\S]*?background: var\(--openbitfun-color-action-quiet-hover\);/,
+      /&__workspace--switchable \{[\s\S]*?&:hover:not\(:disabled\)[\s\S]*?background: var\(--bitfun-color-action-quiet-hover\);/,
     );
 
     // Branch wears the same pill so the three left-rail segments keep one
@@ -189,7 +189,7 @@ describe('composer context track layout', () => {
     expect(staticBranch).toContain('padding: 0 7px;');
     expect(staticBranch).toContain('border-radius: 999px;');
     expect(chip).toMatch(
-      /&--branch-switchable \{[\s\S]*?cursor: pointer;[\s\S]*?&:hover:not\(:disabled\)[\s\S]*?background: var\(--openbitfun-color-action-quiet-hover\);/,
+      /&--branch-switchable \{[\s\S]*?cursor: pointer;[\s\S]*?&:hover:not\(:disabled\)[\s\S]*?background: var\(--bitfun-color-action-quiet-hover\);/,
     );
 
     // A hairline parts the segments; inside a segment spacing is the only
@@ -212,17 +212,17 @@ describe('composer context track layout', () => {
     const chatInput = readChatInputStylesheet();
     const component = readLocalFile('ChatInput.tsx');
     const stripRoot = stylesheet.slice(
-      stylesheet.indexOf('.openbitfun-chat-input-workspace-strip {'),
+      stylesheet.indexOf('.bitfun-chat-input-workspace-strip {'),
       stylesheet.indexOf('  &__context {'),
     );
 
     expect(component).toContain('contextBar={workspaceStrip}');
     expect(component).toContain('<ChatInputWorkspaceStrip');
     expect(chatInput).toMatch(
-      /\.openbitfun-context-drop-zone\.openbitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--openbitfun-space-2\);/,
+      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--bitfun-space-2\);/,
     );
     expect(chatInput).toMatch(
-      /\.openbitfun-context-drop-zone\.openbitfun-chat-input-drop-zone \{[\s\S]*?bottom: var\(--openbitfun-space-6\);/,
+      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?bottom: var\(--bitfun-space-6\);/,
     );
     expect(stripRoot).toContain('position: relative;');
     expect(stripRoot).toContain('padding: 0;');
@@ -235,8 +235,8 @@ describe('composer context track layout', () => {
   it('orders the left rail as situation and the right rail as the next turn', () => {
     const component = readWorkspaceStripComponent();
     const stylesheet = readWorkspaceStripStylesheet();
-    const contextIndex = component.indexOf('data-openbitfun-part="context"');
-    const nextIndex = component.indexOf('data-openbitfun-part="next"');
+    const contextIndex = component.indexOf('data-bitfun-part="context"');
+    const nextIndex = component.indexOf('data-bitfun-part="next"');
     const contextMarkup = component.slice(contextIndex, nextIndex);
     const locationIndex = contextMarkup.indexOf('__location');
     const targetIndex = contextMarkup.indexOf('<DispatchTargetPicker');
@@ -256,7 +256,7 @@ describe('composer context track layout', () => {
     // open; the menu lists every open workspace and marks the active one.
     expect(component).toContain('data-testid="chat-input-workspace-trigger"');
     expect(component).toContain('data-testid="chat-input-workspace-menu"');
-    expect(component).toContain('data-openbitfun-part="workspaceOption"');
+    expect(component).toContain('data-bitfun-part="workspaceOption"');
     // Every entry carries one compact secondary detail line: repositories use
     // their real path, while assistants expose their product role instead of
     // leaking the internal assistant workspace directory.
@@ -266,10 +266,10 @@ describe('composer context track layout', () => {
     expect(component).toContain("'workspaceStrip.personalAssistant'");
     expect(component).toContain('__workspace-option-detail');
     expect(stylesheet).toMatch(
-      /&__workspace-option-copy \{[\s\S]*?padding-block: calc\(var\(--openbitfun-space-1\) \/ 2\);/,
+      /&__workspace-option-copy \{[\s\S]*?padding-block: calc\(var\(--bitfun-space-1\) \/ 2\);/,
     );
     expect(stylesheet).toMatch(
-      /&__workspace-option-detail \{[\s\S]*?color: var\(--openbitfun-color-content-muted\);/,
+      /&__workspace-option-detail \{[\s\S]*?color: var\(--bitfun-color-content-muted\);/,
     );
     expect(stylesheet).toMatch(
       /&__workspace-option-detail \{[\s\S]*?opacity: 0\.5;/,
@@ -285,11 +285,11 @@ describe('composer context track layout', () => {
     // The ring is the whole reading. A number beside it only said the same
     // thing twice, in the rail with the least room to say anything.
     const usageButton = component.match(
-      /className="openbitfun-chat-input-workspace-strip__usage-btn"[\s\S]*?<\/button>/,
+      /className="bitfun-chat-input-workspace-strip__usage-btn"[\s\S]*?<\/button>/,
     )?.[0];
     expect(usageButton).toBeDefined();
     expect(usageButton).not.toContain('{usagePercentage}%');
-    expect(component).toContain('openbitfun-chat-input-workspace-strip__usage-ring');
+    expect(component).toContain('bitfun-chat-input-workspace-strip__usage-ring');
     expect(component).toContain('data-testid="dispatch-sync-trigger"');
   });
 
@@ -348,12 +348,12 @@ describe('composer context track layout', () => {
     expect(additionalModeItemsIndex).toBeGreaterThan(additionalModesIndex);
     expect(contextIndex).toBeGreaterThan(additionalModeItemsIndex);
     expect(chatInput).toContain('additionalModeItems.map(item => (');
-    expect(chatInput).toContain('data-openbitfun-boost-item-kind="additional-mode"');
+    expect(chatInput).toContain('data-bitfun-boost-item-kind="additional-mode"');
     expect(chatInput).toContain('data-testid={`chat-input-additional-mode-${item.id}`}');
     expect(chatInput).not.toContain('boost-submenu-item--unavailable');
     expect(chatInput).not.toContain('boost-submenu-item-status');
-    expect(chatInput).not.toContain('data-openbitfun-boost-item-kind="workflow"');
-    expect(chatInput).not.toContain('data-openbitfun-agent-id="Review"');
+    expect(chatInput).not.toContain('data-bitfun-boost-item-kind="workflow"');
+    expect(chatInput).not.toContain('data-bitfun-agent-id="Review"');
     expect(chatInput).toContain(
       'resolveChatInputQuickSkillShortcuts(resolvedModeSkills)',
     );
@@ -388,21 +388,21 @@ describe('composer context track layout', () => {
     expect(standaloneHarnessIndex).toBeLessThan(endActionsIndex);
     expect(chatInput).toContain('isMultiLine && executionLevelPolicy.userConfigurable ? (');
     expect(stylesheet).toMatch(
-      /&\[data-openbitfun-layout='expanded'\] \{[\s\S]*?\.openbitfun-harness-selector__trigger \{[\s\S]*?height: var\(--openbitfun-control-chat-composer-control-height\);/,
+      /&\[data-bitfun-layout='expanded'\] \{[\s\S]*?\.bitfun-harness-selector__trigger \{[\s\S]*?height: var\(--bitfun-control-chat-composer-control-height\);/,
     );
     expect(modelIndex).toBeGreaterThan(endActionsIndex);
     expect(chatInput).not.toContain('harnessControl');
     // Reasoning belongs beside the model it configures; context usage remains
     // a ring in the upper context track rather than repeating as a number.
     const modelSelector = readLocalFile('ModelSelector.tsx');
-    expect(stylesheet).not.toContain('.openbitfun-reasoning-preset-selector,');
+    expect(stylesheet).not.toContain('.bitfun-reasoning-preset-selector,');
     expect(modelSelector).not.toContain('tokenPercentage');
-    expect(modelSelector).not.toContain('data-openbitfun-part="contextUsage"');
+    expect(modelSelector).not.toContain('data-bitfun-part="contextUsage"');
     expect(modelSelector).toContain('buildContextUsageTooltip');
     expect(modelSelector).toContain('buildModelSelectorTooltipDetails');
-    expect(stylesheet).not.toContain('.openbitfun-model-selector__ctx-usage {');
+    expect(stylesheet).not.toContain('.bitfun-model-selector__ctx-usage {');
     expect(stylesheet).toContain(
-      ".openbitfun-reasoning-preset-selector[data-openbitfun-presentation='label']",
+      ".bitfun-reasoning-preset-selector[data-bitfun-presentation='label']",
     );
   });
 
@@ -410,13 +410,13 @@ describe('composer context track layout', () => {
     const component = readLocalFile('ChatInput.tsx');
 
     expect(component).toContain(
-      'clone.querySelector(\n      \'[data-openbitfun-component="chat-composer"] [data-openbitfun-part="surface"]\'',
+      'clone.querySelector(\n      \'[data-bitfun-component="chat-composer"] [data-bitfun-part="surface"]\'',
     );
-    expect(component).toContain("cloneComposerSurfaceEl.dataset.openbitfunLayout = 'compact';");
+    expect(component).toContain("cloneComposerSurfaceEl.dataset.bitfunLayout = 'compact';");
     expect(component).toContain('const singleLineThreshold = paddingBlock + singleLineHeight * 1.5;');
     expect(component).toContain('naturalHeightMeasured > singleLineThreshold');
     expect(component).not.toContain('naturalHeightMeasured > 32');
-    expect(component).not.toContain("cloneBoxEl.classList.add('openbitfun-chat-input__box--capsule')");
+    expect(component).not.toContain("cloneBoxEl.classList.add('bitfun-chat-input__box--capsule')");
   });
 
   it('keeps a new session expanded until its first submission starts the session', () => {
@@ -445,13 +445,13 @@ describe('composer context track layout', () => {
   it('keeps the model pair borderless at rest, on hover, and while open', () => {
     const stylesheet = readChatInputStylesheet();
     const modelPair = stylesheet.slice(
-      stylesheet.indexOf('    .openbitfun-model-selector {'),
-      stylesheet.indexOf('    .openbitfun-model-selector__trigger {'),
+      stylesheet.indexOf('    .bitfun-model-selector {'),
+      stylesheet.indexOf('    .bitfun-model-selector__trigger {'),
     );
 
     expect(modelPair).toContain('border: 0;');
     expect(modelPair).toMatch(
-      /&:hover,\s*&\[data-openbitfun-state='open'\] \{\s*background: var\(--openbitfun-color-action-quiet-hover\);/,
+      /&:hover,\s*&\[data-bitfun-state='open'\] \{\s*background: var\(--bitfun-color-action-quiet-hover\);/,
     );
     expect(modelPair).not.toContain('border-color:');
   });
@@ -462,14 +462,14 @@ describe('composer context track layout', () => {
 
     expect(component).toContain('ChatComposerActionButton');
     expect(component).toMatch(
-      /className="openbitfun-chat-input__agent-boost-add"[\s\S]*?variant="fill"/,
+      /className="bitfun-chat-input__agent-boost-add"[\s\S]*?variant="fill"/,
     );
     expect(component).toMatch(
-      /className="openbitfun-chat-input__send-button"[\s\S]*?variant="primary"/,
+      /className="bitfun-chat-input__send-button"[\s\S]*?variant="primary"/,
     );
-    expect(stylesheet).not.toContain('.openbitfun-chat-input__agent-boost-add {');
+    expect(stylesheet).not.toContain('.bitfun-chat-input__agent-boost-add {');
     expect(stylesheet).not.toContain(
-      '.openbitfun-chat-input__box:focus-within &:not(:disabled)',
+      '.bitfun-chat-input__box:focus-within &:not(:disabled)',
     );
   });
 
@@ -477,25 +477,25 @@ describe('composer context track layout', () => {
     const component = readLocalFile('ChatInput.tsx');
     const stylesheet = readChatInputStylesheet();
     const compactControls = stylesheet.slice(
-      stylesheet.indexOf("    &[data-openbitfun-layout='compact'] {"),
+      stylesheet.indexOf("    &[data-bitfun-layout='compact'] {"),
       stylesheet.indexOf('  &--capsule {'),
     );
     expect(compactControls).toContain('height: 100%;');
     expect(stylesheet).toContain(
-      'height: var(--openbitfun-control-chat-composer-control-height);',
+      'height: var(--bitfun-control-chat-composer-control-height);',
     );
     expect(compactControls).not.toContain(
-      'width: var(--openbitfun-control-chat-composer-compact-track-height) !important;',
+      'width: var(--bitfun-control-chat-composer-compact-track-height) !important;',
     );
-    expect(component).toContain('className="openbitfun-chat-input__agent-boost-trigger"');
+    expect(component).toContain('className="bitfun-chat-input__agent-boost-trigger"');
     expect(stylesheet).toMatch(
       /&__agent-boost-trigger \{[\s\S]*?display: inline-flex;[\s\S]*?height: 100%;[\s\S]*?align-items: center;[\s\S]*?line-height: 0;/,
     );
     expect(readLocalFile('voice/ComposerVoiceInputButton.tsx')).toContain(
-      'className="openbitfun-chat-input__voice-control-shell"',
+      'className="bitfun-chat-input__voice-control-shell"',
     );
     expect(stylesheet).toMatch(
-      /\.openbitfun-chat-input__voice-control-shell \{[\s\S]*?display: inline-flex;[\s\S]*?align-items: center;[\s\S]*?line-height: 0;/,
+      /\.bitfun-chat-input__voice-control-shell \{[\s\S]*?display: inline-flex;[\s\S]*?align-items: center;[\s\S]*?line-height: 0;/,
     );
   });
 
@@ -513,7 +513,7 @@ describe('composer context track layout', () => {
       'data-harness-density={densityProfile ? HARNESS_PRESENTATION[densityProfile].gear : 0}',
     );
     expect(component).toContain('name={HARNESS_PRESENTATION[profile].icon}');
-    expect(component).not.toContain('className="openbitfun-harness-selector__density-core"');
+    expect(component).not.toContain('className="bitfun-harness-selector__density-core"');
     expect(component).toContain('<HarnessProfileMark profile={id} />');
     expect(component).toContain('<HarnessProfileMark profile={knownSelectedProfile} />');
     expect(component).not.toContain('compact=');
@@ -532,7 +532,7 @@ describe('composer context track layout', () => {
     expect(component).toContain('aria-label={tooltip}');
     expect(stylesheet).toMatch(/&__trigger \{[\s\S]*?width: 18px;[\s\S]*?height: 18px;/);
     expect(stylesheet).toMatch(
-      /&__trigger-label \{[\s\S]*?font-size: var\(--openbitfun-type-flow-control-font-size\);/,
+      /&__trigger-label \{[\s\S]*?font-size: var\(--bitfun-type-flow-control-font-size\);/,
     );
     expect(chatInput).toContain('reasoningTriggerPresentation="label"');
   });
@@ -545,15 +545,15 @@ describe('composer context track layout', () => {
       stylesheet.indexOf('&__permission-label {'),
     );
     expect(riskRamp).toContain('permission-trigger--ask &');
-    expect(riskRamp).toContain('var(--openbitfun-color-status-success-emphasis)');
+    expect(riskRamp).toContain('var(--bitfun-color-status-success-emphasis)');
     expect(riskRamp).toContain('permission-trigger--auto &');
-    expect(riskRamp).toContain('var(--openbitfun-color-status-warning-emphasis)');
+    expect(riskRamp).toContain('var(--bitfun-color-status-warning-emphasis)');
     expect(riskRamp).toContain('permission-trigger--full_access &');
-    expect(riskRamp).toContain('var(--openbitfun-color-status-danger-emphasis)');
+    expect(riskRamp).toContain('var(--bitfun-color-status-danger-emphasis)');
     // Full access keeps a body of its own so the risk survives the label being
     // dropped on a narrow composer.
     expect(stylesheet).toMatch(
-      /&__permission-trigger \{[\s\S]*?&--full_access \{[\s\S]*?background: var\(--openbitfun-color-status-danger-surface\);/,
+      /&__permission-trigger \{[\s\S]*?&--full_access \{[\s\S]*?background: var\(--bitfun-color-status-danger-surface\);/,
     );
   });
 
@@ -595,7 +595,7 @@ describe('composer context track layout', () => {
     // On/off is a colour, not an outline: one bordered item in a borderless
     // row reads as an error state rather than a mode.
     expect(stylesheet).toMatch(
-      /&--on \{\n\s*color: var\(--openbitfun-color-accent-default\);/,
+      /&--on \{\n\s*color: var\(--bitfun-color-accent-default\);/,
     );
     expect(stylesheet).not.toMatch(/&__worktree-toggle \{[\s\S]*?border: 1px/);
   });

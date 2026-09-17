@@ -14,16 +14,16 @@ import { ModelProviderSseParser } from './ModelProviderSseParser';
 import { RemoteLogger } from '../RemoteLogger';
 
 export const GENERAL_CHAT_SYSTEM_PROMPT: string = [
-  'You are the general-purpose AI work assistant in the OpenBitFun HarmonyOS mobile app.',
-  'The OpenBitFun product is a local AI workbench built around a Code Agent for long-horizon engineering and productivity tasks.',
-  'The mobile app provides general chat plus entry points to OpenBitFun Remote/Code; this chat itself does not have local workspace access.',
+  'You are the general-purpose AI work assistant in the BitFun HarmonyOS mobile app.',
+  'The BitFun product is a local AI workbench built around a Code Agent for long-horizon engineering and productivity tasks.',
+  'The mobile app provides general chat plus entry points to BitFun Remote/Code; this chat itself does not have local workspace access.',
   'It is not a blockchain, gaming, NFT, cryptocurrency, or Web3 product. Never invent those product claims.',
   'Treat those product exclusions as internal factual constraints and do not mention them unless the user asks something directly related.',
   'Help with general questions, writing, summarization, planning, research preparation, and everyday work.',
   'The user may attach images. When images are present, look at them and answer from what you can see.',
   'This mobile chat currently has no local workspace, shell, desktop file, web browsing, or external tool access.',
   'Never claim to have used unavailable tools or accessed information you were not given.',
-  'When a task requires reading or changing a local repository, running commands, or accessing desktop files, explain that the user should use OpenBitFun Remote/Code.',
+  'When a task requires reading or changing a local repository, running commands, or accessing desktop files, explain that the user should use BitFun Remote/Code.',
   'Answer in the user\'s language. Be concise, concrete, and honest about uncertainty.'
 ].join('\n');
 
@@ -162,7 +162,7 @@ export class HarmonyModelProviderHttpTransport implements ModelProviderHttpTrans
     body: string,
     protocol: ModelProviderProtocol
   ): http.HttpRequestOptions {
-    if (protocol === ModelProviderProtocol.Anthropic && url.indexOf('openbitfun.com') >= 0) {
+    if (protocol === ModelProviderProtocol.Anthropic && url.indexOf('bitfun.com') >= 0) {
       return {
         method: http.RequestMethod.POST,
         header: {
@@ -170,7 +170,7 @@ export class HarmonyModelProviderHttpTransport implements ModelProviderHttpTrans
           'Accept': 'text/event-stream',
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
-          'X-Verification-Code': 'from_openbitfun'
+          'X-Verification-Code': 'from_bitfun'
         },
         extraData: body,
         connectTimeout: 15000,
@@ -228,7 +228,7 @@ export class ModelProviderGeneralChatAdapter implements GeneralChatPort {
       createdAt: now,
       messageCount: 0,
       workspacePath: '',
-      workspaceName: 'OpenBitFun'
+      workspaceName: 'BitFun'
     };
   }
 
@@ -401,7 +401,7 @@ export class ModelProviderGeneralChatAdapter implements GeneralChatPort {
 
   static resolveProtocol(baseUrl: string): ModelProviderProtocol {
     const normalized = baseUrl.trim().toLowerCase().replace(/\/+$/, '');
-    if (normalized.indexOf('openbitfun.com') >= 0 || normalized.endsWith('/v1/messages')) {
+    if (normalized.indexOf('bitfun.com') >= 0 || normalized.endsWith('/v1/messages')) {
       return ModelProviderProtocol.Anthropic;
     }
     return ModelProviderProtocol.OpenAi;

@@ -1,12 +1,12 @@
 [package]
-name = "openbitfun-core"
+name = "bitfun-core"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "OpenBitFun Core Library - Platform-agnostic business logic"
+description = "BitFun Core Library - Platform-agnostic business logic"
 
 [lib]
-name = "openbitfun_core"
+name = "bitfun_core"
 crate-type = ["rlib"]
 
 [dependencies]
@@ -65,42 +65,42 @@ include_dir = { workspace = true, optional = true }
 similar = { workspace = true, optional = true }
 
 # Shared AI protocol adapters
-openbitfun-ai-adapters = { path = "../../adapters/ai-adapters", optional = true }
+bitfun-ai-adapters = { path = "../../adapters/ai-adapters", optional = true }
 
 # Lightweight agent stream processing
-openbitfun-agent-stream = { path = "../../execution/agent-stream", optional = true }
+bitfun-agent-stream = { path = "../../execution/agent-stream", optional = true }
 
 # Immutable built-in Agent prompt content
-openbitfun-agent-content = { path = "../agent-content", optional = true }
+bitfun-agent-content = { path = "../agent-content", optional = true }
 
 # Agent runtime owner contracts
-openbitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
-openbitfun-agent-workflows = { path = "../../execution/agent-workflows", optional = true }
+bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
+bitfun-agent-workflows = { path = "../../execution/agent-workflows", optional = true }
 
 # Product capability pack contracts
-openbitfun-product-capabilities = { path = "../product-capabilities", optional = true }
+bitfun-product-capabilities = { path = "../product-capabilities", optional = true }
 
 # Ecosystem-neutral external source lifecycle coordinator
-openbitfun-external-sources = { path = "../external-sources", optional = true }
+bitfun-external-sources = { path = "../external-sources", optional = true }
 
 # Agent tool contracts
-openbitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
+bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
 
 # Tool pack provider plan
-openbitfun-tool-packs = { path = "../../execution/tool-provider-groups", optional = true }
+bitfun-tool-packs = { path = "../../execution/tool-provider-groups", optional = true }
 
 # Core service owner crate
-openbitfun-services-core = { path = "../../services/services-core", features = ["json-io", "product-identity", "workspace-identity"] }
+bitfun-services-core = { path = "../../services/services-core", features = ["json-io", "product-identity", "workspace-identity"] }
 
 # Integration service owner crate
-openbitfun-services-integrations = { path = "../../services/services-integrations", optional = true }
+bitfun-services-integrations = { path = "../../services/services-integrations", optional = true }
 
 # Optional compatibility export for the independent offline migration adapters.
-openbitfun-legacy-migration-adapters = { path = "../../services/legacy-migration-adapters", optional = true }
+bitfun-legacy-migration-adapters = { path = "../../services/legacy-migration-adapters", optional = true }
 
 # Product domain owner crate
-openbitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
-openbitfun-config-contracts = { path = "../../contracts/config-contracts" }
+bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
+bitfun-config-contracts = { path = "../../contracts/config-contracts" }
 
 # Tool runtime
 tool-runtime = { path = "../../execution/tool-execution", optional = true }
@@ -121,19 +121,19 @@ urlencoding = { workspace = true }
 tokio-tungstenite = { workspace = true, optional = true }
 
 # Event layer dependency (lowest layer)
-openbitfun-core-types = { path = "../../contracts/core-types" }
-openbitfun-events = { path = "../../contracts/events" }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["permission", "workspace-ports"] }
-openbitfun-runtime-services = { path = "../../execution/runtime-services", optional = true }
+bitfun-core-types = { path = "../../contracts/core-types" }
+bitfun-events = { path = "../../contracts/events" }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["permission", "workspace-ports"] }
+bitfun-runtime-services = { path = "../../execution/runtime-services", optional = true }
 
 # Reviewed product-full plugin composition root.
-openbitfun-opencode-adapter = { path = "../../adapters/opencode-adapter", optional = true }
-openbitfun-pi-adapter = { path = "../../adapters/pi-adapter", optional = true }
-openbitfun-dsh-adapter = { path = "../../adapters/dsh-adapter", optional = true }
-openbitfun-opencode-plugin-host = { path = "../../adapters/opencode-plugin-host", optional = true }
-openbitfun-claude-code-adapter = { path = "../../adapters/claude-code-adapter", optional = true }
-openbitfun-codex-adapter = { path = "../../adapters/codex-adapter", optional = true }
-openbitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client", optional = true }
+bitfun-opencode-adapter = { path = "../../adapters/opencode-adapter", optional = true }
+bitfun-pi-adapter = { path = "../../adapters/pi-adapter", optional = true }
+bitfun-dsh-adapter = { path = "../../adapters/dsh-adapter", optional = true }
+bitfun-opencode-plugin-host = { path = "../../adapters/opencode-plugin-host", optional = true }
+bitfun-claude-code-adapter = { path = "../../adapters/claude-code-adapter", optional = true }
+bitfun-codex-adapter = { path = "../../adapters/codex-adapter", optional = true }
+bitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client", optional = true }
 
 [features]
 # Full product runtime compatibility set. Product entrypoints with a narrower
@@ -149,12 +149,12 @@ default = []
 # product matrix. The other two upstream crates are non-optional and propagate
 # their `ts` features directly.
 ts = [
-    "openbitfun-config-contracts/ts",
+    "bitfun-config-contracts/ts",
     "dep:ts-rs",
-    "openbitfun-core-types/ts",
-    "openbitfun-services-integrations?/ts",
-    "openbitfun-product-domains?/ts",
-    "openbitfun-runtime-ports/ts",
+    "bitfun-core-types/ts",
+    "bitfun-services-integrations?/ts",
+    "bitfun-product-domains?/ts",
+    "bitfun-runtime-ports/ts",
 ]
 product-full = [
     "agent-runtime",
@@ -211,24 +211,24 @@ product-full = [
 # owns the existing agent/session/tool lifecycle, not app presentation or
 # external ecosystem discovery.
 agent-runtime = [
-    "dep:openbitfun-product-domains",
-    "openbitfun-services-core/coordination-store",
-    "openbitfun-services-core/session-event-format",
+    "dep:bitfun-product-domains",
+    "bitfun-services-core/coordination-store",
+    "bitfun-services-core/session-event-format",
     "ai-adapter-runtime",
-    "dep:openbitfun-agent-runtime",
-    "openbitfun-agent-runtime/agent-runtime",
-    "dep:openbitfun-agent-content",
-    "dep:openbitfun-agent-stream",
-    "dep:openbitfun-agent-tools",
-    "openbitfun-agent-tools/computer-use-contract",
-    "openbitfun-runtime-ports/agent-api",
-    "openbitfun-runtime-ports/git-port",
-    "openbitfun-runtime-ports/remote-exec-port",
-    "openbitfun-runtime-ports/remote-workspace-ports",
-    "openbitfun-runtime-ports/runtime-event-port",
-    "openbitfun-runtime-ports/terminal-port",
-    "openbitfun-runtime-ports/tool-runtime-handles",
-    "openbitfun-runtime-ports/workspace-ports",
+    "dep:bitfun-agent-runtime",
+    "bitfun-agent-runtime/agent-runtime",
+    "dep:bitfun-agent-content",
+    "dep:bitfun-agent-stream",
+    "dep:bitfun-agent-tools",
+    "bitfun-agent-tools/computer-use-contract",
+    "bitfun-runtime-ports/agent-api",
+    "bitfun-runtime-ports/git-port",
+    "bitfun-runtime-ports/remote-exec-port",
+    "bitfun-runtime-ports/remote-workspace-ports",
+    "bitfun-runtime-ports/runtime-event-port",
+    "bitfun-runtime-ports/terminal-port",
+    "bitfun-runtime-ports/tool-runtime-handles",
+    "bitfun-runtime-ports/workspace-ports",
     "dep:base64",
     "dep:dashmap",
     "dep:filetime",
@@ -245,19 +245,19 @@ agent-runtime = [
     "dep:tokio-util",
     "dep:tool-runtime",
     "tool-runtime/shell-analysis",
-    "openbitfun-services-core/permission",
-    "openbitfun-services-core/memory-store",
-    "openbitfun-services-core/runtime-ownership",
-    "openbitfun-services-core/workspace-text-runtime",
-    "openbitfun-services-core/session-git",
-    "openbitfun-services-core/token-usage-statistics",
+    "bitfun-services-core/permission",
+    "bitfun-services-core/memory-store",
+    "bitfun-services-core/runtime-ownership",
+    "bitfun-services-core/workspace-text-runtime",
+    "bitfun-services-core/session-git",
+    "bitfun-services-core/token-usage-statistics",
     "filesystem",
     "local-storage",
     "process-runtime",
     "terminal",
     "workspace-runtime",
     "product-capabilities",
-    "openbitfun-product-domains/external-sources",
+    "bitfun-product-domains/external-sources",
     "runtime-services",
     "tool-packs",
     "tools-basic",
@@ -268,10 +268,10 @@ agent-runtime = [
     "tokio/time",
 ]
 product-search = [
-    "dep:openbitfun-product-domains",
+    "dep:bitfun-product-domains",
     "agent-runtime",
-    "openbitfun-runtime-ports/product-search",
-    "openbitfun-services-core/session-search",
+    "bitfun-runtime-ports/product-search",
+    "bitfun-services-core/session-search",
 ]
 # Backend Fluent translation state. Locale contracts and model-facing language
 # facts remain available without this runtime implementation.
@@ -281,13 +281,13 @@ external-sources = [
     "model-catalog",
     "mcp-runtime",
     "script-tool-runtime",
-    "dep:openbitfun-opencode-adapter",
-    "dep:openbitfun-dsh-adapter",
-    "dep:openbitfun-pi-adapter",
-    "dep:openbitfun-claude-code-adapter",
-    "dep:openbitfun-codex-adapter",
-    "dep:openbitfun-external-sources",
-    "openbitfun-services-integrations/hook-import",
+    "dep:bitfun-opencode-adapter",
+    "dep:bitfun-dsh-adapter",
+    "dep:bitfun-pi-adapter",
+    "dep:bitfun-claude-code-adapter",
+    "dep:bitfun-codex-adapter",
+    "dep:bitfun-external-sources",
+    "bitfun-services-integrations/hook-import",
     "plugin-source",
     "file-watch",
     "workspace-watch",
@@ -297,15 +297,15 @@ external-sources = [
 # Agent lifecycle. Product entrypoints compose only the owners they expose.
 model-catalog = [
     "ai-adapter-runtime",
-    "openbitfun-services-integrations/models-dev",
+    "bitfun-services-integrations/models-dev",
     "runtime-services",
 ]
 mcp-runtime = [
     "agent-runtime",
-    "openbitfun-agent-tools/mcp-bridge",
+    "bitfun-agent-tools/mcp-bridge",
     "dep:axum",
     "dep:reqwest",
-    "openbitfun-services-integrations/mcp",
+    "bitfun-services-integrations/mcp",
     "tokio/rt-multi-thread",
 ]
 # Local (Ollama-compatible) model-service client; the only owner of this
@@ -314,36 +314,36 @@ local-model-runtime = [
     "dep:reqwest",
 ]
 remote-connect = [
-    "openbitfun-services-core/workspace-transfer",
+    "bitfun-services-core/workspace-transfer",
     "agent-runtime",
     "git",
     "model-catalog",
-    "openbitfun-services-integrations/remote-connect",
+    "bitfun-services-integrations/remote-connect",
 ]
 workspace-search = [
     "workspace-runtime",
-    "openbitfun-services-integrations/workspace-search",
+    "bitfun-services-integrations/workspace-search",
 ]
 browser-control = [
     "dep:tokio-tungstenite",
-    "openbitfun-services-integrations/browser-control",
+    "bitfun-services-integrations/browser-control",
     "tokio/net",
     "tokio/rt",
     "tokio/time",
 ]
 web-tools = [
-    "openbitfun-runtime-ports/web-search-port",
-    "openbitfun-services-core/credential-vault",
-    "openbitfun-services-integrations/web-tools",
+    "bitfun-runtime-ports/web-search-port",
+    "bitfun-services-core/credential-vault",
+    "bitfun-services-integrations/web-tools",
     "tool-runtime/web-readable",
 ]
 deep-research = [
-    "dep:openbitfun-agent-workflows",
-    "openbitfun-services-integrations/deep-research",
+    "dep:bitfun-agent-workflows",
+    "bitfun-services-integrations/deep-research",
 ]
 script-tool-runtime = [
-    "openbitfun-runtime-ports/script-tool-runtime",
-    "openbitfun-services-integrations/script-tool-runtime",
+    "bitfun-runtime-ports/script-tool-runtime",
+    "bitfun-services-integrations/script-tool-runtime",
 ]
 scheduled-jobs = [
     "dep:chrono-tz",
@@ -352,69 +352,69 @@ scheduled-jobs = [
 # Additive dependency modifiers. Weak dependency feature references preserve
 # the owning runtime boundary instead of activating that runtime by themselves.
 document-read = ["tool-runtime?/document-read"]
-subscription-auth = ["openbitfun-ai-adapters?/subscription-auth"]
-# Forwarded to `openbitfun-ai-adapters/system-vault`, which selects the OS
-# keyring backend in `openbitfun-services-core`. Desktop hosts enable this on
+subscription-auth = ["bitfun-ai-adapters?/subscription-auth"]
+# Forwarded to `bitfun-ai-adapters/system-vault`, which selects the OS
+# keyring backend in `bitfun-services-core`. Desktop hosts enable this on
 # macOS/Windows/Linux; the OHOS desktop build does not (it injects an
 # ArkTS-backed vault at startup instead). Kept as an additive feature so
 # the OHOS target never pulls keyring or zbus transitively.
-system-vault = ["openbitfun-ai-adapters?/system-vault"]
+system-vault = ["bitfun-ai-adapters?/system-vault"]
 
-# Tool groups mirror the provider-neutral groups in openbitfun-tool-packs. They
+# Tool groups mirror the provider-neutral groups in bitfun-tool-packs. They
 # compose concrete service owners but never form a product-shaped umbrella.
 tools-basic = [
-    "openbitfun-tool-packs/basic",
+    "bitfun-tool-packs/basic",
     "workspace-search",
 ]
 tools-git = [
-    "openbitfun-tool-packs/git",
+    "bitfun-tool-packs/git",
     "git",
     "review-platform",
 ]
 tools-mcp = [
-    "openbitfun-tool-packs/mcp",
+    "bitfun-tool-packs/mcp",
     "mcp-runtime",
 ]
 tools-browser-web = [
-    "openbitfun-tool-packs/browser-web",
+    "bitfun-tool-packs/browser-web",
     "browser-control",
     "web-tools",
 ]
 tools-computer-use = [
-    "openbitfun-tool-packs/computer-use",
+    "bitfun-tool-packs/computer-use",
 ]
 tools-image-analysis = [
-    "openbitfun-tool-packs/image-analysis",
+    "bitfun-tool-packs/image-analysis",
 ]
 tools-miniapp = [
-    "dep:openbitfun-product-domains",
-    "openbitfun-tool-packs/miniapp",
-    "openbitfun-product-domains/appearance-market",
-    "openbitfun-product-domains/miniapp",
-    "openbitfun-services-integrations/miniapp-runtime",
-    "openbitfun-services-integrations/miniapp-market",
+    "dep:bitfun-product-domains",
+    "bitfun-tool-packs/miniapp",
+    "bitfun-product-domains/appearance-market",
+    "bitfun-product-domains/miniapp",
+    "bitfun-services-integrations/miniapp-runtime",
+    "bitfun-services-integrations/miniapp-market",
     "runtime-services",
     "dep:reqwest",
     "dep:semver",
 ]
 tools-pages = [
-    "openbitfun-tool-packs/pages",
+    "bitfun-tool-packs/pages",
 ]
 tools-creation = [
-    "openbitfun-tool-packs/creation",
+    "bitfun-tool-packs/creation",
 ]
 tools-canvas = [
-    "openbitfun-tool-packs/canvas",
+    "bitfun-tool-packs/canvas",
     "canvas-runtime",
 ]
 tools-agent-control = [
-    "openbitfun-tool-packs/agent-control",
+    "bitfun-tool-packs/agent-control",
     "scheduled-jobs",
 ]
 plugin-runtime = [
     "external-sources",
-    "dep:openbitfun-plugin-runtime-client",
-    "openbitfun-runtime-ports/plugin-runtime",
+    "dep:bitfun-plugin-runtime-client",
+    "bitfun-runtime-ports/plugin-runtime",
 ]
 # Managed OpenCode Host assembly. Its HTTP compatibility routes consume the
 # Agent lifecycle plus model, Git, and Remote Connect owners; keep that
@@ -423,15 +423,15 @@ opencode-plugin-host = [
     "plugin-runtime",
     "remote-connect",
     "git",
-    "dep:openbitfun-opencode-plugin-host",
-    "openbitfun-runtime-ports/hook-function-runtime",
+    "dep:bitfun-opencode-plugin-host",
+    "bitfun-runtime-ports/hook-function-runtime",
 ]
 
 debug-log = [
     "dep:axum",
     "dep:tokio-util",
     "dep:tower-http",
-    "openbitfun-services-integrations/debug-log",
+    "bitfun-services-integrations/debug-log",
     "tokio/macros",
     "tokio/net",
     "tokio/rt",
@@ -439,69 +439,69 @@ debug-log = [
 ]
 
 ai-adapter-runtime = [
-    "dep:openbitfun-ai-adapters",
+    "dep:bitfun-ai-adapters",
 ]
-product-capabilities = ["dep:openbitfun-product-capabilities"]
+product-capabilities = ["dep:bitfun-product-capabilities"]
 plugin-source = [
-    "dep:openbitfun-product-domains",
-    "openbitfun-product-domains/plugin-source",
-    "openbitfun-services-integrations/plugin-source",
+    "dep:bitfun-product-domains",
+    "bitfun-product-domains/plugin-source",
+    "bitfun-services-integrations/plugin-source",
 ]
 function-agents = [
-    "dep:openbitfun-product-domains",
+    "dep:bitfun-product-domains",
     "ai-adapter-runtime",
-    "openbitfun-product-domains/function-agents",
-    "openbitfun-services-integrations/function-agents",
+    "bitfun-product-domains/function-agents",
+    "bitfun-services-integrations/function-agents",
     "runtime-services",
 ]
 canvas-runtime = [
-    "dep:openbitfun-product-domains",
-    "openbitfun-services-integrations/canvas-runtime",
+    "dep:bitfun-product-domains",
+    "bitfun-services-integrations/canvas-runtime",
 ]
-runtime-services = ["dep:openbitfun-runtime-services"]
-legacy-migration = ["dep:openbitfun-legacy-migration-adapters"]
-announcement = ["openbitfun-services-integrations/announcement"]
-file-watch = ["openbitfun-services-integrations/file-watch"]
-git = ["openbitfun-services-integrations/git"]
-review-platform = ["openbitfun-services-integrations/review-platform"]
+runtime-services = ["dep:bitfun-runtime-services"]
+legacy-migration = ["dep:bitfun-legacy-migration-adapters"]
+announcement = ["bitfun-services-integrations/announcement"]
+file-watch = ["bitfun-services-integrations/file-watch"]
+git = ["bitfun-services-integrations/git"]
+review-platform = ["bitfun-services-integrations/review-platform"]
 service-integrations = ["announcement", "file-watch", "git", "review-platform"]
-diagnostics = ["openbitfun-services-core/diagnostics"]
-diff = ["openbitfun-services-core/diff"]
-dispatch-store = ["dep:base64", "local-storage", "openbitfun-services-core/dispatch-workspace"]
-filesystem = ["openbitfun-services-core/filesystem"]
-local-storage = ["dep:openbitfun-agent-tools", "openbitfun-services-core/local-storage"]
-process-runtime = ["openbitfun-services-core/process-runtime"]
+diagnostics = ["bitfun-services-core/diagnostics"]
+diff = ["bitfun-services-core/diff"]
+dispatch-store = ["dep:base64", "local-storage", "bitfun-services-core/dispatch-workspace"]
+filesystem = ["bitfun-services-core/filesystem"]
+local-storage = ["dep:bitfun-agent-tools", "bitfun-services-core/local-storage"]
+process-runtime = ["bitfun-services-core/process-runtime"]
 terminal = ["dep:terminal-core"]
 workspace-runtime = [
-    "openbitfun-services-core/workspace-persistence",
+    "bitfun-services-core/workspace-persistence",
     "dep:serde_yaml",
     "filesystem",
     "local-storage",
     "process-runtime",
-    "openbitfun-services-core/markdown",
-    "openbitfun-services-core/workspace-identity",
-    "openbitfun-services-core/workspace-instructions",
-    "openbitfun-services-core/workspace-runtime",
+    "bitfun-services-core/markdown",
+    "bitfun-services-core/workspace-identity",
+    "bitfun-services-core/workspace-instructions",
+    "bitfun-services-core/workspace-runtime",
 ]
 workspace-watch = ["workspace-runtime", "dep:notify"]
 remote-workspace = [
     "workspace-runtime",
-    "dep:openbitfun-services-integrations",
-    "openbitfun-services-integrations/remote-ssh",
+    "dep:bitfun-services-integrations",
+    "bitfun-services-integrations/remote-ssh",
 ]
-tool-packs = ["dep:openbitfun-tool-packs"]
+tool-packs = ["dep:bitfun-tool-packs"]
 # Deprecated compatibility feature. Tauri integration is desktop-owned now;
 # keep the public feature name as a no-op for downstream manifests.
 tauri-support = []
 ssh-remote = [
     "remote-workspace",
-    "openbitfun-services-integrations/remote-ssh-concrete",
+    "bitfun-services-integrations/remote-ssh-concrete",
 ]
 
 [dev-dependencies]
 # Loopback Socket.IO fixture for remote controller interaction tests.
 tokio-tungstenite = { workspace = true }
-openbitfun-runtime-services = { path = "../../execution/runtime-services", features = ["test-support"] }
+bitfun-runtime-services = { path = "../../execution/runtime-services", features = ["test-support"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 

@@ -5,11 +5,11 @@ use std::sync::{Arc, OnceLock};
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
-const KEYRING_SERVICE: &str = "openbitfun.miniapp-market.v1";
+const KEYRING_SERVICE: &str = "bitfun.miniapp-market.v1";
 const CREDENTIAL_ENTRY: &str = "github-oauth";
 
 #[cfg(target_env = "ohos")]
-const OHOS_MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
+const OHOS_MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,7 +22,7 @@ pub struct StoredMarketCredentials {
 
 #[cfg(target_env = "ohos")]
 static INJECTED_OHOS_VAULT: OnceLock<
-    Arc<dyn openbitfun_services_core::secure_credentials::SecureCredentialVault>,
+    Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault>,
 > = OnceLock::new();
 
 /// Install the host-provided credential vault used for market identity
@@ -32,14 +32,14 @@ static INJECTED_OHOS_VAULT: OnceLock<
 /// unavailable error instead of silently returning empty data.
 #[cfg(target_env = "ohos")]
 pub fn inject_ohos_credential_vault(
-    vault: Arc<dyn openbitfun_services_core::secure_credentials::SecureCredentialVault>,
+    vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault>,
 ) {
     let _ = INJECTED_OHOS_VAULT.set(vault);
 }
 
 #[cfg(target_env = "ohos")]
 fn injected_ohos_vault(
-) -> Option<Arc<dyn openbitfun_services_core::secure_credentials::SecureCredentialVault>> {
+) -> Option<Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault>> {
     INJECTED_OHOS_VAULT.get().cloned()
 }
 
@@ -79,13 +79,13 @@ fn open_entry() -> Result<keyring_core::Entry, String> {
 
 #[cfg(target_os = "macos")]
 fn macos_credential_vault(
-) -> Result<openbitfun_services_core::credential_vault::CredentialVault, String> {
+) -> Result<bitfun_services_core::credential_vault::CredentialVault, String> {
     let base = dirs::config_dir()
         .ok_or_else(|| "system config directory unavailable".to_string())?
-        .join(openbitfun_services_core::product_identity::data_namespace())
+        .join(bitfun_services_core::product_identity::data_namespace())
         .join("data");
     Ok(
-        openbitfun_services_core::credential_vault::CredentialVault::new(
+        bitfun_services_core::credential_vault::CredentialVault::new(
             base.join(".market_credentials_vault.key"),
             base.join("market_credentials_vault.json"),
         ),

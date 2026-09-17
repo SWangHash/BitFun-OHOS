@@ -58,7 +58,7 @@ pub fn validate_model_config(model: &crate::AIModelConfig, index: usize) -> Resu
         if let Some(preset) = &reasoning.default_preset {
             if matches!(
                 reasoning.catalog,
-                openbitfun_core_types::ReasoningCatalogBinding::Disabled
+                bitfun_core_types::ReasoningCatalogBinding::Disabled
             ) && reasoning.preset(preset).is_none()
             {
                 return Err(format!(

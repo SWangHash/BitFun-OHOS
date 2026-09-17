@@ -6,10 +6,10 @@ export const toolTimeoutIndicatorAppearanceDescriptor: AppearanceSurfaceDescript
     { id: 'root' }, { id: 'duration' }, { id: 'elapsed' }, { id: 'timeout' },
     { id: 'controls' }, { id: 'toggle' }, { id: 'popover' }, { id: 'option' },
   ],
-  facets: [{ id: 'mode', attribute: 'data-openbitfun-mode', values: ['completed', 'live'] }],
+  facets: [{ id: 'mode', attribute: 'data-bitfun-mode', values: ['completed', 'live'] }],
   states: [
-    { id: 'warning', selector: { kind: 'self', suffix: '[data-openbitfun-state~="warning"]' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
-    { id: 'open', selector: { kind: 'self', suffix: '[data-openbitfun-state~="open"]' } },
+    { id: 'warning', selector: { kind: 'self', suffix: '[data-bitfun-state~="warning"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
+    { id: 'open', selector: { kind: 'self', suffix: '[data-bitfun-state~="open"]' } },
   ],
 };

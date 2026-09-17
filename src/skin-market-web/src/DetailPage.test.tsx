@@ -80,7 +80,7 @@ describe('DetailPage moderation', () => {
     expect(unpublishButton).toBeDefined();
 
     const reason = container.querySelector<HTMLTextAreaElement>('#moderation-reason');
-    expect(reason?.closest('[data-openbitfun-component="textarea"]')).not.toBeNull();
+    expect(reason?.closest('[data-bitfun-component="textarea"]')).not.toBeNull();
     await act(async () => {
       if (!reason) throw new Error('moderation reason missing');
       const valueSetter = Object.getOwnPropertyDescriptor(
@@ -172,7 +172,7 @@ describe('DetailPage moderation', () => {
     await act(async () => root.render(<DetailPage catalogSearch="" isAdmin={false}
       locale="en-US" onNavigate={vi.fn()} slug="ocean-night" t={t} />));
     const disclosure = container.querySelector<HTMLDetailsElement>('details.older-releases')!;
-    expect(disclosure.dataset.openbitfunComponent).toBe('disclosure');
+    expect(disclosure.dataset.bitfunComponent).toBe('disclosure');
     expect(disclosure.open).toBe(false);
     act(() => disclosure.querySelector('summary')!.click());
     expect(disclosure.open).toBe(true);

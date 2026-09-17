@@ -119,7 +119,7 @@ export const SessionShareFilesButton: React.FC<SessionShareFilesButtonProps> = (
   const buttonLabel = t('flow-chat:sessionShare.button');
 
   return (
-    <div className="session-share-files-button" data-openbitfun-component="flow-chat-header" data-openbitfun-part="shareFiles">
+    <div className="session-share-files-button" data-bitfun-component="flow-chat-header" data-bitfun-part="shareFiles">
       <IconButton
         ref={triggerRef}
         className={[
@@ -134,8 +134,8 @@ export const SessionShareFilesButton: React.FC<SessionShareFilesButtonProps> = (
         aria-expanded={isOpen}
         onClick={handleTriggerClick}
         data-testid="flowchat-header-session-share-files"
-        data-openbitfun-component="flow-chat-header"
-        data-openbitfun-part="shareFilesTrigger"
+        data-bitfun-component="flow-chat-header"
+        data-bitfun-part="shareFilesTrigger"
       >
         <Files size={14} />
       </IconButton>
@@ -147,13 +147,13 @@ export const SessionShareFilesButton: React.FC<SessionShareFilesButtonProps> = (
           style={{ top: panelPos.top, left: panelPos.left }}
           role="dialog"
           aria-label={buttonLabel}
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="shareFilesPanel"
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="shareFilesPanel"
         >
           <div
             className="session-share-files-button__panel-header"
-            data-openbitfun-component="flow-chat-header"
-            data-openbitfun-part="shareFilesHeader"
+            data-bitfun-component="flow-chat-header"
+            data-bitfun-part="shareFilesHeader"
           >
             <span className="session-share-files-button__panel-title">
               {t('flow-chat:sessionShare.title')}
@@ -164,8 +164,8 @@ export const SessionShareFilesButton: React.FC<SessionShareFilesButtonProps> = (
           </div>
           <ul
             className="session-share-files-button__file-list"
-            data-openbitfun-component="flow-chat-header"
-            data-openbitfun-part="shareFilesList"
+            data-bitfun-component="flow-chat-header"
+            data-bitfun-part="shareFilesList"
           >
             {files.map(file => {
               const name = basename(file.filePath);
@@ -173,8 +173,8 @@ export const SessionShareFilesButton: React.FC<SessionShareFilesButtonProps> = (
                 <li
                   key={file.filePath}
                   className="session-share-files-button__file-item"
-                  data-openbitfun-component="flow-chat-header"
-                  data-openbitfun-part="shareFilesItem"
+                  data-bitfun-component="flow-chat-header"
+                  data-bitfun-part="shareFilesItem"
                 >
                   <div className="session-share-files-button__file-name" title={file.filePath}>
                     {name}

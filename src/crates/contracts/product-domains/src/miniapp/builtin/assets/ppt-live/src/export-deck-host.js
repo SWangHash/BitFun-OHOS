@@ -1,5 +1,5 @@
 // Direct re-export from source — no intermediate vendor bundle needed.
-// build-openbitfun.mjs (esbuild, bundle:true) resolves all npm dependencies
+// build-bitfun.mjs (esbuild, bundle:true) resolves all npm dependencies
 // (pptxgenjs, pdf-lib, jszip) at final bundle time.
 export {
   exportEditablePptx,

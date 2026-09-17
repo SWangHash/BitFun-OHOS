@@ -3,8 +3,8 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: var(--openbitfun-color-surface-canvas);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
 
   &--loading,
   &--error {
@@ -26,8 +26,8 @@
 
     p {
       margin: 0;
-      color: var(--openbitfun-color-content-secondary);
-      font-size: var(--openbitfun-type-body-md-font-size);
+      color: var(--bitfun-color-content-secondary);
+      font-size: var(--bitfun-type-body-md-font-size);
       text-align: center;
     }
 
@@ -36,8 +36,8 @@
   &__spinner {
     width: 36px;
     height: 36px;
-    border: 3px solid var(--openbitfun-color-border-default);
-    border-top-color: var(--openbitfun-color-accent-default);
+    border: 3px solid var(--bitfun-color-border-default);
+    border-top-color: var(--bitfun-color-accent-default);
     border-radius: 50%;
     animation: git-branch-history-spin 0.8s linear infinite;
   }
@@ -47,8 +47,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-surface-panel);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-panel);
     flex-shrink: 0;
     gap: 12px;
   }
@@ -79,7 +79,7 @@
     flex-shrink: 0;
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
     }
   }
 
@@ -110,17 +110,17 @@
 
     &--expanded {
       .git-branch-history-view__commit-main {
-        background: var(--openbitfun-color-surface-panel);
+        background: var(--bitfun-color-surface-panel);
       }
     }
 
     &--selected {
       .git-branch-history-view__commit-main {
-        background: var(--openbitfun-color-action-secondary-background);
+        background: var(--bitfun-color-action-secondary-background);
       }
       
       &:hover .git-branch-history-view__commit-main {
-        background: color-mix(in srgb, var(--openbitfun-color-accent-default) 12%, transparent);
+        background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
       }
     }
 
@@ -140,14 +140,14 @@
     transition: background 0.15s ease;
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
       
       .git-branch-history-view__expand-btn {
         opacity: 1;
       }
       
       .git-branch-history-view__commit-checkbox .git-branch-history-view__checkbox {
-        color: var(--openbitfun-color-content-secondary);
+        color: var(--bitfun-color-content-secondary);
       }
     }
   }
@@ -164,17 +164,17 @@
     transition: background 0.15s ease;
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
     }
   }
 
   &__checkbox {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     transition: color 0.15s ease;
   }
 
   &__checkbox--checked {
-    color: var(--openbitfun-color-accent-default);
+    color: var(--bitfun-color-accent-default);
   }
 
   &__checkbox--partial {
@@ -182,14 +182,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__checkbox-partial-mark {
     position: absolute;
     width: 8px;
     height: 2px;
-    background: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
     border-radius: 1px;
   }
 
@@ -209,11 +209,11 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: var(--openbitfun-color-action-secondary-hover);
-    color: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-action-secondary-hover);
+    color: var(--bitfun-color-accent-default);
     flex-shrink: 0;
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
     text-transform: uppercase;
     user-select: none;
   }
@@ -222,7 +222,7 @@
     width: 2px;
     flex: 1;
     min-height: 16px;
-    background: var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-border-default);
     margin-top: 4px;
   }
 
@@ -236,10 +236,10 @@
   }
 
   &__commit-message {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    color: var(--openbitfun-color-content-primary);
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
     overflow: hidden;
     white-space: nowrap;
   }
@@ -248,8 +248,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__commit-author {
@@ -266,25 +266,25 @@
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    font-family: var(--openbitfun-type-code-md-font-family);
+    font-family: var(--bitfun-type-code-md-font-family);
     padding: 1px 4px;
-    background: var(--openbitfun-color-surface-tertiary);
+    background: var(--bitfun-color-surface-tertiary);
     border-radius: 3px;
     cursor: pointer;
     transition:
       transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
       background-color 140ms ease,
       color 140ms ease;
-    font-size: var(--openbitfun-type-micro-font-size);
+    font-size: var(--bitfun-type-micro-font-size);
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      color: var(--openbitfun-color-content-secondary);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      color: var(--bitfun-color-content-secondary);
     }
 
     &--copied {
-      background: color-mix(in srgb, var(--openbitfun-color-status-success-content) 15%, transparent);
-      color: var(--openbitfun-color-status-success-content);
+      background: color-mix(in srgb, var(--bitfun-color-status-success-content) 15%, transparent);
+      color: var(--bitfun-color-status-success-content);
 
       .git-branch-history-view__copy-icon {
         opacity: 1;
@@ -310,7 +310,7 @@
     padding: 0;
     background: transparent;
     border: none;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     cursor: pointer;
     border-radius: 4px;
     transition:
@@ -322,15 +322,15 @@
     opacity: 0;
 
     &:hover {
-      color: var(--openbitfun-color-content-primary);
-      background: var(--openbitfun-color-surface-tertiary);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-surface-tertiary);
     }
   }
 
   &__commit-details {
     margin-left: 36px;
     padding: 10px 12px;
-    background: var(--openbitfun-color-surface-panel);
+    background: var(--bitfun-color-surface-panel);
     border-radius: 6px;
     margin-bottom: 4px;
   }
@@ -340,7 +340,7 @@
     align-items: flex-start;
     gap: 8px;
     margin-bottom: 6px;
-    font-size: var(--openbitfun-type-meta-font-size);
+    font-size: var(--bitfun-type-meta-font-size);
 
     &:last-child {
       margin-bottom: 0;
@@ -348,20 +348,20 @@
   }
 
   &__detail-label {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     min-width: 60px;
     flex-shrink: 0;
   }
 
   &__detail-value {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     word-break: break-all;
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
 
     &--mono {
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-micro-font-size);
-      background: var(--openbitfun-color-surface-tertiary);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-micro-font-size);
+      background: var(--bitfun-color-surface-tertiary);
       padding: 2px 6px;
       border-radius: 3px;
     }
@@ -393,7 +393,7 @@
 }
 
 
-.openbitfun-right-panel[data-mode="compact"] {
+.bitfun-right-panel[data-mode="compact"] {
   .git-branch-history-view {
     &__header {
       padding: 8px 10px;
@@ -424,7 +424,7 @@
     &__timeline-node {
       width: 20px;
       height: 20px;
-      font-size: var(--openbitfun-type-micro-font-size);
+      font-size: var(--bitfun-type-micro-font-size);
     }
 
     &__timeline-line {
@@ -436,13 +436,13 @@
     }
 
     &__commit-message {
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      line-height: var(--openbitfun-type-modifier-leading-snug-line-height);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      line-height: var(--bitfun-type-modifier-leading-snug-line-height);
     }
 
     &__commit-meta {
       gap: 4px;
-      font-size: var(--openbitfun-type-micro-font-size);
+      font-size: var(--bitfun-type-micro-font-size);
     }
 
     &__commit-author {
@@ -459,7 +459,7 @@
     }
 
     &__detail-row {
-      font-size: var(--openbitfun-type-micro-font-size);
+      font-size: var(--bitfun-type-micro-font-size);
     }
 
     &__detail-label {
@@ -468,7 +468,7 @@
   }
 }
 
-.openbitfun-right-panel[data-mode="expanded"] {
+.bitfun-right-panel[data-mode="expanded"] {
   .git-branch-history-view {
     &__commit-message {
       white-space: normal;

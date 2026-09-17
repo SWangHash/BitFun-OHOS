@@ -6,5 +6,5 @@ export const smartRecommendationsAppearanceDescriptor: AppearanceSurfaceDescript
     { id: 'root' }, { id: 'header' }, { id: 'title' }, { id: 'close' },
     { id: 'actions' },
   ],
-  states: [{ id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } }],
+  states: [{ id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } }],
 };

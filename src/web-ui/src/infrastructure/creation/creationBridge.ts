@@ -43,7 +43,7 @@ export function listenForCreationRequests(): () => void {
       } catch (error) {
         response = { requestId: request.requestId, success: false, error: error instanceof Error ? error.message : String(error) };
       }
-      await api.invoke('report_openbitfun_control_result', { request: response });
+      await api.invoke('report_bitfun_control_result', { request: response });
     })().catch(error => log.warn('Failed to report Creation runtime result', { requestId: request.requestId, error }));
   });
 }

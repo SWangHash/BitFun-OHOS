@@ -6,11 +6,11 @@
 use super::client::MarketClient;
 use super::package::build_market_package;
 use crate::account_identity::MarketClientError;
-use openbitfun_product_domains::miniapp::market::{
+use bitfun_product_domains::miniapp::market::{
     MarketSubmission, MarketSubmissionDraftRequest, MarketSubmissionStatus, MARKET_CATEGORIES,
     MARKET_MAX_SCREENSHOTS, MARKET_MAX_SCREENSHOT_BYTES,
 };
-use openbitfun_product_domains::miniapp::types::MiniApp;
+use bitfun_product_domains::miniapp::types::MiniApp;
 use std::path::Path;
 
 /// Upload progress callback: (submission_id, phase, completed, total).
@@ -231,8 +231,8 @@ fn screenshot_error(message: String) -> MarketClientError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::miniapp::market::MarketLicense;
-    use openbitfun_product_domains::miniapp::types::MiniAppPermissions;
+    use bitfun_product_domains::miniapp::market::MarketLicense;
+    use bitfun_product_domains::miniapp::types::MiniAppPermissions;
 
     fn submission(
         slug: &str,
@@ -250,7 +250,7 @@ mod tests {
             icon: "📦".to_string(),
             category: "utilities".to_string(),
             tags: Vec::new(),
-            min_openbitfun_version: "1.0.0".to_string(),
+            min_bitfun_version: "1.0.0".to_string(),
             changelog: "Initial".to_string(),
             license: MarketLicense {
                 spdx_expression: Some("MIT".to_string()),

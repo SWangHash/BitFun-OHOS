@@ -1,13 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentRuntimeBuilder, AgentSessionCreateRequest, AgentSessionCreateResult,
     AgentSessionModelPort, AgentSessionModelSelection, AgentSessionModelSelectionUpdateRequest,
     AgentSessionModelUpdateRequest, AgentSubmissionPort, AgentSubmissionRequest,
     AgentSubmissionResult, PortError, PortResult, RuntimeError,
 };
-use openbitfun_runtime_ports::PortErrorKind;
+use bitfun_runtime_ports::PortErrorKind;
 
 #[derive(Default)]
 struct FakeSubmissionPort;

@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .icon,
   .label {
@@ -9,62 +9,62 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-inline-size: var(--openbitfun-control-launcher-button-min-inline-size);
-    block-size: var(--openbitfun-control-launcher-button-block-size);
-    gap: var(--openbitfun-control-launcher-button-gap);
+    min-inline-size: var(--bitfun-control-launcher-button-min-inline-size);
+    block-size: var(--bitfun-control-launcher-button-block-size);
+    gap: var(--bitfun-control-launcher-button-gap);
     margin: 0;
     padding-block: 0;
-    padding-inline: var(--openbitfun-control-launcher-button-padding-inline);
+    padding-inline: var(--bitfun-control-launcher-button-padding-inline);
     border: 0;
-    border-radius: var(--openbitfun-control-launcher-button-radius) 0 0 0;
-    color: var(--openbitfun-color-control-launcher-content);
-    background: var(--openbitfun-color-control-launcher-background);
-    font-family: var(--openbitfun-type-code-meta-font-family);
-    font-size: var(--openbitfun-type-code-meta-font-size);
-    font-weight: var(--openbitfun-type-code-meta-font-weight);
+    border-radius: var(--bitfun-control-launcher-button-radius) 0 0 0;
+    color: var(--bitfun-color-control-launcher-content);
+    background: var(--bitfun-color-control-launcher-background);
+    font-family: var(--bitfun-type-code-meta-font-family);
+    font-size: var(--bitfun-type-code-meta-font-size);
+    font-weight: var(--bitfun-type-code-meta-font-weight);
     font-synthesis: none;
-    letter-spacing: var(--openbitfun-type-code-meta-letter-spacing);
-    line-height: var(--openbitfun-type-code-meta-line-height);
+    letter-spacing: var(--bitfun-type-code-meta-letter-spacing);
+    line-height: var(--bitfun-type-code-meta-line-height);
     white-space: nowrap;
     cursor: pointer;
     transition:
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .root:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
-    color: var(--openbitfun-color-control-launcher-content-hover);
-    background: var(--openbitfun-color-control-launcher-background-hover);
+  .root:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    color: var(--bitfun-color-control-launcher-content-hover);
+    background: var(--bitfun-color-control-launcher-background-hover);
   }
 
-  .root:is(:active, [data-openbitfun-preview-state="active"]):not(:disabled) {
-    color: var(--openbitfun-color-control-launcher-content-pressed);
-    background: var(--openbitfun-color-control-launcher-background-pressed);
+  .root:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    color: var(--bitfun-color-control-launcher-content-pressed);
+    background: var(--bitfun-color-control-launcher-background-pressed);
   }
 
-  .root:is(:focus-visible, [data-openbitfun-preview-state="focus-visible"]) {
-    outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-    outline-offset: calc(var(--openbitfun-focus-offset) * -1);
+  .root:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: calc(var(--bitfun-focus-offset) * -1);
   }
 
   .root:disabled {
-    color: var(--openbitfun-color-control-launcher-content-disabled);
+    color: var(--bitfun-color-control-launcher-content-disabled);
     cursor: not-allowed;
-    opacity: var(--openbitfun-opacity-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   .icon {
     display: inline-flex;
-    flex: 0 0 var(--openbitfun-control-launcher-button-icon-size);
+    flex: 0 0 var(--bitfun-control-launcher-button-icon-size);
     align-items: center;
     justify-content: center;
-    inline-size: var(--openbitfun-control-launcher-button-icon-size);
-    block-size: var(--openbitfun-control-launcher-button-icon-size);
+    inline-size: var(--bitfun-control-launcher-button-icon-size);
+    block-size: var(--bitfun-control-launcher-button-icon-size);
     color: currentColor;
   }
 
   .icon > :where(svg, img),
-  .icon > [data-openbitfun-component="icon"] {
+  .icon > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -83,7 +83,7 @@
 
   @media (forced-colors: active) {
     .root {
-      border: var(--openbitfun-border-width-default) solid ButtonText;
+      border: var(--bitfun-border-width-default) solid ButtonText;
       color: ButtonText;
       background: ButtonFace;
     }

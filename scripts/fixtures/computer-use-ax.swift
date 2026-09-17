@@ -5,7 +5,7 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 500, height: 260),
                       styleMask: [.titled, .closable], backing: .buffered, defer: false)
-window.title = "OpenBitFun AX context fixture"
+window.title = "BitFun AX context fixture"
 let container = window.contentView!
 for (index, title) in ["Save report", "Delete draft", "Unavailable action"].enumerated() {
     let button = NSButton(title: title, target: nil, action: nil)

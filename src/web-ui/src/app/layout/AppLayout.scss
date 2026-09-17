@@ -1,5 +1,5 @@
 /**
- * OpenBitFun desktop shell.
+ * BitFun desktop shell.
  *
  * The root stays visually quiet and lets the scene viewport carry elevation.
  * Frequent workspace and panel changes deliberately avoid entrance motion.
@@ -17,7 +17,7 @@ html, body {
   padding: 0;
   height: 100vh;
   width: 100vw;
-  background: var(--openbitfun-color-surface-canvas);
+  background: var(--bitfun-color-surface-canvas);
   overflow: hidden;
 }
 
@@ -29,13 +29,13 @@ html, body {
   overflow: hidden;
 }
 
-html[data-openbitfun-native-material='sidebar'],
-html[data-openbitfun-native-material='sidebar'] body {
+html[data-bitfun-native-material='sidebar'],
+html[data-bitfun-native-material='sidebar'] body {
   background: transparent;
 }
 
 // ==================== Main layout container ====================
-.openbitfun-app-layout {
+.bitfun-app-layout {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -44,19 +44,19 @@ html[data-openbitfun-native-material='sidebar'] body {
   overflow: hidden;
 
   // Use theme background
-  background: var(--openbitfun-color-surface-canvas);
+  background: var(--bitfun-color-surface-canvas);
 
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-body-sm-font-family);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-body-sm-font-family);
   position: relative;
 
   // Ensure layout stability
   min-height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  background: var(--openbitfun-color-surface-canvas);
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-body-sm-font-family);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-body-sm-font-family);
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -66,11 +66,11 @@ html[data-openbitfun-native-material='sidebar'] body {
     outline: none;
   }
 
-  &[data-openbitfun-background-media='video'] {
+  &[data-bitfun-background-media='video'] {
     background: transparent;
   }
 
-  :root[data-openbitfun-native-material='sidebar'] &:has(.openbitfun-workspace-body) {
+  :root[data-bitfun-native-material='sidebar'] &:has(.bitfun-workspace-body) {
     background: transparent;
   }
 
@@ -80,7 +80,7 @@ html[data-openbitfun-native-material='sidebar'] body {
 
   // ==================== Startup mode ====================
   &--startup-mode {
-    background: var(--openbitfun-color-surface-canvas);
+    background: var(--bitfun-color-surface-canvas);
   }
 
   // ==================== Modifier - loading ====================
@@ -91,11 +91,11 @@ html[data-openbitfun-native-material='sidebar'] body {
 
   // ==================== Modifier - error ====================
   &--error {
-    .openbitfun-app-header {
-      border-bottom-color: var(--openbitfun-color-status-danger-content);
+    .bitfun-app-header {
+      border-bottom-color: var(--bitfun-color-status-danger-content);
       background: linear-gradient(135deg,
-        var(--openbitfun-color-status-danger-surface) 0%,
-        var(--openbitfun-color-action-neutral-surface) 100%);
+        var(--bitfun-color-status-danger-surface) 0%,
+        var(--bitfun-color-action-neutral-surface) 100%);
     }
   }
 
@@ -103,7 +103,7 @@ html[data-openbitfun-native-material='sidebar'] body {
   &--modal-open {
     overflow: hidden;
 
-    .openbitfun-app-main {
+    .bitfun-app-main {
       filter: blur(2px);
       pointer-events: none;
     }
@@ -112,7 +112,7 @@ html[data-openbitfun-native-material='sidebar'] body {
 }
 
 // ==================== Main content area (full height, no TitleBar) ====================
-.openbitfun-app-main-workspace {
+.bitfun-app-main-workspace {
   position: relative;
   z-index: 1;
   display: flex;
@@ -126,12 +126,12 @@ html[data-openbitfun-native-material='sidebar'] body {
   background: transparent;
 }
 
-.openbitfun-app-layout--toolbar-mode > [data-openbitfun-product-component='toolbar-mode'][data-openbitfun-product-part='root'] {
+.bitfun-app-layout--toolbar-mode > [data-bitfun-product-component='toolbar-mode'][data-bitfun-product-part='root'] {
   position: relative;
   z-index: 1;
 }
 
-.openbitfun-appearance-background-media {
+.bitfun-appearance-background-media {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -140,7 +140,7 @@ html[data-openbitfun-native-material='sidebar'] body {
   pointer-events: none;
 }
 
-.openbitfun-appearance-background-media__video {
+.bitfun-appearance-background-media__video {
   display: block;
   width: 100%;
   height: 100%;
@@ -152,37 +152,37 @@ html[data-openbitfun-native-material='sidebar'] body {
   }
 }
 
-.openbitfun-window-mode-hint {
+.bitfun-window-mode-hint {
   @include surfaces.floating;
 
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + var(--openbitfun-space-2));
+  top: calc(env(safe-area-inset-top, 0px) + var(--bitfun-space-2));
   left: 50%;
-  z-index: var(--openbitfun-layer-notification);
+  z-index: var(--bitfun-layer-notification);
   display: inline-flex;
   align-items: center;
-  gap: var(--openbitfun-space-2);
+  gap: var(--bitfun-space-2);
   max-width: min(560px, calc(100vw - 32px));
   min-height: 34px;
-  padding: var(--openbitfun-space-1) var(--openbitfun-space-3);
-  color: var(--openbitfun-color-content-primary);
+  padding: var(--bitfun-space-1) var(--bitfun-space-3);
+  color: var(--bitfun-color-content-primary);
   pointer-events: none;
   transform: translateX(-50%);
 
   &__title {
     flex: 0 0 auto;
     min-width: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
     white-space: nowrap;
   }
 
   &__detail {
     min-width: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
     overflow: hidden;
     white-space: nowrap;
   }
@@ -190,7 +190,7 @@ html[data-openbitfun-native-material='sidebar'] body {
 
 // ==================== Responsive ====================
 @media (max-width: 768px) {
-  .openbitfun-window-mode-hint {
+  .bitfun-window-mode-hint {
     align-items: flex-start;
     flex-direction: column;
     gap: 1px;
@@ -206,19 +206,19 @@ html[data-openbitfun-native-material='sidebar'] body {
 
 // ==================== High-contrast mode ====================
 @media (prefers-contrast: high) {
-  .openbitfun-app-layout {
-    background: var(--openbitfun-color-surface-scene);
+  .bitfun-app-layout {
+    background: var(--bitfun-color-surface-scene);
   }
 }
 
 // ==================== Reduced motion preference ====================
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-app-layout * {
+  .bitfun-app-layout * {
     transition: none;
     animation: none;
   }
 
-  .openbitfun-appearance-background-media__video {
+  .bitfun-appearance-background-media__video {
     display: none;
   }
 

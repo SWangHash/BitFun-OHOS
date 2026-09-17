@@ -1,4 +1,4 @@
-import { themeCssVariables } from '@openbitfun/theme-openbitfun';
+import { themeCssVariables } from '@bitfun/theme-bitfun';
 
 import {
   APPEARANCE_ROOT_TOKEN_NAMES,
@@ -14,7 +14,7 @@ import type {
 
 const ROOT_ALLOWED_TOKEN_NAMES = new Set<string>(APPEARANCE_ROOT_TOKEN_NAMES);
 const SCOPED_ALLOWED_TOKEN_NAMES = new Set<string>(APPEARANCE_SCOPED_TOKEN_NAMES);
-const SCOPE_STYLE_ATTRIBUTE = 'data-openbitfun-appearance-theme-scopes';
+const SCOPE_STYLE_ATTRIBUTE = 'data-bitfun-appearance-theme-scopes';
 const ROOT_BACKGROUND_VARIABLE = themeCssVariables['color.surface.chrome'];
 const FORBIDDEN_VALUE = /(?:url\s*\(|var\s*\(|expression\s*\(|[;{}<>])/i;
 
@@ -106,7 +106,7 @@ export const themeTokenAppearanceAdapter: AppearanceRendererAdapter<'theme-token
     }
     // Native material is advertised by the local desktop window bootstrap.
     // Keep this independent of the active peer/runtime and of theme changes.
-    const background = document.documentElement.getAttribute('data-openbitfun-native-material') === 'sidebar'
+    const background = document.documentElement.getAttribute('data-bitfun-native-material') === 'sidebar'
       ? 'transparent'
       : `var(${ROOT_BACKGROUND_VARIABLE})`;
     rootStyle.backgroundColor = background;

@@ -36,7 +36,7 @@ import type { AppearanceRuntime } from './AppearanceRuntime';
 const log = createLogger('AppearanceService');
 const APPEARANCE_SELECTION_CONFIG_PATH = 'appearance.selection';
 const MAX_SEEN_SYNC_EVENTS = 256;
-const SYSTEM_COLOR_SCHEME_CHANGED_EVENT = 'openbitfun:system-color-scheme-changed';
+const SYSTEM_COLOR_SCHEME_CHANGED_EVENT = 'bitfun:system-color-scheme-changed';
 
 interface AppearanceSource {
   pkg: AppearancePackage;
@@ -54,18 +54,18 @@ interface ApplySelectionOptions {
 declare global {
   // Injected by the desktop webview initialization script before the frontend
   // bundle runs. Both values are single-use startup hints.
-  var __OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__: string | undefined;
-  var __OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__: string | undefined;
+  var __BITFUN_BOOTSTRAP_APPEARANCE_ID__: string | undefined;
+  var __BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__: string | undefined;
 }
 
 function consumeBootstrapAppearance(): {
   resolvedId?: string;
   selection?: AppearanceSelectionId;
 } {
-  const resolvedId = globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__;
-  const selection = globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
-  delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__;
-  delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
+  const resolvedId = globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__;
+  const selection = globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
+  delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__;
+  delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
   return {
     resolvedId: typeof resolvedId === 'string' && resolvedId.trim() ? resolvedId.trim() : undefined,
     selection: typeof selection === 'string' && selection.trim() ? selection.trim() : undefined,

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 use chrono::{DateTime, Utc};
-use openbitfun_services_core::json_store::{JsonFileStore, JsonFileStoreError};
+use bitfun_services_core::json_store::{JsonFileStore, JsonFileStoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -44,7 +44,7 @@ pub use device_controller::{
     submit_device as submit_device_dispatch, sync_device_result as sync_device_dispatch_result,
     DeviceDispatchRpc,
 };
-pub use openbitfun_services_core::dispatch_contract::{
+pub use bitfun_services_core::dispatch_contract::{
     DispatchAccountDaemonIdentity, DispatchAccountDaemonProvisionRequest,
     DISPATCH_ACCOUNT_DAEMON_PROVISIONING_SCHEMA_VERSION,
 };
@@ -80,7 +80,7 @@ struct DispatchTargetJobEntry {
     title: String,
     #[serde(default)]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     agent_type: Option<String>,
     #[serde(default)]
@@ -108,7 +108,7 @@ pub struct OutboundDispatchRecord {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub agent_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -270,7 +270,7 @@ pub enum DispatchStoreError {
     ClaimRelease(String),
 }
 
-/// Durable observer-only index for jobs submitted to other OpenBitFun processes.
+/// Durable observer-only index for jobs submitted to other BitFun processes.
 ///
 /// This store intentionally lives outside every workspace/session directory.
 /// Writing a record here must never acquire runtime ownership or create a local
@@ -740,7 +740,7 @@ async fn adopt_target_jobs(
         ) {
             anyhow::bail!("dispatch target returned an invalid job state");
         }
-        openbitfun_agent_runtime::session_control::validate_session_id(&entry.session_id)
+        bitfun_agent_runtime::session_control::validate_session_id(&entry.session_id)
             .map_err(anyhow::Error::msg)?;
         let workspace_path = entry.workspace_path.trim();
         if !target_workspace_path_is_absolute(workspace_path) {
@@ -948,7 +948,7 @@ mod tests {
         )
         .expect("record")
         .with_source_workspace(
-            Some("/Users/test/projects/OpenBitFun".to_string()),
+            Some("/Users/test/projects/BitFun".to_string()),
             Some("workspace-1".to_string()),
         );
 
@@ -960,7 +960,7 @@ mod tests {
             .expect("persisted record");
         assert_eq!(
             persisted.source_workspace_path.as_deref(),
-            Some("/Users/test/projects/OpenBitFun")
+            Some("/Users/test/projects/BitFun")
         );
         assert_eq!(
             persisted.source_workspace_id.as_deref(),

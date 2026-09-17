@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-pub use openbitfun_runtime_ports::RelatedPath;
+pub use bitfun_runtime_ports::RelatedPath;
 
 /// Workspace type.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

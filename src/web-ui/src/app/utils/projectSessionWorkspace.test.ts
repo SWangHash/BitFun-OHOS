@@ -16,8 +16,8 @@ const resetStore = () => {
 
 const createWorkspace = (): WorkspaceInfo => ({
   id: 'workspace-1',
-  name: 'OpenBitFun',
-  rootPath: '/workspace/OpenBitFun',
+  name: 'BitFun',
+  rootPath: '/workspace/BitFun',
   workspaceKind: WorkspaceKind.Normal,
   workspaceType: 'local' as never,
   languages: [],
@@ -38,7 +38,7 @@ const createSession = (overrides: Partial<Session> = {}): Session => ({
   isHistorical: false,
   maxContextTokens: 128128,
   mode: 'Standard',
-  workspacePath: '/workspace/OpenBitFun',
+  workspacePath: '/workspace/BitFun',
   workspaceId: 'workspace-1',
   sessionKind: 'normal',
   btwThreads: [],

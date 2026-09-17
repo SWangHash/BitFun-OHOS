@@ -27,7 +27,7 @@ Peer Device Mode (same-account remote full client) is documented in
 `docs/architecture/peer-device-mode.md`. Frontend invariants:
 `src/infrastructure/peer-device/README.md`. Do not reintroduce nested
 sessions/chat shells; enter peer mode from the device list (Remote Connect →
-My OpenBitFun) instead.
+My BitFun) instead.
 
 Remote Connect uses the global GitHub account and the official versioned Relay.
 Account controls use the shared account-identity service; do not expose a separate
@@ -37,7 +37,7 @@ workspace connections remain independent of Relay sign-in.
 ## Local rules
 
 - Do not call Tauri APIs directly from UI components; go through the adapter / infrastructure layer
-- Reuse `@openbitfun/ui`, design tokens, theme, i18n, and Zustand stores before adding new frontend primitives
+- Reuse `@bitfun/ui`, design tokens, theme, i18n, and Zustand stores before adding new frontend primitives
 - Prefer the design system's `OverflowText` for single-line labels over local ellipsis rules or sliced strings. Plain text defaults to fade plus hover/focus marquee; set `behavior="marquee"` for text-only highlights and keep icons/actions outside. Put `data-overflow-trigger` on the owning control; standard component label slots already provide overflow handling. Keep multiline, touch-first, and editable content in their appropriate layout.
 - Theme and color-token changes must follow
   `docs/architecture/theme-token-optimization.md`: failing audits should be

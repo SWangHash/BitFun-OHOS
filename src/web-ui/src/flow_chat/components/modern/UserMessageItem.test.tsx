@@ -146,8 +146,8 @@ vi.mock('@/infrastructure/event-bus', () => ({
   },
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -236,9 +236,9 @@ describe('UserMessageItem steering tag', () => {
     const thumbnail = container.querySelector<HTMLElement>('.user-message-item__image-thumb')!;
     act(() => thumbnail.click());
     const dialog = document.querySelector<HTMLElement>('.user-message-item__lightbox-surface')!;
-    expect(dialog.getAttribute('data-openbitfun-component')).toBe('dialog');
-    expect(dialog.parentElement?.getAttribute('data-openbitfun-product-part')).toBe('lightbox');
-    expect(dialog.parentElement?.getAttribute('data-openbitfun-native-webview-occlusion')).toBe('true');
+    expect(dialog.getAttribute('data-bitfun-component')).toBe('dialog');
+    expect(dialog.parentElement?.getAttribute('data-bitfun-product-part')).toBe('lightbox');
+    expect(dialog.parentElement?.getAttribute('data-bitfun-native-webview-occlusion')).toBe('true');
     act(() => dialog.querySelector('img')!.click());
     expect(dialog.isConnected).toBe(true);
     act(() => document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));

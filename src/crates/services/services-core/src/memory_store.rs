@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Component, Path};
 use thiserror::Error;
 
-pub const MEMORY_STORE_SCHEMA: &str = "openbitfun.memory.stage1.v1";
+pub const MEMORY_STORE_SCHEMA: &str = "bitfun.memory.stage1.v1";
 pub const MEMORY_FILE_NAME: &str = "MEMORY.md";
 pub const MEMORY_SUMMARY_FILE_NAME: &str = "memory_summary.md";
 pub const MEMORY_EXTENSIONS_DIR_NAME: &str = "extensions";

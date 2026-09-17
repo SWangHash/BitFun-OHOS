@@ -95,15 +95,15 @@ describe('FlowChat search highlight ownership', () => {
 
     firstOwner.update(first, []);
     secondOwner.update(null, [second]);
-    expect([...registry.get('openbitfun-flowchat-search-current')!]).toEqual([first]);
-    expect([...registry.get('openbitfun-flowchat-search-match')!]).toEqual([second]);
+    expect([...registry.get('bitfun-flowchat-search-current')!]).toEqual([first]);
+    expect([...registry.get('bitfun-flowchat-search-match')!]).toEqual([second]);
 
     firstOwner.dispose();
-    expect(registry.has('openbitfun-flowchat-search-current')).toBe(false);
-    expect([...registry.get('openbitfun-flowchat-search-match')!]).toEqual([second]);
+    expect(registry.has('bitfun-flowchat-search-current')).toBe(false);
+    expect([...registry.get('bitfun-flowchat-search-match')!]).toEqual([second]);
 
     firstOwner.update(first, []);
-    expect(registry.has('openbitfun-flowchat-search-current')).toBe(false);
+    expect(registry.has('bitfun-flowchat-search-current')).toBe(false);
     secondOwner.dispose();
     expect(registry.size).toBe(0);
   });

@@ -25,7 +25,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "openbitfun-android"
+rootProject.name = "bitfun-android"
 
 // The dependency points this way and only this way: the app includes the
 // shared build, the shared build knows nothing about the app.

@@ -19,34 +19,34 @@ const compiled = compileString(
 describe('surface recipes', () => {
   it('uses the complete blur filter token for frosted floating surfaces', () => {
     expect(compiled).toContain(
-      '-webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);',
+      '-webkit-backdrop-filter: var(--bitfun-effect-blur-medium);',
     );
     expect(compiled).toContain(
-      'backdrop-filter: var(--openbitfun-effect-blur-medium);',
+      'backdrop-filter: var(--bitfun-effect-blur-medium);',
     );
     expect(compiled).not.toContain(
-      'blur(var(--openbitfun-effect-blur-medium))',
+      'blur(var(--bitfun-effect-blur-medium))',
     );
   });
 
   it('keeps an opaque fallback and honors reduced-transparency preferences', () => {
     expect(compiled).toMatch(
-      /\.frosted\s*\{[^}]*background:\s*var\(--openbitfun-color-surface-raised\);/,
+      /\.frosted\s*\{[^}]*background:\s*var\(--bitfun-color-surface-raised\);/,
     );
     expect(compiled).toMatch(
       /@supports[^{}]*backdrop-filter[^{}]*\{\s*\.frosted\s*\{[^}]*background:\s*color-mix\(/,
     );
     expect(compiled).toMatch(
-      /@media \(prefers-reduced-transparency: reduce\)[^{]*\{\s*\.frosted\s*\{[^}]*background:\s*var\(--openbitfun-color-surface-raised\);[^}]*backdrop-filter:\s*none;/,
+      /@media \(prefers-reduced-transparency: reduce\)[^{]*\{\s*\.frosted\s*\{[^}]*background:\s*var\(--bitfun-color-surface-raised\);[^}]*backdrop-filter:\s*none;/,
     );
   });
 
   it('leaves explicitly opaque floating surfaces and dialogs unblurred', () => {
     expect(compiled).toMatch(
-      /\.opaque\s*\{[^}]*background:\s*var\(--openbitfun-color-surface-raised\);[^}]*\}/,
+      /\.opaque\s*\{[^}]*background:\s*var\(--bitfun-color-surface-raised\);[^}]*\}/,
     );
     expect(compiled).toMatch(
-      /\.dialog\s*\{[^}]*background:\s*var\(--openbitfun-color-surface-raised\);[^}]*\}/,
+      /\.dialog\s*\{[^}]*background:\s*var\(--bitfun-color-surface-raised\);[^}]*\}/,
     );
     expect(compiled.match(/\.opaque\s*\{/g)).toHaveLength(1);
     expect(compiled.match(/\.dialog\s*\{/g)).toHaveLength(1);

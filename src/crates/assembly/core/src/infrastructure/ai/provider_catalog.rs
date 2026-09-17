@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use openbitfun_ai_adapters::models_dev::{ModelsDevCatalog, ModelsDevModelFacts};
-use openbitfun_core_types::{
+use bitfun_ai_adapters::models_dev::{ModelsDevCatalog, ModelsDevModelFacts};
+use bitfun_core_types::{
     ProviderCatalog, ProviderCatalogEndpoint, ProviderCatalogModel,
     ProviderCatalogModelCapabilities, ProviderCatalogModelSource, ProviderCatalogProvider,
     ProviderCatalogSource, ProviderCatalogUpstreamProvider,
@@ -100,7 +100,7 @@ pub(crate) fn resolve_builtin_provider_catalog(
     });
     ProviderCatalog {
         revision: resolved_catalog_revision(&revision),
-        source: if has_bound_catalog_data && source == ProviderCatalogSource::OpenBitFun {
+        source: if has_bound_catalog_data && source == ProviderCatalogSource::BitFun {
             ProviderCatalogSource::Mixed
         } else {
             source
@@ -111,7 +111,7 @@ pub(crate) fn resolve_builtin_provider_catalog(
 
 fn resolved_catalog_revision(source_revision: &str) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"openbitfun-provider-catalog-v1\0");
+    digest.update(b"bitfun-provider-catalog-v1\0");
     digest.update(BUILTIN_PROVIDER_OVERLAY.as_bytes());
     digest.update(b"\0models-dev\0");
     digest.update(source_revision.as_bytes());
@@ -499,7 +499,7 @@ fn curated_model_fallback(
         display_name: None,
         description: None,
         recommended,
-        source: ProviderCatalogModelSource::OpenBitFun,
+        source: ProviderCatalogModelSource::BitFun,
         catalog_provider_ids: provider.catalog_provider_ids.clone(),
         endpoint_ids: provider
             .endpoints
@@ -535,13 +535,13 @@ fn normalize_base_url(url: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use openbitfun_core_types::{ProviderCatalogModelSource, ProviderCatalogSource};
+    use bitfun_core_types::{ProviderCatalogModelSource, ProviderCatalogSource};
 
     use super::{
         parse_overlay, resolve_builtin_provider_catalog, trusted_models_dev_binding,
         ModelPolicyMode,
     };
-    use openbitfun_ai_adapters::models_dev::ModelsDevCatalog;
+    use bitfun_ai_adapters::models_dev::ModelsDevCatalog;
 
     #[test]
     fn overlay_is_valid_and_keeps_product_endpoint_decisions() {
@@ -562,17 +562,17 @@ mod tests {
             .providers
             .iter()
             .any(|provider| provider.id == "opencode-zen" || provider.id == "opencode"));
-        let openbitfun = overlay
+        let bitfun = overlay
             .providers
             .iter()
-            .find(|provider| provider.id == "openbitfun")
-            .expect("openbitfun");
+            .find(|provider| provider.id == "bitfun")
+            .expect("bitfun");
         assert_eq!(
-            openbitfun.model_policy.curated_models,
+            bitfun.model_policy.curated_models,
             ["glm-5.2", "deepseek-v4-flash", "deepseek-v4-pro"]
         );
         assert_eq!(
-            openbitfun
+            bitfun
                 .endpoints
                 .iter()
                 .map(|endpoint| (
@@ -583,8 +583,8 @@ mod tests {
                 ))
                 .collect::<Vec<_>>(),
             [
-                ("default", "https://api.openbitfun.com", "anthropic", true,),
-                ("openai", "https://api.openbitfun.com/v1", "openai", false,),
+                ("default", "https://api.bitfun.com", "anthropic", true,),
+                ("openai", "https://api.bitfun.com/v1", "openai", false,),
             ]
         );
         let qwen = overlay
@@ -707,7 +707,7 @@ mod tests {
         let unavailable = resolve_builtin_provider_catalog(
             None,
             "none".to_string(),
-            ProviderCatalogSource::OpenBitFun,
+            ProviderCatalogSource::BitFun,
         );
         let qwen = unavailable
             .providers
@@ -720,9 +720,9 @@ mod tests {
                 .map(|model| (model.id.as_str(), model.source))
                 .collect::<Vec<_>>(),
             [
-                ("qwen3.7-plus", ProviderCatalogModelSource::OpenBitFun),
-                ("qwen3.7-max", ProviderCatalogModelSource::OpenBitFun),
-                ("qwen3.6-flash", ProviderCatalogModelSource::OpenBitFun),
+                ("qwen3.7-plus", ProviderCatalogModelSource::BitFun),
+                ("qwen3.7-max", ProviderCatalogModelSource::BitFun),
+                ("qwen3.6-flash", ProviderCatalogModelSource::BitFun),
             ]
         );
 
@@ -744,7 +744,7 @@ mod tests {
         assert!(qwen
             .models
             .iter()
-            .all(|model| model.source == ProviderCatalogModelSource::OpenBitFun));
+            .all(|model| model.source == ProviderCatalogModelSource::BitFun));
     }
 
     #[test]
@@ -772,7 +772,7 @@ mod tests {
             .models
             .iter()
             .any(|model| model.id == "qwen-early-access"
-                && model.source == ProviderCatalogModelSource::OpenBitFun
+                && model.source == ProviderCatalogModelSource::BitFun
                 && !model.recommended));
         assert!(!resolved
             .models
@@ -853,7 +853,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "anthropic",
-                "https://api.openbitfun.com/v1/messages",
+                "https://api.bitfun.com/v1/messages",
                 "GLM-5.2",
                 &relayed,
             ),
@@ -862,7 +862,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "openai",
-                "https://api.openbitfun.com/v1",
+                "https://api.bitfun.com/v1",
                 "GLM-5.2",
                 &relayed,
             ),
@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "anthropic",
-                "https://api.openbitfun.com",
+                "https://api.bitfun.com",
                 "deepseek-v4-flash",
                 &relayed,
             ),
@@ -880,7 +880,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "openai",
-                "https://api.openbitfun.com/v1/chat/completions",
+                "https://api.bitfun.com/v1/chat/completions",
                 "deepseek-v4-flash",
                 &relayed,
             ),
@@ -898,7 +898,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "anthropic",
-                "https://api.openbitfun.com",
+                "https://api.bitfun.com",
                 "deepseek-v4-pro",
                 &relayed,
             ),
@@ -907,7 +907,7 @@ mod tests {
         assert_eq!(
             trusted_models_dev_binding(
                 "anthropic",
-                "https://api.openbitfun.com",
+                "https://api.bitfun.com",
                 "unmapped-model",
                 &relayed,
             ),

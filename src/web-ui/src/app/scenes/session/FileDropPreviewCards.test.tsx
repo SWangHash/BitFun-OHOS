@@ -23,21 +23,21 @@ describe('file drag previews', () => {
     })) }} />));
     expect(container.querySelectorAll('img')).toHaveLength(1);
     expect(container.querySelector('img')?.alt).toBe('photo-0.png');
-    expect(container.querySelector('.openbitfun-chat-pane__file-preview')?.getAttribute('data-stack-depth')).toBe('3');
-    expect(container.querySelector('.openbitfun-chat-pane__file-count')?.textContent).toBe('12');
+    expect(container.querySelector('.bitfun-chat-pane__file-preview')?.getAttribute('data-stack-depth')).toBe('3');
+    expect(container.querySelector('.bitfun-chat-pane__file-count')?.textContent).toBe('12');
   });
   it('uses format-specific icons for documents and damaged image thumbnails', () => {
     root = createRoot(container);
     for (const [name, kind] of [['report.PDF', 'pdf'], ['budget.xlsx', 'spreadsheet'], ['source.rs', 'code']]) {
       act(() => root!.render(<FileDropPreviewCards preview={{ count: 2, files: [{ name }, { name: 'other.png' }] }} />));
       expect(container.querySelector(`[data-kind="${kind}"] svg`)).not.toBeNull();
-      expect(container.querySelectorAll('.openbitfun-chat-pane__file-tile')).toHaveLength(1);
+      expect(container.querySelectorAll('.bitfun-chat-pane__file-tile')).toHaveLength(1);
     }
     act(() => root!.render(<FileDropPreviewCards preview={{ count: 1, files: [
       { name: 'photo.jpg', thumbnail: 'data:image/png;base64,broken' },
     ] }} />));
-    expect(container.querySelector('.openbitfun-chat-pane__file-count')).toBeNull();
-    expect(container.querySelector('.openbitfun-chat-pane__file-preview')?.getAttribute('data-multiple')).toBe('false');
+    expect(container.querySelector('.bitfun-chat-pane__file-count')).toBeNull();
+    expect(container.querySelector('.bitfun-chat-pane__file-preview')?.getAttribute('data-multiple')).toBe('false');
     act(() => container.querySelector('img')!.dispatchEvent(new Event('error')));
     expect(container.querySelector('[data-kind="image"] svg')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();

@@ -239,7 +239,7 @@ export function resolveProductDefinition({ rootDir, productConfig, member }) {
     fail('invalid_member', `Unsupported product member: ${member}`, 'Use desktop or cli.');
   }
   const canonicalRoot = realpathSync.native(resolve(rootDir));
-  const defaultPath = realpathSync.native(join(canonicalRoot, 'products', 'openbitfun', 'product.jsonc'));
+  const defaultPath = realpathSync.native(join(canonicalRoot, 'products', 'bitfun', 'product.jsonc'));
   const selectedPath = resolve(productConfig || defaultPath);
   let sourcePath;
   try {

@@ -55,7 +55,7 @@ mod tests {
         let original = Message::user("original".into());
         store.add_message("session", original.clone());
         let result = store.try_transform_context::<()>("session", |_| {
-            Err(crate::OpenBitFunError::Cancelled("owner changed".into()))
+            Err(crate::BitFunError::Cancelled("owner changed".into()))
         });
         assert!(result.is_err());
         assert_eq!(store.get_context_messages("session")[0].id, original.id);
@@ -107,10 +107,10 @@ impl SessionContextStore {
     pub(crate) fn try_transform_context<T>(
         &self,
         session_id: &str,
-        transform: impl FnOnce(&[Message]) -> crate::OpenBitFunResult<(Option<Vec<Message>>, T)>,
-    ) -> crate::OpenBitFunResult<T> {
+        transform: impl FnOnce(&[Message]) -> crate::BitFunResult<(Option<Vec<Message>>, T)>,
+    ) -> crate::BitFunResult<T> {
         let mut messages = self.session_contexts.get_mut(session_id).ok_or_else(|| {
-            crate::OpenBitFunError::NotFound(format!("Session context not found: {session_id}"))
+            crate::BitFunError::NotFound(format!("Session context not found: {session_id}"))
         })?;
         let (replacement, result) = transform(&messages)?;
         if let Some(replacement) = replacement {

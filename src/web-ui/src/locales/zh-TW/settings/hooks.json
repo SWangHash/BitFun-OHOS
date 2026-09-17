@@ -12,12 +12,12 @@
     },
     "projectHooks": {
       "label": "啟用專案 Hook 檔案",
-      "description": "讀取並執行工作區內的 .openbitfun/config/hooks.json；僅對可信任的儲存庫開啟"
+      "description": "讀取並執行工作區內的 .bitfun/config/hooks.json；僅對可信任的儲存庫開啟"
     }
   },
   "projectHooksRisk": {
     "title": "允許工作區程式碼執行 Hook？",
-    "message": "啟用後，工作區「{{workspace}}」中的 .openbitfun/config/hooks.json 可以用你的使用者權限執行命令。只應為你信任且已檢查 Hook 檔案的工作區開啟。",
+    "message": "啟用後，工作區「{{workspace}}」中的 .bitfun/config/hooks.json 可以用你的使用者權限執行命令。只應為你信任且已檢查 Hook 檔案的工作區開啟。",
     "currentWorkspace": "目前工作區",
     "confirm": "我已檢查，繼續啟用"
   },
@@ -30,7 +30,7 @@
     },
     "projectFile": {
       "label": "專案 Hook 檔案",
-      "description": "目前工作區中的 .openbitfun/config/hooks.json；需開啟「啟用專案 Hook 檔案」"
+      "description": "目前工作區中的 .bitfun/config/hooks.json；需開啟「啟用專案 Hook 檔案」"
     }
   },
   "imports": {

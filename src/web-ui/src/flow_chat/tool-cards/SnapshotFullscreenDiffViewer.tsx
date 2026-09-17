@@ -4,12 +4,12 @@ import { File as LucideFile } from 'lucide-react';
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { OverflowText, Button, IconButton } from '@openbitfun/ui';
+import { OverflowText, Button, IconButton } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { XCircle, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip, Icon } from '@openbitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { DiffEditor } from '../../tools/editor';
 import type { SnapshotFile } from '../../tools/snapshot_system/core/SnapshotStateManager';
 import { createLogger } from '@/shared/utils/logger';
@@ -149,10 +149,10 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
   };
 
   const fullscreenContent = (
-    <div data-overflow-trigger data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="overlay" className="snapshot-fullscreen-overlay" onClick={handleBackdropClick}>
-      <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="root" className="snapshot-fullscreen-container">
-        <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="header" className="snapshot-fullscreen-header">
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="sessionInfo" className="session-info">
+    <div data-overflow-trigger data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="overlay" className="snapshot-fullscreen-overlay" onClick={handleBackdropClick}>
+      <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="root" className="snapshot-fullscreen-container">
+        <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="header" className="snapshot-fullscreen-header">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="sessionInfo" className="session-info">
             <div className="session-icon">
               <FileText size={20} />
             </div>
@@ -166,7 +166,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
             </div>
           </div>
 
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="headerActions" className="header-actions">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="headerActions" className="header-actions">
             <Tooltip content={t('toolCards.snapshot.acceptAllTooltip')}>
               <Button
                 type="button"
@@ -208,7 +208,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
         </div>
 
         {files.length > 1 && (
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="navigation" className="file-navigation">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="navigation" className="file-navigation">
             <Tooltip content={t('toolCards.snapshot.prevFile')}>
               <IconButton
                 type="button"
@@ -220,11 +220,11 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
               />
             </Tooltip>
 
-            <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="tabs" className="file-tabs">
+            <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="tabs" className="file-tabs">
               {files.map((file, index) => {
                 const name = file.filePath.split(/[/\\]/).pop() || '';
                 return (
-                  <button data-overflow-trigger data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="tab" data-openbitfun-state={index === selectedFileIndex ? 'active' : undefined}
+                  <button data-overflow-trigger data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="tab" data-bitfun-state={index === selectedFileIndex ? 'active' : undefined}
                     key={index}
                     className={`file-tab ${index === selectedFileIndex ? 'active' : ''}`}
                     onClick={() => setSelectedFileIndex(index)}
@@ -254,8 +254,8 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
           </div>
         )}
 
-        <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="currentFile" className="current-file-header">
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="fileInfo" className="file-info">
+        <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="currentFile" className="current-file-header">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="fileInfo" className="file-info">
             <div className="file-icon">
               <LucideFile width="16" height="16" stroke="currentColor" aria-hidden="true" />
             </div>
@@ -265,7 +265,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
             </div>
           </div>
 
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="fileActions" className="current-file-actions">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="fileActions" className="current-file-actions">
             <Tooltip content={t('toolCards.snapshot.acceptFileTooltip')}>
               <Button
                 type="button"
@@ -294,7 +294,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
           </div>
         </div>
 
-        <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="content" className="snapshot-fullscreen-content">
+        <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="content" className="snapshot-fullscreen-content">
           {currentFile && (
             <DiffEditor
               originalContent={currentFile.originalContent}
@@ -308,7 +308,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
         </div>
 
         {loading && (
-          <div data-openbitfun-component="snapshot-fullscreen-diff-viewer" data-openbitfun-part="loading" className="fullscreen-loading-overlay">
+          <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="loading" className="fullscreen-loading-overlay">
             <div className="loading-spinner" />
             <span>{t('toolCards.snapshot.processing')}</span>
           </div>

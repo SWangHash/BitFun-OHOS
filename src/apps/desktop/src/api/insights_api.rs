@@ -1,5 +1,5 @@
 use log::{error, info};
-use openbitfun_core::agentic::insights::{InsightsReport, InsightsReportMeta, InsightsService};
+use bitfun_core::agentic::insights::{InsightsReport, InsightsReportMeta, InsightsService};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]

@@ -2,7 +2,7 @@
   "schemaVersion": 5,
   "product": "BitFun",
   "title": "BitFun Playbook",
-  "origin": "https://playbook.openbitfun.com",
+  "origin": "https://playbook.bitfun.com",
   "searchAcceptance": [
     {
       "id": "companion-pet-mixed",
@@ -214,11 +214,11 @@
       "touch_session_activity"
     ],
     "hostBridges": [
-      "mark_openbitfun_control_surface_ready",
-      "mark_openbitfun_control_surface_unready",
+      "mark_bitfun_control_surface_ready",
+      "mark_bitfun_control_surface_unready",
       "peer_host_invoke_complete",
       "product_control_invoke",
-      "report_openbitfun_control_result",
+      "report_bitfun_control_result",
       "report_ide_control_result",
       "webdriver_bridge_result"
     ],
@@ -569,11 +569,11 @@
               "AskUserQuestion"
             ],
             "workflowZh": [
-              "复杂任务用 TodoWrite 维护当前进度；正式计划产物通过 Write 写入项目的 .openbitfun/plans 目录",
+              "复杂任务用 TodoWrite 维护当前进度；正式计划产物通过 Write 写入项目的 .bitfun/plans 目录",
               "缺少会改变结果的用户选择时用 AskUserQuestion；能从仓库或当前上下文查明的信息不重复询问"
             ],
             "workflowEn": [
-              "Use TodoWrite to maintain progress for complex work; create formal plan artifacts with Write under the project's .openbitfun/plans directory",
+              "Use TodoWrite to maintain progress for complex work; create formal plan artifacts with Write under the project's .bitfun/plans directory",
               "Use AskUserQuestion only for a missing choice that changes the outcome; do not ask again for facts available from the repository or current context"
             ]
           },
@@ -2524,12 +2524,12 @@
       "agentControl": {
         "tool": "ControlHub",
         "workflowZh": [
-          "用户给出网址时，用 browser.open_builtin 打开并取得内置页面的 session_id；用户只要求显示内置浏览器且没有网址时，改用 OpenBitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+          "用户给出网址时，用 browser.open_builtin 打开并取得内置页面的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
           "对同一个 session_id 指定 target 为 builtin，也可用 target_url 或 target_title 定位；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
           "页面变化后重新快照并使用最新元素引用；只有网络追踪、原始 CDP 和文件输入等协议扩展才切换到 external"
         ],
         "workflowEn": [
-          "When the user supplies a URL, open it with browser.open_builtin and keep the returned built-in session_id; when they only want the built-in browser surface, open the feature.browser capability root with OpenBitFunControl and never invent about:blank",
+          "When the user supplies a URL, open it with browser.open_builtin and keep the returned built-in session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
           "Address that session_id with target set to builtin, or locate it by target_url or target_title; snapshots, clicks, fills, scrolling, screenshots, and other portable actions share the external CDP contract",
           "Take a new snapshot after page changes and use fresh element refs; switch to external only for protocol extensions such as network tracing, raw CDP, or file-input injection"
         ]
@@ -3323,18 +3323,18 @@
               "UpdateCanvas"
             ],
             "workflowZh": [
-              "用 CreateCanvas 提交单文件 TSX，并仅从 openbitfun/canvas 导入允许的运行时组件",
-              "保留返回的 openbitfun-canvas 引用，先 ReadCanvas 获取当前版本，再用 PatchCanvas 做局部改动或 UpdateCanvas 完整更新"
+              "用 CreateCanvas 提交单文件 TSX，并仅从 bitfun/canvas 导入允许的运行时组件",
+              "保留返回的 bitfun-canvas 引用，先 ReadCanvas 获取当前版本，再用 PatchCanvas 做局部改动或 UpdateCanvas 完整更新"
             ],
             "workflowEn": [
-              "Use CreateCanvas with a single TSX file and import runtime components only from openbitfun/canvas",
-              "Keep the returned openbitfun-canvas reference, inspect it with ReadCanvas, then use PatchCanvas for focused changes or UpdateCanvas for a full update"
+              "Use CreateCanvas with a single TSX file and import runtime components only from bitfun/canvas",
+              "Keep the returned bitfun-canvas reference, inspect it with ReadCanvas, then use PatchCanvas for focused changes or UpdateCanvas for a full update"
             ]
           },
           "evidence": [
             "command:report_canvas_runtime_ready",
-            "source:src/web-ui/src/tools/openbitfun-canvas/reactRuntime.ts#runtime: 'react'",
-            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#renderedHtml"
+            "source:src/web-ui/src/tools/bitfun-canvas/reactRuntime.ts#runtime: 'react'",
+            "source:src/web-ui/src/tools/bitfun-canvas/BitFunCanvasPanel.tsx#renderedHtml"
           ]
         },
         {
@@ -3391,7 +3391,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#lastKnownGoodRevision"
+            "source:src/web-ui/src/tools/bitfun-canvas/BitFunCanvasPanel.tsx#lastKnownGoodRevision"
           ]
         },
         {
@@ -3405,7 +3405,7 @@
             "reasonEn": "“Select an element inside Canvas and add its reference to session context” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#createCanvasElementContext"
+            "source:src/web-ui/src/tools/bitfun-canvas/BitFunCanvasPanel.tsx#createCanvasElementContext"
           ]
         },
         {
@@ -3420,7 +3420,7 @@
           },
           "evidence": [
             "command:report_canvas_runtime_error",
-            "source:src/web-ui/src/tools/openbitfun-canvas/OpenBitFunCanvasPanel.tsx#canvas-runtime-auto-repair"
+            "source:src/web-ui/src/tools/bitfun-canvas/BitFunCanvasPanel.tsx#canvas-runtime-auto-repair"
           ]
         },
         {
@@ -3434,7 +3434,7 @@
             "reasonEn": "“Export the current Canvas as a standalone HTML file” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/tools/openbitfun-canvas/canvasHtmlExportService.ts#export async function exportCanvasHtml"
+            "source:src/web-ui/src/tools/bitfun-canvas/canvasHtmlExportService.ts#export async function exportCanvasHtml"
           ]
         }
       ],
@@ -4444,7 +4444,7 @@
       ],
       "destination": {
         "kind": "event",
-        "eventName": "openbitfun:open-remote-connect"
+        "eventName": "bitfun:open-remote-connect"
       },
       "operations": []
     },
@@ -4624,7 +4624,7 @@
       ],
       "destination": {
         "kind": "event",
-        "eventName": "openbitfun:open-remote-connect",
+        "eventName": "bitfun:open-remote-connect",
         "detail": {
           "group": "account"
         }
@@ -5114,7 +5114,7 @@
         "Choose a preset or import a Petdex pack"
       ],
       "agentControl": {
-        "tool": "OpenBitFunControl",
+        "tool": "BitFunControl",
         "workflowZh": [
           "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
           "用 configure 修改 `enabled`；用 execute 的 `list-pets`、`use-pet`、`delete-pet` 查看、导入/选择或删除角色",
@@ -5439,7 +5439,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/application.json#appearance.presets.openbitfun-tokyo-night.name"
+            "source:src/web-ui/src/locales/zh-CN/settings/application.json#appearance.presets.bitfun-tokyo-night.name"
           ]
         },
         {
@@ -5519,11 +5519,11 @@
               "PublishAppearance"
             ],
             "workflowZh": [
-              "仅在用户明确要求对外投稿时调用 PublishAppearance，并使用本机绝对 `.openbitfun-appearance` 路径及用户确认的许可证",
+              "仅在用户明确要求对外投稿时调用 PublishAppearance，并使用本机绝对 `.bitfun-appearance` 路径及用户确认的许可证",
               "登录或校验返回待处理状态时展示具体下一步；工具不支持远程 SSH 路径，也不能把提交审核报告为已经上架"
             ],
             "workflowEn": [
-              "Call PublishAppearance only after an explicit external-submission request, using a local absolute `.openbitfun-appearance` path and a user-confirmed license",
+              "Call PublishAppearance only after an explicit external-submission request, using a local absolute `.bitfun-appearance` path and a user-confirmed license",
               "Show the exact next step for pending authentication or validation; remote SSH paths are unsupported and submission for review is not publication"
             ]
           },
@@ -8136,8 +8136,8 @@
         },
         {
           "id": "project-hooks",
-          "titleZh": "对可信仓库单独启用项目级 .openbitfun/config/hooks.json",
-          "titleEn": "Enable project-level .openbitfun/config/hooks.json separately for trusted repositories",
+          "titleZh": "对可信仓库单独启用项目级 .bitfun/config/hooks.json",
+          "titleEn": "Enable project-level .bitfun/config/hooks.json separately for trusted repositories",
           "destination": {
             "kind": "settings",
             "pageId": "tools.automation",
@@ -8153,7 +8153,7 @@
             ]
           },
           "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/hooks.json#.openbitfun/config/hooks.json"
+            "source:src/web-ui/src/locales/zh-CN/settings/hooks.json#.bitfun/config/hooks.json"
           ]
         },
         {
@@ -9530,7 +9530,7 @@
     "miniapp_export": {
       "capabilityId": "feature.miniapps"
     },
-    "openbitfun_control_host": {
+    "bitfun_control_host": {
       "capabilityId": null
     },
     "context_upload": {

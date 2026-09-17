@@ -2,21 +2,21 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--openbitfun-space-3);
+  gap: var(--bitfun-space-3);
 
   &__content {
     overflow: hidden;
-    background: var(--openbitfun-color-field-group-background);
-    border-radius: var(--openbitfun-radius-lg);
+    background: var(--bitfun-color-field-group-background);
+    border-radius: var(--bitfun-radius-lg);
   }
 
   &__field,
   &__preview {
-    padding: var(--openbitfun-space-4);
+    padding: var(--bitfun-space-4);
 
     + .new-project-dialog__field,
     + .new-project-dialog__preview {
-      border-top: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
+      border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
     }
   }
 
@@ -24,38 +24,38 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__preview-label {
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__preview-path {
     overflow-wrap: anywhere;
-    color: var(--openbitfun-color-content-secondary);
-    font-family: var(--openbitfun-type-body-sm-font-family);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__error {
     display: flex;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
-    border-radius: var(--openbitfun-radius-md);
-    background: var(--openbitfun-color-status-danger-surface);
-    color: var(--openbitfun-color-status-danger-content);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-md);
+    background: var(--bitfun-color-status-danger-surface);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
     overflow-wrap: anywhere;
 
-    > [data-openbitfun-component='icon'] {
+    > [data-bitfun-component='icon'] {
       flex-shrink: 0;
     }
   }

@@ -1,22 +1,22 @@
 [package]
-name = "openbitfun-dsh-adapter"
+name = "bitfun-dsh-adapter"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "DeepSeek Harness (dsh) bundle source projection adapter for OpenBitFun"
+description = "DeepSeek Harness (dsh) bundle source projection adapter for BitFun"
 autotests = false
 
 [lib]
-name = "openbitfun_dsh_adapter"
+name = "bitfun_dsh_adapter"
 crate-type = ["rlib"]
 
 [dependencies]
 async-trait = { workspace = true }
-openbitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client" }
-openbitfun-product-domains = { path = "../../contracts/product-domains", features = ["plugin-source", "external-sources"] }
-openbitfun-static-hook-support = { path = "../static-hook-support" }
+bitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client" }
+bitfun-product-domains = { path = "../../contracts/product-domains", features = ["plugin-source", "external-sources"] }
+bitfun-static-hook-support = { path = "../static-hook-support" }
 dirs = { workspace = true }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

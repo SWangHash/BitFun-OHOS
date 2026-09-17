@@ -9,7 +9,7 @@ use crate::stream::types::unified::UnifiedResponse;
 use anyhow::{anyhow, Result};
 use eventsource_stream::Eventsource;
 use log::{error, trace};
-use openbitfun_core_types::errors::AiProviderError;
+use bitfun_core_types::errors::AiProviderError;
 use reqwest::Response;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -393,7 +393,7 @@ mod tests {
         should_trace_anthropic_sse_event, should_trace_unified_response,
     };
     use crate::stream::types::unified::{UnifiedResponse, UnifiedToolCall};
-    use openbitfun_core_types::errors::ErrorCategory;
+    use bitfun_core_types::errors::ErrorCategory;
 
     #[test]
     fn extracts_glm_business_error_from_message_event() {

@@ -25,17 +25,17 @@ enum Command {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let pool = openbitfun_relay_service::db::connect_for_admin(&cli.db).await?;
+    let pool = bitfun_relay_service::db::connect_for_admin(&cli.db).await?;
     match cli.command {
         Command::ListUsers => {
             for (login, github_id, created) in
-                openbitfun_relay_service::admin::list_users(&pool).await?
+                bitfun_relay_service::admin::list_users(&pool).await?
             {
                 println!("{login}\t{github_id}\t{created}");
             }
         }
         Command::DeleteUser { username } => {
-            openbitfun_relay_service::admin::delete_user(&pool, &username).await?;
+            bitfun_relay_service::admin::delete_user(&pool, &username).await?;
             println!("Deleted relay account: {username}");
         }
     }

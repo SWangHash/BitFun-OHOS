@@ -8,7 +8,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { OverflowText, ActionItem, Icon, Menu, MenuItem, MenuSection, MenuSeparator } from '@openbitfun/ui';
+import { OverflowText, ActionItem, Icon, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
 import { Monitor, MonitorSmartphone, Loader2, Unplug } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -158,43 +158,43 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       <ActionItem data-overflow-trigger
         ref={triggerRef}
         className={[
-          'openbitfun-device-switcher',
+          'bitfun-device-switcher',
           isRemote && 'is-remote',
         ].filter(Boolean).join(' ')}
         data-testid="device-surface-switcher"
-        data-openbitfun-component="peer-device"
-        data-openbitfun-part="switcher"
-        data-openbitfun-state={isRemote ? 'remote' : 'local'}
+        data-bitfun-component="peer-device"
+        data-bitfun-part="switcher"
+        data-bitfun-state={isRemote ? 'remote' : 'local'}
         aria-expanded={open}
         aria-label={t('accountLogin.deviceSwitcher.open')}
         title={t('accountLogin.deviceSwitcher.open')}
         leading={switching ? (
-          <Loader2 className="openbitfun-device-switcher__icon is-spinning" aria-hidden="true" />
+          <Loader2 className="bitfun-device-switcher__icon is-spinning" aria-hidden="true" />
         ) : (
-          <Monitor className="openbitfun-device-switcher__icon" aria-hidden="true" />
+          <Monitor className="bitfun-device-switcher__icon" aria-hidden="true" />
         )}
         metadata={(
           <>
             {busyElsewhereCount > 0 && (
               <span
-                className="openbitfun-device-switcher__elsewhere"
-                data-openbitfun-component="peer-device"
-                data-openbitfun-part="switcherElsewhere"
+                className="bitfun-device-switcher__elsewhere"
+                data-bitfun-component="peer-device"
+                data-bitfun-part="switcherElsewhere"
                 title={t('accountLogin.deviceSwitcher.othersRunning', { count: busyElsewhereCount })}
               >
                 <MonitorSmartphone size={11} aria-hidden="true" />
                 {busyElsewhereCount}
               </span>
             )}
-            <Icon name="chevron-up" size="lg" className="openbitfun-device-switcher__chevron" aria-hidden="true" style={{ width: 13, height: 13 }} />
+            <Icon name="chevron-up" size="lg" className="bitfun-device-switcher__chevron" aria-hidden="true" style={{ width: 13, height: 13 }} />
           </>
         )}
         onClick={() => setOpen(value => !value)}
       >
         <OverflowText
-          className="openbitfun-device-switcher__label"
-          data-openbitfun-component="peer-device"
-          data-openbitfun-part="switcherLabel"
+          className="bitfun-device-switcher__label"
+          data-bitfun-component="peer-device"
+          data-bitfun-part="switcherLabel"
         >
           {currentLabel}
         </OverflowText>
@@ -203,15 +203,15 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       {open && createPortal(
         <>
           <div
-            className="openbitfun-device-switcher__backdrop"
+            className="bitfun-device-switcher__backdrop"
             onClick={() => setOpen(false)}
           />
           <Menu
             ref={popoverRef}
-            className="openbitfun-device-switcher__menu"
+            className="bitfun-device-switcher__menu"
             data-testid="device-surface-switcher-menu"
-            data-openbitfun-component="peer-device"
-            data-openbitfun-part="switcherMenu"
+            data-bitfun-component="peer-device"
+            data-bitfun-part="switcherMenu"
             style={{
               top: `${layout?.top ?? 0}px`,
               left: `${layout?.left ?? 0}px`,
@@ -230,18 +230,18 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
                     role="menuitemradio"
                     checked={isCurrent}
                     aria-disabled={!selectable}
-                    data-openbitfun-component="peer-device"
-                    data-openbitfun-part="switcherItem"
+                    data-bitfun-component="peer-device"
+                    data-bitfun-part="switcherItem"
                     leading={(
                       <span
                         className={[
-                          'openbitfun-device-switcher__dot',
+                          'bitfun-device-switcher__dot',
                           busy && 'is-busy',
                           !device.online && 'is-offline',
                         ].filter(Boolean).join(' ')}
-                        data-openbitfun-component="peer-device"
-                        data-openbitfun-part="switcherStatusDot"
-                        data-openbitfun-state={[
+                        data-bitfun-component="peer-device"
+                        data-bitfun-part="switcherStatusDot"
+                        data-bitfun-state={[
                           busy && 'busy',
                           !device.online && 'offline',
                         ].filter(Boolean).join(' ') || undefined}
@@ -249,19 +249,19 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
                       />
                     )}
                     metadata={(
-                      <span className="openbitfun-device-switcher__item-metadata">
+                      <span className="bitfun-device-switcher__item-metadata">
                         {device.isLocal && (
-                          <span className="openbitfun-device-switcher__tag">
+                          <span className="bitfun-device-switcher__tag">
                             {t('accountLogin.thisDevice')}
                           </span>
                         )}
                         {busy && (
-                          <span className="openbitfun-device-switcher__tag is-busy">
+                          <span className="bitfun-device-switcher__tag is-busy">
                             {t('accountLogin.deviceSwitcher.running')}
                           </span>
                         )}
                         {!device.online && (
-                          <span className="openbitfun-device-switcher__tag">
+                          <span className="bitfun-device-switcher__tag">
                             {t('accountLogin.offline')}
                           </span>
                         )}
@@ -284,13 +284,13 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
                 );
               })}
               {devices.length <= 1 && (
-                <div className="openbitfun-device-switcher__empty">
+                <div className="bitfun-device-switcher__empty">
                   {t('accountLogin.deviceSwitcher.noDevices')}
                 </div>
               )}
             </MenuSection>
             <MenuSeparator />
-            <div className="openbitfun-device-switcher__hint">
+            <div className="bitfun-device-switcher__hint">
               {t('accountLogin.deviceSwitcher.hint')}
             </div>
           </Menu>

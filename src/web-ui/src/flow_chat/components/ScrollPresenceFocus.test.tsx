@@ -13,8 +13,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -137,7 +137,7 @@ describe('retained scroll controls', () => {
     const onClick = vi.fn();
     act(() => root.render(<ScrollToLatestBar visible onClick={onClick} inputHeight={140} />));
     const bar = container.querySelector<HTMLElement>('[role="button"]')!;
-    const iconButton = bar.querySelector<HTMLButtonElement>('[data-openbitfun-component="icon-button"]')!;
+    const iconButton = bar.querySelector<HTMLButtonElement>('[data-bitfun-component="icon-button"]')!;
     expect(iconButton.tabIndex).toBe(-1);
     expect(iconButton.getAttribute('aria-hidden')).toBe('true');
     act(() => iconButton.click());
@@ -161,7 +161,7 @@ describe('retained scroll controls', () => {
   it('keeps current-turn navigation and its hidden tab order', () => {
     const onClick = vi.fn();
     act(() => root.render(<ScrollToTurnHeaderButton visible onClick={onClick} turnLabel="Current turn" />));
-    const button = container.querySelector<HTMLButtonElement>('[data-openbitfun-component="icon-button"]')!;
+    const button = container.querySelector<HTMLButtonElement>('[data-bitfun-component="icon-button"]')!;
     expect(button.getAttribute('aria-label')).toBe('Current turn');
     expect(button.tabIndex).toBe(0);
     act(() => button.click());

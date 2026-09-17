@@ -11,6 +11,6 @@
 .lab-voice-particle-preview {
   inline-size: min(300px, 100%);
   block-size: 300px;
-  border-radius: var(--openbitfun-radius-xl);
-  background: color-mix(in srgb, var(--openbitfun-color-content-on-light) 80%, transparent);
+  border-radius: var(--bitfun-radius-xl);
+  background: color-mix(in srgb, var(--bitfun-color-content-on-light) 80%, transparent);
 }

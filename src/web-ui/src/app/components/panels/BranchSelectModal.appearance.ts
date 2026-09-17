@@ -8,7 +8,7 @@ export const branchSelectModalAppearanceDescriptor: AppearanceSurfaceDescriptor 
     { id: 'empty' }, { id: 'footer' }, { id: 'options' },
   ],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
-    { id: 'current', selector: { kind: 'self', suffix: '[data-openbitfun-state~="current"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
+    { id: 'current', selector: { kind: 'self', suffix: '[data-bitfun-state~="current"]' } },
   ],
 };

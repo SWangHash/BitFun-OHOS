@@ -17,15 +17,15 @@ export const TaskRunningIndicator: React.FC<TaskRunningIndicatorProps> = ({
   return (
     <span
       className={`task-running-indicator task-running-indicator--${size} ${className}`}
-      data-openbitfun-component="task-running-indicator"
-      data-openbitfun-part="root"
-      data-openbitfun-size={size}
+      data-bitfun-component="task-running-indicator"
+      data-bitfun-part="root"
+      data-bitfun-size={size}
       aria-hidden="true"
       role="presentation"
     >
-      <span className="task-running-indicator__bar" data-openbitfun-component="task-running-indicator" data-openbitfun-part="bar" />
-      <span className="task-running-indicator__bar" data-openbitfun-component="task-running-indicator" data-openbitfun-part="bar" />
-      <span className="task-running-indicator__bar" data-openbitfun-component="task-running-indicator" data-openbitfun-part="bar" />
+      <span className="task-running-indicator__bar" data-bitfun-component="task-running-indicator" data-bitfun-part="bar" />
+      <span className="task-running-indicator__bar" data-bitfun-component="task-running-indicator" data-bitfun-part="bar" />
+      <span className="task-running-indicator__bar" data-bitfun-component="task-running-indicator" data-bitfun-part="bar" />
     </span>
   );
 };

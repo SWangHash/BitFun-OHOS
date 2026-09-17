@@ -407,10 +407,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
   });
 
   const tooltipClass = [
-    'openbitfun-tooltip',
-    `openbitfun-tooltip--${layout.placement}`,
-    visible && layout.ready && 'openbitfun-tooltip--visible',
-    interactive && 'openbitfun-tooltip--interactive',
+    'bitfun-tooltip',
+    `bitfun-tooltip--${layout.placement}`,
+    visible && layout.ready && 'bitfun-tooltip--visible',
+    interactive && 'bitfun-tooltip--interactive',
     className
   ].filter(Boolean).join(' ');
 
@@ -438,15 +438,15 @@ export const Tooltip: React.FC<TooltipProps> = ({
             left: `${layout.left}px`,
             zIndex: 9999,
           }}
-          data-openbitfun-component="tooltip"
-          data-openbitfun-part="root"
-          data-openbitfun-placement={layout.placement}
-          data-openbitfun-interactive={String(interactive)}
-          data-openbitfun-state={visible && layout.ready ? 'visible' : undefined}
+          data-bitfun-component="tooltip"
+          data-bitfun-part="root"
+          data-bitfun-placement={layout.placement}
+          data-bitfun-interactive={String(interactive)}
+          data-bitfun-state={visible && layout.ready ? 'visible' : undefined}
         >
-          <div className="openbitfun-tooltip__arrow" data-openbitfun-component="tooltip" data-openbitfun-part="arrow" aria-hidden="true" />
-          <div className="openbitfun-tooltip__content" data-openbitfun-component="tooltip" data-openbitfun-part="content">
-            <div className="openbitfun-tooltip__body" data-openbitfun-component="tooltip" data-openbitfun-part="body">{content}</div>
+          <div className="bitfun-tooltip__arrow" data-bitfun-component="tooltip" data-bitfun-part="arrow" aria-hidden="true" />
+          <div className="bitfun-tooltip__content" data-bitfun-component="tooltip" data-bitfun-part="content">
+            <div className="bitfun-tooltip__body" data-bitfun-component="tooltip" data-bitfun-part="body">{content}</div>
           </div>
         </div>,
         getAppearanceOverlayHost()

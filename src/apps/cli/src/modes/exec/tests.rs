@@ -10,11 +10,11 @@ use super::patch::write_patch_to_path;
 use super::patch::{git_diff_base, untracked_files};
 use super::verification::{changed_files, detect_verify_command, needs_change_baseline};
 use crate::diagnostics::ExitKind;
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     PermissionDelegationContext, PermissionRequest, PermissionRequestSource,
     PermissionRequestSourceKind, PortError, PortErrorKind, RuntimeError,
 };
-use openbitfun_events::{
+use bitfun_events::{
     AgenticEvent, AgenticEventEnvelope, AgenticEventPriority, ToolEventIdentity,
 };
 use serde_json::json;
@@ -103,7 +103,7 @@ fn git_patch_includes_staged_and_untracked_files_from_a_repo_subdirectory() {
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path();
     let run_git = |args: &[&str]| {
-        let output = openbitfun_core::util::process_manager::create_command("git")
+        let output = bitfun_core::util::process_manager::create_command("git")
             .args(args)
             .current_dir(repo)
             .output()
@@ -141,7 +141,7 @@ fn git_patch_excludes_a_preexisting_output_artifact_inside_the_repository() {
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path();
     let run_git = |args: &[&str]| {
-        let output = openbitfun_core::util::process_manager::create_command("git")
+        let output = bitfun_core::util::process_manager::create_command("git")
             .args(args)
             .current_dir(repo)
             .output()
@@ -181,7 +181,7 @@ fn git_patch_excludes_a_tracked_output_artifact_inside_the_repository() {
     let temp = tempfile::tempdir().expect("tempdir");
     let repo = temp.path();
     let run_git = |args: &[&str]| {
-        let output = openbitfun_core::util::process_manager::create_command("git")
+        let output = bitfun_core::util::process_manager::create_command("git")
             .args(args)
             .current_dir(repo)
             .output()
@@ -686,7 +686,7 @@ fn settlement_failure_overrides_an_observed_cancellation_terminal() {
 fn deferred_exec_event_projects_effective_name_and_input() {
     let identity = ToolEventIdentity::resolved(
         "tool-1",
-        openbitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
+        bitfun_agent_tools::CALL_DEFERRED_TOOL_NAME,
         "CreatePlan",
     );
     let wire_input = json!({
@@ -702,7 +702,7 @@ fn deferred_exec_event_projects_effective_name_and_input() {
 }
 
 fn run_git(workspace: &std::path::Path, args: &[&str]) {
-    let output = openbitfun_core::util::process_manager::create_command("git")
+    let output = bitfun_core::util::process_manager::create_command("git")
         .args(args)
         .current_dir(workspace)
         .output()
@@ -721,9 +721,9 @@ fn commit_verification_fixture(workspace: &std::path::Path) {
         workspace,
         &[
             "-c",
-            "user.name=OpenBitFun Test",
+            "user.name=BitFun Test",
             "-c",
-            "user.email=openbitfun-test@example.invalid",
+            "user.email=bitfun-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -757,9 +757,9 @@ fn patch_and_verifier_keep_agent_commits_and_exclude_preexisting_untracked_files
         workspace,
         &[
             "-c",
-            "user.name=OpenBitFun Test",
+            "user.name=BitFun Test",
             "-c",
-            "user.email=openbitfun-test@example.invalid",
+            "user.email=bitfun-test@example.invalid",
             "commit",
             "--quiet",
             "-m",

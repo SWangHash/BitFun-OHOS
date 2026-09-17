@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 ;
-import { OverflowText, Icon, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Icon, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -85,16 +85,16 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
   return (
     <div
       ref={anchorRef}
-      className={`openbitfun-nav-panel__assistant-session-actions${menuOpen ? ' is-open' : ''}`}
-      data-openbitfun-component="nav-panel"
-      data-openbitfun-part="assistantSessionActions"
-      data-openbitfun-state={menuOpen ? 'open' : undefined}
+      className={`bitfun-nav-panel__assistant-session-actions${menuOpen ? ' is-open' : ''}`}
+      data-bitfun-component="nav-panel"
+      data-bitfun-part="assistantSessionActions"
+      data-bitfun-state={menuOpen ? 'open' : undefined}
     >
-      <div className={`openbitfun-nav-panel__assistant-session-split-button${menuOpen ? ' is-active' : ''}`}>
+      <div className={`bitfun-nav-panel__assistant-session-split-button${menuOpen ? ' is-active' : ''}`}>
         <Tooltip content={createPrimaryLabel} placement="right" followCursor>
           <button
             type="button"
-            className="openbitfun-nav-panel__assistant-session-split-main"
+            className="bitfun-nav-panel__assistant-session-split-main"
             aria-label={createPrimaryLabel}
             onClick={() => {
               closeMenu();
@@ -108,7 +108,7 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
         <Tooltip content={chooseAssistantLabel} placement="right" followCursor disabled={menuOpen}>
           <button
             type="button"
-            className="openbitfun-nav-panel__assistant-session-split-toggle"
+            className="bitfun-nav-panel__assistant-session-split-toggle"
             aria-label={chooseAssistantLabel}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
@@ -124,7 +124,7 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
       {menuOpen ? createPortal(
         <Menu
           ref={menuRef}
-          className="openbitfun-nav-panel__assistant-session-menu"
+          className="bitfun-nav-panel__assistant-session-menu"
           aria-label={chooseAssistantLabel}
           data-testid="nav-assistant-session-menu"
           style={{
@@ -146,7 +146,7 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
                 }}
                 data-testid={`nav-assistant-session-menu-item-${workspace.id}`}
               >
-                <OverflowText className="openbitfun-nav-panel__assistant-session-menu-name">{assistantName}</OverflowText>
+                <OverflowText className="bitfun-nav-panel__assistant-session-menu-name">{assistantName}</OverflowText>
               </MenuItem>
             );
           })}

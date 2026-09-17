@@ -12,8 +12,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { OverflowText, Menu, MenuItem, MenuSeparator } from '@openbitfun/ui';
-import { Tooltip, Icon } from '@openbitfun/ui';
+import { OverflowText, Menu, MenuItem, MenuSeparator } from '@bitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { activateMainSession } from '../../services/sessionActivation';
@@ -94,10 +94,10 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
   return (
     <div
       ref={rootRef}
-      className="openbitfun-session-menu"
-      data-openbitfun-component="session-menu"
-      data-openbitfun-part="root"
-      data-openbitfun-state={isMenuOpen ? 'open' : undefined}
+      className="bitfun-session-menu"
+      data-bitfun-component="session-menu"
+      data-bitfun-part="root"
+      data-bitfun-state={isMenuOpen ? 'open' : undefined}
       onKeyDown={handleKeyDown}
     >
       <Tooltip content={t('toolCards.toolbar.openSessionMenu')}>
@@ -105,11 +105,11 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
           ref={triggerRef}
           type="button"
           className={[
-            'openbitfun-session-menu__trigger',
-            isMenuOpen ? 'openbitfun-session-menu__trigger--open' : '',
+            'bitfun-session-menu__trigger',
+            isMenuOpen ? 'bitfun-session-menu__trigger--open' : '',
           ].filter(Boolean).join(' ')}
-          data-openbitfun-component="session-menu"
-          data-openbitfun-part="trigger"
+          data-bitfun-component="session-menu"
+          data-bitfun-part="trigger"
           onClick={toggleMenu}
           aria-expanded={isMenuOpen}
           aria-haspopup="listbox"
@@ -120,10 +120,10 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
 
       {isMenuOpen && createPortal(
         <Menu
-          className="openbitfun-session-menu__dropdown"
-          data-openbitfun-component="session-menu"
-          data-openbitfun-part="dropdown"
-          data-openbitfun-placement={dropdownLayout?.placement ?? 'bottom'}
+          className="bitfun-session-menu__dropdown"
+          data-bitfun-component="session-menu"
+          data-bitfun-part="dropdown"
+          data-bitfun-placement={dropdownLayout?.placement ?? 'bottom'}
           ref={dropdownRef}
           style={{
             top: `${dropdownLayout?.top ?? 0}px`,
@@ -132,36 +132,36 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="openbitfun-session-menu__actions" data-openbitfun-component="session-menu" data-openbitfun-part="actions">
+          <div className="bitfun-session-menu__actions" data-bitfun-component="session-menu" data-bitfun-part="actions">
             <MenuItem data-overflow-trigger
               type="button"
-              className="openbitfun-session-menu__item-row openbitfun-session-menu__item-row--new openbitfun-session-menu__item--new"
-              data-openbitfun-component="session-menu"
-              data-openbitfun-part="item"
-              data-openbitfun-item-kind="create"
-              data-openbitfun-session-kind="unified"
+              className="bitfun-session-menu__item-row bitfun-session-menu__item-row--new bitfun-session-menu__item--new"
+              data-bitfun-component="session-menu"
+              data-bitfun-part="item"
+              data-bitfun-item-kind="create"
+              data-bitfun-session-kind="unified"
               onMouseDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 createSession();
               }}
               leading={(
-                <span className="openbitfun-session-menu__item-icon" data-openbitfun-component="session-menu" data-openbitfun-part="itemIcon">
+                <span className="bitfun-session-menu__item-icon" data-bitfun-component="session-menu" data-bitfun-part="itemIcon">
                   <Icon name="plus" size="lg" style={{ width: 13, height: 13 }} />
                 </span>
               )}
             >
-              <OverflowText className="openbitfun-session-menu__item-label" data-openbitfun-component="session-menu" data-openbitfun-part="itemLabel">
+              <OverflowText className="bitfun-session-menu__item-label" data-bitfun-component="session-menu" data-bitfun-part="itemLabel">
                 {t('toolCards.toolbar.newSessionItem')}
               </OverflowText>
             </MenuItem>
-            <MenuSeparator className="openbitfun-session-menu__divider" data-openbitfun-component="session-menu" data-openbitfun-part="divider" />
+            <MenuSeparator className="bitfun-session-menu__divider" data-bitfun-component="session-menu" data-bitfun-part="divider" />
           </div>
 
           <div
-            className="openbitfun-session-menu__scroll"
-            data-openbitfun-component="session-menu"
-            data-openbitfun-part="scroll"
+            className="bitfun-session-menu__scroll"
+            data-bitfun-component="session-menu"
+            data-bitfun-part="scroll"
             aria-label={t('session.switchSession')}
           >
             {sessions.map((session) => (
@@ -171,13 +171,13 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
                 role="menuitemradio"
                 checked={session.sessionId === activeSessionId}
                 className={[
-                  'openbitfun-session-menu__item-row',
-                  session.sessionId === activeSessionId ? 'openbitfun-session-menu__item-row--active' : '',
+                  'bitfun-session-menu__item-row',
+                  session.sessionId === activeSessionId ? 'bitfun-session-menu__item-row--active' : '',
                 ].filter(Boolean).join(' ')}
-                data-openbitfun-component="session-menu"
-                data-openbitfun-part="item"
-                data-openbitfun-item-kind="session"
-                data-openbitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
+                data-bitfun-component="session-menu"
+                data-bitfun-part="item"
+                data-bitfun-item-kind="session"
+                data-bitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
                 onMouseDown={(e) => switchSession(e, session.sessionId)}
               >
                 <OverflowText>{resolveSessionTitle(session, t)}</OverflowText>

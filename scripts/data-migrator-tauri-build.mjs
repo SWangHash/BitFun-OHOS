@@ -40,15 +40,15 @@ export function prepareDataMigratorTauriConfig(
 // branded Desktop build's data namespace or sibling-executable projections.
 export function dataMigratorEnvironment(environment = process.env) {
   const result = { ...environment };
-  for (const key of ['OPENBITFUN_DESKTOP_BINARY_NAME', 'OPENBITFUN_DATA_MIGRATOR_BINARY_NAME']) delete result[key];
+  for (const key of ['BITFUN_DESKTOP_BINARY_NAME', 'BITFUN_DATA_MIGRATOR_BINARY_NAME']) delete result[key];
   return {
     ...result,
     CI: 'true',
-    OPENBITFUN_PRODUCT_ID: 'openbitfun',
-    OPENBITFUN_DATA_NAMESPACE: 'openbitfun',
-    OPENBITFUN_HIDDEN_DATA_DIRECTORY: '.openbitfun',
-    OPENBITFUN_PRODUCT_BINARY_NAME: 'openbitfun-data-migrator',
-    OPENBITFUN_PRODUCT_DISPLAY_NAME: 'OpenBitFun Data Migrator',
+    BITFUN_PRODUCT_ID: 'bitfun',
+    BITFUN_DATA_NAMESPACE: 'bitfun',
+    BITFUN_HIDDEN_DATA_DIRECTORY: '.bitfun',
+    BITFUN_PRODUCT_BINARY_NAME: 'bitfun-data-migrator',
+    BITFUN_PRODUCT_DISPLAY_NAME: 'BitFun Data Migrator',
   };
 }
 
@@ -62,7 +62,7 @@ async function main() {
   await generateDataMigratorTheme();
   const forwardArgs = tauriArguments(process.argv.slice(2));
   if (forwardArgs.some((arg) => arg.startsWith('--product-config'))) {
-    throw new Error('The standalone migrator has its own identity and supports OpenBitFun data only.');
+    throw new Error('The standalone migrator has its own identity and supports BitFun data only.');
   }
   const generated = prepareDataMigratorTauriConfig(
     join(APP_DIR, 'tauri.conf.json'),

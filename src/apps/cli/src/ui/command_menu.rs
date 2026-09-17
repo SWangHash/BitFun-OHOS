@@ -116,14 +116,14 @@ impl CommandMenuState {
                     id: action.id.to_string(),
                     name: action.name.to_string(),
                     description: if unresolved || reconfirmation_required {
-                        format!("{} · OpenBitFun (choose once)", action.description)
+                        format!("{} · BitFun (choose once)", action.description)
                     } else if discovery_pending {
                         format!(
-                            "{} · OpenBitFun (checking external sources)",
+                            "{} · BitFun (checking external sources)",
                             action.description
                         )
                     } else if selected_external {
-                        format!("{} · OpenBitFun", action.description)
+                        format!("{} · BitFun", action.description)
                     } else {
                         action.description.to_string()
                     },
@@ -609,7 +609,7 @@ mod tests {
             provider_conflict_key: None,
             native_collision: Some(NativeCommandCollisionProjection {
                 native_action_id: "help".to_string(),
-                native_candidate_id: "openbitfun.cli:help".to_string(),
+                native_candidate_id: "bitfun.cli:help".to_string(),
                 external_candidate_id: "external:help".to_string(),
                 conflict_key: "conflict-v1".to_string(),
                 selected_candidate_id: None,
@@ -648,7 +648,7 @@ mod tests {
             provider_conflict_key: None,
             native_collision: Some(NativeCommandCollisionProjection {
                 native_action_id: "help".to_string(),
-                native_candidate_id: "openbitfun.cli:help".to_string(),
+                native_candidate_id: "bitfun.cli:help".to_string(),
                 external_candidate_id: "external:help".to_string(),
                 conflict_key: "conflict-v1".to_string(),
                 selected_candidate_id: Some("external:help".to_string()),

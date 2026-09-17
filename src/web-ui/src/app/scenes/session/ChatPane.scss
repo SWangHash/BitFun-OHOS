@@ -2,19 +2,19 @@
  * ChatPane styles — AI Agent scene left pane (FlowChat).
  * Renamed from panels/CenterPanel.scss.
  */
-.openbitfun-chat-pane__content {
+.bitfun-chat-pane__content {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--openbitfun-color-surface-scene);
+  background: var(--bitfun-color-surface-scene);
   position: relative;
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-flow-body-font-size);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-flow-body-font-size);
 }
 
-.openbitfun-chat-pane__chat-container {
+.bitfun-chat-pane__chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -24,57 +24,57 @@
 }
 
 // A pane-sized target without intercepting drops or changing transcript geometry.
-.openbitfun-chat-pane__drop-overlay {
+.bitfun-chat-pane__drop-overlay {
   position: absolute;
   inset: 0;
-  z-index: var(--openbitfun-layer-overlay);
+  z-index: var(--bitfun-layer-overlay);
   pointer-events: none;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--openbitfun-color-surface-scene) 68%, transparent);
-  backdrop-filter: var(--openbitfun-effect-blur-medium);
-  -webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);
+  background: color-mix(in srgb, var(--bitfun-color-surface-scene) 68%, transparent);
+  backdrop-filter: var(--bitfun-effect-blur-medium);
+  -webkit-backdrop-filter: var(--bitfun-effect-blur-medium);
 }
 
-.openbitfun-chat-pane__drop-content {
+.bitfun-chat-pane__drop-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
   width: min(100%, 420px);
-  padding: var(--openbitfun-space-6);
+  padding: var(--bitfun-space-6);
   box-sizing: border-box;
   text-align: center;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 }
 
-.openbitfun-chat-pane__drop-emblem {
+.bitfun-chat-pane__drop-emblem {
   flex-shrink: 0;
-  margin-bottom: var(--openbitfun-space-2);
-  color: var(--openbitfun-color-content-secondary);
+  margin-bottom: var(--bitfun-space-2);
+  color: var(--bitfun-color-content-secondary);
   opacity: 0.2;
 }
 
-.openbitfun-chat-pane__drop-copy {
+.bitfun-chat-pane__drop-copy {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-2);
+  gap: var(--bitfun-space-2);
 }
 
-.openbitfun-chat-pane__drop-title {
-  color: var(--openbitfun-color-content-primary);
-  font-size: var(--openbitfun-type-body-lg-font-size);
-  font-weight: var(--openbitfun-type-label-selected-font-weight);
-  line-height: var(--openbitfun-type-label-md-line-height);
+.bitfun-chat-pane__drop-title {
+  color: var(--bitfun-color-content-primary);
+  font-size: var(--bitfun-type-body-lg-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
 }
 
-.openbitfun-chat-pane__drop-description {
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-body-sm-font-size);
-  line-height: var(--openbitfun-type-body-sm-line-height);
+.bitfun-chat-pane__drop-description {
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
 }
 
-.openbitfun-chat-pane__drop-cursor {
+.bitfun-chat-pane__drop-cursor {
   position: absolute;
   top: 0;
   left: 0;
@@ -82,7 +82,7 @@
   will-change: transform;
 }
 
-.openbitfun-chat-pane__file-preview {
+.bitfun-chat-pane__file-preview {
   position: relative;
   isolation: isolate;
   width: 128px;
@@ -90,10 +90,10 @@
   &::before, &::after {
     position: absolute;
     inset: 0;
-    border-radius: var(--openbitfun-radius-lg);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-    box-shadow: var(--openbitfun-shadow-sm);
-    backdrop-filter: var(--openbitfun-effect-blur-medium);
+    border-radius: var(--bitfun-radius-lg);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+    box-shadow: var(--bitfun-shadow-sm);
+    backdrop-filter: var(--bitfun-effect-blur-medium);
   }
 
   &[data-multiple='true']::before {
@@ -109,39 +109,39 @@
   }
 }
 
-.openbitfun-chat-pane__file-front {
+.bitfun-chat-pane__file-front {
   position: relative;
-  padding: var(--openbitfun-space-2);
-  border-radius: var(--openbitfun-radius-lg);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 92%, transparent);
-  box-shadow: var(--openbitfun-shadow-xl);
-  backdrop-filter: var(--openbitfun-effect-blur-medium);
+  padding: var(--bitfun-space-2);
+  border-radius: var(--bitfun-radius-lg);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 92%, transparent);
+  box-shadow: var(--bitfun-shadow-xl);
+  backdrop-filter: var(--bitfun-effect-blur-medium);
 
 }
 
-.openbitfun-chat-pane__file-tile {
+.bitfun-chat-pane__file-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--openbitfun-space-1);
+  gap: var(--bitfun-space-1);
   height: 92px;
-  border-radius: var(--openbitfun-radius-sm);
+  border-radius: var(--bitfun-radius-sm);
   overflow: hidden;
-  background: var(--openbitfun-color-surface-subtle);
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-label-xs-font-size);
-  font-weight: var(--openbitfun-type-label-selected-font-weight);
+  background: var(--bitfun-color-surface-subtle);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-xs-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
 
-  &[data-kind='pdf'] { color: var(--openbitfun-color-status-danger-content); background: var(--openbitfun-color-status-danger-surface); }
-  &[data-kind='spreadsheet'] { color: var(--openbitfun-color-status-success-content); background: var(--openbitfun-color-status-success-surface); }
-  &[data-kind='document'], &[data-kind='code'] { color: var(--openbitfun-color-status-info-content); background: var(--openbitfun-color-status-info-surface); }
-  &[data-kind='archive'], &[data-kind='presentation'] { color: var(--openbitfun-color-status-warning-content); background: var(--openbitfun-color-status-warning-surface); }
+  &[data-kind='pdf'] { color: var(--bitfun-color-status-danger-content); background: var(--bitfun-color-status-danger-surface); }
+  &[data-kind='spreadsheet'] { color: var(--bitfun-color-status-success-content); background: var(--bitfun-color-status-success-surface); }
+  &[data-kind='document'], &[data-kind='code'] { color: var(--bitfun-color-status-info-content); background: var(--bitfun-color-status-info-surface); }
+  &[data-kind='archive'], &[data-kind='presentation'] { color: var(--bitfun-color-status-warning-content); background: var(--bitfun-color-status-warning-surface); }
 
   img { width: 100%; height: 100%; object-fit: cover; }
 }
 
-.openbitfun-chat-pane__file-count {
+.bitfun-chat-pane__file-count {
   position: absolute;
   z-index: 1;
   top: 0;
@@ -151,20 +151,20 @@
   place-items: center;
   min-width: 24px;
   height: 24px;
-  padding-inline: var(--openbitfun-space-1);
-  border: 2px solid var(--openbitfun-color-surface-raised);
-  border-radius: var(--openbitfun-radius-pill);
-  background: var(--openbitfun-color-control-highlight-background);
-  color: var(--openbitfun-color-content-on-dark);
-  box-shadow: var(--openbitfun-shadow-sm);
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  font-weight: var(--openbitfun-type-label-selected-font-weight);
+  padding-inline: var(--bitfun-space-1);
+  border: 2px solid var(--bitfun-color-surface-raised);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-control-highlight-background);
+  color: var(--bitfun-color-content-on-dark);
+  box-shadow: var(--bitfun-shadow-sm);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
 }
 
-.openbitfun-chat-pane__file-caption {
-  margin-top: var(--openbitfun-space-2);
+.bitfun-chat-pane__file-caption {
+  margin-top: var(--bitfun-space-2);
   max-width: 100%;
   text-align: center;
-  color: var(--openbitfun-color-content-primary);
-  font-size: var(--openbitfun-type-label-xs-font-size);
+  color: var(--bitfun-color-content-primary);
+  font-size: var(--bitfun-type-label-xs-font-size);
 }

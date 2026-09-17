@@ -38,16 +38,16 @@ test("ChatComposerActionButton shares one stable action and icon geometry", () =
     ),
   );
 
-  assert.equal((markup.match(/data-openbitfun-role="composer-action"/g) ?? []).length, 2);
-  assert.equal((markup.match(/data-openbitfun-shape="circle"/g) ?? []).length, 2);
-  assert.match(markup, /data-openbitfun-variant="fill"/);
-  assert.match(markup, /data-openbitfun-variant="primary"/);
+  assert.equal((markup.match(/data-bitfun-role="composer-action"/g) ?? []).length, 2);
+  assert.equal((markup.match(/data-bitfun-shape="circle"/g) ?? []).length, 2);
+  assert.match(markup, /data-bitfun-variant="fill"/);
+  assert.match(markup, /data-bitfun-variant="primary"/);
 });
 
 test("ChatComposer publishes stable context, content, and action slots", () => {
   const markup = renderToStaticMarkup(
     createElement(ChatComposer, {
-      contextBar: createElement("div", null, "This computer · OpenBitFun"),
+      contextBar: createElement("div", null, "This computer · BitFun"),
       endActions: createElement("button", { type: "button" }, "Send"),
       layout: "compact",
       startActions: createElement("button", { type: "button" }, "Add"),
@@ -55,15 +55,15 @@ test("ChatComposer publishes stable context, content, and action slots", () => {
     }),
   );
 
-  assert.match(markup, /data-openbitfun-component="chat-composer"/);
+  assert.match(markup, /data-bitfun-component="chat-composer"/);
   assert.match(markup, /data-has-context="true"/);
-  assert.match(markup, /data-openbitfun-part="contextBar"/);
-  const surface = markup.match(/<div[^>]+data-openbitfun-part="surface"[^>]*>/)?.[0];
+  assert.match(markup, /data-bitfun-part="contextBar"/);
+  const surface = markup.match(/<div[^>]+data-bitfun-part="surface"[^>]*>/)?.[0];
   assert.ok(surface);
-  assert.match(surface, /data-openbitfun-layout="compact"/);
-  assert.match(markup, /data-openbitfun-part="startActions"/);
-  assert.match(markup, /data-openbitfun-part="content"/);
-  assert.match(markup, /data-openbitfun-part="endActions"/);
+  assert.match(surface, /data-bitfun-layout="compact"/);
+  assert.match(markup, /data-bitfun-part="startActions"/);
+  assert.match(markup, /data-bitfun-part="content"/);
+  assert.match(markup, /data-bitfun-part="endActions"/);
   assert.match(markup, /aria-label="Message"/);
 });
 
@@ -79,9 +79,9 @@ test("ChatComposer exposes expanded, busy, and disabled state without owning edi
 
   assert.match(markup, /aria-busy="true"/);
   assert.match(markup, /aria-disabled="true"/);
-  assert.match(markup, /data-openbitfun-state="busy disabled"/);
-  assert.match(markup, /data-openbitfun-layout="expanded"/);
-  assert.doesNotMatch(markup, /data-openbitfun-part="contextBar"/);
+  assert.match(markup, /data-bitfun-state="busy disabled"/);
+  assert.match(markup, /data-bitfun-layout="expanded"/);
+  assert.doesNotMatch(markup, /data-bitfun-part="contextBar"/);
   assert.match(markup, /contenteditable="true"/);
 });
 
@@ -126,12 +126,12 @@ test("ChatComposer exposes a neutral pending-message queue with per-message atta
     }),
   );
 
-  assert.match(markup, /data-openbitfun-part="body"/);
-  assert.match(markup, /data-openbitfun-part="queue"/);
-  assert.match(markup, /data-openbitfun-component="chat-composer-queue"/);
-  assert.match(markup, /data-openbitfun-part="title"[^>]*>.*Wait for sending.*13/s);
+  assert.match(markup, /data-bitfun-part="body"/);
+  assert.match(markup, /data-bitfun-part="queue"/);
+  assert.match(markup, /data-bitfun-component="chat-composer-queue"/);
+  assert.match(markup, /data-bitfun-part="title"[^>]*>.*Wait for sending.*13/s);
   const attachmentBadge = markup.match(
-    /<span[^>]*data-openbitfun-part="attachmentCount"[^>]*>3<\/span>/,
+    /<span[^>]*data-bitfun-part="attachmentCount"[^>]*>3<\/span>/,
   )?.[0];
   assert.ok(attachmentBadge);
   assert.match(attachmentBadge, /aria-label="3 image attachments"/);
@@ -149,10 +149,10 @@ test("ChatComposer queue keeps four message rows visible before scrolling", asyn
   const maxBlockSize = listRule.match(/max-block-size:\s*calc\((.*?)\);/s)?.[1];
   assert.ok(maxBlockSize);
   assert.equal(
-    (maxBlockSize.match(/--openbitfun-control-chat-composer-control-height/g) ?? []).length,
+    (maxBlockSize.match(/--bitfun-control-chat-composer-control-height/g) ?? []).length,
     4,
   );
-  assert.equal((maxBlockSize.match(/--openbitfun-space-1/g) ?? []).length, 3);
+  assert.equal((maxBlockSize.match(/--bitfun-space-1/g) ?? []).length, 3);
   assert.match(listRule, /overflow-y:\s*auto/);
   assert.match(listRule, /overscroll-behavior-y:\s*contain/);
 });
@@ -182,10 +182,10 @@ test("ChatComposer queue promotes message text from secondary to primary on inte
   const contentRule = styles.match(/\.content\s*\{[^}]*\}/s)?.[0];
 
   assert.ok(contentRule);
-  assert.match(contentRule, /color:\s*var\(--openbitfun-color-content-secondary\)/);
+  assert.match(contentRule, /color:\s*var\(--bitfun-color-content-secondary\)/);
   assert.match(
     styles,
-    /\.item:hover \.content,\s*\.item:focus-within \.content\s*\{[^}]*color:\s*var\(--openbitfun-color-content-primary\)/s,
+    /\.item:hover \.content,\s*\.item:focus-within \.content\s*\{[^}]*color:\s*var\(--bitfun-color-content-primary\)/s,
   );
 });
 
@@ -200,7 +200,7 @@ test("ChatComposer queue never changes the input surface geometry", async () => 
   assert.ok(bodyRule);
   assert.match(bodyRule, /display:\s*flex/);
   assert.match(bodyRule, /flex-direction:\s*column/);
-  assert.match(bodyRule, /gap:\s*var\(--openbitfun-space-2\)/);
+  assert.match(bodyRule, /gap:\s*var\(--bitfun-space-2\)/);
   assert.ok(queueRule);
   assert.match(queueRule, /display:\s*contents/);
   assert.doesNotMatch(styles, /\.body:has\(/);
@@ -230,52 +230,52 @@ test("ChatComposer resolves compound slots into the same stable anatomy", () => 
     ),
   );
 
-  assert.match(markup, /data-openbitfun-part="content"[^>]*><div data-editor="true">Draft<\/div>/);
-  assert.match(markup, /data-openbitfun-part="startActions"[^>]*><button type="button">Add<\/button>/);
-  assert.match(markup, /data-openbitfun-part="endActions"[^>]*><button type="button">Send<\/button>/);
+  assert.match(markup, /data-bitfun-part="content"[^>]*><div data-editor="true">Draft<\/div>/);
+  assert.match(markup, /data-bitfun-part="startActions"[^>]*><button type="button">Add<\/button>/);
+  assert.match(markup, /data-bitfun-part="endActions"[^>]*><button type="button">Send<\/button>/);
   assert.equal((markup.match(/>Draft</g) ?? []).length, 1);
 });
 
 test("ChatComposer geometry is driven by public system and semantic tokens", async () => {
   const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
 
-  assert.match(styles, /--openbitfun-control-height-md/);
-  assert.match(styles, /--openbitfun-control-chat-composer-compact-gap/);
-  assert.match(styles, /--openbitfun-control-chat-composer-compact-height/);
-  assert.match(styles, /--openbitfun-control-chat-composer-compact-padding-block/);
-  assert.match(styles, /--openbitfun-control-chat-composer-compact-padding-inline/);
-  assert.match(styles, /--openbitfun-control-chat-composer-compact-track-height/);
-  assert.match(styles, /--openbitfun-control-chat-composer-action-icon-size/);
-  assert.match(styles, /--openbitfun-control-chat-composer-control-height/);
-  assert.match(styles, /--openbitfun-space-8/);
-  assert.match(styles, /--openbitfun-control-composer-surface-radius/);
-  assert.match(styles, /--openbitfun-color-surface-panel/);
-  assert.match(styles, /--openbitfun-color-surface-subtle/);
-  assert.match(styles, /--openbitfun-color-surface-raised/);
+  assert.match(styles, /--bitfun-control-height-md/);
+  assert.match(styles, /--bitfun-control-chat-composer-compact-gap/);
+  assert.match(styles, /--bitfun-control-chat-composer-compact-height/);
+  assert.match(styles, /--bitfun-control-chat-composer-compact-padding-block/);
+  assert.match(styles, /--bitfun-control-chat-composer-compact-padding-inline/);
+  assert.match(styles, /--bitfun-control-chat-composer-compact-track-height/);
+  assert.match(styles, /--bitfun-control-chat-composer-action-icon-size/);
+  assert.match(styles, /--bitfun-control-chat-composer-control-height/);
+  assert.match(styles, /--bitfun-space-8/);
+  assert.match(styles, /--bitfun-control-composer-surface-radius/);
+  assert.match(styles, /--bitfun-color-surface-panel/);
+  assert.match(styles, /--bitfun-color-surface-subtle/);
+  assert.match(styles, /--bitfun-color-surface-raised/);
   const contextBackgroundRule = styles.match(
     /\.\w+\[data-has-context=(?:"true"|true)\][^{]*\{[^}]*\}/,
   );
   assert.ok(contextBackgroundRule);
-  assert.match(contextBackgroundRule[0], /background:\s*var\(--openbitfun-color-composer-context-background\)/);
-  assert.match(styles, /--openbitfun-color-composer-border/);
-  assert.match(styles, /--openbitfun-shadow-composer/);
+  assert.match(contextBackgroundRule[0], /background:\s*var\(--bitfun-color-composer-context-background\)/);
+  assert.match(styles, /--bitfun-color-composer-border/);
+  assert.match(styles, /--bitfun-shadow-composer/);
   assert.match(
     styles,
-    /border:\s*var\(--openbitfun-border-width-default\)\s+solid\s+var\(--openbitfun-color-composer-border\)/,
+    /border:\s*var\(--bitfun-border-width-default\)\s+solid\s+var\(--bitfun-color-composer-border\)/,
   );
-  assert.match(styles, /min-block-size:\s*var\(--openbitfun-control-height-md\)/);
+  assert.match(styles, /min-block-size:\s*var\(--bitfun-control-height-md\)/);
   assert.match(styles, /grid-template-areas:\s*"start content end"/);
   assert.match(
     styles,
-    /grid-template-rows:\s*var\(--openbitfun-control-chat-composer-compact-track-height\)/,
+    /grid-template-rows:\s*var\(--bitfun-control-chat-composer-compact-track-height\)/,
   );
   assert.match(styles, /"content content"\s*"start end"/);
   assert.match(
     styles,
-    /\[data-openbitfun-layout=(?:"compact"|compact)\][^{]*\{[^}]*block-size:\s*var\(--openbitfun-control-chat-composer-compact-height\)[^}]*border-radius:\s*var\(--openbitfun-control-composer-surface-radius\)/,
+    /\[data-bitfun-layout=(?:"compact"|compact)\][^{]*\{[^}]*block-size:\s*var\(--bitfun-control-chat-composer-compact-height\)[^}]*border-radius:\s*var\(--bitfun-control-composer-surface-radius\)/,
   );
   assert.match(
     styles,
-    /\[data-openbitfun-layout=(?:"compact"|compact)\][^{]*\.\w+\s*\{[^}]*block-size:\s*var\(--openbitfun-control-chat-composer-compact-track-height\)[^}]*align-self:\s*center/,
+    /\[data-bitfun-layout=(?:"compact"|compact)\][^{]*\.\w+\s*\{[^}]*block-size:\s*var\(--bitfun-control-chat-composer-compact-track-height\)[^}]*align-self:\s*center/,
   );
 });

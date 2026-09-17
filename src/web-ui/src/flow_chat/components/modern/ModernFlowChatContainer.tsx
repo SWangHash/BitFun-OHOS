@@ -201,7 +201,7 @@ const LATEST_TURN_AUTO_PIN_MAX_ATTEMPTS = 8;
 const HISTORY_INITIAL_CONTENT_PAINT_MAX_ATTEMPTS = 30;
 const HISTORY_LOADING_LAYER_STALL_WARN_MS = 800;
 const TURN_PIN_RETRY_MAX_ATTEMPTS = 120;
-const MOCK_BACKGROUND_COMMANDS_STORAGE_KEY = 'openbitfun.flowChat.mockBackgroundCommands';
+const MOCK_BACKGROUND_COMMANDS_STORAGE_KEY = 'bitfun.flowChat.mockBackgroundCommands';
 
 const MOCK_BACKGROUND_COMMANDS: BackgroundCommandSummary[] = [
   {
@@ -2610,8 +2610,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         data-shortcut-scope="chat"
         data-testid="flowchat-container"
         data-session-id={activeSession?.sessionId ?? ''}
-        data-openbitfun-component="modern-flow-chat"
-        data-openbitfun-part="root"
+        data-bitfun-component="modern-flow-chat"
+        data-bitfun-part="root"
       >
         <FlowChatHeader
           visible={virtualItems.length > 0}
@@ -2647,8 +2647,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
         <div
           className="modern-flowchat-container__messages"
           data-testid="flowchat-messages"
-          data-openbitfun-component="modern-flow-chat"
-          data-openbitfun-part="messages"
+          data-bitfun-component="modern-flow-chat"
+          data-bitfun-part="messages"
           data-active-session-id={activeSession?.sessionId ?? ''}
           data-history-state={historyState ?? 'none'}
           data-context-restore-state={activeSession?.contextRestoreState ?? 'none'}
@@ -2729,8 +2729,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                 className="modern-flowchat-container__history-overlay"
                 role="status"
                 aria-label={t('historyState.loadingTitle')}
-                data-openbitfun-component="modern-flow-chat"
-                data-openbitfun-part="historyOverlay"
+                data-bitfun-component="modern-flow-chat"
+                data-bitfun-part="historyOverlay"
               >
                 <HistorySessionPlaceholder
                   state={historyState === 'metadata-only' ? 'metadata-only' : 'hydrating'}
@@ -2740,15 +2740,15 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
             {showHistoryOpenIntentOverlay && (
               <div
                 className="modern-flowchat-container__history-open-intent-shield"
-                data-openbitfun-component="modern-flow-chat"
-                data-openbitfun-part="historyOpenIntent"
+                data-bitfun-component="modern-flow-chat"
+                data-bitfun-part="historyOpenIntent"
                 role="status"
                 aria-label={t('historyState.loadingTitle')}
               >
                 <span
                   className="modern-flowchat-container__history-open-intent-spinner"
-                  data-openbitfun-component="modern-flow-chat"
-                  data-openbitfun-part="historyOpenIntentSpinner"
+                  data-bitfun-component="modern-flow-chat"
+                  data-bitfun-part="historyOpenIntentSpinner"
                   aria-hidden="true"
                 />
               </div>

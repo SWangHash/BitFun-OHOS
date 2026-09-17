@@ -1,22 +1,22 @@
 #![cfg(feature = "mcp")]
 
 use async_trait::async_trait;
-use openbitfun_services_integrations::mcp::auth::rmcp_compat::{
+use bitfun_services_integrations::mcp::auth::rmcp_compat::{
     AuthorizationManager, CredentialStore, StoredCredentials,
 };
-use openbitfun_services_integrations::mcp::auth::{
+use bitfun_services_integrations::mcp::auth::{
     MCPRemoteOAuthCredentialStore, MCPRemoteOAuthCredentialVault, MCPRemoteOAuthSessionSnapshot,
     MCPRemoteOAuthStatus,
 };
-use openbitfun_services_integrations::mcp::config::ConfigLocation;
-use openbitfun_services_integrations::mcp::config::{
+use bitfun_services_integrations::mcp::config::ConfigLocation;
+use bitfun_services_integrations::mcp::config::{
     config_to_cursor_format, format_mcp_json_config_value, get_mcp_remote_authorization_source,
     get_mcp_remote_authorization_value, has_mcp_remote_authorization, has_mcp_remote_oauth,
     has_mcp_remote_xaa, merge_mcp_server_config_sources, normalize_mcp_authorization_value,
     parse_cursor_format, remove_mcp_authorization_keys, validate_mcp_json_config, MCPConfigService,
     MCPConfigStore, MCPImportError, MCPImportServer, MCPImportTransport,
 };
-use openbitfun_services_integrations::mcp::protocol::{
+use bitfun_services_integrations::mcp::protocol::{
     create_initialize_request, create_mcp_client_info, create_ping_request,
     create_tools_call_request, create_tools_list_request, default_protocol_version,
     map_rmcp_initialize_result, map_rmcp_prompt, map_rmcp_prompt_message, map_rmcp_resource,
@@ -25,14 +25,14 @@ use openbitfun_services_integrations::mcp::protocol::{
     MCPRequest, MCPResource, MCPResourceContent, MCPTool, MCPToolAnnotations, MCPToolResult,
     MCPToolResultContent,
 };
-use openbitfun_services_integrations::mcp::server::{
+use bitfun_services_integrations::mcp::server::{
     compute_mcp_backoff_delay, detect_mcp_list_changed_kind, is_mcp_auth_error_message,
     mcp_reconnect_runtime_decision, mcp_server_is_running, mcp_should_start_after_config_update,
     MCPCatalogCache, MCPConnectionPool, MCPListChangedKind, MCPProcessStartContext,
     MCPReconnectRuntimeDecision, MCPRuntimeErrorKind, MCPRuntimeResult, MCPServerConfig,
     MCPServerRuntimeState, MCPServerStatus, MCPServerTimeouts, MCPServerTransport, MCPServerType,
 };
-use openbitfun_services_integrations::mcp::{
+use bitfun_services_integrations::mcp::{
     build_mcp_tool_descriptor, build_mcp_tool_name, normalize_name_for_mcp,
     render_mcp_tool_result_for_assistant, MCPContextEnhancer, MCPContextEnhancerConfig,
     MCPDynamicToolProvider, MCPToolCatalogClient, McpDynamicToolDescriptor, McpToolInfo,
@@ -125,7 +125,7 @@ struct FailingMCPConfigStore;
 impl MCPConfigStore for FailingMCPConfigStore {
     async fn get_config_value(&self, key: &str) -> MCPRuntimeResult<Option<serde_json::Value>> {
         Err(
-            openbitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
+            bitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
                 "backend unavailable for {key}"
             )),
         )
@@ -133,7 +133,7 @@ impl MCPConfigStore for FailingMCPConfigStore {
 
     async fn set_config_value(&self, key: &str, _value: serde_json::Value) -> MCPRuntimeResult<()> {
         Err(
-            openbitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
+            bitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
                 "backend unavailable for {key}"
             )),
         )
@@ -146,7 +146,7 @@ impl MCPConfigStore for FailingMCPConfigStore {
         _replacement: serde_json::Value,
     ) -> MCPRuntimeResult<bool> {
         Err(
-            openbitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
+            bitfun_services_integrations::mcp::MCPRuntimeError::configuration(format!(
                 "backend unavailable for {key}"
             )),
         )
@@ -254,9 +254,9 @@ fn mcp_server_timeout_config_is_optional_positive_milliseconds() {
 
 #[test]
 fn mcp_remote_client_info_declares_supported_client_capabilities() {
-    let info = create_mcp_client_info("OpenBitFun", "1.0.0");
+    let info = create_mcp_client_info("BitFun", "1.0.0");
 
-    assert_eq!(info.client_info.name, "OpenBitFun");
+    assert_eq!(info.client_info.name, "BitFun");
     assert_eq!(info.client_info.version, "1.0.0");
     assert!(info.capabilities.roots.is_some());
     assert!(info.capabilities.sampling.is_some());
@@ -567,7 +567,7 @@ fn mcp_protocol_jsonrpc_helpers_preserve_wire_shape() {
 #[test]
 fn mcp_protocol_request_builders_preserve_wire_shape() {
     assert_eq!(
-        serde_json::to_value(create_initialize_request(9, "OpenBitFun", "1.0.0")).unwrap(),
+        serde_json::to_value(create_initialize_request(9, "BitFun", "1.0.0")).unwrap(),
         serde_json::json!({
             "jsonrpc": "2.0",
             "id": 9,
@@ -587,10 +587,10 @@ fn mcp_protocol_request_builders_preserve_wire_shape() {
                     }
                 },
                 "clientInfo": {
-                    "name": "OpenBitFun",
+                    "name": "BitFun",
                     "version": "1.0.0",
-                    "description": "OpenBitFun MCP Client",
-                    "vendor": "OpenBitFun"
+                    "description": "BitFun MCP Client",
+                    "vendor": "BitFun"
                 }
             }
         })
@@ -1089,7 +1089,7 @@ async fn external_mcp_import_options_survive_load_save_and_legacy_round_trip() {
     let service = MCPConfigService::new(store.clone());
     let directory = tempfile::tempdir().unwrap();
     let cwd = directory.path().to_string_lossy().into_owned();
-    let timeouts = openbitfun_services_integrations::mcp::MCPServerTimeouts {
+    let timeouts = bitfun_services_integrations::mcp::MCPServerTimeouts {
         startup_ms: Some(1250),
         catalog_ms: Some(2500),
         execution_ms: Some(60_000),
@@ -1150,7 +1150,7 @@ async fn external_mcp_import_options_survive_load_save_and_legacy_round_trip() {
         assert_eq!(loaded.timeouts, timeouts);
         assert_eq!(loaded.env, config.env);
         assert_eq!(loaded.headers, config.headers);
-        assert_eq!(loaded.settings["_openbitfunImport"]["sourceId"], "codex");
+        assert_eq!(loaded.settings["_bitfunImport"]["sourceId"], "codex");
         if id == "local" {
             assert_eq!(
                 loaded.env.get("TOKEN").map(String::as_str),
@@ -1231,10 +1231,10 @@ async fn external_mcp_import_is_atomic_disabled_and_idempotence_visible() {
     assert_eq!(stored["mcpServers"]["docs"]["enabled"], false);
     assert_eq!(stored["mcpServers"]["docs"]["autoStart"], false);
     assert_eq!(
-        stored["mcpServers"]["docs"]["_openbitfunImport"]["sourceCandidateId"],
+        stored["mcpServers"]["docs"]["_bitfunImport"]["sourceCandidateId"],
         "opencode:mcp:docs"
     );
-    assert!(stored.get("_openbitfunImportJournal").is_none());
+    assert!(stored.get("_bitfunImportJournal").is_none());
 
     let refreshed = service.user_import_snapshot().await.unwrap();
     assert_eq!(refreshed.imports.len(), 1);
@@ -2056,7 +2056,7 @@ async fn mcp_oauth_credential_vault_uses_injected_data_dir_and_roundtrips_creden
         .unwrap()
         .as_nanos();
     let data_dir = std::env::temp_dir().join(format!(
-        "openbitfun-mcp-oauth-vault-contract-{}-{}",
+        "bitfun-mcp-oauth-vault-contract-{}-{}",
         std::process::id(),
         unique
     ));

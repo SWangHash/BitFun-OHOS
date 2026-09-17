@@ -43,8 +43,8 @@ async function readButtonSpacing(selector: string): Promise<ButtonSpacing | null
       + Number.parseFloat(styles.borderRightWidth);
 
     return {
-      component: button.getAttribute('data-openbitfun-component'),
-      variant: button.getAttribute('data-openbitfun-variant'),
+      component: button.getAttribute('data-bitfun-component'),
+      variant: button.getAttribute('data-bitfun-variant'),
       size: button.getAttribute('data-size'),
       paddingLeft: styles.paddingLeft,
       paddingRight: styles.paddingRight,
@@ -82,9 +82,9 @@ describe('L0 design-system Button integration', () => {
     expectSmallFilledButton(newAgentSpacing);
 
     await $('[data-testid="skill-tab"]').click();
-    await waitForDisplayed('[data-openbitfun-scene="skills"][data-openbitfun-part="root"]');
+    await waitForDisplayed('[data-bitfun-scene="skills"][data-bitfun-part="root"]');
     const allSkillsCategory = await waitForDisplayed(
-      '[data-openbitfun-scene="skills"][data-openbitfun-part="sidebarItem"][data-openbitfun-category="all"]',
+      '[data-bitfun-scene="skills"][data-bitfun-part="sidebarItem"][data-bitfun-category="all"]',
     );
     await allSkillsCategory.click();
     await waitForDisplayed('[data-testid="skills-add-skill-btn"]');

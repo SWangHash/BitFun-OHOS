@@ -39,11 +39,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@openbitfun/ui', async (importOriginal) => ({
-  NavigationPanelItem: (await importOriginal<typeof import('@openbitfun/ui')>()).NavigationPanelItem,
-  DialogHeaderActions: (await importOriginal<typeof import('@openbitfun/ui')>()).DialogHeaderActions,
-  Empty: (await importOriginal<typeof import('@openbitfun/ui')>()).Empty,
-  Disclosure: (await importOriginal<typeof import('@openbitfun/ui')>()).Disclosure,
+vi.mock('@bitfun/ui', async (importOriginal) => ({
+  NavigationPanelItem: (await importOriginal<typeof import('@bitfun/ui')>()).NavigationPanelItem,
+  DialogHeaderActions: (await importOriginal<typeof import('@bitfun/ui')>()).DialogHeaderActions,
+  Empty: (await importOriginal<typeof import('@bitfun/ui')>()).Empty,
+  Disclosure: (await importOriginal<typeof import('@bitfun/ui')>()).Disclosure,
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   OverflowText: ({ children, behavior: _behavior, marqueeActive: _marqueeActive, ...props }: any) => <span {...props}>{children}</span>,
@@ -167,10 +167,10 @@ const summary = {
   mode: 'dark',
   packageVersion: '2.0.0',
   latestRelease: 2,
-  minOpenBitFunVersion: '1.0.0',
+  minBitFunVersion: '1.0.0',
   requiredCapabilities: ['components.v1'],
   owner: { githubId: 1, login: 'studio', avatarUrl: '' },
-  previewUrl: `https://market.openbitfun.com/skin/api/v1/artifacts/previews/${'a'.repeat(64)}`,
+  previewUrl: `https://market.bitfun.com/skin/api/v1/artifacts/previews/${'a'.repeat(64)}`,
   downloadCount: 10,
   publishedAt: 1,
 } as const;
@@ -180,7 +180,7 @@ const release = {
   listingId: 'listing-1',
   releaseNumber: 2,
   packageVersion: '2.0.0',
-  minOpenBitFunVersion: '1.0.0',
+  minBitFunVersion: '1.0.0',
   packageSha256: 'a'.repeat(64),
   packageSize: 100,
   reviewBundleHash: 'b'.repeat(64),
@@ -208,7 +208,7 @@ describe('AppearanceMarketDialog', () => {
     mocks.downloadRelease.mockReset().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer);
     mocks.listSubmissions.mockReset().mockResolvedValue([]);
     mocks.chooseSubmissionPackage.mockReset()
-      .mockResolvedValue('/tmp/ocean-night.openbitfun-appearance');
+      .mockResolvedValue('/tmp/ocean-night.bitfun-appearance');
     mocks.submitPackage.mockReset().mockResolvedValue({
       submissionId: 'submission-upload',
       slug: 'ocean-night',
@@ -218,7 +218,7 @@ describe('AppearanceMarketDialog', () => {
       description: 'A calm blue appearance',
       mode: 'dark',
       packageVersion: '1.0.0',
-      minOpenBitFunVersion: '1.0.0',
+      minBitFunVersion: '1.0.0',
       requiredCapabilities: [],
       changelog: 'Initial release.',
       license: { spdxExpression: 'MIT' },
@@ -265,7 +265,7 @@ describe('AppearanceMarketDialog', () => {
     expect(container.querySelector('[data-testid="shared-market-account-controls"]')).not.toBeNull();
     expect(container.querySelector('h2')?.textContent).toBe('package.market.title');
     const accountControls = container.querySelector('[data-testid="shared-market-account-controls"]')!;
-    const headerActions = accountControls.closest('[data-openbitfun-part="header-actions"]');
+    const headerActions = accountControls.closest('[data-bitfun-part="header-actions"]');
     expect(headerActions).not.toBeNull();
     expect(headerActions?.querySelector('button[aria-label="Close"]')).not.toBeNull();
     expect(container.textContent).toContain('package.market.updateAvailable');
@@ -303,7 +303,7 @@ describe('AppearanceMarketDialog', () => {
     expect(container.textContent).toContain('package.market.noAutoApply');
     const browse = container.querySelector<HTMLButtonElement>('.appearance-market__nav [aria-current="page"]')!;
     expect(browse.textContent).toBe('package.market.views.browse');
-    await act(async () => browse.querySelector<HTMLElement>('[data-openbitfun-part="label"]')!.click());
+    await act(async () => browse.querySelector<HTMLElement>('[data-bitfun-part="label"]')!.click());
     expect(container.querySelector('.appearance-market__detail')).toBeNull();
     expect(container.querySelector('.appearance-market__browse')).not.toBeNull();
   });
@@ -393,7 +393,7 @@ describe('AppearanceMarketDialog', () => {
       description: 'Candidate package',
       mode: 'dark',
       packageVersion: '2.0.0',
-      minOpenBitFunVersion: '1.0.0',
+      minBitFunVersion: '1.0.0',
       requiredCapabilities: ['components.v1'],
       changelog: 'More polished',
       license: { spdxExpression: 'MIT' },
@@ -418,7 +418,7 @@ describe('AppearanceMarketDialog', () => {
 
     const submissionsTab = [...container.querySelectorAll('button')]
       .find(button => button.textContent === 'package.market.views.submissions');
-    await act(async () => submissionsTab?.querySelector<HTMLElement>('[data-openbitfun-part="label"]')?.click());
+    await act(async () => submissionsTab?.querySelector<HTMLElement>('[data-bitfun-part="label"]')?.click());
     await vi.waitFor(() => expect(container.textContent).toContain('Tokyo Night candidate'));
     expect(mocks.listSubmissions).toHaveBeenCalledOnce();
     expect(submissionsTab?.getAttribute('aria-current')).toBe('page');
@@ -434,7 +434,7 @@ describe('AppearanceMarketDialog', () => {
     expect(container.textContent).toContain('package.market.review.approve');
     expect(container.textContent).toContain('package.market.review.reject');
     const manifest = container.querySelector<HTMLDetailsElement>('.appearance-market__review-manifest')!;
-    expect(manifest.getAttribute('data-openbitfun-component')).toBe('disclosure');
+    expect(manifest.getAttribute('data-bitfun-component')).toBe('disclosure');
     expect(manifest.open).toBe(false);
     const preview = manifest.querySelector('pre')!;
     expect(JSON.parse(preview.textContent!)).toEqual({ id: 'community.tokyo-night' });
@@ -460,7 +460,7 @@ describe('AppearanceMarketDialog', () => {
     const nav = container.querySelector('nav')!;
     const buttons = nav.querySelectorAll('button');
     expect(buttons).toHaveLength(count);
-    expect(nav.querySelectorAll('[data-openbitfun-component="action-item"]')).toHaveLength(count);
+    expect(nav.querySelectorAll('[data-bitfun-component="action-item"]')).toHaveLength(count);
     expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(nav.querySelector('[role="tab"]')).toBeNull();
     expect(nav.querySelector('[data-overflow-behavior]')).toBeNull();
@@ -492,7 +492,7 @@ describe('AppearanceMarketDialog', () => {
       slug: 'unpublished-skin',
       releaseNumber: 1,
       name: 'Unpublished Skin',
-      minOpenBitFunVersion: '1.0.0',
+      minBitFunVersion: '1.0.0',
       requiredCapabilities: [],
       changelog: 'Initial release',
       license: { spdxExpression: 'MIT' },
@@ -555,9 +555,9 @@ describe('AppearanceMarketDialog', () => {
     await act(async () => submitButton?.click());
 
     await vi.waitFor(() => expect(mocks.submitPackage).toHaveBeenCalledWith({
-      packagePath: '/tmp/ocean-night.openbitfun-appearance',
+      packagePath: '/tmp/ocean-night.bitfun-appearance',
       slug: undefined,
-      minOpenBitFunVersion: '1.0.0',
+      minBitFunVersion: '1.0.0',
       changelog: undefined,
       license: { spdxExpression: 'MIT' },
       repositoryUrl: undefined,

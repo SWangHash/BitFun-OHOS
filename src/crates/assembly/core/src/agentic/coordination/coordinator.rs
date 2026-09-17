@@ -89,25 +89,25 @@ use crate::service::workspace::{
     WorkspaceKind, WorkspaceService,
 };
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use dashmap::DashMap;
 use log::{debug, error, info, warn};
-use openbitfun_agent_runtime::deep_review::FocusedReviewAssignment;
-use openbitfun_agent_runtime::output_surface::{
+use bitfun_agent_runtime::deep_review::FocusedReviewAssignment;
+use bitfun_agent_runtime::output_surface::{
     supports_inline_markdown_images_for_source, TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY,
 };
-use openbitfun_agent_runtime::permission::{
+use bitfun_agent_runtime::permission::{
     AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY,
 };
-use openbitfun_agent_runtime::remote_file_delivery::{
+use bitfun_agent_runtime::remote_file_delivery::{
     needs_computer_links_for_source, remote_file_delivery_reminder,
     TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
 };
-use openbitfun_agent_runtime::sdk::PermissionReply;
-use openbitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
-use openbitfun_events::{ToolEventData, ToolEventIdentity};
-use openbitfun_product_domains::external_sources::EcosystemId;
-use openbitfun_runtime_ports::{
+use bitfun_agent_runtime::sdk::PermissionReply;
+use bitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
+use bitfun_events::{ToolEventData, ToolEventIdentity};
+use bitfun_product_domains::external_sources::EcosystemId;
+use bitfun_runtime_ports::{
     agent_workspace_references_from_metadata, resolve_permission_mode,
     AgentMessageWorkspaceReferencesRequest, AgentSessionComposerUpdate,
     AgentSessionWorkspaceBinding, AgentThreadGoalDeliveryKind, AgentThreadGoalDeliveryRequest,
@@ -119,8 +119,8 @@ use openbitfun_runtime_ports::{
     SessionStoragePathResolution, SessionStorePort, SubagentContextMode, TerminalPort, ThreadGoal,
     ThreadGoalContinuationPlan, ThreadGoalStatus, OUTPUT_SCHEMA_CONTEXT_KEY,
 };
-use openbitfun_services_core::filesystem::{FileSearchOptions, FileSystemService, FileTreeNode};
-use openbitfun_services_core::workspace_text::{
+use bitfun_services_core::filesystem::{FileSearchOptions, FileSystemService, FileTreeNode};
+use bitfun_services_core::workspace_text::{
     normalize_workspace_relative_path, resolve_workspace_relative_entry, WorkspaceEntryKind,
     WorkspaceTextReadError,
 };
@@ -248,7 +248,7 @@ tokio::task_local! {
     static TEST_AGENT_MODEL_DEFAULTS: AgentModelDefaultsConfig;
 }
 
-async fn normalize_model_selection(model_id: &str) -> OpenBitFunResult<String> {
+async fn normalize_model_selection(model_id: &str) -> BitFunResult<String> {
     let requested_model_id = model_id.trim();
     match requested_model_id {
         // Upgrade-only compatibility for clients predating removal of the
@@ -257,7 +257,7 @@ async fn normalize_model_selection(model_id: &str) -> OpenBitFunResult<String> {
         "primary" | "fast" => Ok(requested_model_id.to_string()),
         model_config_id => {
             let config_service = get_global_config_service().await.map_err(|error| {
-                OpenBitFunError::AIClient(format!(
+                BitFunError::AIClient(format!(
                     "Failed to load AI configuration for model update: {error}"
                 ))
             })?;
@@ -265,14 +265,14 @@ async fn normalize_model_selection(model_id: &str) -> OpenBitFunResult<String> {
                 .get_config(Some("ai"))
                 .await
                 .map_err(|error| {
-                    OpenBitFunError::AIClient(format!(
+                    BitFunError::AIClient(format!(
                         "Failed to read AI configuration for model update: {error}"
                     ))
                 })?;
             ai_config
                 .resolve_model_reference(model_config_id)
                 .ok_or_else(|| {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "Unknown or disabled model configuration ID: {model_config_id}"
                     ))
                 })
@@ -284,7 +284,7 @@ fn resolve_approved_immutable_model_binding(
     binding: &ExternalSubagentModelBinding,
     parent_model_selection: Option<&str>,
     ai_config: &AIConfig,
-) -> OpenBitFunResult<(String, String)> {
+) -> BitFunResult<(String, String)> {
     let (model_id, expected_fingerprint) = match binding {
         ExternalSubagentModelBinding::Fixed {
             model_id,
@@ -295,7 +295,7 @@ fn resolve_approved_immutable_model_binding(
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .ok_or_else(|| {
-                    OpenBitFunError::Validation(
+                    BitFunError::Validation(
                         "Approved inherited subagent model has no parent model selection"
                             .to_string(),
                     )
@@ -304,7 +304,7 @@ fn resolve_approved_immutable_model_binding(
                 ai_config
                     .resolve_model_selection(parent_model_selection)
                     .ok_or_else(|| {
-                        OpenBitFunError::Validation(format!(
+                        BitFunError::Validation(format!(
                             "Parent model selection is unknown or disabled: {parent_model_selection}"
                         ))
                     })?,
@@ -317,13 +317,13 @@ fn resolve_approved_immutable_model_binding(
         .iter()
         .find(|model| model.enabled && model.id == model_id)
         .ok_or_else(|| {
-            OpenBitFunError::Validation(format!(
+            BitFunError::Validation(format!(
                 "Approved subagent model configuration is unknown or disabled: {model_id}"
             ))
         })?;
     let fingerprint = model_runtime_binding_fingerprint(model);
     if expected_fingerprint.is_some_and(|expected| expected != fingerprint) {
-        return Err(OpenBitFunError::Validation(
+        return Err(BitFunError::Validation(
             "Approved subagent model configuration changed; review the external agent again"
                 .to_string(),
         ));
@@ -358,17 +358,17 @@ fn resolve_subagent_model_selection(
     explicit_model_id: Option<&str>,
     configured_selection: &SubagentModelSelection,
     parent_model_id: Option<&str>,
-) -> OpenBitFunResult<String> {
+) -> BitFunResult<String> {
     if let Some(model_id) = trimmed_model_id(explicit_model_id) {
         return Ok(model_id);
     }
 
     match configured_selection {
         SubagentModelSelection::Fixed { model_id } => trimmed_model_id(Some(model_id)).ok_or_else(|| {
-            OpenBitFunError::Validation("Configured subagent model must not be empty".to_string())
+            BitFunError::Validation("Configured subagent model must not be empty".to_string())
         }),
         SubagentModelSelection::Inherit => trimmed_model_id(parent_model_id).ok_or_else(|| {
-            OpenBitFunError::Validation(
+            BitFunError::Validation(
                 "Subagent model is configured to inherit, but the parent session has no model selection"
                     .to_string(),
             )
@@ -801,7 +801,7 @@ impl HiddenSubagentExecutionRequest {
     }
 }
 
-pub use openbitfun_runtime_ports::DialogTriggerSource;
+pub use bitfun_runtime_ports::DialogTriggerSource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssistantBootstrapSkipReason {
@@ -849,7 +849,7 @@ struct SessionExecutionLease {
 
 struct ManualCompactionTask {
     turn_id: String,
-    completion: oneshot::Receiver<OpenBitFunResult<()>>,
+    completion: oneshot::Receiver<BitFunResult<()>>,
 }
 
 struct ManualCompactionControlGuard {
@@ -1025,19 +1025,19 @@ fn normalize_subagent_max_concurrency(raw: usize) -> usize {
 fn delegation_policy_for_agent_turn(
     agent_type: &str,
     swarm_depth: Option<u8>,
-) -> OpenBitFunResult<DelegationPolicy> {
+) -> BitFunResult<DelegationPolicy> {
     match agent_type {
         "Ultimate" => Ok(DelegationPolicy::swarm_root()),
         "SwarmPlanner" => {
             let nesting_depth = swarm_depth.ok_or_else(|| {
-                OpenBitFunError::tool(
+                BitFunError::tool(
                     "SwarmPlanner session is missing its persisted tree node".to_string(),
                 )
             })?;
             Ok(DelegationPolicy {
                 allow_subagent_spawn: true,
                 nesting_depth,
-                scope: openbitfun_runtime_ports::DelegationScope::Swarm,
+                scope: bitfun_runtime_ports::DelegationScope::Swarm,
             })
         }
         _ => Ok(DelegationPolicy::top_level()),
@@ -1139,14 +1139,14 @@ fn lineage_session_is_settling_without_active_state(
 pub(crate) fn validate_required_lineage_turns_settled(
     turns: &[DialogTurnData],
     required_settled_turn_ids: &[String],
-) -> openbitfun_runtime_ports::PortResult<()> {
+) -> bitfun_runtime_ports::PortResult<()> {
     for required_turn_id in required_settled_turn_ids {
         let settled = turns
             .iter()
             .any(|turn| turn.turn_id == *required_turn_id && turn.status != TurnStatus::InProgress);
         if !settled {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                 format!(
                     "Required terminal Turn is not yet durable in the authoritative transcript: turn_id={required_turn_id}"
                 ),
@@ -1157,11 +1157,11 @@ pub(crate) fn validate_required_lineage_turns_settled(
 }
 
 fn lineage_post_admission_cancellation_error(
-    error: OpenBitFunError,
+    error: BitFunError,
     session_id: &str,
     turn_id: &str,
-) -> OpenBitFunError {
-    OpenBitFunError::OutcomeUnknown(format!(
+) -> BitFunError {
+    BitFunError::OutcomeUnknown(format!(
         "Subagent cancellation was admitted, but its final outcome was not confirmed: session_id={session_id}, turn_id={turn_id}; {error}"
     ))
 }
@@ -1268,7 +1268,7 @@ pub struct ConversationCoordinator {
     thread_goal_runtime: Arc<ThreadGoalRuntime>,
     terminal_port: OnceLock<Arc<dyn TerminalPort>>,
     remote_exec_port: OnceLock<Arc<dyn RemoteExecPort>>,
-    hook_registry: openbitfun_agent_runtime::native_hooks::RuntimeHookRegistry,
+    hook_registry: bitfun_agent_runtime::native_hooks::RuntimeHookRegistry,
 }
 
 impl ConversationCoordinator {
@@ -1557,7 +1557,7 @@ impl ConversationCoordinator {
     /// to the controller filesystem for a remote session.
     pub(crate) async fn build_workspace_services(
         binding: &Option<WorkspaceBinding>,
-    ) -> OpenBitFunResult<Option<crate::agentic::workspace::WorkspaceServices>> {
+    ) -> BitFunResult<Option<crate::agentic::workspace::WorkspaceServices>> {
         let Some(binding) = binding.as_ref() else {
             return Ok(None);
         };
@@ -1569,7 +1569,7 @@ impl ConversationCoordinator {
         }
 
         let connection_id = binding.connection_id().ok_or_else(|| {
-            OpenBitFunError::service(format!(
+            BitFunError::service(format!(
                 "Remote workspace services are unavailable for {}: the workspace binding has no connection id; no local fallback was attempted",
                 binding.root_path_string()
             ))
@@ -1577,15 +1577,15 @@ impl ConversationCoordinator {
 
         #[cfg(not(feature = "remote-workspace"))]
         {
-            Err(OpenBitFunError::NotImplemented(format!(
-                "Remote workspace services are unavailable for connection {connection_id}: remote workspaces are not compiled into this OpenBitFun host (feature `remote-workspace`); no local fallback was attempted"
+            Err(BitFunError::NotImplemented(format!(
+                "Remote workspace services are unavailable for connection {connection_id}: remote workspaces are not compiled into this BitFun host (feature `remote-workspace`); no local fallback was attempted"
             )))
         }
 
         #[cfg(feature = "remote-workspace")]
         {
             let unavailable = |reason: &str| {
-                OpenBitFunError::service(format!(
+                BitFunError::service(format!(
                     "Remote workspace services are unavailable for connection {connection_id}: {reason}; no local fallback was attempted"
                 ))
             };
@@ -1617,7 +1617,7 @@ impl ConversationCoordinator {
         if agent_type.trim().is_empty() {
             "Standard".to_string()
         } else {
-            openbitfun_core_types::agent_identity::canonical_agent_id(agent_type.trim()).to_string()
+            bitfun_core_types::agent_identity::canonical_agent_id(agent_type.trim()).to_string()
         }
     }
 
@@ -1627,7 +1627,7 @@ impl ConversationCoordinator {
         external_sources_supported: bool,
         expected_owner: Option<SessionAgentRouteOwner>,
         expected_route_key: Option<&str>,
-    ) -> OpenBitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
+    ) -> BitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
         let external_sources_supported =
             cfg!(feature = "external-sources") && external_sources_supported;
         let registry = get_agent_registry();
@@ -1642,7 +1642,7 @@ impl ConversationCoordinator {
 
         if !external_sources_supported {
             return local_binding.ok_or_else(|| {
-                OpenBitFunError::Validation(format!("Unknown session mode: {agent_type}"))
+                BitFunError::Validation(format!("Unknown session mode: {agent_type}"))
             });
         }
 
@@ -1668,7 +1668,7 @@ impl ConversationCoordinator {
             if expected_owner == Some(SessionAgentRouteOwner::External)
                 || registry.is_external_subagent_route(agent_type, workspace_root)
             {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "candidate_unavailable: external main agent {agent_type} could not be refreshed"
                 )));
             }
@@ -1680,7 +1680,7 @@ impl ConversationCoordinator {
                 );
                 return Ok(local_binding);
             }
-            return Err(OpenBitFunError::Service(format!(
+            return Err(BitFunError::Service(format!(
                 "External agent source discovery failed: {error}"
             )));
         }
@@ -1697,11 +1697,11 @@ impl ConversationCoordinator {
                 if expected_owner == Some(SessionAgentRouteOwner::External)
                     || registry.is_external_subagent_route(agent_type, workspace_root)
                 {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "candidate_unavailable: external main agent {agent_type} changed before the turn could start"
                     ))
                 } else {
-                    OpenBitFunError::Validation(format!("Unknown session mode: {agent_type}"))
+                    BitFunError::Validation(format!("Unknown session mode: {agent_type}"))
                 }
             })
     }
@@ -1710,7 +1710,7 @@ impl ConversationCoordinator {
         session: &Session,
         agent_type: &str,
         workspace: &Option<WorkspaceBinding>,
-    ) -> OpenBitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
+    ) -> BitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
         let workspace_root =
             crate::agentic::workspace::session_execution_workspace_root(&session.config);
         let external_sources_supported = workspace
@@ -1758,7 +1758,7 @@ impl ConversationCoordinator {
 
     fn session_reference_locators_from_metadata(
         metadata: Option<&serde_json::Value>,
-    ) -> OpenBitFunResult<Vec<SessionReferenceLocator>> {
+    ) -> BitFunResult<Vec<SessionReferenceLocator>> {
         let Some(value) = metadata
             .and_then(serde_json::Value::as_object)
             .and_then(|object| object.get(SESSION_REFERENCES_METADATA_KEY))
@@ -1768,13 +1768,13 @@ impl ConversationCoordinator {
 
         let references = serde_json::from_value::<Vec<SessionReferenceLocator>>(value.clone())
             .map_err(|error| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Invalid session reference metadata: {}",
                     error
                 ))
             })?;
         if references.len() > MAX_SESSION_REFERENCES_PER_TURN {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "A message can reference at most {} sessions",
                 MAX_SESSION_REFERENCES_PER_TURN
             )));
@@ -1784,37 +1784,37 @@ impl ConversationCoordinator {
 
     fn workspace_references_from_metadata(
         metadata: Option<&serde_json::Value>,
-    ) -> OpenBitFunResult<Vec<AgentWorkspaceReference>> {
+    ) -> BitFunResult<Vec<AgentWorkspaceReference>> {
         let Some(object) = metadata.and_then(serde_json::Value::as_object) else {
             return Ok(Vec::new());
         };
         agent_workspace_references_from_metadata(object)
-            .map_err(|error| OpenBitFunError::Validation(error.message))
+            .map_err(|error| BitFunError::Validation(error.message))
     }
 
     fn validate_workspace_reference_source(
         input: &str,
         reference: &AgentWorkspaceReference,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let chars = input.chars().collect::<Vec<_>>();
         let start = reference.source.start;
         let end = reference.source.end;
         if start >= end || end > chars.len() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Workspace reference source range is outside the submitted message".to_string(),
             ));
         }
         if (start > 0 && !chars[start - 1].is_whitespace())
             || (end < chars.len() && !chars[end].is_whitespace())
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Workspace reference source must be bounded by whitespace or the message boundary"
                     .to_string(),
             ));
         }
         let selected = chars[start..end].iter().collect::<String>();
         if selected != reference.source.value {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Workspace reference source no longer matches the submitted message".to_string(),
             ));
         }
@@ -1823,13 +1823,13 @@ impl ConversationCoordinator {
             (Some(start), None) => format!("@{}#{}", reference.path, start),
             (Some(start), Some(end)) => format!("@{}#{}-{}", reference.path, start, end),
             (None, Some(_)) => {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Workspace reference end line requires a start line".to_string(),
                 ))
             }
         };
         if selected != expected {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Workspace reference text does not match its structured path".to_string(),
             ));
         }
@@ -1841,7 +1841,7 @@ impl ConversationCoordinator {
         session_id: &str,
         input: &str,
         metadata: Option<&serde_json::Value>,
-    ) -> OpenBitFunResult<Vec<Message>> {
+    ) -> BitFunResult<Vec<Message>> {
         let references = Self::workspace_references_from_metadata(metadata)?;
         if references.is_empty() {
             return Ok(Vec::new());
@@ -1851,12 +1851,12 @@ impl ConversationCoordinator {
             .resolve_session_workspace_binding(session_id)
             .await
             .ok_or_else(|| {
-                OpenBitFunError::Validation(
+                BitFunError::Validation(
                     "Workspace references require an authoritative session workspace".to_string(),
                 )
             })?;
         if binding.is_remote() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Workspace references are unavailable for remote workspaces".to_string(),
             ));
         }
@@ -1865,34 +1865,34 @@ impl ConversationCoordinator {
         for reference in &references {
             Self::validate_workspace_reference_source(input, reference)?;
             let normalized = normalize_workspace_relative_path(&reference.path)
-                .map_err(|error| OpenBitFunError::Validation(error.to_string()))?;
+                .map_err(|error| BitFunError::Validation(error.to_string()))?;
             if normalized != reference.path {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Workspace reference paths must use normalized forward slashes".to_string(),
                 ));
             }
             let entry = resolve_workspace_relative_entry(binding.root_path(), &normalized)
                 .await
-                .map_err(|error| OpenBitFunError::Validation(error.to_string()))?;
+                .map_err(|error| BitFunError::Validation(error.to_string()))?;
             let expected_kind = match entry.kind {
                 WorkspaceEntryKind::File => AgentWorkspaceReferenceKind::File,
                 WorkspaceEntryKind::Directory => AgentWorkspaceReferenceKind::Directory,
             };
             if reference.kind != expected_kind {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Workspace reference kind does not match the selected path".to_string(),
                 ));
             }
             if reference.kind == AgentWorkspaceReferenceKind::Directory
                 && (reference.start_line.is_some() || reference.end_line.is_some())
             {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Directory references do not accept line ranges".to_string(),
                 ));
             }
             if let Some(start) = reference.start_line {
                 if start == 0 || reference.end_line.is_some_and(|end| end < start) {
-                    return Err(OpenBitFunError::Validation(
+                    return Err(BitFunError::Validation(
                         "Workspace reference line range is invalid".to_string(),
                     ));
                 }
@@ -1976,7 +1976,7 @@ impl ConversationCoordinator {
         &self,
         source_session_id: &str,
         metadata: Option<&serde_json::Value>,
-    ) -> OpenBitFunResult<Vec<Message>> {
+    ) -> BitFunResult<Vec<Message>> {
         let references = Self::session_reference_locators_from_metadata(metadata)?;
         if references.is_empty() {
             return Ok(Vec::new());
@@ -1987,7 +1987,7 @@ impl ConversationCoordinator {
         for (reference, artifact_stem) in references.into_iter().zip(artifact_stems) {
             if let Some(scheduler) = get_global_scheduler() {
                 if scheduler.is_session_busy_or_queued(&reference.session_id) {
-                    return Err(OpenBitFunError::Validation(format!(
+                    return Err(BitFunError::Validation(format!(
                         "Referenced session is busy or has queued work: {}",
                         reference.session_id
                     )));
@@ -2052,7 +2052,7 @@ impl ConversationCoordinator {
     async fn restore_path_for_existing_session(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<PathBuf> {
+    ) -> BitFunResult<PathBuf> {
         if let Some(binding) = self
             .session_manager
             .resolve_session_workspace_binding(session_id)
@@ -2065,7 +2065,7 @@ impl ConversationCoordinator {
             .session_manager
             .get_session(session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Session not found: {}", session_id))
+                BitFunError::NotFound(format!("Session not found: {}", session_id))
             })?;
         session
             .config
@@ -2073,7 +2073,7 @@ impl ConversationCoordinator {
             .as_deref()
             .map(PathBuf::from)
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "workspace_path is required when restoring session: {}",
                     session_id
                 ))
@@ -2342,7 +2342,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 
     pub(crate) fn hook_registry(
         &self,
-    ) -> &openbitfun_agent_runtime::native_hooks::RuntimeHookRegistry {
+    ) -> &bitfun_agent_runtime::native_hooks::RuntimeHookRegistry {
         &self.hook_registry
     }
 
@@ -2351,10 +2351,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.runtime_ownership
             .ensure_workspace_scope(workspace_path, remote_connection_id, remote_ssh_host)
-            .map_err(|error| OpenBitFunError::Service(self.runtime_ownership.error_message(&error)))
+            .map_err(|error| BitFunError::Service(self.runtime_ownership.error_message(&error)))
     }
 
     /// Ensures that this process may attach or mutate one workspace Runtime.
@@ -2363,7 +2363,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.ensure_runtime_ownership(workspace_path, remote_connection_id, remote_ssh_host)
     }
 
@@ -2374,11 +2374,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         remote_connection_id: &str,
         remote_ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.runtime_ownership
             .register_verified_remote_scope(workspace_path, remote_connection_id, remote_ssh_host)
             .map_err(|error| {
-                OpenBitFunError::Service(self.runtime_ownership.error_message(&error))
+                BitFunError::Service(self.runtime_ownership.error_message(&error))
             })?;
         self.ensure_runtime_ownership(workspace_path, Some(remote_connection_id), remote_ssh_host)
     }
@@ -2391,7 +2391,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         connection_id: &str,
         ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let known = workspace_service
             .find_known_remote_workspace_for_path(
                 &workspace_path.to_string_lossy(),
@@ -2406,7 +2406,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             == Some(requested_host)
                     })
             })
-            .ok_or_else(|| OpenBitFunError::service(format!(
+            .ok_or_else(|| BitFunError::service(format!(
                 "Remote workspace ownership is unavailable: the saved workspace does not match connection '{connection_id}' at {}",
                 workspace_path.display()
             )))?;
@@ -2431,7 +2431,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
         snapshot_log_context: &str,
-    ) -> OpenBitFunResult<WorkspaceInfo> {
+    ) -> BitFunResult<WorkspaceInfo> {
         let known_remote = workspace_service
             .resolve_remote_workspace_for_open(
                 &path.to_string_lossy(),
@@ -2440,8 +2440,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await?;
         if known_remote.is_none() && !path.exists() {
-            return Err(OpenBitFunError::service(format!(
-                "Workspace path does not exist locally and is not a known remote SSH workspace: {}. Open it once from the desktop SSH remote UI so OpenBitFun can remember the connection, then try again.",
+            return Err(BitFunError::service(format!(
+                "Workspace path does not exist locally and is not a known remote SSH workspace: {}. Open it once from the desktop SSH remote UI so BitFun can remember the connection, then try again.",
                 path.display()
             )));
         }
@@ -2492,10 +2492,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         fallback_workspace: Option<&Path>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         if let Some(session) = self.session_manager.get_session(session_id) {
             let workspace_path = session.config.workspace_path.as_deref().ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Session workspace_path is missing: {session_id}"
                 ))
             })?;
@@ -2507,7 +2507,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
         match fallback_workspace {
             Some(workspace_path) => self.ensure_runtime_ownership(workspace_path, None, None),
-            None => Err(OpenBitFunError::NotFound(format!(
+            None => Err(BitFunError::NotFound(format!(
                 "Session not found: {session_id}"
             ))),
         }
@@ -2562,10 +2562,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         action: SubagentTimeoutAction,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let registry = self.subagent_timeout_registry.read().await;
         let handle = registry.get(session_id).cloned().ok_or_else(|| {
-            OpenBitFunError::tool(format!(
+            BitFunError::tool(format!(
                 "No active subagent timeout handle for session {}",
                 session_id
             ))
@@ -2586,9 +2586,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_name: String,
         agent_type: String,
         config: SessionConfig,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         let workspace_path = config.workspace_path.clone().ok_or_else(|| {
-            OpenBitFunError::Validation(
+            BitFunError::Validation(
                 "workspace_path is required when creating a session".to_string(),
             )
         })?;
@@ -2610,9 +2610,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_name: String,
         agent_type: String,
         config: SessionConfig,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         let workspace_path = config.workspace_path.clone().ok_or_else(|| {
-            OpenBitFunError::Validation(
+            BitFunError::Validation(
                 "workspace_path is required when creating a session".to_string(),
             )
         })?;
@@ -2637,7 +2637,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         agent_type: String,
         config: SessionConfig,
         workspace_path: String,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.create_session_with_workspace_and_creator(
             session_id,
             session_name,
@@ -2653,7 +2653,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         model_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.update_session_model_selection(session_id, model_id, None)
             .await
     }
@@ -2663,7 +2663,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         model_id: &str,
         reasoning_preset: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.ensure_session_runtime_ownership(session_id, None)?;
         let normalized_model_id = normalize_model_selection(model_id).await?;
 
@@ -2687,7 +2687,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         enable_tools: bool,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.ensure_session_runtime_ownership(session_id, None)?;
 
         if self
@@ -2715,7 +2715,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         config: SessionConfig,
         workspace_path: String,
         created_by: Option<String>,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.create_session_with_workspace_and_creator_internal(
             session_id,
             session_name,
@@ -2737,7 +2737,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: String,
         created_by: Option<String>,
         transient: bool,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         // Persist the workspace binding inside the session config so execution can
         // consistently restore the correct workspace regardless of the entry point.
         config.workspace_path = Some(workspace_path.clone());
@@ -2875,7 +2875,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         mut config: SessionConfig,
         workspace_path: String,
         created_by: Option<String>,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         config.workspace_path = Some(workspace_path);
         self.ensure_runtime_ownership(
             Path::new(
@@ -2914,7 +2914,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &str,
         // Pre-resolved on-disk session storage path (mirror dir for remote workspaces).
         // When present we use it directly so we never re-resolve without remote SSH info
-        // (which would slugify a raw remote POSIX path under `~/.openbitfun/projects/`).
+        // (which would slugify a raw remote POSIX path under `~/.bitfun/projects/`).
         resolved_session_storage_path: Option<&std::path::Path>,
         status: crate::service::session::TurnStatus,
         user_message_metadata: Option<serde_json::Value>,
@@ -3246,10 +3246,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         turn_id: &str,
         terminal_kind: &str,
-        persistence_error: &OpenBitFunError,
+        persistence_error: &BitFunError,
         emit_lifecycle_events: bool,
     ) -> crate::service::session::TurnStatus {
-        let error = OpenBitFunError::OutcomeUnknown(format!(
+        let error = BitFunError::OutcomeUnknown(format!(
             "Failed to persist authoritative {terminal_kind} outcome: session_id={session_id}, turn_id={turn_id}; {persistence_error}"
         ));
         let error_text = error.to_string();
@@ -3571,7 +3571,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         scheduler_notify_tx: Option<&mpsc::UnboundedSender<(String, TurnOutcome)>>,
         session_id: &str,
         turn_id: &str,
-        error: &OpenBitFunError,
+        error: &BitFunError,
         emit_lifecycle_events: bool,
     ) -> crate::service::session::TurnStatus {
         Self::persist_failed_dialog_turn_with_messages(
@@ -3595,7 +3595,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         scheduler_notify_tx: Option<&mpsc::UnboundedSender<(String, TurnOutcome)>>,
         session_id: &str,
         turn_id: &str,
-        error: &OpenBitFunError,
+        error: &BitFunError,
         emit_lifecycle_events: bool,
         generation_messages: &[Message],
         preserve_recovery_on_persist_failure: bool,
@@ -3603,7 +3603,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let error_text = error.to_string();
         let recoverable = !matches!(
             error,
-            OpenBitFunError::AIClient(_) | OpenBitFunError::Timeout(_)
+            BitFunError::AIClient(_) | BitFunError::Timeout(_)
         );
 
         error!("Dialog turn execution failed: {}", error_text);
@@ -3770,7 +3770,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         agent_type: String,
         config: SessionConfig,
         created_by: Option<String>,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.create_hidden_agent_session(
             session_id,
             session_name,
@@ -3790,7 +3790,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         config: SessionConfig,
         created_by: Option<String>,
         kind: SessionKind,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.create_hidden_agent_session_with_durability(
             session_id,
             session_name,
@@ -3812,7 +3812,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         created_by: Option<String>,
         kind: SessionKind,
         transient: bool,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         if transient {
             self.session_manager
                 .create_transient_session_with_id_and_details(
@@ -3841,7 +3841,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn load_session_context_messages(
         &self,
         session: &Session,
-    ) -> OpenBitFunResult<Vec<Message>> {
+    ) -> BitFunResult<Vec<Message>> {
         let session_id = &session.session_id;
         let mut context_messages = self
             .session_manager
@@ -3893,7 +3893,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         enable_tools: bool,
         skill_agent_context_vars: &HashMap<String, String>,
         runtime_tool_restrictions: &ToolRuntimeRestrictions,
-    ) -> OpenBitFunResult<WrappedUserInputPayload> {
+    ) -> BitFunResult<WrappedUserInputPayload> {
         let agent_registry = get_agent_registry();
         agent_registry
             .load_custom_agents(
@@ -3905,7 +3905,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let current_agent = agent_registry
             .get_agent(agent_type, workspace.map(|binding| binding.root_path()))
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!("Unknown agent type: {}", agent_type))
+                BitFunError::Validation(format!("Unknown agent type: {}", agent_type))
             })?;
         let current_agent_reminder = current_agent
             .get_system_reminder(previous_agent_type, workspace)
@@ -3984,7 +3984,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: String,
         workspace_path: String,
-    ) -> OpenBitFunResult<AssistantBootstrapEnsureOutcome> {
+    ) -> BitFunResult<AssistantBootstrapEnsureOutcome> {
         let workspace_root = PathBuf::from(&workspace_path);
         // Assistant workspaces are local-only. Ownership must be established
         // before persona files are created or a persisted Session is attached.
@@ -4112,7 +4112,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         remote_ssh_host: Option<String>,
         submission_policy: DialogSubmissionPolicy,
         user_message_metadata: Option<serde_json::Value>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.start_dialog_turn_internal(
             session_id,
             user_input,
@@ -4148,23 +4148,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         extra_user_message_metadata: Option<serde_json::Value>,
         ecosystem_id: String,
         logical_id: String,
-    ) -> futures::future::BoxFuture<'_, OpenBitFunResult<()>> {
+    ) -> futures::future::BoxFuture<'_, BitFunResult<()>> {
         Box::pin(async move {
-            openbitfun_core_types::validate_session_id(&session_id)
-                .map_err(OpenBitFunError::Validation)?;
+            bitfun_core_types::validate_session_id(&session_id)
+                .map_err(BitFunError::Validation)?;
             if prompt.trim().is_empty() {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "External subagent delegation prompt must not be empty".to_string(),
                 ));
             }
             let ecosystem_id = EcosystemId::new(ecosystem_id).map_err(|error| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Invalid external subagent delegation ecosystem: {error}"
                 ))
             })?;
             let logical_id = logical_id.trim().to_string();
             if logical_id.is_empty() {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "External subagent delegation logical_id must not be empty".to_string(),
                 ));
             }
@@ -4173,19 +4173,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .session_manager
                 .get_session(&session_id)
                 .ok_or_else(|| {
-                    OpenBitFunError::NotFound(format!("Session not found: {session_id}"))
+                    BitFunError::NotFound(format!("Session not found: {session_id}"))
                 })?;
             self.ensure_session_runtime_ownership(&session_id, None)?;
             if session.config.remote_connection_id.is_some()
                 || session.config.remote_ssh_host.is_some()
             {
-                return Err(OpenBitFunError::NotImplemented(
+                return Err(BitFunError::NotImplemented(
                     "External subagent command delegation is unavailable for remote workspaces"
                         .to_string(),
                 ));
             }
             if !matches!(session.state, SessionState::Idle) {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Session must be idle before external subagent command delegation: {:?}",
                     session.state
                 )));
@@ -4195,7 +4195,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .await
                 > 0
             {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Previous dialog turn is still draining: session_id={session_id}"
                 )));
             }
@@ -4207,7 +4207,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .or_else(|| session.config.workspace_path.clone())
                 .or(workspace_path)
                 .ok_or_else(|| {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "Session workspace_path is missing: {session_id}"
                     ))
                 })?;
@@ -4233,7 +4233,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .session_manager
                     .get_session(&session_id)
                     .ok_or_else(|| {
-                        OpenBitFunError::NotFound(format!("Session not found: {session_id}"))
+                        BitFunError::NotFound(format!("Session not found: {session_id}"))
                     })?;
             }
 
@@ -4257,13 +4257,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 Some(Path::new(&execution_workspace_path)),
             )
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "candidate_unavailable: approved external subagent {}:{} changed before the command could start",
                     ecosystem_id, logical_id
                 ))
             })?;
             let external_generation_lease = binding.lease.ok_or_else(|| {
-                OpenBitFunError::Validation(
+                BitFunError::Validation(
                     "Approved external subagent route is missing its generation lease".to_string(),
                 )
             })?;
@@ -4461,8 +4461,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         let child_session_id = result.session_id().map(str::to_string);
                         let delegate_target_label = format!("subagent '{}'", logical_id);
                         let (data, assistant_text) =
-                            openbitfun_agent_runtime::subagent_task::subagent_task_completion_result(
-                                openbitfun_agent_runtime::subagent_task::SubagentTaskCompletionResultInput {
+                            bitfun_agent_runtime::subagent_task::subagent_task_completion_result(
+                                bitfun_agent_runtime::subagent_task::SubagentTaskCompletionResultInput {
                                     delegate_target_label: &delegate_target_label,
                                     result_text: &result.text,
                                     context_mode: SubagentContextMode::Fresh.as_str(),
@@ -4499,7 +4499,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         (data, assistant_text, false, false, child_session_id, None)
                     }
                     Err(error) => {
-                        let cancelled = matches!(error, OpenBitFunError::Cancelled(_));
+                        let cancelled = matches!(error, BitFunError::Cancelled(_));
                         let error_text = error.to_string();
                         let tool_event = if cancelled {
                             ToolEventData::Cancelled {
@@ -4660,7 +4660,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         error: error.to_string(),
                         recoverable: !matches!(
                             error,
-                            OpenBitFunError::AIClient(_) | OpenBitFunError::Timeout(_)
+                            BitFunError::AIClient(_) | BitFunError::Timeout(_)
                         ),
                     }
                 } else {
@@ -4768,7 +4768,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         submission_policy: DialogSubmissionPolicy,
         user_message_metadata: Option<serde_json::Value>,
         prepended_messages: Vec<Message>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.start_dialog_turn_internal(
             session_id,
             user_input,
@@ -4801,7 +4801,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         remote_ssh_host: Option<String>,
         submission_policy: DialogSubmissionPolicy,
         user_message_metadata: Option<serde_json::Value>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.start_dialog_turn_internal(
             session_id,
             user_input,
@@ -4835,7 +4835,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         submission_policy: DialogSubmissionPolicy,
         user_message_metadata: Option<serde_json::Value>,
         prepended_messages: Vec<Message>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.start_dialog_turn_internal(
             session_id,
             user_input,
@@ -4862,7 +4862,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &str,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<SessionStoragePathResolution> {
+    ) -> BitFunResult<SessionStoragePathResolution> {
         let request = SessionStoragePathRequest {
             workspace_path: PathBuf::from(workspace_path),
             remote_connection_id: remote_connection_id.map(ToOwned::to_owned),
@@ -4872,29 +4872,29 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         CoreSessionStorePort::default()
             .resolve_session_storage_path(request)
             .await
-            .map_err(|error| OpenBitFunError::Session(error.to_string()))
+            .map_err(|error| BitFunError::Session(error.to_string()))
     }
 
     async fn resolve_session_restore_path(
         workspace_path: &str,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
-    ) -> OpenBitFunResult<PathBuf> {
+    ) -> BitFunResult<PathBuf> {
         Self::resolve_session_restore_scope(workspace_path, remote_connection_id, remote_ssh_host)
             .await
             .map(|resolution| resolution.effective_storage_path)
     }
 
-    fn require_main_session_workspace(&self, session_id: &str) -> OpenBitFunResult<PathBuf> {
+    fn require_main_session_workspace(&self, session_id: &str) -> BitFunResult<PathBuf> {
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| OpenBitFunError::NotFound(format!("Session not found: {session_id}")))?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         if matches!(
             session.kind,
             SessionKind::Subagent | SessionKind::EphemeralChild
         ) {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Thread goals are only available for main sessions".to_string(),
             ));
         }
@@ -4905,7 +4905,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(Path::new)
             .map(Path::to_path_buf)
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Session workspace_path is missing: {session_id}"
                 ))
             })
@@ -4914,14 +4914,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn require_main_session_storage_path(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<PathBuf> {
+    ) -> BitFunResult<PathBuf> {
         self.require_main_session_workspace(session_id)?;
         self.session_manager
             .resolve_session_workspace_binding(session_id)
             .await
             .map(|binding| binding.session_storage_dir())
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Session storage path is unavailable: {session_id}"
                 ))
             })
@@ -4931,7 +4931,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         workspace_path: &Path,
-    ) -> OpenBitFunResult<PathBuf> {
+    ) -> BitFunResult<PathBuf> {
         if self.session_manager.get_session(session_id).is_some() {
             self.require_main_session_storage_path(session_id).await
         } else {
@@ -4943,7 +4943,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         workspace_path: &Path,
-    ) -> OpenBitFunResult<Option<ThreadGoal>> {
+    ) -> BitFunResult<Option<ThreadGoal>> {
         let storage_path = self
             .resolve_thread_goal_storage_path(session_id, workspace_path)
             .await?;
@@ -4956,7 +4956,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         workspace_path: &Path,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let storage_path = self
             .resolve_thread_goal_storage_path(session_id, workspace_path)
             .await?;
@@ -4974,7 +4974,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         _workspace_path: &Path,
         objective: String,
         token_budget: Option<i64>,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let goal = self
             .thread_goal_store()
@@ -4991,14 +4991,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         _workspace_path: &Path,
         objective: String,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let existing = self
             .thread_goal_store()
             .get_thread_goal(session_id, storage_path.as_path())
             .await?
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "cannot edit goal for session {session_id}: no goal exists"
                 ))
             })?;
@@ -5039,7 +5039,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         _workspace_path: &Path,
         objective: String,
         replace_existing: bool,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let previous = self
             .thread_goal_store()
@@ -5141,7 +5141,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub async fn maybe_mark_thread_goal_usage_limited(
         &self,
         session_id: &str,
-        error: &OpenBitFunError,
+        error: &BitFunError,
     ) {
         if !is_usage_limit_error(error) {
             return;
@@ -5180,7 +5180,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         _workspace_path: &Path,
         status: ThreadGoalStatus,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let previous = self
             .thread_goal_store()
@@ -5324,7 +5324,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         status: ThreadGoalStatus,
         turn_id: Option<&str>,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let goal = self
             .set_thread_goal_status(session_id, workspace_path, status)
             .await?;
@@ -5333,7 +5333,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     }
 
     pub async fn emit_thread_goal_updated(&self, session_id: &str, goal: Option<ThreadGoal>) {
-        let goal = openbitfun_agent_runtime::thread_goal::thread_goal_event_payload(goal);
+        let goal = bitfun_agent_runtime::thread_goal::thread_goal_event_payload(goal);
         self.emit_event(AgenticEvent::ThreadGoalUpdated {
             session_id: session_id.to_string(),
             goal,
@@ -5344,7 +5344,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn load_active_thread_goal(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<Option<ThreadGoal>> {
+    ) -> BitFunResult<Option<ThreadGoal>> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         Ok(self
             .thread_goal_store()
@@ -5358,9 +5358,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: String,
         user_hint: Option<String>,
-    ) -> OpenBitFunResult<ThreadGoal> {
+    ) -> BitFunResult<ThreadGoal> {
         let objective = user_hint.ok_or_else(|| {
-            OpenBitFunError::Validation(
+            BitFunError::Validation(
                 "Goal objective is required. Use /goal <objective>.".to_string(),
             )
         })?;
@@ -5394,7 +5394,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         user_input: &str,
         user_message_metadata: Option<&serde_json::Value>,
         turn_completed: bool,
-    ) -> OpenBitFunResult<Option<ThreadGoalContinuationPlan>> {
+    ) -> BitFunResult<Option<ThreadGoalContinuationPlan>> {
         if should_skip_goal_continuation_after_turn(user_input, user_message_metadata) {
             return Ok(None);
         }
@@ -5443,14 +5443,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: String,
         requested_turn_id: Option<String>,
-    ) -> OpenBitFunResult<ManualCompactionTask> {
-        openbitfun_core_types::validate_session_id(&session_id)
-            .map_err(OpenBitFunError::Validation)?;
+    ) -> BitFunResult<ManualCompactionTask> {
+        bitfun_core_types::validate_session_id(&session_id)
+            .map_err(BitFunError::Validation)?;
         if requested_turn_id
             .as_deref()
             .is_some_and(|turn_id| turn_id.trim().is_empty())
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Manual compaction turn_id must not be empty".to_string(),
             ));
         }
@@ -5462,7 +5462,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(&session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Session not found: {}", session_id))
+                BitFunError::NotFound(format!("Session not found: {}", session_id))
             })?;
         match &initial_session.state {
             SessionState::Idle => {}
@@ -5470,13 +5470,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 current_turn_id,
                 phase,
             } => {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Session is still processing: current_turn_id={}, phase={:?}",
                     current_turn_id, phase
                 )));
             }
             SessionState::Error { error, .. } => {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Session must be idle before manual compaction: {}",
                     error
                 )));
@@ -5488,7 +5488,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .get_context_messages(&session_id)
             .await?;
         if context_messages.is_empty() && !initial_session.dialog_turn_ids.is_empty() {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Session context is not loaded; restore the session before manual compaction: {session_id}"
             )));
         }
@@ -5527,7 +5527,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(&session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Session not found: {}", session_id))
+                BitFunError::NotFound(format!("Session not found: {}", session_id))
             })?;
         let turn_index = session.dialog_turn_ids.len().saturating_sub(1);
 
@@ -5605,7 +5605,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         turn_id: &str,
         outcome: &ContextCompactionOutcome,
         context_window: usize,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let model_round =
             Self::build_manual_compaction_round_completed(turn_id, outcome, context_window);
         let turn_persistence = session_manager
@@ -5622,16 +5622,16 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 
         let finalization_error = match (turn_persistence, idle_persistence) {
             (Ok(()), Ok(true)) => None,
-            (Ok(()), Ok(false)) => Some(OpenBitFunError::Session(format!(
+            (Ok(()), Ok(false)) => Some(BitFunError::Session(format!(
                 "Manual compaction was applied, but turn ownership changed before finalization: session_id={session_id}, turn_id={turn_id}"
             ))),
-            (Err(turn_error), Ok(_)) => Some(OpenBitFunError::Session(format!(
+            (Err(turn_error), Ok(_)) => Some(BitFunError::Session(format!(
                 "Manual compaction was applied, but the completed turn could not be persisted: {turn_error}"
             ))),
-            (Ok(()), Err(state_error)) => Some(OpenBitFunError::Session(format!(
+            (Ok(()), Err(state_error)) => Some(BitFunError::Session(format!(
                 "Manual compaction was applied, but the idle session state could not be persisted: {state_error}"
             ))),
-            (Err(turn_error), Err(state_error)) => Some(OpenBitFunError::Session(format!(
+            (Err(turn_error), Err(state_error)) => Some(BitFunError::Session(format!(
                 "Manual compaction was applied, but turn and idle-state persistence failed: turn_error={turn_error}; state_error={state_error}"
             ))),
         };
@@ -5694,7 +5694,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
         cancellation_token: CancellationToken,
         commit_gate: Arc<ManualCompactionCommitGate>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let compression_id = format!("compression_{}", uuid::Uuid::new_v4());
         let mut context_window = session.config.max_context_tokens;
         let result = async {
@@ -5773,7 +5773,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
                 .await
             }
-            Err(err @ OpenBitFunError::Cancelled(_)) => {
+            Err(err @ BitFunError::Cancelled(_)) => {
                 let error_text = err.to_string();
                 let model_round = Self::build_manual_compaction_round_failed(
                     &turn_id,
@@ -5838,10 +5838,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// Compact the active session context through the same owned maintenance
     /// task used by Agent Runtime callers, then await its terminal result for
     /// the existing Desktop compatibility API.
-    pub async fn compact_session_manually(&self, session_id: String) -> OpenBitFunResult<()> {
+    pub async fn compact_session_manually(&self, session_id: String) -> BitFunResult<()> {
         let task = self.start_manual_compaction_task(session_id, None).await?;
         task.completion.await.map_err(|_| {
-            OpenBitFunError::Service(format!(
+            BitFunError::Service(format!(
                 "Manual compaction task ended without a terminal result: {}",
                 task.turn_id
             ))
@@ -5855,7 +5855,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: String,
         turn_id: String,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.start_manual_compaction_task(session_id, Some(turn_id))
             .await
             .map(|_task| ())
@@ -5865,14 +5865,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         images: &mut [ImageContextData],
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         if images.is_empty() {
             return Ok(());
         }
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| OpenBitFunError::NotFound(format!("Session not found: {session_id}")))?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         let workspace = Self::build_workspace_binding(&session.config).await;
         let context =
             crate::agentic::tools::framework::ToolUseContext::for_tool_listing(workspace, None);
@@ -5898,7 +5898,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         extra_user_message_metadata: Option<serde_json::Value>,
         mut additional_prepended_messages: Vec<Message>,
         suppress_session_title_generation: bool,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let loaded_session = self.session_manager.get_session(&session_id);
         let storage_workspace_path = session_storage_workspace_locator(
             workspace_path.as_deref(),
@@ -5940,7 +5940,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     session_id
                 );
                 let restore = requested_restore.ok_or_else(|| {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "workspace_path is required when restoring session: {}",
                         session_id
                     ))
@@ -6075,7 +6075,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     "Session still processing, rejecting new dialog: session_id={}, current_turn_id={}, phase={:?}",
                     session_id, current_turn_id, phase
                 );
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Session state does not allow starting new dialog: {:?}",
                     session.state
                 )));
@@ -6103,7 +6103,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 "UserPromptSubmit hook blocked the prompt: session_id={}, reason={}",
                 session_id, reason
             );
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "A UserPromptSubmit hook blocked this prompt: {reason}"
             )));
         }
@@ -6163,7 +6163,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .or(session.config.workspace_path.as_deref())
                 .or(storage_workspace_path.as_deref())
                 .ok_or_else(|| {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "workspace_path is required when restoring session: {}",
                         session_id
                     ))
@@ -6465,7 +6465,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             ) {
                 self.session_manager
                     .reset_session_state_if_processing(&session_id, &turn_id);
-                return Err(OpenBitFunError::Session(format!(
+                return Err(BitFunError::Session(format!(
                     "Failed to install active turn permission mode: session_id={session_id}, turn_id={turn_id}"
                 )));
             }
@@ -6907,7 +6907,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 Err(e) => {
                     let generation_messages = execution_engine
                         .take_generation_messages(&session_id_clone, &turn_id_clone);
-                    if matches!(&e, OpenBitFunError::Cancelled(_)) {
+                    if matches!(&e, BitFunError::Cancelled(_)) {
                         if interrupted_turn_intent_is_pending(
                             interrupted_turn_intents.as_ref(),
                             &interrupted_turn_key,
@@ -6981,12 +6981,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// append another user message, or allocate another dialog turn.
     pub async fn recover_interrupted_dialog_turn(
         &self,
-        request: &openbitfun_runtime_ports::AgentDialogTurnRecoveryRequest,
-    ) -> OpenBitFunResult<openbitfun_runtime_ports::AgentDialogTurnRecoveryOutcome> {
-        openbitfun_core_types::validate_session_id(&request.session_id)
-            .map_err(OpenBitFunError::Validation)?;
-        openbitfun_core_types::validate_session_id(&request.turn_id).map_err(|message| {
-            OpenBitFunError::Validation(format!("Invalid turn_id: {message}"))
+        request: &bitfun_runtime_ports::AgentDialogTurnRecoveryRequest,
+    ) -> BitFunResult<bitfun_runtime_ports::AgentDialogTurnRecoveryOutcome> {
+        bitfun_core_types::validate_session_id(&request.session_id)
+            .map_err(BitFunError::Validation)?;
+        bitfun_core_types::validate_session_id(&request.turn_id).map_err(|message| {
+            BitFunError::Validation(format!("Invalid turn_id: {message}"))
         })?;
         self.ensure_session_runtime_ownership(&request.session_id, None)?;
 
@@ -6994,10 +6994,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(&request.session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Session not found: {}", request.session_id))
+                BitFunError::NotFound(format!("Session not found: {}", request.session_id))
             })?;
         if session.kind != SessionKind::Standard {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Interrupted turn recovery is supported only for standard user sessions"
                     .to_string(),
             ));
@@ -7007,7 +7007,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             || session.config.remote_connection_id.is_some()
             || session.config.remote_ssh_host.is_some()
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Interrupted turn recovery is unavailable for remote workspaces".to_string(),
             ));
         }
@@ -7016,13 +7016,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 == Some(requested_workspace)
                 || session.config.project_workspace_path.as_deref() == Some(requested_workspace);
             if !matches_session_workspace {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Interrupted turn recovery workspace does not match the session".to_string(),
                 ));
             }
         }
         if !matches!(session.state, SessionState::Idle) {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Session must be idle before recovering an interrupted turn: {:?}",
                 session.state
             )));
@@ -7041,7 +7041,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
             })
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Use the Thread Goal controls to resume goal work".to_string(),
             ));
         }
@@ -7057,7 +7057,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .as_ref()
             .is_some_and(WorkspaceBinding::is_remote)
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Interrupted turn recovery is unavailable for remote workspaces".to_string(),
             ));
         }
@@ -7065,7 +7065,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             Self::resolve_session_primary_agent(&session, &session.agent_type, &session_workspace)
                 .await?;
         if primary_agent_binding.route_owner != SessionAgentRouteOwner::Local {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Interrupted turn recovery is unavailable for externally owned agent routes"
                     .to_string(),
             ));
@@ -7390,7 +7390,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .await
                     .0,
                 ),
-                Err(error) if matches!(&error, OpenBitFunError::Cancelled(_)) => {
+                Err(error) if matches!(&error, BitFunError::Cancelled(_)) => {
                     let generation_messages =
                         execution_engine.take_generation_messages(&session_id, &turn_id);
                     if interrupted_turn_intent_is_pending(
@@ -7483,7 +7483,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await;
         });
 
-        Ok(openbitfun_runtime_ports::AgentDialogTurnRecoveryOutcome {
+        Ok(bitfun_runtime_ports::AgentDialogTurnRecoveryOutcome {
             session_id: plan.session_id,
             turn_id: plan.turn_id,
             execution_generation: plan.execution_generation,
@@ -7533,7 +7533,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         turn_id: &str,
         max_wait: Duration,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         match self
             .turn_settlements
             .wait(session_id, turn_id, max_wait)
@@ -7546,19 +7546,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .session_manager
                     .get_session(session_id)
                     .ok_or_else(|| {
-                        OpenBitFunError::NotFound(format!("Session not found: {session_id}"))
+                        BitFunError::NotFound(format!("Session not found: {session_id}"))
                     })?;
                 if !session.dialog_turn_ids.iter().any(|known| known == turn_id) {
-                    return Err(OpenBitFunError::NotFound(format!(
+                    return Err(BitFunError::NotFound(format!(
                         "Dialog turn not found: {turn_id}"
                     )));
                 }
-                return Err(OpenBitFunError::OutcomeUnknown(format!(
+                return Err(BitFunError::OutcomeUnknown(format!(
                     "Turn settlement evidence is unavailable: session_id={session_id}, turn_id={turn_id}"
                 )));
             }
         }
-        Err(OpenBitFunError::Timeout(format!(
+        Err(BitFunError::Timeout(format!(
             "Turn did not settle before timeout: session_id={session_id}, turn_id={turn_id}, timeout_ms={}",
             max_wait.as_millis()
         )))
@@ -7596,12 +7596,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         max_wait: Duration,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let pending = self.wait_session_drained(session_id, max_wait).await;
         if pending == 0 {
             return Ok(());
         }
-        Err(OpenBitFunError::Timeout(format!(
+        Err(BitFunError::Timeout(format!(
             "Session execution did not drain before maintenance: session_id={session_id}, pending={pending}, timeout_ms={}",
             max_wait.as_millis()
         )))
@@ -7662,7 +7662,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         dialog_turn_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.cancel_dialog_turn_with_descendant_policy(
             session_id,
             dialog_turn_id,
@@ -7678,7 +7678,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         dialog_turn_id: &str,
         drain_timeout: Duration,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.cancel_dialog_turn_with_descendant_policy(
             session_id,
             dialog_turn_id,
@@ -7696,7 +7696,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         cancel_descendants: bool,
         drain_timeout: Duration,
         disposition: DialogTurnStopDisposition,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         info!(
             "Received stop request: dialog_turn_id={}, session_id={}, cancel_descendants={}, disposition={:?}",
             dialog_turn_id, session_id, cancel_descendants, disposition
@@ -7707,10 +7707,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .session_manager
                 .get_session(session_id)
                 .ok_or_else(|| {
-                    OpenBitFunError::NotFound(format!("Session not found: {session_id}"))
+                    BitFunError::NotFound(format!("Session not found: {session_id}"))
                 })?;
             if session.kind != SessionKind::Standard {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Recoverable interruption is supported only for standard user sessions"
                         .to_string(),
                 ));
@@ -7718,12 +7718,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             if session.config.remote_connection_id.is_some()
                 || session.config.remote_ssh_host.is_some()
             {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Recoverable interruption is not available for remote workspaces".to_string(),
                 ));
             }
             if session.config.agent_route_owner != SessionAgentRouteOwner::Local {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Recoverable interruption is unavailable for externally owned agent routes"
                         .to_string(),
                 ));
@@ -7745,7 +7745,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     );
                     return Ok(());
                 }
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Dialog turn is not the active turn: {dialog_turn_id}"
                 )));
             }
@@ -7761,7 +7761,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     )
                 })
             {
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "Use the Thread Goal controls to pause or resume goal work".to_string(),
                 ));
             }
@@ -7907,7 +7907,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     );
                     return Ok(());
                 }
-                return Err(OpenBitFunError::Timeout(format!(
+                return Err(BitFunError::Timeout(format!(
                     "Interrupted turn did not settle within {}ms: session_id={}, turn_id={}",
                     drain_timeout.as_millis(),
                     session_id,
@@ -7937,7 +7937,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         wait_timeout: Duration,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         self.cancel_active_turn_for_session_with_descendant_policy(session_id, wait_timeout, true)
             .await
     }
@@ -7948,7 +7948,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         wait_timeout: Duration,
         cancel_descendants: bool,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         abort_thread_goal_continuation_for_session(session_id);
 
         let Some(session) = self.session_manager.get_session(session_id) else {
@@ -7985,7 +7985,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     current_turn_id,
                     wait_timeout.as_millis()
                 );
-                return Err(OpenBitFunError::Timeout(format!(
+                return Err(BitFunError::Timeout(format!(
                     "Active turn cancellation did not drain before timeout: session_id={session_id}, dialog_turn_id={current_turn_id}, timeout_ms={}",
                     wait_timeout.as_millis()
                 )));
@@ -8002,7 +8002,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         expected_active_turn_id: Option<&str>,
         wait_timeout: Duration,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         let deadline = Instant::now() + wait_timeout;
         let _mutation_guard = tokio::time::timeout(
             wait_timeout,
@@ -8010,7 +8010,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         )
         .await
         .map_err(|_| {
-            OpenBitFunError::Timeout(format!(
+            BitFunError::Timeout(format!(
                 "Timed out acquiring the Session lifecycle lease before lineage cancellation: session_id={session_id}"
             ))
         })??;
@@ -8030,7 +8030,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 _ => None,
             });
         if active_turn_id.as_deref() != expected_active_turn_id {
-            return Err(OpenBitFunError::OutcomeUnknown(format!(
+            return Err(BitFunError::OutcomeUnknown(format!(
                 "Subagent Session active Turn changed before cancellation: session_id={session_id}, expected_turn_id={}, active_turn_id={}",
                 expected_active_turn_id.unwrap_or("none"),
                 active_turn_id.as_deref().unwrap_or("none")
@@ -8065,7 +8065,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let session_storage_path = self
             .session_manager
             .resolve_storage_path_for_workspace_path(workspace_path)
@@ -8140,7 +8140,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
         session_id: &str,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let family = self.session_manager.transient_session_family_postorder(
             workspace_path,
             remote_connection_id,
@@ -8170,7 +8170,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         parent_session_id: &str,
         parent_dialog_turn_ids: &HashSet<String>,
-    ) -> OpenBitFunResult<Vec<String>> {
+    ) -> BitFunResult<Vec<String>> {
         let session_ids = self
             .collect_hidden_subagent_sessions_for_parent_turns(
                 workspace_path,
@@ -8199,7 +8199,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         source_session_id: &str,
         target_session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.background_subagent_outcomes
             .initialize_fork(source_session_id, target_session_id)
             .await
@@ -8210,7 +8210,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         parent_session_id: &str,
         parent_dialog_turn_ids: &HashSet<String>,
-    ) -> OpenBitFunResult<Vec<String>> {
+    ) -> BitFunResult<Vec<String>> {
         self.session_manager
             .collect_hidden_subagent_cascade_for_parent_turns(
                 workspace_path,
@@ -8225,7 +8225,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         parent_session_id: &str,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         if let Err(e) = self
             .cancel_active_turn_for_session(session_id, Duration::from_secs(2))
             .await
@@ -8244,7 +8244,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.ensure_runtime_ownership(workspace_path, None, None)?;
         let session = self
             .session_manager
@@ -8253,23 +8253,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         self.reconcile_restored_session(session_id, session).await
     }
 
-    pub(crate) fn local_revert_workspace(&self, session_id: &str) -> OpenBitFunResult<PathBuf> {
+    pub(crate) fn local_revert_workspace(&self, session_id: &str) -> BitFunResult<PathBuf> {
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| OpenBitFunError::NotFound(format!("Session not found: {session_id}")))?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         if session.config.remote_connection_id.is_some() || session.config.remote_ssh_host.is_some()
         {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Session undo and redo are unavailable for remote workspaces".to_string(),
             ));
         }
         let workspace_path = session.config.workspace_path.as_deref().ok_or_else(|| {
-            OpenBitFunError::Validation(format!("Session workspace_path is missing: {session_id}"))
+            BitFunError::Validation(format!("Session workspace_path is missing: {session_id}"))
         })?;
         let workspace_path = PathBuf::from(workspace_path);
         if !workspace_path.is_dir() {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Session workspace directory does not exist: {}",
                 workspace_path.display()
             )));
@@ -8282,12 +8282,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
         undo: bool,
-    ) -> OpenBitFunResult<(AgentSessionComposerUpdate, bool, usize)> {
+    ) -> BitFunResult<(AgentSessionComposerUpdate, bool, usize)> {
         let workspace_path = self.local_revert_workspace(session_id)?;
         let snapshot_manager =
             crate::service::snapshot::get_or_create_snapshot_manager(workspace_path.clone(), None)
                 .await
-                .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+                .map_err(|error| BitFunError::service(error.to_string()))?;
         let persistence = self.session_manager.persistence_manager();
         let mut current = persistence
             .load_session_revert_state(session_storage_path, session_id)
@@ -8299,7 +8299,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             self.reconcile_session_revert_locked(session_storage_path, session_id)
                 .await
                 .map_err(|error| {
-                    OpenBitFunError::OutcomeUnknown(format!(
+                    BitFunError::OutcomeUnknown(format!(
                         "Session revert could not finish a pending transition: session_id={session_id}, error={error}"
                     ))
                 })?;
@@ -8329,7 +8329,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 snapshot_manager
                     .prepare_workspace_revert(session_id, &mut state)
                     .await
-                    .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+                    .map_err(|error| BitFunError::service(error.to_string()))?;
                 persistence
                     .save_session_revert_state(session_storage_path, session_id, &state)
                     .await?;
@@ -8337,7 +8337,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .apply_workspace_revert(session_id, &state)
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Staged Session boundary was persisted but workspace reconciliation failed: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8349,7 +8349,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     )
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Staged Session boundary and workspace were updated but runtime context reconciliation failed: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8358,7 +8358,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .save_session_revert_state(session_storage_path, session_id, &state)
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Session boundary was applied but its stable phase could not be persisted: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8377,7 +8377,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .apply_workspace_revert(session_id, &previous_state)
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Session redo may have partially restored the workspace: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8389,7 +8389,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     )
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Session redo restored the workspace but could not reconcile runtime context: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8397,7 +8397,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .delete_session_revert_state(session_storage_path, session_id)
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::OutcomeUnknown(format!(
+                        BitFunError::OutcomeUnknown(format!(
                             "Session redo restored history but could not clear its staged marker: session_id={session_id}, error={error}"
                         ))
                     })?;
@@ -8422,7 +8422,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         target_turn_id: &str,
         expected_storage_turn_index: Option<usize>,
         expected_catalog_revision: Option<&str>,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         AgentSessionComposerUpdate,
         usize,
         usize,
@@ -8438,7 +8438,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .as_ref()
             .is_some_and(|state| state.phase != SessionRevertPhase::Staged)
         {
-            return Err(OpenBitFunError::OutcomeUnknown(format!(
+            return Err(BitFunError::OutcomeUnknown(format!(
                 "Session rollback requires reconciliation of an unfinished revert: session_id={session_id}"
             )));
         }
@@ -8464,7 +8464,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await?;
         if expected_catalog_revision.is_some_and(|revision| revision != catalog.revision) {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Session rollback target is stale: session_id={session_id}"
             )));
         }
@@ -8472,12 +8472,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .iter()
             .find(|turn| turn.turn_id == target_turn_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "Session rollback target was not found: session_id={session_id} turn_id={target_turn_id}"
                 ))
             })?;
         if expected_storage_turn_index.is_some_and(|index| index != target.turn_index) {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Session rollback target storage identity is stale: session_id={session_id} turn_id={target_turn_id}"
             )));
         }
@@ -8488,7 +8488,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(|turn| turn.turn_id.clone())
             .collect();
         let transition = resolve_targeted(&turns, target_turn_id, current.as_ref()).ok_or_else(|| {
-            OpenBitFunError::Validation(format!(
+            BitFunError::Validation(format!(
                 "Session rollback target is not a user Turn: session_id={session_id} turn_id={target_turn_id}"
             ))
         })?;
@@ -8503,13 +8503,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let snapshot_manager =
             crate::service::snapshot::get_or_create_snapshot_manager(workspace_path.clone(), None)
                 .await
-                .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+                .map_err(|error| BitFunError::service(error.to_string()))?;
 
         state.phase = SessionRevertPhase::Applying;
         snapshot_manager
             .prepare_workspace_revert(session_id, &mut state)
             .await
-            .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+            .map_err(|error| BitFunError::service(error.to_string()))?;
         persistence
             .save_session_revert_state(session_storage_path, session_id, &state)
             .await?;
@@ -8517,7 +8517,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .apply_workspace_revert(session_id, &state)
             .await
             .map_err(|error| {
-                OpenBitFunError::OutcomeUnknown(format!(
+                BitFunError::OutcomeUnknown(format!(
                     "Session rollback was staged but workspace reconciliation failed: session_id={session_id}, error={error}"
                 ))
             })?;
@@ -8525,7 +8525,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .apply_staged_revert_context_locked(session_storage_path, session_id, boundary_turn)
             .await
             .map_err(|error| {
-                OpenBitFunError::OutcomeUnknown(format!(
+                BitFunError::OutcomeUnknown(format!(
                     "Session rollback updated the workspace but runtime context reconciliation failed: session_id={session_id}, error={error}"
                 ))
             })?;
@@ -8554,7 +8554,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let persistence = self.session_manager.persistence_manager();
         let Some(state) = persistence
             .load_session_revert_state(session_storage_path, session_id)
@@ -8567,7 +8567,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .commit_session_revert_locked(session_storage_path, session_id)
                 .await
                 .map_err(|error| {
-                    OpenBitFunError::OutcomeUnknown(format!(
+                    BitFunError::OutcomeUnknown(format!(
                         "Session restore could not finish a pending revert commit: session_id={session_id}, error={error}"
                     ))
                 }),
@@ -8580,7 +8580,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
                 .await
                 .map_err(|error| {
-                    OpenBitFunError::OutcomeUnknown(format!(
+                    BitFunError::OutcomeUnknown(format!(
                         "Session restore could not reconcile staged runtime context: session_id={session_id}, error={error}"
                     ))
                 }),
@@ -8598,9 +8598,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
-        openbitfun_core_types::validate_session_id(session_id)
-            .map_err(OpenBitFunError::Validation)?;
+    ) -> BitFunResult<()> {
+        bitfun_core_types::validate_session_id(session_id)
+            .map_err(BitFunError::Validation)?;
         self.session_manager
             .validate_session_storage_path_binding(session_id, session_storage_path)?;
         if let Some(state) = self
@@ -8611,7 +8611,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         {
             if state.phase != SessionRevertPhase::Staged {
                 if self.session_manager.get_session(session_id).is_none() {
-                    return Err(OpenBitFunError::OutcomeUnknown(format!(
+                    return Err(BitFunError::OutcomeUnknown(format!(
                         "Session history is unavailable until the unfinished undo transition is restored: session_id={session_id}"
                     )));
                 }
@@ -8630,7 +8630,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<Vec<DialogTurnData>> {
+    ) -> BitFunResult<Vec<DialogTurnData>> {
         let _mutation = self
             .session_manager
             .acquire_session_mutation(session_id)
@@ -8651,7 +8651,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         storage: &Path,
         session_id: &str,
         turn_id: Option<&str>,
-    ) -> OpenBitFunResult<Vec<DialogTurnData>> {
+    ) -> BitFunResult<Vec<DialogTurnData>> {
         let _mutation = self
             .session_manager
             .acquire_session_mutation(session_id)
@@ -8664,7 +8664,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .get_session(session_id)
                 .and_then(|session| session.dialog_turn_ids.iter().position(|id| id == turn_id))
                 .ok_or_else(|| {
-                    OpenBitFunError::NotFound(format!("Session turn unavailable: {turn_id}"))
+                    BitFunError::NotFound(format!("Session turn unavailable: {turn_id}"))
                 })?;
             self.session_manager
                 .persistence_manager()
@@ -8706,7 +8706,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
         options: &crate::service::session::SessionTranscriptExportOptions,
-    ) -> OpenBitFunResult<crate::service::session::SessionTranscriptExport> {
+    ) -> BitFunResult<crate::service::session::SessionTranscriptExport> {
         let _mutation = self
             .session_manager
             .acquire_session_mutation(session_id)
@@ -8724,18 +8724,18 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
         state: crate::agentic::session::revert::SessionRevertState,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let persistence = self.session_manager.persistence_manager();
         let workspace_path = self.local_revert_workspace(session_id)?;
         let snapshot_manager =
             crate::service::snapshot::get_or_create_snapshot_manager(workspace_path.clone(), None)
                 .await
-                .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+                .map_err(|error| BitFunError::service(error.to_string()))?;
         snapshot_manager
             .apply_workspace_revert(session_id, &state)
             .await
             .map_err(|error| {
-                OpenBitFunError::OutcomeUnknown(format!(
+                BitFunError::OutcomeUnknown(format!(
                     "Session restore could not reconcile an applying workspace boundary: session_id={session_id}, error={error}"
                 ))
             })?;
@@ -8747,7 +8747,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await
             .map_err(|error| {
-                OpenBitFunError::OutcomeUnknown(format!(
+                BitFunError::OutcomeUnknown(format!(
                     "Session restore reconciled the workspace but not runtime context: session_id={session_id}, error={error}"
                 ))
             })?;
@@ -8778,7 +8778,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let persistence = self.session_manager.persistence_manager();
         let Some(mut state) = persistence
             .load_session_revert_state(session_storage_path, session_id)
@@ -8808,7 +8808,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let snapshot_manager =
             crate::service::snapshot::get_or_create_snapshot_manager(workspace_path.clone(), None)
                 .await
-                .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+                .map_err(|error| BitFunError::service(error.to_string()))?;
         if state.phase == SessionRevertPhase::Staged {
             state.phase = SessionRevertPhase::Committing;
             persistence
@@ -8840,7 +8840,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         snapshot_manager
             .commit_workspace_revert(session_id, &state)
             .await
-            .map_err(|error| OpenBitFunError::service(error.to_string()))?;
+            .map_err(|error| BitFunError::service(error.to_string()))?;
         persistence
             .delete_session_revert_state(session_storage_path, session_id)
             .await
@@ -8850,7 +8850,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         operation: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let Some(session_storage_path) = self
             .session_manager
             .effective_session_storage_path(session_id)
@@ -8870,7 +8870,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         self.commit_session_revert_locked(&session_storage_path, session_id)
             .await
             .map_err(|error| {
-                OpenBitFunError::OutcomeUnknown(format!(
+                BitFunError::OutcomeUnknown(format!(
                     "{operation} was not admitted because the staged Session suffix could not be committed safely: session_id={session_id}, error={error}"
                 ))
             })
@@ -8881,7 +8881,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(crate) async fn commit_session_revert_before_submission(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let _mutation_guard = self
             .session_manager
             .acquire_session_mutation(session_id)
@@ -8894,13 +8894,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         restored: T,
-    ) -> OpenBitFunResult<T> {
+    ) -> BitFunResult<T> {
         let session_storage_path = self
             .session_manager
             .effective_session_storage_path(session_id)
             .await
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Session storage path not found: {session_id}"))
+                BitFunError::NotFound(format!("Session storage path not found: {session_id}"))
             })?;
         let _mutation_guard = self
             .session_manager
@@ -8915,7 +8915,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         let session = self
             .session_manager
             .restore_session_from_storage_path(session_storage_path, session_id)
@@ -8927,7 +8927,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         let session = self
             .session_manager
             .restore_internal_session_from_storage_path(session_storage_path, session_id)
@@ -8939,7 +8939,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.ensure_runtime_ownership(
             &request.workspace_path,
             request.remote_connection_id.as_deref(),
@@ -8956,7 +8956,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.ensure_runtime_ownership(
             &request.workspace_path,
             request.remote_connection_id.as_deref(),
@@ -8973,7 +8973,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         self.ensure_runtime_ownership(workspace_path, None, None)?;
         let session = self
             .session_manager
@@ -8987,7 +8987,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.ensure_runtime_ownership(workspace_path, None, None)?;
         let restored = self
             .session_manager
@@ -9000,7 +9000,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         let restored = self
             .session_manager
             .restore_session_with_turns_from_storage_path(session_storage_path, session_id)
@@ -9012,7 +9012,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         let restored = self
             .session_manager
             .restore_internal_session_with_turns_from_storage_path(session_storage_path, session_id)
@@ -9024,7 +9024,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.ensure_runtime_ownership(
             &request.workspace_path,
             request.remote_connection_id.as_deref(),
@@ -9041,7 +9041,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.ensure_runtime_ownership(
             &request.workspace_path,
             request.remote_connection_id.as_deref(),
@@ -9058,7 +9058,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.ensure_runtime_ownership(workspace_path, None, None)?;
         let restored = self
             .session_manager
@@ -9072,7 +9072,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.session_manager
             .restore_session_view(workspace_path, session_id)
             .await
@@ -9082,7 +9082,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9096,7 +9096,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9110,7 +9110,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9125,7 +9125,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>, usize)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>, usize)> {
         self.session_manager
             .restore_session_view_tail(workspace_path, session_id, tail_turn_count)
             .await
@@ -9136,7 +9136,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         usize,
@@ -9152,7 +9152,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         usize,
@@ -9171,7 +9171,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>)> {
         self.session_manager
             .restore_internal_session_view(workspace_path, session_id)
             .await
@@ -9181,7 +9181,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         workspace_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9195,7 +9195,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         request: SessionStoragePathRequest,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9209,7 +9209,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_storage_path: &Path,
         session_id: &str,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         crate::agentic::session::session_manager::SessionViewRestoreTiming,
@@ -9224,7 +9224,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(Session, Vec<crate::service::session::DialogTurnData>, usize)> {
+    ) -> BitFunResult<(Session, Vec<crate::service::session::DialogTurnData>, usize)> {
         self.session_manager
             .restore_internal_session_view_tail(workspace_path, session_id, tail_turn_count)
             .await
@@ -9235,7 +9235,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         usize,
@@ -9251,7 +9251,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
         tail_turn_count: usize,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Session,
         Vec<crate::service::session::DialogTurnData>,
         usize,
@@ -9270,12 +9270,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub async fn list_sessions(
         &self,
         workspace_path: &Path,
-    ) -> OpenBitFunResult<Vec<SessionSummary>> {
+    ) -> BitFunResult<Vec<SessionSummary>> {
         self.session_manager.list_sessions(workspace_path).await
     }
 
     /// Get a best-effort message view for a session.
-    pub async fn get_messages(&self, session_id: &str) -> OpenBitFunResult<Vec<Message>> {
+    pub async fn get_messages(&self, session_id: &str) -> BitFunResult<Vec<Message>> {
         self.session_manager.get_messages(session_id).await
     }
 
@@ -9285,7 +9285,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         limit: usize,
         before_message_id: Option<&str>,
-    ) -> OpenBitFunResult<(Vec<Message>, bool)> {
+    ) -> BitFunResult<(Vec<Message>, bool)> {
         self.session_manager
             .get_messages_paginated(session_id, limit, before_message_id)
             .await
@@ -9310,7 +9310,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     }
 
     /// Cancel tool execution
-    pub async fn cancel_tool(&self, tool_id: &str, reason: String) -> OpenBitFunResult<()> {
+    pub async fn cancel_tool(&self, tool_id: &str, reason: String) -> BitFunResult<()> {
         self.tool_pipeline.cancel_tool(tool_id, reason).await
     }
 
@@ -9318,7 +9318,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         tool_id: &str,
         reply: PermissionReply,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.tool_pipeline.reply_to_tool(tool_id, reply).await
     }
 
@@ -9457,20 +9457,20 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         cancel_token: Option<&CancellationToken>,
         deadline: Option<Instant>,
         label: &str,
-    ) -> OpenBitFunResult<OwnedSemaphorePermit> {
+    ) -> BitFunResult<OwnedSemaphorePermit> {
         let semaphore = limiter.semaphore.clone();
         let permit = match (cancel_token, deadline) {
             (Some(token), Some(deadline)) => {
                 tokio::select! {
                     result = semaphore.acquire_owned() => result
-                        .map_err(|error| OpenBitFunError::Semaphore(error.to_string()))?,
+                        .map_err(|error| BitFunError::Semaphore(error.to_string()))?,
                     _ = token.cancelled() => {
-                        return Err(OpenBitFunError::Cancelled(
+                        return Err(BitFunError::Cancelled(
                             "Subagent task was cancelled while waiting for a concurrency slot".to_string(),
                         ));
                     }
                     _ = tokio::time::sleep_until(deadline) => {
-                        return Err(OpenBitFunError::Timeout(format!(
+                        return Err(BitFunError::Timeout(format!(
                             "Timed out while waiting for a {} concurrency slot for subagent '{}'",
                             label, agent_type
                         )));
@@ -9480,9 +9480,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             (Some(token), None) => {
                 tokio::select! {
                     result = semaphore.acquire_owned() => result
-                        .map_err(|error| OpenBitFunError::Semaphore(error.to_string()))?,
+                        .map_err(|error| BitFunError::Semaphore(error.to_string()))?,
                     _ = token.cancelled() => {
-                        return Err(OpenBitFunError::Cancelled(
+                        return Err(BitFunError::Cancelled(
                             "Subagent task was cancelled while waiting for a concurrency slot".to_string(),
                         ));
                     }
@@ -9491,9 +9491,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             (None, Some(deadline)) => {
                 tokio::select! {
                     result = semaphore.acquire_owned() => result
-                        .map_err(|error| OpenBitFunError::Semaphore(error.to_string()))?,
+                        .map_err(|error| BitFunError::Semaphore(error.to_string()))?,
                     _ = tokio::time::sleep_until(deadline) => {
-                        return Err(OpenBitFunError::Timeout(format!(
+                        return Err(BitFunError::Timeout(format!(
                             "Timed out while waiting for a {} concurrency slot for subagent '{}'",
                             label, agent_type
                         )));
@@ -9503,7 +9503,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             (None, None) => semaphore
                 .acquire_owned()
                 .await
-                .map_err(|error| OpenBitFunError::Semaphore(error.to_string()))?,
+                .map_err(|error| BitFunError::Semaphore(error.to_string()))?,
         };
 
         let active_subagents = limiter
@@ -9523,7 +9523,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         profile_concurrency_cap: usize,
         cancel_token: Option<&CancellationToken>,
         deadline: Option<Instant>,
-    ) -> OpenBitFunResult<(
+    ) -> BitFunResult<(
         Vec<(OwnedSemaphorePermit, SubagentConcurrencyLimiter)>,
         u128,
     )> {
@@ -9625,7 +9625,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         request: HiddenSubagentExecutionRequest,
         cancel_token: Option<&CancellationToken>,
         timeout_seconds: Option<u64>,
-    ) -> OpenBitFunResult<SubagentResult> {
+    ) -> BitFunResult<SubagentResult> {
         let HiddenSubagentExecutionRequest {
             requested_agent_id: _,
             target_session_id,
@@ -9738,7 +9738,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     prepared_session_created,
                 )
                 .await;
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Subagent task has been cancelled".to_string(),
                 ));
             }
@@ -9779,7 +9779,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     prepared_session_created,
                 )
                 .await;
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Subagent task has been cancelled".to_string(),
                 ));
             }
@@ -9794,7 +9794,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 prepared_session_created,
             )
             .await;
-            return Err(OpenBitFunError::Timeout(timeout_error_message.clone()));
+            return Err(BitFunError::Timeout(timeout_error_message.clone()));
         }
 
         let session = match target_session_id {
@@ -9802,12 +9802,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 Some(session) => {
                     if session.kind != session_kind {
                         let error = if session_kind == SessionKind::Subagent {
-                            OpenBitFunError::Validation(format!(
+                            BitFunError::Validation(format!(
                                 "Subagent execution target must be a subagent session: {}",
                                 target_session_id
                             ))
                         } else {
-                            OpenBitFunError::Validation(format!(
+                            BitFunError::Validation(format!(
                                 "Hidden agent execution target has unexpected kind: {}",
                                 target_session_id
                             ))
@@ -9822,7 +9822,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     session
                 }
                 None => {
-                    let error = OpenBitFunError::NotFound(format!(
+                    let error = BitFunError::NotFound(format!(
                         "Subagent session not found: {}",
                         target_session_id
                     ));
@@ -9948,7 +9948,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .await;
                 let mut registry = self.subagent_timeout_registry.write().await;
                 registry.remove(&session_id);
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Subagent task has been cancelled".to_string(),
                 ));
             }
@@ -9966,7 +9966,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await;
             let mut registry = self.subagent_timeout_registry.write().await;
             registry.remove(&session_id);
-            return Err(OpenBitFunError::Timeout(timeout_error_message.clone()));
+            return Err(BitFunError::Timeout(timeout_error_message.clone()));
         }
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
@@ -10079,7 +10079,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             let _ = self.cleanup_subagent_resources(&session_id).await;
             let mut registry = self.subagent_timeout_registry.write().await;
             registry.remove(&session_id);
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Subagent task has been cancelled".to_string(),
             ));
         }
@@ -10267,7 +10267,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     let _ = self
                         .execution_engine
                         .take_generation_messages(&session_id, &dialog_turn_id);
-                    let join_error = OpenBitFunError::tool(format!(
+                    let join_error = BitFunError::tool(format!(
                         "Subagent '{}' failed to join: {}",
                         agent_type, error
                     ));
@@ -10396,7 +10396,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 registry.remove(&session_id);
 
                 execution_scope.disarm();
-                return Err(OpenBitFunError::Cancelled(
+                return Err(BitFunError::Cancelled(
                     "Subagent task has been cancelled".to_string(),
                 ));
             }
@@ -10543,7 +10543,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     return Ok(partial_result);
                 }
 
-                let timeout_error = OpenBitFunError::Timeout(timeout_error_message.clone());
+                let timeout_error = BitFunError::Timeout(timeout_error_message.clone());
                 Self::persist_failed_dialog_turn(
                     self.event_queue.as_ref(),
                     self.session_manager.as_ref(),
@@ -10578,7 +10578,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 registry.remove(&session_id);
 
                 execution_scope.disarm();
-                return Err(OpenBitFunError::Timeout(timeout_error_message.clone()));
+                return Err(BitFunError::Timeout(timeout_error_message.clone()));
             }
         };
 
@@ -10602,7 +10602,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 let _ = self
                     .execution_engine
                     .take_generation_messages(&session_id, &dialog_turn_id);
-                let turn_status = if matches!(&e, OpenBitFunError::Cancelled(_)) {
+                let turn_status = if matches!(&e, BitFunError::Cancelled(_)) {
                     Self::persist_cancelled_dialog_turn(
                         self.event_queue.as_ref(),
                         self.session_manager.as_ref(),
@@ -10757,12 +10757,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub async fn capture_fork_agent_context_snapshot(
         &self,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<ForkAgentContextSnapshot> {
+    ) -> BitFunResult<ForkAgentContextSnapshot> {
         let parent_session = self
             .session_manager
             .get_session(parent_session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "Parent session not found: {}",
                     parent_session_id
                 ))
@@ -10779,7 +10779,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         request_id: &str,
         parent_dialog_turn_id: Option<&str>,
         parent_turn_index: Option<usize>,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         if let Some(session) = self.session_manager.get_session(child_session_id) {
             self.session_manager
                 .merge_session_relationship(
@@ -10879,24 +10879,24 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         image_contexts: Option<Vec<ImageContextData>>,
         parent_dialog_turn_id: Option<&str>,
         parent_turn_index: Option<usize>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         if request_id.trim().is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "request_id is required".to_string(),
             ));
         }
         if parent_session_id.trim().is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "parent_session_id is required".to_string(),
             ));
         }
         if child_session_id.trim().is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "child_session_id is required".to_string(),
             ));
         }
         if question.trim().is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "question is required".to_string(),
             ));
         }
@@ -10976,7 +10976,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         target_session_id: &str,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<Session> {
+    ) -> BitFunResult<Session> {
         let session = match self.session_manager.get_session(target_session_id) {
             Some(session) => session,
             None => {
@@ -10985,7 +10985,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .resolve_session_workspace_binding(parent_session_id)
                     .await
                     .ok_or_else(|| {
-                        OpenBitFunError::NotFound(format!(
+                        BitFunError::NotFound(format!(
                             "Parent session workspace not found: {}",
                             parent_session_id
                         ))
@@ -11001,7 +11001,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         .and_then(|relationship| relationship.continuation_policy)
                         == Some(SessionContinuationPolicy::FreshOnly)
                 }) {
-                    return Err(OpenBitFunError::Validation(
+                    return Err(BitFunError::Validation(
                         "subagent_follow_up_unsupported: this subagent session is fresh-only; start a new Task invocation"
                             .to_string(),
                     ));
@@ -11015,14 +11015,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         };
 
         if session.config.continuation_policy == SessionContinuationPolicy::FreshOnly {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "subagent_follow_up_unsupported: this subagent session is fresh-only; start a new Task invocation"
                     .to_string(),
             ));
         }
 
         if session.kind != SessionKind::Subagent {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Subagent execution target must be a subagent session: {}",
                 target_session_id
             )));
@@ -11032,14 +11032,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .subagent_session_owned_by_parent(&session, parent_session_id)
             .await
         {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Subagent session '{}' was not created by parent session '{}'",
                 target_session_id, parent_session_id
             )));
         }
 
         if matches!(session.state, SessionState::Error { .. }) {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "Subagent session is in error state and cannot be reused: {}",
                 target_session_id
             )));
@@ -11140,7 +11140,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn load_reusable_subagent_context_messages(
         &self,
         session: &Session,
-    ) -> OpenBitFunResult<Vec<Message>> {
+    ) -> BitFunResult<Vec<Message>> {
         let session_id = &session.session_id;
         let mut context_messages = self
             .session_manager
@@ -11185,12 +11185,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         parent_session_id: &str,
         defaults: &AgentModelDefaultsConfig,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let parent_session = self
             .session_manager
             .get_session(parent_session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "Parent session not found: {}",
                     parent_session_id
                 ))
@@ -11199,7 +11199,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         trimmed_model_id(parent_session.config.model_id.as_deref())
             .or_else(|| trimmed_model_id(Some(defaults.mode.as_str())))
             .ok_or_else(|| {
-                OpenBitFunError::Validation(format!(
+                BitFunError::Validation(format!(
                     "Parent session has no model selection: {}",
                     parent_session_id
                 ))
@@ -11213,7 +11213,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         agent_type: &str,
         workspace_path: &str,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let defaults = Self::agent_model_defaults().await;
         if inherit_parent_model {
             return normalize_model_selection(
@@ -11245,9 +11245,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         binding: &ExternalSubagentModelBinding,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<(String, String)> {
+    ) -> BitFunResult<(String, String)> {
         let config_service = get_global_config_service().await.map_err(|error| {
-            OpenBitFunError::AIClient(format!(
+            BitFunError::AIClient(format!(
                 "Failed to load AI configuration for approved subagent binding: {error}"
             ))
         })?;
@@ -11255,7 +11255,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .get_config(Some("ai"))
             .await
             .map_err(|error| {
-                OpenBitFunError::AIClient(format!(
+                BitFunError::AIClient(format!(
                     "Failed to read AI configuration for approved subagent binding: {error}"
                 ))
             })?;
@@ -11276,10 +11276,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn resolve_hidden_subagent_execution_request(
         &self,
         request: SubagentExecutionRequest,
-    ) -> OpenBitFunResult<HiddenSubagentExecutionRequest> {
+    ) -> BitFunResult<HiddenSubagentExecutionRequest> {
         let task_description = request.task_description.trim().to_string();
         if task_description.is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "task_description is required when creating a subagent session".to_string(),
             ));
         }
@@ -11292,7 +11292,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(str::to_string);
         let inherit_parent_model = request.inherit_parent_model;
         if inherit_parent_model && model_id.is_some() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "A subagent model request cannot specify both a model ID and parent inheritance"
                     .to_string(),
             ));
@@ -11305,7 +11305,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(&request.subagent_parent_info.session_id)
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "Parent session not found: {}",
                     request.subagent_parent_info.session_id
                 ))
@@ -11322,13 +11322,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             SubagentContextMode::Fresh => {
                 if let Some(target_session_id) = request.target_session_id.as_deref() {
                     if request.subagent_type.is_some() {
-                        return Err(OpenBitFunError::Validation(
+                        return Err(BitFunError::Validation(
                             "subagent_type is not allowed when target_session_id is provided"
                                 .to_string(),
                         ));
                     }
                     if request.workspace_path.is_some() {
-                        return Err(OpenBitFunError::Validation(
+                        return Err(BitFunError::Validation(
                             "workspace_path is not allowed when target_session_id is provided"
                                 .to_string(),
                         ));
@@ -11363,7 +11363,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             self.session_manager
                                 .get_session(&session_id)
                                 .ok_or_else(|| {
-                                    OpenBitFunError::NotFound(format!(
+                                    BitFunError::NotFound(format!(
                                         "Subagent session not found after model update: {}",
                                         session_id
                                     ))
@@ -11409,12 +11409,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 }
 
                 let agent_type = request.subagent_type.ok_or_else(|| {
-                    OpenBitFunError::Validation(
+                    BitFunError::Validation(
                         "subagent_type is required when context_mode is 'fresh'".to_string(),
                     )
                 })?;
                 let workspace_path = request.workspace_path.ok_or_else(|| {
-                    OpenBitFunError::Validation(
+                    BitFunError::Validation(
                         "workspace_path is required when creating a fresh subagent session"
                             .to_string(),
                     )
@@ -11424,12 +11424,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     SessionModelBindingPolicy::ApprovedImmutable
                 ) {
                     if model_id.is_some() || inherit_parent_model {
-                        return Err(OpenBitFunError::Validation(
+                        return Err(BitFunError::Validation(
                             "An approved immutable subagent model cannot be overridden".to_string(),
                         ));
                     }
                     let binding = approved_model_binding.as_ref().ok_or_else(|| {
-                        OpenBitFunError::Validation(
+                        BitFunError::Validation(
                             "Approved immutable subagent generation has no model binding"
                                 .to_string(),
                         )
@@ -11501,17 +11501,17 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             }
             SubagentContextMode::Fork => {
                 if request.target_session_id.is_some() {
-                    return Err(OpenBitFunError::Validation(
+                    return Err(BitFunError::Validation(
                         "target_session_id is not allowed when context_mode is 'fork'".to_string(),
                     ));
                 }
                 if request.subagent_type.is_some() {
-                    return Err(OpenBitFunError::Validation(
+                    return Err(BitFunError::Validation(
                         "subagent_type is not allowed when context_mode is 'fork'".to_string(),
                     ));
                 }
                 if request.workspace_path.is_some() {
-                    return Err(OpenBitFunError::Validation(
+                    return Err(BitFunError::Validation(
                         "workspace_path is not allowed when context_mode is 'fork'".to_string(),
                     ));
                 }
@@ -11527,7 +11527,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         trimmed_model_id(snapshot.session_model_id.as_deref())
                             .or_else(|| trimmed_model_id(Some(defaults.mode.as_str())))
                             .ok_or_else(|| {
-                                OpenBitFunError::Validation(format!(
+                                BitFunError::Validation(format!(
                                     "Fork parent session has no model selection: {}",
                                     snapshot.parent_session_id
                                 ))
@@ -11538,7 +11538,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 };
                 let model_selection = if inherit_parent_model {
                     parent_model_id.ok_or_else(|| {
-                        OpenBitFunError::Validation(
+                        BitFunError::Validation(
                             "Fork parent session has no model selection".to_string(),
                         )
                     })?
@@ -11593,19 +11593,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(super) async fn prepare_hidden_subagent_execution_request(
         &self,
         mut request: HiddenSubagentExecutionRequest,
-    ) -> OpenBitFunResult<HiddenSubagentExecutionRequest> {
+    ) -> BitFunResult<HiddenSubagentExecutionRequest> {
         if let Some(target_session_id) = request.target_session_id.as_deref() {
             let session = self
                 .session_manager
                 .get_session(target_session_id)
                 .ok_or_else(|| {
-                    OpenBitFunError::NotFound(format!(
+                    BitFunError::NotFound(format!(
                         "Subagent session not found: {}",
                         target_session_id
                     ))
                 })?;
             if session.kind != SessionKind::Subagent {
-                return Err(OpenBitFunError::Validation(format!(
+                return Err(BitFunError::Validation(format!(
                     "Subagent execution target must be a subagent session: {}",
                     target_session_id
                 )));
@@ -11690,7 +11690,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(crate) async fn prepare_subagent_execution_request(
         &self,
         request: SubagentExecutionRequest,
-    ) -> OpenBitFunResult<HiddenSubagentExecutionRequest> {
+    ) -> BitFunResult<HiddenSubagentExecutionRequest> {
         let request = self
             .resolve_hidden_subagent_execution_request(request)
             .await?;
@@ -11707,26 +11707,26 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         request: HiddenSubagentExecutionRequest,
         cancel_token: Option<&CancellationToken>,
         timeout_seconds: Option<u64>,
-    ) -> OpenBitFunResult<SubagentResult> {
+    ) -> BitFunResult<SubagentResult> {
         self.execute_hidden_subagent_internal(request, cancel_token, timeout_seconds)
             .await
     }
 
     async fn await_hidden_subagent_receiver(
-        receiver: tokio::sync::oneshot::Receiver<OpenBitFunResult<SubagentResult>>,
-    ) -> OpenBitFunResult<SubagentResult> {
+        receiver: tokio::sync::oneshot::Receiver<BitFunResult<SubagentResult>>,
+    ) -> BitFunResult<SubagentResult> {
         receiver
             .await
-            .map_err(|_| OpenBitFunError::tool("Subagent result channel closed".to_string()))?
+            .map_err(|_| BitFunError::tool("Subagent result channel closed".to_string()))?
     }
 
     async fn await_hidden_subagent_cancellation(
-        receiver: impl std::future::Future<Output = OpenBitFunResult<SubagentResult>>,
+        receiver: impl std::future::Future<Output = BitFunResult<SubagentResult>>,
         wait_timeout: Duration,
-    ) -> OpenBitFunResult<SubagentResult> {
+    ) -> BitFunResult<SubagentResult> {
         match tokio::time::timeout(wait_timeout, receiver).await {
             Ok(result) => result,
-            Err(_) => Err(OpenBitFunError::Cancelled(
+            Err(_) => Err(BitFunError::Cancelled(
                 "Subagent task has been cancelled".to_string(),
             )),
         }
@@ -11772,7 +11772,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         parent_session_id: &str,
         subagent_session_id: &str,
         cancel_descendants: bool,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         self.ensure_subagent_session_loaded_for_reuse(subagent_session_id, parent_session_id)
             .await?;
 
@@ -11813,7 +11813,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(crate) async fn cancel_background_subagents_for_parent_session(
         &self,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<Vec<String>> {
+    ) -> BitFunResult<Vec<String>> {
         let controls = self.claim_background_subagent_controls(|control| {
             control.parent_session_id == parent_session_id
         });
@@ -11840,7 +11840,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         delivered_parent_dialog_turn_id: &str,
         cancellation_token: Option<&CancellationToken>,
         round_injection_preemption_token: Option<&CancellationToken>,
-    ) -> OpenBitFunResult<BackgroundSubagentWaitResult> {
+    ) -> BitFunResult<BackgroundSubagentWaitResult> {
         self.background_subagent_outcomes
             .wait_for(
                 parent_session_id,
@@ -11859,7 +11859,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         parent_session_id: &str,
         subagent_session_id: &str,
         requested_agent_id: Option<&str>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.background_subagent_outcomes
             .agent_id_for_session_with_requested_id(
                 parent_session_id,
@@ -11873,7 +11873,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         parent_session_id: &str,
         subagent_session_id: &str,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         self.background_subagent_outcomes
             .existing_agent_id_for_session(parent_session_id, subagent_session_id)
             .await
@@ -11883,7 +11883,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         parent_session_id: &str,
         agent_id: &str,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.background_subagent_outcomes
             .resolve_agent_id(parent_session_id, agent_id)
             .await
@@ -11892,7 +11892,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(crate) async fn direct_child_agents(
         &self,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<Vec<super::DirectChildAgentRecord>> {
+    ) -> BitFunResult<Vec<super::DirectChildAgentRecord>> {
         self.background_subagent_outcomes
             .direct_child_agents(parent_session_id)
             .await
@@ -11902,7 +11902,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         parent_session_id: &str,
         agent_ids: &[String],
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         let mut targets = Vec::with_capacity(agent_ids.len());
         for agent_id in agent_ids {
             let target_session_id = self
@@ -11930,13 +11930,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         parent_session_id: &str,
         agent_id: &str,
         target_session_id: &str,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         let subtree = self
             .background_subagent_outcomes
             .swarm_subtree_session_ids_postorder(target_session_id)
             .await?;
         if subtree.last().map(String::as_str) != Some(target_session_id) {
-            return Err(OpenBitFunError::OutcomeUnknown(format!(
+            return Err(BitFunError::OutcomeUnknown(format!(
                 "Agent subtree could not be resolved completely: agent_id={agent_id}"
             )));
         }
@@ -11947,7 +11947,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await
             .map(|binding| binding.session_storage_dir())
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!(
+                BitFunError::NotFound(format!(
                     "Parent session workspace not found: {parent_session_id}"
                 ))
             })?;
@@ -11996,11 +11996,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         Ok(subtree.len())
     }
 
-    async fn delete_agent_session_by_id(&self, session_id: &str) -> OpenBitFunResult<()> {
+    async fn delete_agent_session_by_id(&self, session_id: &str) -> BitFunResult<()> {
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| OpenBitFunError::NotFound(format!("Session not found: {session_id}")))?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         let workspace_path = session.config.workspace_path.clone().map(PathBuf::from);
         let is_remote_workspace = Self::session_hooks_are_remote(&session).await;
         let model = session.config.model_id.clone().unwrap_or_default();
@@ -12036,7 +12036,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     pub(crate) async fn swarm_depth_for_session(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<Option<u8>> {
+    ) -> BitFunResult<Option<u8>> {
         self.background_subagent_outcomes
             .swarm_depth_for_session(session_id)
             .await
@@ -12090,7 +12090,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         controls: Vec<(i64, BackgroundSubagentTaskControl)>,
         cancel_descendants: bool,
-    ) -> OpenBitFunResult<usize> {
+    ) -> BitFunResult<usize> {
         for (task_pk, control) in &controls {
             debug!(
                 "Cancelling background subagent task: task_pk={}, parent_session_id={}, subagent_session_id={}",
@@ -12126,7 +12126,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         request: SubagentExecutionRequest,
         cancel_token: Option<&CancellationToken>,
         timeout_seconds: Option<u64>,
-    ) -> OpenBitFunResult<SubagentResult> {
+    ) -> BitFunResult<SubagentResult> {
         let request = self.prepare_subagent_execution_request(request).await?;
         let Some(scheduler) = get_global_scheduler() else {
             return self
@@ -12141,7 +12141,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             Err(error) => {
                 self.cleanup_prepared_hidden_subagent_session_if_unsubmitted(&request)
                     .await;
-                return Err(OpenBitFunError::tool(error));
+                return Err(BitFunError::tool(error));
             }
         };
         let receiver = submit_result.receiver;
@@ -12176,10 +12176,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         request: InternalAgentExecutionRequest,
         cancel_token: Option<&CancellationToken>,
         timeout_seconds: Option<u64>,
-    ) -> OpenBitFunResult<SubagentResult> {
+    ) -> BitFunResult<SubagentResult> {
         let task_description = request.task_description.trim().to_string();
         if task_description.is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "task_description is required when creating an internal agent session".to_string(),
             ));
         }
@@ -12225,12 +12225,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         // Tool cancellation is narrower than parent-turn cancellation: round
         // injection cancels the Tool while keeping the dialog turn alive.
         tool_cancellation_token: Option<CancellationToken>,
-    ) -> OpenBitFunResult<BackgroundSubagentStartResult> {
+    ) -> BitFunResult<BackgroundSubagentStartResult> {
         if tool_cancellation_token
             .as_ref()
             .is_some_and(CancellationToken::is_cancelled)
         {
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Background subagent start was cancelled".to_string(),
             ));
         }
@@ -12241,14 +12241,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .prepare_hidden_subagent_execution_request(request)
             .await?;
         let is_swarm =
-            request.delegation_policy.scope == openbitfun_runtime_ports::DelegationScope::Swarm;
+            request.delegation_policy.scope == bitfun_runtime_ports::DelegationScope::Swarm;
         if tool_cancellation_token
             .as_ref()
             .is_some_and(CancellationToken::is_cancelled)
         {
             self.cleanup_prepared_hidden_subagent_session_if_unsubmitted(&request)
                 .await;
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Background subagent start was cancelled".to_string(),
             ));
         }
@@ -12256,7 +12256,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let subagent_session_id = request
             .target_session_id()
             .ok_or_else(|| {
-                OpenBitFunError::Validation(
+                BitFunError::Validation(
                     "prepared hidden subagent request is missing target_session_id".to_string(),
                 )
             })?
@@ -12266,7 +12266,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             None => {
                 self.cleanup_prepared_hidden_subagent_session_if_unsubmitted(&request)
                     .await;
-                return Err(OpenBitFunError::Validation(
+                return Err(BitFunError::Validation(
                     "subagent_parent_info is required when creating a background subagent session"
                         .to_string(),
                 ));
@@ -12280,7 +12280,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             None => {
                 self.cleanup_prepared_hidden_subagent_session_if_unsubmitted(&request)
                     .await;
-                return Err(OpenBitFunError::NotFound(format!(
+                return Err(BitFunError::NotFound(format!(
                     "Parent session not found: {}",
                     subagent_parent_info.session_id
                 )));
@@ -12315,7 +12315,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 }
                 self.cleanup_prepared_hidden_subagent_session_if_unsubmitted(&request)
                     .await;
-                return Err(OpenBitFunError::service(
+                return Err(BitFunError::service(
                     "Coordinator not initialized".to_string(),
                 ));
             }
@@ -12378,7 +12378,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         .await;
                 }
             }
-            return Err(OpenBitFunError::Cancelled(
+            return Err(BitFunError::Cancelled(
                 "Background subagent start was cancelled".to_string(),
             ));
         }
@@ -12427,7 +12427,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                                 .await;
                         }
                     }
-                    return Err(OpenBitFunError::tool(error));
+                    return Err(BitFunError::tool(error));
                 }
             };
             let receiver = submit_result.receiver;
@@ -12585,7 +12585,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// Durable and reusable Subagent sessions remain available for follow-up.
     /// A transient fresh-only child has no supported continuation path, so its
     /// existing lifecycle owner releases the Session after terminal cleanup.
-    async fn cleanup_subagent_resources(&self, session_id: &str) -> OpenBitFunResult<()> {
+    async fn cleanup_subagent_resources(&self, session_id: &str) -> BitFunResult<()> {
         let cleanup_started_at = Instant::now();
         debug!(
             "Starting subagent resource cleanup: session_id={}",
@@ -12639,7 +12639,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .as_deref()
                 .map(Path::new)
                 .ok_or_else(|| {
-                    OpenBitFunError::Validation(format!(
+                    BitFunError::Validation(format!(
                         "Transient subagent workspace binding is missing: {session_id}"
                     ))
                 })?;
@@ -12676,7 +12676,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         dialog_turn_id: &str,
         user_input_text: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         if !Self::should_persist_reused_subagent_user_input_context(
             prepared_target_session_id,
             prepared_session_created,
@@ -12704,7 +12704,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         user_message: &str,
         max_length: Option<usize>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.ensure_session_runtime_ownership(session_id, None)?;
         let allow_ai = is_ai_session_title_generation_enabled().await;
         let resolved = self
@@ -12735,11 +12735,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         title: &str,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.ensure_session_runtime_ownership(session_id, None)?;
         let normalized = title.trim().to_string();
         if normalized.is_empty() {
-            return Err(OpenBitFunError::validation(
+            return Err(BitFunError::validation(
                 "Session title must not be empty".to_string(),
             ));
         }
@@ -12762,7 +12762,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         mode_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.update_session_mode_with_route(session_id, mode_id, None)
             .await
     }
@@ -12772,11 +12772,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: &str,
         mode_id: &str,
         expected_route_key: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.ensure_session_runtime_ownership(session_id, None)?;
         let mode_id = mode_id.trim();
         if mode_id.is_empty() {
-            return Err(OpenBitFunError::Validation(
+            return Err(BitFunError::Validation(
                 "Session mode must not be empty".to_string(),
             ));
         }
@@ -12784,7 +12784,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| OpenBitFunError::NotFound(format!("Session not found: {session_id}")))?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
         let workspace = Self::build_workspace_binding(&session.config).await;
         let workspace_root =
             crate::agentic::workspace::session_execution_workspace_root(&session.config);
@@ -12816,7 +12816,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         agent_type: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.ensure_session_runtime_ownership(session_id, None)?;
         let normalized = Self::normalize_agent_type(agent_type);
         self.session_manager
@@ -12912,7 +12912,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 }
 
 fn resolve_agent_submission_turn_id(
-    request: &openbitfun_runtime_ports::AgentSubmissionRequest,
+    request: &bitfun_runtime_ports::AgentSubmissionRequest,
 ) -> String {
     request
         .turn_id
@@ -12941,9 +12941,9 @@ fn resolve_agent_session_create_created_by(
         .map(ToOwned::to_owned)
 }
 
-fn runtime_port_backend_error(error: OpenBitFunError) -> openbitfun_runtime_ports::PortError {
-    openbitfun_runtime_ports::PortError::new(
-        openbitfun_runtime_ports::PortErrorKind::Backend,
+fn runtime_port_backend_error(error: BitFunError) -> bitfun_runtime_ports::PortError {
+    bitfun_runtime_ports::PortError::new(
+        bitfun_runtime_ports::PortErrorKind::Backend,
         error.to_string(),
     )
 }
@@ -12951,13 +12951,13 @@ fn runtime_port_backend_error(error: OpenBitFunError) -> openbitfun_runtime_port
 async fn create_agent_session_from_runtime_request(
     coordinator: &ConversationCoordinator,
     session_id: Option<String>,
-    request: openbitfun_runtime_ports::AgentSessionCreateRequest,
+    request: bitfun_runtime_ports::AgentSessionCreateRequest,
     transient: bool,
-    map_core_error: fn(OpenBitFunError) -> openbitfun_runtime_ports::PortError,
-) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSessionCreateResult> {
+    map_core_error: fn(BitFunError) -> bitfun_runtime_ports::PortError,
+) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult> {
     let workspace_path = request.workspace_path.clone().ok_or_else(|| {
-        openbitfun_runtime_ports::PortError::new(
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        bitfun_runtime_ports::PortError::new(
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest,
             "workspace_path is required to create an agent session",
         )
     })?;
@@ -12989,11 +12989,11 @@ async fn create_agent_session_from_runtime_request(
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
     async fn create_session(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSessionCreateResult>
+        request: bitfun_runtime_ports::AgentSessionCreateRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
     {
         create_agent_session_from_runtime_request(
             self,
@@ -13008,11 +13008,11 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
     async fn create_session_with_id(
         &self,
         session_id: String,
-        request: openbitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSessionCreateResult>
+        request: bitfun_runtime_ports::AgentSessionCreateRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
     {
-        openbitfun_core_types::validate_session_id(&session_id).map_err(|message| {
-            runtime_port_error_preserving_message(OpenBitFunError::Validation(message))
+        bitfun_core_types::validate_session_id(&session_id).map_err(|message| {
+            runtime_port_error_preserving_message(BitFunError::Validation(message))
         })?;
         create_agent_session_from_runtime_request(
             self,
@@ -13027,11 +13027,11 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
     async fn create_transient_session_with_id(
         &self,
         session_id: String,
-        request: openbitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSessionCreateResult>
+        request: bitfun_runtime_ports::AgentSessionCreateRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
     {
-        openbitfun_core_types::validate_session_id(&session_id).map_err(|message| {
-            runtime_port_error_preserving_message(OpenBitFunError::Validation(message))
+        bitfun_core_types::validate_session_id(&session_id).map_err(|message| {
+            runtime_port_error_preserving_message(BitFunError::Validation(message))
         })?;
         create_agent_session_from_runtime_request(
             self,
@@ -13045,11 +13045,11 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
 
     async fn submit_message(
         &self,
-        request: openbitfun_runtime_ports::AgentSubmissionRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSubmissionResult> {
+        request: bitfun_runtime_ports::AgentSubmissionRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSubmissionResult> {
         if !request.attachments.is_empty() {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 "agent submission port does not yet accept generic attachments",
             ));
         }
@@ -13058,8 +13058,8 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
             .get_session_manager()
             .get_session(&request.session_id)
             .ok_or_else(|| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::NotFound,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::NotFound,
                     format!("session not found: {}", request.session_id),
                 )
             })?;
@@ -13087,13 +13087,13 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
         )
         .await
         .map_err(|error| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::Backend,
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::Backend,
                 error.to_string(),
             )
         })?;
 
-        Ok(openbitfun_runtime_ports::AgentSubmissionResult {
+        Ok(bitfun_runtime_ports::AgentSubmissionResult {
             turn_id,
             accepted: true,
         })
@@ -13102,7 +13102,7 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
     async fn resolve_session_agent_type(
         &self,
         session_id: &str,
-    ) -> openbitfun_runtime_ports::PortResult<Option<String>> {
+    ) -> bitfun_runtime_ports::PortResult<Option<String>> {
         if let Some(session) = self.get_session_manager().get_session(session_id) {
             return Ok(Some(session.agent_type.clone()));
         }
@@ -13129,8 +13129,8 @@ impl openbitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
             .await
             .map(|session| Some(session.agent_type))
             .map_err(|error| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::Backend,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::Backend,
                     error.to_string(),
                 )
             })
@@ -13145,7 +13145,7 @@ fn runtime_session_time_ms(time: std::time::SystemTime) -> u64 {
 
 fn runtime_transcript_message_from_message(
     message: Message,
-) -> openbitfun_runtime_ports::TranscriptMessage {
+) -> bitfun_runtime_ports::TranscriptMessage {
     let role = match message.role {
         crate::agentic::core::MessageRole::User => "user",
         crate::agentic::core::MessageRole::Assistant => "assistant",
@@ -13155,9 +13155,9 @@ fn runtime_transcript_message_from_message(
     .to_string();
 
     let content = match message.content {
-        MessageContent::Text(text) => openbitfun_runtime_ports::TranscriptContent::Text(text),
+        MessageContent::Text(text) => bitfun_runtime_ports::TranscriptContent::Text(text),
         MessageContent::Multimodal { text, images } => {
-            openbitfun_runtime_ports::TranscriptContent::Multimodal {
+            bitfun_runtime_ports::TranscriptContent::Multimodal {
                 text,
                 image_count: images.len(),
             }
@@ -13169,7 +13169,7 @@ fn runtime_transcript_message_from_message(
             result,
             is_error,
             ..
-        } => openbitfun_runtime_ports::TranscriptContent::ToolResult {
+        } => bitfun_runtime_ports::TranscriptContent::ToolResult {
             tool_id,
             tool_name,
             effective_tool_name,
@@ -13180,12 +13180,12 @@ fn runtime_transcript_message_from_message(
             reasoning_content,
             text,
             tool_calls,
-        } => openbitfun_runtime_ports::TranscriptContent::Mixed {
+        } => bitfun_runtime_ports::TranscriptContent::Mixed {
             reasoning_content,
             text,
             tool_calls: tool_calls
                 .into_iter()
-                .map(|tool_call| openbitfun_runtime_ports::TranscriptToolCall {
+                .map(|tool_call| bitfun_runtime_ports::TranscriptToolCall {
                     tool_id: tool_call.tool_id,
                     tool_name: tool_call.tool_name,
                     arguments: tool_call.arguments,
@@ -13194,7 +13194,7 @@ fn runtime_transcript_message_from_message(
         },
     };
 
-    openbitfun_runtime_ports::TranscriptMessage {
+    bitfun_runtime_ports::TranscriptMessage {
         id: Some(message.id),
         role,
         turn_id: message.metadata.turn_id,
@@ -13206,7 +13206,7 @@ fn runtime_transcript_message_from_message(
 pub(crate) fn runtime_transcript_messages_from_turns(
     turns: &[DialogTurnData],
     requested_turn_id: Option<&str>,
-) -> Vec<openbitfun_runtime_ports::TranscriptMessage> {
+) -> Vec<bitfun_runtime_ports::TranscriptMessage> {
     let mut messages = Vec::new();
     for turn in turns.iter().filter(|turn| {
         turn.kind.is_transcript_visible()
@@ -13219,15 +13219,15 @@ pub(crate) fn runtime_transcript_messages_from_turns(
             .and_then(|metadata| metadata.get("images"))
             .and_then(serde_json::Value::as_array)
             .map_or(0, Vec::len);
-        messages.push(openbitfun_runtime_ports::TranscriptMessage {
+        messages.push(bitfun_runtime_ports::TranscriptMessage {
             id: Some(turn.user_message.id.clone()),
             role: "user".to_string(),
             turn_id: Some(turn.turn_id.clone()),
             timestamp_ms: Some(turn.user_message.timestamp),
             content: if image_count == 0 {
-                openbitfun_runtime_ports::TranscriptContent::Text(turn.user_message.content.clone())
+                bitfun_runtime_ports::TranscriptContent::Text(turn.user_message.content.clone())
             } else {
-                openbitfun_runtime_ports::TranscriptContent::Multimodal {
+                bitfun_runtime_ports::TranscriptContent::Multimodal {
                     text: turn.user_message.content.clone(),
                     image_count,
                 }
@@ -13262,19 +13262,19 @@ pub(crate) fn runtime_transcript_messages_from_turns(
             let tool_calls = round
                 .tool_items
                 .iter()
-                .map(|item| openbitfun_runtime_ports::TranscriptToolCall {
+                .map(|item| bitfun_runtime_ports::TranscriptToolCall {
                     tool_id: item.tool_call.id.clone(),
                     tool_name: item.effective_name().to_string(),
                     arguments: item.effective_input().clone(),
                 })
                 .collect::<Vec<_>>();
             if !text.is_empty() || !reasoning_content.is_empty() || !tool_calls.is_empty() {
-                messages.push(openbitfun_runtime_ports::TranscriptMessage {
+                messages.push(bitfun_runtime_ports::TranscriptMessage {
                     id: Some(round.id.clone()),
                     role: "assistant".to_string(),
                     turn_id: Some(turn.turn_id.clone()),
                     timestamp_ms: Some(round.timestamp),
-                    content: openbitfun_runtime_ports::TranscriptContent::Mixed {
+                    content: bitfun_runtime_ports::TranscriptContent::Mixed {
                         reasoning_content: (!reasoning_content.is_empty())
                             .then_some(reasoning_content),
                         text,
@@ -13295,12 +13295,12 @@ pub(crate) fn runtime_transcript_messages_from_turns(
                         "error": tool_result.error.as_deref().unwrap_or("Tool execution failed")
                     })
                 };
-                messages.push(openbitfun_runtime_ports::TranscriptMessage {
+                messages.push(bitfun_runtime_ports::TranscriptMessage {
                     id: Some(format!("{}-result", item.id)),
                     role: "tool".to_string(),
                     turn_id: Some(turn.turn_id.clone()),
                     timestamp_ms: item.end_time.or(Some(item.start_time)),
-                    content: openbitfun_runtime_ports::TranscriptContent::ToolResult {
+                    content: bitfun_runtime_ports::TranscriptContent::ToolResult {
                         tool_id: item.tool_call.id.clone(),
                         tool_name: item.tool_name.clone(),
                         effective_tool_name: (effective_name != item.tool_name)
@@ -13317,8 +13317,8 @@ pub(crate) fn runtime_transcript_messages_from_turns(
 
 fn runtime_session_summary(
     session: SessionSummary,
-) -> openbitfun_runtime_ports::AgentSessionSummary {
-    openbitfun_runtime_ports::AgentSessionSummary {
+) -> bitfun_runtime_ports::AgentSessionSummary {
+    bitfun_runtime_ports::AgentSessionSummary {
         session_id: session.session_id,
         session_name: session.session_name,
         agent_type: session.agent_type,
@@ -13347,72 +13347,72 @@ fn runtime_session_workspace_binding(binding: WorkspaceBinding) -> AgentSessionW
     }
 }
 
-fn runtime_port_error_from_openbitfun(
-    error: OpenBitFunError,
-) -> openbitfun_runtime_ports::PortError {
+fn runtime_port_error_from_bitfun(
+    error: BitFunError,
+) -> bitfun_runtime_ports::PortError {
     let (kind, message) = match error {
-        OpenBitFunError::Validation(message) => (
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        BitFunError::Validation(message) => (
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest,
             message,
         ),
-        OpenBitFunError::NotFound(message) => {
-            (openbitfun_runtime_ports::PortErrorKind::NotFound, message)
+        BitFunError::NotFound(message) => {
+            (bitfun_runtime_ports::PortErrorKind::NotFound, message)
         }
-        OpenBitFunError::Cancelled(message) => {
-            (openbitfun_runtime_ports::PortErrorKind::Cancelled, message)
+        BitFunError::Cancelled(message) => {
+            (bitfun_runtime_ports::PortErrorKind::Cancelled, message)
         }
-        OpenBitFunError::Timeout(message) => {
-            (openbitfun_runtime_ports::PortErrorKind::Timeout, message)
+        BitFunError::Timeout(message) => {
+            (bitfun_runtime_ports::PortErrorKind::Timeout, message)
         }
-        OpenBitFunError::SessionInUse { session_id } => (
-            openbitfun_runtime_ports::PortErrorKind::SessionInUse,
+        BitFunError::SessionInUse { session_id } => (
+            bitfun_runtime_ports::PortErrorKind::SessionInUse,
             format!("Session is already open for writing: {session_id}"),
         ),
-        OpenBitFunError::OutcomeUnknown(message) => (
-            openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+        BitFunError::OutcomeUnknown(message) => (
+            bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
             message,
         ),
-        OpenBitFunError::NotImplemented(message) => (
-            openbitfun_runtime_ports::PortErrorKind::NotAvailable,
+        BitFunError::NotImplemented(message) => (
+            bitfun_runtime_ports::PortErrorKind::NotAvailable,
             message,
         ),
         other => (
-            openbitfun_runtime_ports::PortErrorKind::Backend,
+            bitfun_runtime_ports::PortErrorKind::Backend,
             other.to_string(),
         ),
     };
-    openbitfun_runtime_ports::PortError::new(kind, message)
+    bitfun_runtime_ports::PortError::new(kind, message)
 }
 
 fn runtime_port_error_preserving_message(
-    error: OpenBitFunError,
-) -> openbitfun_runtime_ports::PortError {
+    error: BitFunError,
+) -> bitfun_runtime_ports::PortError {
     let message = error.to_string();
-    let mut port_error = runtime_port_error_from_openbitfun(error);
+    let mut port_error = runtime_port_error_from_bitfun(error);
     port_error.message = message;
     port_error
 }
 
 fn user_input_port_error(
-    error: openbitfun_agent_runtime::user_questions::UserInputSendError,
-) -> openbitfun_runtime_ports::PortError {
+    error: bitfun_agent_runtime::user_questions::UserInputSendError,
+) -> bitfun_runtime_ports::PortError {
     let kind = match &error {
-        openbitfun_agent_runtime::user_questions::UserInputSendError::MissingChannel { .. } => {
-            openbitfun_runtime_ports::PortErrorKind::NotFound
+        bitfun_agent_runtime::user_questions::UserInputSendError::MissingChannel { .. } => {
+            bitfun_runtime_ports::PortErrorKind::NotFound
         }
-        openbitfun_agent_runtime::user_questions::UserInputSendError::ChannelClosed { .. } => {
-            openbitfun_runtime_ports::PortErrorKind::Cancelled
+        bitfun_agent_runtime::user_questions::UserInputSendError::ChannelClosed { .. } => {
+            bitfun_runtime_ports::PortErrorKind::Cancelled
         }
     };
-    openbitfun_runtime_ports::PortError::new(kind, format!("Tool error: {error}"))
+    bitfun_runtime_ports::PortError::new(kind, format!("Tool error: {error}"))
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinator {
     async fn list_sessions(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionListRequest,
-    ) -> openbitfun_runtime_ports::PortResult<Vec<openbitfun_runtime_ports::AgentSessionSummary>>
+        request: bitfun_runtime_ports::AgentSessionListRequest,
+    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentSessionSummary>>
     {
         let effective_storage_path = Self::resolve_session_restore_path(
             &request.workspace_path,
@@ -13421,8 +13421,8 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
         )
         .await
         .map_err(|error| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::Backend,
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::Backend,
                 error.to_string(),
             )
         })?;
@@ -13436,8 +13436,8 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
                     .collect::<Vec<_>>()
             })
             .map_err(|error| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::Backend,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::Backend,
                     error.to_string(),
                 )
             })
@@ -13445,11 +13445,11 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 
     async fn delete_session(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionDeleteRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        request: bitfun_runtime_ports::AgentSessionDeleteRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13466,8 +13466,8 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
         )
         .await
         .map_err(|error| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::Backend,
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::Backend,
                 error.to_string(),
             )
         })?;
@@ -13475,8 +13475,8 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
         self.delete_session(&effective_storage_path, &request.session_id)
             .await
             .map_err(|error| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::Backend,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::Backend,
                     error.to_string(),
                 )
             })
@@ -13484,11 +13484,11 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 
     async fn rename_session(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionRenameRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        request: bitfun_runtime_ports::AgentSessionRenameRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13523,11 +13523,11 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 
     async fn archive_session(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionArchiveRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
-        openbitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
+        request: bitfun_runtime_ports::AgentSessionArchiveRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        bitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
             self,
-            openbitfun_runtime_ports::AgentSessionArchiveStateRequest {
+            bitfun_runtime_ports::AgentSessionArchiveStateRequest {
                 workspace_path: request.workspace_path,
                 session_id: request.session_id,
                 archived: true,
@@ -13540,11 +13540,11 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 
     async fn set_session_archived(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionArchiveStateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        request: bitfun_runtime_ports::AgentSessionArchiveStateRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13585,9 +13585,9 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 
     async fn resolve_session_workspace_binding(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionWorkspaceRequest,
-    ) -> openbitfun_runtime_ports::PortResult<
-        Option<openbitfun_runtime_ports::AgentSessionWorkspaceBinding>,
+        request: bitfun_runtime_ports::AgentSessionWorkspaceRequest,
+    ) -> bitfun_runtime_ports::PortResult<
+        Option<bitfun_runtime_ports::AgentSessionWorkspaceBinding>,
     > {
         Ok(self
             .get_session_manager()
@@ -13598,14 +13598,14 @@ impl openbitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordi
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoordinator {
     async fn search_workspace_references(
         &self,
         request: AgentWorkspaceReferenceSearchRequest,
-    ) -> openbitfun_runtime_ports::PortResult<AgentWorkspaceReferenceSearchResult> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+    ) -> bitfun_runtime_ports::PortResult<AgentWorkspaceReferenceSearchResult> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13614,14 +13614,14 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
             .resolve_session_workspace_binding(&request.session_id)
             .await
             .ok_or_else(|| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::NotFound,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::NotFound,
                     "Session workspace binding was not found",
                 )
             })?;
         if binding.is_remote() {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::NotAvailable,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::NotAvailable,
                 "Workspace reference search is unavailable for remote workspaces",
             ));
         }
@@ -13635,8 +13635,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
                 .split('/')
                 .any(|part| part == ".." || part.contains(':'))
         {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 "Workspace reference search requires a safe workspace-relative query",
             ));
         }
@@ -13657,8 +13657,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
                     });
                 }
                 Err(error) => {
-                    return Err(openbitfun_runtime_ports::PortError::new(
-                        openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                         error.to_string(),
                     ));
                 }
@@ -13679,8 +13679,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
                 .get_directory_contents(&search_root.to_string_lossy())
                 .await
                 .map_err(|error| {
-                    openbitfun_runtime_ports::PortError::new(
-                        openbitfun_runtime_ports::PortErrorKind::Backend,
+                    bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::Backend,
                         error.to_string(),
                     )
                 })?
@@ -13705,8 +13705,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
                 )
                 .await
                 .map_err(|error| {
-                    openbitfun_runtime_ports::PortError::new(
-                        openbitfun_runtime_ports::PortErrorKind::Backend,
+                    bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::Backend,
                         error.to_string(),
                     )
                 })?
@@ -13769,10 +13769,10 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
     async fn workspace_references_for_message(
         &self,
         request: AgentMessageWorkspaceReferencesRequest,
-    ) -> openbitfun_runtime_ports::PortResult<Vec<AgentWorkspaceReference>> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+    ) -> bitfun_runtime_ports::PortResult<Vec<AgentWorkspaceReference>> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13786,8 +13786,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
             .effective_session_storage_path(&request.session_id)
             .await
             .ok_or_else(|| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::NotFound,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::NotFound,
                     "Session storage binding was not found",
                 )
             })?;
@@ -13804,8 +13804,8 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
             .iter()
             .find(|turn| turn.user_message.id == request.message_id)
             .ok_or_else(|| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::NotFound,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::NotFound,
                     "User message was not found in the session transcript",
                 )
             })?;
@@ -13815,11 +13815,11 @@ impl openbitfun_runtime_ports::AgentWorkspaceReferencePort for ConversationCoord
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator {
     async fn update_session_model(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionModelUpdateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
+        request: bitfun_runtime_ports::AgentSessionModelUpdateRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
         self.update_session_model(&request.session_id, &request.model_id)
             .await
             .map_err(runtime_port_error_preserving_message)
@@ -13827,8 +13827,8 @@ impl openbitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator
 
     async fn update_session_model_selection(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionModelSelectionUpdateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
+        request: bitfun_runtime_ports::AgentSessionModelSelectionUpdateRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
         self.update_session_model_selection(
             &request.session_id,
             &request.selection.model_id,
@@ -13840,11 +13840,11 @@ impl openbitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentSessionModePort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentSessionModePort for ConversationCoordinator {
     async fn update_session_mode(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionModeUpdateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
+        request: bitfun_runtime_ports::AgentSessionModeUpdateRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
         self.update_session_mode_with_route(
             &request.session_id,
             &request.mode_id,
@@ -13857,16 +13857,16 @@ impl openbitfun_runtime_ports::AgentSessionModePort for ConversationCoordinator 
 
 #[async_trait::async_trait]
 #[async_trait::async_trait]
-impl openbitfun_agent_runtime::sdk::AgentSessionRestorePort for ConversationCoordinator {
+impl bitfun_agent_runtime::sdk::AgentSessionRestorePort for ConversationCoordinator {
     async fn restore_session(
         &self,
-        request: openbitfun_agent_runtime::sdk::AgentSessionRestoreRequest,
-    ) -> openbitfun_runtime_ports::PortResult<
-        openbitfun_agent_runtime::sdk::AgentSessionRestoreResult,
+        request: bitfun_agent_runtime::sdk::AgentSessionRestoreRequest,
+    ) -> bitfun_runtime_ports::PortResult<
+        bitfun_agent_runtime::sdk::AgentSessionRestoreResult,
     > {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::InvalidRequest,
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
                 message,
             )
         })?;
@@ -13884,8 +13884,8 @@ impl openbitfun_agent_runtime::sdk::AgentSessionRestorePort for ConversationCoor
         }
         .map_err(runtime_port_error_preserving_message)?;
 
-        Ok(openbitfun_agent_runtime::sdk::AgentSessionRestoreResult {
-            session: openbitfun_runtime_ports::AgentSessionSummary {
+        Ok(bitfun_agent_runtime::sdk::AgentSessionRestoreResult {
+            session: bitfun_runtime_ports::AgentSessionSummary {
                 session_id: session.session_id,
                 session_name: session.session_name,
                 agent_type: session.agent_type,
@@ -13903,12 +13903,12 @@ impl openbitfun_agent_runtime::sdk::AgentSessionRestorePort for ConversationCoor
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordinator {
     async fn record_completed_local_command_turn(
         &self,
-        request: openbitfun_runtime_ports::AgentLocalCommandTurnRecordRequest,
-    ) -> openbitfun_runtime_ports::PortResult<
-        openbitfun_runtime_ports::AgentLocalCommandTurnRecordResult,
+        request: bitfun_runtime_ports::AgentLocalCommandTurnRecordRequest,
+    ) -> bitfun_runtime_ports::PortResult<
+        bitfun_runtime_ports::AgentLocalCommandTurnRecordResult,
     > {
         self.ensure_session_runtime_ownership(&request.session_id, None)
             .map_err(runtime_port_error_preserving_message)?;
@@ -13920,7 +13920,7 @@ impl openbitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordin
         self.session_manager
             .get_session(&request.session_id)
             .ok_or_else(|| {
-                runtime_port_error_preserving_message(OpenBitFunError::NotFound(format!(
+                runtime_port_error_preserving_message(BitFunError::NotFound(format!(
                     "Session not found: {}",
                     request.session_id
                 )))
@@ -13949,7 +13949,7 @@ impl openbitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordin
         drop(mutation_guard);
         result
             .map(
-                |turn| openbitfun_runtime_ports::AgentLocalCommandTurnRecordResult {
+                |turn| bitfun_runtime_ports::AgentLocalCommandTurnRecordResult {
                     turn_id: turn.turn_id,
                     storage_turn_index: turn.turn_index,
                 },
@@ -13959,24 +13959,24 @@ impl openbitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordin
 }
 
 fn validate_user_shell_command_request(
-    request: &openbitfun_runtime_ports::AgentUserShellCommandRequest,
-) -> OpenBitFunResult<()> {
-    openbitfun_core_types::validate_session_id(&request.session_id)
-        .map_err(OpenBitFunError::Validation)?;
-    openbitfun_core_types::validate_session_id(&request.turn_id)
-        .map_err(|message| OpenBitFunError::Validation(format!("Invalid turn_id: {message}")))?;
+    request: &bitfun_runtime_ports::AgentUserShellCommandRequest,
+) -> BitFunResult<()> {
+    bitfun_core_types::validate_session_id(&request.session_id)
+        .map_err(BitFunError::Validation)?;
+    bitfun_core_types::validate_session_id(&request.turn_id)
+        .map_err(|message| BitFunError::Validation(format!("Invalid turn_id: {message}")))?;
     if request.command.trim().is_empty() {
-        return Err(OpenBitFunError::Validation(
+        return Err(BitFunError::Validation(
             "Shell command must not be empty".to_string(),
         ));
     }
     if request.command.contains('\0') {
-        return Err(OpenBitFunError::Validation(
+        return Err(BitFunError::Validation(
             "Shell command must not contain NUL characters".to_string(),
         ));
     }
     if request.command.len() > USER_SHELL_COMMAND_MAX_BYTES {
-        return Err(OpenBitFunError::Validation(format!(
+        return Err(BitFunError::Validation(format!(
             "Shell command exceeds the {USER_SHELL_COMMAND_MAX_BYTES}-byte limit"
         )));
     }
@@ -14014,7 +14014,7 @@ impl ConversationCoordinator {
         agent_type: &str,
         workspace: &Option<WorkspaceBinding>,
         workspace_services: &Option<WorkspaceServices>,
-    ) -> OpenBitFunResult<ToolExecutionOptions> {
+    ) -> BitFunResult<ToolExecutionOptions> {
         let global_config: crate::service::config::types::GlobalConfig =
             match GlobalConfigManager::get_service().await {
                 Ok(service) => service.get_config(None).await.unwrap_or_default(),
@@ -14023,7 +14023,7 @@ impl ConversationCoordinator {
         let project_rules = match workspace.as_ref() {
             Some(workspace) if workspace.is_remote() => {
                 let services = workspace_services.as_ref().ok_or_else(|| {
-                    OpenBitFunError::service(
+                    BitFunError::service(
                         "Remote workspace services are unavailable for a shell command".to_string(),
                     )
                 })?;
@@ -14071,7 +14071,7 @@ impl ConversationCoordinator {
         tool_call: ToolCall,
         context: ToolExecutionContext,
         options: ToolExecutionOptions,
-    ) -> OpenBitFunResult<Vec<crate::agentic::tools::pipeline::ToolExecutionResult>> {
+    ) -> BitFunResult<Vec<crate::agentic::tools::pipeline::ToolExecutionResult>> {
         tool_pipeline
             .execute_tools(vec![tool_call], context, options)
             .await
@@ -14294,11 +14294,11 @@ impl ConversationCoordinator {
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator {
     async fn run_user_shell_command(
         &self,
-        request: openbitfun_runtime_ports::AgentUserShellCommandRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentUserShellCommandResult>
+        request: bitfun_runtime_ports::AgentUserShellCommandRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentUserShellCommandResult>
     {
         validate_user_shell_command_request(&request)
             .map_err(runtime_port_error_preserving_message)?;
@@ -14313,7 +14313,7 @@ impl openbitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordin
             .session_manager
             .get_session(&request.session_id)
             .ok_or_else(|| {
-                runtime_port_error_preserving_message(OpenBitFunError::NotFound(format!(
+                runtime_port_error_preserving_message(BitFunError::NotFound(format!(
                     "Session not found: {}",
                     request.session_id
                 )))
@@ -14402,7 +14402,7 @@ impl openbitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordin
         // normal caller while remaining cancellation-safe for IPC timeouts.
         let _ = started_rx.await;
 
-        Ok(openbitfun_runtime_ports::AgentUserShellCommandResult {
+        Ok(bitfun_runtime_ports::AgentUserShellCommandResult {
             session_id: request.session_id,
             turn_id,
         })
@@ -14410,11 +14410,11 @@ impl openbitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordin
 }
 
 #[async_trait::async_trait]
-impl openbitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoordinator {
+impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoordinator {
     async fn submit_user_answers(
         &self,
-        request: openbitfun_agent_runtime::sdk::AgentUserAnswersRequest,
-    ) -> openbitfun_runtime_ports::PortResult<()> {
+        request: bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
+    ) -> bitfun_runtime_ports::PortResult<()> {
         crate::agentic::tools::user_input_manager::get_user_input_manager()
             .send_answer(&request.tool_id, request.answers)
             .map_err(user_input_port_error)
@@ -14422,13 +14422,13 @@ impl openbitfun_agent_runtime::sdk::AgentInteractionResponsePort for Conversatio
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoordinator {
     async fn get_thread_goal(
         &self,
-        request: openbitfun_runtime_ports::AgentThreadGoalGetRequest,
-    ) -> openbitfun_runtime_ports::PortResult<Option<ThreadGoal>> {
-        openbitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
-            runtime_port_error_preserving_message(OpenBitFunError::Validation(message))
+        request: bitfun_runtime_ports::AgentThreadGoalGetRequest,
+    ) -> bitfun_runtime_ports::PortResult<Option<ThreadGoal>> {
+        bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
+            runtime_port_error_preserving_message(BitFunError::Validation(message))
         })?;
         let uses_default_workspace = request.workspace_path == "."
             && request.remote_connection_id.is_none()
@@ -14470,8 +14470,8 @@ impl openbitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoo
 
     async fn create_thread_goal(
         &self,
-        request: openbitfun_runtime_ports::AgentThreadGoalCreateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<ThreadGoal> {
+        request: bitfun_runtime_ports::AgentThreadGoalCreateRequest,
+    ) -> bitfun_runtime_ports::PortResult<ThreadGoal> {
         self.ensure_session_runtime_ownership(
             &request.session_id,
             Some(Path::new(&request.workspace_path)),
@@ -14484,13 +14484,13 @@ impl openbitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoo
             request.token_budget,
         )
         .await
-        .map_err(runtime_port_error_from_openbitfun)
+        .map_err(runtime_port_error_from_bitfun)
     }
 
     async fn update_thread_goal_status(
         &self,
-        request: openbitfun_runtime_ports::AgentThreadGoalUpdateStatusRequest,
-    ) -> openbitfun_runtime_ports::PortResult<ThreadGoal> {
+        request: bitfun_runtime_ports::AgentThreadGoalUpdateStatusRequest,
+    ) -> bitfun_runtime_ports::PortResult<ThreadGoal> {
         self.ensure_session_runtime_ownership(
             &request.session_id,
             Some(Path::new(&request.workspace_path)),
@@ -14503,16 +14503,16 @@ impl openbitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoo
             request.turn_id.as_deref(),
         )
         .await
-        .map_err(runtime_port_error_from_openbitfun)
+        .map_err(runtime_port_error_from_bitfun)
     }
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentSessionCompactionPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentSessionCompactionPort for ConversationCoordinator {
     async fn start_session_compaction(
         &self,
-        request: openbitfun_runtime_ports::AgentSessionCompactionRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentSessionCompactionResult>
+        request: bitfun_runtime_ports::AgentSessionCompactionRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCompactionResult>
     {
         let session_id = request.session_id;
         let task = self
@@ -14521,7 +14521,7 @@ impl openbitfun_runtime_ports::AgentSessionCompactionPort for ConversationCoordi
             .map_err(runtime_port_error_preserving_message)?;
         let turn_id = task.turn_id.clone();
         drop(task.completion);
-        Ok(openbitfun_runtime_ports::AgentSessionCompactionResult {
+        Ok(bitfun_runtime_ports::AgentSessionCompactionResult {
             session_id,
             turn_id,
         })
@@ -14529,24 +14529,24 @@ impl openbitfun_runtime_ports::AgentSessionCompactionPort for ConversationCoordi
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordinator {
+impl bitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordinator {
     async fn cancel_turn(
         &self,
-        request: openbitfun_runtime_ports::AgentTurnCancellationRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentTurnCancellationResult>
+        request: bitfun_runtime_ports::AgentTurnCancellationRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnCancellationResult>
     {
         let session_id = request.session_id;
         if let Some(turn_id) = request.turn_id {
             self.cancel_dialog_turn(&session_id, &turn_id)
                 .await
                 .map_err(|error| {
-                    openbitfun_runtime_ports::PortError::new(
-                        openbitfun_runtime_ports::PortErrorKind::Backend,
+                    bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::Backend,
                         error.to_string(),
                     )
                 })?;
 
-            return Ok(openbitfun_runtime_ports::AgentTurnCancellationResult {
+            return Ok(bitfun_runtime_ports::AgentTurnCancellationResult {
                 session_id,
                 turn_id: Some(turn_id),
                 requested: true,
@@ -14562,14 +14562,14 @@ impl openbitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordin
             )
             .await
             .map_err(|error| {
-                openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::Backend,
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::Backend,
                     error.to_string(),
                 )
             })?;
         let requested = cancelled_turn_id.is_some();
 
-        Ok(openbitfun_runtime_ports::AgentTurnCancellationResult {
+        Ok(bitfun_runtime_ports::AgentTurnCancellationResult {
             session_id,
             turn_id: cancelled_turn_id,
             requested,
@@ -14578,27 +14578,27 @@ impl openbitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordin
 
     async fn interrupt_turn(
         &self,
-        request: openbitfun_runtime_ports::AgentTurnInterruptionRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::AgentTurnInterruptionResult>
+        request: bitfun_runtime_ports::AgentTurnInterruptionRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnInterruptionResult>
     {
         let wait_timeout = Duration::from_millis(request.wait_timeout_ms.unwrap_or(30_000));
         self.interrupt_dialog_turn(&request.session_id, &request.turn_id, wait_timeout)
             .await
             .map_err(|error| {
-                openbitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortError::new(
                     match error {
-                        OpenBitFunError::Validation(_) => {
-                            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+                        BitFunError::Validation(_) => {
+                            bitfun_runtime_ports::PortErrorKind::InvalidRequest
                         }
-                        OpenBitFunError::NotFound(_) => {
-                            openbitfun_runtime_ports::PortErrorKind::NotFound
+                        BitFunError::NotFound(_) => {
+                            bitfun_runtime_ports::PortErrorKind::NotFound
                         }
-                        _ => openbitfun_runtime_ports::PortErrorKind::Backend,
+                        _ => bitfun_runtime_ports::PortErrorKind::Backend,
                     },
                     error.to_string(),
                 )
             })?;
-        Ok(openbitfun_runtime_ports::AgentTurnInterruptionResult {
+        Ok(bitfun_runtime_ports::AgentTurnInterruptionResult {
             session_id: request.session_id,
             turn_id: request.turn_id,
             requested: true,
@@ -14607,12 +14607,12 @@ impl openbitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordin
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinator {
+impl bitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinator {
     async fn read_remote_control_state(
         &self,
-        request: openbitfun_runtime_ports::RemoteControlStateRequest,
-    ) -> openbitfun_runtime_ports::PortResult<
-        Option<openbitfun_runtime_ports::RemoteControlStateSnapshot>,
+        request: bitfun_runtime_ports::RemoteControlStateRequest,
+    ) -> bitfun_runtime_ports::PortResult<
+        Option<bitfun_runtime_ports::RemoteControlStateSnapshot>,
     > {
         let Some(session) = self.get_session_manager().get_session(&request.session_id) else {
             return Ok(None);
@@ -14621,7 +14621,7 @@ impl openbitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinato
         let mut metadata = serde_json::Map::new();
         let (state, active_turn_id) = match session.state {
             SessionState::Idle => (
-                openbitfun_runtime_ports::RemoteControlSessionState::Idle,
+                bitfun_runtime_ports::RemoteControlSessionState::Idle,
                 None,
             ),
             SessionState::Processing {
@@ -14633,7 +14633,7 @@ impl openbitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinato
                     serde_json::Value::String(format!("{:?}", phase)),
                 );
                 (
-                    openbitfun_runtime_ports::RemoteControlSessionState::Processing,
+                    bitfun_runtime_ports::RemoteControlSessionState::Processing,
                     Some(current_turn_id),
                 )
             }
@@ -14644,13 +14644,13 @@ impl openbitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinato
                     serde_json::Value::Bool(recoverable),
                 );
                 (
-                    openbitfun_runtime_ports::RemoteControlSessionState::Error,
+                    bitfun_runtime_ports::RemoteControlSessionState::Error,
                     None,
                 )
             }
         };
 
-        Ok(Some(openbitfun_runtime_ports::RemoteControlStateSnapshot {
+        Ok(Some(bitfun_runtime_ports::RemoteControlStateSnapshot {
             session_id: request.session_id,
             state,
             active_turn_id,
@@ -14663,11 +14663,11 @@ impl openbitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinato
 impl ConversationCoordinator {
     async fn read_session_transcript_with_turn_status_locked(
         &self,
-        request: openbitfun_runtime_ports::SessionTranscriptRequest,
+        request: bitfun_runtime_ports::SessionTranscriptRequest,
         status_turn_id: Option<&str>,
         required_settled_turn_ids: &[String],
-    ) -> openbitfun_runtime_ports::PortResult<(
-        openbitfun_runtime_ports::SessionTranscript,
+    ) -> bitfun_runtime_ports::PortResult<(
+        bitfun_runtime_ports::SessionTranscript,
         Option<TurnStatus>,
     )> {
         let (messages, turn_status) = match self
@@ -14690,8 +14690,8 @@ impl ConversationCoordinator {
             }
             None => {
                 if !required_settled_turn_ids.is_empty() {
-                    return Err(openbitfun_runtime_ports::PortError::new(
-                        openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                         "Required terminal Turns are not yet durable in the authoritative transcript",
                     ));
                 }
@@ -14713,7 +14713,7 @@ impl ConversationCoordinator {
         };
 
         Ok((
-            openbitfun_runtime_ports::SessionTranscript {
+            bitfun_runtime_ports::SessionTranscript {
                 session_id: request.session_id,
                 messages,
             },
@@ -14723,8 +14723,8 @@ impl ConversationCoordinator {
 
     pub(crate) async fn read_session_transcript_locked(
         &self,
-        request: openbitfun_runtime_ports::SessionTranscriptRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::SessionTranscript> {
+        request: bitfun_runtime_ports::SessionTranscriptRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::SessionTranscript> {
         self.read_session_transcript_with_turn_status_locked(request, None, &[])
             .await
             .map(|(transcript, _)| transcript)
@@ -14733,10 +14733,10 @@ impl ConversationCoordinator {
     pub(crate) async fn inspect_loaded_lineage_session_in_storage(
         &self,
         storage_path: &Path,
-        request: openbitfun_runtime_ports::SessionTranscriptRequest,
+        request: bitfun_runtime_ports::SessionTranscriptRequest,
         required_settled_turn_ids: &[String],
-    ) -> openbitfun_runtime_ports::PortResult<
-        Option<openbitfun_runtime_ports::AgentSessionLineageInspection>,
+    ) -> bitfun_runtime_ports::PortResult<
+        Option<bitfun_runtime_ports::AgentSessionLineageInspection>,
     > {
         let _mutation_guard = self
             .session_manager
@@ -14783,8 +14783,8 @@ impl ConversationCoordinator {
                 .iter()
                 .any(|observed| observed == turn_id)
         }) {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                 "Session still reports an observed terminal turn as active; retry the inspection",
             ));
         }
@@ -14792,8 +14792,8 @@ impl ConversationCoordinator {
             candidate_active_turn_id.as_deref(),
             in_flight_execution_count,
         ) {
-            return Err(openbitfun_runtime_ports::PortError::new(
-                openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                 "Session turn is still settling after its active state changed; retry the inspection",
             ));
         }
@@ -14825,13 +14825,13 @@ impl ConversationCoordinator {
                 .as_ref()
                 .is_none_or(|status| *status == TurnStatus::InProgress)
             {
-                return Err(openbitfun_runtime_ports::PortError::new(
-                    openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                     "Session turn settlement changed while its transcript was being inspected; retry the inspection",
                 ));
             }
             return Ok(Some(
-                openbitfun_runtime_ports::AgentSessionLineageInspection {
+                bitfun_runtime_ports::AgentSessionLineageInspection {
                     transcript: settled_transcript,
                     active_turn_id: None,
                 },
@@ -14844,7 +14844,7 @@ impl ConversationCoordinator {
         );
 
         Ok(Some(
-            openbitfun_runtime_ports::AgentSessionLineageInspection {
+            bitfun_runtime_ports::AgentSessionLineageInspection {
                 transcript,
                 active_turn_id,
             },
@@ -14853,11 +14853,11 @@ impl ConversationCoordinator {
 }
 
 #[async_trait::async_trait]
-impl openbitfun_runtime_ports::SessionTranscriptReader for ConversationCoordinator {
+impl bitfun_runtime_ports::SessionTranscriptReader for ConversationCoordinator {
     async fn read_session_transcript(
         &self,
-        request: openbitfun_runtime_ports::SessionTranscriptRequest,
-    ) -> openbitfun_runtime_ports::PortResult<openbitfun_runtime_ports::SessionTranscript> {
+        request: bitfun_runtime_ports::SessionTranscriptRequest,
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::SessionTranscript> {
         let _mutation = self
             .session_manager
             .acquire_session_mutation(&request.session_id)
@@ -14884,8 +14884,8 @@ impl openbitfun_runtime_ports::SessionTranscriptReader for ConversationCoordinat
                         .get_session(&request.session_id)
                         .is_none()
                     {
-                        return Err(openbitfun_runtime_ports::PortError::new(
-                            openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
+                        return Err(bitfun_runtime_ports::PortError::new(
+                            bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
                             "Session transcript is unavailable until the unfinished undo transition is restored",
                         ));
                     }
@@ -15112,11 +15112,11 @@ mod tests {
     use crate::agentic::tools::{ToolPipeline, ToolStateManager};
     use crate::agentic::TurnSkillAgentSnapshot;
     use crate::infrastructure::PathManager;
-    use crate::util::errors::OpenBitFunError;
-    use openbitfun_agent_runtime::permission::PermissionRequestManager;
-    use openbitfun_runtime_ports::AgentTurnSettlementStatus;
-    use openbitfun_runtime_services::test_support::FakeRuntimePort;
-    use openbitfun_services_core::permission_store::ProjectPermissionSqliteStore;
+    use crate::util::errors::BitFunError;
+    use bitfun_agent_runtime::permission::PermissionRequestManager;
+    use bitfun_runtime_ports::AgentTurnSettlementStatus;
+    use bitfun_runtime_services::test_support::FakeRuntimePort;
+    use bitfun_services_core::permission_store::ProjectPermissionSqliteStore;
 
     #[test]
     fn interrupted_turn_intent_commit_wins_over_timeout_revocation() {
@@ -15233,7 +15233,7 @@ mod tests {
         );
         #[cfg(not(feature = "remote-workspace"))]
         assert!(
-            matches!(error, OpenBitFunError::NotImplemented(_)),
+            matches!(error, BitFunError::NotImplemented(_)),
             "builds without remote-workspace must report the missing feature: {message}"
         );
 
@@ -15342,7 +15342,7 @@ mod tests {
         assert_eq!(ultra.nesting_depth, 0);
         assert_eq!(
             ultra.scope,
-            openbitfun_runtime_ports::DelegationScope::Swarm
+            bitfun_runtime_ports::DelegationScope::Swarm
         );
 
         let planner = delegation_policy_for_agent_turn("SwarmPlanner", Some(2))
@@ -15351,7 +15351,7 @@ mod tests {
         assert_eq!(planner.nesting_depth, 2);
         assert_eq!(
             planner.scope,
-            openbitfun_runtime_ports::DelegationScope::Swarm
+            bitfun_runtime_ports::DelegationScope::Swarm
         );
 
         let worker = delegation_policy_for_agent_turn("SwarmWorker", Some(2))
@@ -15428,7 +15428,7 @@ mod tests {
                 .expect_err("non-terminal or absent turns must keep the read uncertain");
             assert_eq!(
                 error.kind,
-                openbitfun_runtime_ports::PortErrorKind::OutcomeUnknown
+                bitfun_runtime_ports::PortErrorKind::OutcomeUnknown
             );
         }
     }
@@ -15436,15 +15436,15 @@ mod tests {
     #[test]
     fn post_admission_cancellation_errors_are_outcome_unknown() {
         for source_error in [
-            crate::util::errors::OpenBitFunError::Timeout("drain deadline".to_string()),
-            crate::util::errors::OpenBitFunError::Session("state persistence failed".to_string()),
+            crate::util::errors::BitFunError::Timeout("drain deadline".to_string()),
+            crate::util::errors::BitFunError::Session("state persistence failed".to_string()),
         ] {
             let error =
                 lineage_post_admission_cancellation_error(source_error, "session-1", "turn-1");
 
             assert!(matches!(
                 error,
-                crate::util::errors::OpenBitFunError::OutcomeUnknown(message)
+                crate::util::errors::BitFunError::OutcomeUnknown(message)
                     if message.contains("session_id=session-1")
                         && message.contains("turn_id=turn-1")
             ));
@@ -15552,7 +15552,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            crate::util::errors::OpenBitFunError::OutcomeUnknown(message)
+            crate::util::errors::BitFunError::OutcomeUnknown(message)
                 if message.contains("Injected session state write failure")
         ));
         assert!(engine_token.is_cancelled());
@@ -15567,7 +15567,7 @@ mod tests {
 
     #[test]
     fn runtime_session_list_preserves_the_runtime_owned_model_selector() {
-        let summary = runtime_session_summary(openbitfun_agent_runtime::session::SessionSummary {
+        let summary = runtime_session_summary(bitfun_agent_runtime::session::SessionSummary {
             session_id: "session".to_string(),
             session_name: "Session".to_string(),
             agent_type: "Standard".to_string(),
@@ -15580,7 +15580,7 @@ mod tests {
             turn_count: 0,
             created_at: std::time::UNIX_EPOCH,
             last_activity_at: std::time::UNIX_EPOCH,
-            state: openbitfun_agent_runtime::session_state::SessionState::Idle,
+            state: bitfun_agent_runtime::session_state::SessionState::Idle,
         });
 
         assert_eq!(summary.model_id.as_deref(), Some("fast"));
@@ -15597,11 +15597,11 @@ mod tests {
         TurnStatus, UserMessageData,
     };
     use crate::service::workspace::WorkspaceKind;
-    use openbitfun_agent_runtime::permission::AUTO_APPROVE_ASK_CONTEXT_KEY;
-    use openbitfun_core_types::{
+    use bitfun_agent_runtime::permission::AUTO_APPROVE_ASK_CONTEXT_KEY;
+    use bitfun_core_types::{
         SessionExecutionTarget, SessionExecutionTargetKind, WorktreeLifecycle,
     };
-    use openbitfun_runtime_ports::{
+    use bitfun_runtime_ports::{
         AgentLocalCommandTurnPort, AgentLocalCommandTurnRecordRequest, AgentSessionArchiveRequest,
         AgentSessionCreateRequest, AgentSessionManagementPort, AgentSessionRenameRequest,
         AgentSubmissionPort, AgentSubmissionRequest, AgentSubmissionSource,
@@ -15793,7 +15793,7 @@ mod tests {
         assert_eq!(transcript[0].role, "user");
         assert_eq!(transcript[0].turn_id.as_deref(), Some("compact-turn"));
         match &transcript[1].content {
-            openbitfun_runtime_ports::TranscriptContent::Mixed { tool_calls, .. } => {
+            bitfun_runtime_ports::TranscriptContent::Mixed { tool_calls, .. } => {
                 assert_eq!(tool_calls.len(), 1);
                 assert_eq!(tool_calls[0].tool_id, "compression-1");
                 assert_eq!(tool_calls[0].tool_name, "ContextCompression");
@@ -15801,7 +15801,7 @@ mod tests {
             other => panic!("expected restored tool call, got {other:?}"),
         }
         match &transcript[2].content {
-            openbitfun_runtime_ports::TranscriptContent::ToolResult {
+            bitfun_runtime_ports::TranscriptContent::ToolResult {
                 tool_id,
                 result,
                 is_error,
@@ -15819,7 +15819,7 @@ mod tests {
             Some("Manual compaction was applied, but terminal persistence failed".to_string());
         let failed_transcript = runtime_transcript_messages_from_turns(&[turn.clone()], None);
         match &failed_transcript[1].content {
-            openbitfun_runtime_ports::TranscriptContent::Mixed { text, .. } => {
+            bitfun_runtime_ports::TranscriptContent::Mixed { text, .. } => {
                 assert_eq!(
                     text,
                     "[Error: Manual compaction was applied, but terminal persistence failed]"
@@ -15831,7 +15831,7 @@ mod tests {
         turn.status = TurnStatus::Cancelled;
         let cancelled_transcript = runtime_transcript_messages_from_turns(&[turn], None);
         match &cancelled_transcript[1].content {
-            openbitfun_runtime_ports::TranscriptContent::Mixed { text, .. } => {
+            bitfun_runtime_ports::TranscriptContent::Mixed { text, .. } => {
                 assert!(
                     text.is_empty(),
                     "cancelled turns must not restore their internal failure marker"
@@ -15908,7 +15908,7 @@ mod tests {
             Arc::new(ManualCompactionCommitGate::planning()),
         )
         .await;
-        assert!(matches!(result, Err(OpenBitFunError::Cancelled(_))));
+        assert!(matches!(result, Err(BitFunError::Cancelled(_))));
         let session = session_manager.get_session(&session_id).unwrap();
         assert!(matches!(session.state, SessionState::Idle));
         assert_eq!(session.compression_state.compression_count, 0);
@@ -16030,10 +16030,10 @@ mod tests {
             session_storage_workspace_locator(
                 Some(r"D:\worktrees\session-1"),
                 Some("D:/worktrees/session-1"),
-                Some("D:/projects/OpenBitFun"),
+                Some("D:/projects/BitFun"),
             )
             .as_deref(),
-            Some("D:/projects/OpenBitFun")
+            Some("D:/projects/BitFun")
         );
     }
 
@@ -16043,7 +16043,7 @@ mod tests {
             session_storage_workspace_locator(
                 None,
                 Some("/worktrees/session-1"),
-                Some("/projects/OpenBitFun"),
+                Some("/projects/BitFun"),
             )
             .as_deref(),
             None
@@ -16056,7 +16056,7 @@ mod tests {
             session_storage_workspace_locator(
                 Some("/projects/other"),
                 Some("/worktrees/session-1"),
-                Some("/projects/OpenBitFun"),
+                Some("/projects/BitFun"),
             )
             .as_deref(),
             Some("/projects/other")
@@ -16065,7 +16065,7 @@ mod tests {
 
     #[test]
     fn submission_permission_mode_prefers_turn_then_session_then_global() {
-        use openbitfun_runtime_ports::PermissionModeSource;
+        use bitfun_runtime_ports::PermissionModeSource;
 
         let global_only = resolve_submission_permission_mode(None, None, PermissionMode::Ask);
         assert_eq!(global_only.mode, PermissionMode::Ask);
@@ -16192,7 +16192,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            crate::util::errors::OpenBitFunError::Cancelled(_)
+            crate::util::errors::BitFunError::Cancelled(_)
         ));
     }
 
@@ -16288,26 +16288,26 @@ mod tests {
     #[test]
     fn migrated_runtime_ports_preserve_existing_core_error_messages() {
         let error = runtime_port_error_preserving_message(
-            crate::util::errors::OpenBitFunError::Validation("invalid session id".to_string()),
+            crate::util::errors::BitFunError::Validation("invalid session id".to_string()),
         );
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         assert_eq!(error.message, "Validation error: invalid session id");
     }
 
     #[tokio::test]
     async fn interaction_response_port_uses_user_question_owner_and_typed_stale_errors() {
-        use openbitfun_agent_runtime::sdk::{
+        use bitfun_agent_runtime::sdk::{
             AgentInteractionResponsePort, AgentUserAnswersRequest,
         };
 
         let (coordinator, _) = test_coordinator();
         let answer_tool_id = format!("answer-{}", uuid::Uuid::new_v4());
         let (sender, receiver) = tokio::sync::oneshot::channel::<
-            openbitfun_agent_runtime::user_questions::UserInputResponse,
+            bitfun_agent_runtime::user_questions::UserInputResponse,
         >();
         crate::agentic::tools::user_input_manager::get_user_input_manager()
             .register_channel(answer_tool_id.clone(), sender);
@@ -16337,7 +16337,7 @@ mod tests {
         .expect_err("consumed answer channel must be reported as stale");
         assert_eq!(
             stale_answer.kind,
-            openbitfun_runtime_ports::PortErrorKind::NotFound
+            bitfun_runtime_ports::PortErrorKind::NotFound
         );
         assert_eq!(
             stale_answer.message,
@@ -16347,7 +16347,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_model_port_preserves_core_not_found_errors() {
-        use openbitfun_agent_runtime::sdk::{
+        use bitfun_agent_runtime::sdk::{
             AgentSessionModelPort, AgentSessionModelUpdateRequest,
         };
 
@@ -16364,14 +16364,14 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::NotFound
+            bitfun_runtime_ports::PortErrorKind::NotFound
         );
         assert!(error.message.contains("missing-session"));
     }
 
     #[tokio::test]
     async fn session_mode_port_preserves_core_not_found_errors() {
-        use openbitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
+        use bitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
 
         let (coordinator, _) = test_coordinator();
         let error = AgentSessionModePort::update_session_mode(
@@ -16387,18 +16387,18 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::NotFound
+            bitfun_runtime_ports::PortErrorKind::NotFound
         );
         assert!(error.message.contains("missing-session"));
     }
 
     #[tokio::test]
     async fn session_mode_port_rejects_blank_mode_for_active_session() {
-        use openbitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
+        use bitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
 
         let (coordinator, _) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-session-mode-validation-test-{}",
+            "bitfun-session-mode-validation-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -16433,18 +16433,18 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         let _ = std::fs::remove_dir_all(workspace_path);
     }
 
     #[tokio::test]
     async fn session_mode_port_rejects_unknown_mode_for_active_session() {
-        use openbitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
+        use bitfun_agent_runtime::sdk::{AgentSessionModePort, AgentSessionModeUpdateRequest};
 
         let (coordinator, _) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-session-mode-validation-test-{}",
+            "bitfun-session-mode-validation-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -16479,19 +16479,19 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         let _ = std::fs::remove_dir_all(workspace_path);
     }
 
     #[tokio::test]
     async fn session_mode_runtime_updates_the_real_core_session() {
-        use openbitfun_agent_runtime::sdk::{AgentRuntimeBuilder, AgentSessionModeUpdateRequest};
+        use bitfun_agent_runtime::sdk::{AgentRuntimeBuilder, AgentSessionModeUpdateRequest};
 
         let (coordinator, session_manager) = test_coordinator();
         let coordinator = Arc::new(coordinator);
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-session-mode-runtime-test-{}",
+            "bitfun-session-mode-runtime-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -16539,12 +16539,12 @@ mod tests {
 
     #[tokio::test]
     async fn session_model_runtime_updates_the_real_core_session() {
-        use openbitfun_agent_runtime::sdk::{AgentRuntimeBuilder, AgentSessionModelUpdateRequest};
+        use bitfun_agent_runtime::sdk::{AgentRuntimeBuilder, AgentSessionModelUpdateRequest};
 
         let (coordinator, session_manager) = test_coordinator();
         let coordinator = Arc::new(coordinator);
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-session-model-runtime-test-{}",
+            "bitfun-session-model-runtime-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -16604,7 +16604,7 @@ mod tests {
             "ExecCommand"
         }
 
-        async fn description(&self) -> crate::util::errors::OpenBitFunResult<String> {
+        async fn description(&self) -> crate::util::errors::BitFunResult<String> {
             Ok("test user shell command".to_string())
         }
 
@@ -16632,7 +16632,7 @@ mod tests {
             &self,
             input: &serde_json::Value,
             _context: &ToolUseContext,
-        ) -> crate::util::errors::OpenBitFunResult<Vec<PermissionIntent>> {
+        ) -> crate::util::errors::BitFunResult<Vec<PermissionIntent>> {
             Ok(vec![PermissionIntent::new(
                 "bash",
                 vec![input["cmd"].as_str().unwrap_or_default().to_string()],
@@ -16662,7 +16662,7 @@ mod tests {
             &self,
             input: &serde_json::Value,
             _context: &ToolUseContext,
-        ) -> crate::util::errors::OpenBitFunResult<Vec<ToolResult>> {
+        ) -> crate::util::errors::BitFunResult<Vec<ToolResult>> {
             if let Some(call_count) = &self.call_count {
                 call_count.fetch_add(1, Ordering::SeqCst);
             }
@@ -16689,7 +16689,7 @@ mod tests {
         let event_queue = Arc::new(EventQueue::new(EventQueueConfig::default()));
         let coordination_database_file = std::env::temp_dir()
             .join(format!(
-                "openbitfun-coordinator-test-{}",
+                "bitfun-coordinator-test-{}",
                 uuid::Uuid::new_v4()
             ))
             .join("coordination.sqlite");
@@ -16737,10 +16737,10 @@ mod tests {
             runtime_ownership,
         );
         coordinator.set_terminal_port(
-            openbitfun_runtime_services::test_support::FakeRuntimeServicesProvider::terminal_port(),
+            bitfun_runtime_services::test_support::FakeRuntimeServicesProvider::terminal_port(),
         );
         coordinator.set_remote_exec_port(
-            openbitfun_runtime_services::test_support::FakeRuntimeServicesProvider::remote_exec_port(),
+            bitfun_runtime_services::test_support::FakeRuntimeServicesProvider::remote_exec_port(),
         );
 
         (coordinator, session_manager)
@@ -16765,7 +16765,7 @@ mod tests {
         enable_persistence: bool,
     ) -> (ConversationCoordinator, Arc<SessionManager>) {
         let ownership_root = std::env::temp_dir().join(format!(
-            "openbitfun-runtime-ownership-test-{}",
+            "bitfun-runtime-ownership-test-{}",
             uuid::Uuid::new_v4()
         ));
         test_coordinator_with_config_and_ownership(
@@ -16773,7 +16773,7 @@ mod tests {
             enable_persistence,
             Arc::new(CoreRuntimeOwnership::embedded_with_facts(
                 ownership_root,
-                "openbitfun".to_string(),
+                "bitfun".to_string(),
                 "test",
             )),
         )
@@ -16793,7 +16793,7 @@ mod tests {
         tool: Arc<dyn Tool>,
     ) -> (ConversationCoordinator, Arc<SessionManager>) {
         let ownership_root = std::env::temp_dir().join(format!(
-            "openbitfun-runtime-ownership-test-{}",
+            "bitfun-runtime-ownership-test-{}",
             uuid::Uuid::new_v4()
         ));
         let mut registry = ToolRegistry::new();
@@ -16806,7 +16806,7 @@ mod tests {
                 permission_store.clone(),
                 permission_store.clone(),
                 Arc::new(FakeRuntimePort::new(
-                    openbitfun_runtime_ports::RuntimeServiceCapability::Clock,
+                    bitfun_runtime_ports::RuntimeServiceCapability::Clock,
                 )),
             )
             .with_grant_store(permission_store),
@@ -16816,7 +16816,7 @@ mod tests {
             true,
             Arc::new(CoreRuntimeOwnership::embedded_with_facts(
                 ownership_root,
-                "openbitfun".to_string(),
+                "bitfun".to_string(),
                 "test",
             )),
             registry,
@@ -17017,7 +17017,7 @@ mod tests {
             None,
             &session.session_id,
             &failed_turn_id,
-            &OpenBitFunError::AIClient("provider failed".to_string()),
+            &BitFunError::AIClient("provider failed".to_string()),
             true,
         )
         .await;
@@ -17139,7 +17139,7 @@ mod tests {
             .expect_err("stale target must fail before mutation");
         assert!(matches!(
             error,
-            crate::util::errors::OpenBitFunError::Validation(_)
+            crate::util::errors::BitFunError::Validation(_)
         ));
 
         let marker_after = session_manager
@@ -17458,9 +17458,9 @@ mod tests {
         let reader = coordinator.clone();
         let read_session_id = session_id.clone();
         let transcript_task = tokio::spawn(async move {
-            openbitfun_runtime_ports::SessionTranscriptReader::read_session_transcript(
+            bitfun_runtime_ports::SessionTranscriptReader::read_session_transcript(
                 reader.as_ref(),
-                openbitfun_runtime_ports::SessionTranscriptRequest {
+                bitfun_runtime_ports::SessionTranscriptRequest {
                     session_id: read_session_id,
                     turn_id: None,
                 },
@@ -17519,9 +17519,9 @@ mod tests {
 
         let transcript = tokio::time::timeout(
             Duration::from_secs(1),
-            openbitfun_runtime_ports::SessionTranscriptReader::read_session_transcript(
+            bitfun_runtime_ports::SessionTranscriptReader::read_session_transcript(
                 &coordinator,
-                openbitfun_runtime_ports::SessionTranscriptRequest {
+                bitfun_runtime_ports::SessionTranscriptRequest {
                     session_id: session.session_id,
                     turn_id: None,
                 },
@@ -17534,7 +17534,7 @@ mod tests {
         assert_eq!(transcript.messages.len(), 1);
         assert!(matches!(
             &transcript.messages[0].content,
-            openbitfun_runtime_ports::TranscriptContent::Text(text)
+            bitfun_runtime_ports::TranscriptContent::Text(text)
                 if text == "visible transient context"
         ));
     }
@@ -17543,21 +17543,21 @@ mod tests {
     async fn create_session_checks_runtime_ownership_before_persisting() {
         let ownership_root = tempfile::tempdir().expect("ownership root");
         let workspace = tempfile::tempdir().expect("workspace");
-        let key = openbitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
+        let key = bitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
             workspace.path(),
-            "openbitfun",
+            "bitfun",
         )
         .expect("ownership key");
         let _shared =
-            openbitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
+            bitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
                 ownership_root.path(),
                 &key,
-                openbitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
+                bitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
             )
             .expect("shared owner");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             ownership_root.path().to_path_buf(),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, session_manager) =
@@ -17669,21 +17669,21 @@ mod tests {
     async fn assistant_bootstrap_checks_runtime_ownership_before_files_or_attach() {
         let ownership_root = tempfile::tempdir().expect("ownership root");
         let workspace = tempfile::tempdir().expect("workspace");
-        let key = openbitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
+        let key = bitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
             workspace.path(),
-            "openbitfun",
+            "bitfun",
         )
         .expect("ownership key");
         let _shared =
-            openbitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
+            bitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
                 ownership_root.path(),
                 &key,
-                openbitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
+                bitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
             )
             .expect("shared owner");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             ownership_root.path().to_path_buf(),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, session_manager) =
@@ -17748,7 +17748,7 @@ mod tests {
             crate::service::workspace::WorkspaceService::new_for_test_path_manager(path_manager)
                 .await;
         let remote_path = PathBuf::from(format!(
-            "/openbitfun-tests/known-remote-{}",
+            "/bitfun-tests/known-remote-{}",
             uuid::Uuid::new_v4()
         ));
         workspace_service
@@ -17766,7 +17766,7 @@ mod tests {
             .expect("remember remote workspace");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             root.path().join("ownership"),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, _) = test_coordinator_with_config_and_ownership(100, false, owner);
@@ -17814,7 +17814,7 @@ mod tests {
         }
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             root.path().join("ownership"),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, _) = test_coordinator_with_config_and_ownership(100, false, owner);
@@ -17869,7 +17869,7 @@ mod tests {
             .expect("remember remote workspace");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             root.path().join("ownership"),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, _) = test_coordinator_with_config_and_ownership(100, false, owner);
@@ -17901,21 +17901,21 @@ mod tests {
     async fn unverified_remote_hint_cannot_bypass_local_workspace_ownership() {
         let ownership_root = tempfile::tempdir().expect("ownership root");
         let workspace = tempfile::tempdir().expect("workspace");
-        let key = openbitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
+        let key = bitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
             workspace.path(),
-            "openbitfun",
+            "bitfun",
         )
         .expect("ownership key");
         let _shared =
-            openbitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
+            bitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
                 ownership_root.path(),
                 &key,
-                openbitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
+                bitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
             )
             .expect("shared owner");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             ownership_root.path().to_path_buf(),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, _) = test_coordinator_with_config_and_ownership(100, false, owner);
@@ -17954,21 +17954,21 @@ mod tests {
     async fn attach_and_mutation_paths_check_runtime_ownership_before_side_effects() {
         let ownership_root = tempfile::tempdir().expect("ownership root");
         let workspace = tempfile::tempdir().expect("workspace");
-        let key = openbitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
+        let key = bitfun_services_core::runtime_ownership::RuntimeOwnershipKey::for_workspace(
             workspace.path(),
-            "openbitfun",
+            "bitfun",
         )
         .expect("ownership key");
         let _shared =
-            openbitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
+            bitfun_services_core::runtime_ownership::WorkspaceRuntimeOwnership::try_acquire(
                 ownership_root.path(),
                 &key,
-                openbitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
+                bitfun_services_core::runtime_ownership::RuntimeDeployment::Shared,
             )
             .expect("shared owner");
         let owner = Arc::new(CoreRuntimeOwnership::embedded_with_facts(
             ownership_root.path().to_path_buf(),
-            "openbitfun".to_string(),
+            "bitfun".to_string(),
             "test",
         ));
         let (coordinator, session_manager) =
@@ -18002,9 +18002,9 @@ mod tests {
         assert!(restore_error.to_string().contains("ownership"));
 
         let archive_error =
-            openbitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
+            bitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
                 &coordinator,
-                openbitfun_runtime_ports::AgentSessionArchiveStateRequest {
+                bitfun_runtime_ports::AgentSessionArchiveStateRequest {
                     workspace_path,
                     session_id: "missing-session".to_string(),
                     archived: true,
@@ -18042,8 +18042,8 @@ mod tests {
 
     #[test]
     fn conversation_coordinator_exposes_remote_runtime_ports() {
-        fn assert_cancellation_port<T: openbitfun_runtime_ports::AgentTurnCancellationPort>() {}
-        fn assert_state_port<T: openbitfun_runtime_ports::RemoteControlStatePort>() {}
+        fn assert_cancellation_port<T: bitfun_runtime_ports::AgentTurnCancellationPort>() {}
+        fn assert_state_port<T: bitfun_runtime_ports::RemoteControlStatePort>() {}
 
         assert_cancellation_port::<ConversationCoordinator>();
         assert_state_port::<ConversationCoordinator>();
@@ -18155,7 +18155,7 @@ mod tests {
         let workspace = tempfile::tempdir().expect("workspace");
         let permission_path = workspace
             .path()
-            .join(".openbitfun")
+            .join(".bitfun")
             .join("config")
             .join("tool_permissions.json");
         tokio::fs::create_dir_all(permission_path.parent().expect("permission parent"))
@@ -18312,9 +18312,9 @@ mod tests {
         let session_id_for_cancel = session.session_id.clone();
         let turn_id_for_cancel = turn_id.clone();
         let cancel_task = tokio::spawn(async move {
-            openbitfun_runtime_ports::AgentTurnCancellationPort::cancel_turn(
+            bitfun_runtime_ports::AgentTurnCancellationPort::cancel_turn(
                 coordinator_for_cancel.as_ref(),
-                openbitfun_runtime_ports::AgentTurnCancellationRequest {
+                bitfun_runtime_ports::AgentTurnCancellationRequest {
                     session_id: session_id_for_cancel,
                     turn_id: Some(turn_id_for_cancel),
                     source: None,
@@ -19047,7 +19047,7 @@ mod tests {
     async fn agent_submission_create_session_preserves_creator_metadata() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-agent-session-port-test-{}",
+            "bitfun-agent-session-port-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19092,7 +19092,7 @@ mod tests {
     async fn agent_session_management_port_renames_and_sets_persisted_archive_state() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-agent-session-management-port-test-{}",
+            "bitfun-agent-session-management-port-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19179,7 +19179,7 @@ mod tests {
 
         AgentSessionManagementPort::set_session_archived(
             &coordinator,
-            openbitfun_runtime_ports::AgentSessionArchiveStateRequest {
+            bitfun_runtime_ports::AgentSessionArchiveStateRequest {
                 workspace_path: workspace.clone(),
                 session_id: created.session_id.clone(),
                 archived: false,
@@ -19223,14 +19223,14 @@ mod tests {
         .await
         .expect_err("v1 create should preserve its backend error classification");
 
-        assert_eq!(error.kind, openbitfun_runtime_ports::PortErrorKind::Backend);
+        assert_eq!(error.kind, bitfun_runtime_ports::PortErrorKind::Backend);
     }
 
     #[tokio::test]
     async fn agent_submission_create_session_preserves_requested_session_id() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-agent-session-fixed-id-port-test-{}",
+            "bitfun-agent-session-fixed-id-port-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19291,7 +19291,7 @@ mod tests {
         .expect_err("duplicate fixed session id should be rejected");
         assert_eq!(
             duplicate_error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         assert!(duplicate_error.message.starts_with("Validation error:"));
         assert!(duplicate_error.message.contains("already exists"));
@@ -19337,7 +19337,7 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         assert!(error.message.starts_with("Validation error:"));
     }
@@ -19513,7 +19513,7 @@ mod tests {
         .expect_err("a loaded session must not read another remote workspace");
         assert_eq!(
             cross_workspace_error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         assert!(cross_workspace_error
             .message
@@ -19558,7 +19558,7 @@ mod tests {
 
         let created = AgentThreadGoalManagementPort::create_thread_goal(
             &coordinator,
-            openbitfun_runtime_ports::AgentThreadGoalCreateRequest {
+            bitfun_runtime_ports::AgentThreadGoalCreateRequest {
                 session_id: session_id.clone(),
                 workspace_path: logical_workspace_path.clone(),
                 objective: "Keep remote ownership structured".to_string(),
@@ -19569,7 +19569,7 @@ mod tests {
         .expect("remote goal creation must not acquire a local workspace lock");
         let updated = AgentThreadGoalManagementPort::update_thread_goal_status(
             &coordinator,
-            openbitfun_runtime_ports::AgentThreadGoalUpdateStatusRequest {
+            bitfun_runtime_ports::AgentThreadGoalUpdateStatusRequest {
                 session_id: session_id.clone(),
                 workspace_path: logical_workspace_path,
                 status: ThreadGoalStatus::Complete,
@@ -19593,7 +19593,7 @@ mod tests {
     async fn normal_sessions_keep_the_mode_default_snapshotted_at_creation() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-normal-session-model-snapshot-test-{}",
+            "bitfun-normal-session-model-snapshot-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19683,7 +19683,7 @@ mod tests {
     async fn transient_session_port_never_persists_or_discards_a_durable_identity() {
         let (coordinator, session_manager) = test_coordinator_with_config(100, true);
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-agent-transient-session-port-test-{}",
+            "bitfun-agent-transient-session-port-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19797,7 +19797,7 @@ mod tests {
             .expect_err("transient discard must reject durable Session ownership");
         assert!(matches!(
             discard_error,
-            crate::util::errors::OpenBitFunError::Validation(_)
+            crate::util::errors::BitFunError::Validation(_)
         ));
         session_manager.evict_loaded_session_for_test(&durable.session_id);
         let collision = AgentSubmissionPort::create_transient_session_with_id(
@@ -19809,7 +19809,7 @@ mod tests {
         .expect_err("transient Session must not shadow persisted durable identity");
         assert_eq!(
             collision.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
 
         let _ = std::fs::remove_dir_all(storage_path);
@@ -19841,7 +19841,7 @@ mod tests {
 
         assert_eq!(
             error.kind,
-            openbitfun_runtime_ports::PortErrorKind::InvalidRequest
+            bitfun_runtime_ports::PortErrorKind::InvalidRequest
         );
         assert!(error.message.starts_with("Validation error:"));
     }
@@ -19884,7 +19884,7 @@ mod tests {
     async fn fresh_subagent_request_can_explicitly_inherit_parent_model() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-fresh-subagent-inherit-test-{}",
+            "bitfun-fresh-subagent-inherit-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -19992,7 +19992,7 @@ mod tests {
     async fn fresh_subagent_inherits_matching_parent_worktree_binding() {
         let (coordinator, session_manager) = test_coordinator();
         let temp_root = tempfile::tempdir().expect("temp root should exist");
-        let project_path = temp_root.path().join("OpenBitFun");
+        let project_path = temp_root.path().join("BitFun");
         let worktree_path = temp_root.path().join("managed-worktree");
         std::fs::create_dir_all(&project_path).expect("project dir should exist");
         std::fs::create_dir_all(&worktree_path).expect("worktree dir should exist");
@@ -20073,7 +20073,7 @@ mod tests {
     async fn fresh_subagent_inherits_transient_parent_persistence_boundary() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-fresh-subagent-transient-test-{}",
+            "bitfun-fresh-subagent-transient-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20215,7 +20215,7 @@ mod tests {
     async fn reused_subagent_send_input_updates_requested_and_inherited_model() {
         let (coordinator, session_manager) = test_persistent_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-reused-subagent-model-test-{}",
+            "bitfun-reused-subagent-model-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20379,7 +20379,7 @@ mod tests {
     async fn fork_subagent_request_allows_requested_model_override() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-fork-model-test-{}",
+            "bitfun-fork-model-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20489,7 +20489,7 @@ mod tests {
     async fn hidden_agent_session_uses_requested_ephemeral_kind() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-hidden-agent-kind-test-{}",
+            "bitfun-hidden-agent-kind-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20530,7 +20530,7 @@ mod tests {
     async fn reused_subagent_input_is_added_to_runtime_context() {
         let (coordinator, session_manager) = test_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-reused-subagent-input-context-test-{}",
+            "bitfun-reused-subagent-input-context-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20609,7 +20609,7 @@ mod tests {
     async fn btw_session_persists_relationship_and_seeds_forked_listing_baselines() {
         let (coordinator, session_manager) = test_persistent_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
-            "openbitfun-btw-baseline-test-{}",
+            "bitfun-btw-baseline-test-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
@@ -20890,12 +20890,12 @@ mod tests {
 
     #[test]
     fn workspace_reference_source_validation_uses_unicode_character_offsets() {
-        let reference = openbitfun_runtime_ports::AgentWorkspaceReference {
+        let reference = bitfun_runtime_ports::AgentWorkspaceReference {
             path: "src/你.rs".to_string(),
-            kind: openbitfun_runtime_ports::AgentWorkspaceReferenceKind::File,
+            kind: bitfun_runtime_ports::AgentWorkspaceReferenceKind::File,
             start_line: Some(2),
             end_line: Some(8),
-            source: openbitfun_runtime_ports::AgentWorkspaceReferenceSourceRange {
+            source: bitfun_runtime_ports::AgentWorkspaceReferenceSourceRange {
                 start: 3,
                 end: 16,
                 value: "@src/你.rs#2-8".to_string(),
@@ -20910,12 +20910,12 @@ mod tests {
 
     #[test]
     fn workspace_reference_source_validation_rejects_stale_text_and_invalid_ranges() {
-        let mut reference = openbitfun_runtime_ports::AgentWorkspaceReference {
+        let mut reference = bitfun_runtime_ports::AgentWorkspaceReference {
             path: "src/lib.rs".to_string(),
-            kind: openbitfun_runtime_ports::AgentWorkspaceReferenceKind::File,
+            kind: bitfun_runtime_ports::AgentWorkspaceReferenceKind::File,
             start_line: None,
             end_line: None,
-            source: openbitfun_runtime_ports::AgentWorkspaceReferenceSourceRange {
+            source: bitfun_runtime_ports::AgentWorkspaceReferenceSourceRange {
                 start: 4,
                 end: 15,
                 value: "@src/lib.rs".to_string(),

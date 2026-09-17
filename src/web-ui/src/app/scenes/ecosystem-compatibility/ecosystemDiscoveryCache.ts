@@ -2,7 +2,7 @@ import type { ExternalSourceCatalogSnapshot } from '@/infrastructure/api/service
 import type { ExternalHookImportSnapshot } from '@/infrastructure/api/service-api/ExternalHooksAPI';
 import type { SkillInfo, SkillScanDiagnostic } from '@/infrastructure/config/types';
 import type { AcpClientInfo } from '@/infrastructure/api/service-api/ACPClientAPI';
-import { getSkillSourceId, isOpenBitFunManagedSkill } from '@/infrastructure/config/skillSourcePresentation';
+import { getSkillSourceId, isBitFunManagedSkill } from '@/infrastructure/config/skillSourcePresentation';
 
 interface DiscoveryCache {
   catalog?: ExternalSourceCatalogSnapshot;
@@ -81,7 +81,7 @@ export function clearEcosystemDiscoveryCache(): void {
 export function rememberEcosystemSkills(cache: DiscoveryCache, skills: SkillInfo[], diagnostics: SkillScanDiagnostic[]): SkillInfo[] {
   const failedSources = new Set(diagnostics.map((entry) => entry.sourceId));
   const current = new Set(skills.map((skill) => skill.key));
-  const retained = cache.skills?.filter((skill) => !isOpenBitFunManagedSkill(skill)
+  const retained = cache.skills?.filter((skill) => !isBitFunManagedSkill(skill)
     && failedSources.has(getSkillSourceId(skill)) && !current.has(skill.key)) ?? [];
   cache.staleSkillKeys = new Set(retained.map((skill) => skill.key));
   cache.skills = [...skills, ...retained];

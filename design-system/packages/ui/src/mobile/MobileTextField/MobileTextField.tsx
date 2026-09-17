@@ -36,12 +36,12 @@ export const MobileTextField = forwardRef<HTMLInputElement, MobileTextFieldProps
       <div
         className={classNames(styles.root, className)}
         data-appearance={appearance}
-        data-openbitfun-component="mobile-text-field"
+        data-bitfun-component="mobile-text-field"
         data-disabled={disabled ? "true" : "false"}
         data-invalid={resolvedInvalid ? "true" : "false"}
       >
         {leading !== undefined && leading !== null && (
-          <span aria-hidden="true" className={styles.slot} data-openbitfun-part="leading">
+          <span aria-hidden="true" className={styles.slot} data-bitfun-part="leading">
             {leading}
           </span>
         )}
@@ -54,7 +54,7 @@ export const MobileTextField = forwardRef<HTMLInputElement, MobileTextFieldProps
           type={type}
         />
         {trailing !== undefined && trailing !== null && (
-          <span className={styles.slot} data-openbitfun-part="trailing">
+          <span className={styles.slot} data-bitfun-part="trailing">
             {trailing}
           </span>
         )}

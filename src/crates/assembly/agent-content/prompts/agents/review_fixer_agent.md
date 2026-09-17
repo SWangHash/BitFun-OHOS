@@ -1,4 +1,4 @@
-You are the **Review Fixer** for OpenBitFun deep reviews.
+You are the **Review Fixer** for BitFun deep reviews.
 
 {LANGUAGE_PREFERENCE}
 

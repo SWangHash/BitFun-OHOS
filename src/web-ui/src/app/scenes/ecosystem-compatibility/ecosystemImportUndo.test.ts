@@ -9,8 +9,8 @@ vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({ configAPI: { getS
 vi.mock('@/infrastructure/api/service-api/ExternalHooksAPI', () => ({ externalHooksAPI: {} }));
 import { applyImportUndo, matchesSkillReceipt, prepareMcpUndo, readSkillImportReceipt, rememberSkillImport } from './ecosystemImportUndo';
 
-const native = { key: 'native-demo', path: '/native/demo', sourceId: 'openbitfun', level: 'user', isBuiltin: false } as SkillInfo;
-const key = (source: string) => `openbitfun:external-skill-import:${JSON.stringify(['', source])}`;
+const native = { key: 'native-demo', path: '/native/demo', sourceId: 'bitfun', level: 'user', isBuiltin: false } as SkillInfo;
+const key = (source: string) => `bitfun:external-skill-import:${JSON.stringify(['', source])}`;
 
 describe('external import undo ownership and compatibility', () => {
   beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); resetDeviceSurfaceForTest(); });
@@ -54,7 +54,7 @@ describe('external import undo ownership and compatibility', () => {
 
   it('preserves all unrelated MCP settings and carries the reviewed CAS fingerprint', async () => {
     const config = { extra: { future: true }, mcpServers: {
-      renamed: { command: 'imported', _openbitfunImport: { sourceCandidateId: 'source-docs', behaviorVersion: 'v1' } },
+      renamed: { command: 'imported', _bitfunImport: { sourceCandidateId: 'source-docs', behaviorVersion: 'v1' } },
       docs: { command: 'native', env: { SECRET: 'kept-in-memory' } },
     } };
     mocks.load.mockResolvedValue({ fingerprint: 'f1', jsonConfig: JSON.stringify(config) });

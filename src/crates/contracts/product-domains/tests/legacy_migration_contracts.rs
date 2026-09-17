@@ -1,4 +1,4 @@
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     MigrationDomainId, MigrationDomainResult, MigrationGroupId, MigrationOnboardingState,
     MigrationPromptChoice, MigrationSelection, MigratorHandoffRequest,
     MigratorProtocolCapabilities, MigratorProtocolCapability, MigratorRequestMode,

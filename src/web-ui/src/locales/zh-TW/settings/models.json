@@ -144,7 +144,7 @@
       "name": "OpenCode Go",
       "description": "OpenCode 推出的模型訂閱方案。"
     },
-    "openbitfun": {
+    "bitfun": {
       "name": "BitFun 服務",
       "description": "BitFun 大模型平臺",
       "urlOptions": {

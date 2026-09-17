@@ -63,8 +63,8 @@ vi.mock('@/infrastructure/api/service-api/GitAPI', () => ({
   gitAPI: { resolveRevision: mocks.resolveRevision },
 }));
 
-vi.mock('@openbitfun/ui', async (importOriginal) => ({
-  Disclosure: (await importOriginal<typeof import('@openbitfun/ui')>()).Disclosure,
+vi.mock('@bitfun/ui', async (importOriginal) => ({
+  Disclosure: (await importOriginal<typeof import('@bitfun/ui')>()).Disclosure,
   Alert: ({ message }: { message: string }) => <div role="alert">{message}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
@@ -164,7 +164,7 @@ describe('DispatchInstallDialog target preparation', () => {
       release: {
         version: '1.2.3',
         target: 'x86_64-unknown-linux-gnu',
-        url: 'https://example.test/openbitfun',
+        url: 'https://example.test/bitfun',
         sha256: 'abc123',
       },
     });
@@ -172,7 +172,7 @@ describe('DispatchInstallDialog target preparation', () => {
       scriptPath: '/tmp/install.sh',
       version: '1.2.3',
       target: 'x86_64-unknown-linux-gnu',
-      url: 'https://example.test/openbitfun',
+      url: 'https://example.test/bitfun',
       sha256: 'abc123',
     });
     mocks.installCliPoll.mockResolvedValue({
@@ -212,8 +212,8 @@ describe('DispatchInstallDialog target preparation', () => {
           arch: 'x86_64',
           installSupported: false,
           protocol: {
-            productId: 'openbitfun',
-            dataNamespace: 'openbitfun',
+            productId: 'bitfun',
+            dataNamespace: 'bitfun',
             protocolVersion: DISPATCH_PROTOCOL_VERSION,
             cliVersion: '1.2.3',
             os: 'linux',
@@ -231,7 +231,7 @@ describe('DispatchInstallDialog target preparation', () => {
           release: {
             version: '1.2.3',
             target: 'x86_64-unknown-linux-gnu',
-            url: 'https://example.test/openbitfun',
+            url: 'https://example.test/bitfun',
             sha256: 'abc123',
           },
         });
@@ -258,7 +258,7 @@ describe('DispatchInstallDialog target preparation', () => {
     expect(container.textContent).toContain('dispatch.oneClickDeploy');
     expect(container.textContent).toContain('1.2.3');
     expect(container.textContent).toContain('abc123');
-    expect(container.querySelector('[data-openbitfun-component="disclosure"] button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-bitfun-component="disclosure"] button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.textContent).not.toContain('dispatch.installAutomaticDescription');
     expect(mocks.dialogLifecycleProps).toEqual({
       closeOnPointerOutside: true,
@@ -322,8 +322,8 @@ describe('DispatchInstallDialog target preparation', () => {
           arch: 'x86_64',
           installSupported: false,
           protocol: {
-            productId: 'openbitfun',
-            dataNamespace: 'openbitfun',
+            productId: 'bitfun',
+            dataNamespace: 'bitfun',
             protocolVersion: DISPATCH_PROTOCOL_VERSION,
             cliVersion: '1.2.3',
             os: 'linux',
@@ -341,7 +341,7 @@ describe('DispatchInstallDialog target preparation', () => {
           release: {
             version: '1.2.3',
             target: 'x86_64-unknown-linux-gnu',
-            url: 'https://example.test/openbitfun',
+            url: 'https://example.test/bitfun',
             sha256: 'abc123',
           },
         });
@@ -435,8 +435,8 @@ describe('DispatchInstallDialog target preparation', () => {
       arch: 'x86_64',
       installSupported: false,
       protocol: {
-        productId: 'openbitfun',
-        dataNamespace: 'openbitfun',
+        productId: 'bitfun',
+        dataNamespace: 'bitfun',
         protocolVersion: DISPATCH_PROTOCOL_VERSION,
         cliVersion: '1.2.3',
         os: 'linux',
@@ -494,7 +494,7 @@ describe('DispatchInstallDialog target preparation', () => {
   it('never offers to compile on the target and explains why it cannot be prepared', async () => {
     // A target no published binary fits. Preparing it is not something this
     // controller can do, so the dialog says so instead of offering to build
-    // OpenBitFun on someone else's machine.
+    // BitFun on someone else's machine.
     mocks.probeTarget.mockResolvedValue({
       cliInstalled: false,
       os: 'linux',
@@ -537,8 +537,8 @@ describe('DispatchInstallDialog target preparation', () => {
       arch: 'x86_64',
       installSupported: false,
       protocol: {
-        productId: 'openbitfun',
-        dataNamespace: 'openbitfun',
+        productId: 'bitfun',
+        dataNamespace: 'bitfun',
         protocolVersion: DISPATCH_PROTOCOL_VERSION,
         cliVersion: '1.2.3',
         os: 'linux',
@@ -619,8 +619,8 @@ describe('DispatchInstallDialog target preparation', () => {
       arch: 'x86_64',
       installSupported: false,
       protocol: {
-        productId: 'openbitfun',
-        dataNamespace: 'openbitfun',
+        productId: 'bitfun',
+        dataNamespace: 'bitfun',
         protocolVersion: DISPATCH_PROTOCOL_VERSION,
         cliVersion: '1.2.3',
         os: 'linux',
@@ -680,8 +680,8 @@ describe('DispatchInstallDialog target preparation', () => {
       arch: 'x86_64',
       installSupported: false,
       protocol: {
-        productId: 'openbitfun',
-        dataNamespace: 'openbitfun',
+        productId: 'bitfun',
+        dataNamespace: 'bitfun',
         protocolVersion: DISPATCH_PROTOCOL_VERSION,
         cliVersion: '1.2.3',
         os: 'linux',
@@ -726,8 +726,8 @@ describe('DispatchInstallDialog target preparation', () => {
       arch: 'x86_64',
       installSupported: false,
       protocol: {
-        productId: 'openbitfun',
-        dataNamespace: 'openbitfun',
+        productId: 'bitfun',
+        dataNamespace: 'bitfun',
         protocolVersion: DISPATCH_PROTOCOL_VERSION,
         cliVersion: '1.2.3',
         os: 'linux',

@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .icon {
     display: inline-block;
     flex: 0 0 auto;
@@ -15,71 +15,71 @@
     mask-size: contain;
   }
 
-  .icon[data-openbitfun-source="line"] {
+  .icon[data-bitfun-source="line"] {
     background-color: transparent;
   }
 
   /* Reviewed monochrome paths keep authored opacity outside control slots. */
-  .icon[data-openbitfun-artwork="monochrome"] {
-    opacity: var(--openbitfun-opacity-icon-artwork);
+  .icon[data-bitfun-artwork="monochrome"] {
+    opacity: var(--bitfun-opacity-icon-artwork);
   }
 
-  .icon[data-openbitfun-source="line"] > svg {
+  .icon[data-bitfun-source="line"] > svg {
     display: block;
     inline-size: 100%;
     block-size: 100%;
   }
 
   .icon[data-size="2xs"] {
-    --_icon-size: var(--openbitfun-control-icon-size2xs);
+    --_icon-size: var(--bitfun-control-icon-size2xs);
   }
 
   .icon[data-size="xs"] {
-    --_icon-size: var(--openbitfun-control-icon-size-xs);
+    --_icon-size: var(--bitfun-control-icon-size-xs);
   }
 
   .icon[data-size="sm"] {
-    --_icon-size: var(--openbitfun-control-icon-size-sm);
+    --_icon-size: var(--bitfun-control-icon-size-sm);
   }
 
   .icon[data-size="md"] {
-    --_icon-size: var(--openbitfun-control-icon-size-md);
+    --_icon-size: var(--bitfun-control-icon-size-md);
   }
 
   .icon[data-size="lg"] {
-    --_icon-size: var(--openbitfun-control-icon-size-lg);
+    --_icon-size: var(--bitfun-control-icon-size-lg);
   }
 
-  .icon[data-openbitfun-tone="primary"] {
-    color: var(--openbitfun-color-content-primary);
+  .icon[data-bitfun-tone="primary"] {
+    color: var(--bitfun-color-content-primary);
   }
 
-  .icon[data-openbitfun-tone="secondary"] {
-    color: var(--openbitfun-color-content-secondary);
+  .icon[data-bitfun-tone="secondary"] {
+    color: var(--bitfun-color-content-secondary);
   }
 
-  .icon[data-openbitfun-tone="muted"] {
-    color: var(--openbitfun-color-content-muted);
+  .icon[data-bitfun-tone="muted"] {
+    color: var(--bitfun-color-content-muted);
   }
 
-  .icon[data-openbitfun-tone="disabled"] {
-    color: var(--openbitfun-color-content-disabled);
+  .icon[data-bitfun-tone="disabled"] {
+    color: var(--bitfun-color-content-disabled);
   }
 
-  .icon[data-openbitfun-tone="info"] {
-    color: var(--openbitfun-color-status-info-emphasis);
+  .icon[data-bitfun-tone="info"] {
+    color: var(--bitfun-color-status-info-emphasis);
   }
 
-  .icon[data-openbitfun-tone="success"] {
-    color: var(--openbitfun-color-status-success-emphasis);
+  .icon[data-bitfun-tone="success"] {
+    color: var(--bitfun-color-status-success-emphasis);
   }
 
-  .icon[data-openbitfun-tone="warning"] {
-    color: var(--openbitfun-color-status-warning-emphasis);
+  .icon[data-bitfun-tone="warning"] {
+    color: var(--bitfun-color-status-warning-emphasis);
   }
 
-  .icon[data-openbitfun-tone="danger"] {
-    color: var(--openbitfun-color-status-danger-emphasis);
+  .icon[data-bitfun-tone="danger"] {
+    color: var(--bitfun-color-status-danger-emphasis);
   }
 
   @media (forced-colors: active) {

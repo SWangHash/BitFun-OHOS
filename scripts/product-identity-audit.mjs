@@ -3,10 +3,10 @@
 /**
  * Keep product identity usage canonical.
  *
- * The product display brand is BitFun (renamed from OpenBitFun). OpenBitFun
+ * The product display brand is BitFun (renamed from BitFun). BitFun
  * remains the canonical form for code identifiers, CSS tokens, data
  * attributes, and storage keys. This audit rejects non-canonical casings and
- * abbreviated spellings of OpenBitFun, plus identity-owner and version-label
+ * abbreviated spellings of BitFun, plus identity-owner and version-label
  * violations.
  */
 import { execFileSync } from 'node:child_process';
@@ -20,21 +20,21 @@ const repositoryRoot = path.resolve(path.dirname(scriptPath), '..');
 const shortPrefix = `${'b'}${'f'}`;
 const productIdentityOwner = 'src/crates/contracts/core-types/src/product_identity.rs';
 const noncanonicalIdentityDataBoundaryFiles = new Set([
-  'OPENBITFUN_LEGACY_DATA_MIGRATION_INVENTORY.md',
-  'deploy/openbitfun-host/migrate-market-data-v1.py',
+  'BITFUN_LEGACY_DATA_MIGRATION_INVENTORY.md',
+  'deploy/bitfun-host/migrate-market-data-v1.py',
 ]);
 
 const identityRules = Object.freeze([
   Object.freeze({
-    id: 'noncanonical-openbitfun-casing',
-    description: 'non-canonical OpenBitFun casing',
-    pattern: /openbitfun/giu,
-    isViolation: (value) => !['OpenBitFun', 'openBitFun', 'openbitfun', 'OPENBITFUN'].includes(value),
+    id: 'noncanonical-bitfun-casing',
+    description: 'non-canonical BitFun casing',
+    pattern: /bitfun/giu,
+    isViolation: (value) => !['BitFun', 'bitFun', 'bitfun', 'BITFUN'].includes(value),
     allowedFiles: noncanonicalIdentityDataBoundaryFiles,
   }),
   Object.freeze({
-    id: 'abbreviated-openbitfun-name',
-    description: 'abbreviated OpenBitFun product name',
+    id: 'abbreviated-bitfun-name',
+    description: 'abbreviated BitFun product name',
     pattern: /\bopen[\s_-]*bf\b/giu,
   }),
   Object.freeze({
@@ -76,18 +76,18 @@ const identityRules = Object.freeze([
   Object.freeze({
     id: 'duplicate-product-identity-owner',
     description: 'product identity compile-time environment read outside the canonical owner',
-    pattern: /\b(?:option_)?env!\s*\(\s*["']OPENBITFUN_(?:PRODUCT_ID|DATA_NAMESPACE|HIDDEN_DATA_DIRECTORY)["']\s*\)/gu,
+    pattern: /\b(?:option_)?env!\s*\(\s*["']BITFUN_(?:PRODUCT_ID|DATA_NAMESPACE|HIDDEN_DATA_DIRECTORY)["']\s*\)/gu,
     allowedFiles: new Set([productIdentityOwner]),
   }),
   Object.freeze({
-    id: 'pre-1.0-openbitfun-minimum-version',
-    description: 'minimum OpenBitFun version earlier than 1.0.0',
-    pattern: /\b(?:minOpenBitFunVersion|min_openbitfun_version)\b\s*(?::|=)\s*['"]0\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?['"]/giu,
+    id: 'pre-1.0-bitfun-minimum-version',
+    description: 'minimum BitFun version earlier than 1.0.0',
+    pattern: /\b(?:minBitFunVersion|min_bitfun_version)\b\s*(?::|=)\s*['"]0\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?['"]/giu,
   }),
   Object.freeze({
-    id: 'pre-1.0-openbitfun-release-asset',
-    description: 'OpenBitFun release asset earlier than 1.0.0',
-    pattern: /\b(?:openbitfun-cli-|openbitfun[_-])0\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/giu,
+    id: 'pre-1.0-bitfun-release-asset',
+    description: 'BitFun release asset earlier than 1.0.0',
+    pattern: /\b(?:bitfun-cli-|bitfun[_-])0\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/giu,
   }),
 ]);
 
@@ -311,7 +311,7 @@ function main() {
   const report = auditRepository(repositoryRoot);
 
   if (report.violations.length > 0) {
-    console.error('OpenBitFun product identity audit failed:');
+    console.error('BitFun product identity audit failed:');
     for (const violation of report.violations) {
       console.error(`- ${formatViolation(violation)}`);
     }
@@ -320,7 +320,7 @@ function main() {
   }
 
   console.log(
-    `OpenBitFun product identity audit passed (${report.contentFilesScanned} text files scanned, ${report.filesChecked} repository files checked).`,
+    `BitFun product identity audit passed (${report.contentFilesScanned} text files scanned, ${report.filesChecked} repository files checked).`,
   );
 }
 

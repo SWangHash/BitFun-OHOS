@@ -95,7 +95,7 @@ describe('ConversationModeSurface', () => {
 
     expect(container.querySelector('[data-testid="voice-panel"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="chat-surface"]')).toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="modeSwitch"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="modeSwitch"]')).toBeNull();
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="voice-panel-close"]')?.click();
@@ -130,7 +130,7 @@ describe('ConversationModeSurface', () => {
     });
 
     expect(container.querySelector('[data-testid="chat-surface"]')).not.toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="modeSwitch"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="modeSwitch"]')).toBeNull();
     expect(container.querySelector('button')).toBeNull();
   });
 
@@ -147,7 +147,7 @@ describe('ConversationModeSurface', () => {
     });
 
     expect(container.querySelector('[data-testid="voice-panel"]')).not.toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="modeSwitch"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="modeSwitch"]')).toBeNull();
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="voice-panel-close"]')?.click();
     });

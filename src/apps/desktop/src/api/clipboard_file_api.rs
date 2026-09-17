@@ -1,6 +1,6 @@
 //! Clipboard File API
 
-use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -280,14 +280,14 @@ mod linux_clipboard {
 ///
 /// On OHOS `target_os` is `"linux"` with `target_env = "ohos"`, so the linux
 /// `xclip`/`wl-paste` path is unreachable here. Instead we bridge into the
-/// ArkTS layer (`openbitfun_core::util::get_clipboard_files`), which reads
+/// ArkTS layer (`bitfun_core::util::get_clipboard_files`), which reads
 /// `@ohos.pasteboard` via a registered threadsafe function and returns the
 /// same `{ paths: [...] }` envelope the file picker uses. This is the only
 /// way to reach the system pasteboard from the Rust side on OHOS.
 #[cfg(target_env = "ohos")]
 mod ohos_clipboard {
     pub(super) async fn get_clipboard_files() -> Result<Vec<String>, String> {
-        openbitfun_core::util::get_clipboard_files().await
+        bitfun_core::util::get_clipboard_files().await
     }
 }
 
@@ -597,7 +597,7 @@ mod tests {
     #[test]
     fn copy_directory_recursive_copies_nested_binary_files() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-directory-copy-test-{}",
+            "bitfun-directory-copy-test-{}",
             uuid::Uuid::new_v4()
         ));
         let source = root.join("source");
@@ -626,7 +626,7 @@ mod tests {
 #[cfg(test)]
 mod remote_guard_tests {
     use super::{paste_files, PasteFilesRequest};
-    use openbitfun_core::service::remote_ssh::workspace_state::init_remote_workspace_manager;
+    use bitfun_core::service::remote_ssh::workspace_state::init_remote_workspace_manager;
 
     const REMOTE_ROOT: &str = "/remote-audit-paste";
     const CONNECTION_ID: &str = "remote-audit-paste-connection";
@@ -642,9 +642,9 @@ mod remote_guard_tests {
             )
             .await;
 
-        let source = std::env::temp_dir().join("openbitfun-remote-audit-paste-source.txt");
+        let source = std::env::temp_dir().join("bitfun-remote-audit-paste-source.txt");
         std::fs::write(&source, b"local bytes").expect("write controller source");
-        let sentinel = std::env::temp_dir().join("openbitfun-remote-audit-paste-source.txt.copy");
+        let sentinel = std::env::temp_dir().join("bitfun-remote-audit-paste-source.txt.copy");
         let _ = std::fs::remove_file(&sentinel);
 
         let error = paste_files(PasteFilesRequest {

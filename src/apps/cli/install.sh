@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# OpenBitFun CLI — one-click build + install into PATH.
+# BitFun CLI — one-click build + install into PATH.
 #
 # Usage (from anywhere inside the repo, or this directory):
 #   bash src/apps/cli/install.sh
 #   bash install.sh                 # when cwd is src/apps/cli
 #
 # What it does:
-#   1. cargo build -p openbitfun-cli --release (native host arch)
-#   2. Install openbitfun to ~/.local/bin (override with OPENBITFUN_CLI_BIN_DIR)
+#   1. cargo build -p bitfun-cli --release (native host arch)
+#   2. Install bitfun to ~/.local/bin (override with BITFUN_CLI_BIN_DIR)
 #   3. Idempotently append a PATH block to ~/.bashrc and ~/.zshrc
 #   4. Print explicit current-shell and new-terminal instructions
 #   5. Restart the account daemon's auto-start service when installed, so
@@ -16,9 +16,9 @@
 # Supported hosts: Linux/macOS on amd64 (x86_64) and arm64 (aarch64).
 #
 # Environment:
-#   OPENBITFUN_CLI_BIN_DIR       Install directory (default: ~/.local/bin)
-#   OPENBITFUN_CLI_SKIP_SHELLRC  Set to 1 to skip bashrc/zshrc edits
-#   CARGO_TARGET_DIR         Optional cargo target dir (e.g. $HOME/openbitfun-build/target)
+#   BITFUN_CLI_BIN_DIR       Install directory (default: ~/.local/bin)
+#   BITFUN_CLI_SKIP_SHELLRC  Set to 1 to skip bashrc/zshrc edits
+#   CARGO_TARGET_DIR         Optional cargo target dir (e.g. $HOME/bitfun-build/target)
 #   CARGO_BUILD_JOBS         Optional rustc parallelism limit for small VPS
 
 set -euo pipefail
@@ -44,7 +44,7 @@ resolve_repo_root() {
     echo "$candid"
     return 0
   fi
-  echo "Error: could not locate OpenBitFun repository root from $SCRIPT_DIR" >&2
+  echo "Error: could not locate BitFun repository root from $SCRIPT_DIR" >&2
   exit 1
 }
 
@@ -91,14 +91,14 @@ require_cargo() {
 }
 
 # Marker keeps shellrc edits idempotent across re-installs.
-SHELLRC_MARKER_BEGIN="# >>> OpenBitFun CLI PATH (managed by src/apps/cli/install.sh) >>>"
-SHELLRC_MARKER_END="# <<< OpenBitFun CLI PATH (managed by src/apps/cli/install.sh) <<<"
+SHELLRC_MARKER_BEGIN="# >>> BitFun CLI PATH (managed by src/apps/cli/install.sh) >>>"
+SHELLRC_MARKER_END="# <<< BitFun CLI PATH (managed by src/apps/cli/install.sh) <<<"
 
 ensure_bin_dir_on_path_block() {
   local bin_dir="$1"
   cat <<EOF
 ${SHELLRC_MARKER_BEGIN}
-# Added so \`openbitfun\` is available in new shells after install.sh.
+# Added so \`bitfun\` is available in new shells after install.sh.
 case ":\$PATH:" in
   *":${bin_dir}:"*) ;;
   *) export PATH="${bin_dir}:\$PATH" ;;
@@ -135,9 +135,9 @@ upsert_shellrc_path() {
 
 print_path_guidance() {
   local bin_dir="$1"
-  echo "Open a new terminal, then run: openbitfun"
-  echo "Current shell: export PATH=\"${bin_dir}:\$PATH\" && openbitfun"
-  echo "Direct path: ${bin_dir}/openbitfun"
+  echo "Open a new terminal, then run: bitfun"
+  echo "Current shell: export PATH=\"${bin_dir}:\$PATH\" && bitfun"
+  echo "Direct path: ${bin_dir}/bitfun"
 }
 
 assert_entrypoint() {
@@ -169,12 +169,12 @@ install_bundle() {
   local failed=0
 
   mkdir -p "$destination"
-  stage_dir="$(mktemp -d "${destination}/.openbitfun-install.XXXXXX")"
-  staged_primary="${stage_dir}/openbitfun"
+  stage_dir="$(mktemp -d "${destination}/.bitfun-install.XXXXXX")"
+  staged_primary="${stage_dir}/bitfun"
   staged_plugin_host="${stage_dir}/ext-host"
-  primary_target="${destination}/openbitfun"
+  primary_target="${destination}/bitfun"
   plugin_host_target="${destination}/resources/ext-host"
-  primary_backup="${stage_dir}/previous-openbitfun"
+  primary_backup="${stage_dir}/previous-bitfun"
   plugin_host_backup="${stage_dir}/previous-ext-host"
 
   install -m 755 "$primary_source" "$staged_primary" || failed=1
@@ -217,7 +217,7 @@ install_bundle() {
       mv "$plugin_host_backup" "$plugin_host_target"
     fi
     rm -rf "$stage_dir"
-    echo "Error: CLI installation failed; the previous OpenBitFun CLI was restored." >&2
+    echo "Error: CLI installation failed; the previous BitFun CLI was restored." >&2
     return 1
   fi
 
@@ -231,8 +231,8 @@ install_bundle() {
 restart_daemon_for_upgrade() {
   local os unit_name agent_label config_home plist uid
   os="$(uname -s)"
-  unit_name="openbitfun-cli-daemon.service"
-  agent_label="com.openbitfun.cli.daemon"
+  unit_name="bitfun-cli-daemon.service"
+  agent_label="com.bitfun.cli.daemon"
 
   case "$os" in
     Linux)
@@ -264,7 +264,7 @@ restart_daemon_for_upgrade() {
 
   # No auto-start service installed — warn only when a manually supervised
   # daemon is still running the old binary.
-  if "${BIN_DIR}/openbitfun" daemon status 2>/dev/null | grep -q "daemon process: running"; then
+  if "${BIN_DIR}/bitfun" daemon status 2>/dev/null | grep -q "daemon process: running"; then
     echo "Note: a running daemon was detected (not service-managed); restart it"
     echo "so it picks up the new binary."
   fi
@@ -272,19 +272,19 @@ restart_daemon_for_upgrade() {
 
 usage() {
   cat <<'EOF'
-OpenBitFun CLI install script
+BitFun CLI install script
 
 Usage:
   bash install.sh [--help]
 
-Builds and installs the openbitfun command.
+Builds and installs the bitfun command.
 
 Options:
   -h, --help    Show this help
 
 Environment:
-  OPENBITFUN_CLI_BIN_DIR       Install directory (default: ~/.local/bin)
-  OPENBITFUN_CLI_SKIP_SHELLRC  Set to 1 to skip ~/.bashrc and ~/.zshrc edits
+  BITFUN_CLI_BIN_DIR       Install directory (default: ~/.local/bin)
+  BITFUN_CLI_SKIP_SHELLRC  Set to 1 to skip ~/.bashrc and ~/.zshrc edits
   CARGO_TARGET_DIR         Cargo target directory override
   CARGO_BUILD_JOBS         Limit rustc parallelism (useful on small VPS)
 EOF
@@ -305,11 +305,11 @@ for arg in "$@"; do
 done
 
 REPO_ROOT="$(resolve_repo_root)"
-BIN_DIR="${OPENBITFUN_CLI_BIN_DIR:-${HOME}/.local/bin}"
+BIN_DIR="${BITFUN_CLI_BIN_DIR:-${HOME}/.local/bin}"
 HOST_ARCH="$(host_arch_label)"
 HOST_OS="$(uname -s)"
 
-echo "=== OpenBitFun CLI Install ==="
+echo "=== BitFun CLI Install ==="
 echo "Repo:   $REPO_ROOT"
 echo "Host:   ${HOST_OS} / ${HOST_ARCH} ($(uname -m))"
 echo "Install dir: $BIN_DIR"
@@ -320,10 +320,10 @@ require_cargo
 mkdir -p "$BIN_DIR"
 
 echo ""
-echo "[1/4] Building openbitfun (release)..."
+echo "[1/4] Building bitfun (release)..."
 cd "$REPO_ROOT"
 # Build from workspace root so path deps resolve.
-cargo build -p openbitfun-cli --release --bin openbitfun
+cargo build -p bitfun-cli --release --bin bitfun
 
 TARGET_DIR="${CARGO_TARGET_DIR:-${REPO_ROOT}/target}"
 if [ -n "${CARGO_BUILD_TARGET:-}" ]; then
@@ -331,7 +331,7 @@ if [ -n "${CARGO_BUILD_TARGET:-}" ]; then
 else
   RELEASE_DIR="${TARGET_DIR}/release"
 fi
-BUILT_BIN="${RELEASE_DIR}/openbitfun"
+BUILT_BIN="${RELEASE_DIR}/bitfun"
 PLUGIN_HOST_DIST="${REPO_ROOT}/src/apps/extension-host/dist"
 if [ ! -x "$BUILT_BIN" ]; then
   echo "Error: built binary not found at $BUILT_BIN"
@@ -342,14 +342,14 @@ assert_plugin_host_resources "$PLUGIN_HOST_DIST"
 echo ""
 echo "[2/4] Installing binaries..."
 install_bundle "$BUILT_BIN" "$PLUGIN_HOST_DIST" "$BIN_DIR"
-echo "Installed: ${BIN_DIR}/openbitfun"
-assert_entrypoint "${BIN_DIR}/openbitfun"
+echo "Installed: ${BIN_DIR}/bitfun"
+assert_entrypoint "${BIN_DIR}/bitfun"
 assert_plugin_host_resources "${BIN_DIR}/resources/ext-host"
 
 echo ""
 echo "[3/4] Configuring shell PATH..."
-if [ "${OPENBITFUN_CLI_SKIP_SHELLRC:-0}" = "1" ]; then
-  echo "Skipped shell rc edits (OPENBITFUN_CLI_SKIP_SHELLRC=1)."
+if [ "${BITFUN_CLI_SKIP_SHELLRC:-0}" = "1" ]; then
+  echo "Skipped shell rc edits (BITFUN_CLI_SKIP_SHELLRC=1)."
 else
   upsert_shellrc_path "${HOME}/.bashrc" "$BIN_DIR"
   upsert_shellrc_path "${HOME}/.zshrc" "$BIN_DIR"
@@ -363,5 +363,5 @@ echo ""
 echo "=== Install complete ==="
 print_path_guidance "$BIN_DIR"
 echo "Login (Peer Host): open /login inside the TUI after start."
-echo "Server use: after /login, run \`openbitfun daemon install\` to keep this"
+echo "Server use: after /login, run \`bitfun daemon install\` to keep this"
 echo "device reachable by your account even after exit or reboot."

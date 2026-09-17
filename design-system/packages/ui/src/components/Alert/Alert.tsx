@@ -46,16 +46,16 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert({
       {...props}
       aria-live={ariaLive ?? (role === "status" ? "polite" : role === "alert" || tone === "error" ? "assertive" : "polite")}
       className={classNames(styles.root, className)}
-      data-openbitfun-component="alert"
-      data-openbitfun-tone={tone}
+      data-bitfun-component="alert"
+      data-bitfun-tone={tone}
       ref={ref}
       role={role ?? "alert"}
     >
-      {showIcon && <span className={styles.icon} data-openbitfun-part="icon"><Icon name={toneIcons[tone]} size="sm" /></span>}
-      <span className={styles.content} data-openbitfun-part="content">
-        {title !== undefined && <span className={styles.title} data-openbitfun-part="title">{title}</span>}
-        <span className={styles.message} data-openbitfun-part="message">{message}</span>
-        {description !== undefined && <span className={styles.description} data-openbitfun-part="description">{description}</span>}
+      {showIcon && <span className={styles.icon} data-bitfun-part="icon"><Icon name={toneIcons[tone]} size="sm" /></span>}
+      <span className={styles.content} data-bitfun-part="content">
+        {title !== undefined && <span className={styles.title} data-bitfun-part="title">{title}</span>}
+        <span className={styles.message} data-bitfun-part="message">{message}</span>
+        {description !== undefined && <span className={styles.description} data-bitfun-part="description">{description}</span>}
       </span>
       {closable && (
         <IconButton

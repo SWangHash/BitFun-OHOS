@@ -9,15 +9,15 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use openbitfun_product_domains::account::{AccountDevice, AccountInfo, AccountSnapshotProjection};
+use bitfun_product_domains::account::{AccountDevice, AccountInfo, AccountSnapshotProjection};
 use tokio::sync::RwLock;
 
-use openbitfun_core::service::remote_connect::account::AccountSession;
-use openbitfun_core::service::remote_connect::account_runtime::{
+use bitfun_core::service::remote_connect::account::AccountSession;
+use bitfun_core::service::remote_connect::account_runtime::{
     AccountRoutingStartRequest, AccountRuntime, AccountRuntimeHost,
     BackgroundRoutingOwnerRetirementError,
 };
-use openbitfun_core::service::remote_connect::{
+use bitfun_core::service::remote_connect::{
     self, encryption, relay_client::RelayClient, relay_client::RelayEvent, session_store,
     DeviceIdentity, RemoteServer,
 };
@@ -39,7 +39,7 @@ pub(crate) fn build_management_account_runtime() -> Arc<AccountRuntime> {
 }
 
 pub(crate) fn account_snapshot_projection(
-    snapshot: openbitfun_core::service::remote_connect::account_runtime::AccountSnapshot,
+    snapshot: bitfun_core::service::remote_connect::account_runtime::AccountSnapshot,
 ) -> AccountSnapshotProjection {
     AccountSnapshotProjection {
         logged_in: snapshot.logged_in,
@@ -62,7 +62,7 @@ pub(crate) fn account_snapshot_projection(
 }
 
 pub(crate) fn account_login_status_message(
-    result: &openbitfun_core::service::remote_connect::account_runtime::AccountLoginResult,
+    result: &bitfun_core::service::remote_connect::account_runtime::AccountLoginResult,
 ) -> String {
     if result.routing_connected {
         format!(
@@ -105,7 +105,7 @@ fn bounded_account_error(message: &str) -> String {
 /// CLI-owned routing effects injected into the shared Account Runtime.
 pub(crate) struct CliAccountRoutingHost {
     publisher: RwLock<
-        Option<Arc<openbitfun_core::service::remote_connect::session_log::SessionPublisher>>,
+        Option<Arc<bitfun_core::service::remote_connect::session_log::SessionPublisher>>,
     >,
     self_ref: Weak<CliAccountRoutingHost>,
     runtime: OnceLock<Weak<AccountRuntime>>,
@@ -131,7 +131,7 @@ impl CliAccountRoutingHost {
 
     pub(crate) async fn session_publisher(
         &self,
-    ) -> Option<Arc<openbitfun_core::service::remote_connect::session_log::SessionPublisher>> {
+    ) -> Option<Arc<bitfun_core::service::remote_connect::session_log::SessionPublisher>> {
         self.publisher.read().await.clone()
     }
 
@@ -360,12 +360,12 @@ impl CliAccountRoutingHost {
                             .routing_loop_is_current(account_generation, relay_client)
                             .await
                     {
-                        match openbitfun_core::service::remote_connect::session_log::SessionPublisher::start_for_host(
+                        match bitfun_core::service::remote_connect::session_log::SessionPublisher::start_for_host(
                             session.user_id.clone(), device_id.clone(), relay_url.clone(), session.token.clone(),
                         ).await {
                             Ok(publisher) => {
                                 let publisher = Arc::new(publisher);
-                                openbitfun_core::service::remote_connect::start_session_interaction_publication(&publisher);
+                                bitfun_core::service::remote_connect::start_session_interaction_publication(&publisher);
                                 if let Some(old) = self.publisher.write().await.replace(publisher) { old.close(); }
                             }
                             Err(error) => tracing::error!("Unable to start durable session publisher: {error}"),
@@ -455,13 +455,13 @@ impl CliAccountRoutingHost {
                     RemoteCommand::GetSessionKey { session_id } => {
                         let result=async {
                             let publisher=self.session_publisher().await.ok_or_else(||anyhow::anyhow!("Session publisher unavailable"))?;
-                            if session_id != openbitfun_core::service::remote_connect::session_log::HOST_CATALOG_ID && !session_id.starts_with("terminal-") {
-                                openbitfun_core::service::remote_connect::synchronize_session_records(&publisher,session_id).await.map_err(anyhow::Error::msg)?;
+                            if session_id != bitfun_core::service::remote_connect::session_log::HOST_CATALOG_ID && !session_id.starts_with("terminal-") {
+                                bitfun_core::service::remote_connect::synchronize_session_records(&publisher,session_id).await.map_err(anyhow::Error::msg)?;
                             }
                             let session_id=session_id.clone();let account=session.user_id.clone();
                             tokio::task::spawn_blocking(move || -> Result<(String,String)> {
                                 let device=DeviceIdentity::from_current_machine()?;
-                                let log=openbitfun_core::service::remote_connect::session_log::SessionLog::existing_for_host(&account,&device.device_id,&session_id)?;
+                                let log=bitfun_core::service::remote_connect::session_log::SessionLog::existing_for_host(&account,&device.device_id,&session_id)?;
                                 Ok((log.relay_session_id(),log.key_grant()?))
                             }).await?
                         }.await;

@@ -1,7 +1,7 @@
 #![cfg(feature = "git")]
 
-use openbitfun_runtime_ports::{GitPort, WorkspaceDiffContent, WorkspaceDiffFileStatus};
-use openbitfun_services_integrations::git::{
+use bitfun_runtime_ports::{GitPort, WorkspaceDiffContent, WorkspaceDiffFileStatus};
+use bitfun_services_integrations::git::{
     build_git_changed_files_args, build_git_diff_args, parse_branch_line, parse_git_log_line,
     parse_name_status_output, parse_worktree_list, GitAuthor, GitChangedFile, GitChangedFileStatus,
     GitChangedFilesParams, GitCommandOutput, GitCommitParams, GitDiffParams, GitError, GitGraph,
@@ -80,11 +80,11 @@ fn git_command_output_preserves_raw_stream_contract() {
 #[test]
 fn git_text_parsers_preserve_branch_and_log_contracts() {
     assert_eq!(
-        parse_git_log_line("abc123|OpenBitFun|openbitfun@example.com|2026-05-12|subject|body"),
+        parse_git_log_line("abc123|BitFun|bitfun@example.com|2026-05-12|subject|body"),
         Some((
             "abc123".to_string(),
-            "OpenBitFun".to_string(),
-            "openbitfun@example.com".to_string(),
+            "BitFun".to_string(),
+            "bitfun@example.com".to_string(),
             "2026-05-12".to_string(),
             "subject|body".to_string(),
         ))
@@ -171,11 +171,11 @@ async fn review_safe_workspace_diff_forces_rename_detection() {
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     let original = (0..10)
         .map(|index| format!("stable line {index}\n"))
@@ -267,11 +267,11 @@ async fn workspace_diff_port_reports_staged_unstaged_and_untracked_changes() {
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     fs::write(repo_dir.path().join("both.txt"), "base\n").unwrap();
     run_git(repo_dir.path(), &["add", "--", "both.txt"]);
@@ -321,11 +321,11 @@ async fn workspace_diff_port_keeps_staged_changes_when_worktree_returns_to_head(
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     fs::write(repo_dir.path().join("both.txt"), "base\n").unwrap();
     run_git(repo_dir.path(), &["add", "--", "both.txt"]);
@@ -384,11 +384,11 @@ async fn workspace_diff_port_preserves_staged_delete_and_recreated_file_sources(
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     fs::write(repo_dir.path().join("rebuilt.txt"), "base\n").unwrap();
     run_git(repo_dir.path(), &["add", "--", "rebuilt.txt"]);
@@ -416,11 +416,11 @@ async fn workspace_diff_port_marks_conflicts_without_projecting_an_incomplete_pa
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     fs::write(repo_dir.path().join("conflict.txt"), "base\n").unwrap();
     run_git(repo_dir.path(), &["add", "--", "conflict.txt"]);
@@ -457,11 +457,11 @@ async fn workspace_diff_port_scopes_parent_repository_paths_to_the_bound_workspa
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "tests@openbitfun.dev"],
+        &["config", "user.email", "tests@bitfun.dev"],
     );
     fs::create_dir_all(repo_dir.path().join("scope[1]")).unwrap();
     fs::write(repo_dir.path().join("outside.txt"), "base\n").unwrap();
@@ -617,11 +617,11 @@ async fn review_git_service_reads_exact_renamed_and_deleted_range_without_mutati
     run_git(repo_dir.path(), &["init"]);
     run_git(
         repo_dir.path(),
-        &["config", "user.name", "OpenBitFun Tests"],
+        &["config", "user.name", "BitFun Tests"],
     );
     run_git(
         repo_dir.path(),
-        &["config", "user.email", "openbitfun-tests@example.com"],
+        &["config", "user.email", "bitfun-tests@example.com"],
     );
     fs::write(
         repo_dir.path().join(".gitattributes"),
@@ -660,7 +660,7 @@ async fn review_git_service_reads_exact_renamed_and_deleted_range_without_mutati
         &[
             "config",
             "diff.external",
-            "openbitfun-review-should-not-run",
+            "bitfun-review-should-not-run",
         ],
     );
     run_git(
@@ -668,7 +668,7 @@ async fn review_git_service_reads_exact_renamed_and_deleted_range_without_mutati
         &[
             "config",
             "diff.reviewdriver.textconv",
-            "openbitfun-review-should-not-run",
+            "bitfun-review-should-not-run",
         ],
     );
 
@@ -763,7 +763,7 @@ impl TempRepoDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "openbitfun-services-integrations-{}-{}-{}",
+            "bitfun-services-integrations-{}-{}-{}",
             name,
             std::process::id(),
             nanos
@@ -784,7 +784,7 @@ impl Drop for TempRepoDir {
 }
 
 fn run_git(repo_dir: &std::path::Path, args: &[&str]) {
-    let output = openbitfun_services_core::process_manager::create_command("git")
+    let output = bitfun_services_core::process_manager::create_command("git")
         .current_dir(repo_dir)
         .args(args)
         .output()
@@ -799,7 +799,7 @@ fn run_git(repo_dir: &std::path::Path, args: &[&str]) {
 }
 
 fn run_git_expect_failure(repo_dir: &std::path::Path, args: &[&str]) {
-    let output = openbitfun_services_core::process_manager::create_command("git")
+    let output = bitfun_services_core::process_manager::create_command("git")
         .current_dir(repo_dir)
         .args(args)
         .output()
@@ -814,7 +814,7 @@ fn run_git_expect_failure(repo_dir: &std::path::Path, args: &[&str]) {
 #[test]
 fn git_worktree_info_preserves_camel_case_contract() {
     let worktree = GitWorktreeInfo {
-        path: "D:/workspace/OpenBitFun-worktree".to_string(),
+        path: "D:/workspace/BitFun-worktree".to_string(),
         branch: Some("feature/test".to_string()),
         head: "abc123".to_string(),
         is_main: false,
@@ -831,11 +831,11 @@ fn git_worktree_info_preserves_camel_case_contract() {
 #[test]
 fn git_worktree_parser_preserves_porcelain_contract() {
     let worktrees = parse_worktree_list(
-        "worktree D:/workspace/OpenBitFun\nHEAD abc123\nbranch refs/heads/main\n\nworktree D:/workspace/OpenBitFun-feature\nHEAD def456\nbranch refs/heads/feature/test\nlocked\nprunable\n",
+        "worktree D:/workspace/BitFun\nHEAD abc123\nbranch refs/heads/main\n\nworktree D:/workspace/BitFun-feature\nHEAD def456\nbranch refs/heads/feature/test\nlocked\nprunable\n",
     );
 
     assert_eq!(worktrees.len(), 2);
-    assert_eq!(worktrees[0].path, "D:/workspace/OpenBitFun");
+    assert_eq!(worktrees[0].path, "D:/workspace/BitFun");
     assert_eq!(worktrees[0].branch.as_deref(), Some("main"));
     assert_eq!(worktrees[0].head, "abc123");
     assert!(worktrees[0].is_main);
@@ -853,8 +853,8 @@ fn git_commit_params_preserves_no_verify_rename_contract() {
         all: Some(true),
         no_verify: Some(true),
         author: Some(GitAuthor {
-            name: "OpenBitFun".to_string(),
-            email: "openbitfun@example.com".to_string(),
+            name: "BitFun".to_string(),
+            email: "bitfun@example.com".to_string(),
         }),
     };
 
@@ -870,8 +870,8 @@ fn git_graph_contract_preserves_camel_case_contract() {
             hash: "abc123".to_string(),
             message: "initial".to_string(),
             full_message: "initial commit".to_string(),
-            author_name: "OpenBitFun".to_string(),
-            author_email: "openbitfun@example.com".to_string(),
+            author_name: "BitFun".to_string(),
+            author_email: "bitfun@example.com".to_string(),
             timestamp: 1_700_000_000,
             parents: Vec::new(),
             children: vec!["def456".to_string()],

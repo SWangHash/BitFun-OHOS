@@ -42,10 +42,10 @@ class NativeMarkdownPage {
     await expect($(selector)).toHaveText(expect.stringContaining(text.trim()));
   }
   async mode(index: number) {
-    await (await $$('.openbitfun-markdown-editor__mode-toggle [role="radio"]'))[index].click();
+    await (await $$('.bitfun-markdown-editor__mode-toggle [role="radio"]'))[index].click();
   }
   async openFile(file: string) {
-    const row = $(`.openbitfun-file-viewer-nav [data-file-path="${file}"]`);
+    const row = $(`.bitfun-file-viewer-nav [data-file-path="${file}"]`);
     await row.waitForDisplayed({ timeout: 20000 });
     await row.click();
     try {
@@ -65,7 +65,7 @@ let file: string;
 
 describe('Native desktop Markdown editing', () => {
   before(async () => {
-    workspace = await realpath(await mkdtemp(join(tmpdir(), 'openbitfun-markdown-native-')));
+    workspace = await realpath(await mkdtemp(join(tmpdir(), 'bitfun-markdown-native-')));
     file = join(workspace, 'editor-test.md');
     const fixture = (await readFile(new URL('../browser/markdown-fixture.md', import.meta.url), 'utf8'))
       .replace('# Editable document', '#  Editable document')
@@ -84,33 +84,33 @@ describe('Native desktop Markdown editing', () => {
   it('restores original source and dirty state through undo, redo, and saving', async () => {
     const original = await readFile(file, 'utf8');
     await page.typeAtStart('.ProseMirror h1', 'Changed ');
-    await expect(page.tab).toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await browser.keys([modifier, 'z']);
     await expect($('.ProseMirror h1')).toHaveText('Editable document');
-    await expect(page.tab).not.toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).not.toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await browser.keys([modifier, 'Shift', 'z']);
-    await expect(page.tab).toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await browser.keys([modifier, 's']);
-    await expect(page.tab).not.toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).not.toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     const saved = await readFile(file, 'utf8');
     expect(saved).toContain('Changed Editable document');
     await browser.keys([modifier, 'z']);
-    await expect(page.tab).toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await browser.keys([modifier, 'Shift', 'z']);
-    await expect(page.tab).not.toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).not.toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await browser.keys([modifier, 'z']);
     await page.mode(1);
     await expect(page.source).toHaveValue(original, { trim: false });
     await page.source.click();
     await browser.keys([modifier, 's']);
-    await expect(page.tab).not.toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).not.toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     expect(await readFile(file, 'utf8')).toBe(original);
     await page.mode(0);
   });
 
   it('edits native blocks and embedded source, saves through Tauri, and reopens the same file', async () => {
     expect(await browser.execute(() => Boolean(window.__TAURI__?.core?.invoke))).toBe(true);
-    await expect($$('.openbitfun-markdown-editor__mode-toggle [role="radio"]')).toBeElementsArrayOfSize(2);
+    await expect($$('.bitfun-markdown-editor__mode-toggle [role="radio"]')).toBeElementsArrayOfSize(2);
     await expect(page.richText).toHaveAttribute('contenteditable', 'true');
 
     const mermaid = await page.editBlock('mermaid', 'graph TD\n A[Desktop] --> B[Saved]');
@@ -162,7 +162,7 @@ describe('Native desktop Markdown editing', () => {
     for (const value of ['A[Desktop]', 'Native HTML edited', '$y^3$', 'E=mc^2', '- [x] Finish editing', 'Desktop cell', 'Desktop nested', '[^test]: Preserved definition']) {
       expect(saved).toContain(value);
     }
-    await expect(page.tab).not.toHaveAttribute('data-openbitfun-state', expect.stringContaining('dirty'));
+    await expect(page.tab).not.toHaveAttribute('data-bitfun-state', expect.stringContaining('dirty'));
     await page.waitForDiagram();
     await saveScreenshot('markdown-native-edited', { includeTimestamp: false });
 

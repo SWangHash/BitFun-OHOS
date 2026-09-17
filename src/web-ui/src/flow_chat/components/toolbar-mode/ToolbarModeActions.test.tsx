@@ -65,8 +65,8 @@ describe('toolbar icon actions and legacy Appearance hooks', () => {
     act(() => root.unmount());
     container.remove();
     document.querySelectorAll('[data-test-legacy-style]').forEach(node => node.remove());
-    document.documentElement.removeAttribute('data-openbitfun-appearance');
-    document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+    document.documentElement.removeAttribute('data-bitfun-appearance');
+    document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     vi.clearAllTimers();
     vi.useRealTimers();
   });
@@ -111,11 +111,11 @@ describe('toolbar icon actions and legacy Appearance hooks', () => {
   it('anchors the overflow menu to its button and preserves outside dismissal', () => {
     mocks.expanded = true;
     act(() => root.render(<ToolbarMode />));
-    const trigger = container.querySelector<HTMLButtonElement>('.openbitfun-toolbar-mode__overflow-trigger')!;
+    const trigger = container.querySelector<HTMLButtonElement>('.bitfun-toolbar-mode__overflow-trigger')!;
     act(() => trigger.querySelector('svg')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(mocks.anchor).toBe(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const menu = document.querySelector('.openbitfun-toolbar-mode__overflow-menu')!;
+    const menu = document.querySelector('.bitfun-toolbar-mode__overflow-menu')!;
     act(() => vi.advanceTimersByTime(0));
     act(() => menu.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
@@ -131,7 +131,7 @@ describe('toolbar icon actions and legacy Appearance hooks', () => {
       <ScrollToTurnHeaderButton visible onClick={vi.fn()} />
     </>));
     const pkg: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
       id: 'test.toolbar-scroll', name: 'Toolbar and scroll controls', version: '1.0.0', mode: 'dark',
       components: {
         'toolbar-mode': { parts: { overflowTrigger: { states: { expanded: { opacity: { kind: 'number', value: 0.41 } } } } } },
@@ -147,19 +147,19 @@ describe('toolbar icon actions and legacy Appearance hooks', () => {
       .registerComponent(scrollToTurnHeaderButtonAppearanceDescriptor);
     const snapshot = new AppearanceCompiler(registry).compile(restored, 1);
     expect(JSON.stringify(restored)).toBe(serialized);
-    document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+    document.documentElement.setAttribute('data-bitfun-appearance', snapshot.id);
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', String(snapshot.revision));
     const style = document.createElement('style');
     style.dataset.testLegacyStyle = '';
     style.textContent = snapshot.cssText;
     document.head.appendChild(style);
     for (const [selector, opacity] of [
-      ['.openbitfun-toolbar-mode__overflow-trigger', '0.41'],
+      ['.bitfun-toolbar-mode__overflow-trigger', '0.41'],
       ['.scroll-to-latest-bar__btn', '0.42'],
       ['.scroll-to-turn-header-trigger__btn', '0.43'],
     ]) {
       const button = container.querySelector(selector)!;
-      expect(button.getAttribute('data-openbitfun-component')).toBe('icon-button');
+      expect(button.getAttribute('data-bitfun-component')).toBe('icon-button');
       const rule = Array.from(style.sheet!.cssRules).find(candidate =>
         candidate instanceof CSSStyleRule && candidate.style.opacity === opacity,
       ) as CSSStyleRule | undefined;

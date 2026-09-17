@@ -6,7 +6,7 @@ use std::{
 use git2::{
     Delta, DiffFindOptions, DiffFlags, DiffOptions, Patch, Repository, Status, StatusOptions,
 };
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     GitPort, PortError, PortErrorKind, PortResult, RuntimeServiceCapability, RuntimeServicePort,
     WorkspaceDiffContent, WorkspaceDiffFile, WorkspaceDiffFileStatus, WorkspaceDiffSnapshot,
 };

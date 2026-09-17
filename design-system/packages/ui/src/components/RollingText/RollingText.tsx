@@ -74,7 +74,7 @@ export const RollingText = forwardRef<HTMLSpanElement, RollingTextProps>(
       <span
         {...props}
         className={classNames(styles.root, className)}
-        data-openbitfun-component="rolling-text"
+        data-bitfun-component="rolling-text"
         data-transitioning={transitioning ? "true" : "false"}
         ref={rootRef}
       >

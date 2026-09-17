@@ -696,7 +696,7 @@ export class SettingsController {
       if (!persisted) {
         return;
       }
-      if (/^https:\/\/remote\.openbitfun\.com\/v\/[^/]+\/?$/.test(persisted.relayUrl) && persisted.relayUrl.replace(/\/+$/, '') !== OFFICIAL_RELAY_URL) {
+      if (/^https:\/\/remote\.bitfun\.com\/v\/[^/]+\/?$/.test(persisted.relayUrl) && persisted.relayUrl.replace(/\/+$/, '') !== OFFICIAL_RELAY_URL) {
         // Relay credentials are database-scoped; never replay an older credential at a new endpoint.
         this.selectedRelayUrl = OFFICIAL_RELAY_URL;
         this.cloudRelayUrl = OFFICIAL_RELAY_URL;

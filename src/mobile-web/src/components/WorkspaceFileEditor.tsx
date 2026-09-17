@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Save } from 'lucide-react';
-import { MobileBanner, MobileButton, MobileConfirmSheet, MobileSheet, MobileTextarea } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileConfirmSheet, MobileSheet, MobileTextarea } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 
 interface Props {

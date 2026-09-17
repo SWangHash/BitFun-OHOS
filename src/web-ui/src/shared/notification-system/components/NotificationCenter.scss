@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   block-size: 600px;
-  max-block-size: calc(100dvh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter) - 2 * var(--openbitfun-border-width-default));
+  max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - 2 * var(--bitfun-border-width-default));
   min-block-size: 0;
-  font-family: var(--openbitfun-type-body-sm-font-family);
+  font-family: var(--bitfun-type-body-sm-font-family);
   overflow: hidden;
 
   &__header {
@@ -25,22 +25,22 @@
 
   &__search {
     flex-shrink: 0;
-    padding: var(--openbitfun-space-4) var(--openbitfun-overlay-dialog-header-padding-inline) var(--openbitfun-space-3);
+    padding: var(--bitfun-space-4) var(--bitfun-overlay-dialog-header-padding-inline) var(--bitfun-space-3);
   }
 
   &__content {
     flex: 1;
     min-block-size: 0;
-    margin-block: 0 var(--openbitfun-space-2);
-    margin-inline: calc(var(--openbitfun-overlay-dialog-header-padding-inline) - var(--openbitfun-layout-disclosure-trigger-padding-inline) - var(--openbitfun-space-1));
+    margin-block: 0 var(--bitfun-space-2);
+    margin-inline: calc(var(--bitfun-overlay-dialog-header-padding-inline) - var(--bitfun-layout-disclosure-trigger-padding-inline) - var(--bitfun-space-1));
   }
 
   &__list {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     margin: 0;
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-1) var(--openbitfun-space-3);
+    padding: var(--bitfun-space-1) var(--bitfun-space-1) var(--bitfun-space-3);
     list-style: none;
   }
 
@@ -51,8 +51,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-6);
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-6);
     text-align: center;
   }
 
@@ -62,86 +62,86 @@
     justify-content: center;
     inline-size: 48px;
     block-size: 48px;
-    border-radius: var(--openbitfun-radius-lg);
-    background: var(--openbitfun-color-surface-subtle);
-    color: var(--openbitfun-color-content-muted);
+    border-radius: var(--bitfun-radius-lg);
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__empty-text {
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__item {
     min-inline-size: 0;
 
     &:is(:hover, :has(:focus-visible)),
-    &[data-openbitfun-state~='expanded'] {
+    &[data-bitfun-state~='expanded'] {
       > .notification-center__item-card {
-        background: var(--openbitfun-color-action-neutral-surface);
+        background: var(--bitfun-color-action-neutral-surface);
       }
     }
   }
 
   &__item-card {
     background: transparent;
-    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  &__item-disclosure > [data-openbitfun-part='header'] {
+  &__item-disclosure > [data-bitfun-part='header'] {
     background: transparent;
     color: inherit;
 
     > button {
       display: grid;
-      grid-template-columns: var(--openbitfun-layout-disclosure-indicator-size) minmax(0, 1fr);
+      grid-template-columns: var(--bitfun-layout-disclosure-indicator-size) minmax(0, 1fr);
     }
 
-    [data-openbitfun-part='indicator'],
-    [data-openbitfun-part='leading'] {
+    [data-bitfun-part='indicator'],
+    [data-bitfun-part='leading'] {
       grid-area: 1 / 1;
       pointer-events: none;
     }
 
-    [data-openbitfun-part='indicator'] {
+    [data-bitfun-part='indicator'] {
       transition:
-        opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+        opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     }
 
-    [data-openbitfun-part='leading'] {
+    [data-bitfun-part='leading'] {
       opacity: 0;
-      transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     }
 
-    [data-openbitfun-part='heading'] {
+    [data-bitfun-part='heading'] {
       grid-area: 1 / 2;
     }
   }
 
-  &__item-disclosure > [data-openbitfun-part='content'] > [data-openbitfun-part='content-inner'],
+  &__item-disclosure > [data-bitfun-part='content'] > [data-bitfun-part='content-inner'],
   &__item-progress {
     padding-inline-start: calc(
-      var(--openbitfun-layout-disclosure-trigger-padding-inline)
-      + var(--openbitfun-layout-disclosure-indicator-size)
-      + var(--openbitfun-layout-disclosure-trigger-gap)
+      var(--bitfun-layout-disclosure-trigger-padding-inline)
+      + var(--bitfun-layout-disclosure-indicator-size)
+      + var(--bitfun-layout-disclosure-trigger-gap)
     );
-    padding-inline-end: var(--openbitfun-layout-disclosure-trigger-padding-inline);
+    padding-inline-end: var(--bitfun-layout-disclosure-trigger-padding-inline);
   }
 
   &__item-action {
     display: inline-flex;
     flex: 0 0 auto;
     justify-content: flex-end;
-    inline-size: var(--openbitfun-control-icon-button-xs-size);
+    inline-size: var(--bitfun-control-icon-button-xs-size);
     min-inline-size: 0;
     margin-inline-start: 0;
     overflow: clip;
     transition:
-      inline-size var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-      margin-inline-start var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-      opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      inline-size var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      margin-inline-start var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:has(:focus-visible) {
       overflow: visible;
@@ -150,56 +150,56 @@
 
   &__item-status {
     display: inline-flex;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
 
     &--success,
     &--completed {
-      color: var(--openbitfun-color-status-success-emphasis);
+      color: var(--bitfun-color-status-success-emphasis);
     }
 
     &--error,
     &--failed {
-      color: var(--openbitfun-color-status-danger-emphasis);
+      color: var(--bitfun-color-status-danger-emphasis);
     }
 
     &--warning {
-      color: var(--openbitfun-color-status-warning-emphasis);
+      color: var(--bitfun-color-status-warning-emphasis);
     }
 
     &--info,
     &--active {
-      color: var(--openbitfun-color-status-info-emphasis);
+      color: var(--bitfun-color-status-info-emphasis);
     }
 
     &--cancelled {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
   &__item-time,
   &__item-percentage {
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
     font-variant-numeric: tabular-nums;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
   }
 
   &__item-time {
-    margin-inline: var(--openbitfun-space-1);
+    margin-inline: var(--bitfun-space-1);
   }
 
   &__item-badge {
     flex: 0 0 auto;
     inline-size: 4px;
     block-size: 4px;
-    border-radius: var(--openbitfun-radius-pill);
-    background: var(--openbitfun-color-accent-default);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-accent-default);
   }
 
   &__item-details {
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__item-detail-message {
@@ -210,8 +210,8 @@
   &__item-progress {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding-block: var(--openbitfun-space-1) var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-space-1) var(--bitfun-space-2);
   }
 
   &__item-progress-bar {
@@ -219,36 +219,36 @@
     min-inline-size: 0;
     block-size: 3px;
     overflow: hidden;
-    border-radius: var(--openbitfun-radius-pill);
-    background: var(--openbitfun-color-action-neutral-surface);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-action-neutral-surface);
   }
 
   &__item-progress-fill {
     inline-size: 100%;
     block-size: 100%;
     border-radius: inherit;
-    background: var(--openbitfun-color-status-info-emphasis);
+    background: var(--bitfun-color-status-info-emphasis);
     transform-origin: left center;
-    transition: transform var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    transition: transform var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
 
     &.is-completed {
-      background: var(--openbitfun-color-status-success-emphasis);
+      background: var(--bitfun-color-status-success-emphasis);
     }
 
     &.is-failed {
-      background: var(--openbitfun-color-status-danger-emphasis);
+      background: var(--bitfun-color-status-danger-emphasis);
     }
 
     &.is-cancelled {
-      background: var(--openbitfun-color-content-muted);
+      background: var(--bitfun-color-content-muted);
     }
   }
 
   &__item-technical-title {
-    margin-block-end: var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-muted);
+    margin-block-end: var(--bitfun-space-2);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__item-technical-body {
@@ -258,18 +258,18 @@
       margin: 0;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-meta-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-meta-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
   }
 
   &__spinner {
-    animation: openbitfun-notification-center-spin 1s linear infinite;
+    animation: bitfun-notification-center-spin 1s linear infinite;
   }
 }
 
-@keyframes openbitfun-notification-center-spin {
+@keyframes bitfun-notification-center-spin {
   to { transform: rotate(360deg); }
 }
 
@@ -277,17 +277,17 @@
   .notification-center__item:not(:hover):not(:has(:focus-visible)) {
     .notification-center__item-action {
       inline-size: 0;
-      margin-inline-start: calc(-1 * var(--openbitfun-layout-disclosure-actions-gap));
+      margin-inline-start: calc(-1 * var(--bitfun-layout-disclosure-actions-gap));
       opacity: 0;
       pointer-events: none;
     }
 
-    > .notification-center__item-card > .notification-center__item-disclosure[data-open='false'] > [data-openbitfun-part='header'] {
-      [data-openbitfun-part='indicator'] {
+    > .notification-center__item-card > .notification-center__item-disclosure[data-open='false'] > [data-bitfun-part='header'] {
+      [data-bitfun-part='indicator'] {
         opacity: 0;
       }
 
-      [data-openbitfun-part='leading'] {
+      [data-bitfun-part='leading'] {
         opacity: 1;
       }
     }
@@ -301,8 +301,8 @@
 
   .notification-center__item-card,
   .notification-center__item-progress-fill,
-  .notification-center__item-disclosure > [data-openbitfun-part='header'] [data-openbitfun-part='indicator'],
-  .notification-center__item-disclosure > [data-openbitfun-part='header'] [data-openbitfun-part='leading'],
+  .notification-center__item-disclosure > [data-bitfun-part='header'] [data-bitfun-part='indicator'],
+  .notification-center__item-disclosure > [data-bitfun-part='header'] [data-bitfun-part='leading'],
   .notification-center__item-action {
     transition: none;
   }

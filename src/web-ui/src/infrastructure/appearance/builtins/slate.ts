@@ -29,9 +29,9 @@ const SLATE_ACCENT_HOVER = '#64748b';
 const SLATE_PURPLE = '#b8c4ff';
 const SLATE_PURPLE_HOVER = '#9dacf5';
 
-export const openOpenBitFunSlatePalette: AppearancePalette = {
+export const bitFunSlatePalette: AppearancePalette = {
 
-  id: 'openbitfun-slate',
+  id: 'bitfun-slate',
   name: 'Slate',
   type: 'dark',
   description: 'Slate gray geometric appearance - Deep immersion, high contrast grayscale aesthetics',

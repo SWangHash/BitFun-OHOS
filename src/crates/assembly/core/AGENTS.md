@@ -9,7 +9,7 @@ repository-wide rules and the nearest narrower guide when one exists.
 
 ## Role
 
-`openbitfun-core` is the shared product runtime facade. It still owns compatibility
+`bitfun-core` is the shared product runtime facade. It still owns compatibility
 paths and the `product-full` assembly boundary, but new decomposition work should
 prefer the owner crates described in `docs/architecture/product-architecture.md`
 and `docs/architecture/agent-runtime-services-design.md`.
@@ -31,7 +31,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
 
 - Keep shared core platform-agnostic. Avoid host-specific APIs such as
   `tauri::AppHandle`; use shared abstractions such as
-  `openbitfun_events::EventEmitter`.
+  `bitfun_events::EventEmitter`.
 - Desktop-only host adapters belong in `src/apps/desktop`, then flow through
   typed capability interfaces; use the production transport adapter when event
   delivery is needed.
@@ -44,7 +44,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
 
 ## Decomposition Rules
 
-- Treat `openbitfun-core` as a compatibility facade plus full product assembly point,
+- Treat `bitfun-core` as a compatibility facade plus full product assembly point,
   not as the preferred home for new stable contracts.
 - Put stable DTOs, facts, ports, and pure decisions in the matching owner crate
   where a clear owner exists. Keep concrete managers, IO, platform adapters, and
@@ -144,7 +144,7 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   compatibility assembly selected by real product entrypoints, never the
   library's implicit default. Capability-local utility dependencies remain
   optional and are activated by their owner features; in particular,
-  `base64`, `futures`, `regex`, `tokio-util`, and `openbitfun-agent-tools` belong to
+  `base64`, `futures`, `regex`, `tokio-util`, and `bitfun-agent-tools` belong to
   the Agent Runtime, local-storage, or dispatch-store closures that
   use them. Core's direct feature-free Tokio edge keeps only filesystem and
   synchronization support required by config and app-path state; the selected
@@ -156,13 +156,13 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   `I18nService` must select `i18n-runtime` explicitly.
 - Reusable diagnostic redaction and local Diff implementations remain
   compatibility facades under the exact `diagnostics` and `diff` features.
-  Agent Runtime selects `openbitfun-services-core/workspace-text-runtime` for
+  Agent Runtime selects `bitfun-services-core/workspace-text-runtime` for
   bounded asynchronous workspace reads; synchronous path normalization stays
   available to contract-only consumers without Tokio.
 - Platform transport emitters are host adapters. Desktop imports
-  `openbitfun_transport::TransportEmitter` directly; Core exposes only the stable
-  `openbitfun_events::EventEmitter` contract and must not re-export a host adapter.
-- Keep `cargo check -p openbitfun-core --no-default-features` viable. Gate
+  `bitfun_transport::TransportEmitter` directly; Core exposes only the stable
+  `bitfun_events::EventEmitter` contract and must not re-export a host adapter.
+- Keep `cargo check -p bitfun-core --no-default-features` viable. Gate
   product-only modules at their owner feature; if a light facade operation
   cannot safely complete without a product owner, fail closed and preserve any
   durable recovery state instead of enabling `product-full` implicitly.
@@ -193,16 +193,16 @@ Narrower local guides already exist for some subtrees:
 AI client construction and subscription credential compatibility:
 
 ```bash
-cargo test -p openbitfun-core --no-default-features --features ai-adapter-runtime,subscription-auth --lib infrastructure::ai::client_factory::tests
+cargo test -p bitfun-core --no-default-features --features ai-adapter-runtime,subscription-auth --lib infrastructure::ai::client_factory::tests
 ```
 
 This guide owns Core verification. Select one command pattern that matches the
 change; do not run every feature variant:
 
 ```bash
-cargo check -p openbitfun-core --no-default-features
-cargo check -p openbitfun-core --no-default-features --features <touched-owner-feature>
-cargo test -p openbitfun-core --no-default-features --features <minimal-features> --lib <module>::<test>
+cargo check -p bitfun-core --no-default-features
+cargo check -p bitfun-core --no-default-features --features <touched-owner-feature>
+cargo test -p bitfun-core --no-default-features --features <minimal-features> --lib <module>::<test>
 ```
 
 Use the first command when the feature-free facade changed, the second when one
@@ -217,69 +217,69 @@ field/deletion compatibility, local-change notifications, and save/reload/model
 concurrency regressions have feature-free fixtures:
 
 ```bash
-cargo test -p openbitfun-core --no-default-features --lib service::config::
+cargo test -p bitfun-core --no-default-features --lib service::config::
 ```
 
 The account sync adapter requires `remote-connect`, which also covers
 Agent-profile canonicalization in the focused configuration suite:
 
 ```bash
-cargo test -p openbitfun-core --no-default-features --features remote-connect --lib service::config::
-cargo test -p openbitfun-core --no-default-features --features remote-connect --lib service::remote_connect::settings_sync::tests
+cargo test -p bitfun-core --no-default-features --features remote-connect --lib service::config::
+cargo test -p bitfun-core --no-default-features --features remote-connect --lib service::remote_connect::settings_sync::tests
 ```
 
 Focused workspace-IO and snapshot regression entry points (use the matching
 filter rather than a product-wide build):
 
 ```bash
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,git,document-read --lib file_read_tool::tests
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,git --lib file_write_tool::tests
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,git --lib delete_file_tool::tests
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,remote-workspace,git --lib service::snapshot::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git,document-read --lib file_read_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git --lib file_write_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git --lib delete_file_tool::tests
+cargo test -p bitfun-core --no-default-features --features agent-runtime,remote-workspace,git --lib service::snapshot::
 ```
 
 MCP chat discovery and deferred-tool manifest contracts (Git is needed by the
 existing Agent tool test assembly):
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features mcp-runtime,git --lib agentic::tools::product_runtime::
+cargo test --locked -p bitfun-core --no-default-features --features mcp-runtime,git --lib agentic::tools::product_runtime::
 ```
 
 User Agent directory watching and registry regressions (omit `file-watch` to
 exercise query-time discovery fallback):
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features agent-runtime,git,file-watch --lib agentic::agents::registry::
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,file-watch --lib agentic::agents::registry::
 ```
 
 Skill discovery, installation provenance, and local/remote registry regressions:
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features agent-runtime,git --lib agentic::tools::implementations::skills::
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib agentic::tools::implementations::skills::
 ```
 
 For configured OpenCode discovery and explicit skill loading, include their owner feature and tool tests:
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features agent-runtime,git,external-sources --lib agentic::tools::implementations::skill
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,external-sources --lib agentic::tools::implementations::skill
 ```
 
 Detached Dispatch controller, target query compatibility, and managed-baseline checks:
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features agent-runtime,dispatch-store,ssh-remote,git --lib service::dispatch::
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,dispatch-store,ssh-remote,git --lib service::dispatch::
 ```
 
 IM bot reply routing, account-device observation, and interaction delivery:
 
 ```bash
-cargo test --locked -p openbitfun-core --no-default-features --features remote-connect --lib service::remote_connect::bot::
+cargo test --locked -p bitfun-core --no-default-features --features remote-connect --lib service::remote_connect::bot::
 ```
 
 Pages account publication and tool gates (including remote directory rejection):
 
 ```bash
-cargo test -p openbitfun-core --no-default-features --features remote-connect,tools-pages,git,ssh-remote --lib page_
+cargo test -p bitfun-core --no-default-features --features remote-connect,tools-pages,git,ssh-remote --lib page_
 ```
 
 `tools-pages` selects only the Pages tool group. Account host wiring additionally

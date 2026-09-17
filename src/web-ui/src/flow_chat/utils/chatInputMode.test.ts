@@ -473,7 +473,7 @@ describe('resolveSessionAssistantWorkspace', () => {
     });
     const assistantWorkspace = createWorkspace({
       id: 'assistant-1',
-      rootPath: 'C:/Users/wsp/.openbitfun/personal_assistant/workspace',
+      rootPath: 'C:/Users/wsp/.bitfun/personal_assistant/workspace',
       workspaceKind: WorkspaceKind.Assistant,
     });
 
@@ -495,7 +495,7 @@ describe('resolveSessionAssistantWorkspace', () => {
     });
     const assistantWorkspace = createWorkspace({
       id: 'assistant-1',
-      rootPath: 'C:/Users/wsp/.openbitfun/personal_assistant/workspace',
+      rootPath: 'C:/Users/wsp/.bitfun/personal_assistant/workspace',
       workspaceKind: WorkspaceKind.Assistant,
     });
 
@@ -512,7 +512,7 @@ describe('resolveSessionAssistantWorkspace', () => {
   it('falls back to the current workspace kind when the session has no explicit workspace scope yet', () => {
     const assistantWorkspace = createWorkspace({
       id: 'assistant-1',
-      rootPath: 'C:/Users/wsp/.openbitfun/personal_assistant/workspace',
+      rootPath: 'C:/Users/wsp/.bitfun/personal_assistant/workspace',
       workspaceKind: WorkspaceKind.Assistant,
     });
 

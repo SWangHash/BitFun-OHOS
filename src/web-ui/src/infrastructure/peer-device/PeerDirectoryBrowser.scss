@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--openbitfun-color-overlay-scrim);
+  background: var(--bitfun-color-overlay-scrim);
   backdrop-filter: blur(4px);
   z-index: 280;
   opacity: 1;
@@ -44,14 +44,14 @@
     justify-content: space-between;
     padding-block: 14px;
     padding-inline: 18px 14px;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__header-title {
     margin: 0;
-    font-size: var(--openbitfun-type-body-lg-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-body-lg-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__tool-btn {
@@ -63,12 +63,12 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      background: var(--openbitfun-color-surface-subtle);
-      color: var(--openbitfun-color-content-primary);
+      background: var(--bitfun-color-surface-subtle);
+      color: var(--bitfun-color-content-primary);
     }
 
     &:disabled {
@@ -82,7 +82,7 @@
     align-items: center;
     gap: 6px;
     padding: 10px 14px;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__path {
@@ -108,11 +108,11 @@
     justify-content: center;
     gap: 8px;
     min-height: 160px;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-md-font-size);
 
     &--error {
-      color: var(--openbitfun-color-status-danger-content);
+      color: var(--bitfun-color-status-danger-content);
       padding: 0 16px;
       text-align: center;
     }
@@ -139,18 +139,18 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
     padding: 8px 10px;
     cursor: pointer;
     text-align: left;
 
     &:hover {
-      background: var(--openbitfun-color-surface-subtle);
+      background: var(--bitfun-color-surface-subtle);
     }
 
     &.is-selected {
-      background: var(--openbitfun-color-action-quiet-hover);
+      background: var(--bitfun-color-action-quiet-hover);
     }
   }
 
@@ -160,7 +160,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__selected {
@@ -168,8 +168,8 @@
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__actions {

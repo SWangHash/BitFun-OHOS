@@ -7,13 +7,13 @@ import { themeTokenAppearanceAdapter } from './ThemeTokenAppearanceAdapter';
 const context = { revision: 1, appearanceId: 'test', mode: 'light' as const, globals: {}, assets: {} };
 
 afterEach(async () => {
-  document.documentElement.removeAttribute('data-openbitfun-native-material');
+  document.documentElement.removeAttribute('data-bitfun-native-material');
   await themeTokenAppearanceAdapter.apply(undefined, undefined, context);
 });
 
 describe('theme root background', () => {
   it('keeps the native backdrop exposed across theme switches and resets', async () => {
-    document.documentElement.setAttribute('data-openbitfun-native-material', 'sidebar');
+    document.documentElement.setAttribute('data-bitfun-native-material', 'sidebar');
     for (const pkg of builtinAppearancePackages) {
       await themeTokenAppearanceAdapter.apply(pkg.renderers?.['theme-tokens']?.settings, undefined, context);
       expect(document.documentElement.style.backgroundColor).toBe('transparent');
@@ -21,13 +21,13 @@ describe('theme root background', () => {
     }
     await themeTokenAppearanceAdapter.apply(undefined, undefined, context);
     expect(document.documentElement.style.backgroundColor).toBe('');
-    expect(document.documentElement.getAttribute('data-openbitfun-native-material')).toBe('sidebar');
+    expect(document.documentElement.getAttribute('data-bitfun-native-material')).toBe('sidebar');
   });
 
   it('preserves the opaque theme background in browsers and older desktop hosts', async () => {
     const settings = builtinAppearancePackages[0].renderers?.['theme-tokens']?.settings;
     await themeTokenAppearanceAdapter.apply(settings, undefined, context);
-    expect(document.documentElement.style.backgroundColor).toBe('var(--openbitfun-color-surface-chrome)');
-    expect(document.body.style.backgroundColor).toBe('var(--openbitfun-color-surface-chrome)');
+    expect(document.documentElement.style.backgroundColor).toBe('var(--bitfun-color-surface-chrome)');
+    expect(document.body.style.backgroundColor).toBe('var(--bitfun-color-surface-chrome)');
   });
 });

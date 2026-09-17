@@ -1,4 +1,4 @@
-import { ActionItem } from '@openbitfun/ui';
+import { ActionItem } from '@bitfun/ui';
 import {
   Button,
   ConfirmDialog,
@@ -14,7 +14,7 @@ import {
   DialogHeading,
   DialogTitle,
   OverflowText,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { FolderOpen, FolderSearch, RotateCcw, FileText, ListChecks, ShieldCheck, Network, Server } from 'lucide-react';
@@ -223,7 +223,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         setWorkspaceSearchEnabled(nextSettings.enable_workspace_search);
       });
     }, {
-      signalName: 'openbitfun:interactive-shell-ready',
+      signalName: 'bitfun:interactive-shell-ready',
       fallbackTimeoutMs: 10000,
       frameCount: 1,
     });
@@ -321,7 +321,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       tone = 'green';
     }
 
-    // The daemon says `needs_index` both while OpenBitFun's auto-index policy is still evaluating the
+    // The daemon says `needs_index` both while BitFun's auto-index policy is still evaluating the
     // workspace and after it deliberately declined, so without the policy's own decision the UI
     // can only hedge. When the decision is known it replaces the hedged wording with the reason.
     const autoIndex = workspaceSearchIndex.indexStatus?.autoIndex ?? null;
@@ -507,12 +507,12 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     };
 
     void loadAcpClients();
-    window.addEventListener('openbitfun:acp-clients-changed', loadAcpClients);
-    window.addEventListener('openbitfun:acp-requirements-changed', loadAcpClients);
+    window.addEventListener('bitfun:acp-clients-changed', loadAcpClients);
+    window.addEventListener('bitfun:acp-requirements-changed', loadAcpClients);
     return () => {
       cancelled = true;
-      window.removeEventListener('openbitfun:acp-clients-changed', loadAcpClients);
-      window.removeEventListener('openbitfun:acp-requirements-changed', loadAcpClients);
+      window.removeEventListener('bitfun:acp-clients-changed', loadAcpClients);
+      window.removeEventListener('bitfun:acp-requirements-changed', loadAcpClients);
     };
   }, [menuOpen, workspace]);
 
@@ -793,17 +793,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   if (workspace.workspaceKind === WorkspaceKind.Assistant) {
     return (
       <div className={[
-        'openbitfun-nav-panel__assistant-item',
+        'bitfun-nav-panel__assistant-item',
         isActive && 'is-active',
         isDragging && 'is-dragging',
         menuOpen && 'is-menu-open',
         sessionsCollapsed && 'is-sessions-collapsed',
         isSingle && 'is-single',
       ].filter(Boolean).join(' ')}
-      data-openbitfun-product-component="workspace-item"
-      data-openbitfun-product-part="root"
-      data-openbitfun-variant="assistant"
-      data-openbitfun-state={[
+      data-bitfun-product-component="workspace-item"
+      data-bitfun-product-part="root"
+      data-bitfun-variant="assistant"
+      data-bitfun-state={[
         isActive && 'active',
         isDragging && 'dragging',
         sessionsCollapsed && 'collapsed',
@@ -816,10 +816,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       data-workspace-kind={workspace.workspaceKind}
       data-workspace-active={isActive ? 'true' : 'false'}>
         <div
-          data-openbitfun-product-component="workspace-item"
-          data-openbitfun-product-part="card"
+          data-bitfun-product-component="workspace-item"
+          data-bitfun-product-part="card"
           ref={cardRef}
-          className="openbitfun-nav-panel__assistant-item-card"
+          className="bitfun-nav-panel__assistant-item-card"
           draggable={draggable}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
@@ -830,48 +830,48 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           data-workspace-id={workspace.id}
         >
           <button
-            data-openbitfun-product-component="workspace-item"
-            data-openbitfun-product-part="collapse"
+            data-bitfun-product-component="workspace-item"
+            data-bitfun-product-part="collapse"
             type="button"
-            className="openbitfun-nav-panel__assistant-item-collapse-btn"
+            className="bitfun-nav-panel__assistant-item-collapse-btn"
             onClick={e => { e.stopPropagation(); handleCollapseToggle(); }}
             aria-label={sessionsCollapsed ? t('nav.workspaces.expandSessions') : t('nav.workspaces.collapseSessions')}
             aria-expanded={!sessionsCollapsed}
             data-testid="nav-workspace-sessions-toggle"
             data-workspace-id={workspace.id}
           >
-            <span className="openbitfun-nav-panel__assistant-item-avatar is-group-icon" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="icon" aria-hidden="true">
-              <span className="openbitfun-nav-panel__assistant-item-group-icon">
+            <span className="bitfun-nav-panel__assistant-item-avatar is-group-icon" data-bitfun-product-component="workspace-item" data-bitfun-product-part="icon" aria-hidden="true">
+              <span className="bitfun-nav-panel__assistant-item-group-icon">
                 <Icon name="user" size="sm" />
               </span>
-              <span className="openbitfun-nav-panel__assistant-item-icon-toggle">
+              <span className="bitfun-nav-panel__assistant-item-icon-toggle">
                 <Icon name={sessionDisclosureIcon} size="sm" />
               </span>
             </span>
           </button>
           <Tooltip content={workspace.rootPath} placement="right" followCursor>
             <ActionItem data-overflow-trigger
-              data-openbitfun-product-component="workspace-item"
-              data-openbitfun-product-part="name"
+              data-bitfun-product-component="workspace-item"
+              data-bitfun-product-part="name"
               type="button"
-              className="openbitfun-nav-panel__assistant-item-name-action"
-              triggerClassName="openbitfun-nav-panel__assistant-item-name-btn"
+              className="bitfun-nav-panel__assistant-item-name-action"
+              triggerClassName="bitfun-nav-panel__assistant-item-name-btn"
               labelBehavior="static"
               onClick={e => { e.stopPropagation(); handleCollapseToggle(); }}
               data-testid="nav-workspace-name-btn"
               data-workspace-id={workspace.id}
             >
-              <OverflowText className="openbitfun-nav-panel__assistant-item-label" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="label">{workspaceDisplayName}</OverflowText>
+              <OverflowText className="bitfun-nav-panel__assistant-item-label" data-bitfun-product-component="workspace-item" data-bitfun-product-part="label">{workspaceDisplayName}</OverflowText>
             </ActionItem>
           </Tooltip>
 
-          <div className="openbitfun-nav-panel__assistant-item-menu" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="menu" ref={menuRef} onClick={e => e.stopPropagation()}>
+          <div className="bitfun-nav-panel__assistant-item-menu" data-bitfun-product-component="workspace-item" data-bitfun-product-part="menu" ref={menuRef} onClick={e => e.stopPropagation()}>
             <Tooltip content={t('nav.workspaces.actions.newSession')} placement="right" followCursor>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="action"
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="action"
                 type="button"
-                className="openbitfun-nav-panel__assistant-item-menu-trigger"
+                className="bitfun-nav-panel__assistant-item-menu-trigger"
                 onClick={() => { void handleCreateSession(); }}
                 aria-label={t('nav.workspaces.actions.newSession')}
                 data-testid="nav-workspace-new-session-btn"
@@ -882,10 +882,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </Tooltip>
             <Tooltip content={t('nav.resources.title')} placement="right" followCursor>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="action"
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="action"
                 type="button"
-                className="openbitfun-nav-panel__assistant-item-menu-trigger"
+                className="bitfun-nav-panel__assistant-item-menu-trigger"
                 onClick={() => { void handleOpenFiles(); }}
                 data-testid="nav-workspace-files-btn"
                 data-workspace-id={workspace.id}
@@ -895,10 +895,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </Tooltip>
             <div ref={menuAnchorRef}>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="action"
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="action"
                 type="button"
-                className={`openbitfun-nav-panel__assistant-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
+                className={`bitfun-nav-panel__assistant-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
                 onClick={handleMenuTriggerClick}
                 data-testid="nav-workspace-menu-btn"
                 data-workspace-id={workspace.id}
@@ -910,7 +910,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             {menuOpen && createPortal(
               <Menu
                 ref={menuPopoverRef}
-                className="openbitfun-nav-panel__workspace-item-menu-popover"
+                className="bitfun-nav-panel__workspace-item-menu-popover"
                 style={{
                   top: menuPosition?.top ?? 0,
                   left: menuPosition?.left ?? 0,
@@ -1003,9 +1003,9 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         </div>
 
         <div
-          data-openbitfun-product-component="workspace-item"
-          data-openbitfun-product-part="sessions"
-          className={`openbitfun-nav-panel__assistant-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}
+          data-bitfun-product-component="workspace-item"
+          data-bitfun-product-part="sessions"
+          className={`bitfun-nav-panel__assistant-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}
           data-testid="nav-workspace-session-region"
           data-workspace-id={workspace.id}
         >
@@ -1098,17 +1098,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
 
   return (
     <div className={[
-      'openbitfun-nav-panel__workspace-item',
+      'bitfun-nav-panel__workspace-item',
       isActive && 'is-active',
       isDragging && 'is-dragging',
       menuOpen && 'is-menu-open',
       sessionsCollapsed && 'is-sessions-collapsed',
       isSingle && 'is-single',
     ].filter(Boolean).join(' ')}
-    data-openbitfun-product-component="workspace-item"
-    data-openbitfun-product-part="root"
-    data-openbitfun-variant="workspace"
-    data-openbitfun-state={[
+    data-bitfun-product-component="workspace-item"
+    data-bitfun-product-part="root"
+    data-bitfun-variant="workspace"
+    data-bitfun-state={[
       isActive && 'active',
       isDragging && 'dragging',
       sessionsCollapsed && 'collapsed',
@@ -1121,10 +1121,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     data-workspace-kind={workspace.workspaceKind}
     data-workspace-active={isActive ? 'true' : 'false'}>
       <div
-        data-openbitfun-product-component="workspace-item"
-        data-openbitfun-product-part="card"
+        data-bitfun-product-component="workspace-item"
+        data-bitfun-product-part="card"
         ref={cardRef}
-        className="openbitfun-nav-panel__workspace-item-card"
+        className="bitfun-nav-panel__workspace-item-card"
         draggable={draggable}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
@@ -1135,57 +1135,57 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         data-workspace-id={workspace.id}
       >
         <button
-          data-openbitfun-product-component="workspace-item"
-          data-openbitfun-product-part="collapse"
+          data-bitfun-product-component="workspace-item"
+          data-bitfun-product-part="collapse"
           type="button"
-          className="openbitfun-nav-panel__workspace-item-collapse-btn"
+          className="bitfun-nav-panel__workspace-item-collapse-btn"
           onClick={e => { e.stopPropagation(); handleCollapseToggle(); }}
           aria-label={sessionsCollapsed ? t('nav.workspaces.expandSessions') : t('nav.workspaces.collapseSessions')}
           aria-expanded={!sessionsCollapsed}
           data-testid="nav-workspace-sessions-toggle"
           data-workspace-id={workspace.id}
         >
-          <span className="openbitfun-nav-panel__workspace-item-icon" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="icon" aria-hidden="true">
-            <span className="openbitfun-nav-panel__workspace-item-icon-default">
+          <span className="bitfun-nav-panel__workspace-item-icon" data-bitfun-product-component="workspace-item" data-bitfun-product-part="icon" aria-hidden="true">
+            <span className="bitfun-nav-panel__workspace-item-icon-default">
               {workspaceIsRemote ? (
                 <Icon glyph={Server} size="sm" />
               ) : (
                 <Icon name="folder" size="sm" />
               )}
             </span>
-            <span className="openbitfun-nav-panel__workspace-item-icon-toggle">
+            <span className="bitfun-nav-panel__workspace-item-icon-toggle">
               <Icon name={sessionDisclosureIcon} size="sm" />
             </span>
           </span>
         </button>
-        <div className="openbitfun-nav-panel__workspace-item-name-cluster">
-          <div className="openbitfun-nav-panel__workspace-item-name-stack">
-            <div className="openbitfun-nav-panel__workspace-item-name-row">
+        <div className="bitfun-nav-panel__workspace-item-name-cluster">
+          <div className="bitfun-nav-panel__workspace-item-name-stack">
+            <div className="bitfun-nav-panel__workspace-item-name-row">
               <Tooltip content={workspace.rootPath} placement="right" followCursor>
                 <ActionItem
-                  data-openbitfun-product-component="workspace-item"
-                  data-openbitfun-product-part="name"
+                  data-bitfun-product-component="workspace-item"
+                  data-bitfun-product-part="name"
                   data-overflow-trigger
                   type="button"
-                  className="openbitfun-nav-panel__workspace-item-name-action"
-                  triggerClassName="openbitfun-nav-panel__workspace-item-name-btn"
+                  className="bitfun-nav-panel__workspace-item-name-action"
+                  triggerClassName="bitfun-nav-panel__workspace-item-name-btn"
                   labelBehavior="static"
                   onClick={e => { e.stopPropagation(); handleCollapseToggle(); }}
                   data-testid="nav-workspace-name-btn"
                   data-workspace-id={workspace.id}
                 >
-                  <span className="openbitfun-nav-panel__workspace-item-name-line">
+                  <span className="bitfun-nav-panel__workspace-item-name-line">
                     <OverflowText
                       behavior="marquee"
-                      className="openbitfun-nav-panel__workspace-item-label"
-                      data-openbitfun-product-component="workspace-item"
-                      data-openbitfun-product-part="label"
+                      className="bitfun-nav-panel__workspace-item-label"
+                      data-bitfun-product-component="workspace-item"
+                      data-bitfun-product-part="label"
                       title=""
                     >
                       {workspaceDisplayName}
                     </OverflowText>
                     {relatedPathCount > 0 ? (
-                      <span className="openbitfun-nav-panel__workspace-item-badge" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="badge">
+                      <span className="bitfun-nav-panel__workspace-item-badge" data-bitfun-product-component="workspace-item" data-bitfun-product-part="badge">
                         {t('nav.workspaces.relatedPaths.badge', { count: relatedPathCount })}
                       </span>
                     ) : null}
@@ -1204,10 +1204,10 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                     })}
                   >
                     <button
-                      data-openbitfun-product-component="workspace-item"
-                      data-openbitfun-product-part="indexIndicator"
+                      data-bitfun-product-component="workspace-item"
+                      data-bitfun-product-part="indexIndicator"
                       type="button"
-                      className={`openbitfun-nav-panel__workspace-index-indicator is-${searchIndexIndicator.tone}`}
+                      className={`bitfun-nav-panel__workspace-index-indicator is-${searchIndexIndicator.tone}`}
                       aria-label={searchIndexIndicator.ariaLabel}
                       aria-expanded={searchIndexModalOpen}
                       onClick={e => {
@@ -1230,41 +1230,41 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                       <DialogClose />
                     </DialogHeader>
                     <DialogBody>
-                      <div className="openbitfun-nav-panel__workspace-index-modal-content">
-                    <div className={`openbitfun-nav-panel__workspace-index-tooltip is-${searchIndexIndicator.tone}`} data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="indexPanel">
-                      <div className="openbitfun-nav-panel__workspace-index-tooltip-header">
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-heading">
-                          <span className={`openbitfun-nav-panel__workspace-index-tooltip-dot is-${searchIndexIndicator.tone}`} aria-hidden="true" />
-                          <div className="openbitfun-nav-panel__workspace-index-tooltip-title-wrap">
-                            <span className="openbitfun-nav-panel__workspace-index-tooltip-title">
+                      <div className="bitfun-nav-panel__workspace-index-modal-content">
+                    <div className={`bitfun-nav-panel__workspace-index-tooltip is-${searchIndexIndicator.tone}`} data-bitfun-product-component="workspace-item" data-bitfun-product-part="indexPanel">
+                      <div className="bitfun-nav-panel__workspace-index-tooltip-header">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-heading">
+                          <span className={`bitfun-nav-panel__workspace-index-tooltip-dot is-${searchIndexIndicator.tone}`} aria-hidden="true" />
+                          <div className="bitfun-nav-panel__workspace-index-tooltip-title-wrap">
+                            <span className="bitfun-nav-panel__workspace-index-tooltip-title">
                               {searchIndexIndicator.title}
                             </span>
-                            <span className="openbitfun-nav-panel__workspace-index-tooltip-phase">
+                            <span className="bitfun-nav-panel__workspace-index-tooltip-phase">
                               {searchIndexIndicator.activeTaskLabel ?? searchIndexIndicator.phaseLabel}
                             </span>
                           </div>
                         </div>
-                        <span className={`openbitfun-nav-panel__workspace-index-tooltip-badge is-${searchIndexIndicator.tone}`}>
+                        <span className={`bitfun-nav-panel__workspace-index-tooltip-badge is-${searchIndexIndicator.tone}`}>
                           {searchIndexIndicator.phaseLabel}
                         </span>
                       </div>
-                      <div className="openbitfun-nav-panel__workspace-index-tooltip-summary">
+                      <div className="bitfun-nav-panel__workspace-index-tooltip-summary">
                         {searchIndexIndicator.activeTaskMessage ?? searchIndexIndicator.summary}
                       </div>
                       {searchIndexIndicator.progressLabel ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-progress">
-                          <div className="openbitfun-nav-panel__workspace-index-tooltip-progress-head">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-progress">
+                          <div className="bitfun-nav-panel__workspace-index-tooltip-progress-head">
                             <span>{searchIndexIndicator.progressLabel}</span>
                             {searchIndexIndicator.progressPercentLabel ? (
-                              <span className="openbitfun-nav-panel__workspace-index-tooltip-progress-value">
+                              <span className="bitfun-nav-panel__workspace-index-tooltip-progress-value">
                                 {searchIndexIndicator.progressPercentLabel}
                               </span>
                             ) : null}
                           </div>
                           {typeof searchIndexIndicator.progressPercent === 'number' ? (
-                            <div className="openbitfun-nav-panel__workspace-index-tooltip-progress-bar" aria-hidden="true">
+                            <div className="bitfun-nav-panel__workspace-index-tooltip-progress-bar" aria-hidden="true">
                               <span
-                                className={`openbitfun-nav-panel__workspace-index-tooltip-progress-fill is-${searchIndexIndicator.tone}`}
+                                className={`bitfun-nav-panel__workspace-index-tooltip-progress-fill is-${searchIndexIndicator.tone}`}
                                 style={{ width: `${searchIndexIndicator.progressPercent}%` }}
                               />
                             </div>
@@ -1272,34 +1272,34 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                         </div>
                       ) : null}
                       {searchIndexIndicator.dirtyFilesLabel ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-meta">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta">
                           {searchIndexIndicator.dirtyFilesLabel}
                         </div>
                       ) : null}
                       {searchIndexIndicator.workspaceProbePending ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-meta">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta">
                           {tFiles('search.index.indicator.probePending')}
                         </div>
                       ) : null}
                       {searchIndexIndicator.baseAdvanceInProgress ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-meta is-warning">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
                           {tFiles('search.index.indicator.baseAdvancing')}
                         </div>
                       ) : null}
                       {!searchIndexIndicator.probeHealthy ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-meta is-warning">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-meta is-warning">
                           {tFiles('search.index.indicator.probeDegraded')}
                         </div>
                       ) : null}
                       {searchIndexIndicator.errorText ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-error">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-error">
                           {searchIndexIndicator.errorText}
                         </div>
                       ) : null}
                       {canRebuildSearchIndex ? (
-                        <div className="openbitfun-nav-panel__workspace-index-tooltip-actions">
+                        <div className="bitfun-nav-panel__workspace-index-tooltip-actions">
                           <Button
-                            className="openbitfun-nav-panel__workspace-index-tooltip-action"
+                            className="bitfun-nav-panel__workspace-index-tooltip-action"
                             size="sm"
                             variant="outline"
                             onClick={() => {
@@ -1326,23 +1326,23 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               {remoteMeta && (
                 <Tooltip content={remoteMeta.tooltip} placement="right" followCursor>
                   <span
-                    data-openbitfun-product-component="workspace-item"
-                    data-openbitfun-product-part="remoteStatus"
-                    className={`openbitfun-nav-panel__workspace-item-remote is-${remoteMeta.status}`}
+                    data-bitfun-product-component="workspace-item"
+                    data-bitfun-product-part="remoteStatus"
+                    className={`bitfun-nav-panel__workspace-item-remote is-${remoteMeta.status}`}
                     role="img"
                     aria-label={remoteMeta.ariaLabel}
                     data-testid="nav-workspace-remote-meta"
                     data-remote-status={remoteMeta.status}
                   >
                     <span
-                      className={`openbitfun-nav-panel__workspace-item-status-dot is-${remoteMeta.status}`}
+                      className={`bitfun-nav-panel__workspace-item-status-dot is-${remoteMeta.status}`}
                       aria-hidden="true"
                     />
-                    <span className="openbitfun-nav-panel__workspace-item-remote-host">
+                    <span className="bitfun-nav-panel__workspace-item-remote-host">
                       {remoteMeta.connectionLabel}
                     </span>
                     {remoteMeta.showStatusText ? (
-                      <span className="openbitfun-nav-panel__workspace-item-remote-status">
+                      <span className="bitfun-nav-panel__workspace-item-remote-status">
                         {remoteMeta.statusLabel}
                       </span>
                     ) : null}
@@ -1353,14 +1353,14 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           </div>
         </div>
 
-        <div className="openbitfun-nav-panel__workspace-item-actions" onClick={e => e.stopPropagation()}>
-          <div className="openbitfun-nav-panel__workspace-item-menu" data-openbitfun-product-component="workspace-item" data-openbitfun-product-part="menu" ref={menuRef}>
+        <div className="bitfun-nav-panel__workspace-item-actions" onClick={e => e.stopPropagation()}>
+          <div className="bitfun-nav-panel__workspace-item-menu" data-bitfun-product-component="workspace-item" data-bitfun-product-part="menu" ref={menuRef}>
             <Tooltip content={t('nav.sessions.newSession')} placement="right" followCursor>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="action"
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="action"
                 type="button"
-                className="openbitfun-nav-panel__workspace-item-menu-trigger"
+                className="bitfun-nav-panel__workspace-item-menu-trigger"
                 onClick={handleCreateProjectSession}
                 aria-label={t('nav.sessions.newSession')}
                 data-testid="nav-workspace-new-session-btn"
@@ -1371,11 +1371,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </Tooltip>
             <Tooltip content={t('nav.resources.title')} placement="right" followCursor>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="menuTrigger"
-                data-openbitfun-state={menuOpen ? 'open' : undefined}
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="menuTrigger"
+                data-bitfun-state={menuOpen ? 'open' : undefined}
                 type="button"
-                className="openbitfun-nav-panel__workspace-item-menu-trigger"
+                className="bitfun-nav-panel__workspace-item-menu-trigger"
                 onClick={() => { void handleOpenFiles(); }}
                 data-testid="nav-workspace-files-btn"
                 data-workspace-id={workspace.id}
@@ -1385,11 +1385,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </Tooltip>
             <div ref={menuAnchorRef}>
               <button
-                data-openbitfun-product-component="workspace-item"
-                data-openbitfun-product-part="menuTrigger"
-                data-openbitfun-state={menuOpen ? 'open' : undefined}
+                data-bitfun-product-component="workspace-item"
+                data-bitfun-product-part="menuTrigger"
+                data-bitfun-state={menuOpen ? 'open' : undefined}
                 type="button"
-                className={`openbitfun-nav-panel__workspace-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
+                className={`bitfun-nav-panel__workspace-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
                 onClick={handleMenuTriggerClick}
                 data-testid="nav-workspace-menu-btn"
                 data-workspace-id={workspace.id}
@@ -1401,7 +1401,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             {menuOpen && createPortal(
               <Menu
                 ref={menuPopoverRef}
-                className="openbitfun-nav-panel__workspace-item-menu-popover"
+                className="bitfun-nav-panel__workspace-item-menu-popover"
                 style={{
                   top: menuPosition?.top ?? 0,
                   left: menuPosition?.left ?? 0,
@@ -1507,9 +1507,9 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       </div>
 
       <div
-        data-openbitfun-product-component="workspace-item"
-        data-openbitfun-product-part="sessions"
-        className={`openbitfun-nav-panel__workspace-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}
+        data-bitfun-product-component="workspace-item"
+        data-bitfun-product-part="sessions"
+        className={`bitfun-nav-panel__workspace-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}
         data-testid="nav-workspace-session-region"
         data-workspace-id={workspace.id}
       >

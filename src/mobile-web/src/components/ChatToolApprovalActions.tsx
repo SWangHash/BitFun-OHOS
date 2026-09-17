@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MobileButton, MobileTextarea } from '@openbitfun/ui/mobile';
+import { MobileButton, MobileTextarea } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { RemoteToolStatus } from '../services/RemoteSessionManager';
 

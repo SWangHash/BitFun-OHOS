@@ -12,7 +12,7 @@
 
 import type { DialogTurn, Session } from '../types/flow-chat';
 
-export const OPTIMISTIC_TURN_ADOPTION_KEY = '__openbitfunOptimisticDispatchJobId';
+export const OPTIMISTIC_TURN_ADOPTION_KEY = '__bitfunOptimisticDispatchJobId';
 
 export function markOptimisticTurnAdoption(
   metadata: Record<string, unknown> | undefined,

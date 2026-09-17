@@ -117,7 +117,7 @@ async fn apply_prefetch(
     server: &RetryTestServer,
     messages: &[Message],
     prefetch: Option<PrefetchedCompression>,
-) -> OpenBitFunResult<Option<(usize, Vec<Message>)>> {
+) -> BitFunResult<Option<(usize, Vec<Message>)>> {
     let pressure = ExecutionEngine::estimate_auto_compression_pressure(
         messages,
         None,
@@ -261,7 +261,7 @@ async fn compression_prefetch_completed_failure_starts_new_blocking_request() {
         &CancellationToken::new(),
         |_| async {
             let _ = published.send(());
-            Err(OpenBitFunError::AIClient("Speculative failure".into()))
+            Err(BitFunError::AIClient("Speculative failure".into()))
         },
     );
     barrier.await.unwrap();
@@ -363,7 +363,7 @@ async fn compression_prefetch_cancelled_owner_never_falls_back() {
     let error = apply_prefetch(&engine, &session, &server, &messages, Some(work))
         .await
         .unwrap_err();
-    assert!(matches!(error, OpenBitFunError::Cancelled(_)));
+    assert!(matches!(error, BitFunError::Cancelled(_)));
     assert!(server.requests.lock().unwrap().is_empty());
 }
 
@@ -378,7 +378,7 @@ async fn compression_prefetch_claimed_failure_ends_turn_without_new_request() {
         &CancellationToken::new(),
         |_| async {
             barrier.await.unwrap();
-            Err(OpenBitFunError::AIClient("Claimed failure".into()))
+            Err(BitFunError::AIClient("Claimed failure".into()))
         },
     );
     let release_after_started = async {

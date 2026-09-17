@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Icon } from '@openbitfun/ui';
+import { Icon } from '@bitfun/ui';
 import { CircleAlert, CircleCheck, CirclePause, CircleStop, CloudOff, Hand, Loader2, MessageCircleQuestion } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useSessionNavStatus } from '@/flow_chat/hooks/useSessionNavStatus';
@@ -29,9 +29,9 @@ export const SessionStatusIndicator = memo(function SessionStatusIndicator({ ses
 
   return appearance ? (
     <span
-      className="session-status-indicator openbitfun-nav-panel__inline-item-status"
-      data-openbitfun-component="sessions-section"
-      data-openbitfun-part="status"
+      className="session-status-indicator bitfun-nav-panel__inline-item-status"
+      data-bitfun-component="sessions-section"
+      data-bitfun-part="status"
       data-status={status.kind}
       role="img"
       aria-label={label}

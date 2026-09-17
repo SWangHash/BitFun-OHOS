@@ -15,7 +15,7 @@ import { OverflowText,
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CircleDot, Code2, GitPullRequest, GitPullRequestClosed, KeyRound, Loader2, MessageSquareText, ShieldCheck } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
@@ -79,7 +79,7 @@ const CI_PAGE_SIZE = 20;
 const CHANGE_PAGE_SIZE = 15;
 const COMMIT_PAGE_SIZE = 30;
 const REVIEW_PAGE_SIZE = 20;
-const REMOTE_STORAGE_PREFIX = 'openbitfun:review-platform:last-remote:';
+const REMOTE_STORAGE_PREFIX = 'bitfun:review-platform:last-remote:';
 const MAX_LINKED_REVIEW_SESSIONS = 6;
 
 interface SnapshotCacheEntry {
@@ -1334,7 +1334,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   ) => {
     if (itemCount <= 0 || (page.totalPages <= 1 && !page.hasNext && page.pageIndex === 0)) return null;
     return (
-      <div data-openbitfun-component="review-platform" data-openbitfun-part="pagination" className="review-platform__pagination review-platform__detail-pagination">
+      <div data-bitfun-component="review-platform" data-bitfun-part="pagination" className="review-platform__pagination review-platform__detail-pagination">
         <Tooltip content={`Previous ${label} page`}>
           <IconButton
             aria-label={`Previous ${label} page`}
@@ -1363,7 +1363,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, []);
 
   const renderDetailLoading = useCallback((message: string, refreshing = false) => (
-    <div data-openbitfun-component="review-platform" data-openbitfun-part="loadingState" className={`review-platform__thread-loading${refreshing ? ' review-platform__thread-loading--refreshing' : ''}`} aria-live="polite">
+    <div data-bitfun-component="review-platform" data-bitfun-part="loadingState" className={`review-platform__thread-loading${refreshing ? ' review-platform__thread-loading--refreshing' : ''}`} aria-live="polite">
       <Loader2 size={14} />
       <span>{message}</span>
     </div>
@@ -1780,17 +1780,17 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const renderAuthGate = useCallback((mode: 'inline' | 'detail' = 'inline') => {
     if (!authChallenge || !selectedRemote || selectedRemote.platform === 'unknown') return null;
     return (
-      <div data-openbitfun-component="review-platform" data-openbitfun-part="authGate" className={`review-platform__auth-gate review-platform__auth-gate--${mode}`}>
+      <div data-bitfun-component="review-platform" data-bitfun-part="authGate" className={`review-platform__auth-gate review-platform__auth-gate--${mode}`}>
         <div className="review-platform__auth-gate-icon">
           <KeyRound size={18} />
         </div>
-        <div className="review-platform__auth-gate-copy" data-openbitfun-component="review-platform" data-openbitfun-part="authCopy">
+        <div className="review-platform__auth-gate-copy" data-bitfun-component="review-platform" data-bitfun-part="authCopy">
           <strong>{authChallengeTitle(authChallenge)}</strong>
           <span>{authChallenge.message}</span>
           <span>{authChallenge.host} · {authChallenge.projectPath}</span>
           <span>{selectedRemote.platform === 'github' ? 'CLI authorization' : 'Required scopes'}: {authChallengeScopes(authChallenge)}</span>
         </div>
-        <div className="review-platform__auth-gate-actions" data-openbitfun-component="review-platform" data-openbitfun-part="authActions">
+        <div className="review-platform__auth-gate-actions" data-bitfun-component="review-platform" data-bitfun-part="authActions">
           <Button size="sm" variant="primary" onClick={handleOpenAuthModal} disabled={authSaving} leadingIcon={<KeyRound size={13} />}>
 
             {selectedRemote.platform === 'github' ? 'Authenticate' : authChallenge.state === 'missing' ? 'Add token' : 'Update token'}
@@ -1909,18 +1909,18 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   };
 
   return (
-    <div data-openbitfun-component="review-platform" data-openbitfun-part="root" data-openbitfun-layout={detailOnly ? 'detail' : 'full'} className={`review-platform${detailOnly ? ' review-platform--detail-only' : ''}`}>
+    <div data-bitfun-component="review-platform" data-bitfun-part="root" data-bitfun-layout={detailOnly ? 'detail' : 'full'} className={`review-platform${detailOnly ? ' review-platform--detail-only' : ''}`}>
       {!detailOnly && (
-        <div className="review-platform__topbar" data-openbitfun-component="review-platform" data-openbitfun-part="chrome">
-          <div className="review-platform__brand" data-openbitfun-component="review-platform" data-openbitfun-part="brand">
+        <div className="review-platform__topbar" data-bitfun-component="review-platform" data-bitfun-part="chrome">
+          <div className="review-platform__brand" data-bitfun-component="review-platform" data-bitfun-part="brand">
             <span className="review-platform__brand-icon"><GitPullRequest size={17} /></span>
             <div className="review-platform__brand-copy">
-              <span className="review-platform__title" data-openbitfun-component="review-platform" data-openbitfun-part="title">{panelTitle}</span>
-              <span className="review-platform__subtitle" data-openbitfun-component="review-platform" data-openbitfun-part="subtitle">{headerLabel}</span>
+              <span className="review-platform__title" data-bitfun-component="review-platform" data-bitfun-part="title">{panelTitle}</span>
+              <span className="review-platform__subtitle" data-bitfun-component="review-platform" data-bitfun-part="subtitle">{headerLabel}</span>
             </div>
           </div>
 
-          <div className="review-platform__topbar-actions" data-openbitfun-component="review-platform" data-openbitfun-part="actions">
+          <div className="review-platform__topbar-actions" data-bitfun-component="review-platform" data-bitfun-part="actions">
             <div className="review-platform__remote-select">
               <Combobox
                 size="sm"
@@ -1977,8 +1977,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       )}
 
       {!detailOnly && (
-      <div className="review-platform__subbar" data-openbitfun-component="review-platform" data-openbitfun-part="statusBar">
-        <div className="review-platform__status-line" data-openbitfun-component="review-platform" data-openbitfun-part="statusLine">
+      <div className="review-platform__subbar" data-bitfun-component="review-platform" data-bitfun-part="statusBar">
+        <div className="review-platform__status-line" data-bitfun-component="review-platform" data-bitfun-part="statusLine">
           <span><CircleDot size={12} /> {summary.open} open on page</span>
           {!isGithubUserList && <span><GitPullRequestClosed size={12} /> {summary.merged} merged on page</span>}
           <span><Icon name="spark" size="xs" /> {summary.reviewRequired} review on page</span>
@@ -1995,10 +1995,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
       {authChallenge && !detailOnly && renderAuthGate('inline')}
 
-      <div className="review-platform__body" data-openbitfun-component="review-platform" data-openbitfun-part="body">
+      <div className="review-platform__body" data-bitfun-component="review-platform" data-bitfun-part="body">
         {!detailOnly && (
-        <aside className="review-platform__list" data-openbitfun-component="review-platform" data-openbitfun-part="listPane" aria-label="Pull request list">
-          <div className="review-platform__list-toolbar" data-openbitfun-component="review-platform" data-openbitfun-part="listToolbar">
+        <aside className="review-platform__list" data-bitfun-component="review-platform" data-bitfun-part="listPane" aria-label="Pull request list">
+          <div className="review-platform__list-toolbar" data-bitfun-component="review-platform" data-bitfun-part="listToolbar">
             <DesignInput
               value={query}
               onChange={event => setQuery(event.target.value)}
@@ -2014,7 +2014,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               size="sm"
             />
             {!isGithubUserList && (
-              <div className="review-platform__state-filters" data-openbitfun-component="review-platform" data-openbitfun-part="filters">
+              <div className="review-platform__state-filters" data-bitfun-component="review-platform" data-bitfun-part="filters">
                 {(['all', 'open', 'draft', 'merged', 'closed'] as ListStateFilter[]).map(state => (
                   <button
                     key={state}
@@ -2035,12 +2035,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             )}
           </div>
 
-          <ScrollArea className="review-platform__list-scroll" data-openbitfun-component="review-platform" data-openbitfun-part="listScroll">
+          <ScrollArea className="review-platform__list-scroll" data-bitfun-component="review-platform" data-bitfun-part="listScroll">
             {loading && (
-              <div data-testid="review-platform-list-loading" className="review-platform__empty-state" data-openbitfun-component="review-platform" data-openbitfun-part="emptyState">Loading pull requests...</div>
+              <div data-testid="review-platform-list-loading" className="review-platform__empty-state" data-bitfun-component="review-platform" data-bitfun-part="emptyState">Loading pull requests...</div>
             )}
             {error && (
-              <div className="review-platform__error-state" data-openbitfun-component="review-platform" data-openbitfun-part="errorState">
+              <div className="review-platform__error-state" data-bitfun-component="review-platform" data-bitfun-part="errorState">
                 <Icon name="xmark" size="md" />
                 <span>{error.includes('review_platform_state_filter_unsupported') ? t('reviewPlatform.stateFilterUnsupported') : error}</span>
                 <Button size="sm" variant="outline" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}>
@@ -2049,7 +2049,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               </div>
             )}
             {!loading && !error && !authChallenge && !visiblePullRequests.length && (
-              <div className="review-platform__empty-state" data-openbitfun-component="review-platform" data-openbitfun-part="emptyState">
+              <div className="review-platform__empty-state" data-bitfun-component="review-platform" data-bitfun-part="emptyState">
                 <GitPullRequest size={18} />
                 <span>{emptyStateMessage}</span>
               </div>
@@ -2065,11 +2065,11 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 const statistics = resolvedPullRequestStatistics(pr, cachedDetail?.detail);
                 const lineStats = resolvedLineStats(statistics);
                 return (
-                  <button data-overflow-trigger data-openbitfun-component="review-platform" data-openbitfun-part="listItem"
+                  <button data-overflow-trigger data-bitfun-component="review-platform" data-bitfun-part="listItem"
                     data-testid="review-platform-pr-row"
                     data-pr-number={pr.number}
                     data-pr-state={pr.state}
-                    data-openbitfun-state={selectedPrId === pr.id && (!pr.providerId || pr.providerId === selectedRemoteId) ? 'selected' : ''}
+                    data-bitfun-state={selectedPrId === pr.id && (!pr.providerId || pr.providerId === selectedRemoteId) ? 'selected' : ''}
                     key={`${pr.providerId ?? selectedRemoteId ?? 'remote'}:${pr.id}`}
                     type="button"
                     className={`review-platform__pr-row${selectedPrId === pr.id && (!pr.providerId || pr.providerId === selectedRemoteId) ? ' is-selected' : ''}`}
@@ -2082,16 +2082,16 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     }}
                   >
                     <span className="review-platform__pr-icon">{getPrIcon(pr)}</span>
-                    <span className="review-platform__pr-main" data-openbitfun-component="review-platform" data-openbitfun-part="listItemMain">
-                      <OverflowText className="review-platform__pr-title" data-openbitfun-component="review-platform" data-openbitfun-part="listItemTitle">{pr.title}</OverflowText>
-                      <span className="review-platform__pr-meta" data-openbitfun-component="review-platform" data-openbitfun-part="listItemMeta">
+                    <span className="review-platform__pr-main" data-bitfun-component="review-platform" data-bitfun-part="listItemMain">
+                      <OverflowText className="review-platform__pr-title" data-bitfun-component="review-platform" data-bitfun-part="listItemTitle">{pr.title}</OverflowText>
+                      <span className="review-platform__pr-meta" data-bitfun-component="review-platform" data-bitfun-part="listItemMeta">
                         {pullRequestRemote?.projectPath ? `${pullRequestRemote.projectPath} · ` : ''}#{pr.number} · {pr.sourceBranch} → {pr.targetBranch}
                       </span>
                       <span className="review-platform__pr-meta review-platform__pr-meta--secondary">
                         {pr.author} · {formatRelativeTime(pr.updatedAt)}
                       </span>
                     </span>
-                    <span className="review-platform__pr-stats" data-openbitfun-component="review-platform" data-openbitfun-part="listItemStats">
+                    <span className="review-platform__pr-stats" data-bitfun-component="review-platform" data-bitfun-part="listItemStats">
                       <span className={`review-platform__decision review-platform__decision--${pr.reviewDecision}`}>
                         {decisionLabel(pr.reviewDecision)}
                       </span>
@@ -2107,7 +2107,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             ))}
           </ScrollArea>
           {!loading && !error && (totalPages > 1 || pagination.hasNext) && (
-            <div data-testid="review-platform-pagination" className="review-platform__pagination" data-openbitfun-component="review-platform" data-openbitfun-part="pagination">
+            <div data-testid="review-platform-pagination" className="review-platform__pagination" data-bitfun-component="review-platform" data-bitfun-part="pagination">
               <Tooltip content="Previous page">
                 <IconButton
                   aria-label="Previous page"
@@ -2138,7 +2138,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         </aside>
         )}
 
-        <main className="review-platform__detail" data-openbitfun-component="review-platform" data-openbitfun-part="detailPane">
+        <main className="review-platform__detail" data-bitfun-component="review-platform" data-bitfun-part="detailPane">
           {!selectedPr && detailOnly && (loading || detailLoading) && (
             <div className="review-platform__detail-empty">
               <Loader2 size={20} className="review-platform__loading-inline review-platform__loading-inline--icon" />
@@ -2209,21 +2209,21 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
           {selectedPr && (
             <>
-              <div className="review-platform__detail-header" data-openbitfun-component="review-platform" data-openbitfun-part="detailHeader">
-                <div className="review-platform__detail-title-block" data-openbitfun-component="review-platform" data-openbitfun-part="detailTitle">
+              <div className="review-platform__detail-header" data-bitfun-component="review-platform" data-bitfun-part="detailHeader">
+                <div className="review-platform__detail-title-block" data-bitfun-component="review-platform" data-bitfun-part="detailTitle">
                   <div className="review-platform__detail-title-row">
                     {getPrIcon(selectedPr)}
                     <h3><OverflowText>{selectedPr.title}</OverflowText></h3>
-                    <span data-testid="review-platform-detail-state" className={`review-platform__detail-state review-platform__detail-state--${displayPr?.state ?? selectedPr.state}`} data-openbitfun-component="review-platform" data-openbitfun-part="detailState">
+                    <span data-testid="review-platform-detail-state" className={`review-platform__detail-state review-platform__detail-state--${displayPr?.state ?? selectedPr.state}`} data-bitfun-component="review-platform" data-bitfun-part="detailState">
                       {stateLabel(displayPr?.state ?? selectedPr.state)}
                     </span>
                   </div>
-                  <div className="review-platform__detail-meta" data-openbitfun-component="review-platform" data-openbitfun-part="detailMeta">
+                  <div className="review-platform__detail-meta" data-bitfun-component="review-platform" data-bitfun-part="detailMeta">
                     <span>#{selectedPr.number}</span>
                     <span><Icon name="clock" size="xs" /> {formatAbsoluteTime(selectedPr.updatedAt) || formatRelativeTime(selectedPr.updatedAt)}</span>
                   </div>
                 </div>
-                <div className="review-platform__detail-actions" data-openbitfun-component="review-platform" data-openbitfun-part="detailActions">
+                <div className="review-platform__detail-actions" data-bitfun-component="review-platform" data-bitfun-part="detailActions">
                   <Tooltip content={!parentSession ? 'Open or create a chat first' : 'Start Review'}>
                     <span>
                       <Button
@@ -2276,7 +2276,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 </div>
               </div>
 
-              <div className="review-platform__fact-list" data-openbitfun-component="review-platform" data-openbitfun-part="facts">
+              <div className="review-platform__fact-list" data-bitfun-component="review-platform" data-bitfun-part="facts">
                 <div className="review-platform__fact-row">
                   <span className="review-platform__fact-label"><Code2 size={14} /> Branches</span>
                   <div className="review-platform__fact-value review-platform__fact-value--branch">
@@ -2318,7 +2318,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 </div>
               </div>
 
-              <div className="review-platform__tabs" data-openbitfun-component="review-platform" data-openbitfun-part="tabs">
+              <div className="review-platform__tabs" data-bitfun-component="review-platform" data-bitfun-part="tabs">
                 {(detail?.limitations?.length ?? 0) > 0 && (
                   <div className="review-platform__detail-error" role="status">
                     <span>{detail!.limitations!.map(limitation => {
@@ -2333,7 +2333,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     }).join(' ')}</span>
                   </div>
                 )}
-                <div className="review-platform__tab-bar" data-openbitfun-component="review-platform" data-openbitfun-part="tabBar">
+                <div className="review-platform__tab-bar" data-bitfun-component="review-platform" data-bitfun-part="tabBar">
                   <TabGroup
                     items={[
                       { value: 'overview', label: 'Overview' },
@@ -2345,9 +2345,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                   />
                 </div>
                 {activeTab === 'overview' && (
-                  <ScrollArea className="review-platform__tab-content review-platform__overview-scroll" data-openbitfun-component="review-platform" data-openbitfun-part="tabContent">
-                    <section className="review-platform__detail-section" data-openbitfun-component="review-platform" data-openbitfun-part="section">
-                      <div className="review-platform__detail-section-heading" data-openbitfun-component="review-platform" data-openbitfun-part="sectionHeading">
+                  <ScrollArea className="review-platform__tab-content review-platform__overview-scroll" data-bitfun-component="review-platform" data-bitfun-part="tabContent">
+                    <section className="review-platform__detail-section" data-bitfun-component="review-platform" data-bitfun-part="section">
+                      <div className="review-platform__detail-section-heading" data-bitfun-component="review-platform" data-bitfun-part="sectionHeading">
                         <span>Description</span>
                         <Button size="sm" variant="outline" onClick={handleFillPrContext} disabled={!selectedPr} leadingIcon={<MessageSquareText size={13} />}>
 
@@ -2373,10 +2373,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                       )}
                     </section>
 
-                    <section className="review-platform__detail-section review-platform__ci-list" data-openbitfun-component="review-platform" data-openbitfun-part="section">
-                      <div className="review-platform__detail-section-heading" data-openbitfun-component="review-platform" data-openbitfun-part="sectionHeading">
+                    <section className="review-platform__detail-section review-platform__ci-list" data-bitfun-component="review-platform" data-bitfun-part="section">
+                      <div className="review-platform__detail-section-heading" data-bitfun-component="review-platform" data-bitfun-part="sectionHeading">
                         <span>Checks</span>
-                        <div className="review-platform__detail-section-actions" data-openbitfun-component="review-platform" data-openbitfun-part="sectionActions">
+                        <div className="review-platform__detail-section-actions" data-bitfun-component="review-platform" data-bitfun-part="sectionActions">
                           <span className="review-platform__section-count">
                             {ciTotal ? `${ciTotal} items · ${checksText}` : checksStatusText}
                           </span>
@@ -2396,14 +2396,14 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                         const logAvailable = canLoadCiLog(selectedRemote, item);
                         const expandable = canExpandCiItem(selectedRemote, item);
                         return (
-                          <article data-openbitfun-component="review-platform" data-openbitfun-part="ciItem" key={item.id} className={`review-platform__ci-item review-platform__ci-item--${tone}`}>
-                            <div className="review-platform__ci-head" data-openbitfun-component="review-platform" data-openbitfun-part="ciHead">
+                          <article data-bitfun-component="review-platform" data-bitfun-part="ciItem" key={item.id} className={`review-platform__ci-item review-platform__ci-item--${tone}`}>
+                            <div className="review-platform__ci-head" data-bitfun-component="review-platform" data-bitfun-part="ciHead">
                               <div className="review-platform__ci-main">
                                 <strong><OverflowText>{item.name}</OverflowText></strong>
                                 <OverflowText>{[item.detail, item.stage].filter(Boolean).join(' · ')}</OverflowText>
                               </div>
                               <div className="review-platform__ci-actions">
-                                <span className={`review-platform__ci-status review-platform__ci-status--${tone}`} data-openbitfun-component="review-platform" data-openbitfun-part="ciStatus">
+                                <span className={`review-platform__ci-status review-platform__ci-status--${tone}`} data-bitfun-component="review-platform" data-bitfun-part="ciStatus">
                                   {ciItemStatusText(item)}
                                 </span>
                                 {expandable && (
@@ -2443,7 +2443,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                               </div>
                             </div>
                             {isCiExpanded && (
-                              <div className="review-platform__ci-log-panel" data-openbitfun-component="review-platform" data-openbitfun-part="ciLog">
+                              <div className="review-platform__ci-log-panel" data-bitfun-component="review-platform" data-bitfun-part="ciLog">
                                 <div className="review-platform__ci-detail-grid">
                                   {item.stage && <div><span>Stage</span><strong>{item.stage}</strong></div>}
                                   {item.detail && <div><span>Detail</span><strong>{item.detail}</strong></div>}
@@ -2468,10 +2468,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                       {renderDetailPagination('Checks', ciPage, ciTotal, setCiPageIndex)}
                     </section>
 
-                    <section className="review-platform__detail-section review-platform__threads" data-openbitfun-component="review-platform" data-openbitfun-part="section">
-                      <div className="review-platform__detail-section-heading" data-openbitfun-component="review-platform" data-openbitfun-part="sectionHeading">
+                    <section className="review-platform__detail-section review-platform__threads" data-bitfun-component="review-platform" data-bitfun-part="section">
+                      <div className="review-platform__detail-section-heading" data-bitfun-component="review-platform" data-bitfun-part="sectionHeading">
                         <span>Comments</span>
-                        <div className="review-platform__detail-section-actions" data-openbitfun-component="review-platform" data-openbitfun-part="sectionActions">
+                        <div className="review-platform__detail-section-actions" data-bitfun-component="review-platform" data-bitfun-part="sectionActions">
                           <span className="review-platform__section-count">{reviewItemCount}</span>
                           <Button size="sm" variant="outline" onClick={handleAddReviewsContext} disabled={!selectedPr || !detail} leadingIcon={<MessageSquareText size={13} />}>
 
@@ -2485,7 +2485,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                           ? reviewThreadByCommentId.get(thread.replyToProviderCommentId)
                           : null;
                         return (
-                          <article data-openbitfun-component="review-platform" data-openbitfun-part="thread"
+                          <article data-bitfun-component="review-platform" data-bitfun-part="thread"
                             key={thread.id}
                             className={[
                               'review-platform__thread',
@@ -2494,7 +2494,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                               parent ? 'review-platform__thread--reply' : '',
                             ].filter(Boolean).join(' ')}
                           >
-                            <div className="review-platform__thread-head" data-openbitfun-component="review-platform" data-openbitfun-part="threadHead">
+                            <div className="review-platform__thread-head" data-bitfun-component="review-platform" data-bitfun-part="threadHead">
                               <div className="review-platform__thread-tags">
                                 <span className={`review-platform__thread-tag review-platform__thread-tag--${thread.kind}`}>
                                   {thread.kind === 'review' ? 'Review' : 'Comment'}
@@ -2515,7 +2515,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                                 <div className="review-platform__thread-reply-body"><MarkdownRenderer content={parent.body} basePath={workspacePath} /></div>
                               </div>
                             )}
-                            <div className="review-platform__thread-body" data-openbitfun-component="review-platform" data-openbitfun-part="threadBody"><MarkdownRenderer content={thread.body} basePath={workspacePath} /></div>
+                            <div className="review-platform__thread-body" data-bitfun-component="review-platform" data-bitfun-part="threadBody"><MarkdownRenderer content={thread.body} basePath={workspacePath} /></div>
                             {thread.filePath && <OverflowText className="review-platform__thread-anchor">{thread.filePath}{thread.line ? `:${thread.line}` : ''}</OverflowText>}
                           </article>
                         );
@@ -2527,7 +2527,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 )}
 
                 {activeTab === 'changes' && (
-                  <ScrollArea className="review-platform__tab-content review-platform__file-list" data-openbitfun-component="review-platform" data-openbitfun-part="fileList">
+                  <ScrollArea className="review-platform__tab-content review-platform__file-list" data-bitfun-component="review-platform" data-bitfun-part="fileList">
                     {detailError && (
                       <div className="review-platform__detail-error">
                         <Icon name="xmark" size="sm" />
@@ -2542,24 +2542,24 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                       const key = fileKey(file);
                       const isExpanded = expandedFileKeys.has(key);
                       return (
-                        <article data-openbitfun-component="review-platform" data-openbitfun-part="fileCard" key={key} className="review-platform__file-card">
-                          <div className="review-platform__file-row" data-openbitfun-component="review-platform" data-openbitfun-part="fileRow">
+                        <article data-bitfun-component="review-platform" data-bitfun-part="fileCard" key={key} className="review-platform__file-card">
+                          <div className="review-platform__file-row" data-bitfun-component="review-platform" data-bitfun-part="fileRow">
                             <button data-overflow-trigger
                               type="button"
                               className="review-platform__file-main"
-                              data-openbitfun-component="review-platform"
-                              data-openbitfun-part="fileMain"
+                              data-bitfun-component="review-platform"
+                              data-bitfun-part="fileMain"
                               aria-expanded={isExpanded}
                               onClick={() => toggleFileExpanded(key)}
                             >
                               <span className="review-platform__file-toggle">
                                 {isExpanded ? <Icon name="chevron-down" size="sm" /> : <Icon name="chevron-right" size="sm" />}
                               </span>
-                              <span className={`review-platform__file-status review-platform__file-status--${file.status}`} data-openbitfun-component="review-platform" data-openbitfun-part="fileStatus">
+                              <span className={`review-platform__file-status review-platform__file-status--${file.status}`} data-bitfun-component="review-platform" data-bitfun-part="fileStatus">
                                 {file.status}
                               </span>
-                              <OverflowText className="review-platform__file-path" data-openbitfun-component="review-platform" data-openbitfun-part="filePath">{file.path}</OverflowText>
-                              <span className="review-platform__file-delta" data-openbitfun-component="review-platform" data-openbitfun-part="fileDelta">
+                              <OverflowText className="review-platform__file-path" data-bitfun-component="review-platform" data-bitfun-part="filePath">{file.path}</OverflowText>
+                              <span className="review-platform__file-delta" data-bitfun-component="review-platform" data-bitfun-part="fileDelta">
                                 <span className="review-platform__additions">+{file.additions}</span>
                                 <span className="review-platform__deletions">-{file.deletions}</span>
                               </span>
@@ -2571,7 +2571,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                           </div>
                           {isExpanded && (
                             file.patch ? (
-                              <pre className="review-platform__diff-block" data-openbitfun-component="review-platform" data-openbitfun-part="diff" aria-label={`Diff for ${file.path}`}>
+                              <pre className="review-platform__diff-block" data-bitfun-component="review-platform" data-bitfun-part="diff" aria-label={`Diff for ${file.path}`}>
                                 {file.patch.split('\n').map((line, index) => (
                                   <span key={`${file.path}-${index}`} className={diffLineClass(line)}>
                                     {line || ' '}

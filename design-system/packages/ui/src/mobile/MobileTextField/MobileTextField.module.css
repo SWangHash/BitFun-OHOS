@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     display: flex;
     box-sizing: border-box;
@@ -6,35 +6,35 @@
     min-inline-size: 0;
     min-block-size: 44px;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding-inline: var(--openbitfun-space-4);
-    border: var(--openbitfun-border-width-default) solid transparent;
-    border-radius: var(--openbitfun-radius-md);
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-surface-tertiary);
+    gap: var(--bitfun-space-2);
+    padding-inline: var(--bitfun-space-4);
+    border: var(--bitfun-border-width-default) solid transparent;
+    border-radius: var(--bitfun-radius-md);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-tertiary);
     transition:
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .root[data-appearance="surface"] {
-    border-color: var(--openbitfun-color-field-border);
-    background: var(--openbitfun-color-field-background);
-    box-shadow: var(--openbitfun-shadow-xs);
+    border-color: var(--bitfun-color-field-border);
+    background: var(--bitfun-color-field-background);
+    box-shadow: var(--bitfun-shadow-xs);
   }
 
   .root:focus-within {
-    border-color: var(--openbitfun-color-field-border-focus);
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-invalid="true"] {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
     cursor: not-allowed;
   }
 
@@ -50,13 +50,13 @@
     outline: 0;
     color: inherit;
     background: transparent;
-    caret-color: var(--openbitfun-color-accent-default);
+    caret-color: var(--bitfun-color-accent-default);
     font: inherit;
-    font-size: var(--openbitfun-type-body-md-font-size);
+    font-size: var(--bitfun-type-body-md-font-size);
   }
 
   .input::placeholder {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     opacity: 1;
   }
 
@@ -69,7 +69,7 @@
     block-size: 20px;
     flex: 0 0 20px;
     place-items: center;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   .slot > :where(svg, img) {

@@ -1,5 +1,5 @@
 use super::*;
-use openbitfun_services_integrations::mcp::server::{
+use bitfun_services_integrations::mcp::server::{
     detect_mcp_list_changed_kind, MCPListChangedKind,
 };
 use std::collections::HashSet;
@@ -37,7 +37,7 @@ impl MCPServerManager {
                 .file_name()
                 .and_then(|v| v.to_str())
                 .filter(|v| !v.is_empty())
-                .unwrap_or("OpenBitFun Workspace")
+                .unwrap_or("BitFun Workspace")
                 .to_string();
             roots.push(json!({
                 "uri": uri,
@@ -224,14 +224,14 @@ impl MCPServerManager {
         error_message: Option<String>,
         error_code: Option<i32>,
         error_data: Option<Value>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let pending = {
             let mut interactions = self.pending_interactions.write().await;
             interactions.remove(interaction_id)
         };
 
         let Some(pending) = pending else {
-            return Err(OpenBitFunError::NotFound(format!(
+            return Err(BitFunError::NotFound(format!(
                 "MCP interaction not found: {}",
                 interaction_id
             )));
@@ -253,7 +253,7 @@ impl MCPServerManager {
         };
 
         pending.sender.send(decision).map_err(|_| {
-            OpenBitFunError::MCPError(format!(
+            BitFunError::MCPError(format!(
                 "Failed to deliver MCP interaction response (receiver dropped): {}",
                 interaction_id
             ))

@@ -70,7 +70,7 @@ describe('AccountIdentityService', () => {
     activeServices.push(service);
     await service.initialize();
     api.authStart.mockResolvedValue({
-      transactionId: 'transaction-1', authorizationUrl: 'https://auth.openbitfun.com/sign-in#ticket=test-ticket',
+      transactionId: 'transaction-1', authorizationUrl: 'https://auth.bitfun.com/sign-in#ticket=test-ticket',
       expiresAt: 100, pollIntervalSeconds: 1,
     });
     let resume!: () => void;
@@ -116,14 +116,14 @@ describe('AccountIdentityService', () => {
     activeServices.push(service);
     document.documentElement.lang = 'en-US';
     api.authStart.mockResolvedValue({
-      transactionId: 'transaction-1', authorizationUrl: 'https://auth.openbitfun.com/sign-in#ticket=test-ticket',
+      transactionId: 'transaction-1', authorizationUrl: 'https://auth.bitfun.com/sign-in#ticket=test-ticket',
       expiresAt: 100, pollIntervalSeconds: 1,
     });
     await service.initialize();
     api.me.mockResolvedValue(profile);
     await service.signIn();
     const opened = new URL(vi.mocked(dependencies.openExternal).mock.calls[0][0]);
-    expect(opened.origin).toBe('https://auth.openbitfun.com');
+    expect(opened.origin).toBe('https://auth.bitfun.com');
     expect(opened.searchParams.get('locale')).toBe('en-US');
     expect(opened.searchParams.get('_auth')).toBeTruthy();
     expect(opened.hash).toBe('#ticket=test-ticket');

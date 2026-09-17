@@ -40,7 +40,7 @@ export struct WorkspaceFileEditorView {
         this.dirty = false;
         const frame: EditorFrame = { content: this.content, editing: this.editing, lineNumbers: this.lineNumbers,
           ink: this.color($r('app.color.ink').id), muted: this.color($r('app.color.muted').id) };
-        await this.controller.runJavaScript(`window.OpenBitFunEditor.accept(${JSON.stringify(frame)})`);
+        await this.controller.runJavaScript(`window.BitFunEditor.accept(${JSON.stringify(frame)})`);
       }
     } catch (error) { this.onIntent({ type: 'file-renderer-error', text: String(error) }); }
     finally { this.running = false; }
@@ -50,9 +50,9 @@ export struct WorkspaceFileEditorView {
     Web({ src: $rawfile('editor/index.html'), controller: this.controller })
       .javaScriptAccess(true).domStorageAccess(false).fileAccess(false)
       .darkMode(WebDarkMode.Auto).forceDarkAccess(false)
-      .javaScriptProxy({ object: this.bridge, name: 'OpenBitFunEditorHost', methodList: ['postMessage'], controller: this.controller })
+      .javaScriptProxy({ object: this.bridge, name: 'BitFunEditorHost', methodList: ['postMessage'], controller: this.controller })
       .onControllerAttached(() => { this.active = true; })
-      .onPageEnd(() => { void this.controller.runJavaScript('window.OpenBitFunEditor.connect()').catch((error: Error) => this.onIntent({ type: 'file-renderer-error', text: error.message })); })
+      .onPageEnd(() => { void this.controller.runJavaScript('window.BitFunEditor.connect()').catch((error: Error) => this.onIntent({ type: 'file-renderer-error', text: error.message })); })
       .onErrorReceive((event: OnErrorReceiveEvent) => this.onIntent({ type: 'file-renderer-error', text: event.error.getErrorInfo() }))
       .onOverrideUrlLoading((request: WebResourceRequest): boolean => !request.getRequestUrl().startsWith('resource://rawfile/editor/'))
       .width('100%').height('100%')

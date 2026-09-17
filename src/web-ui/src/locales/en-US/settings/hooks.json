@@ -12,12 +12,12 @@
     },
     "projectHooks": {
       "label": "Enable project hook file",
-      "description": "Reads and runs .openbitfun/config/hooks.json from the workspace. Enable only for trusted repositories."
+      "description": "Reads and runs .bitfun/config/hooks.json from the workspace. Enable only for trusted repositories."
     }
   },
   "projectHooksRisk": {
     "title": "Allow workspace code to run Hooks?",
-    "message": "When enabled, .openbitfun/config/hooks.json in “{{workspace}}” can run commands with your user permissions. Enable this only for a workspace you trust after reviewing its Hook file.",
+    "message": "When enabled, .bitfun/config/hooks.json in “{{workspace}}” can run commands with your user permissions. Enable this only for a workspace you trust after reviewing its Hook file.",
     "currentWorkspace": "the current workspace",
     "confirm": "I reviewed it, enable Hooks"
   },
@@ -30,7 +30,7 @@
     },
     "projectFile": {
       "label": "Project hook file",
-      "description": ".openbitfun/config/hooks.json in the current workspace. Requires Enable project hook file."
+      "description": ".bitfun/config/hooks.json in the current workspace. Requires Enable project hook file."
     }
   },
   "imports": {

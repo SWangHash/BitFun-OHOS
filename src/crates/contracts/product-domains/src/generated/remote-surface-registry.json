@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "digest": "fnv1a64:c79e9808ea4b9931",
+  "digest": "fnv1a64:8aff8f6a8d508a2b",
   "retiredCommandPrefixes": [
     {
       "prefix": "lsp_",
-      "reason": "the OpenBitFun LSP runtime has been retired"
+      "reason": "the BitFun LSP runtime has been retired"
     }
   ],
   "capabilities": {
@@ -4261,7 +4261,7 @@
       }
     },
     {
-      "id": "mark_openbitfun_control_surface_ready",
+      "id": "mark_bitfun_control_surface_ready",
       "surface": "tauri_command",
       "remoteWorkspace": "WorkspaceAgnostic",
       "peer": {
@@ -4273,7 +4273,7 @@
       }
     },
     {
-      "id": "mark_openbitfun_control_surface_unready",
+      "id": "mark_bitfun_control_surface_unready",
       "surface": "tauri_command",
       "remoteWorkspace": "WorkspaceAgnostic",
       "peer": {
@@ -5796,6 +5796,18 @@
       }
     },
     {
+      "id": "report_bitfun_control_result",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "controller_local"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
+      }
+    },
+    {
       "id": "report_canvas_runtime_error",
       "surface": "tauri_command",
       "remoteWorkspace": "WorkspaceAgnostic",
@@ -5823,18 +5835,6 @@
       "id": "report_ide_control_result",
       "surface": "tauri_command",
       "remoteWorkspace": "LegacyUnaudited",
-      "peer": {
-        "kind": "controller_local"
-      },
-      "cliPeer": {
-        "kind": "unsupported",
-        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
-      }
-    },
-    {
-      "id": "report_openbitfun_control_result",
-      "surface": "tauri_command",
-      "remoteWorkspace": "WorkspaceAgnostic",
       "peer": {
         "kind": "controller_local"
       },

@@ -4,11 +4,11 @@ export const streamTextAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'stream-text',
   parts: [{ id: 'root' }, { id: 'content' }, { id: 'character' }, { id: 'cursor' }],
   facets: [
-    { id: 'effect', attribute: 'data-openbitfun-effect', values: ['smooth', 'typewriter', 'wave', 'fade', 'glitch', 'neon', 'matrix', 'gradient', 'pulse', 'blur', 'bounce', 'shimmer'] },
-    { id: 'color', attribute: 'data-openbitfun-color', values: ['blue', 'purple', 'green', 'rainbow', 'fire', 'ocean', 'sunset'] },
+    { id: 'effect', attribute: 'data-bitfun-effect', values: ['smooth', 'typewriter', 'wave', 'fade', 'glitch', 'neon', 'matrix', 'gradient', 'pulse', 'blur', 'bounce', 'shimmer'] },
+    { id: 'color', attribute: 'data-bitfun-color', values: ['blue', 'purple', 'green', 'rainbow', 'fire', 'ocean', 'sunset'] },
   ],
   states: [
-    { id: 'streaming', selector: { kind: 'self', suffix: '[data-openbitfun-state~="streaming"]' } },
-    { id: 'complete', selector: { kind: 'self', suffix: '[data-openbitfun-state~="complete"]' } },
+    { id: 'streaming', selector: { kind: 'self', suffix: '[data-bitfun-state~="streaming"]' } },
+    { id: 'complete', selector: { kind: 'self', suffix: '[data-bitfun-state~="complete"]' } },
   ],
 };

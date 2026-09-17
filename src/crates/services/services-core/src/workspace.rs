@@ -5,7 +5,7 @@
 //! when these providers are used.
 
 use async_trait::async_trait;
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     WorkspaceCommandOptions, WorkspaceCommandResult, WorkspaceDirEntry, WorkspaceFileSystem,
     WorkspaceMetadata, WorkspacePathKind, WorkspaceReader, WorkspaceServices, WorkspaceShell,
 };
@@ -22,7 +22,7 @@ impl WorkspaceFileSystem for LocalWorkspaceFs {
     async fn open_write_new(
         &self,
         path: &str,
-    ) -> anyhow::Result<openbitfun_runtime_ports::WorkspaceWriter> {
+    ) -> anyhow::Result<bitfun_runtime_ports::WorkspaceWriter> {
         let file = tokio::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -373,7 +373,7 @@ pub fn local_workspace_services(workspace_root: String) -> WorkspaceServices {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_runtime_ports::WorkspaceFileSystem;
+    use bitfun_runtime_ports::WorkspaceFileSystem;
 
     #[cfg(windows)]
     #[tokio::test]

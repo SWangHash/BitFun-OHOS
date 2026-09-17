@@ -1,6 +1,6 @@
 //! PID-file based liveness tracking for the CLI daemon.
 //!
-//! The daemon records its pid in `~/.openbitfun/cli_daemon.pid` so interactive
+//! The daemon records its pid in `~/.bitfun/cli_daemon.pid` so interactive
 //! CLI processes can detect a running daemon and yield device routing to it
 //! (same-machine processes share one `device_id`; last AuthConnect wins).
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 
 fn default_pid_file_path() -> Result<PathBuf> {
-    let paths = openbitfun_core::infrastructure::PathManager::new()
+    let paths = bitfun_core::infrastructure::PathManager::new()
         .map_err(|error| anyhow!("resolve daemon storage: {error}"))?;
     Ok(paths.product_home_dir().join("cli_daemon.pid"))
 }

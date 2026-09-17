@@ -1,21 +1,21 @@
 /**
  * Product-shell surface recipes for custom shells that are not public
- * @openbitfun/ui overlays. Geometry and color remain owned by canonical design
+ * @bitfun/ui overlays. Geometry and color remain owned by canonical design
  * tokens; public Dialog, Menu, Popover, and Tooltip anatomy must not consume
  * these mixins.
  */
 
 @mixin -chrome($background) {
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-default);
-  border-radius: var(--openbitfun-radius-lg);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+  border-radius: var(--bitfun-radius-lg);
   background: $background;
-  box-shadow: var(--openbitfun-shadow-lg);
+  box-shadow: var(--bitfun-shadow-lg);
 }
 
 @mixin floating($backdrop-blur: true) {
   // Start from an opaque surface so unsupported filters never leave sharp
   // application content visible through the popup.
-  @include -chrome($background: var(--openbitfun-color-surface-raised));
+  @include -chrome($background: var(--bitfun-color-surface-raised));
 
   @if $backdrop-blur {
     // Blur tokens contain the complete filter list (for example
@@ -24,15 +24,15 @@
     @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
       background: color-mix(
         in srgb,
-        var(--openbitfun-color-surface-raised) 94%,
+        var(--bitfun-color-surface-raised) 94%,
         transparent
       );
-      -webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);
-      backdrop-filter: var(--openbitfun-effect-blur-medium);
+      -webkit-backdrop-filter: var(--bitfun-effect-blur-medium);
+      backdrop-filter: var(--bitfun-effect-blur-medium);
     }
 
     @media (prefers-reduced-transparency: reduce) {
-      background: var(--openbitfun-color-surface-raised);
+      background: var(--bitfun-color-surface-raised);
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
     }
@@ -40,5 +40,5 @@
 }
 
 @mixin dialog {
-  @include -chrome($background: var(--openbitfun-color-surface-raised));
+  @include -chrome($background: var(--bitfun-color-surface-raised));
 }

@@ -74,7 +74,7 @@ const round: ModelRound = {
 
 // This package uses the pre-migration component/part/state names on disk.
 const legacyPackage: AppearancePackage = {
-  schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+  schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
   id: 'test.message-actions', name: 'Message actions', version: '1.0.0', mode: 'dark',
   components: {
     'model-round-item': { parts: {
@@ -96,8 +96,8 @@ function compileLegacyPackage() {
     .registerComponent(exportImageAppearanceDescriptor);
   const snapshot = new AppearanceCompiler(registry).compile(restored, 1);
   expect(JSON.stringify(restored)).toBe(serialized);
-  document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
-  document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+  document.documentElement.setAttribute('data-bitfun-appearance', snapshot.id);
+  document.documentElement.setAttribute('data-bitfun-appearance-revision', String(snapshot.revision));
   const style = document.createElement('style');
   style.textContent = snapshot.cssText;
   document.head.appendChild(style);
@@ -132,8 +132,8 @@ describe('message copy and image export controls', () => {
     act(() => root.unmount());
     container.remove();
     document.head.querySelectorAll('style').forEach(style => style.remove());
-    document.documentElement.removeAttribute('data-openbitfun-appearance');
-    document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+    document.documentElement.removeAttribute('data-bitfun-appearance');
+    document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     vi.clearAllTimers();
     vi.useRealTimers();
   });
@@ -145,7 +145,7 @@ describe('message copy and image export controls', () => {
     expect(mocks.anchor).toBe(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(document.querySelector('.export-image-menu')).not.toBeNull();
-    act(() => trigger.querySelector('[data-openbitfun-part="icon"]')!
+    act(() => trigger.querySelector('[data-bitfun-part="icon"]')!
       .dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
@@ -221,7 +221,7 @@ describe('message copy and image export controls', () => {
     };
     act(() => root.render(<ModelRoundItem round={withHistory} turnId="turn-1" isLastRound isTurnComplete />));
     const historyToggle = container.querySelector<HTMLButtonElement>('.model-round-item__retry-toggle')!;
-    expect(historyToggle.getAttribute('data-openbitfun-component')).toBe('button');
+    expect(historyToggle.getAttribute('data-bitfun-component')).toBe('button');
     expect(historyToggle.querySelector('[data-overflow-behavior]')).toBeNull();
     expectCompiledRuleMatches(compileLegacyPackage(), historyToggle, '0.6');
     act(() => historyToggle.click());
@@ -232,7 +232,7 @@ describe('message copy and image export controls', () => {
     const copy = container.querySelector<HTMLButtonElement>('.model-round-item__attempt-diagnostic-copy')!;
     await act(async () => copy.click());
     expect(mocks.clipboard).toHaveBeenCalledExactlyOnceWith('Request timed out');
-    expect(copy.getAttribute('data-openbitfun-state')).toBe('copied');
+    expect(copy.getAttribute('data-bitfun-state')).toBe('copied');
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     act(() => toggle.click());
     expect(container.querySelector('.model-round-item__attempt-diagnostic-details')).toBeNull();

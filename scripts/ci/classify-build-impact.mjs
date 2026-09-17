@@ -45,7 +45,7 @@ const ALL_PACKAGE_INPUTS = new Set([
   'scripts/generate-linux-binaries-manifest.mjs',
   'scripts/generate-tauri-latest-json.mjs',
   'scripts/generate-version.cjs',
-  'scripts/openbitfun-release-sync.sh',
+  'scripts/bitfun-release-sync.sh',
   'scripts/prepare-windows-installer-asset.mjs',
   'scripts/release-channel.mjs',
   'scripts/set-build-version.mjs',
@@ -286,7 +286,7 @@ function isFullPackageInput(file) {
   ) {
     return true;
   }
-  if (name === 'Cargo.toml' && !file.startsWith('OpenBitFun-Installer/')) {
+  if (name === 'Cargo.toml' && !file.startsWith('BitFun-Installer/')) {
     return true;
   }
   if (
@@ -312,7 +312,7 @@ function isFrontendOnlyInput(file) {
 }
 
 function isWindowsPackageInput(file) {
-  return file.startsWith('OpenBitFun-Installer/')
+  return file.startsWith('BitFun-Installer/')
     || file === 'scripts/cli/package-windows.ps1'
     || file.startsWith('scripts/windows/')
     || file.includes('/windows/')

@@ -1,27 +1,27 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .details {
     display: flex;
     min-inline-size: 0;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--openbitfun-space-1) var(--openbitfun-space-3);
-    padding-block-end: var(--openbitfun-space-2);
-    border-block-end: 1px solid var(--openbitfun-color-border-subtle);
+    gap: var(--bitfun-space-1) var(--bitfun-space-3);
+    padding-block-end: var(--bitfun-space-2);
+    border-block-end: 1px solid var(--bitfun-color-border-subtle);
   }
 
   .detail {
     display: inline-flex;
     min-inline-size: 0;
     align-items: baseline;
-    gap: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-body-sm-font-size);
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
   }
 
   .detailLabel {
     flex: 0 0 auto;
-    color: var(--openbitfun-color-content-secondary);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .detailValue {
@@ -42,20 +42,20 @@
     min-inline-size: 0;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
-    gap: var(--openbitfun-space-2);
-    padding-block: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-body-sm-font-size);
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
   }
 
   .result + .result {
-    border-block-start: 1px solid var(--openbitfun-color-border-subtle);
+    border-block-start: 1px solid var(--bitfun-color-border-subtle);
   }
 
   .resultIcon {
     display: inline-flex;
     align-items: center;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .resultIcon > svg {
@@ -67,15 +67,15 @@
     display: flex;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   .resultTitle,
   .resultButton {
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
     font: inherit;
-    font-weight: var(--openbitfun-type-label-lg-font-weight);
+    font-weight: var(--bitfun-type-label-lg-font-weight);
     text-align: start;
     overflow-wrap: anywhere;
   }
@@ -89,7 +89,7 @@
   }
 
   .resultButton:is(:hover, :focus-visible) {
-    color: var(--openbitfun-color-accent-hover);
+    color: var(--bitfun-color-accent-hover);
     text-decoration: underline;
     text-underline-offset: 0.16em;
   }
@@ -97,13 +97,13 @@
   .resultDescription,
   .resultUrl,
   .resultMeta {
-    color: var(--openbitfun-color-content-muted);
-    line-height: var(--openbitfun-type-body-md-line-height);
+    color: var(--bitfun-color-content-muted);
+    line-height: var(--bitfun-type-body-md-line-height);
     overflow-wrap: anywhere;
   }
 
   .resultUrl {
-    font-size: var(--openbitfun-type-body-xs-font-size);
+    font-size: var(--bitfun-type-body-xs-font-size);
   }
 
   .resultMeta {
@@ -114,18 +114,18 @@
     max-block-size: 25rem;
     margin: 0;
     overflow: auto;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     font-family: inherit;
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-md-line-height);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
   .overflowLabel {
-    padding-block: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-body-sm-font-size);
+    padding-block: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
     font-style: italic;
     text-align: center;
   }

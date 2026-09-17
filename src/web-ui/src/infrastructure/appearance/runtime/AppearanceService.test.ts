@@ -92,8 +92,8 @@ describe('AppearanceService', () => {
     configMocks.getConfig.mockReset();
     configMocks.setConfig.mockReset();
     configMocks.setConfig.mockResolvedValue(undefined);
-    delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__;
-    delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
+    delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__;
+    delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
     vi.stubGlobal('window', {
       matchMedia: vi.fn(() => ({
         matches: false,
@@ -105,29 +105,29 @@ describe('AppearanceService', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__;
-    delete globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
+    delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__;
+    delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
   });
 
   it('uses and consumes the desktop bootstrap selection before reading config', async () => {
-    globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__ = 'openbitfun-dark';
-    globalThis.__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__ = 'openbitfun-dark';
+    globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__ = 'bitfun-dark';
+    globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__ = 'bitfun-dark';
     const { runtime, service } = createService();
 
     await service.initialize();
 
     expect(configMocks.getConfig).not.toHaveBeenCalled();
     expect(runtime.initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openbitfun-dark' }),
+      expect.objectContaining({ id: 'bitfun-dark' }),
       {},
     );
     expect(service.getSnapshot()).toMatchObject({
       initialized: true,
-      selectedAppearanceId: 'openbitfun-dark',
-      resolvedAppearanceId: 'openbitfun-dark',
+      selectedAppearanceId: 'bitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
     });
-    expect(Object.prototype.hasOwnProperty.call(globalThis, '__OPENBITFUN_BOOTSTRAP_APPEARANCE_ID__')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(globalThis, '__OPENBITFUN_BOOTSTRAP_APPEARANCE_SELECTION__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(globalThis, '__BITFUN_BOOTSTRAP_APPEARANCE_ID__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(globalThis, '__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__')).toBe(false);
   });
 
   it('persists explicit selections through appearance.selection', async () => {
@@ -135,12 +135,12 @@ describe('AppearanceService', () => {
     const { service } = createService();
     await service.initialize();
 
-    await service.select('openbitfun-dark');
+    await service.select('bitfun-dark');
 
-    expect(configMocks.setConfig).toHaveBeenCalledWith('appearance.selection', 'openbitfun-dark');
+    expect(configMocks.setConfig).toHaveBeenCalledWith('appearance.selection', 'bitfun-dark');
     expect(service.getSnapshot()).toMatchObject({
-      selectedAppearanceId: 'openbitfun-dark',
-      resolvedAppearanceId: 'openbitfun-dark',
+      selectedAppearanceId: 'bitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
     });
   });
 
@@ -151,24 +151,24 @@ describe('AppearanceService', () => {
     const { service } = createService();
     await service.initialize();
 
-    const selection = service.select('openbitfun-dark');
+    const selection = service.select('bitfun-dark');
     await vi.waitFor(() => expect(configMocks.setConfig).toHaveBeenCalledOnce());
 
     expect(service.getSnapshot()).toMatchObject({
       status: 'applying',
       selectedAppearanceId: 'system',
-      pendingSelectionId: 'openbitfun-dark',
+      pendingSelectionId: 'bitfun-dark',
     });
-    expect(service.hasAppliedPendingSelection('openbitfun-dark')).toBe(true);
-    expect(service.hasAppliedPendingSelection('openbitfun-light')).toBe(false);
+    expect(service.hasAppliedPendingSelection('bitfun-dark')).toBe(true);
+    expect(service.hasAppliedPendingSelection('bitfun-light')).toBe(false);
 
     pendingWrite.resolve(undefined);
     await selection;
-    expect(service.hasAppliedPendingSelection('openbitfun-dark')).toBe(false);
+    expect(service.hasAppliedPendingSelection('bitfun-dark')).toBe(false);
   });
 
   it('reconciles externally persisted selections without writing them again', async () => {
-    configMocks.getConfig.mockResolvedValueOnce('system').mockResolvedValueOnce('openbitfun-dark');
+    configMocks.getConfig.mockResolvedValueOnce('system').mockResolvedValueOnce('bitfun-dark');
     const { service } = createService();
     await service.initialize();
 
@@ -176,8 +176,8 @@ describe('AppearanceService', () => {
 
     expect(configMocks.setConfig).not.toHaveBeenCalled();
     expect(service.getSnapshot()).toMatchObject({
-      selectedAppearanceId: 'openbitfun-dark',
-      resolvedAppearanceId: 'openbitfun-dark',
+      selectedAppearanceId: 'bitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
     });
   });
 
@@ -189,14 +189,14 @@ describe('AppearanceService', () => {
 
     expect(configMocks.setConfig).not.toHaveBeenCalled();
     expect(runtime.initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openbitfun-light' }),
+      expect.objectContaining({ id: 'bitfun-light' }),
       {},
     );
     expect(service.getSnapshot()).toMatchObject({
       selectedAppearanceId: 'system',
       persistedSelectionId: 'missing-appearance',
       unavailableSelectionId: 'missing-appearance',
-      resolvedAppearanceId: 'openbitfun-light',
+      resolvedAppearanceId: 'bitfun-light',
       status: 'degraded',
     });
   });
@@ -206,7 +206,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const stored: StoredAppearancePackage = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'market.shared', name: 'Shared',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'market.shared', name: 'Shared',
         version: '1.0.0', mode: 'dark',
       },
       archive: new ArrayBuffer(4),
@@ -245,7 +245,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const first: StoredAppearancePackage = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'market.theme', name: 'Market Theme',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'market.theme', name: 'Market Theme',
         version: '1.0.0', mode: 'dark',
       },
       archive: new ArrayBuffer(4),
@@ -298,7 +298,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const parsed: StoredAppearancePackage = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'unexpected.theme', name: 'Unexpected',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'unexpected.theme', name: 'Unexpected',
         version: '1.0.0', mode: 'dark',
       },
       archive: new ArrayBuffer(4),
@@ -328,12 +328,12 @@ describe('AppearanceService', () => {
     const importedAt = '2026-08-03T00:00:00.000Z';
     const unsupported = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: 1, id: 'unsupported.saved', name: 'Unsupported Saved',
+        schema: 'bitfun.appearance', schemaVersion: 1, id: 'unsupported.saved', name: 'Unsupported Saved',
         version: '1.0.0', mode: 'dark',
         renderers: {
           'css-tokens': {
             version: 1,
-            settings: { tokens: { '--openbitfun-appearance-token-color-bg-primary': '#101820' } },
+            settings: { tokens: { '--bitfun-appearance-token-color-bg-primary': '#101820' } },
           },
         },
       },
@@ -360,22 +360,22 @@ describe('AppearanceService', () => {
     await service.initialize();
     configMocks.setConfig.mockRejectedValueOnce(new Error('config unavailable'));
 
-    await expect(service.select('openbitfun-dark')).rejects.toThrow('config unavailable');
+    await expect(service.select('bitfun-dark')).rejects.toThrow('config unavailable');
 
     expect(runtime.applyPackage).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ id: 'openbitfun-dark' }),
+      expect.objectContaining({ id: 'bitfun-dark' }),
       {},
     );
     expect(runtime.applyPackage).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ id: 'openbitfun-light' }),
+      expect.objectContaining({ id: 'bitfun-light' }),
       {},
     );
     expect(service.getSnapshot()).toMatchObject({
       status: 'ready',
       selectedAppearanceId: 'system',
-      resolvedAppearanceId: 'openbitfun-light',
+      resolvedAppearanceId: 'bitfun-light',
     });
   });
 
@@ -388,8 +388,8 @@ describe('AppearanceService', () => {
     const { runtime, service } = createService();
     await service.initialize();
 
-    const first = service.select('openbitfun-dark');
-    const second = service.select('openbitfun-light');
+    const first = service.select('bitfun-dark');
+    const second = service.select('bitfun-light');
     await vi.waitFor(() => expect(configMocks.setConfig).toHaveBeenCalledTimes(1));
     expect(runtime.applyPackage).toHaveBeenCalledTimes(1);
 
@@ -397,13 +397,13 @@ describe('AppearanceService', () => {
     await Promise.all([first, second]);
 
     expect(configMocks.setConfig.mock.calls).toEqual([
-      ['appearance.selection', 'openbitfun-dark'],
-      ['appearance.selection', 'openbitfun-light'],
+      ['appearance.selection', 'bitfun-dark'],
+      ['appearance.selection', 'bitfun-light'],
     ]);
     expect(service.getSnapshot()).toMatchObject({
       status: 'ready',
-      selectedAppearanceId: 'openbitfun-light',
-      resolvedAppearanceId: 'openbitfun-light',
+      selectedAppearanceId: 'bitfun-light',
+      resolvedAppearanceId: 'bitfun-light',
     });
   });
 
@@ -420,7 +420,7 @@ describe('AppearanceService', () => {
     await storage.put({
       ...packageBase,
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'explicit.preview', name: 'Explicit',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'explicit.preview', name: 'Explicit',
         version: '1.0.0', mode: 'light', preview: { kind: 'asset', assetId: 'hero' },
       },
       assets: { hero: { mimeType: 'image/webp', bytes: previewBytes, width: 16, height: 9 } },
@@ -428,7 +428,7 @@ describe('AppearanceService', () => {
     await storage.put({
       ...packageBase,
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'fallback.preview', name: 'Fallback',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'fallback.preview', name: 'Fallback',
         version: '1.0.0', mode: 'light',
       },
       assets: { background: { mimeType: 'image/png', bytes: backgroundBytes, width: 16, height: 9 } },
@@ -449,7 +449,7 @@ describe('AppearanceService', () => {
       archiveSchemaVersion: APPEARANCE_SCHEMA_VERSION,
       importedAt: '2026-07-29T00:00:00.000Z',
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'video.preview', name: 'Video',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'video.preview', name: 'Video',
         version: '1.0.0', mode: 'dark',
       },
       assets: {
@@ -481,15 +481,15 @@ describe('AppearanceService', () => {
     const second = createSyncedService();
     await Promise.all([first.initialize(), second.initialize()]);
 
-    await first.select('openbitfun-dark');
+    await first.select('bitfun-dark');
     await vi.waitFor(() => {
-      expect(second.getSnapshot().selectedAppearanceId).toBe('openbitfun-dark');
+      expect(second.getSnapshot().selectedAppearanceId).toBe('bitfun-dark');
     });
 
     expect(configMocks.setConfig).toHaveBeenCalledTimes(1);
     expect(second.getSnapshot()).toMatchObject({
       status: 'ready',
-      resolvedAppearanceId: 'openbitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
     });
   });
 
@@ -499,7 +499,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const stored: StoredAppearancePackage = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'shared.market-theme',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'shared.market-theme',
         name: 'Shared Market Theme', version: '1.0.0', mode: 'dark',
       },
       archive: new ArrayBuffer(4),
@@ -547,7 +547,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const oldPackage = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.active', name: 'Old',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.active', name: 'Old',
         version: '1.0.0', mode: 'dark',
       } as AppearancePackage,
       archive: new ArrayBuffer(1),
@@ -592,7 +592,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const stored = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.saved', name: 'Saved',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.saved', name: 'Saved',
         version: '1.0.0', mode: 'dark',
       } as AppearancePackage,
       archive: new ArrayBuffer(1),
@@ -621,7 +621,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const stored = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.active-delete', name: 'Active',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.active-delete', name: 'Active',
         version: '1.0.0', mode: 'dark',
       } as AppearancePackage,
       archive: new ArrayBuffer(1),
@@ -660,7 +660,7 @@ describe('AppearanceService', () => {
     const storage = new MemoryAppearanceStorage();
     const stored = {
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.degraded-delete', name: 'Degraded',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.degraded-delete', name: 'Degraded',
         version: '1.0.0', mode: 'dark',
       } as AppearancePackage,
       archive: new ArrayBuffer(1),
@@ -695,8 +695,8 @@ describe('AppearanceService', () => {
     expect(service.getSnapshot()).toMatchObject({
       status: 'degraded',
       selectedAppearanceId: 'system',
-      resolvedAppearanceId: 'openbitfun-light',
-      current: expect.objectContaining({ id: 'openbitfun-light' }),
+      resolvedAppearanceId: 'bitfun-light',
+      current: expect.objectContaining({ id: 'bitfun-light' }),
     });
   });
 
@@ -713,19 +713,19 @@ describe('AppearanceService', () => {
       }),
       removeEventListener: vi.fn(),
     });
-    configMocks.getConfig.mockResolvedValueOnce('system').mockResolvedValueOnce('openbitfun-dark');
+    configMocks.getConfig.mockResolvedValueOnce('system').mockResolvedValueOnce('bitfun-dark');
     const { service } = createService();
     await service.initialize();
 
     focusListener?.();
     await vi.waitFor(() => {
-      expect(service.getSnapshot().selectedAppearanceId).toBe('openbitfun-dark');
+      expect(service.getSnapshot().selectedAppearanceId).toBe('bitfun-dark');
     });
 
     expect(configMocks.setConfig).not.toHaveBeenCalled();
     expect(service.getSnapshot()).toMatchObject({
       status: 'ready',
-      resolvedAppearanceId: 'openbitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
     });
   });
 
@@ -746,7 +746,7 @@ describe('AppearanceService', () => {
     const { runtime, service, storage } = createService();
     await storage.put({
       manifest: {
-        schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.dynamic', name: 'Dynamic',
+        schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.dynamic', name: 'Dynamic',
         version: '1.0.0', mode: 'dark',
       },
       archive: new ArrayBuffer(1),
@@ -779,7 +779,7 @@ describe('AppearanceService', () => {
     configMocks.getConfig.mockResolvedValue('sample.dynamic');
     const { runtime, service, storage } = createService();
     const manifest: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.dynamic', name: 'Dynamic',
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION, id: 'sample.dynamic', name: 'Dynamic',
       version: '1.0.0', mode: 'dark',
     };
     await storage.put({

@@ -1,4 +1,4 @@
-use openbitfun_services_core::session::{
+use bitfun_services_core::session::{
     build_session_index_snapshot, refresh_session_metadata_from_turns, remove_session_index_entry,
     try_refresh_session_metadata_for_saved_turn, upsert_session_index_entry, DialogTurnData,
     DialogTurnKind, ModelRoundData, SessionContextUsage, SessionContextUsageSource, SessionKind,
@@ -236,7 +236,7 @@ fn repairing_an_older_turn_does_not_replace_the_latest_outcome() {
 
 #[test]
 fn delayed_read_receipts_cannot_clear_a_newer_result_and_legacy_receipts_still_work() {
-    use openbitfun_services_core::session::apply_session_unread_completion;
+    use bitfun_services_core::session::apply_session_unread_completion;
     let mut current = metadata("session-a");
     let first = finished_turn("session-a", 0, TurnStatus::Completed, 20);
     refresh_session_metadata_from_turns(&mut current, "/workspace", &[first.clone()], 20);
@@ -514,7 +514,7 @@ fn saved_turn_refresh_rejects_gaps_and_session_mismatches() {
 
 #[test]
 fn completed_recovery_keeps_its_generation_and_rejects_an_older_receipt() {
-    use openbitfun_services_core::session::apply_session_unread_completion;
+    use bitfun_services_core::session::apply_session_unread_completion;
     let mut current = metadata("session-1");
     let mut completed = finished_turn("session-1", 0, TurnStatus::Completed, 100);
     completed.recovery_epoch = Some(1);
@@ -540,7 +540,7 @@ fn completed_recovery_keeps_its_generation_and_rejects_an_older_receipt() {
 
 #[test]
 fn recovery_summary_upgrade_and_receipts_preserve_pause_cancellation_boundaries() {
-    use openbitfun_services_core::session::{
+    use bitfun_services_core::session::{
         apply_session_unread_completion, DialogTurnRecoveryData, DialogTurnRecoveryStatus,
         SessionLastTurn,
     };

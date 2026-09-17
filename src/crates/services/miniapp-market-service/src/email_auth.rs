@@ -79,7 +79,7 @@ impl Mailer {
             .parse::<u16>()
             .map_err(|_| MarketError::internal("Invalid SMTP_PORT"))?;
         let from = Mailbox::new(
-            Some(get("SMTP_FROM_NAME").unwrap_or_else(|| "OpenBitFun".into())),
+            Some(get("SMTP_FROM_NAME").unwrap_or_else(|| "BitFun".into())),
             username
                 .parse()
                 .map_err(|_| MarketError::internal("Invalid SMTP_USERNAME"))?,
@@ -155,7 +155,7 @@ fn verification_message(
                                 .header(ContentTransferEncoding::Base64)
                                 .body(html),
                         )
-                        .singlepart(Attachment::new_inline("openbitfun-app-icon".into()).body(
+                        .singlepart(Attachment::new_inline("bitfun-app-icon".into()).body(
                             include_bytes!("email/app-icon.png").to_vec(),
                             ContentType::parse("image/png").expect("valid PNG MIME type"),
                         )),
@@ -434,7 +434,7 @@ impl AuthService {
                 ..
             } => (session_token, return_to),
             CompletedOAuth::Desktop { session_token, .. } => {
-                (session_token, "https://auth.openbitfun.com/complete".into())
+                (session_token, "https://auth.bitfun.com/complete".into())
             }
         };
         let grant = random_token(32);
@@ -485,7 +485,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = MarketConfig {
             bind: "127.0.0.1:0".parse().unwrap(),
-            public_base_url: "https://market.openbitfun.com/miniapp".into(),
+            public_base_url: "https://market.bitfun.com/miniapp".into(),
             database_path: dir.path().join("db"),
             artifact_dir: dir.path().join("artifacts"),
             web_dir: dir.path().into(),
@@ -936,7 +936,7 @@ mod tests {
             ),
             (
                 "/auth/desktop/start?methods=all",
-                "https://auth.openbitfun.com/sign-in#ticket=",
+                "https://auth.bitfun.com/sign-in#ticket=",
             ),
         ] {
             let response = app
@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn verification_email_has_html_and_plain_text_without_attachments() {
         let message = verification_message(
-            "OpenBitFun <hello@example.com>".parse().unwrap(),
+            "BitFun <hello@example.com>".parse().unwrap(),
             "alice@example.com",
             "123456",
             "en-US",
@@ -1066,7 +1066,7 @@ mod tests {
         assert!(raw.contains("Content-Type: multipart/alternative;"));
         assert!(raw.contains("Content-Type: text/html; charset=utf-8"));
         assert!(raw.contains("Content-Type: multipart/related;"));
-        assert!(raw.contains("Content-ID: <openbitfun-app-icon>"));
+        assert!(raw.contains("Content-ID: <bitfun-app-icon>"));
         assert!(raw.contains("Content-Disposition: inline"));
         let decode_part = |content_type: &str| {
             let part = raw
@@ -1080,10 +1080,10 @@ mod tests {
                 .unwrap()
         };
         let plain = String::from_utf8(decode_part("text/plain;")).unwrap();
-        assert!(plain.contains("Your OpenBitFun verification code is: 123456"));
+        assert!(plain.contains("Your BitFun verification code is: 123456"));
         assert!(plain.is_ascii());
         let html = String::from_utf8(decode_part("text/html;")).unwrap();
-        assert!(html.contains("src=\"cid:openbitfun-app-icon\""));
+        assert!(html.contains("src=\"cid:bitfun-app-icon\""));
         assert!(!html.contains("src=\"https://"));
         assert_eq!(
             decode_part("image/png"),
@@ -1120,7 +1120,7 @@ mod tests {
                 expected
             );
             let message = verification_message(
-                "OpenBitFun <hello@example.com>".parse().unwrap(),
+                "BitFun <hello@example.com>".parse().unwrap(),
                 "a@example.com",
                 "654321",
                 locale,
@@ -1153,7 +1153,7 @@ mod tests {
             }
         }
         let unknown = verification_message(
-            "OpenBitFun <hello@example.com>".parse().unwrap(),
+            "BitFun <hello@example.com>".parse().unwrap(),
             "a@example.com",
             "654321",
             "unknown",
@@ -1161,7 +1161,7 @@ mod tests {
         .unwrap();
         assert!(String::from_utf8(unknown.formatted())
             .unwrap()
-            .contains("Subject: OpenBitFun sign-in code"));
+            .contains("Subject: BitFun sign-in code"));
     }
 
     #[test]

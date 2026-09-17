@@ -27,25 +27,25 @@ export const ConfigCollectionSection: React.FC<ConfigCollectionSectionProps> = (
     <ConfigPageSection
       title={title}
       description={description}
-      className={`openbitfun-config-collection-section ${hasEditor ? 'openbitfun-config-collection-section--with-editor' : ''} ${className}`}
+      className={`bitfun-config-collection-section ${hasEditor ? 'bitfun-config-collection-section--with-editor' : ''} ${className}`}
     >
-      <div className="openbitfun-config-collection-section__content" data-openbitfun-component="config" data-openbitfun-part="collectionSection">
+      <div className="bitfun-config-collection-section__content" data-bitfun-component="config" data-bitfun-part="collectionSection">
         {toolbar && (
-          <div className="openbitfun-config-collection-section__toolbar" data-openbitfun-component="config" data-openbitfun-part="collectionToolbar">
+          <div className="bitfun-config-collection-section__toolbar" data-bitfun-component="config" data-bitfun-part="collectionToolbar">
             {toolbar}
           </div>
         )}
         {editor && (
-          <div className="openbitfun-config-collection-section__editor" data-openbitfun-component="config" data-openbitfun-part="collectionEditor">
+          <div className="bitfun-config-collection-section__editor" data-bitfun-component="config" data-bitfun-part="collectionEditor">
             {editor}
           </div>
         )}
         {filters && (
-          <div className="openbitfun-config-collection-section__filters" data-openbitfun-component="config" data-openbitfun-part="collectionFilters">
+          <div className="bitfun-config-collection-section__filters" data-bitfun-component="config" data-bitfun-part="collectionFilters">
             {filters}
           </div>
         )}
-        <div className="openbitfun-config-collection-section__list" data-openbitfun-component="config" data-openbitfun-part="collectionList">
+        <div className="bitfun-config-collection-section__list" data-bitfun-component="config" data-bitfun-part="collectionList">
           {children}
         </div>
       </div>

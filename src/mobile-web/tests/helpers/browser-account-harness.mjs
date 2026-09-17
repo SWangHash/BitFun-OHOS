@@ -12,7 +12,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { gcm } from '@noble/ciphers/aes.js';
 
 export const LAN = 'http://192.168.50.7:9700';
-export const OFFICIAL = 'https://remote.openbitfun.com/v/1.0.1';
+export const OFFICIAL = 'https://remote.bitfun.com/v/1.0.1';
 export const invitation = (endpoint = LAN, device = 'desktop-a') => `${endpoint}/#/pair?did=${device}`;
 const mobileRoot = fileURLToPath(new URL('../../', import.meta.url));
 const realtimeFixtures = new Map();
@@ -23,7 +23,7 @@ const hostPublicKey = x25519.getPublicKey(hostPrivateKey);
 function messageKey(publicKey) {
   const shared = x25519.getSharedSecret(hostPrivateKey, publicKey);
   const sorted = [hostPublicKey, publicKey].sort((a, b) => Buffer.compare(a, b));
-  return hkdf(sha256, shared, new TextEncoder().encode('OpenBitFun Relay v1.0.0 device key'),
+  return hkdf(sha256, shared, new TextEncoder().encode('BitFun Relay v1.0.0 device key'),
     Buffer.concat(sorted.map(key => Buffer.from(key))), 32);
 }
 
@@ -189,7 +189,7 @@ export class RelayFixture {
         constructor(url, protocols) {
           const target = new URL(url);
           if (target.pathname.endsWith('/v1/updates/')) {
-            const endpoint = target.hostname === 'remote.openbitfun.com' ? official : lan;
+            const endpoint = target.hostname === 'remote.bitfun.com' ? official : lan;
             url = `${origin.replace('http:', 'ws:')}/__relay_fixture/${id}?endpoint=${encodeURIComponent(endpoint)}`;
           }
           super(url, protocols);
@@ -209,7 +209,7 @@ export class RelayFixture {
             body: JSON.stringify({ id, login: `user-${id}`, avatar_url: '' }) });
           return;
         }
-        const endpoint = requested.hostname === 'remote.openbitfun.com' ? OFFICIAL : LAN;
+        const endpoint = requested.hostname === 'remote.bitfun.com' ? OFFICIAL : LAN;
         if (![new URL(LAN).origin, new URL(OFFICIAL).origin].includes(requested.origin)) {
           await request.abort(); return;
         }
@@ -231,7 +231,7 @@ export class RelayFixture {
     });
     // Account scenarios use English action labels independently of the host OS.
     await page.evaluateOnNewDocument(() => {
-      localStorage.setItem('openbitfun-mobile-language', 'en-US');
+      localStorage.setItem('bitfun-mobile-language', 'en-US');
     });
     if (init) await page.evaluateOnNewDocument(init);
     await page.goto(url, { waitUntil: 'networkidle0' });

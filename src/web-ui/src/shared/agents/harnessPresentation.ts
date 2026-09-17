@@ -1,4 +1,4 @@
-import type { IconName } from '@openbitfun/ui';
+import type { IconName } from '@bitfun/ui';
 import type { HarnessId } from './identity';
 
 export const HARNESS_PRESENTATION: Record<HarnessId, { icon: IconName; gear: 1 | 2 | 3 | 'creative' }> = {

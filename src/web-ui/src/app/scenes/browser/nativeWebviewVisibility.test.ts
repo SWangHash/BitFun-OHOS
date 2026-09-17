@@ -9,7 +9,7 @@ afterEach(() => {
 
 function element(rect: DOMRect, occluder = false) {
   const node = document.createElement('div');
-  if (occluder) node.setAttribute('data-openbitfun-native-webview-occlusion', '');
+  if (occluder) node.setAttribute('data-bitfun-native-webview-occlusion', '');
   node.getBoundingClientRect = () => rect;
   document.body.append(node);
   return node;

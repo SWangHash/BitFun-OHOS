@@ -1,10 +1,10 @@
-# OpenBitFun Web UI
+# BitFun Web UI
 
 [中文](./README.zh-CN.md) | English
 
 ## Overview
 
-This directory contains OpenBitFun’s **Web UI** (React + TypeScript). The same frontend codebase is reused by:
+This directory contains BitFun’s **Web UI** (React + TypeScript). The same frontend codebase is reused by:
 
 - **Desktop**: loaded via **Tauri**
 - **Server/Web**: built into static assets and served by the backend
@@ -97,7 +97,7 @@ you can also enter a provider-supported model ID manually.
 
 Antigravity queries its authenticated `fetchAvailableModels` endpoint; Codex
 uses its subscription catalog, including models unavailable through the public
-OpenAI API. For OpenCode, choose Go/Zen and a model; OpenBitFun selects the
+OpenAI API. For OpenCode, choose Go/Zen and a model; BitFun selects the
 matching Chat Completions, Responses, or Messages protocol from the account catalog.
 xAI and Hermes query their model endpoints. Hermes uses Chat Completions with
 Nous OAuth bearer authentication for all models, including `anthropic/*`, matching
@@ -120,7 +120,7 @@ device-code login can authorize the other providers from another browser.
 
 The Pull Requests panel recognizes HTTPS and SSH remotes on `gitee.com`. Public
 repositories can be read anonymously. Add a Gitee personal access token from the
-panel, or set `GITEE_TOKEN` on the OpenBitFun host, to access private repositories
+panel, or set `GITEE_TOKEN` on the BitFun host, to access private repositories
 and perform authorized write actions. A saved token takes precedence over the
 environment. Grant the Gitee `pull_requests` and `projects` scopes for PR work;
 Issue evidence additionally needs the corresponding `issues` scope. Repository
@@ -147,7 +147,7 @@ external details page. Native change requests, replies to a specific thread,
 thread resolution, draft reviews, and merging are not exposed as Gitee actions.
 
 For an SSH workspace, repository discovery runs through the remote workspace
-transport and Gitee API requests use the OpenBitFun host's network and credentials.
+transport and Gitee API requests use the BitFun host's network and credentials.
 Peer mode uses the target host; both sides must support the provider. A CLI peer
 does not expose the desktop PR panel. Headless Agent tools require credentials on
 the executing host and report missing access without requiring a local GUI login.
@@ -171,7 +171,7 @@ the native Keep/Revert preview. The host confirms only after the shell and
 customization activate; failure or timeout restores the previous revision.
 
 Custom modules can also register Agent-callable commands and compose persistent
-state with events. The shipped [Creation API](public/openbitfun-creation-api.md)
+state with events. The shipped [Creation API](public/bitfun-creation-api.md)
 documents runtime discovery, activation and cleanup. These extensions require
 the visible local Desktop; they are unavailable on remote/Peer/headless surfaces.
 MiniApp source operations use the installed product's lifecycle owner and

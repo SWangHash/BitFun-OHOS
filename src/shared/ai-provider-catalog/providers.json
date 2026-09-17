@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "catalog_kind": "openbitfun_builtin_provider_overlay",
+  "catalog_kind": "bitfun_builtin_provider_overlay",
   "providers": [
     {
-      "id": "openbitfun",
+      "id": "bitfun",
       "display_order": 0,
       "region": "any",
-      "name": "OpenBitFun",
-      "description": "OpenBitFun hosted AI service",
+      "name": "BitFun",
+      "description": "BitFun hosted AI service",
       "requires_api_key": true,
       "catalog_provider_ids": [],
       "endpoints": [
         {
           "id": "default",
-          "base_url": "https://api.openbitfun.com",
+          "base_url": "https://api.bitfun.com",
           "api_format": "anthropic",
           "label": "default",
           "is_default": true,
@@ -27,7 +27,7 @@
         },
         {
           "id": "openai",
-          "base_url": "https://api.openbitfun.com/v1",
+          "base_url": "https://api.bitfun.com/v1",
           "api_format": "openai",
           "label": "openai",
           "trusted_for_auto_detection": true,

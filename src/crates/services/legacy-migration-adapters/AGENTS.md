@@ -15,5 +15,5 @@ diagnostics in the migration report; never mutate the legacy source to repair it
 Focused verification:
 
 ```bash
-cargo test -p openbitfun-legacy-migration-adapters --lib
+cargo test -p bitfun-legacy-migration-adapters --lib
 ```

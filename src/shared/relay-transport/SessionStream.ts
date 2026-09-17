@@ -73,7 +73,7 @@ export async function openSessionStream(options: {
   decrypt?: SessionDecrypt; sessionId: string; relaySessionId: string; key: string; onEvent: (event: SessionEvent) => void; onError: (error: unknown) => void; onCaughtUp?: () => void; onHistoryState?: (state: SessionHistoryState) => void; onResumed?: () => void;
 }): Promise<SessionStreamHandle> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('openbitfun-relay-session-cache', 1);
+    const request = indexedDB.open('bitfun-relay-session-cache', 1);
     request.onupgradeneeded = () => {
       request.result.createObjectStore('fragments'); request.result.createObjectStore('cursors');
     };

@@ -1,4 +1,4 @@
-use openbitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
+use bitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
 use serde_json::{Map, Value};
 
 use crate::runtime::approval::{approval_metadata, CliApprovalPolicy};
@@ -31,7 +31,7 @@ pub(crate) fn metadata(policy: DispatchApprovalPolicy) -> Map<String, Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_agent_runtime::sdk::AUTO_APPROVE_ASK_CONTEXT_KEY;
+    use bitfun_agent_runtime::sdk::AUTO_APPROVE_ASK_CONTEXT_KEY;
 
     #[test]
     fn dispatch_policy_uses_the_shared_invocation_metadata_contract() {

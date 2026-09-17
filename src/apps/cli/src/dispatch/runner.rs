@@ -49,8 +49,8 @@ fn spawn_detached_action(action: &str, job_id: &str, description: &str) -> Resul
         bail!("dispatch detached workers are supported only on Linux and macOS");
     }
 
-    let executable = std::env::current_exe().context("resolve OpenBitFun executable")?;
-    let mut command = openbitfun_services_core::process_manager::create_command(executable);
+    let executable = std::env::current_exe().context("resolve BitFun executable")?;
+    let mut command = bitfun_services_core::process_manager::create_command(executable);
     command
         .arg("dispatch")
         .arg(action)
@@ -363,17 +363,17 @@ mod tests {
 
     #[test]
     fn process_identity_requires_the_exact_hidden_worker_arguments() {
-        let expected = ["openbitfun", "dispatch", "__run", "--job", "job-1"].map(str::to_string);
+        let expected = ["bitfun", "dispatch", "__run", "--job", "job-1"].map(str::to_string);
         assert!(arguments_match_action(&expected, "__run", "job-1"));
         assert!(!arguments_match_action(&expected, "__run", "job-2"));
-        let unrelated = ["openbitfun", "dispatch", "status"].map(str::to_string);
+        let unrelated = ["bitfun", "dispatch", "status"].map(str::to_string);
         assert!(!arguments_match_action(&unrelated, "__run", "job-1"));
     }
 
     #[test]
     fn workspace_operation_identity_requires_the_exact_hidden_action() {
         let expected = [
-            "openbitfun",
+            "bitfun",
             "dispatch",
             "__workspace_sync_run",
             "--job",
@@ -444,18 +444,18 @@ mod tests {
 
         let ready_dir = tempfile::tempdir().expect("ready directory");
         let ready_path = ready_dir.path().join("hup-resistant-child-ready");
-        let mut command = openbitfun_services_core::process_manager::create_command("/bin/sh");
+        let mut command = bitfun_services_core::process_manager::create_command("/bin/sh");
         command
             .arg("-c")
             // Keep the leader alive until the child has installed its HUP
             // disposition; exiting immediately races child startup on macOS.
             .arg(
                 "trap '' HUP; \
-                 sh -c 'trap \"\" HUP; printf ready > \"$OPENBITFUN_DISPATCH_HUP_TEST_READY\"; \
+                 sh -c 'trap \"\" HUP; printf ready > \"$BITFUN_DISPATCH_HUP_TEST_READY\"; \
                  exec sleep 30' & \
                  read release",
             )
-            .env("OPENBITFUN_DISPATCH_HUP_TEST_READY", &ready_path)
+            .env("BITFUN_DISPATCH_HUP_TEST_READY", &ready_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -516,14 +516,14 @@ mod tests {
             // trap immediately; an external `sleep` can defer trap handling.
             .arg(
                 "trap 'exit 0' TERM; trap '' HUP; \
-                 sh -c 'trap \"\" TERM HUP; printf ready > \"$OPENBITFUN_DISPATCH_TERM_TEST_READY\"; \
+                 sh -c 'trap \"\" TERM HUP; printf ready > \"$BITFUN_DISPATCH_TERM_TEST_READY\"; \
                  while :; do sleep 30; done' & \
                  wait",
             )
             // These trailing arguments make the real process identity match
-            // the hidden worker contract without launching OpenBitFun Runtime.
+            // the hidden worker contract without launching BitFun Runtime.
             .args(["dispatch", "__run", "--job", job_id])
-            .env("OPENBITFUN_DISPATCH_TERM_TEST_READY", &ready_path)
+            .env("BITFUN_DISPATCH_TERM_TEST_READY", &ready_path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

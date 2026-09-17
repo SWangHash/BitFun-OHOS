@@ -5,7 +5,7 @@
 
   The layers keep the field and mark separate so the launcher's own mask can
   crop the black application icon to whatever shape the device uses. The
-  foreground is the white OpenBitFun mark on transparency, sized to the safe
+  foreground is the white BitFun mark on transparency, sized to the safe
   area inside the 108dp adaptive-icon canvas.
 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">

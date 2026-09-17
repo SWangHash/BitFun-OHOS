@@ -2,13 +2,13 @@ use super::common::{
     backup_domain_dir, backup_file_once, read_bounded_json, read_optional_bounded_json,
     restore_unverified_file, stage_domain_dir,
 };
-use openbitfun_config_contracts::validate_current_config_value;
-use openbitfun_config_contracts::{AIModelConfig, GlobalConfig};
-use openbitfun_legacy_migration::{
+use bitfun_config_contracts::validate_current_config_value;
+use bitfun_config_contracts::{AIModelConfig, GlobalConfig};
+use bitfun_legacy_migration::{
     atomic_write_json, DomainContext, DomainScan, LegacyDomainAdapter, LegacyMigrationError,
     LegacyMigrationResult, MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
@@ -19,7 +19,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const SOURCE_SCHEMA: &str = "bitfun.config.v1";
-const TARGET_SCHEMA: &str = "openbitfun.config.current";
+const TARGET_SCHEMA: &str = "bitfun.config.current";
 
 pub(crate) struct SettingsAdapter;
 pub(crate) struct CredentialsAdapter;
@@ -50,7 +50,7 @@ struct MergeOutcome {
     skipped: u64,
     conflicts: Vec<MigrationConflict>,
     rejected: Vec<String>,
-    repairs: Vec<openbitfun_config_contracts::ConfigDiagnostic>,
+    repairs: Vec<bitfun_config_contracts::ConfigDiagnostic>,
 }
 
 impl LegacyDomainAdapter for SettingsAdapter {
@@ -226,7 +226,7 @@ impl LegacyDomainAdapter for CredentialsAdapter {
                 domain: Some(self.domain()),
                 relative_path: None,
                 message: format!("Credential metadata at {field} is not safely portable."),
-                action: Some("Enter the credential again in OpenBitFun.".to_string()),
+                action: Some("Enter the credential again in BitFun.".to_string()),
             })
             .collect::<Vec<_>>();
         Ok(MigrationDomainResult {
@@ -465,7 +465,7 @@ fn merge_settings(
     })?;
     merge_models(source_models, &mut merged.ai.models, &mut outcome)?;
     outcome.repairs =
-        openbitfun_config_contracts::normalization::recover_persisted_config(&mut merged);
+        bitfun_config_contracts::normalization::recover_persisted_config(&mut merged);
     merged.product_id = defaults.product_id;
     merged.schema_version = defaults.schema_version;
     merged.version = defaults.version;
@@ -506,7 +506,7 @@ fn convert_source_config(
         .and_then(Value::as_object_mut)
     {
         *profiles =
-            openbitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
+            bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
                 profiles,
             )
             .map_err(LegacyMigrationError::InvalidRequest)?;
@@ -901,15 +901,15 @@ fn record_target_wins(path: &str, outcome: &mut MergeOutcome) {
         domain: MigrationDomainId::Settings,
         code: "target_setting_wins".to_string(),
         source_summary: format!("legacy setting {path}"),
-        target_summary: format!("existing OpenBitFun setting {path}"),
+        target_summary: format!("existing BitFun setting {path}"),
         resolution: ConflictResolution::TargetWins,
     });
 }
 
 fn canonical_product_id(value: &str) -> String {
     value
-        .replace("user::bitfun::", "user::openbitfun::")
-        .replace("bitfun-", "openbitfun-")
+        .replace("user::bitfun::", "user::bitfun::")
+        .replace("bitfun-", "bitfun-")
 }
 
 fn source_config_path(roots: &MigrationRoots) -> PathBuf {
@@ -940,10 +940,10 @@ fn credentials_backup_path(context: &DomainContext<'_>) -> PathBuf {
 mod tests {
     use super::*;
     use crate::adapters_for_groups;
-    use openbitfun_legacy_migration::{
+    use bitfun_legacy_migration::{
         probe_legacy_source, CancellationToken, MigrationEngine, NoCrashInjection, ProbeLimits,
     };
-    use openbitfun_product_domains::legacy_migration::{MigrationGroupId, MigrationSelection};
+    use bitfun_product_domains::legacy_migration::{MigrationGroupId, MigrationSelection};
     use sha2::{Digest, Sha256};
     use std::collections::BTreeSet;
     use std::path::Path;
@@ -1114,7 +1114,7 @@ mod tests {
         assert!(profiles["Standard"].get("enabled_user_skills").is_none());
         assert_eq!(
             profiles["Ultimate"]["enabled_user_skills"],
-            serde_json::json!(["user::openbitfun::skill"])
+            serde_json::json!(["user::bitfun::skill"])
         );
         assert_eq!(
             profiles["custom::agentic"]["added_tools"],
@@ -1134,7 +1134,7 @@ mod tests {
         assert!(!outcome.conflicts.is_empty());
         assert_eq!(
             merged.ai.agent_profiles["Ultimate"].enabled_user_skills,
-            ["user::openbitfun::skill"]
+            ["user::bitfun::skill"]
         );
         let saved = serde_json::to_value(&merged).unwrap();
         let reloaded: GlobalConfig = serde_json::from_value(saved.clone()).unwrap();
@@ -1182,7 +1182,7 @@ mod tests {
         assert_eq!(target.workspace.line_ending, "lf");
         assert!(!target.workspace.insert_final_newline);
         assert!(target.tool_permissions.interaction.auto_approve_ask);
-        assert_eq!(target.appearance.selection, "openbitfun-dark");
+        assert_eq!(target.appearance.selection, "bitfun-dark");
         assert_eq!(
             target.ai.default_models.primary.as_deref(),
             Some("legacy-model")
@@ -1208,15 +1208,15 @@ mod tests {
         assert_eq!(profile.removed_tools, ["ReadFile"]);
         assert_eq!(
             profile.disabled_user_skills,
-            ["user::openbitfun::disabled-skill"]
+            ["user::bitfun::disabled-skill"]
         );
         assert_eq!(
             profile.enabled_user_skills,
-            ["user::openbitfun::user-skill"]
+            ["user::bitfun::user-skill"]
         );
         assert_eq!(
             target.ai.skill_settings.globally_disabled_user_skills,
-            ["user::openbitfun::global-disabled-skill"]
+            ["user::bitfun::global-disabled-skill"]
         );
         assert_eq!(
             target.ai.review_teams["default"].reviewer_timeout_seconds,
@@ -1474,12 +1474,12 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();
         tempfile::Builder::new()
-            .prefix(&format!("openbitfun-migration-{label}-"))
+            .prefix(&format!("bitfun-migration-{label}-"))
             .tempdir_in(root)
             .unwrap()
     }

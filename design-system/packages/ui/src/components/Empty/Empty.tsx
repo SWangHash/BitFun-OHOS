@@ -39,25 +39,25 @@ export const Empty = forwardRef<HTMLDivElement, EmptyProps>(function Empty({
     <div
       {...props}
       className={classNames(styles.root, className)}
-      data-openbitfun-component="empty"
+      data-bitfun-component="empty"
       ref={ref}
       style={style}
     >
       <div
         className={styles.media}
-        data-openbitfun-part="media"
+        data-bitfun-part="media"
         data-size={imageSize}
       >
         {media}
       </div>
       {title !== undefined && title !== null && (
-        <div className={styles.title} data-openbitfun-part="title">{title}</div>
+        <div className={styles.title} data-bitfun-part="title">{title}</div>
       )}
       {description !== undefined && description !== null && (
-        <div className={styles.description} data-openbitfun-part="description">{description}</div>
+        <div className={styles.description} data-bitfun-part="description">{description}</div>
       )}
       {footer !== undefined && footer !== null && (
-        <div className={styles.actions} data-openbitfun-part="actions">{footer}</div>
+        <div className={styles.actions} data-bitfun-part="actions">{footer}</div>
       )}
     </div>
   );

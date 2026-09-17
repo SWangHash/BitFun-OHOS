@@ -32,7 +32,7 @@ Use these tables to select tools for the user's tasks, then put their exact name
 | Tool name | Purpose |
 | --- | --- |
 | `Task` | Delegate work to a subagent task and collect its result. |
-| `ListModels` | List enabled OpenBitFun model configurations. |
+| `ListModels` | List enabled BitFun model configurations. |
 | `AgentWait` | Wait for selected background agent results. |
 | `Skill` | Discover and load reusable skills for specialized workflows. |
 
@@ -77,12 +77,12 @@ Use these tables to select tools for the user's tasks, then put their exact name
 | `ControlHub` | Control built-in or external browsers and existing terminal sessions. |
 | `Playbook` | Retrieve predefined operation guides for common tasks. |
 
-## OpenBitFun customization
+## BitFun customization
 
 | Tool name | Purpose |
 | --- | --- |
-| `OpenBitFunControl` | Discover and control OpenBitFun features and settings. |
-| `FrontendWorkbench` | Draft and hot-apply the packaged OpenBitFun frontend with rollback protection. |
+| `BitFunControl` | Discover and control BitFun features and settings. |
+| `FrontendWorkbench` | Draft and hot-apply the packaged BitFun frontend with rollback protection. |
 | `PublishAppearance` | Submit an Appearance package to the Skin market for review. |
 
 ## MiniApp development and publishing
@@ -110,8 +110,8 @@ Use these tables to select tools for the user's tasks, then put their exact name
 | `SessionMessage` | Send a message to another agent session and receive its result asynchronously. |
 | `SessionHistory` | Export an agent session transcript and index for targeted history reads. |
 | `PortForward` | Forward a port from an SSH host to the user's machine. |
-| `PagePublish` | Upload, save a version of, and deploy an OpenBitFun Page. |
-| `PageDeploy` | Deploy a saved OpenBitFun Page version to production. |
+| `PagePublish` | Upload, save a version of, and deploy an BitFun Page. |
+| `PageDeploy` | Deploy a saved BitFun Page version to production. |
 | `GetTime` | Return the current time, weekday, and Unix timestamp. |
 | `AgentSpawn` | Launch an agent to work independently in the background. |
 | `AgentSendInput` | Send an instruction to an existing agent. |

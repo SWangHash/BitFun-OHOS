@@ -1,4 +1,4 @@
-//! System tray integration for OpenBitFun Desktop.
+//! System tray integration for BitFun Desktop.
 //!
 //! Creates a system tray icon with a context menu. On Windows and Linux the tray
 //! icon is always visible while the process is running; on macOS the icon appears
@@ -7,8 +7,8 @@
 //! Left-click  – shows and focuses the main window on macOS; toggles it elsewhere.
 //! Right-click – opens a context menu with:
 //!   • toggle desktop Agent companion pet (persisted via `app.ai_experience`)
-//!   • "Show OpenBitFun"
-//!   • "Quit OpenBitFun"
+//!   • "Show BitFun"
+//!   • "Quit BitFun"
 //!
 //! The context menu is rebuilt every time the user left-clicks (for freshness),
 //! periodically, and after locale changes.
@@ -20,9 +20,9 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
-use openbitfun_core::service::config::app_language::get_app_language;
-use openbitfun_core::service::config::types::AIExperienceConfig;
-use openbitfun_core::service::i18n::LocaleId;
+use bitfun_core::service::config::app_language::get_app_language;
+use bitfun_core::service::config::types::AIExperienceConfig;
+use bitfun_core::service::i18n::LocaleId;
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
@@ -39,20 +39,20 @@ struct TrayStrings {
 }
 
 const STRINGS_ZH_CN: TrayStrings = TrayStrings {
-    show_app: "显示 OpenBitFun",
-    quit_app: "退出 OpenBitFun",
+    show_app: "显示 BitFun",
+    quit_app: "退出 BitFun",
     desktop_pet: "显示桌面宠物",
 };
 
 const STRINGS_ZH_TW: TrayStrings = TrayStrings {
-    show_app: "顯示 OpenBitFun",
-    quit_app: "退出 OpenBitFun",
+    show_app: "顯示 BitFun",
+    quit_app: "退出 BitFun",
     desktop_pet: "顯示桌面寵物",
 };
 
 const STRINGS_EN_US: TrayStrings = TrayStrings {
-    show_app: "Show OpenBitFun",
-    quit_app: "Quit OpenBitFun",
+    show_app: "Show BitFun",
+    quit_app: "Quit BitFun",
     desktop_pet: "Show desktop pet",
 };
 
@@ -210,7 +210,7 @@ pub fn setup_tray(
         .icon_as_template(cfg!(target_os = "macos"))
         .menu(&initial_menu)
         .show_menu_on_left_click(false)
-        .tooltip("OpenBitFun")
+        .tooltip("BitFun")
         .on_menu_event(|app, event| {
             let id = event.id.as_ref();
             if id == "show_window" {
@@ -292,7 +292,7 @@ pub fn set_unread_count(count: u32) -> Result<(), String> {
 #[cfg(target_os = "macos")]
 fn macos_tray_icon(has_unread: bool) -> Result<tauri::image::Image<'static>, image::ImageError> {
     let mark = image::load_from_memory(include_bytes!(
-        "../../../../assets/brand/source/openbitfun-app-mark.png"
+        "../../../../assets/brand/source/bitfun-app-mark.png"
     ))?
     .into_rgba8();
     // The solid source has a 51 px transparent border on its 512 px canvas.

@@ -13,7 +13,7 @@ export interface CreationCommand {
 }
 type Handler = (args: Record<string, CreationValue>) => unknown | Promise<unknown>;
 type Listener = (value: CreationValue) => void | Promise<void>;
-const STATE_PREFIX = 'openbitfun.creation.state.v1:';
+const STATE_PREFIX = 'bitfun.creation.state.v1:';
 const TYPES: ParameterType[] = ['string', 'number', 'integer', 'boolean', 'object', 'array'];
 
 function identifier(id: string): void {

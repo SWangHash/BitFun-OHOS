@@ -3,7 +3,7 @@
 }
 
 .canvas-tool-card__icon {
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 .canvas-tool-card__title {
@@ -15,32 +15,32 @@
 .canvas-tool-card__extra {
   display: inline-flex;
   align-items: center;
-  gap: var(--openbitfun-control-flow-chat-control-gap);
+  gap: var(--bitfun-control-flow-chat-control-gap);
   min-width: 0;
 }
 
 .canvas-tool-card__status,
 .canvas-tool-card__meta {
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-control-font-size);
 }
 
 .canvas-tool-card__diagnostics {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--openbitfun-color-status-warning-content);
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  color: var(--bitfun-color-status-warning-content);
+  font-size: var(--bitfun-type-flow-control-font-size);
 }
 
 .canvas-tool-card__open-icon {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 .canvas-tool-card__body {
   display: grid;
-  gap: var(--openbitfun-space-2);
-  padding: var(--openbitfun-control-flow-chat-card-expanded-padding-block) var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
+  gap: var(--bitfun-space-2);
+  padding: var(--bitfun-control-flow-chat-card-expanded-padding-block) var(--bitfun-control-flow-chat-card-expanded-padding-inline);
 }
 
 .canvas-tool-card__source-preview {
@@ -55,7 +55,7 @@
 
 .canvas-tool-card__diagnostic-list {
   margin: 0;
-  padding-left: var(--openbitfun-space-4);
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  padding-left: var(--bitfun-space-4);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-control-font-size);
 }

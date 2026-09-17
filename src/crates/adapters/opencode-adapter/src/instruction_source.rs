@@ -1,8 +1,8 @@
 use globset::{GlobBuilder, GlobMatcher};
-use openbitfun_services_core::bounded_fs::{
+use bitfun_services_core::bounded_fs::{
     collect_bounded_regular_files_with_prune, BoundedDirectoryWalkError, BoundedDirectoryWalkLimits,
 };
-use openbitfun_services_core::local_instructions::{
+use bitfun_services_core::local_instructions::{
     local_instruction_path_exists, read_local_instruction_file, LocalInstructionFile,
     LocalInstructionFiles, MAX_LOCAL_INSTRUCTION_FILES,
 };
@@ -13,8 +13,8 @@ use crate::local_source_paths::{
     find_project_root, local_source_plan, project_asset_directories, LocalConfigDocument,
     LocalConfigDocumentKind, LocalSourcePlanItem, OpenCodeLocalConfigOptions,
 };
-use openbitfun_services_core::bounded_fs::BoundedTextRead;
-use openbitfun_services_core::jsonc::strip_jsonc;
+use bitfun_services_core::bounded_fs::BoundedTextRead;
+use bitfun_services_core::jsonc::strip_jsonc;
 
 #[derive(Debug, Clone)]
 pub struct OpenCodeInstructionSourceOptions {
@@ -185,7 +185,7 @@ fn append_relative_configured_path(
 fn read_instruction_config(document: &LocalConfigDocument) -> Result<Value, String> {
     let content = match document
         .read_bounded(
-            openbitfun_services_core::local_instructions::MAX_LOCAL_INSTRUCTION_FILE_BYTES,
+            bitfun_services_core::local_instructions::MAX_LOCAL_INSTRUCTION_FILE_BYTES,
         )
         .map_err(|error| format!("Failed to read OpenCode config: {error}"))?
     {

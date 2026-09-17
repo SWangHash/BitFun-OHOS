@@ -24,7 +24,7 @@ function releaseLetter(): AnnouncementCard {
     },
     toast: {
       icon: '',
-      title: 'OpenBitFun 1.0.0',
+      title: 'BitFun 1.0.0',
       description: 'Release letter',
       action_label: '',
       dismissible: true,
@@ -150,7 +150,7 @@ describe('ReleaseLetterModal', () => {
     expect(document.querySelector<HTMLButtonElement>('.release-letter__mascot-button')?.disabled).toBe(true);
     renderFrame(LETTER_END);
     expect(document.querySelector('.release-letter-drawing')).toBe(drawing);
-    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(15);
+    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(11);
     expect(document.querySelector('.release-letter__mascot')?.getAttribute('data-settled')).toBe('true');
     expect(frames.size).toBe(0);
   });
@@ -212,7 +212,7 @@ describe('ReleaseLetterModal', () => {
     renderFrame(20500);
     expect(body.getAttribute('transform')).not.toBe(rest);
     expect(document.querySelector('.release-letter-scene')?.getAttribute('data-motion-state')).toBe('settled');
-    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(15);
+    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(11);
     expect(announcementService.markSeen).toHaveBeenCalledOnce();
     renderFrame(22000);
     expect(body.getAttribute('transform')).toBe(rest);
@@ -224,7 +224,7 @@ describe('ReleaseLetterModal', () => {
   it('supports skipping and a full replay without rewriting seen state', () => {
     openLetter();
     act(() => document.querySelector<HTMLButtonElement>('.release-letter__skip')!.click());
-    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(15);
+    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(11);
     renderFrame(LETTER_END + 1); // Flush the real Dialog's focus reconciliation.
     expect(frames.size).toBe(0);
     act(() => document.querySelector<HTMLButtonElement>('.release-letter__version-mark')!.click());
@@ -238,7 +238,7 @@ describe('ReleaseLetterModal', () => {
     motionQuery.matches = true;
     openLetter();
     expect(document.querySelector('.release-letter-scene')?.getAttribute('data-motion-state')).toBe('settled');
-    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(15);
+    expect(document.querySelectorAll('[data-typed="true"]')).toHaveLength(11);
     expect(document.querySelectorAll('[data-cursor="true"]')).toHaveLength(0);
     act(() => document.querySelector<HTMLButtonElement>('.release-letter__mascot-button')!.click());
     renderFrame(LETTER_END + 1);

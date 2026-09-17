@@ -2,7 +2,7 @@
 //! Socket.IO update, ephemeral and acknowledged RPC contracts.
 //!
 //! Reference: slopus/happy @ 108a337e87a5653b604250a9ac3e3bd873dba551.
-//! OpenBitFun keeps GitHub device credentials and host-owned execution; the
+//! BitFun keeps GitHub device credentials and host-owned execution; the
 //! relay stores only opaque encrypted messages and versioned metadata.
 mod device_lifecycle;
 mod origin;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bookmark } from 'lucide-react';
-import { NavigationPanelItem, OverflowText, Icon as CatalogIcon, Tooltip } from '@openbitfun/ui';
+import { NavigationPanelItem, OverflowText, Icon as CatalogIcon, Tooltip } from '@bitfun/ui';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 import type { ShellEntry } from '../hooks/shellEntryTypes';
 
@@ -50,7 +50,7 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
   return (
     <div data-overflow-trigger
       className={[
-        'openbitfun-shell-nav__terminal-item',
+        'bitfun-shell-nav__terminal-item',
         isActive && 'is-active',
         displayCwd && 'has-cwd',
       ].filter(Boolean).join(' ')}
@@ -68,7 +68,7 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
       data-command-status={entry.isRunning ? 'running' : 'stopped'}
     >
       <NavigationPanelItem
-        className="openbitfun-shell-nav__terminal-action"
+        className="bitfun-shell-nav__terminal-action"
         selected={isActive}
         labelBehavior="static"
         onClick={() => { void onOpen(entry); }}
@@ -77,7 +77,7 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
             <button
               aria-label={quickAction.title}
               type="button"
-              className="openbitfun-shell-nav__terminal-close"
+              className="bitfun-shell-nav__terminal-close"
               onClick={(event) => {
                 event.stopPropagation();
                 quickAction.onClick();
@@ -88,27 +88,27 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
           </Tooltip>
         )}
       >
-        <span className="openbitfun-shell-nav__terminal-item-row">
+        <span className="bitfun-shell-nav__terminal-item-row">
           <Tooltip content={entry.name} placement="right">
-            <span className="openbitfun-shell-nav__terminal-item-main">
+            <span className="bitfun-shell-nav__terminal-item-main">
               {showSavedBadge ? (
-                <Bookmark size={14} className="openbitfun-shell-nav__terminal-icon openbitfun-shell-nav__terminal-icon--saved" />
+                <Bookmark size={14} className="bitfun-shell-nav__terminal-icon bitfun-shell-nav__terminal-icon--saved" />
               ) : (
-                <CatalogIcon name="terminal" size="sm" className="openbitfun-shell-nav__terminal-icon" />
+                <CatalogIcon name="terminal" size="sm" className="bitfun-shell-nav__terminal-icon" />
               )}
 
-              <OverflowText className="openbitfun-shell-nav__terminal-label" data-testid="shell-command-text">{entry.name}</OverflowText>
+              <OverflowText className="bitfun-shell-nav__terminal-label" data-testid="shell-command-text">{entry.name}</OverflowText>
 
               {showSavedBadge ? (
-                <span className="openbitfun-shell-nav__saved-indicator">{savedBadgeLabel}</span>
+                <span className="bitfun-shell-nav__saved-indicator">{savedBadgeLabel}</span>
               ) : null}
 
               {entry.startupCommand ? (
-                <span className="openbitfun-shell-nav__cmd-indicator">{startupCommandBadgeLabel}</span>
+                <span className="bitfun-shell-nav__cmd-indicator">{startupCommandBadgeLabel}</span>
               ) : null}
 
               <span
-                className={`openbitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`}
+                className={`bitfun-shell-nav__terminal-dot${entry.isRunning ? ' is-running' : ' is-stopped'}`}
                 data-testid="shell-command-status"
                 data-command-status={entry.isRunning ? 'running' : 'stopped'}
               />
@@ -118,7 +118,7 @@ const ShellNavEntryItem: React.FC<ShellNavEntryItemProps> = ({
         </span>
 
         {displayCwd ? (
-          <span className="openbitfun-shell-nav__terminal-cwd" title={displayCwd}><OverflowText>
+          <span className="bitfun-shell-nav__terminal-cwd" title={displayCwd}><OverflowText>
             {displayCwd}
           </OverflowText></span>
         ) : null}

@@ -1,21 +1,21 @@
 use super::common::{read_bounded_json, stage_domain_dir};
-use openbitfun_agent_runtime::custom_agent::{custom_agent_read_markdown_str, CustomAgentLevel};
-use openbitfun_agent_runtime::skills::{SkillData, SkillLocation, OPENBITFUN_SYSTEM_SKILL_DIR};
-use openbitfun_legacy_migration::{
+use bitfun_agent_runtime::custom_agent::{custom_agent_read_markdown_str, CustomAgentLevel};
+use bitfun_agent_runtime::skills::{SkillData, SkillLocation, BITFUN_SYSTEM_SKILL_DIR};
+use bitfun_legacy_migration::{
     atomic_write_bytes, atomic_write_json, DomainContext, DomainScan, LegacyDomainAdapter,
     LegacyMigrationError, LegacyMigrationResult, MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
-use openbitfun_product_domains::miniapp::builtin::{BUILTIN_APPS, BUILTIN_INSTALL_MARKER};
-use openbitfun_product_domains::miniapp::storage::{
+use bitfun_product_domains::miniapp::builtin::{BUILTIN_APPS, BUILTIN_INSTALL_MARKER};
+use bitfun_product_domains::miniapp::storage::{
     build_import_bundle_plan, COMPILED_HTML, ESM_DEPS_JSON, META_JSON, PACKAGE_JSON,
     REQUIRED_SOURCE_FILES, SOURCE_DIR, STORAGE_JSON,
 };
-use openbitfun_product_domains::miniapp::types::MiniAppMeta;
-use openbitfun_services_integrations::miniapp::storage::MiniAppStorage;
+use bitfun_product_domains::miniapp::types::MiniAppMeta;
+use bitfun_services_integrations::miniapp::storage::MiniAppStorage;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -94,7 +94,7 @@ impl LegacyDomainAdapter for SkillsAdapter {
             self.domain(),
             "legacy_skills_supported",
             "agent-skill.v1",
-            "openbitfun.agent-skill.current",
+            "bitfun.agent-skill.current",
             &planned,
         ))
     }
@@ -205,7 +205,7 @@ impl LegacyDomainAdapter for MiniappsAdapter {
             self.domain(),
             "legacy_miniapps_supported",
             "miniapp.flat.v1",
-            "openbitfun.miniapp.current",
+            "bitfun.miniapp.current",
             &planned,
         ))
     }
@@ -414,7 +414,7 @@ impl LegacyDomainAdapter for AgentsAdapter {
                         .to_string(),
             },
             conflicts,
-            target_schema: Some("openbitfun.custom-agent.current".to_string()),
+            target_schema: Some("bitfun.custom-agent.current".to_string()),
             dependencies: Vec::new(),
         })
     }
@@ -483,7 +483,7 @@ fn plan_skills(roots: &MigrationRoots) -> LegacyMigrationResult<Vec<PlannedTree>
     for source in direct_child_directories(&source_root)? {
         let inspect = (|| -> LegacyMigrationResult<()> {
             let source_id = file_name(&source)?;
-            if source_id == OPENBITFUN_SYSTEM_SKILL_DIR {
+            if source_id == BITFUN_SYSTEM_SKILL_DIR {
                 return Ok(());
             }
             let skill_file = source.join("SKILL.md");
@@ -1013,7 +1013,7 @@ fn conflict_for_action(
         domain,
         code: code.to_string(),
         source_summary: format!("legacy extension id {source_id}"),
-        target_summary: format!("OpenBitFun extension id {target_id}"),
+        target_summary: format!("BitFun extension id {target_id}"),
         resolution,
     })
 }
@@ -1620,10 +1620,10 @@ fn io(path: &Path, error: std::io::Error) -> LegacyMigrationError {
 mod tests {
     use super::*;
     use crate::adapters_for_groups;
-    use openbitfun_legacy_migration::{
+    use bitfun_legacy_migration::{
         probe_legacy_source, CancellationToken, MigrationEngine, NoCrashInjection, ProbeLimits,
     };
-    use openbitfun_product_domains::legacy_migration::{MigrationGroupId, MigrationSelection};
+    use bitfun_product_domains::legacy_migration::{MigrationGroupId, MigrationSelection};
     use std::collections::BTreeSet;
 
     #[test]
@@ -1686,7 +1686,7 @@ mod tests {
             .exists());
         assert!(!roots
             .target_skills_root
-            .join(OPENBITFUN_SYSTEM_SKILL_DIR)
+            .join(BITFUN_SYSTEM_SKILL_DIR)
             .exists());
         assert!(roots
             .target_skills_root
@@ -1968,12 +1968,12 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();
         tempfile::Builder::new()
-            .prefix(&format!("openbitfun-migration-{label}-"))
+            .prefix(&format!("bitfun-migration-{label}-"))
             .tempdir_in(root)
             .unwrap()
     }

@@ -9,7 +9,7 @@ import { getEditorDocument } from '@/tools/editor/services/EditorDocument';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 
-export const SESSION_TAB_DRAG_TYPE = 'application/x-openbitfun-session-tab';
+export const SESSION_TAB_DRAG_TYPE = 'application/x-bitfun-session-tab';
 
 export interface WorkbenchTabDropTarget {
   tabId: SceneTabId;

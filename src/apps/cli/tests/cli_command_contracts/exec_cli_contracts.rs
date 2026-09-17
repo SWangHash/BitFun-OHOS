@@ -8,10 +8,10 @@ use support::{
 };
 
 fn run_cli(args: &[&str]) -> Output {
-    openbitfun_services_core::process_manager::create_command(env!("CARGO_BIN_EXE_openbitfun"))
+    bitfun_services_core::process_manager::create_command(env!("CARGO_BIN_EXE_bitfun"))
         .args(args)
         .output()
-        .expect("run openbitfun")
+        .expect("run bitfun")
 }
 
 fn stdout(output: &Output) -> String {
@@ -44,13 +44,13 @@ fn command_timeout_helper_returns_within_its_failure_budget() {
     #[cfg(windows)]
     let mut command = {
         let mut command =
-            openbitfun_services_core::process_manager::create_command("powershell.exe");
+            bitfun_services_core::process_manager::create_command("powershell.exe");
         command.args(["-NoProfile", "-Command", "Start-Sleep -Seconds 30"]);
         command
     };
     #[cfg(not(windows))]
     let mut command = {
-        let mut command = openbitfun_services_core::process_manager::create_command("sh");
+        let mut command = bitfun_services_core::process_manager::create_command("sh");
         command.args(["-c", "exec sleep 30"]);
         command
     };
@@ -103,14 +103,14 @@ fn exec_accepts_hidden_confirm_compatibility_flag() {
 }
 
 #[test]
-fn cli_agent_controls_its_own_isolated_config_through_openbitfun_control() {
+fn cli_agent_controls_its_own_isolated_config_through_bitfun_control() {
     let server = MockOpenAiServer::product_control_loop();
     let environment = CliTestEnvironment::new();
     environment.configure_product_control_mock_model(server.base_url());
     let mut command = environment.std_command();
     command.args([
         "exec",
-        "用 OpenBitFunControl 搜索工具调用超时，读取、配置为 74，再回读",
+        "用 BitFunControl 搜索工具调用超时，读取、配置为 74，再回读",
         "--auto",
         "--no-verify-final-changes",
         "--output-format",
@@ -124,15 +124,15 @@ fn cli_agent_controls_its_own_isolated_config_through_openbitfun_control() {
     server.assert_chat_completion_requests(5);
 
     let requests = server.chat_completion_request_bodies();
-    let openbitfun_control = requests[0]["tools"]
+    let bitfun_control = requests[0]["tools"]
         .as_array()
         .expect("model tools")
         .iter()
-        .find(|tool| tool["function"]["name"] == "OpenBitFunControl")
-        .expect("OpenBitFunControl is loaded for the CLI Agent");
-    let description = openbitfun_control["function"]["description"]
+        .find(|tool| tool["function"]["name"] == "BitFunControl")
+        .expect("BitFunControl is loaded for the CLI Agent");
+    let description = bitfun_control["function"]["description"]
         .as_str()
-        .expect("OpenBitFunControl description");
+        .expect("BitFunControl description");
     assert!(description.contains("two-step"), "{description}");
     assert!(description.len() < 600, "catalog leaked into tool prompt");
 
@@ -294,7 +294,7 @@ fn stream_json_patch_write_failure_emits_error_without_success_terminal() {
     assert!(
         stderr(&output)
             .lines()
-            .any(|line| line.starts_with("OPENBITFUN_EXIT: patch_write_failed:")),
+            .any(|line| line.starts_with("BITFUN_EXIT: patch_write_failed:")),
         "missing stable patch failure diagnostic: {}",
         stderr(&output)
     );
@@ -469,7 +469,7 @@ fn stream_json_provider_http_403_emits_one_error_terminal() {
     assert!(
         stderr(&output)
             .lines()
-            .any(|line| line.starts_with("OPENBITFUN_EXIT: dialog_turn_failed:")),
+            .any(|line| line.starts_with("BITFUN_EXIT: dialog_turn_failed:")),
         "missing stable provider failure diagnostic: {}",
         stderr(&output)
     );
@@ -531,7 +531,7 @@ fn stream_json_provider_and_patch_failures_publish_one_final_classification() {
     assert_eq!(output.status.code(), Some(1), "{stderr}\n{stdout}");
     let exit_diagnostics = stderr
         .lines()
-        .filter(|line| line.starts_with("OPENBITFUN_EXIT:"))
+        .filter(|line| line.starts_with("BITFUN_EXIT:"))
         .collect::<Vec<_>>();
     assert_eq!(
         exit_diagnostics.len(),
@@ -539,7 +539,7 @@ fn stream_json_provider_and_patch_failures_publish_one_final_classification() {
         "combined failure must have one stable classifier: {stderr}"
     );
     assert!(
-        exit_diagnostics[0].starts_with("OPENBITFUN_EXIT: patch_write_failed:"),
+        exit_diagnostics[0].starts_with("BITFUN_EXIT: patch_write_failed:"),
         "patch delivery failure must be the final classifier: {stderr}"
     );
 

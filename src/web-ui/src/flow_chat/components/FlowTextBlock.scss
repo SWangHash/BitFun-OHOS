@@ -11,20 +11,20 @@
 
   width: 100%;
   margin: 0;
-  font-size: var(--openbitfun-type-flow-body-font-size);
-  line-height: var(--openbitfun-type-flow-body-line-height);
+  font-size: var(--bitfun-type-flow-body-font-size);
+  line-height: var(--bitfun-type-flow-body-line-height);
   border: 0;
   box-sizing: border-box;
 
   .markdown-renderer {
-    --markdown-font-size: var(--openbitfun-type-flow-control-font-size);
-    --markdown-font-size-sm: var(--openbitfun-type-flow-control-font-size);
-    --markdown-code-font-size: var(--openbitfun-type-flow-code-font-size);
-    --markdown-line-height: var(--openbitfun-type-flow-body-line-height);
+    --markdown-font-size: var(--bitfun-type-flow-control-font-size);
+    --markdown-font-size-sm: var(--bitfun-type-flow-control-font-size);
+    --markdown-code-font-size: var(--bitfun-type-flow-code-font-size);
+    --markdown-line-height: var(--bitfun-type-flow-body-line-height);
     --markdown-block-gap: #{markdown.$block-gap};
     --markdown-paragraph-gap: #{markdown.$paragraph-gap};
 
-    line-height: var(--openbitfun-type-flow-body-line-height);
+    line-height: var(--bitfun-type-flow-body-line-height);
   }
 
   /* Keep all rendered link variants (anchors and button-like local links) visibly link-blue. */
@@ -32,7 +32,7 @@
   .markdown-renderer .file-link,
   .markdown-renderer .visualization-link,
   .markdown-renderer .tab-link {
-    color: var(--openbitfun-color-link-default);
+    color: var(--bitfun-color-link-default);
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 2px;
@@ -42,7 +42,7 @@
   .markdown-renderer .file-link:hover,
   .markdown-renderer .visualization-link:hover,
   .markdown-renderer .tab-link:hover {
-    color: var(--openbitfun-color-link-hover);
+    color: var(--bitfun-color-link-hover);
     text-decoration-thickness: 1.5px;
   }
 
@@ -59,11 +59,11 @@
   .markdown-renderer .code-block-wrapper pre[style],
   .markdown-renderer .code-block-wrapper code[style],
   .markdown-renderer pre code {
-    font-size: var(--openbitfun-type-flow-code-font-size) !important;
+    font-size: var(--bitfun-type-flow-code-font-size) !important;
   }
 
   .markdown-renderer .table-wrapper table {
-    font-size: var(--openbitfun-type-flow-control-font-size);
+    font-size: var(--bitfun-type-flow-control-font-size);
   }
 
   /* Inline `code`: no chip background in chat (code blocks unchanged). */
@@ -71,7 +71,7 @@
     background: transparent;
     border: none;
     padding: 0.1em 0.2em;
-    font-size: var(--openbitfun-type-flow-control-font-size);
+    font-size: var(--bitfun-type-flow-control-font-size);
   }
 
   .markdown-renderer .inline-code:hover {
@@ -86,8 +86,8 @@
   }
 
   .markdown-renderer .code-block-lang {
-    font-size: var(--openbitfun-type-flow-micro-font-size);
-    line-height: var(--openbitfun-type-flow-meta-line-height);
+    font-size: var(--bitfun-type-flow-micro-font-size);
+    line-height: var(--bitfun-type-flow-meta-line-height);
   }
 
   .markdown-renderer .code-block-wrapper .copy-button {
@@ -100,21 +100,21 @@
 
   .markdown-renderer .code-block-wrapper .copy-button:hover {
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .markdown-renderer .code-block-wrapper .copy-button:active {
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
 
   .text-content {
-    color: var(--openbitfun-color-content-primary);
-    line-height: var(--openbitfun-type-flow-body-line-height);
+    color: var(--bitfun-color-content-primary);
+    line-height: var(--bitfun-type-flow-body-line-height);
     white-space: pre-wrap;
     word-wrap: break-word;
   }
@@ -128,11 +128,11 @@
   &--runtime-status {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-control-flow-chat-control-gap);
+    gap: var(--bitfun-control-flow-chat-control-gap);
     min-height: 1.5rem;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-body-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-body-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
     opacity: 0.86;
   }
 }
@@ -144,26 +144,26 @@
 }
 
 /* Light theme: copy button icon color (scoped to flow chat). */
-:root[data-openbitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover {
-  color: var(--openbitfun-color-overlay-scrim);
+:root[data-bitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover {
+  color: var(--bitfun-color-overlay-scrim);
 }
 
-:root[data-openbitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
-  color: var(--openbitfun-color-status-success-content);
+:root[data-bitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
+  color: var(--bitfun-color-status-success-content);
 }
 
-:root[data-openbitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .inline-code {
+:root[data-bitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .inline-code {
   background: transparent;
   border: none;
 }
 
-:root[data-openbitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .inline-code:hover {
+:root[data-bitfun-appearance-mode='light'] .flow-text-block .markdown-renderer .inline-code:hover {
   background: transparent;
   border: none;
 }
 
-:root[data-openbitfun-appearance-mode='dark'] .flow-text-block .markdown-renderer .inline-code,
-:root[data-openbitfun-appearance-mode='dark'] .flow-text-block .markdown-renderer .inline-code:hover {
+:root[data-bitfun-appearance-mode='dark'] .flow-text-block .markdown-renderer .inline-code,
+:root[data-bitfun-appearance-mode='dark'] .flow-text-block .markdown-renderer .inline-code:hover {
   background: transparent;
   border: none;
 }

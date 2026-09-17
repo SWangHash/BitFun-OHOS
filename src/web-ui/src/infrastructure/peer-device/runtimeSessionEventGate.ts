@@ -22,8 +22,8 @@ import {
 } from '@/flow_chat/session-stream/position';
 
 /** Keep in sync with the Rust `SessionEventJournal` delivery-envelope keys. */
-export const RUNTIME_EVENT_STREAM_ID_KEY = '__openbitfunRuntimeStreamId';
-export const RUNTIME_EVENT_CURSOR_KEY = '__openbitfunRuntimeEventCursor';
+export const RUNTIME_EVENT_STREAM_ID_KEY = '__bitfunRuntimeStreamId';
+export const RUNTIME_EVENT_CURSOR_KEY = '__bitfunRuntimeEventCursor';
 
 const attachmentFinishedListeners = new Set<(surfaceId: DeviceSurfaceId, sessionId: string) => void>();
 

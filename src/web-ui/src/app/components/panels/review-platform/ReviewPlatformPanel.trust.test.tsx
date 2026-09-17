@@ -39,7 +39,7 @@ vi.mock('@/flow_chat/services/btwSessionPane', () => ({ openBtwSessionInAuxPane:
 vi.mock('@/shared/services/ide-control', () => ({ quickActions: {} }));
 vi.mock('@/shared/stores/contextStore', () => ({ useContextStore: {} }));
 vi.mock('@/infrastructure/markdown', () => ({ MarkdownRenderer: () => null }));
-vi.mock('@openbitfun/ui', () => {
+vi.mock('@bitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Button = ({ children, onClick, disabled, 'aria-label': label }: {
     children?: React.ReactNode; onClick?: () => void; disabled?: boolean; 'aria-label'?: string;

@@ -1,4 +1,4 @@
-import { Button, Icon, IconButton, Input, SessionIcon, TabGroup } from "@openbitfun/ui";
+import { Button, Icon, IconButton, Input, SessionIcon, TabGroup } from "@bitfun/ui";
 import { useI18n } from "../i18n";
 
 export function IconCompositionPreview() {
@@ -20,8 +20,8 @@ export function IconCompositionPreview() {
           {(["default", "hover", "active", "disabled"] as const).map(state => (
             <div className="component-icon-composition__row" key={state}>
               <code>IconButton / {state}</code>
-              <IconButton aria-label={`22px / ${state}`} icon={<Icon name="session" />} size="xs" disabled={state === "disabled"} data-openbitfun-preview-state={state} />
-              <IconButton aria-label={`30px / ${state}`} icon={<Icon name="session" />} size="standard" shape="circle" variant="outline" disabled={state === "disabled"} data-openbitfun-preview-state={state} />
+              <IconButton aria-label={`22px / ${state}`} icon={<Icon name="session" />} size="xs" disabled={state === "disabled"} data-bitfun-preview-state={state} />
+              <IconButton aria-label={`30px / ${state}`} icon={<Icon name="session" />} size="standard" shape="circle" variant="outline" disabled={state === "disabled"} data-bitfun-preview-state={state} />
             </div>
           ))}
         </div>

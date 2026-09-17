@@ -25,7 +25,7 @@ import {
   MobileListRow,
   MobilePageHeader,
   MobileStatus,
-} from '@openbitfun/ui/mobile';
+} from '@bitfun/ui/mobile';
 import {
   RelayHttpClient,
   isAccountIdentityChangedError,

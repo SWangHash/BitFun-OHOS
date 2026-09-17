@@ -201,7 +201,7 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
         title={hasOverflowTooltip ? undefined : title}
       >
         {behavior === "marquee" || ((textOnly || overflowStyle === "ellipsis") && lines === undefined) ? (
-          <span className={styles.content} data-openbitfun-part="content" data-overflow-content="" ref={contentRef}>
+          <span className={styles.content} data-bitfun-part="content" data-overflow-content="" ref={contentRef}>
             {children}
           </span>
         ) : children}

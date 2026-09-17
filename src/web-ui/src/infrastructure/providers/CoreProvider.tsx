@@ -1,6 +1,6 @@
  
 import React, { useEffect, useState, ReactNode } from 'react';
-import { Button } from '@openbitfun/ui';
+import { Button } from '@bitfun/ui';
 import { initializeCore, destroyCore } from '../index';
 import { globalEventBus } from '../event-bus';
 import { createLogger } from '@/shared/utils/logger';
@@ -68,8 +68,8 @@ export const CoreProvider: React.FC<CoreProviderProps> = ({ children }) => {
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        background: 'var(--openbitfun-color-surface-canvas)',
-        color: 'var(--openbitfun-color-content-primary)'
+        background: 'var(--bitfun-color-surface-canvas)',
+        color: 'var(--bitfun-color-content-primary)'
       }}>
         <div>{tCommon('core.initializing')}</div>
       </div>
@@ -84,8 +84,8 @@ export const CoreProvider: React.FC<CoreProviderProps> = ({ children }) => {
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        background: 'var(--openbitfun-color-surface-canvas)',
-        color: 'var(--openbitfun-color-content-primary)'
+        background: 'var(--bitfun-color-surface-canvas)',
+        color: 'var(--bitfun-color-content-primary)'
       }}>
         <h2>{tErrors('core.initializationFailed')}</h2>
         <p>{error}</p>

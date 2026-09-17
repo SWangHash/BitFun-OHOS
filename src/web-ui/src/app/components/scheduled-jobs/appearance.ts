@@ -23,11 +23,11 @@ export const scheduledJobsViewAppearanceDescriptor: AppearanceSurfaceDescriptor 
     { id: 'formActions' },
   ],
   facets: [
-    { id: 'target', attribute: 'data-openbitfun-target', values: ['session', 'workspace'] },
-    { id: 'schedule', attribute: 'data-openbitfun-schedule', values: ['at', 'every', 'cron'] },
+    { id: 'target', attribute: 'data-bitfun-target', values: ['session', 'workspace'] },
+    { id: 'schedule', attribute: 'data-bitfun-schedule', values: ['at', 'every', 'cron'] },
   ],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
   ],
 };

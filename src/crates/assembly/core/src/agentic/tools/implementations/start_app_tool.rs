@@ -8,7 +8,7 @@
 use super::devecocli_run::{run_devecocli, DevecocliOptions};
 use super::harmony_device::{resolve_start_app_device, DeviceResolution};
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -32,7 +32,7 @@ impl Tool for StartAppTool {
         "start_app"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Run a HarmonyOS app on a connected device via devecocli.
 
 When `hvd` is omitted, lists connected devices. Use this after build_project to deploy and launch the app.
@@ -89,7 +89,7 @@ Example:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let hvd = input.get("hvd").and_then(|v| v.as_str());
         let module = input.get("module").and_then(|v| v.as_str()).unwrap_or("entry");
         let target = input.get("target").and_then(|v| v.as_str()).unwrap_or("default");
@@ -174,7 +174,7 @@ async fn try_hdc_fallback(
     target: &str,
     ability: &str,
     context: &ToolUseContext,
-) -> OpenBitFunResult<Vec<ToolResult>> {
+) -> BitFunResult<Vec<ToolResult>> {
     log::info!("start_app: devecocli path failed, attempting hdc fallback");
     let result = super::hdc_fallback::run_hdc_start_fallback(hvd, module, target, ability, context).await?;
     Ok(vec![result])
@@ -183,7 +183,7 @@ async fn try_hdc_fallback(
 /// Build the final error for the assistant: the primary failure message plus,
 /// when the hdc fallback also failed, its reason, and finally the manual
 /// ExecCommand hint as a last resort.
-fn append_fallback_hint(primary: String, fallback_reason: Option<&str>) -> OpenBitFunError {
+fn append_fallback_hint(primary: String, fallback_reason: Option<&str>) -> BitFunError {
     let mut msg = primary;
     if let Some(r) = fallback_reason {
         if !r.is_empty() {
@@ -193,7 +193,7 @@ fn append_fallback_hint(primary: String, fallback_reason: Option<&str>) -> OpenB
     }
     msg.push_str("\n\n");
     msg.push_str(&hdc_fallback_hint());
-    OpenBitFunError::tool(msg)
+    BitFunError::tool(msg)
 }
 
 /// Last-resort manual instructions embedded in start_app error messages after

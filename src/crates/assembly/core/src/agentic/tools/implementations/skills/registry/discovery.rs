@@ -39,7 +39,7 @@ fn supports_flat_skills(source_id: &str) -> bool {
 #[cfg(all(test, feature = "external-sources"))]
 mod configured_pi_tests {
     use super::*;
-    use openbitfun_product_domains::external_sources::ExternalSourceScope;
+    use bitfun_product_domains::external_sources::ExternalSourceScope;
 
     #[tokio::test]
     async fn explicit_paths_reuse_pi_parsing_and_keep_stable_distinct_identities() {
@@ -133,7 +133,7 @@ fn flat_skill_data(
     content: &str,
     level: SkillLocation,
     slot: &str,
-) -> Result<SkillData, openbitfun_agent_runtime::skills::SkillParseError> {
+) -> Result<SkillData, bitfun_agent_runtime::skills::SkillParseError> {
     let stem = filename.strip_suffix(".md").unwrap_or(filename);
     let mut data = SkillRegistry::parse_skill_markdown(
         format!("{}/{stem}", directory.trim_end_matches(['/', '\\'])),
@@ -166,7 +166,7 @@ impl SkillRegistry {
         let mut seen = standard.iter().filter_map(identity).collect::<HashSet<_>>();
         for root in roots {
             let level = if root.scope
-                == openbitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal
+                == bitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal
             {
                 SkillLocation::User
             } else {
@@ -402,7 +402,7 @@ impl SkillRegistry {
                         match fs.read_file_text_bounded(&skill_md, MAX_SKILL_BYTES).await {
                             Ok(Some(content)) => {
                                 let marker = format!("{path}/{}", imports::IMPORT_MARKER);
-                                let import_origin = if entry.source_id == OPENBITFUN_SKILL_SOURCE_ID
+                                let import_origin = if entry.source_id == BITFUN_SKILL_SOURCE_ID
                                 {
                                     let marker_content = match fs.exists(&marker).await {
                                         Ok(false) => Ok(None),
@@ -745,7 +745,7 @@ impl SkillRegistry {
                                 "SKILL.md exceeds the discovery size limit",
                             ));
                         } else {
-                            let import_origin = if entry.source_id == OPENBITFUN_SKILL_SOURCE_ID
+                            let import_origin = if entry.source_id == BITFUN_SKILL_SOURCE_ID
                                 && !entry.is_builtin
                             {
                                 match imports::read_import_origin(&path).await {
@@ -891,8 +891,8 @@ impl SkillRegistry {
                 }
                 let child_path = child.path();
                 if depth == 0
-                    && matches!(entry.slot, OPENBITFUN_USER_SKILL_SLOT | "home.dsh")
-                    && child.file_name() == OPENBITFUN_SYSTEM_SKILL_DIR
+                    && matches!(entry.slot, BITFUN_USER_SKILL_SLOT | "home.dsh")
+                    && child.file_name() == BITFUN_SYSTEM_SKILL_DIR
                 {
                     continue;
                 }

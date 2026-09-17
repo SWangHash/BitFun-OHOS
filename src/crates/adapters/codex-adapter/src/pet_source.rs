@@ -1,5 +1,5 @@
 //! Static discovery of bundled pets. Bundle JavaScript is inspected as data, never evaluated.
-use openbitfun_services_core::asar::AsarArchive;
+use bitfun_services_core::asar::AsarArchive;
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
@@ -44,7 +44,7 @@ fn installation_archives(diagnostics: &mut Vec<String>) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     #[cfg(target_os = "windows")]
     {
-        match openbitfun_services_core::installed_apps::windows_package_roots("OpenAI.Codex") {
+        match bitfun_services_core::installed_apps::windows_package_roots("OpenAI.Codex") {
             Ok(packages) => paths.extend(sort_windows_packages(packages)),
             Err(error) => diagnostics.push(format!(
                 "Could not inspect Codex app registrations: {error}"

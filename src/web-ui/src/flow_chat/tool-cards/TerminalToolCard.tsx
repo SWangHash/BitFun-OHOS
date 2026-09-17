@@ -122,7 +122,7 @@ function renderTerminalExpandedContent(params: {
   return (
     <>
       {viewState.displayPhase === 'live_output' && (
-        <div className="terminal-execution-output" data-testid="chat-shell-command-output" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="output">
+        <div className="terminal-execution-output" data-testid="chat-shell-command-output" data-bitfun-component="terminal-tool-card" data-bitfun-part="output">
           <LazyTerminalOutputRenderer
             content={liveOutput}
             className="terminal-xterm-output"
@@ -132,15 +132,15 @@ function renderTerminalExpandedContent(params: {
       )}
 
       {(viewState.displayPhase === 'receiving_params' || viewState.displayPhase === 'executing') && waitingMessage && (
-        <div className="terminal-execution-output terminal-waiting" data-testid="chat-shell-command-output" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="waiting">
+        <div className="terminal-execution-output terminal-waiting" data-testid="chat-shell-command-output" data-bitfun-component="terminal-tool-card" data-bitfun-part="waiting">
           <span className="waiting-text">{waitingMessage}</span>
         </div>
       )}
 
       {viewState.showCompletedResult && (
-        <div className="terminal-result-container" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="result">
+        <div className="terminal-result-container" data-bitfun-component="terminal-tool-card" data-bitfun-part="result">
           {parsedResult.output && (
-            <div className="terminal-result-output" data-testid="chat-shell-command-output" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="output">
+            <div className="terminal-result-output" data-testid="chat-shell-command-output" data-bitfun-component="terminal-tool-card" data-bitfun-part="output">
               <LazyTerminalOutputRenderer
                 content={parsedResult.output}
                 className="terminal-xterm-output"
@@ -148,7 +148,7 @@ function renderTerminalExpandedContent(params: {
               />
             </div>
           )}
-          <div className="terminal-result-footer" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="footer">
+          <div className="terminal-result-footer" data-bitfun-component="terminal-tool-card" data-bitfun-part="footer">
             {parsedResult.workingDir && (
               <>
                 <span className="terminal-result-label">{t('toolCards.terminal.workingDirectory')}</span>
@@ -173,15 +173,15 @@ function renderTerminalExpandedContent(params: {
       )}
 
       {viewState.showCancelledResult && (
-        <div className="terminal-result-container cancelled" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="result" data-openbitfun-state="cancelled">
-          <div className="terminal-result-output" data-testid="chat-shell-command-output" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="output">
+        <div className="terminal-result-container cancelled" data-bitfun-component="terminal-tool-card" data-bitfun-part="result" data-bitfun-state="cancelled">
+          <div className="terminal-result-output" data-testid="chat-shell-command-output" data-bitfun-component="terminal-tool-card" data-bitfun-part="output">
             <LazyTerminalOutputRenderer
               content={liveOutput}
               className="terminal-xterm-output"
               maxRows={maxRows}
             />
           </div>
-          <div className="terminal-result-footer" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="footer">
+          <div className="terminal-result-footer" data-bitfun-component="terminal-tool-card" data-bitfun-part="footer">
             <span className="terminal-cancelled-text">{t('toolCards.terminal.commandInterrupted')}</span>
           </div>
         </div>
@@ -192,7 +192,7 @@ function renderTerminalExpandedContent(params: {
 
 function renderTerminalErrorContent(errorMessage: string): React.ReactNode {
   return (
-    <div data-openbitfun-component="terminal-tool-card" data-openbitfun-part="error" data-openbitfun-state="error" className="error-content">
+    <div data-bitfun-component="terminal-tool-card" data-bitfun-part="error" data-bitfun-state="error" className="error-content">
       <div className="error-message">{errorMessage}</div>
     </div>
   );
@@ -555,14 +555,14 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
     }
 
     return (
-      <span data-openbitfun-component="terminal-tool-card" data-openbitfun-part="status" className={`terminal-status-text ${viewState.statusClassName}`}>
+      <span data-bitfun-component="terminal-tool-card" data-bitfun-part="status" className={`terminal-status-text ${viewState.statusClassName}`}>
         {t(`toolCards.terminal.${viewState.statusLabel}`)}
       </span>
     );
   };
 
   const renderHeaderExtra = (includeInterrupt: boolean) => (
-    <span className="terminal-header-extra" data-openbitfun-component="terminal-tool-card" data-openbitfun-part="actions">
+    <span className="terminal-header-extra" data-bitfun-component="terminal-tool-card" data-bitfun-part="actions">
       {/* Always visible while running: interrupt */}
       {includeInterrupt && viewState.showInterruptButton && (
         <span className="terminal-critical-actions">
@@ -652,9 +652,9 @@ export const TerminalToolCard: React.FC<TerminalToolCardProps> = ({
     : null;
 
   return (
-    <div data-openbitfun-component="terminal-tool-card" data-openbitfun-part="root"
-      data-openbitfun-status={status}
-      data-openbitfun-state={[isExpanded && 'expanded', viewState.isFailed && 'error'].filter(Boolean).join(' ') || undefined}
+    <div data-bitfun-component="terminal-tool-card" data-bitfun-part="root"
+      data-bitfun-status={status}
+      data-bitfun-state={[isExpanded && 'expanded', viewState.isFailed && 'error'].filter(Boolean).join(' ') || undefined}
       ref={cardRootRef}
       data-testid="chat-shell-command-card"
       data-tool-card-id={toolId ?? ''}

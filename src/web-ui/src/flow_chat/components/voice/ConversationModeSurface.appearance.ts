@@ -9,7 +9,7 @@ export const conversationModeSurfaceAppearanceDescriptor: AppearanceSurfaceDescr
     { id: 'modeSwitchButton' },
   ],
   states: [
-    { id: 'chat', selector: { kind: 'self', suffix: '[data-openbitfun-state~="chat"]' } },
-    { id: 'voice', selector: { kind: 'self', suffix: '[data-openbitfun-state~="voice"]' } },
+    { id: 'chat', selector: { kind: 'self', suffix: '[data-bitfun-state~="chat"]' } },
+    { id: 'voice', selector: { kind: 'self', suffix: '[data-bitfun-state~="voice"]' } },
   ],
 };

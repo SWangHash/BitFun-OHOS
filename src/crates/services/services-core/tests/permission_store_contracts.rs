@@ -1,12 +1,12 @@
 #![cfg(feature = "permission")]
 
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     PermissionAuditEvent, PermissionAuditRecord, PermissionAuditStorePort, PermissionGrant,
     PermissionGrantKey, PermissionGrantStorePort, PermissionReply, PermissionReplySource,
     PermissionReplyStorePort, PermissionRequest, PermissionRequestSource,
     PermissionRequestSourceKind,
 };
-use openbitfun_services_core::permission_store::ProjectPermissionSqliteStore;
+use bitfun_services_core::permission_store::ProjectPermissionSqliteStore;
 use serde_json::Map;
 
 fn request(request_id: &str, project_id: &str) -> PermissionRequest {

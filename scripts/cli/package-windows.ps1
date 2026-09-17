@@ -24,7 +24,7 @@ if (-not $OutputDir) {
 $ReleaseDir = [IO.Path]::GetFullPath($ReleaseDir)
 $OutputDir = [IO.Path]::GetFullPath($OutputDir)
 
-$primary = Join-Path $ReleaseDir 'openbitfun.exe'
+$primary = Join-Path $ReleaseDir 'bitfun.exe'
 $pluginHostDist = Join-Path $repoRoot 'src\apps\extension-host\dist'
 $pluginHostResourceRelative = 'resources\ext-host'
 
@@ -66,13 +66,13 @@ function Assert-NoRedistributableRuntime([string]$Executable) {
 }
 
 & $primary --version
-Assert-LastExitCode 'openbitfun --version'
+Assert-LastExitCode 'bitfun --version'
 & $primary --help | Out-Null
-Assert-LastExitCode 'openbitfun --help'
+Assert-LastExitCode 'bitfun --help'
 Assert-NoRedistributableRuntime $primary
 Assert-PluginHostResources $pluginHostDist
 
-$stageName = "openbitfun-cli-$Version-$Target"
+$stageName = "bitfun-cli-$Version-$Target"
 $stageDir = Join-Path (Join-Path $OutputDir 'dist-cli') $stageName
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 Copy-Item -LiteralPath $primary -Destination $stageDir -Force
@@ -114,12 +114,12 @@ if ($recordedHash -cne $hash) {
     throw 'Packaged archive checksum mismatch'
 }
 
-$extractDir = Join-Path ([IO.Path]::GetTempPath()) "openbitfun-cli-package-$([guid]::NewGuid().ToString('N'))"
+$extractDir = Join-Path ([IO.Path]::GetTempPath()) "bitfun-cli-package-$([guid]::NewGuid().ToString('N'))"
 try {
     Expand-Archive -LiteralPath $archive -DestinationPath $extractDir
-    $primaryCandidates = @(Get-ChildItem -LiteralPath $extractDir -Recurse -Filter 'openbitfun.exe')
+    $primaryCandidates = @(Get-ChildItem -LiteralPath $extractDir -Recurse -Filter 'bitfun.exe')
     if ($primaryCandidates.Count -ne 1) {
-        throw 'Expected exactly one OpenBitFun CLI entrypoint in the packaged archive'
+        throw 'Expected exactly one BitFun CLI entrypoint in the packaged archive'
     }
     foreach ($requiredFile in @(
         'README.md',
@@ -135,9 +135,9 @@ try {
     }
 
     & $primaryCandidates[0].FullName --version
-    Assert-LastExitCode 'packaged openbitfun --version'
+    Assert-LastExitCode 'packaged bitfun --version'
     & $primaryCandidates[0].FullName --help | Out-Null
-    Assert-LastExitCode 'packaged openbitfun --help'
+    Assert-LastExitCode 'packaged bitfun --help'
 }
 finally {
     Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue

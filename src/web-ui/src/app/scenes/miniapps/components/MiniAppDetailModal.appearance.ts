@@ -16,7 +16,7 @@ export const miniAppDetailModalAppearanceDescriptor: AppearanceSurfaceDescriptor
     { id: 'actions' },
   ],
   states: [
-    { id: 'running', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="running"]' } },
-    { id: 'customizing', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="customizing"]' } },
+    { id: 'running', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="running"]' } },
+    { id: 'customizing', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="customizing"]' } },
   ],
 };

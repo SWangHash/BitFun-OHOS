@@ -31,7 +31,7 @@ pub async fn file_revision(
         .metadata(&resolved.resolved_path, true)
         .await
         .ok()??;
-    if before.kind != openbitfun_runtime_ports::WorkspacePathKind::File {
+    if before.kind != bitfun_runtime_ports::WorkspacePathKind::File {
         return None;
     }
     let modified_ns = before.modified?.duration_since(UNIX_EPOCH).ok()?.as_nanos();
@@ -130,7 +130,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 

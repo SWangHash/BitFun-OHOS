@@ -685,7 +685,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(openbitfun_core_types::validate_session_id(HOST_CATALOG_ID).is_err());
+        assert!(bitfun_core_types::validate_session_id(HOST_CATALOG_ID).is_err());
         let log = SessionLog::open(root.path(), "account", "host", HOST_CATALOG_ID).unwrap();
         let pending = log.pending(10).unwrap();
         assert_eq!(pending.len(), 1);

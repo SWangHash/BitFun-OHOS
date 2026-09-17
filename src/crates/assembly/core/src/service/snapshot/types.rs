@@ -195,7 +195,7 @@ pub enum SnapshotError {
     ConfigError(String),
 
     #[error("Tool execution error: {0}")]
-    ToolExecution(#[from] crate::util::errors::OpenBitFunError),
+    ToolExecution(#[from] crate::util::errors::BitFunError),
 }
 
 pub type SnapshotResult<T> = Result<T, SnapshotError>;

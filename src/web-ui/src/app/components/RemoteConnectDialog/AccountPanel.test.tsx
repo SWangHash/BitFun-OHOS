@@ -17,7 +17,7 @@ vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t, formatRe
 vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({ usePeerDeviceMode: () => ({ peerMode: { active: false } }) }));
 vi.mock('@/infrastructure/confirm-dialog', () => ({ confirmDanger: vi.fn() }));
 vi.mock('@/shared/notification-system', () => ({ useNotification: () => ({ success: vi.fn() }) }));
-vi.mock('@openbitfun/ui', () => {
+vi.mock('@bitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Button = ({ children, onClick, disabled }: { children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>;
   return { Avatar: ({ src, alt }: { src?: string; alt?: string }) => <img src={src} alt={alt} />, OverflowText: Box, Alert: Box, Button, Icon: () => null, IconButton: () => null, ScrollArea: Box, StatusPill: Box };

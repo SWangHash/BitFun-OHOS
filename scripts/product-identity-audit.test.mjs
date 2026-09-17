@@ -27,21 +27,21 @@ function violationsFor(content, file = 'src/example.ts') {
 
 test('accepts the canonical product identity in supported casing and contracts', () => {
   const source = [
-    'OpenBitFun',
-    'openBitFunTheme',
-    'openbitfun',
-    'OPENBITFUN_USER_ROOT',
-    '@openbitfun/ui',
-    '.openbitfun/config',
-    'openbitfun://runtime/',
-    '--openbitfun-color-surface',
-    'data-openbitfun-component',
-    'node.dataset.openbitfunPart',
-    '@layer openbitfun.components',
-    'minOpenBitFunVersion: "1.0.0"',
-    'min_openbitfun_version: "1.2.0"',
-    'openbitfun-cli-1.0.0-aarch64-unknown-linux-gnu.tar.gz',
-    'OpenBitFun_1.0.0_windows-x86_64-setup.exe',
+    'BitFun',
+    'bitFunTheme',
+    'bitfun',
+    'BITFUN_USER_ROOT',
+    '@bitfun/ui',
+    '.bitfun/config',
+    'bitfun://runtime/',
+    '--bitfun-color-surface',
+    'data-bitfun-component',
+    'node.dataset.bitfunPart',
+    '@layer bitfun.components',
+    'minBitFunVersion: "1.0.0"',
+    'min_bitfun_version: "1.2.0"',
+    'bitfun-cli-1.0.0-aarch64-unknown-linux-gnu.tar.gz',
+    'BitFun_1.0.0_windows-x86_64-setup.exe',
     displayBrand,
     'BitFun Remote',
     'Ask BitFun',
@@ -53,7 +53,7 @@ test('accepts the canonical product identity in supported casing and contracts',
   assert.deepEqual(violationsFor(source), []);
 });
 
-test('rejects non-canonical casing and abbreviated OpenBitFun names', () => {
+test('rejects non-canonical casing and abbreviated BitFun names', () => {
   const nonCanonicalPascal = ['Open', 'Bit', 'fun'].join('');
   const nonCanonicalCamel = ['open', 'Bit', 'fun'].join('');
   const abbreviatedPascal = ['Open', 'B', 'F'].join('');
@@ -68,10 +68,10 @@ test('rejects non-canonical casing and abbreviated OpenBitFun names', () => {
   assert.deepEqual(
     violationsFor(source).map((violation) => violation.rule),
     [
-      'noncanonical-openbitfun-casing',
-      'noncanonical-openbitfun-casing',
-      'abbreviated-openbitfun-name',
-      'abbreviated-openbitfun-name',
+      'noncanonical-bitfun-casing',
+      'noncanonical-bitfun-casing',
+      'abbreviated-bitfun-name',
+      'abbreviated-bitfun-name',
     ],
   );
 });
@@ -111,21 +111,21 @@ test('rejects retired short CSS, DOM, dataset, layer, and environment prefixes',
 });
 
 test('scans untracked files while ignoring tracked files deleted by a rename', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'openbitfun-identity-audit-'));
-  const brandDirectory = path.join(root, displayBrand.toLowerCase());
+  const root = mkdtempSync(path.join(tmpdir(), 'bitfun-identity-audit-'));
+  const brandDirectory = path.join(root, 'legacy', displayBrand.toLowerCase());
   const brandFile = path.join(brandDirectory, 'config.json');
-  const canonicalFile = path.join(root, 'openbitfun', 'config.json');
+  const canonicalFile = path.join(root, 'bitfun', 'config.json');
   mkdirSync(brandDirectory, { recursive: true });
   mkdirSync(path.dirname(canonicalFile), { recursive: true });
   writeFileSync(brandFile, '{}\n');
-  writeFileSync(canonicalFile, '{"product":"OpenBitFun"}\n');
+  writeFileSync(canonicalFile, '{"product":"BitFun"}\n');
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: root });
   execFileSync('git', ['add', '.'], { cwd: root });
   rmSync(brandFile);
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
-  assert.deepEqual(listRepositoryFiles(root), ['openbitfun/config.json']);
+  assert.deepEqual(listRepositoryFiles(root), ['bitfun/config.json']);
   assert.deepEqual(auditRepository(root).violations, []);
 
   mkdirSync(brandDirectory, { recursive: true });
@@ -158,7 +158,7 @@ test('keeps compile-time product identity reads in the canonical contract owner'
   const source = [
     'const PRODUCT_ID: &str = option_',
     'en',
-    'v!("OPENBITFUN_PRODUCT_ID").unwrap_or("openbitfun");',
+    'v!("BITFUN_PRODUCT_ID").unwrap_or("bitfun");',
   ].join('');
   const violations = violationsFor(source, 'src/example.rs');
 
@@ -170,22 +170,22 @@ test('keeps compile-time product identity reads in the canonical contract owner'
   );
 });
 
-test('rejects pre-1.0 minimum versions and OpenBitFun release assets', () => {
+test('rejects pre-1.0 minimum versions and BitFun release assets', () => {
   const preOneVersion = [0, 9, 0].join('.');
   const source = [
-    `minOpenBitFunVersion: '${preOneVersion}'`,
-    `min_openbitfun_version: "${preOneVersion}"`,
-    `openbitfun-cli-${preOneVersion}-aarch64-unknown-linux-gnu.tar.gz`,
-    `OpenBitFun_${preOneVersion}_windows-x86_64-setup.exe`,
+    `minBitFunVersion: '${preOneVersion}'`,
+    `min_bitfun_version: "${preOneVersion}"`,
+    `bitfun-cli-${preOneVersion}-aarch64-unknown-linux-gnu.tar.gz`,
+    `BitFun_${preOneVersion}_windows-x86_64-setup.exe`,
   ].join('\n');
 
   assert.deepEqual(
     violationsFor(source).map((violation) => violation.rule),
     [
-      'pre-1.0-openbitfun-minimum-version',
-      'pre-1.0-openbitfun-minimum-version',
-      'pre-1.0-openbitfun-release-asset',
-      'pre-1.0-openbitfun-release-asset',
+      'pre-1.0-bitfun-minimum-version',
+      'pre-1.0-bitfun-minimum-version',
+      'pre-1.0-bitfun-release-asset',
+      'pre-1.0-bitfun-release-asset',
     ],
   );
 });

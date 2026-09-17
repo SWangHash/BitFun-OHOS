@@ -10,10 +10,10 @@ const policy = { maxBlobBytes: 64, allowedBlobs: [] };
 
 function repositoryFixture(t) {
   const temporaryRoot = tmpdir();
-  const repository = mkdtempSync(join(temporaryRoot, 'openbitfun-git-object-size-'));
+  const repository = mkdtempSync(join(temporaryRoot, 'bitfun-git-object-size-'));
   t.after(() => {
     const relativePath = relative(temporaryRoot, repository);
-    assert.match(relativePath, /^openbitfun-git-object-size-[^\\/]+$/);
+    assert.match(relativePath, /^bitfun-git-object-size-[^\\/]+$/);
     rmSync(repository, { recursive: true, force: true });
   });
   const git = (...args) => execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], {

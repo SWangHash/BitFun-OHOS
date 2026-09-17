@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $installer = Join-Path $repoRoot 'src\apps\cli\install.ps1'
-$testRoot = Join-Path ([IO.Path]::GetTempPath()) "openbitfun-cli-install-$([guid]::NewGuid().ToString('N'))"
+$testRoot = Join-Path ([IO.Path]::GetTempPath()) "bitfun-cli-install-$([guid]::NewGuid().ToString('N'))"
 $binDir = Join-Path $testRoot 'bin'
 
 try {
@@ -17,9 +17,9 @@ try {
     & $installer -BinDir $binDir -SkipPathUpdate
     & $installer -BinDir $binDir -SkipPathUpdate
 
-    & (Join-Path $binDir 'openbitfun.exe') --version | Out-Null
+    & (Join-Path $binDir 'bitfun.exe') --version | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw 'Installed openbitfun smoke check failed'
+        throw 'Installed bitfun smoke check failed'
     }
     foreach ($entry in @('extension-host.js')) {
         if (-not (Test-Path -LiteralPath (Join-Path $binDir "resources\ext-host\$entry") -PathType Leaf)) {
@@ -27,7 +27,7 @@ try {
         }
     }
 
-    $primary = Join-Path $binDir 'openbitfun.exe'
+    $primary = Join-Path $binDir 'bitfun.exe'
     [IO.File]::WriteAllText($primary, 'previous primary')
     $primaryHash = (Get-FileHash -LiteralPath $primary -Algorithm SHA256).Hash
 
@@ -43,7 +43,7 @@ try {
         $lock.Dispose()
     }
     if (-not $failedAsExpected) {
-        throw 'Installer unexpectedly succeeded while the OpenBitFun CLI was locked'
+        throw 'Installer unexpectedly succeeded while the BitFun CLI was locked'
     }
 
     if ((Get-FileHash -LiteralPath $primary -Algorithm SHA256).Hash -cne $primaryHash) {

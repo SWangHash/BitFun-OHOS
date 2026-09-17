@@ -1,1 +1,1 @@
-pub use openbitfun_services_core::workspace_records::*;
+pub use bitfun_services_core::workspace_records::*;

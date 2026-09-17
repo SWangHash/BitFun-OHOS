@@ -93,9 +93,9 @@
         "manual": {
           "open": "上传外观包",
           "title": "手动投稿",
-          "hint": "选择本机的 .openbitfun-appearance 文件。BitFun 会在上传前校验，Skin 服务器会在进入审核前再次校验",
+          "hint": "选择本机的 .bitfun-appearance 文件。BitFun 会在上传前校验，Skin 服务器会在进入审核前再次校验",
           "package": "外观包文件",
-          "packagePlaceholder": "选择 .openbitfun-appearance 文件",
+          "packagePlaceholder": "选择 .bitfun-appearance 文件",
           "choose": "选择文件",
           "chooseTitle": "选择要投稿的外观包",
           "slug": "市场标识（可选）",

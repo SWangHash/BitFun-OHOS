@@ -3,51 +3,51 @@
  */
 @use '../../styles/tokens.scss' as tokens;
 
-.openbitfun-input-wrapper {
+.bitfun-input-wrapper {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
 
   &--small {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       height: 28px;
       font-size: 13px;
     }
 
-    .openbitfun-input-prefix,
-    .openbitfun-input-suffix {
+    .bitfun-input-prefix,
+    .bitfun-input-suffix {
       font-size: 13px;
     }
   }
 
   &--medium {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       height: 36px;
       font-size: 14px;
     }
   }
 
   &--large {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       height: 44px;
       font-size: 15px;
     }
   }
 
   &--default {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       background: transparent;
       border: 1px solid var(--bf-appearance-token-border-base);
     }
   }
 
   &--filled {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       background: var(--bf-appearance-token-element-bg-subtle);
       border: 1px solid transparent;
 
-      &:hover:not(.openbitfun-input-wrapper--disabled &) {
+      &:hover:not(.bitfun-input-wrapper--disabled &) {
         background: var(--bf-appearance-token-element-bg-soft);
         border-color: var(--bf-appearance-token-border-base);
       }
@@ -64,17 +64,17 @@
   }
 
   &--outlined {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       background: transparent;
       border: 1px solid var(--bf-appearance-token-border-medium);
     }
   }
 
   &--error {
-    .openbitfun-input-container {
+    .bitfun-input-container {
       border-color: var(--bf-appearance-token-color-error-border) !important;
 
-      &:hover:not(.openbitfun-input-wrapper--disabled &) {
+      &:hover:not(.bitfun-input-wrapper--disabled &) {
         border-color: var(--bf-appearance-token-color-error) !important;
       }
 
@@ -88,20 +88,20 @@
     opacity: var(--bf-appearance-token-opacity-disabled);
     cursor: default;
 
-    .openbitfun-input-container {
+    .bitfun-input-container {
       background: transparent;
     }
   }
 }
 
-.openbitfun-input-label {
+.bitfun-input-label {
   font-size: var(--bf-appearance-token-font-size-sm);
   font-weight: var(--bf-appearance-token-font-weight-medium);
   color: var(--bf-appearance-token-color-text-secondary);
   letter-spacing: 0.2px;
 }
 
-.openbitfun-input-container {
+.bitfun-input-container {
   display: flex;
   align-items: center;
   gap: var(--bf-appearance-token-size-gap-2);
@@ -115,7 +115,7 @@
   min-width: 0;
   overflow: hidden;
 
-  &:hover:not(.openbitfun-input-wrapper--disabled &) {
+  &:hover:not(.bitfun-input-wrapper--disabled &) {
     background: var(--bf-appearance-token-element-bg-subtle);
     border-color: var(--bf-appearance-token-border-strong);
   }
@@ -128,7 +128,7 @@
   }
 }
 
-.openbitfun-input {
+.bitfun-input {
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -169,8 +169,8 @@
   }
 }
 
-.openbitfun-input-prefix,
-.openbitfun-input-suffix {
+.bitfun-input-prefix,
+.bitfun-input-suffix {
   color: var(--bf-appearance-token-color-text-muted);
   display: flex;
   align-items: center;
@@ -179,7 +179,7 @@
   z-index: 1;
 }
 
-.openbitfun-input-toggle {
+.bitfun-input-toggle {
   background: none;
   border: none;
   padding: 2px;
@@ -198,51 +198,51 @@
   }
 }
 
-.openbitfun-input-hint,
-.openbitfun-input-error-message {
+.bitfun-input-hint,
+.bitfun-input-error-message {
   font-size: var(--bf-appearance-token-font-size-xs);
   color: var(--bf-appearance-token-color-error);
   margin-top: -2px;
 }
 
-.openbitfun-input-hint {
+.bitfun-input-hint {
   color: var(--bf-appearance-token-color-text-muted);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .openbitfun-input-wrapper:not(.openbitfun-input-wrapper--disabled) .openbitfun-input-container:hover {
+  .bitfun-input-wrapper:not(.bitfun-input-wrapper--disabled) .bitfun-input-container:hover {
     background: var(--bf-appearance-token-element-bg-subtle);
     border-color: var(--bf-appearance-token-border-strong);
   }
 
-  .openbitfun-input-wrapper--filled:not(.openbitfun-input-wrapper--disabled) .openbitfun-input-container:hover {
+  .bitfun-input-wrapper--filled:not(.bitfun-input-wrapper--disabled) .bitfun-input-container:hover {
     background: var(--bf-appearance-token-element-bg-soft);
     border-color: var(--bf-appearance-token-border-base);
   }
 
-  .openbitfun-input-wrapper--filled .openbitfun-input-container:hover:focus-within {
+  .bitfun-input-wrapper--filled .bitfun-input-container:hover:focus-within {
     border-color: var(--bf-appearance-token-color-accent-500);
   }
 
-  .openbitfun-input-wrapper--error:not(.openbitfun-input-wrapper--disabled) .openbitfun-input-container:hover {
+  .bitfun-input-wrapper--error:not(.bitfun-input-wrapper--disabled) .bitfun-input-container:hover {
     border-color: var(--bf-appearance-token-color-error) !important;
   }
 
-  .openbitfun-input-toggle:hover {
+  .bitfun-input-toggle:hover {
     color: var(--bf-appearance-token-color-text-secondary);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-input-container {
+  .bitfun-input-container {
     transition-duration: var(--bf-appearance-token-motion-instant);
   }
 
-  .openbitfun-input-toggle {
+  .bitfun-input-toggle {
     transition: color var(--bf-appearance-token-motion-instant) ease;
   }
 
-  .openbitfun-input-toggle:active {
+  .bitfun-input-toggle:active {
     scale: none;
   }
 }

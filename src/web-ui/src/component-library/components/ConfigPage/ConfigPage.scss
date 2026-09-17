@@ -1,9 +1,9 @@
-@keyframes openbitfun-config-page-loading-in {
+@keyframes bitfun-config-page-loading-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
-.openbitfun-config-page-loading {
+.bitfun-config-page-loading {
   min-height: 200px;
   display: flex;
   align-items: center;
@@ -12,7 +12,7 @@
   font-size: var(--bf-appearance-token-font-size-sm);
 }
 
-.openbitfun-config-page-message {
+.bitfun-config-page-message {
   margin-bottom: var(--bf-appearance-token-size-gap-1);
 }
 

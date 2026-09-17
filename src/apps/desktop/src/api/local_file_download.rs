@@ -15,7 +15,7 @@ impl DownloadSink {
             .parent()
             .ok_or("Missing destination directory")?;
         let staging = tempfile::Builder::new()
-            .prefix(".openbitfun-download-")
+            .prefix(".bitfun-download-")
             .tempfile_in(parent)
             .map_err(|e| e.to_string())?;
         Ok(Self {

@@ -15,7 +15,7 @@ describe('MCP JSON save acknowledgement', () => {
 
   it('enables one imported server with CAS and preserves origin, secrets and unrelated settings', async () => {
     const config = { mcpServers: {
-      imported: { enabled: false, autoStart: false, env: { TEST_KEY: 'private-value' }, _openbitfunImport: { sourceCandidateId: 'codex:mcp' }, futureOption: 3 },
+      imported: { enabled: false, autoStart: false, env: { TEST_KEY: 'private-value' }, _bitfunImport: { sourceCandidateId: 'codex:mcp' }, futureOption: 3 },
       other: { enabled: false, command: 'other' },
     }, futureRoot: true };
     invokeMock.mockResolvedValueOnce({ jsonConfig: JSON.stringify(config), fingerprint: 'before-enable' }).mockResolvedValueOnce(undefined);

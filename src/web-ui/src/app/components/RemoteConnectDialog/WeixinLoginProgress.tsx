@@ -1,4 +1,4 @@
-import { Spinner, StatusPill } from '@openbitfun/ui';
+import { Spinner, StatusPill } from '@bitfun/ui';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 
@@ -26,11 +26,11 @@ export function WeixinLoginProgress({ phase }: { phase: WeixinLoginPhase }) {
       : t('remoteConnect.botWeixinStartingHint');
 
   return (
-    <div className="openbitfun-remote-connect__weixin-progress" role="status" aria-live="polite" aria-atomic="true">
+    <div className="bitfun-remote-connect__weixin-progress" role="status" aria-live="polite" aria-atomic="true">
       <StatusPill tone="neutral" leading={<Spinner size="xs" />}>{label}</StatusPill>
-      <p className="openbitfun-remote-connect__hint">{description}</p>
+      <p className="bitfun-remote-connect__hint">{description}</p>
       {slowPhase === phase && (
-        <p className="openbitfun-remote-connect__hint">
+        <p className="bitfun-remote-connect__hint">
           {phase === 'starting'
             ? t('remoteConnect.botWeixinStartingSlow')
             : t('remoteConnect.botWeixinSyncSlow')}

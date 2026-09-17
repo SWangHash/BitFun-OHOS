@@ -16,7 +16,7 @@ export class CloudAccountCrypto {
     }
     const params: cryptoFramework.HKDFSpec = {
       algName: 'HKDF', key: shared,
-      salt: Encoding.utf8ToBytes('OpenBitFun Relay v1.0.0 device key'),
+      salt: Encoding.utf8ToBytes('BitFun Relay v1.0.0 device key'),
       info: ownFirst ? Encoding.concat(own, peerPublicKey) : Encoding.concat(peerPublicKey, own),
       keySize: 32
     };

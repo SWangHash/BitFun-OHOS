@@ -1,4 +1,4 @@
-import { Button } from '@openbitfun/ui';
+import { Button } from '@bitfun/ui';
 import { GithubLogo } from '@phosphor-icons/react';
 import { RefreshCw as ArrowClockwise, Image, Package, CircleX as XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';

@@ -14,7 +14,7 @@ import {
   MobileIconButton,
   MobileListRow,
   MobileSheet,
-} from '@openbitfun/ui/mobile';
+} from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { MOBILE_LOCALES } from '../i18n/localeRegistry';
 

@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 RELEASE_DIR="${3:-${REPO_ROOT}/target/${TARGET}/release}"
 OUTPUT_DIR="${4:-${REPO_ROOT}}"
-PRIMARY="${RELEASE_DIR}/openbitfun"
+PRIMARY="${RELEASE_DIR}/bitfun"
 PLUGIN_HOST_DIST="${REPO_ROOT}/src/apps/extension-host/dist"
 PLUGIN_HOST_RESOURCE_DIR="resources/ext-host"
 
@@ -31,7 +31,7 @@ assert_plugin_host_resources() {
 "$PRIMARY" --help >/dev/null
 assert_plugin_host_resources "$PLUGIN_HOST_DIST"
 
-STAGE_NAME="openbitfun-cli-${VERSION}-${TARGET}"
+STAGE_NAME="bitfun-cli-${VERSION}-${TARGET}"
 STAGE_DIR="${OUTPUT_DIR}/dist-cli/${STAGE_NAME}"
 mkdir -p "$STAGE_DIR"
 cp "$PRIMARY" "$STAGE_DIR/"
@@ -73,7 +73,7 @@ trap 'rm -rf "$EXTRACT_DIR"' EXIT
 tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR"
 
 shopt -s nullglob
-PRIMARY_CANDIDATES=("$EXTRACT_DIR"/*/openbitfun)
+PRIMARY_CANDIDATES=("$EXTRACT_DIR"/*/bitfun)
 [ "${#PRIMARY_CANDIDATES[@]}" -eq 1 ]
 [ -f "$EXTRACT_DIR/$STAGE_NAME/README.md" ]
 [ -f "$EXTRACT_DIR/$STAGE_NAME/PROJECT-README.md" ]

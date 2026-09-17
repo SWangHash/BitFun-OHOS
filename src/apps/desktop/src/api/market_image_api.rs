@@ -1,6 +1,6 @@
 //! Controller-owned public image cache shared by the two marketplace surfaces.
 
-use openbitfun_services_integrations::{
+use bitfun_services_integrations::{
     appearance_market::AppearanceMarketClient, market_image::MarketImageCache,
     miniapp_market::MarketClient,
 };

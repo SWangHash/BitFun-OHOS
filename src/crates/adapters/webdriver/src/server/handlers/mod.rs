@@ -25,10 +25,10 @@ pub mod window;
 pub async fn status(State(state): State<Arc<AppState>>) -> WebDriverResponse {
     WebDriverResponse::success(json!({
         "ready": state.initial_window_label().is_some(),
-        "message": "OpenBitFun embedded WebDriver is ready",
+        "message": "BitFun embedded WebDriver is ready",
         "build": {
             "version": env!("CARGO_PKG_VERSION"),
-            "name": "openbitfun-embedded-webdriver"
+            "name": "bitfun-embedded-webdriver"
         }
     }))
 }

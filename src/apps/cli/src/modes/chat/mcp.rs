@@ -1,4 +1,4 @@
-use openbitfun_product_domains::mcp::{
+use bitfun_product_domains::mcp::{
     McpServerAction, McpServerMutation, McpServerSummary, McpTransport,
 };
 
@@ -59,10 +59,10 @@ fn mcp_item_from_summary(server: McpServerSummary) -> McpItem {
     }
 }
 
-fn native_mcp_detail(config: &openbitfun_core::service::mcp::MCPServerConfig) -> String {
+fn native_mcp_detail(config: &bitfun_core::service::mcp::MCPServerConfig) -> String {
     let server_type = format!("{:?}", config.server_type).to_ascii_lowercase();
     let transport = config.resolved_transport().as_str();
-    if config.server_type == openbitfun_core::service::mcp::MCPServerType::Local {
+    if config.server_type == bitfun_core::service::mcp::MCPServerType::Local {
         format!(
             "type: {server_type}; transport: {transport}; command: {}; arguments: {}; environment variables set: {}",
             config.command.as_deref().unwrap_or("unknown"),
@@ -90,10 +90,10 @@ fn native_mcp_detail(config: &openbitfun_core::service::mcp::MCPServerConfig) ->
 }
 
 fn external_mcp_action(
-    entry: &openbitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
-    snapshot: &openbitfun_product_domains::external_sources::ExternalSourceCatalogSnapshot,
+    entry: &bitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
+    snapshot: &bitfun_product_domains::external_sources::ExternalSourceCatalogSnapshot,
 ) -> McpServerAction {
-    use openbitfun_product_domains::external_sources::ExternalMcpActivationState as State;
+    use bitfun_product_domains::external_sources::ExternalMcpActivationState as State;
     match &entry.activation_state {
         State::ApprovalRequired | State::Declined | State::ConfigurationChanged => {
             McpServerAction::ExternalDecision {
@@ -148,10 +148,10 @@ fn external_mcp_action(
 }
 
 async fn external_mcp_status(
-    entry: &openbitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
-    manager: &openbitfun_core::service::mcp::MCPServerManager,
+    entry: &bitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
+    manager: &bitfun_core::service::mcp::MCPServerManager,
 ) -> String {
-    use openbitfun_product_domains::external_sources::ExternalMcpActivationState as State;
+    use bitfun_product_domains::external_sources::ExternalMcpActivationState as State;
     match &entry.activation_state {
         State::Active => match entry.runtime_id.as_deref() {
             Some(id) => {
@@ -180,17 +180,17 @@ async fn external_mcp_status(
 }
 
 fn external_mcp_detail(
-    entry: &openbitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
+    entry: &bitfun_product_domains::external_sources::ExternalMcpCatalogEntry,
 ) -> String {
     let definition = &entry.definition;
     match definition.transport {
-        openbitfun_product_domains::external_sources::ExternalMcpTransportKind::LocalStdio => format!(
+        bitfun_product_domains::external_sources::ExternalMcpTransportKind::LocalStdio => format!(
             "source MCP configuration; local command: {}; arguments: {}; environment variables set: {}",
             definition.command_preview.as_deref().unwrap_or("unknown"),
             definition.argument_count,
             if definition.environment_keys.is_empty() { "none" } else { "configured" },
         ),
-        openbitfun_product_domains::external_sources::ExternalMcpTransportKind::StreamableHttp => format!(
+        bitfun_product_domains::external_sources::ExternalMcpTransportKind::StreamableHttp => format!(
             "source MCP configuration; remote origin: {}; HTTP headers: {}",
             definition.remote_url_preview.as_deref().unwrap_or("unknown"),
             if definition.header_names.is_empty() { "none" } else { "configured" },
@@ -202,19 +202,19 @@ fn external_mcp_detail(
 fn mcp_config_from_mutation(
     name: &str,
     mutation: McpServerMutation,
-) -> Result<openbitfun_core::service::mcp::MCPServerConfig> {
+) -> Result<bitfun_core::service::mcp::MCPServerConfig> {
     let (server_type, transport) = match mutation.transport {
         McpTransport::Stdio => (
-            openbitfun_core::service::mcp::MCPServerType::Local,
-            openbitfun_core::service::mcp::MCPServerTransport::Stdio,
+            bitfun_core::service::mcp::MCPServerType::Local,
+            bitfun_core::service::mcp::MCPServerTransport::Stdio,
         ),
         McpTransport::Sse => (
-            openbitfun_core::service::mcp::MCPServerType::Remote,
-            openbitfun_core::service::mcp::MCPServerTransport::Sse,
+            bitfun_core::service::mcp::MCPServerType::Remote,
+            bitfun_core::service::mcp::MCPServerTransport::Sse,
         ),
         McpTransport::StreamableHttp => (
-            openbitfun_core::service::mcp::MCPServerType::Remote,
-            openbitfun_core::service::mcp::MCPServerTransport::StreamableHttp,
+            bitfun_core::service::mcp::MCPServerType::Remote,
+            bitfun_core::service::mcp::MCPServerTransport::StreamableHttp,
         ),
     };
     let oauth = mutation
@@ -227,7 +227,7 @@ fn mcp_config_from_mutation(
         .map(serde_json::from_value)
         .transpose()
         .map_err(|_| anyhow!("MCP XAA configuration does not match the supported schema"))?;
-    Ok(openbitfun_core::service::mcp::MCPServerConfig {
+    Ok(bitfun_core::service::mcp::MCPServerConfig {
         id: name.to_string(),
         name: name.to_string(),
         server_type,
@@ -241,7 +241,7 @@ fn mcp_config_from_mutation(
         url: mutation.url,
         auto_start: mutation.auto_start,
         enabled: mutation.enabled,
-        location: openbitfun_core::service::mcp::ConfigLocation::User,
+        location: bitfun_core::service::mcp::ConfigLocation::User,
         capabilities: Vec::new(),
         settings: std::collections::HashMap::new(),
         oauth,
@@ -291,25 +291,25 @@ impl ChatMode {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("MCP management is unavailable for a Remote workspace")
                 }
-                let mcp = if let Some(mcp) = openbitfun_core::service::mcp::get_global_mcp_service()
+                let mcp = if let Some(mcp) = bitfun_core::service::mcp::get_global_mcp_service()
                 {
                     mcp
                 } else {
-                    let config = openbitfun_core::service::config::get_global_config_service()
+                    let config = bitfun_core::service::config::get_global_config_service()
                         .await
                         .map_err(|error| anyhow!(error.to_string()))?;
                     crate::ensure_cli_mcp_service(config)
                         .ok_or_else(|| anyhow!("The current CLI Host has no MCP service"))?
                 };
                 let workspace = self.agent.workspace_path_string();
-                let external = openbitfun_core::external_sources::external_source_snapshot(
+                let external = bitfun_core::external_sources::external_source_snapshot(
                     Some(std::path::Path::new(&workspace)),
                     false,
                 )
                 .await
                 .map_err(|error| anyhow!(sanitize_mcp_error(error)))?;
                 let tool_registry =
-                    openbitfun_core::agentic::tools::registry::get_global_tool_registry();
+                    bitfun_core::agentic::tools::registry::get_global_tool_registry();
                 let tools = tool_registry.read().await.get_all_tools();
                 let configs = mcp
                     .config_service()
@@ -339,7 +339,7 @@ impl ChatMode {
                         .filter(|tool| tool.name().starts_with(&prefix))
                         .count();
                     let native_id =
-                        openbitfun_core::external_sources::native_mcp_candidate_id(&config.id);
+                        bitfun_core::external_sources::native_mcp_candidate_id(&config.id);
                     let conflict = external.mcp_conflicts.iter().find(|conflict| {
                         conflict
                             .candidates
@@ -360,7 +360,7 @@ impl ChatMode {
                                 .find(|candidate| candidate.candidate_id == native_id)
                                 .and_then(|candidate| candidate.unavailable_reason.clone())
                                 .unwrap_or_else(|| {
-                                    "Enable this OpenBitFun server in its MCP configuration"
+                                    "Enable this BitFun server in its MCP configuration"
                                         .to_string()
                                 });
                             McpServerAction::ReadOnly { reason }
@@ -384,7 +384,7 @@ impl ChatMode {
                         server_type: format!("{:?}", config.server_type).to_ascii_lowercase(),
                         status,
                         tool_count,
-                        source_label: "OpenBitFun".to_string(),
+                        source_label: "BitFun".to_string(),
                         external: false,
                         detail: native_mcp_detail(&config),
                         action,
@@ -429,7 +429,7 @@ impl ChatMode {
                         tool_count: 0,
                         source_label: "External AI applications".to_string(),
                         external: true,
-                        detail: "OpenBitFun is still checking compatible MCP settings".to_string(),
+                        detail: "BitFun is still checking compatible MCP settings".to_string(),
                         action: McpServerAction::ReadOnly {
                             reason: "Still checking; this list updates automatically".to_string(),
                         },
@@ -486,12 +486,12 @@ impl ChatMode {
         let server_id = server_id.to_string();
         let tracked_server_id = server_id.clone();
         let handle = rt_handle.spawn(async move {
-            let mcp = openbitfun_core::service::mcp::get_global_mcp_service()
+            let mcp = bitfun_core::service::mcp::get_global_mcp_service()
                 .ok_or_else(|| "The current CLI Host has no MCP service".to_string())?;
             let manager = mcp.server_manager();
             match manager.get_server_status(&server_id).await {
-                Ok(openbitfun_core::service::mcp::MCPServerStatus::Connected)
-                | Ok(openbitfun_core::service::mcp::MCPServerStatus::Healthy) => {
+                Ok(bitfun_core::service::mcp::MCPServerStatus::Connected)
+                | Ok(bitfun_core::service::mcp::MCPServerStatus::Healthy) => {
                     manager.stop_server(&server_id).await
                 }
                 _ => manager.start_server(&server_id).await,
@@ -525,7 +525,7 @@ impl ChatMode {
                     approved,
                     expected_mcp_generation,
                     expected_preference_revision,
-                } => openbitfun_core::external_sources::set_external_mcp_server_decision(
+                } => bitfun_core::external_sources::set_external_mcp_server_decision(
                     Some(std::path::Path::new(&workspace_path)),
                     &candidate_id,
                     &decision_key,
@@ -541,7 +541,7 @@ impl ChatMode {
                     approve_external,
                     expected_mcp_generation,
                     expected_preference_revision,
-                } => openbitfun_core::external_sources::choose_external_mcp_conflict(
+                } => bitfun_core::external_sources::choose_external_mcp_conflict(
                     Some(std::path::Path::new(&workspace_path)),
                     &conflict_key,
                     &candidate_id,
@@ -738,7 +738,7 @@ impl ChatMode {
         let name = name.to_string();
         let task_name = name.clone();
         let handle = rt_handle.spawn(async move {
-            let mcp = openbitfun_core::service::mcp::get_global_mcp_service()
+            let mcp = bitfun_core::service::mcp::get_global_mcp_service()
                 .ok_or_else(|| "The current CLI Host has no MCP service".to_string())?;
             let config =
                 mcp_config_from_mutation(&name, mutation).map_err(|error| error.to_string())?;
@@ -773,7 +773,7 @@ impl ChatMode {
         let server_id = server_id.to_string();
         let task_server_id = server_id.clone();
         let handle = rt_handle.spawn(async move {
-            let mcp = openbitfun_core::service::mcp::get_global_mcp_service()
+            let mcp = bitfun_core::service::mcp::get_global_mcp_service()
                 .ok_or_else(|| "The current CLI Host has no MCP service".to_string())?;
             mcp.config_service()
                 .delete_server_config(&server_id)
@@ -792,7 +792,7 @@ impl ChatMode {
         let config_path = if self.agent.is_remote_workspace() {
             None
         } else {
-            openbitfun_core::infrastructure::try_get_path_manager_arc()
+            bitfun_core::infrastructure::try_get_path_manager_arc()
                 .ok()
                 .map(|manager| manager.app_config_file().display().to_string())
         };

@@ -10,7 +10,7 @@ import {
   ConfigPageLoading,
   ConfigPageMessage,
 } from '@/component-library';
-import { Select } from '@openbitfun/ui';
+import { Select } from '@bitfun/ui';
 import { configAPI, workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
@@ -113,8 +113,8 @@ function BasicsLaunchAtLoginSection() {
   }
 
   return (
-    <div className="openbitfun-launch-at-login-config" data-openbitfun-component="basics-config" data-openbitfun-part="launchAtLogin">
-      <div className="openbitfun-launch-at-login-config__content">
+    <div className="bitfun-launch-at-login-config" data-bitfun-component="basics-config" data-bitfun-part="launchAtLogin">
+      <div className="bitfun-launch-at-login-config__content">
         <ConfigPageMessage message={message} />
         <ConfigPageSection
           title={t('launchAtLogin.sections.title')}
@@ -210,8 +210,8 @@ function BasicsAutoUpdateSection() {
   }
 
   return (
-    <div className="openbitfun-auto-update-config" data-openbitfun-component="basics-config" data-openbitfun-part="autoUpdate">
-      <div className="openbitfun-auto-update-config__content">
+    <div className="bitfun-auto-update-config" data-bitfun-component="basics-config" data-bitfun-part="autoUpdate">
+      <div className="bitfun-auto-update-config__content">
         <ConfigPageMessage message={message} />
         <ConfigPageSection
           title={t('autoUpdate.sections.title')}
@@ -372,8 +372,8 @@ function BasicsLoggingSection() {
   }
 
   return (
-    <div className="openbitfun-logging-config" data-openbitfun-component="basics-config" data-openbitfun-part="logging">
-      <div className="openbitfun-logging-config__content">
+    <div className="bitfun-logging-config" data-bitfun-component="basics-config" data-bitfun-part="logging">
+      <div className="bitfun-logging-config__content">
         <ConfigPageMessage message={message} />
 
         <ConfigPageSection
@@ -429,14 +429,14 @@ function BasicsLoggingSection() {
             description={t('logging.path.description')}
             multiline
           >
-            <div className="openbitfun-logging-config__path-row" data-openbitfun-component="basics-config" data-openbitfun-part="logPath">
-              <div className="openbitfun-logging-config__path-box">
+            <div className="bitfun-logging-config__path-row" data-bitfun-component="basics-config" data-bitfun-part="logPath">
+              <div className="bitfun-logging-config__path-box">
                 {runtimeInfo?.sessionLogDir || '-'}
               </div>
               <Tooltip content={t('logging.actions.openFolderTooltip')} placement="top">
                 <button
                   type="button"
-                  className="openbitfun-logging-config__open-btn"
+                  className="bitfun-logging-config__open-btn"
                   onClick={handleOpenFolder}
                   disabled={openingFolder || !runtimeInfo?.sessionLogDir}
                 >
@@ -585,8 +585,8 @@ function BasicsTerminalSection() {
   }
 
   return (
-    <div className="openbitfun-terminal-config" data-openbitfun-component="basics-config" data-openbitfun-part="terminal">
-      <div className="openbitfun-terminal-config__content">
+    <div className="bitfun-terminal-config" data-bitfun-component="basics-config" data-bitfun-part="terminal">
+      <div className="bitfun-terminal-config__content">
         <ConfigPageMessage message={message} />
 
         <ConfigPageSection
@@ -614,7 +614,7 @@ function BasicsTerminalSection() {
                 disabled={saving}
               />
             ) : (
-              <div className="openbitfun-terminal-config__no-shells">{t('terminal.controls.noShells')}</div>
+              <div className="bitfun-terminal-config__no-shells">{t('terminal.controls.noShells')}</div>
             )}
           </ConfigPageRow>
 
@@ -709,8 +709,8 @@ function BasicsWindowBehaviorSection() {
   }
 
   return (
-    <div className="openbitfun-window-behavior-config" data-openbitfun-component="basics-config" data-openbitfun-part="windowBehavior">
-      <div className="openbitfun-window-behavior-config__content">
+    <div className="bitfun-window-behavior-config" data-bitfun-component="basics-config" data-bitfun-part="windowBehavior">
+      <div className="bitfun-window-behavior-config__content">
         <ConfigPageMessage message={message} />
         <ConfigPageSection
           title={t('windowBehavior.sections.title')}
@@ -805,8 +805,8 @@ function BasicsNotificationsSection() {
     <ConfigPageSection
       title={t('notifications.title')}
       description={t('notifications.hint')}
-      data-openbitfun-component="basics-config"
-      data-openbitfun-part="notifications"
+      data-bitfun-component="basics-config"
+      data-bitfun-part="notifications"
     >
       <ConfigPageMessage message={message} />
       <ConfigPageRow
@@ -1019,14 +1019,14 @@ function BasicsEnvVarsSection() {
   }
 
   return (
-    <div className="openbitfun-env-vars-config">
-      <div className="openbitfun-env-vars-config__content">
+    <div className="bitfun-env-vars-config">
+      <div className="bitfun-env-vars-config__content">
         <ConfigPageMessage message={message} />
         <ConfigPageSection
           title={t('terminal.envVars.title')}
           description={t('terminal.envVars.hint')}
           extra={
-            <div className="openbitfun-env-vars-config__actions">
+            <div className="bitfun-env-vars-config__actions">
               <Button
                 variant="secondary"
                 size="small"
@@ -1048,21 +1048,21 @@ function BasicsEnvVarsSection() {
           }
         >
           {rows.length === 0 ? (
-            <div className="openbitfun-env-vars-config__empty">{t('terminal.envVars.empty')}</div>
+            <div className="bitfun-env-vars-config__empty">{t('terminal.envVars.empty')}</div>
           ) : (
-            <div className="openbitfun-env-vars-config__table">
-              <div className="openbitfun-env-vars-config__row openbitfun-env-vars-config__row--header">
-                <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--key">
+            <div className="bitfun-env-vars-config__table">
+              <div className="bitfun-env-vars-config__row bitfun-env-vars-config__row--header">
+                <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--key">
                   {t('terminal.envVars.columns.key')}
                 </div>
-                <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--value">
+                <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--value">
                   {t('terminal.envVars.columns.value')}
                 </div>
-                <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--action" />
+                <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--action" />
               </div>
               {rows.map((row) => (
-                <div className="openbitfun-env-vars-config__row" key={row.id}>
-                  <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--key">
+                <div className="bitfun-env-vars-config__row" key={row.id}>
+                  <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--key">
                     <Input
                       value={row.key}
                       onChange={(e) => handleRowChange(row.id, 'key', e.target.value)}
@@ -1071,7 +1071,7 @@ function BasicsEnvVarsSection() {
                       inputSize="small"
                     />
                   </div>
-                  <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--value">
+                  <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--value">
                     <Input
                       value={row.value}
                       onChange={(e) => handleRowChange(row.id, 'value', e.target.value)}
@@ -1080,7 +1080,7 @@ function BasicsEnvVarsSection() {
                       inputSize="small"
                     />
                   </div>
-                  <div className="openbitfun-env-vars-config__cell openbitfun-env-vars-config__cell--action">
+                  <div className="bitfun-env-vars-config__cell bitfun-env-vars-config__cell--action">
                     <Tooltip content={t('terminal.envVars.actions.delete')}>
                       <Button
                         variant="ghost"
@@ -1097,7 +1097,7 @@ function BasicsEnvVarsSection() {
               ))}
             </div>
           )}
-          <div className="openbitfun-env-vars-config__footer">
+          <div className="bitfun-env-vars-config__footer">
             <Button
               variant="ghost"
               size="small"
@@ -1118,9 +1118,9 @@ const BasicsConfig: React.FC = () => {
   const { t } = useTranslation('settings/basics');
 
   return (
-    <ConfigPageLayout className="openbitfun-basics-config" data-openbitfun-component="basics-config" data-openbitfun-part="root">
+    <ConfigPageLayout className="bitfun-basics-config" data-bitfun-component="basics-config" data-bitfun-part="root">
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-      <ConfigPageContent className="openbitfun-basics-config__content" data-openbitfun-component="basics-config" data-openbitfun-part="content">
+      <ConfigPageContent className="bitfun-basics-config__content" data-bitfun-component="basics-config" data-bitfun-part="content">
         <BasicsLaunchAtLoginSection />
         <BasicsAutoUpdateSection />
         <BasicsWindowBehaviorSection />

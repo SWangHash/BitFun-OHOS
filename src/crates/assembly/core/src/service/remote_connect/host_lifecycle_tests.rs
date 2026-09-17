@@ -234,7 +234,7 @@ async fn official_invitation_requires_device_auth_without_starting_an_anonymous_
     let service = RemoteConnectService::new(RemoteConnectConfig::default(), host.clone()).unwrap();
     let error = tokio::time::timeout(
         std::time::Duration::from_secs(1),
-        service.start(ConnectionMethod::OpenBitFunServer),
+        service.start(ConnectionMethod::BitFunServer),
     )
     .await
     .expect("must fail immediately without waiting for RoomCreated")
@@ -246,7 +246,7 @@ async fn official_invitation_requires_device_auth_without_starting_an_anonymous_
 
 #[tokio::test]
 async fn official_and_lan_invitations_use_the_same_authenticated_device_protocol() {
-    for method in [ConnectionMethod::OpenBitFunServer, lan_method()] {
+    for method in [ConnectionMethod::BitFunServer, lan_method()] {
         let host = Arc::new(RecordingEmbeddedRelayHost::default());
         let service = RemoteConnectService::new(lan_config(9700), host.clone()).unwrap();
         let url = service.prepare_relay(&method).await.unwrap();
@@ -279,12 +279,12 @@ async fn switching_endpoint_invalidates_the_previous_invitation() {
     *service.device_relay_url.write().await = Some(local);
     assert!(service.start(lan_method()).await.is_ok());
     service
-        .prepare_relay(&ConnectionMethod::OpenBitFunServer)
+        .prepare_relay(&ConnectionMethod::BitFunServer)
         .await
         .unwrap();
     assert!(service.start(lan_method()).await.is_err());
     assert!(service
-        .start(ConnectionMethod::OpenBitFunServer)
+        .start(ConnectionMethod::BitFunServer)
         .await
         .is_err());
     assert!(!host.active.load(Ordering::SeqCst));

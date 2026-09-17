@@ -1,20 +1,20 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenBitFun Data Migrator",
+  "productName": "BitFun Data Migrator",
   "version": "0.1.1",
-  "mainBinaryName": "openbitfun-data-migrator",
-  "identifier": "com.openbitfun.data-migrator",
+  "mainBinaryName": "bitfun-data-migrator",
+  "identifier": "com.bitfun.data-migrator",
   "build": {
     "frontendDist": "ui"
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "publisher": "OpenBitFun Team",
+    "publisher": "BitFun Team",
     "icon": [
-      "icons/openbitfun-app-icon.icns",
-      "icons/openbitfun-app-icon.ico",
-      "icons/openbitfun-app-icon.png"
+      "icons/bitfun-app-icon.icns",
+      "icons/bitfun-app-icon.ico",
+      "icons/bitfun-app-icon.png"
     ],
     "resources": {
       "../../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
@@ -24,7 +24,7 @@
     "windows": [
       {
         "label": "migrator",
-        "title": "OpenBitFun Data Migrator",
+        "title": "BitFun Data Migrator",
         "width": 860,
         "height": 680,
         "minWidth": 680,

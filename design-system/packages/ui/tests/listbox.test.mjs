@@ -29,7 +29,7 @@ test("Listbox exposes grouped single- and multi-select option semantics", () => 
     ),
   );
 
-  assert.match(markup, /data-openbitfun-component="listbox"/);
+  assert.match(markup, /data-bitfun-component="listbox"/);
   assert.match(markup, /role="listbox"/);
   assert.match(markup, /aria-multiselectable="true"/);
   assert.match(markup, /aria-selected="true"[^>]+role="option"/);
@@ -43,10 +43,10 @@ test("Listbox styling uses public menu, action, content, and focus tokens", asyn
     "utf8",
   );
 
-  assert.match(styles, /--openbitfun-overlay-menu-item-height/);
-  assert.match(styles, /--openbitfun-color-action-neutral-surface/);
-  assert.match(styles, /--openbitfun-color-content-muted/);
-  assert.match(styles, /--openbitfun-color-focus-ring/);
+  assert.match(styles, /--bitfun-overlay-menu-item-height/);
+  assert.match(styles, /--bitfun-color-action-neutral-surface/);
+  assert.match(styles, /--bitfun-color-content-muted/);
+  assert.match(styles, /--bitfun-color-focus-ring/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
 
@@ -56,7 +56,7 @@ test("Listbox owns direct-option roving focus and standard navigation keys", asy
     "utf8",
   );
 
-  assert.match(source, /querySelectorAll<HTMLButtonElement>\("\[data-openbitfun-listbox-option\]"\)/);
+  assert.match(source, /querySelectorAll<HTMLButtonElement>\("\[data-bitfun-listbox-option\]"\)/);
   assert.match(source, /option\.closest\('\[role="listbox"\]'\) === root/);
   assert.match(source, /case "ArrowDown"/);
   assert.match(source, /case "ArrowUp"/);

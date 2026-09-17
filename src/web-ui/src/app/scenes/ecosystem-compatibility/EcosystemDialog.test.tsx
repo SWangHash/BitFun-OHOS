@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 // Model the design-system presence contract: a closed overlay stays mounted for exit.
-vi.mock('@openbitfun/ui', () => ({ Dialog: ({ open, children }: React.PropsWithChildren<{ open: boolean }>) => <div data-state={open ? 'open' : 'exiting'}>{children}</div> }));
+vi.mock('@bitfun/ui', () => ({ Dialog: ({ open, children }: React.PropsWithChildren<{ open: boolean }>) => <div data-state={open ? 'open' : 'exiting'}>{children}</div> }));
 import { EcosystemDialog } from './EcosystemDialog';
 
 it('retains the last committed title, body and footer throughout exit and replaces them on reopen', async () => {

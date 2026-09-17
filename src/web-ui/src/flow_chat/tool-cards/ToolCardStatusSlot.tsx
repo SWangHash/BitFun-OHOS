@@ -62,18 +62,18 @@ export const ToolCardStatusSlot: React.FC<ToolCardStatusSlotProps> = ({
   const toolFirst = defaultIcon === 'tool' && hasIcon;
 
   return (
-    <div data-openbitfun-component="tool-card-status-slot" data-openbitfun-part="root" data-openbitfun-default-icon={defaultIcon}
+    <div data-bitfun-component="tool-card-status-slot" data-bitfun-part="root" data-bitfun-default-icon={defaultIcon}
       className={[
         'tool-card-status-slot',
         hasIcon ? 'tool-card-status-slot--has-icon' : '',
         toolFirst ? 'tool-card-status-slot--tool-first' : '',
       ].filter(Boolean).join(' ')}
     >
-      <div data-openbitfun-component="tool-card-status-slot" data-openbitfun-part="statusLayer" className="tool-card-status-slot__status-layer">
+      <div data-bitfun-component="tool-card-status-slot" data-bitfun-part="statusLayer" className="tool-card-status-slot__status-layer">
         <StatusIcon status={status} size={size} />
       </div>
       {hasIcon && (
-        <div data-openbitfun-component="tool-card-status-slot" data-openbitfun-part="iconLayer" className="tool-card-status-slot__icon-layer" aria-hidden>
+        <div data-bitfun-component="tool-card-status-slot" data-bitfun-part="iconLayer" className="tool-card-status-slot__icon-layer" aria-hidden>
           {toolIcon}
         </div>
       )}

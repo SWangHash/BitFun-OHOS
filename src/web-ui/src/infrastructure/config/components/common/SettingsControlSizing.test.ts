@@ -30,7 +30,7 @@ it('uses the design-system small size consistently across settings selection fie
     for (const statement of source.statements) {
       if (!ts.isImportDeclaration(statement)
         || !ts.isStringLiteral(statement.moduleSpecifier)
-        || statement.moduleSpecifier.text !== '@openbitfun/ui') continue;
+        || statement.moduleSpecifier.text !== '@bitfun/ui') continue;
       const bindings = statement.importClause?.namedBindings;
       if (!bindings || !ts.isNamedImports(bindings)) continue;
       for (const binding of bindings.elements) {

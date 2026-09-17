@@ -9,8 +9,8 @@ use crate::service::mcp::auth::{
     map_auth_error, MCPRemoteOAuthSessionSnapshot, MCPRemoteOAuthStatus,
 };
 use crate::service::mcp::server::MCPServerType;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_services_integrations::mcp::auth::{
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_services_integrations::mcp::auth::{
     clear_stored_oauth_credentials, has_stored_oauth_credentials,
     prepare_remote_oauth_authorization,
 };
@@ -21,7 +21,7 @@ use super::{ActiveRemoteOAuthSession, MCPServerManager};
 const OAUTH_CALLBACK_TIMEOUT: Duration = Duration::from_secs(300);
 
 impl MCPServerManager {
-    fn oauth_data_dir(&self) -> OpenBitFunResult<std::path::PathBuf> {
+    fn oauth_data_dir(&self) -> BitFunResult<std::path::PathBuf> {
         self.oauth_data_dir.clone().map(Ok).unwrap_or_else(|| {
             Ok(crate::infrastructure::try_get_path_manager_arc()?.user_data_dir())
         })
@@ -79,17 +79,17 @@ impl MCPServerManager {
     pub async fn start_remote_oauth_authorization(
         &self,
         server_id: &str,
-    ) -> OpenBitFunResult<MCPRemoteOAuthSessionSnapshot> {
+    ) -> BitFunResult<MCPRemoteOAuthSessionSnapshot> {
         let config = self
             .config_service
             .get_server_config(server_id)
             .await?
             .ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("MCP server config not found: {}", server_id))
+                BitFunError::NotFound(format!("MCP server config not found: {}", server_id))
             })?;
 
         if config.server_type != MCPServerType::Remote {
-            return Err(OpenBitFunError::Validation(format!(
+            return Err(BitFunError::Validation(format!(
                 "MCP server '{}' is not a remote server",
                 server_id
             )));
@@ -104,7 +104,7 @@ impl MCPServerManager {
             .map_err(map_auth_error)?;
         let callback_path = Url::parse(&prepared.redirect_uri)
             .map_err(|error| {
-                OpenBitFunError::MCPError(format!(
+                BitFunError::MCPError(format!(
                     "Invalid OAuth redirect URI for server '{}': {}",
                     server_id, error
                 ))
@@ -170,7 +170,7 @@ impl MCPServerManager {
             let _ = MCPServerManager::update_oauth_snapshot(&callback_session, |snapshot| {
                 snapshot.status = MCPRemoteOAuthStatus::AwaitingCallback;
                 snapshot.message = Some(
-                    "Waiting for the OAuth provider to redirect back to OpenBitFun.".to_string(),
+                    "Waiting for the OAuth provider to redirect back to BitFun.".to_string(),
                 );
             })
             .await;
@@ -301,13 +301,13 @@ impl MCPServerManager {
         Some(snapshot)
     }
 
-    pub async fn has_remote_oauth_credentials(&self, server_id: &str) -> OpenBitFunResult<bool> {
+    pub async fn has_remote_oauth_credentials(&self, server_id: &str) -> BitFunResult<bool> {
         has_stored_oauth_credentials(self.oauth_data_dir()?, server_id)
             .await
             .map_err(map_auth_error)
     }
 
-    pub async fn cancel_remote_oauth_authorization(&self, server_id: &str) -> OpenBitFunResult<()> {
+    pub async fn cancel_remote_oauth_authorization(&self, server_id: &str) -> BitFunResult<()> {
         let session = self.oauth_sessions.write().await.remove(server_id);
         if let Some(session) = session {
             let _ = MCPServerManager::update_oauth_snapshot(&session, |snapshot| {
@@ -320,7 +320,7 @@ impl MCPServerManager {
         Ok(())
     }
 
-    pub async fn clear_remote_oauth_credentials(&self, server_id: &str) -> OpenBitFunResult<()> {
+    pub async fn clear_remote_oauth_credentials(&self, server_id: &str) -> BitFunResult<()> {
         self.cancel_remote_oauth_authorization(server_id).await?;
         clear_stored_oauth_credentials(self.oauth_data_dir()?, server_id)
             .await

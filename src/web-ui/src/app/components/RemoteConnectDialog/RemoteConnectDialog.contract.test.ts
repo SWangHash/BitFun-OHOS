@@ -52,32 +52,32 @@ describe('Remote Connect safety contracts', () => {
     expect(overview).toContain("view: 'account'");
     expect(overview).toContain("view: 'network'");
     expect(overview).toContain("view: 'bot'");
-    expect(dialogSource).not.toContain('data-openbitfun-part="groupTab"');
+    expect(dialogSource).not.toContain('data-bitfun-part="groupTab"');
     expect(dialogSource).not.toContain('remote-connect-group-');
   });
 
   it('keeps persistent navigation beside a single task surface', () => {
     expect(dialogSource).toContain('size="2xl"');
-    expect(dialogSource).toContain('className="openbitfun-remote-connect-dialog"');
-    expect(dialogSource).toContain('className="openbitfun-remote-connect-dialog__header"');
-    expect(dialogSource).toContain('className="openbitfun-remote-connect-dialog__body"');
-    expect(dialogSource).toContain('data-openbitfun-part="sidebar"');
-    expect(dialogSource).toContain('data-openbitfun-part="sidebarBrand"');
-    expect(dialogSource).toContain('data-openbitfun-part="main"');
-    expect(dialogSource).toContain('className="openbitfun-remote-connect__navigation"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog__header"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect-dialog__body"');
+    expect(dialogSource).toContain('data-bitfun-part="sidebar"');
+    expect(dialogSource).toContain('data-bitfun-part="sidebarBrand"');
+    expect(dialogSource).toContain('data-bitfun-part="main"');
+    expect(dialogSource).toContain('className="bitfun-remote-connect__navigation"');
     expect(dialogSource).toContain("aria-current={activeView === view ? 'page' : undefined}");
   });
 
   it('keeps the dialog height stable while selected content scrolls inside it', () => {
     const desktopGeometry = dialogStyleSource.slice(
-      dialogStyleSource.indexOf('.openbitfun-remote-connect-dialog {'),
-      dialogStyleSource.indexOf('.openbitfun-remote-connect-dialog__header'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect-dialog {'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect-dialog__header'),
     );
 
-    expect(desktopGeometry).toContain('block-size: min(620px, calc(100vh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter)))');
-    expect(desktopGeometry).toContain('min-block-size: min(620px, calc(100vh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter)))');
-    expect(desktopGeometry).toContain('max-block-size: min(620px, calc(100vh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter)))');
-    expect(dialogStyleSource).toContain(".openbitfun-remote-connect [data-openbitfun-part='panel']");
+    expect(desktopGeometry).toContain('block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(desktopGeometry).toContain('min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(desktopGeometry).toContain('max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(dialogStyleSource).toContain(".bitfun-remote-connect [data-bitfun-part='panel']");
     expect(dialogSource).toContain('<ScrollArea');
   });
 
@@ -88,7 +88,7 @@ describe('Remote Connect safety contracts', () => {
     expect(dialogSource).toContain("panelId: 'remote-connect-bot-tabpanel'");
     expect(dialogSource.match(/<TabGroup/g)).toHaveLength(2);
     expect(dialogSource).not.toContain('handleTabArrowKey');
-    expect(dialogSource).not.toContain('data-openbitfun-part="subtab"');
+    expect(dialogSource).not.toContain('data-bitfun-part="subtab"');
   });
 
   it('offers two relay endpoints and the supported chat providers', () => {
@@ -98,7 +98,7 @@ describe('Remote Connect safety contracts', () => {
     );
 
     expect(methods).toContain("id: 'lan'");
-    expect(methods).toContain("id: 'openbitfun_server'");
+    expect(methods).toContain("id: 'bitfun_server'");
     expect(methods).not.toContain("id: 'ngrok'");
     expect(methods).not.toContain("id: 'custom_server'");
     expect(methods).toContain("id: 'telegram'");
@@ -108,19 +108,19 @@ describe('Remote Connect safety contracts', () => {
 
   it('uses the real monochrome app marks for every chat provider', () => {
     const identityBrandStyle = dialogStyleSource.slice(
-      dialogStyleSource.indexOf('.openbitfun-remote-connect__bot-identity-icon'),
-      dialogStyleSource.indexOf('.openbitfun-remote-connect__bot-identity-title'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__bot-identity-icon'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__bot-identity-title'),
     );
     const connectedBrandStyle = dialogStyleSource.slice(
-      dialogStyleSource.indexOf('.openbitfun-remote-connect__connected-app-icon'),
-      dialogStyleSource.indexOf('.openbitfun-remote-connect__connected-app-copy'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__connected-app-icon'),
+      dialogStyleSource.indexOf('.bitfun-remote-connect__connected-app-copy'),
     );
     const footerMessageBrandStyle = navPanelStyleSource.slice(
-      navPanelStyleSource.indexOf("&[data-openbitfun-device-kind='message-app'] {"),
-      navPanelStyleSource.indexOf('.openbitfun-nav-panel__footer-device-status-attached-count'),
+      navPanelStyleSource.indexOf("&[data-bitfun-device-kind='message-app'] {"),
+      navPanelStyleSource.indexOf('.bitfun-nav-panel__footer-device-status-attached-count'),
     );
     const overviewMessageBrandStart = navPanelStyleSource.indexOf(
-      "&[data-openbitfun-device-kind='message-app'] .openbitfun-device-overview__device-icon {",
+      "&[data-bitfun-device-kind='message-app'] .bitfun-device-overview__device-icon {",
     );
     const overviewMessageBrandStyle = navPanelStyleSource.slice(
       overviewMessageBrandStart,
@@ -140,15 +140,15 @@ describe('Remote Connect safety contracts', () => {
     expect(connectedBrandStyle).not.toContain('background:');
     expect(footerMessageBrandStyle).toContain('border: 0');
     expect(footerMessageBrandStyle).toContain('background: transparent');
-    expect(footerMessageBrandStyle).toContain('--openbitfun-color-content-primary');
+    expect(footerMessageBrandStyle).toContain('--bitfun-color-content-primary');
     expect(overviewMessageBrandStyle).toContain('background: transparent');
-    expect(overviewMessageBrandStyle).toContain('--openbitfun-color-content-primary');
+    expect(overviewMessageBrandStyle).toContain('--bitfun-color-content-primary');
     expect(dialogSource).not.toContain('<Send size={28} />');
     expect(dialogSource).not.toContain('<MessageSquareText size={28} />');
     expect(dialogSource).not.toContain('<MessagesSquare size={28} />');
   });
 
-  it('keeps OpenBitFun Page out of the account and device lifecycle', () => {
+  it('keeps BitFun Page out of the account and device lifecycle', () => {
     expect(accountPanelSource).not.toContain('pagesEntry');
     expect(accountPanelSource).not.toContain("openScene('pages')");
     expect(accountPanelSource).not.toContain('PanelsTopLeft');

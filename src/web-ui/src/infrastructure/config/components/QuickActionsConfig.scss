@@ -2,7 +2,7 @@
   &__content {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-6);
+    gap: var(--bitfun-space-6);
   }
 
   // ── List ────────────────────────────────────────────────────────────────
@@ -18,12 +18,12 @@
     align-items: center;
     gap: 10px;
     padding: 32px 16px;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     text-align: center;
 
     p {
       margin: 0;
-      font-size: var(--openbitfun-type-label-md-font-size);
+      font-size: var(--bitfun-type-label-md-font-size);
     }
   }
 
@@ -37,13 +37,13 @@
     grid-template-columns: 36px 1fr auto;
     align-items: center;
     padding: 10px 16px;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:last-child { border-bottom: none; }
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
 
       .quick-actions-config__row-controls {
         opacity: 1;
@@ -58,8 +58,8 @@
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-secondary);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-secondary);
     flex-shrink: 0;
   }
 
@@ -69,19 +69,19 @@
   }
 
   &__row-label {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-primary);
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
   }
 
   &__row-prompt {
     margin-top: 2px;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     overflow: hidden;
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
   }
 
   &__row-controls {
@@ -90,11 +90,11 @@
     gap: 2px;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__delete-btn {
-    &:hover { color: var(--openbitfun-color-status-danger-content); }
+    &:hover { color: var(--bitfun-color-status-danger-content); }
   }
 
   // ── Modal body ──────────────────────────────────────────────────────────
@@ -102,8 +102,8 @@
   &__modal-body {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-4);
-    padding-block: var(--openbitfun-space-4) var(--openbitfun-space-3);
+    gap: var(--bitfun-space-4);
+    padding-block: var(--bitfun-space-4) var(--bitfun-space-3);
   }
 
   &__modal-icon-preview {
@@ -119,9 +119,9 @@
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-secondary);
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-secondary);
+    border: 1px solid var(--bitfun-color-border-subtle);
     flex-shrink: 0;
   }
 
@@ -132,9 +132,9 @@
   }
 
   &__modal-label {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__modal-textarea {
@@ -145,18 +145,18 @@
 
   &__modal-hint {
     margin: 0;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__modal-footer {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    margin-top: var(--openbitfun-space-3);
-    padding-top: var(--openbitfun-space-3);
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
+    gap: var(--bitfun-space-2);
+    margin-top: var(--bitfun-space-3);
+    padding-top: var(--bitfun-space-3);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
   }
 }

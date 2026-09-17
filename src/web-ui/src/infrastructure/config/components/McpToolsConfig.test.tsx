@@ -331,7 +331,7 @@ describe('McpToolsConfig remote behavior', () => {
     await act(async () => openEditor.click());
 
     expect(container.textContent).toContain('jsonEditor.loadFailed');
-    expect(container.querySelector('.openbitfun-mcp-tools__json-textarea')).toBeNull();
+    expect(container.querySelector('.bitfun-mcp-tools__json-textarea')).toBeNull();
     expect(container.textContent).not.toContain('example-server');
 
     const retry = container.querySelector('[aria-label="actions.refresh"]') as HTMLButtonElement;
@@ -342,7 +342,7 @@ describe('McpToolsConfig remote behavior', () => {
     });
     expect(loadJsonConfigMock).toHaveBeenCalledTimes(2);
     expect(container.textContent).not.toContain('jsonEditor.loadFailed');
-    expect(container.querySelector('.openbitfun-mcp-tools__json-textarea')).not.toBeNull();
+    expect(container.querySelector('.bitfun-mcp-tools__json-textarea')).not.toBeNull();
   });
 
   it('saves the JSON editor against the fingerprint that was loaded with it', async () => {
@@ -356,7 +356,7 @@ describe('McpToolsConfig remote behavior', () => {
       (container.querySelector('[aria-label="actions.jsonConfig"]') as HTMLButtonElement).click();
     });
     const textarea = container.querySelector(
-      '.openbitfun-mcp-tools__json-textarea textarea',
+      '.bitfun-mcp-tools__json-textarea textarea',
     ) as HTMLTextAreaElement;
     const editedJson = '{\n  "mcpServers": {}\n}';
     await act(async () => {
@@ -538,13 +538,13 @@ describe('McpToolsConfig remote behavior', () => {
     expect(startRemoteOAuthMock).not.toHaveBeenCalled();
     expect(getRemoteOAuthSessionMock).not.toHaveBeenCalled();
     expect(openExternalMock).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).toBeNull();
+    expect(document.querySelector('[data-bitfun-part="authEditor"]')).toBeNull();
 
     // A genuine authentication error may offer manual credentials, but must
     // still never start OAuth or render its controls when explicitly disabled.
     actionMock.mockRejectedValueOnce(new Error('status code: 401 Unauthorized'));
     await act(async () => button?.click());
-    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).not.toBeNull();
+    expect(document.querySelector('[data-bitfun-part="authEditor"]')).not.toBeNull();
     expect(document.body.textContent).not.toContain('modal.remoteOAuthDescription');
     expect(document.body.textContent).not.toContain('actions.startRemoteOAuth');
     expect(startRemoteOAuthMock).not.toHaveBeenCalled();
@@ -572,7 +572,7 @@ describe('McpToolsConfig remote behavior', () => {
     const start = container.querySelector<HTMLButtonElement>('[data-testid="mcp-server-start"]')!;
     await act(async () => start.click());
     const surface = document.querySelector<HTMLElement>('[role="dialog"]')!;
-    const editor = surface.querySelector('[data-openbitfun-part="authEditor"]');
+    const editor = surface.querySelector('[data-bitfun-part="authEditor"]');
     const contents = surface.textContent;
     expect(editor).not.toBeNull();
     if (oauthEnabled) {
@@ -580,10 +580,10 @@ describe('McpToolsConfig remote behavior', () => {
       expect(contents).toContain('modal.remoteOAuthStatus');
     }
 
-    await act(async () => surface.querySelector<HTMLButtonElement>('[data-openbitfun-part="close"]')!.click());
+    await act(async () => surface.querySelector<HTMLButtonElement>('[data-bitfun-part="close"]')!.click());
     expect(surface.dataset.state).toBe('exiting');
     expect(surface.getAttribute('aria-hidden')).toBe('true');
-    expect(surface.querySelector('[data-openbitfun-part="authEditor"]')).toBe(editor);
+    expect(surface.querySelector('[data-bitfun-part="authEditor"]')).toBe(editor);
     expect(surface.textContent).toBe(contents);
     expect(cancelRemoteOAuthMock).toHaveBeenCalledTimes(oauthEnabled ? 1 : 0);
     // Retained status must not leave the server's start action disabled.
@@ -594,7 +594,7 @@ describe('McpToolsConfig remote behavior', () => {
     await act(async () => vi.advanceTimersByTime(180));
     expect(document.querySelector('[role="dialog"]')).toBe(surface);
 
-    await act(async () => surface.querySelector<HTMLButtonElement>('[data-openbitfun-part="close"]')!.click());
+    await act(async () => surface.querySelector<HTMLButtonElement>('[data-bitfun-part="close"]')!.click());
     await act(async () => vi.advanceTimersByTime(179));
     expect(surface.isConnected).toBe(true);
     expect(surface.textContent).toBe(contents);
@@ -636,7 +636,7 @@ describe('McpToolsConfig remote behavior', () => {
     expect(openExternalMock).toHaveBeenCalledWith('https://mcp.notion.test/authorize');
     expect(getRemoteOAuthSessionMock).not.toHaveBeenCalled();
     expect(notificationMocks.error).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).not.toBeNull();
+    expect(document.querySelector('[data-bitfun-part="authEditor"]')).not.toBeNull();
   });
 
   it('reauthorizes after an auth handshake challenge without reporting a start failure', async () => {
@@ -673,7 +673,7 @@ describe('McpToolsConfig remote behavior', () => {
     expect(startServerMock).toHaveBeenCalledWith('notion');
     expect(startRemoteOAuthMock).toHaveBeenCalledWith({ serverId: 'notion' });
     expect(notificationMocks.error).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-openbitfun-part="authEditor"]')).not.toBeNull();
+    expect(document.querySelector('[data-bitfun-part="authEditor"]')).not.toBeNull();
   });
 
   it('deletes a server after confirmation and reloads the list', async () => {

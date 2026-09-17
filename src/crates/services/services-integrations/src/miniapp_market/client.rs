@@ -2,7 +2,7 @@ use crate::account_identity::{
     AccountIdentityClient, DesktopAuthPollRequest, DesktopAuthPollResponse, DesktopAuthStart,
     MarketClientError, MarketMe,
 };
-use openbitfun_product_domains::miniapp::market::{
+use bitfun_product_domains::miniapp::market::{
     CursorPage, MarketListingDetail, MarketListingSummary, MarketSort, MarketSubmission,
     MarketSubmissionDraftRequest, ReviewDecisionRequest, MARKET_PACKAGE_CONTENT_TYPE,
 };
@@ -10,7 +10,7 @@ use reqwest::{Method, RequestBuilder, Response};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_MARKET_API_URL: &str = "https://market.openbitfun.com/miniapp/api/v1";
+const DEFAULT_MARKET_API_URL: &str = "https://market.bitfun.com/miniapp/api/v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,7 +62,7 @@ pub struct MarketClient {
 
 impl MarketClient {
     pub fn configured_base_url() -> String {
-        std::env::var("OPENBITFUN_MINIAPP_MARKET_API_URL")
+        std::env::var("BITFUN_MINIAPP_MARKET_API_URL")
             .unwrap_or_else(|_| DEFAULT_MARKET_API_URL.to_string())
     }
 
@@ -87,7 +87,7 @@ impl MarketClient {
             ));
         }
         let client = crate::reqwest_client_builder()
-            .user_agent(format!("OpenBitFun-Desktop/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("BitFun-Desktop/{}", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| local_error("market_client_init_failed", error.to_string()))?;

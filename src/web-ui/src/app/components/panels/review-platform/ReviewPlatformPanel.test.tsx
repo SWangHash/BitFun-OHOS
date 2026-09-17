@@ -17,7 +17,7 @@ vi.mock('@/flow_chat/components/DeepReviewConsentDialog', () => ({ useDeepReview
 vi.mock('@/flow_chat/store/FlowChatStore', () => ({ flowChatStore: { getState: () => ({ sessions: new Map(), activeSessionId: null }), subscribe: () => () => {} } }));
 vi.mock('@/shared/stores/contextStore', () => ({ useContextStore: {} }));
 vi.mock('@/shared/services/ide-control', () => ({ quickActions: {} }));
-vi.mock('@openbitfun/ui', async () => {
+vi.mock('@bitfun/ui', async () => {
   const { createElement } = await import('react');
   const control = (tag: string) => ({ children, onClick, disabled, ...props }: Record<string, any>) => createElement(tag, {
     onClick, disabled, ...Object.fromEntries(Object.entries(props).filter(([key]) => key.startsWith('data-') || key.startsWith('aria-') || key === 'className')),
@@ -169,7 +169,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     await act(async () => pendingCi.resolve(detail(10, 'ci')));
     expect(mocks.detail).not.toHaveBeenCalledWith(expect.objectContaining({ pullRequestId: '10', section: 'reviews' }));
     expect(host.querySelector('[data-testid="review-platform-detail-state"]')?.textContent).toBe('Merged');
-    expect(host.querySelector('[data-openbitfun-part="detailMeta"]')?.textContent).toContain('#100');
+    expect(host.querySelector('[data-bitfun-part="detailMeta"]')?.textContent).toContain('#100');
   });
 
   it.each([4, 0])('shares verified statistics (%i lines) with the list and discards them for a new revision', async lines => {

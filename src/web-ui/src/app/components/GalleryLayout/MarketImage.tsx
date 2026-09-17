@@ -80,8 +80,8 @@ function MarketImageContent({
   return <img
     {...props}
     ref={ref}
-    data-openbitfun-component="gallery-layout"
-    data-openbitfun-part="marketImage"
+    data-bitfun-component="gallery-layout"
+    data-bitfun-part="marketImage"
     className={['market-image', className].filter(Boolean).join(' ')}
     data-loaded={loaded || undefined}
     src={src}

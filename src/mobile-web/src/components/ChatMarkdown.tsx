@@ -27,7 +27,7 @@ import swift from 'react-syntax-highlighter/dist/esm/languages/prism/swift';
 import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
-import { MobileButton, MobileIconButton, MobileLink } from '@openbitfun/ui/mobile';
+import { MobileButton, MobileIconButton, MobileLink } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
 import { RemoteArtifactImage } from './RemoteArtifactImage';
@@ -199,7 +199,7 @@ function isLocalFileLink(href: string): string | null {
 }
 
 function resolveFileReferenceHref(href: string): string | null {
-  if (/^openbitfun:\/\/(?:runtime|current-session)\//.test(href)) return href;
+  if (/^bitfun:\/\/(?:runtime|current-session)\//.test(href)) return href;
   if (
     href.startsWith(COMPUTER_LINK_PREFIX) ||
     href.startsWith(FILE_LINK_PREFIX) ||
@@ -381,16 +381,16 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFil
             customStyle={{
               margin: 0,
               borderRadius: '8px',
-              fontSize: 'var(--openbitfun-type-code-sm-font-size)',
-              lineHeight: 'var(--openbitfun-type-body-md-line-height)',
+              fontSize: 'var(--bitfun-type-code-sm-font-size)',
+              lineHeight: 'var(--bitfun-type-body-md-line-height)',
             }}
             codeTagProps={{
               style: {
-                fontFamily: 'var(--openbitfun-type-code-md-font-family)',
+                fontFamily: 'var(--bitfun-type-code-md-font-family)',
               },
             }}
             lineNumberStyle={{
-              color: 'var(--openbitfun-color-content-muted)',
+              color: 'var(--bitfun-color-content-muted)',
               paddingRight: '1em',
               textAlign: 'right' as const,
               userSelect: 'none' as const,
@@ -468,7 +468,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, onFil
         urlTransform={(url, key) => {
           if (key === 'src' && /^data:image\/(?:png|jpeg|gif|webp|bmp|svg\+xml|avif);base64,/i.test(url)) return url;
           if (/^[A-Za-z]:[\\/]/.test(url)) return url;
-          if (url.startsWith('computer://') || /^openbitfun:\/\/(?:runtime|current-session)\//.test(url)) return url;
+          if (url.startsWith('computer://') || /^bitfun:\/\/(?:runtime|current-session)\//.test(url)) return url;
           if (/^(https?|mailto|tel|file):/i.test(url) || url.startsWith('#') || url.startsWith('/')) {
             return url;
           }

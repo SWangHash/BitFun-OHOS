@@ -11,25 +11,25 @@ import './GenerativeWidgetFrame.scss';
 
 export type WidgetMessage =
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:event';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:event';
       widgetId?: string;
       payload?: unknown;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:prompt';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:prompt';
       widgetId?: string;
       text?: string;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:ready';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:ready';
       widgetId?: string;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:open-file';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:open-file';
       widgetId?: string;
       filePath?: string;
       line?: number;
@@ -38,24 +38,24 @@ export type WidgetMessage =
       nodeType?: string;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:resize';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:resize';
       widgetId?: string;
       height?: number;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:clear-selection';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:clear-selection';
       widgetId?: string;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:selection-cleared';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:selection-cleared';
       widgetId?: string;
     }
   | {
-      source: 'openbitfun-widget';
-      type: 'openbitfun-widget:context-menu';
+      source: 'bitfun-widget';
+      type: 'bitfun-widget:context-menu';
       widgetId?: string;
       clientX?: number;
       clientY?: number;
@@ -69,7 +69,7 @@ export type WidgetMessage =
 
 export type WidgetContextMenuMessage = Extract<
   WidgetMessage,
-  { type: 'openbitfun-widget:context-menu' }
+  { type: 'bitfun-widget:context-menu' }
 >;
 
 export interface GenerativeWidgetFrameProps {
@@ -100,8 +100,8 @@ ${createWidgetAppearanceFallbackCss()}
       width: 100%;
       min-height: 0;
       background: transparent;
-      color: var(--openbitfun-color-content-primary);
-      font-family: var(--openbitfun-type-body-sm-font-family);
+      color: var(--bitfun-color-content-primary);
+      font-family: var(--bitfun-type-body-sm-font-family);
       overflow-x: hidden;
       overflow-y: hidden;
     }
@@ -129,176 +129,176 @@ ${createWidgetAppearanceFallbackCss()}
       word-break: break-word;
     }
     body {
-      font-size: var(--openbitfun-type-label-md-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-size: var(--bitfun-type-label-md-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
     body, button, input, textarea, select {
-      font-family: var(--openbitfun-type-body-sm-font-family);
+      font-family: var(--bitfun-type-body-sm-font-family);
     }
     button, input, textarea, select {
       font: inherit;
     }
     a {
-      color: var(--openbitfun-color-accent-default);
+      color: var(--bitfun-color-accent-default);
       text-decoration: none;
     }
     a:hover {
-      color: var(--openbitfun-color-accent-hover);
+      color: var(--bitfun-color-accent-hover);
     }
     [data-file-path],
-    [data-openbitfun-open-file] {
+    [data-bitfun-open-file] {
       cursor: pointer;
     }
-    .openbitfun-root,
-    .openbitfun-stack,
-    .openbitfun-section,
-    .openbitfun-card,
-    .openbitfun-panel,
-    .openbitfun-empty,
-    .openbitfun-list,
-    .openbitfun-table-wrap {
+    .bitfun-root,
+    .bitfun-stack,
+    .bitfun-section,
+    .bitfun-card,
+    .bitfun-panel,
+    .bitfun-empty,
+    .bitfun-list,
+    .bitfun-table-wrap {
       min-width: 0;
     }
-    .openbitfun-root {
+    .bitfun-root {
       width: 100%;
       max-width: 100%;
       display: flex;
       flex-direction: column;
-      gap: var(--openbitfun-space-4);
-      color: var(--openbitfun-color-content-primary);
+      gap: var(--bitfun-space-4);
+      color: var(--bitfun-color-content-primary);
     }
-    .openbitfun-stack {
+    .bitfun-stack {
       display: flex;
       flex-direction: column;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
     }
-    .openbitfun-row {
+    .bitfun-row {
       display: flex;
       align-items: center;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
       min-width: 0;
     }
-    .openbitfun-row-wrap {
+    .bitfun-row-wrap {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
       min-width: 0;
     }
-    .openbitfun-toolbar {
+    .bitfun-toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: var(--openbitfun-space-3);
-      padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
-      border-radius: var(--openbitfun-radius-lg);
-      background: color-mix(in srgb, var(--openbitfun-color-surface-panel) 82%, transparent);
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      box-shadow: var(--openbitfun-shadow-xs);
+      gap: var(--bitfun-space-3);
+      padding: var(--bitfun-space-3) var(--bitfun-space-4);
+      border-radius: var(--bitfun-radius-lg);
+      background: color-mix(in srgb, var(--bitfun-color-surface-panel) 82%, transparent);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      box-shadow: var(--bitfun-shadow-xs);
     }
-    .openbitfun-section {
+    .bitfun-section {
       display: flex;
       flex-direction: column;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
     }
-    .openbitfun-section-header {
+    .bitfun-section-header {
       display: flex;
       flex-wrap: wrap;
       align-items: flex-start;
       justify-content: space-between;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
     }
-    .openbitfun-title {
+    .bitfun-title {
       margin: 0;
-      font-size: var(--openbitfun-type-body-lg-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      line-height: var(--openbitfun-type-label-md-line-height);
-      color: var(--openbitfun-color-content-primary);
-      letter-spacing: var(--openbitfun-type-flow-title-letter-spacing);
+      font-size: var(--bitfun-type-body-lg-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      line-height: var(--bitfun-type-label-md-line-height);
+      color: var(--bitfun-color-content-primary);
+      letter-spacing: var(--bitfun-type-flow-title-letter-spacing);
     }
-    .openbitfun-subtitle {
+    .bitfun-subtitle {
       margin: 0;
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      color: var(--openbitfun-color-content-muted);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      color: var(--bitfun-color-content-muted);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
-    .openbitfun-eyebrow {
+    .bitfun-eyebrow {
       margin: 0;
-      font-size: var(--openbitfun-type-meta-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
-      letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
+      font-size: var(--bitfun-type-meta-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
+      letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
       text-transform: uppercase;
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
-    .openbitfun-card,
-    .openbitfun-panel {
+    .bitfun-card,
+    .bitfun-panel {
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
       width: 100%;
-      padding: var(--openbitfun-space-4);
-      border-radius: var(--openbitfun-radius-lg);
-      background: var(--openbitfun-color-surface-panel);
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      box-shadow: var(--openbitfun-shadow-sm);
+      padding: var(--bitfun-space-4);
+      border-radius: var(--bitfun-radius-lg);
+      background: var(--bitfun-color-surface-panel);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      box-shadow: var(--bitfun-shadow-sm);
       overflow: hidden;
     }
-    .openbitfun-panel {
-      background: color-mix(in srgb, var(--openbitfun-color-surface-panel) 74%, var(--openbitfun-color-surface-subtle));
+    .bitfun-panel {
+      background: color-mix(in srgb, var(--bitfun-color-surface-panel) 74%, var(--bitfun-color-surface-subtle));
     }
-    [data-openbitfun-prompt-selected="true"],
-    [data-openbitfun-context-selected="true"] {
+    [data-bitfun-prompt-selected="true"],
+    [data-bitfun-context-selected="true"] {
       position: relative;
-      outline: 2px solid var(--openbitfun-color-accent-default);
+      outline: 2px solid var(--bitfun-color-accent-default);
       outline-offset: 2px;
       box-shadow:
-        0 0 0 4px color-mix(in srgb, var(--openbitfun-color-accent-default) 18%, transparent),
-        0 10px 24px color-mix(in srgb, var(--openbitfun-color-accent-default) 14%, transparent);
-      border-radius: min(var(--openbitfun-radius-base), 12px);
+        0 0 0 4px color-mix(in srgb, var(--bitfun-color-accent-default) 18%, transparent),
+        0 10px 24px color-mix(in srgb, var(--bitfun-color-accent-default) 14%, transparent);
+      border-radius: min(var(--bitfun-radius-base), 12px);
       transition: outline-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
       transform: translateY(-1px);
     }
-    .openbitfun-card-accent {
-      background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, var(--openbitfun-color-surface-panel));
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 30%, var(--openbitfun-color-border-subtle));
+    .bitfun-card-accent {
+      background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, var(--bitfun-color-surface-panel));
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 30%, var(--bitfun-color-border-subtle));
     }
-    .openbitfun-grid {
+    .bitfun-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-      gap: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
       width: 100%;
       min-width: 0;
     }
-    .openbitfun-kpi {
+    .bitfun-kpi {
       display: flex;
       flex-direction: column;
       gap: 6px;
       min-width: 0;
-      padding: var(--openbitfun-space-3);
-      border-radius: var(--openbitfun-radius-base);
-      background: var(--openbitfun-color-action-neutral-surface);
-      border: 1px solid var(--openbitfun-color-border-subtle);
+      padding: var(--bitfun-space-3);
+      border-radius: var(--bitfun-radius-base);
+      background: var(--bitfun-color-action-neutral-surface);
+      border: 1px solid var(--bitfun-color-border-subtle);
     }
-    .openbitfun-kpi-label {
-      font-size: var(--openbitfun-type-meta-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
+    .bitfun-kpi-label {
+      font-size: var(--bitfun-type-meta-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
       text-transform: uppercase;
-      letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
-      color: var(--openbitfun-color-content-muted);
+      letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
+      color: var(--bitfun-color-content-muted);
     }
-    .openbitfun-kpi-value {
-      font-size: var(--openbitfun-type-flow-section-title-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      line-height: var(--openbitfun-type-display-sm-line-height);
-      color: var(--openbitfun-color-content-primary);
+    .bitfun-kpi-value {
+      font-size: var(--bitfun-type-flow-section-title-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      line-height: var(--bitfun-type-display-sm-line-height);
+      color: var(--bitfun-color-content-primary);
     }
-    .openbitfun-kpi-meta {
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      color: var(--openbitfun-color-content-secondary);
+    .bitfun-kpi-meta {
+      font-size: var(--bitfun-type-label-sm-font-size);
+      color: var(--bitfun-color-content-secondary);
     }
-    .openbitfun-badge {
+    .bitfun-badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -306,34 +306,34 @@ ${createWidgetAppearanceFallbackCss()}
       min-height: 24px;
       padding: 0 10px;
       border-radius: 999px;
-      background: var(--openbitfun-color-action-neutral-surface);
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
-      color: var(--openbitfun-color-content-secondary);
+      background: var(--bitfun-color-action-neutral-surface);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
+      color: var(--bitfun-color-content-secondary);
       white-space: nowrap;
     }
-    .openbitfun-badge-accent {
-      background: color-mix(in srgb, var(--openbitfun-color-accent-default) 14%, transparent);
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, var(--openbitfun-color-border-subtle));
-      color: var(--openbitfun-color-accent-default);
+    .bitfun-badge-accent {
+      background: color-mix(in srgb, var(--bitfun-color-accent-default) 14%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 28%, var(--bitfun-color-border-subtle));
+      color: var(--bitfun-color-accent-default);
     }
-    .openbitfun-badge-success {
-      background: color-mix(in srgb, var(--openbitfun-color-status-success-content) 14%, transparent);
-      border-color: color-mix(in srgb, var(--openbitfun-color-status-success-content) 28%, var(--openbitfun-color-border-subtle));
-      color: var(--openbitfun-color-status-success-content);
+    .bitfun-badge-success {
+      background: color-mix(in srgb, var(--bitfun-color-status-success-content) 14%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-status-success-content) 28%, var(--bitfun-color-border-subtle));
+      color: var(--bitfun-color-status-success-content);
     }
-    .openbitfun-badge-warning {
-      background: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 14%, transparent);
-      border-color: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 28%, var(--openbitfun-color-border-subtle));
-      color: var(--openbitfun-color-status-warning-content);
+    .bitfun-badge-warning {
+      background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 14%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-status-warning-content) 28%, var(--bitfun-color-border-subtle));
+      color: var(--bitfun-color-status-warning-content);
     }
-    .openbitfun-badge-error {
-      background: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 14%, transparent);
-      border-color: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 28%, var(--openbitfun-color-border-subtle));
-      color: var(--openbitfun-color-status-danger-content);
+    .bitfun-badge-error {
+      background: color-mix(in srgb, var(--bitfun-color-status-danger-content) 14%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-status-danger-content) 28%, var(--bitfun-color-border-subtle));
+      color: var(--bitfun-color-status-danger-content);
     }
-    .openbitfun-button {
+    .bitfun-button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -341,177 +341,177 @@ ${createWidgetAppearanceFallbackCss()}
       min-height: 32px;
       max-width: 100%;
       padding: 0 12px;
-      border: 1px solid var(--openbitfun-color-border-default);
-      border-radius: var(--openbitfun-radius-sm);
-      background: var(--openbitfun-color-action-neutral-surface);
-      color: var(--openbitfun-color-content-secondary);
+      border: 1px solid var(--bitfun-color-border-default);
+      border-radius: var(--bitfun-radius-sm);
+      background: var(--bitfun-color-action-neutral-surface);
+      color: var(--bitfun-color-content-secondary);
       text-decoration: none;
       white-space: nowrap;
       transition:
         transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
-        background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+        background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     }
-    .openbitfun-button:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      color: var(--openbitfun-color-content-primary);
-      border-color: var(--openbitfun-color-field-border-hover);
+    .bitfun-button:hover {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      color: var(--bitfun-color-content-primary);
+      border-color: var(--bitfun-color-field-border-hover);
     }
-    .openbitfun-button-primary {
-      background: var(--openbitfun-color-accent-default);
-      color: var(--openbitfun-color-content-on-dark);
+    .bitfun-button-primary {
+      background: var(--bitfun-color-accent-default);
+      color: var(--bitfun-color-content-on-dark);
       border-color: transparent;
-      box-shadow: var(--openbitfun-shadow-xs);
+      box-shadow: var(--bitfun-shadow-xs);
     }
-    .openbitfun-button-primary:hover {
-      background: var(--openbitfun-color-accent-hover);
-      color: var(--openbitfun-color-content-on-dark);
+    .bitfun-button-primary:hover {
+      background: var(--bitfun-color-accent-hover);
+      color: var(--bitfun-color-content-on-dark);
       border-color: transparent;
     }
-    .openbitfun-input,
-    .openbitfun-textarea,
-    .openbitfun-select {
+    .bitfun-input,
+    .bitfun-textarea,
+    .bitfun-select {
       width: 100%;
       max-width: 100%;
       min-width: 0;
       padding: 0 12px;
-      border-radius: var(--openbitfun-radius-sm);
-      border: 1px solid var(--openbitfun-color-border-default);
-      background: var(--openbitfun-color-surface-subtle);
-      color: var(--openbitfun-color-content-primary);
+      border-radius: var(--bitfun-radius-sm);
+      border: 1px solid var(--bitfun-color-border-default);
+      background: var(--bitfun-color-surface-subtle);
+      color: var(--bitfun-color-content-primary);
       transition:
-        background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-        box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+        background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     }
-    .openbitfun-input,
-    .openbitfun-select {
+    .bitfun-input,
+    .bitfun-select {
       min-height: 34px;
     }
-    .openbitfun-textarea {
+    .bitfun-textarea {
       min-height: 96px;
       padding-top: 10px;
       padding-bottom: 10px;
       resize: vertical;
     }
-    .openbitfun-input::placeholder,
-    .openbitfun-textarea::placeholder {
-      color: color-mix(in srgb, var(--openbitfun-color-content-muted) 55%, transparent);
+    .bitfun-input::placeholder,
+    .bitfun-textarea::placeholder {
+      color: color-mix(in srgb, var(--bitfun-color-content-muted) 55%, transparent);
     }
-    .openbitfun-input:focus,
-    .openbitfun-textarea:focus,
-    .openbitfun-select:focus {
+    .bitfun-input:focus,
+    .bitfun-textarea:focus,
+    .bitfun-select:focus {
       outline: none;
-      border-color: var(--openbitfun-color-accent-default);
-      background: var(--openbitfun-color-action-quiet-hover);
+      border-color: var(--bitfun-color-accent-default);
+      background: var(--bitfun-color-action-quiet-hover);
     }
-    .openbitfun-list {
+    .bitfun-list {
       display: flex;
       flex-direction: column;
       gap: 8px;
       width: 100%;
     }
-    .openbitfun-list-item {
+    .bitfun-list-item {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: var(--openbitfun-space-3);
-      padding: var(--openbitfun-space-3);
-      border-radius: var(--openbitfun-radius-base);
-      background: var(--openbitfun-color-surface-subtle);
+      gap: var(--bitfun-space-3);
+      padding: var(--bitfun-space-3);
+      border-radius: var(--bitfun-radius-base);
+      background: var(--bitfun-color-surface-subtle);
       border: 1px solid transparent;
     }
-    .openbitfun-list-item[data-file-path]:hover,
-    .openbitfun-list-item[data-openbitfun-open-file]:hover,
-    .openbitfun-card[data-file-path]:hover,
-    .openbitfun-panel[data-file-path]:hover {
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 35%, var(--openbitfun-color-border-subtle));
-      background: color-mix(in srgb, var(--openbitfun-color-action-neutral-surface) 76%, var(--openbitfun-color-accent-default));
+    .bitfun-list-item[data-file-path]:hover,
+    .bitfun-list-item[data-bitfun-open-file]:hover,
+    .bitfun-card[data-file-path]:hover,
+    .bitfun-panel[data-file-path]:hover {
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 35%, var(--bitfun-color-border-subtle));
+      background: color-mix(in srgb, var(--bitfun-color-action-neutral-surface) 76%, var(--bitfun-color-accent-default));
     }
-    .openbitfun-table-wrap {
+    .bitfun-table-wrap {
       width: 100%;
       overflow-x: auto;
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      border-radius: var(--openbitfun-radius-base);
-      background: var(--openbitfun-color-surface-panel);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      border-radius: var(--bitfun-radius-base);
+      background: var(--bitfun-color-surface-panel);
     }
-    .openbitfun-table {
+    .bitfun-table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
     }
-    .openbitfun-table th,
-    .openbitfun-table td {
+    .bitfun-table th,
+    .bitfun-table td {
       padding: 10px 12px;
       text-align: left;
       vertical-align: top;
-      border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-      color: var(--openbitfun-color-content-secondary);
-      font-size: var(--openbitfun-type-label-md-font-size);
+      border-bottom: 1px solid var(--bitfun-color-border-subtle);
+      color: var(--bitfun-color-content-secondary);
+      font-size: var(--bitfun-type-label-md-font-size);
       word-break: break-word;
     }
-    .openbitfun-table th {
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
-      color: var(--openbitfun-color-content-muted);
+    .bitfun-table th {
+      font-size: var(--bitfun-type-label-sm-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
+      color: var(--bitfun-color-content-muted);
       text-transform: uppercase;
-      letter-spacing: var(--openbitfun-type-modifier-tracking-wider-letter-spacing);
+      letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
     }
-    .openbitfun-empty {
+    .bitfun-empty {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 8px;
       min-height: 140px;
-      padding: var(--openbitfun-space-5);
-      border-radius: var(--openbitfun-radius-lg);
-      border: 1px dashed var(--openbitfun-color-border-default);
-      background: color-mix(in srgb, var(--openbitfun-color-surface-subtle) 80%, transparent);
-      color: var(--openbitfun-color-content-muted);
+      padding: var(--bitfun-space-5);
+      border-radius: var(--bitfun-radius-lg);
+      border: 1px dashed var(--bitfun-color-border-default);
+      background: color-mix(in srgb, var(--bitfun-color-surface-subtle) 80%, transparent);
+      color: var(--bitfun-color-content-muted);
       text-align: center;
     }
-    .openbitfun-divider {
+    .bitfun-divider {
       width: 100%;
       height: 1px;
-      background: var(--openbitfun-color-border-subtle);
+      background: var(--bitfun-color-border-subtle);
       border: 0;
       margin: 0;
     }
-    .openbitfun-code {
+    .bitfun-code {
       padding: 2px 6px;
       border-radius: 6px;
-      background: var(--openbitfun-color-action-neutral-surface);
-      color: var(--openbitfun-color-content-primary);
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-label-sm-font-size);
+      background: var(--bitfun-color-action-neutral-surface);
+      color: var(--bitfun-color-content-primary);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-label-sm-font-size);
     }
-    .openbitfun-mono {
-      font-family: var(--openbitfun-type-code-md-font-family);
+    .bitfun-mono {
+      font-family: var(--bitfun-type-code-md-font-family);
     }
     @media (max-width: 560px) {
-      .openbitfun-card,
-      .openbitfun-panel,
-      .openbitfun-toolbar {
-        padding: var(--openbitfun-space-3);
+      .bitfun-card,
+      .bitfun-panel,
+      .bitfun-toolbar {
+        padding: var(--bitfun-space-3);
       }
-      .openbitfun-grid {
+      .bitfun-grid {
         grid-template-columns: 1fr;
       }
-      .openbitfun-title {
-        font-size: var(--openbitfun-type-body-md-font-size);
+      .bitfun-title {
+        font-size: var(--bitfun-type-body-md-font-size);
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .openbitfun-button,
-      .openbitfun-input,
-      .openbitfun-textarea,
-      .openbitfun-select,
-      [data-openbitfun-prompt-selected="true"],
-      [data-openbitfun-context-selected="true"] {
+      .bitfun-button,
+      .bitfun-input,
+      .bitfun-textarea,
+      .bitfun-select,
+      [data-bitfun-prompt-selected="true"],
+      [data-bitfun-context-selected="true"] {
         transition: none;
       }
     }
@@ -530,7 +530,7 @@ ${createWidgetAppearanceFallbackCss()}
 
       function send(type, payload) {
         parent.postMessage({
-          source: 'openbitfun-widget',
+          source: 'bitfun-widget',
           type: type,
           widgetId: currentWidgetId,
           payload: payload
@@ -554,7 +554,7 @@ ${createWidgetAppearanceFallbackCss()}
 
       function clearPromptTargetSelection() {
         if (!selectedPromptTarget) return;
-        selectedPromptTarget.removeAttribute('data-openbitfun-prompt-selected');
+        selectedPromptTarget.removeAttribute('data-bitfun-prompt-selected');
         selectedPromptTarget = null;
       }
 
@@ -566,7 +566,7 @@ ${createWidgetAppearanceFallbackCss()}
         if (selectedPromptTarget === element) return;
         clearPromptTargetSelection();
         selectedPromptTarget = element;
-        selectedPromptTarget.setAttribute('data-openbitfun-prompt-selected', 'true');
+        selectedPromptTarget.setAttribute('data-bitfun-prompt-selected', 'true');
       }
 
       function findPromptTarget(target) {
@@ -574,7 +574,7 @@ ${createWidgetAppearanceFallbackCss()}
         while (node && node !== document.body) {
           if (
             node.hasAttribute('data-file-path') ||
-            node.hasAttribute('data-openbitfun-open-file') ||
+            node.hasAttribute('data-bitfun-open-file') ||
             node.hasAttribute('data-prompt-target') ||
             node.hasAttribute('data-section-title')
           ) {
@@ -636,8 +636,8 @@ ${createWidgetAppearanceFallbackCss()}
             tag === 'article' ||
             role === 'region' ||
             role === 'group' ||
-            node.classList.contains('openbitfun-card') ||
-            node.classList.contains('openbitfun-panel')
+            node.classList.contains('bitfun-card') ||
+            node.classList.contains('bitfun-panel')
           ) {
             var heading = node.querySelector('h1, h2, h3, h4, h5, h6, [data-section-title]');
             var headingText = truncateText(
@@ -671,8 +671,8 @@ ${createWidgetAppearanceFallbackCss()}
         resizeFrame = window.requestAnimationFrame(function () {
           resizeFrame = null;
           sendMessage({
-            source: 'openbitfun-widget',
-            type: 'openbitfun-widget:resize',
+            source: 'bitfun-widget',
+            type: 'bitfun-widget:resize',
             widgetId: currentWidgetId,
             height: measureHeight()
           });
@@ -730,38 +730,38 @@ ${createWidgetAppearanceFallbackCss()}
         if (!appearance) return;
         var root = document.documentElement;
         if (!root) return;
-        if (appearance.id) root.setAttribute('data-openbitfun-appearance', String(appearance.id));
-        if (appearance.mode) root.setAttribute('data-openbitfun-appearance-mode', String(appearance.mode));
+        if (appearance.id) root.setAttribute('data-bitfun-appearance', String(appearance.id));
+        if (appearance.mode) root.setAttribute('data-bitfun-appearance-mode', String(appearance.mode));
         var vars = appearance.vars || {};
         Object.keys(vars).forEach(function (name) {
           root.style.setProperty(name, String(vars[name]));
         });
         var body = document.body;
         if (body) {
-          body.style.background = vars['--openbitfun-color-surface-canvas'] || 'transparent';
+          body.style.background = vars['--bitfun-color-surface-canvas'] || 'transparent';
           body.style.color =
-            vars['--openbitfun-color-content-primary'] ||
-            getComputedStyle(root).getPropertyValue('--openbitfun-color-content-primary') ||
+            vars['--bitfun-color-content-primary'] ||
+            getComputedStyle(root).getPropertyValue('--bitfun-color-content-primary') ||
             body.style.color;
           body.style.fontFamily =
-            vars['--openbitfun-font-family-sans'] ||
-            getComputedStyle(root).getPropertyValue('--openbitfun-font-family-sans') ||
+            vars['--bitfun-font-family-sans'] ||
+            getComputedStyle(root).getPropertyValue('--bitfun-font-family-sans') ||
             body.style.fontFamily;
         }
       }
 
       var bridge = {
         send: function (data) {
-          send('openbitfun-widget:event', data);
+          send('bitfun-widget:event', data);
         }
       };
 
-      window.openbitfunWidget = bridge;
+      window.bitfunWidget = bridge;
       window.glimpse = bridge;
       window.sendPrompt = function (text) {
         parent.postMessage({
-          source: 'openbitfun-widget',
-          type: 'openbitfun-widget:prompt',
+          source: 'bitfun-widget',
+          type: 'bitfun-widget:prompt',
           widgetId: currentWidgetId,
           text: String(text || '')
         }, '*');
@@ -769,9 +769,9 @@ ${createWidgetAppearanceFallbackCss()}
 
       document.addEventListener('click', function (event) {
         var target = event.target;
-        var fileTarget = target && target.closest ? target.closest('[data-file-path], [data-openbitfun-open-file]') : null;
+        var fileTarget = target && target.closest ? target.closest('[data-file-path], [data-bitfun-open-file]') : null;
         if (fileTarget) {
-          var filePath = fileTarget.getAttribute('data-file-path') || fileTarget.getAttribute('data-openbitfun-open-file') || '';
+          var filePath = fileTarget.getAttribute('data-file-path') || fileTarget.getAttribute('data-bitfun-open-file') || '';
           if (filePath) {
             var lineValue = Number(fileTarget.getAttribute('data-line') || '');
             var columnValue = Number(fileTarget.getAttribute('data-column') || '');
@@ -779,8 +779,8 @@ ${createWidgetAppearanceFallbackCss()}
             event.preventDefault();
             event.stopPropagation();
             sendMessage({
-              source: 'openbitfun-widget',
-              type: 'openbitfun-widget:open-file',
+              source: 'bitfun-widget',
+              type: 'bitfun-widget:open-file',
               widgetId: currentWidgetId,
               filePath: filePath,
               line: Number.isFinite(lineValue) && lineValue > 0 ? lineValue : undefined,
@@ -807,8 +807,8 @@ ${createWidgetAppearanceFallbackCss()}
         if (selectedPromptTarget.contains && selectedPromptTarget.contains(target)) return;
         clearPromptTargetSelection();
         sendMessage({
-          source: 'openbitfun-widget',
-          type: 'openbitfun-widget:selection-cleared',
+          source: 'bitfun-widget',
+          type: 'bitfun-widget:selection-cleared',
           widgetId: currentWidgetId
         });
       }, true);
@@ -825,7 +825,7 @@ ${createWidgetAppearanceFallbackCss()}
 
         var filePath = normalizeSpace(
           promptTarget && promptTarget.getAttribute
-            ? promptTarget.getAttribute('data-file-path') || promptTarget.getAttribute('data-openbitfun-open-file')
+            ? promptTarget.getAttribute('data-file-path') || promptTarget.getAttribute('data-bitfun-open-file')
             : ''
         );
         var lineValue = Number(
@@ -835,8 +835,8 @@ ${createWidgetAppearanceFallbackCss()}
         event.preventDefault();
         event.stopPropagation();
         sendMessage({
-          source: 'openbitfun-widget',
-          type: 'openbitfun-widget:context-menu',
+          source: 'bitfun-widget',
+          type: 'bitfun-widget:context-menu',
           widgetId: currentWidgetId,
           clientX: Number(event.clientX) || 0,
           clientY: Number(event.clientY) || 0,
@@ -850,13 +850,13 @@ ${createWidgetAppearanceFallbackCss()}
       window.addEventListener('message', function (event) {
         var data = event.data;
         if (!data) return;
-        if (data.type === 'openbitfun-widget:clear-selection') {
+        if (data.type === 'bitfun-widget:clear-selection') {
           if (!data.widgetId || data.widgetId === currentWidgetId) {
             clearPromptTargetSelection();
           }
           return;
         }
-        if (data.type !== 'openbitfun-widget:update') return;
+        if (data.type !== 'bitfun-widget:update') return;
         currentWidgetId = data.widgetId || currentWidgetId || '';
         applyAppearance(data.appearance);
         setContent(String(data.html || ''), Boolean(data.runScripts));
@@ -873,8 +873,8 @@ ${createWidgetAppearanceFallbackCss()}
       }
 
       sendMessage({
-        source: 'openbitfun-widget',
-        type: 'openbitfun-widget:ready',
+        source: 'bitfun-widget',
+        type: 'bitfun-widget:ready',
         widgetId: currentWidgetId
       });
       scheduleResize();
@@ -907,10 +907,10 @@ export const GenerativeWidgetFrame: React.FC<GenerativeWidgetFrameProps> = ({
     const handleMessage = (event: MessageEvent<WidgetMessage>) => {
       const data = event.data;
       if (event.source !== iframeRef.current?.contentWindow) return;
-      if (!data || data.source !== 'openbitfun-widget') return;
+      if (!data || data.source !== 'bitfun-widget') return;
       if (data.widgetId && data.widgetId !== widgetId) return;
 
-      if (data.type === 'openbitfun-widget:resize') {
+      if (data.type === 'bitfun-widget:resize') {
         const nextHeight = Math.max(120, Math.ceil(Number(data.height) || 0));
         setFrameHeight((prev) => {
           if (Math.abs(prev - nextHeight) <= 1) return prev;
@@ -920,7 +920,7 @@ export const GenerativeWidgetFrame: React.FC<GenerativeWidgetFrameProps> = ({
         return;
       }
 
-      if (data.type === 'openbitfun-widget:context-menu') {
+      if (data.type === 'bitfun-widget:context-menu') {
         const iframeRect = iframeRef.current?.getBoundingClientRect();
         onWidgetEvent?.({
           ...data,
@@ -999,7 +999,7 @@ export const GenerativeWidgetFrame: React.FC<GenerativeWidgetFrameProps> = ({
 
     iframeRef.current.contentWindow.postMessage(
       {
-        type: 'openbitfun-widget:update',
+        type: 'bitfun-widget:update',
         widgetId,
         title,
         html: normalizedCode,
@@ -1021,7 +1021,7 @@ export const GenerativeWidgetFrame: React.FC<GenerativeWidgetFrameProps> = ({
 
     iframeRef.current.contentWindow.postMessage(
       {
-        type: 'openbitfun-widget:clear-selection',
+        type: 'bitfun-widget:clear-selection',
         widgetId,
       },
       '*',
@@ -1030,17 +1030,17 @@ export const GenerativeWidgetFrame: React.FC<GenerativeWidgetFrameProps> = ({
 
   return (
     <div
-      className={`openbitfun-generative-widget-frame ${className}`.trim()}
-      data-openbitfun-component="generative-widget"
-      data-openbitfun-part="frame"
+      className={`bitfun-generative-widget-frame ${className}`.trim()}
+      data-bitfun-component="generative-widget"
+      data-bitfun-part="frame"
       style={{ height: `${frameHeight}px` }}
     >
       <iframe
         ref={iframeRef}
         title={title || 'Generative widget'}
-        className={`openbitfun-generative-widget-frame__iframe${isLoaded ? ' openbitfun-generative-widget-frame__iframe--loaded' : ''}`}
-        data-openbitfun-component="generative-widget"
-        data-openbitfun-part="iframe"
+        className={`bitfun-generative-widget-frame__iframe${isLoaded ? ' bitfun-generative-widget-frame__iframe--loaded' : ''}`}
+        data-bitfun-component="generative-widget"
+        data-bitfun-part="iframe"
         style={{ width: '100%', minWidth: '100%' }}
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         src="about:blank"

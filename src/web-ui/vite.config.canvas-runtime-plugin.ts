@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { build, type Plugin } from 'vite';
 
-const VIRTUAL_MODULE_ID = 'virtual:openbitfun-canvas-runtime-bundle';
+const VIRTUAL_MODULE_ID = 'virtual:bitfun-canvas-runtime-bundle';
 const RESOLVED_VIRTUAL_MODULE_ID = `\0${VIRTUAL_MODULE_ID}`;
 
 interface RuntimeBundleCache {
@@ -11,10 +11,10 @@ interface RuntimeBundleCache {
   code: string;
 }
 
-export function openbitfunCanvasRuntimeBundlePlugin(): Plugin {
+export function bitfunCanvasRuntimeBundlePlugin(): Plugin {
   let cache: RuntimeBundleCache | null = null;
   const webUiRoot = path.resolve(__dirname);
-  const runtimeRoot = path.resolve(webUiRoot, 'src/tools/openbitfun-canvas/runtime');
+  const runtimeRoot = path.resolve(webUiRoot, 'src/tools/bitfun-canvas/runtime');
   const entry = path.resolve(runtimeRoot, 'entry.tsx');
 
   function collectRuntimeFiles(dir: string): string[] {
@@ -57,7 +57,7 @@ export function openbitfunCanvasRuntimeBundlePlugin(): Plugin {
         sourcemap: 'inline',
         lib: {
           entry,
-          name: 'OpenBitFunCanvasRuntimeAdapters',
+          name: 'BitFunCanvasRuntimeAdapters',
           formats: ['iife'],
         },
         rollupOptions: {
@@ -80,15 +80,15 @@ export function openbitfunCanvasRuntimeBundlePlugin(): Plugin {
       .join('\n');
 
     const code = [
-      `export const openbitfunCanvasRuntimeBundle = ${JSON.stringify({ js, css })};`,
-      'export default openbitfunCanvasRuntimeBundle;',
+      `export const bitfunCanvasRuntimeBundle = ${JSON.stringify({ js, css })};`,
+      'export default bitfunCanvasRuntimeBundle;',
     ].join('\n');
     cache = { key, code };
     return code;
   }
 
   return {
-    name: 'openbitfun-canvas-runtime-bundle',
+    name: 'bitfun-canvas-runtime-bundle',
     enforce: 'pre',
     watchChange(id) {
       if (path.resolve(id).startsWith(runtimeRoot)) {

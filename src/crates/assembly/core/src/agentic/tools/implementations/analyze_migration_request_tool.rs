@@ -21,7 +21,7 @@
 //! The same logic is also exposed as a normal (read-only, no-UI) tool.
 
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
-use crate::util::errors::OpenBitFunResult;
+use crate::util::errors::BitFunResult;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -509,7 +509,7 @@ impl Tool for AnalyzeMigrationRequestTool {
         "AnalyzeMigrationRequest"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Analyze a user request to classify the Qt / HarmonyOS task type (app_migration, api_mapping, module_support, build_troubleshooting, window_issue, lifecycle, third_party_dependency, toolchain_setup, demo_generation, ambiguous, other) and the per-field minimum-input state for the four migration fields (source_project / output_project / toolchain / template). Use during Qt migration intake to decide whether to ask the user for missing path configuration via AskUserQuestion, or to proceed when inputs are present.
 
 app_migration requires Qt context AND a migration action AND a HarmonyOS/OpenHarmony target. Compound requests return a primary task plus a secondaryTaskTypes list; unclear requests return taskType=ambiguous with requiresClarification=true."#
@@ -546,7 +546,7 @@ app_migration requires Qt context AND a migration action AND a HarmonyOS/OpenHar
         &self,
         input: &Value,
         _context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let request = input
             .get("request")
             .and_then(Value::as_str)

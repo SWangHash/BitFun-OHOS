@@ -22,6 +22,6 @@ export const reasoningPresetEditorAppearanceDescriptor: AppearanceSurfaceDescrip
     { id: 'action' },
   ],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
   ],
 };

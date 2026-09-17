@@ -39,7 +39,7 @@ describe('SkillGroupEditor exit', () => {
     const surface = document.querySelector<HTMLElement>('[data-testid="skill-group-editor"]')!;
     await act(async () => {
       if (action === 'save') surface.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      else surface.querySelector<HTMLButtonElement>('[data-openbitfun-part="close"]')!.click();
+      else surface.querySelector<HTMLButtonElement>('[data-bitfun-part="close"]')!.click();
     });
     expect(onSave).toHaveBeenCalledTimes(action === 'save' ? 1 : 0);
     expect(onClose).not.toHaveBeenCalled();

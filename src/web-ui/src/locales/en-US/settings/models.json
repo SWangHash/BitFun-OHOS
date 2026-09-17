@@ -144,7 +144,7 @@
       "name": "OpenCode Go",
       "description": "A model subscription plan from OpenCode."
     },
-    "openbitfun": {
+    "bitfun": {
       "name": "BitFun Service",
       "description": "BitFun Model Platform",
       "urlOptions": {

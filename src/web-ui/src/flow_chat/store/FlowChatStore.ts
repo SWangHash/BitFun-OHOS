@@ -2055,9 +2055,9 @@ export class FlowChatStore {
   private clearOldStorage(): void {
     try {
       const keysToRemove = [
-        'openbitfun-flow-chat-state',
-        'openbitfun-flow-chat-global',
-        'openbitfun-session-ids'
+        'bitfun-flow-chat-state',
+        'bitfun-flow-chat-global',
+        'bitfun-session-ids'
       ];
       
       keysToRemove.forEach(key => {
@@ -2067,7 +2067,7 @@ export class FlowChatStore {
       });
 
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('openbitfun-session-')) {
+        if (key.startsWith('bitfun-session-')) {
           localStorage.removeItem(key);
         }
       });
@@ -4361,7 +4361,7 @@ export class FlowChatStore {
       };
     });
     
-    window.dispatchEvent(new CustomEvent('openbitfun:session-switched', {
+    window.dispatchEvent(new CustomEvent('bitfun:session-switched', {
       detail: { sessionId, mode: sessionMode || 'Standard' }
     }));
 
@@ -6863,7 +6863,7 @@ export class FlowChatStore {
       const newSessions = new Map(prev.sessions);
       newSessions.set(sessionId, updatedSession);
 
-      window.dispatchEvent(new CustomEvent('openbitfun:dialog-cancelled', {
+      window.dispatchEvent(new CustomEvent('bitfun:dialog-cancelled', {
         detail: { sessionId }
       }));
 

@@ -1,9 +1,9 @@
 // Shared presentation for runtime-owned settings pages and their embedded sections.
-.openbitfun-runtime-settings {
+.bitfun-runtime-settings {
   &__content {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-6);
+    gap: var(--bitfun-space-6);
   }
 
   &__row-control {
@@ -11,11 +11,11 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__status-row {
-    --row-grid-cols: minmax(0, 1fr) minmax(0, var(--openbitfun-overlay-menu-inline-size));
+    --row-grid-cols: minmax(0, 1fr) minmax(0, var(--bitfun-overlay-menu-inline-size));
   }
 
   &__status-actions {
@@ -23,7 +23,7 @@
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
   }
 
@@ -35,20 +35,20 @@
   &__platform-note {
     display: flex;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-5);
-    border-top: 1px solid var(--openbitfun-component-config-page-divider);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3) var(--bitfun-space-5);
+    border-top: 1px solid var(--bitfun-component-config-page-divider);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-modifier-leading-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
   }
 
   &__platform-note-icon {
     flex-shrink: 0;
     margin-block-start: 2px;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__platform-note-copy {
@@ -59,8 +59,8 @@
     text-wrap: pretty;
 
     strong {
-      color: var(--openbitfun-color-content-primary);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-primary);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
   }
 
@@ -71,11 +71,11 @@
   &__warning {
     max-width: 100%;
     padding: 6px 10px;
-    border-radius: var(--openbitfun-radius-sm);
-    border: 1px dashed var(--openbitfun-color-status-warning-border);
-    color: var(--openbitfun-color-status-warning-content);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    border-radius: var(--bitfun-radius-sm);
+    border: 1px dashed var(--bitfun-color-status-warning-border);
+    color: var(--bitfun-color-status-warning-content);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-lg-line-height);
     background: transparent;
   }
 
@@ -87,7 +87,7 @@
   &__pet-actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     white-space: nowrap;
   }
 
@@ -99,7 +99,7 @@
   &__pet-gallery {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
     width: 100%;
     min-width: 0;
   }
@@ -112,14 +112,14 @@
     height: 150px;
     overflow: hidden;
     border: 1px solid transparent;
-    border-radius: var(--openbitfun-radius-md);
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-action-quiet-hover);
+    border-radius: var(--bitfun-radius-md);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-quiet-hover);
   }
 
   &__pet-card:hover,
   &__pet-card:focus-within {
-    border-color: var(--openbitfun-color-border-default);
+    border-color: var(--bitfun-color-border-default);
   }
 
   &__pet-card-select {
@@ -143,12 +143,12 @@
 
   &__pet-card-select:focus-visible {
     outline: none;
-    box-shadow: inset 0 0 0 2px var(--openbitfun-color-accent-default);
+    box-shadow: inset 0 0 0 2px var(--bitfun-color-accent-default);
   }
 
   &__pet-card-select:disabled {
     cursor: default;
-    opacity: var(--openbitfun-opacity-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   &__pet-card-preview {
@@ -160,10 +160,10 @@
     width: 100%;
     height: 97px;
     overflow: hidden;
-    background: var(--openbitfun-color-surface-workbench);
+    background: var(--bitfun-color-surface-workbench);
 
-    :root[data-openbitfun-appearance-mode='light'] & {
-      background: var(--openbitfun-color-surface-scene);
+    :root[data-bitfun-appearance-mode='light'] & {
+      background: var(--bitfun-color-surface-scene);
     }
   }
 
@@ -172,8 +172,8 @@
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3) var(--openbitfun-space-3);
+    gap: var(--bitfun-space-1);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3) var(--bitfun-space-3);
 
     strong,
     span:not([data-overflow-content]) {
@@ -182,22 +182,22 @@
     }
 
     strong {
-      font-size: var(--openbitfun-type-label-md-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      line-height: var(--openbitfun-type-modifier-leading-dense-line-height);
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      line-height: var(--bitfun-type-modifier-leading-dense-line-height);
     }
 
     span {
-      color: var(--openbitfun-color-content-secondary);
-      font-size: var(--openbitfun-type-meta-font-size);
-      line-height: var(--openbitfun-type-modifier-leading-snug-line-height);
+      color: var(--bitfun-color-content-secondary);
+      font-size: var(--bitfun-type-meta-font-size);
+      line-height: var(--bitfun-type-modifier-leading-snug-line-height);
     }
   }
 
   &__pet-preview-sprite {
     width: 68px;
     height: 76px;
-    background-image: var(--openbitfun-pet-preview-src);
+    background-image: var(--bitfun-pet-preview-src);
     background-repeat: no-repeat;
     background-size: 800% 900%;
     background-position: 0 0;
@@ -206,30 +206,30 @@
 
   &__pet-card:hover &__pet-preview-sprite,
   &__pet-card:focus-within &__pet-preview-sprite {
-    animation: openbitfun-config-pet-preview 1.2s steps(6) infinite;
+    animation: bitfun-config-pet-preview 1.2s steps(6) infinite;
   }
 
   &__pet-selected-mark {
     position: absolute;
-    top: var(--openbitfun-space-2);
-    right: var(--openbitfun-space-2);
+    top: var(--bitfun-space-2);
+    right: var(--bitfun-space-2);
     display: flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: var(--openbitfun-radius-pill);
-    background: color-mix(in srgb, var(--openbitfun-color-content-primary) 74%, transparent);
-    color: var(--openbitfun-color-surface-scene);
+    border-radius: var(--bitfun-radius-pill);
+    background: color-mix(in srgb, var(--bitfun-color-content-primary) 74%, transparent);
+    color: var(--bitfun-color-surface-scene);
   }
 
   &__pet-card-delete {
     position: absolute;
-    top: var(--openbitfun-space-2);
-    left: var(--openbitfun-space-2);
+    top: var(--bitfun-space-2);
+    left: var(--bitfun-space-2);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__pet-card:hover &__pet-card-delete,
@@ -241,7 +241,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-runtime-settings {
+  .bitfun-runtime-settings {
     &__pet-card-delete,
     &__pet-preview-sprite {
       animation: none;
@@ -250,7 +250,7 @@
   }
 }
 
-@keyframes openbitfun-config-pet-preview {
+@keyframes bitfun-config-pet-preview {
   from {
     background-position-x: 0;
   }
@@ -261,7 +261,7 @@
 }
 
 @container config-panel (max-width: 520px) {
-  .openbitfun-runtime-settings {
+  .bitfun-runtime-settings {
     &__row-control {
       align-items: flex-start;
     }
@@ -272,7 +272,7 @@
     }
 
     &__platform-note {
-      padding-inline: var(--openbitfun-space-4);
+      padding-inline: var(--bitfun-space-4);
     }
 
     &__pet-actions {
@@ -290,7 +290,7 @@
 }
 
 @media (hover: none) {
-  .openbitfun-runtime-settings__pet-card-delete {
+  .bitfun-runtime-settings__pet-card-delete {
     opacity: 1;
     pointer-events: auto;
   }

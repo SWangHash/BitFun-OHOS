@@ -19,11 +19,11 @@ describe('mobile output artifact rendering', () => {
   });
   afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
-  it.each(['preview.png', 'computer://preview.png', 'file:///workspace/preview.png', 'computer://preview%20%E5%9B%BE.png', 'openbitfun://runtime/artifacts/preview.png'])(
+  it.each(['preview.png', 'computer://preview.png', 'file:///workspace/preview.png', 'computer://preview%20%E5%9B%BE.png', 'bitfun://runtime/artifacts/preview.png'])(
     'reads %s from the session and displays transferred bytes', async source => {
       const read = vi.fn().mockResolvedValue('data:image/png;base64,YQ==');
       await act(async () => root.render(<ArtifactImageReader.Provider value={read}><MarkdownContent content={`![Preview](${source})`} /></ArtifactImageReader.Provider>));
-      expect(read).toHaveBeenCalledWith(source.startsWith('openbitfun:') ? source : source.startsWith('file:') ? '/workspace/preview.png' : source.includes('%') ? 'preview 图.png' : 'preview.png');
+      expect(read).toHaveBeenCalledWith(source.startsWith('bitfun:') ? source : source.startsWith('file:') ? '/workspace/preview.png' : source.includes('%') ? 'preview 图.png' : 'preview.png');
       expect(container.querySelector('img')?.src).toBe('data:image/png;base64,YQ==');
     },
   );

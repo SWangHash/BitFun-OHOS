@@ -10,7 +10,7 @@ import { OverflowText,
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Github, Loader2, LogOut } from 'lucide-react';
@@ -175,9 +175,9 @@ export function AccountIdentityControls({
   return (
     <div
       className={['market-account-controls', className].filter(Boolean).join(' ')}
-      data-openbitfun-component="market-account-controls"
-      data-openbitfun-part="root"
-      data-openbitfun-state={account.status}
+      data-bitfun-component="market-account-controls"
+      data-bitfun-part="root"
+      data-bitfun-state={account.status}
     >
       {account.me ? (
         <div className="market-account-controls__menu-root" ref={menuRef}>
@@ -185,8 +185,8 @@ export function AccountIdentityControls({
             ref={menuTriggerRef}
             type="button"
             className="market-account-controls__identity-trigger"
-            data-openbitfun-component="market-account-controls"
-            data-openbitfun-part="identityTrigger"
+            data-bitfun-component="market-account-controls"
+            data-bitfun-part="identityTrigger"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-label={t('market.account.menuLabel', { login: account.me.email ?? account.me.user.login })}
@@ -211,8 +211,8 @@ export function AccountIdentityControls({
             >
               <div
                 className="market-account-controls__profile"
-                data-openbitfun-component="market-account-controls"
-                data-openbitfun-part="profile"
+                data-bitfun-component="market-account-controls"
+                data-bitfun-part="profile"
               >
                 <Avatar key={account.me.email ?? account.me.user.login} size="md" src={account.me.user.avatarUrl} alt={account.me.email ?? account.me.user.login} aria-label={account.me.email ?? account.me.user.login}>
               {(account.me.email ?? account.me.user.login).trim().charAt(0).toUpperCase() || <Icon name="user" />}
@@ -262,8 +262,8 @@ export function AccountIdentityControls({
         <DialogBody>
         <div
           className="market-account-login"
-          data-openbitfun-component="market-account-controls"
-          data-openbitfun-part="login"
+          data-bitfun-component="market-account-controls"
+          data-bitfun-part="login"
         >
           <div className="market-account-login__mark" aria-hidden="true">
             <Github size={28} />
@@ -276,8 +276,8 @@ export function AccountIdentityControls({
             <div
               className="market-account-login__waiting"
               role="status"
-              data-openbitfun-component="market-account-controls"
-              data-openbitfun-part="waiting"
+              data-bitfun-component="market-account-controls"
+              data-bitfun-part="waiting"
             >
               <Loader2 size={16} className="market-account-controls__spinner" />
               <span>{t('market.account.waiting')}</span>
@@ -287,16 +287,16 @@ export function AccountIdentityControls({
             <p
               className="market-account-login__error"
               role="alert"
-              data-openbitfun-component="market-account-controls"
-              data-openbitfun-part="error"
+              data-bitfun-component="market-account-controls"
+              data-bitfun-part="error"
             >
               {errorText}
             </p>
           )}
           <div
             className="market-account-login__actions"
-            data-openbitfun-component="market-account-controls"
-            data-openbitfun-part="actions"
+            data-bitfun-component="market-account-controls"
+            data-bitfun-part="actions"
           >
             <Button variant="fill" onClick={closeLogin}>
               {t('market.account.cancel')}

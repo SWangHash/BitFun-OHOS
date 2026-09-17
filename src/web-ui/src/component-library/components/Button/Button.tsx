@@ -67,17 +67,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       className={classNames}
       disabled={disabled || isLoading}
       {...props}
-      data-openbitfun-component="button"
-      data-openbitfun-part="root"
-      data-openbitfun-variant={variant}
-      data-openbitfun-size={size}
-      data-openbitfun-icon-only={iconOnly ? 'true' : undefined}
-      data-openbitfun-state={appearanceState || undefined}
+      data-bitfun-component="button"
+      data-bitfun-part="root"
+      data-bitfun-variant={variant}
+      data-bitfun-size={size}
+      data-bitfun-icon-only={iconOnly ? 'true' : undefined}
+      data-bitfun-state={appearanceState || undefined}
     >
       {isLoading ? (
         <>
-          <span className="btn-loading-icon" data-openbitfun-component="button" data-openbitfun-part="loadingIcon"></span>
-          <span className="btn-loading-text" data-openbitfun-component="button" data-openbitfun-part="loadingText">Loading...</span>
+          <span className="btn-loading-icon" data-bitfun-component="button" data-bitfun-part="loadingIcon"></span>
+          <span className="btn-loading-text" data-bitfun-component="button" data-bitfun-part="loadingText">Loading...</span>
         </>
       ) : (
         children

@@ -33,20 +33,20 @@ function stage(platform) {
   const target = resolve(ROOT, process.env.CARGO_TARGET_DIR || 'target', metadata.target, 'release');
   const output = join(ROOT, 'target/data-migrator-release', platform);
   mkdirSync(output, { recursive: true });
-  const asset = `openbitfun-data-migrator-v${version}-${platform}.${metadata.extension}`;
+  const asset = `bitfun-data-migrator-v${version}-${platform}.${metadata.extension}`;
   const destination = join(output, asset);
   if (platform === 'windows-x64') {
     const portable = join(ROOT, 'target/data-migrator-portable', version);
     mkdirSync(portable, { recursive: true });
-    copyFileSync(join(target, 'openbitfun-data-migrator.exe'), join(portable, 'openbitfun-data-migrator.exe'));
+    copyFileSync(join(target, 'bitfun-data-migrator.exe'), join(portable, 'bitfun-data-migrator.exe'));
     for (const file of ['README.md', 'README.zh-CN.md']) copyFileSync(join(ROOT, 'src/apps/data-migrator', file), join(portable, file));
     copyFileSync(join(ROOT, 'THIRD_PARTY_NOTICES.md'), join(portable, 'THIRD_PARTY_NOTICES.md'));
-    const result = spawnSync('tar', ['-a', '-cf', destination, '-C', portable, 'openbitfun-data-migrator.exe', 'README.md', 'README.zh-CN.md', 'THIRD_PARTY_NOTICES.md'], { stdio: 'inherit', windowsHide: true });
+    const result = spawnSync('tar', ['-a', '-cf', destination, '-C', portable, 'bitfun-data-migrator.exe', 'README.md', 'README.zh-CN.md', 'THIRD_PARTY_NOTICES.md'], { stdio: 'inherit', windowsHide: true });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error('Could not archive the portable migrator');
   } else {
     const folder = join(target, 'bundle', metadata.folder);
-    const files = readdirSync(folder).filter((name) => name.startsWith(`OpenBitFun Data Migrator_${version}_`) && name.endsWith(`.${metadata.extension}`));
+    const files = readdirSync(folder).filter((name) => name.startsWith(`BitFun Data Migrator_${version}_`) && name.endsWith(`.${metadata.extension}`));
     if (files.length !== 1) throw new Error('Expected exactly one migrator package in the bundle output');
     copyFileSync(join(folder, files[0]), destination);
   }

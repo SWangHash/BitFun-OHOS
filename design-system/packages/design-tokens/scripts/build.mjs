@@ -9,7 +9,7 @@ import {
   mergeTokenDocuments,
   renderCss,
   resolveTokens,
-} from "@openbitfun/token-engine";
+} from "@bitfun/token-engine";
 
 const packageDirectory = fileURLToPath(new URL("../", import.meta.url));
 const sourceDirectory = path.join(packageDirectory, "src");
@@ -125,7 +125,7 @@ const typescript = [
   `export type SystemTokenMode = ${tokenModes.map((mode) => JSON.stringify(mode)).join(" | ")};`,
   "export interface SystemTokenCatalogEntry {",
   "  readonly category: string;",
-  "  readonly cssVariable: `--openbitfun-${string}`;",
+  "  readonly cssVariable: `--bitfun-${string}`;",
   "  readonly description?: string;",
   "  readonly name: TokenName;",
   "  readonly type: string;",
@@ -136,29 +136,29 @@ const typescript = [
   "",
 ].join("\n");
 const css = [
-  "@layer openbitfun.tokens.system, openbitfun.tokens.theme, openbitfun.reset, openbitfun.base, openbitfun.components, openbitfun.overrides;\n",
+  "@layer bitfun.tokens.system, bitfun.tokens.theme, bitfun.reset, bitfun.base, bitfun.components, bitfun.overrides;\n",
   renderCss(systemTokens, {
-    layer: "openbitfun.tokens.system",
+    layer: "bitfun.tokens.system",
     preserveReferences: true,
-    selector: ":where([data-openbitfun-design-system-root])",
+    selector: ":where([data-bitfun-design-system-root])",
   }),
   renderCss(diffResolvedTokens(systemTokens, compactTokens), {
-    layer: "openbitfun.tokens.system",
+    layer: "bitfun.tokens.system",
     preserveReferences: true,
-    selector: ':where([data-openbitfun-design-system-root][data-density="compact"])',
+    selector: ':where([data-bitfun-design-system-root][data-density="compact"])',
   }),
   renderCss(diffResolvedTokens(systemTokens, touchTokens), {
-    layer: "openbitfun.tokens.system",
+    layer: "bitfun.tokens.system",
     preserveReferences: true,
-    selector: ':where([data-openbitfun-design-system-root][data-density="touch"])',
+    selector: ':where([data-bitfun-design-system-root][data-density="touch"])',
   }),
   "@media (prefers-reduced-motion: reduce) {\n",
-  "  :where([data-openbitfun-design-system-root]) {\n",
-  "    --openbitfun-motion-duration-fast: 0ms;\n",
-  "    --openbitfun-motion-duration-normal: 0ms;\n",
-  "    --openbitfun-motion-duration-content-swap: 0ms;\n",
-  "    --openbitfun-motion-duration-slow: 0ms;\n",
-  "    --openbitfun-motion-duration-loop: 0ms;\n",
+  "  :where([data-bitfun-design-system-root]) {\n",
+  "    --bitfun-motion-duration-fast: 0ms;\n",
+  "    --bitfun-motion-duration-normal: 0ms;\n",
+  "    --bitfun-motion-duration-content-swap: 0ms;\n",
+  "    --bitfun-motion-duration-slow: 0ms;\n",
+  "    --bitfun-motion-duration-loop: 0ms;\n",
   "  }\n",
   "}\n",
 ].join("\n");

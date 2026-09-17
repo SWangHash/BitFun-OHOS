@@ -10,7 +10,7 @@ import { StartupPage } from '../../page-objects/StartupPage';
 import { saveScreenshot, saveFailureScreenshot } from '../../helpers/screenshot-utils';
 import { waitForElementStable } from '../../helpers/wait-utils';
 
-describe('OpenBitFun basic chat', () => {
+describe('BitFun basic chat', () => {
   const chatPage = new ChatPage();
   const chatInput = new ChatInput();
   const header = new Header();

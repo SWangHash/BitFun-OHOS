@@ -1,4 +1,4 @@
-.openbitfun-reasoning-preset-selector {
+.bitfun-reasoning-preset-selector {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -11,20 +11,20 @@
     height: 18px;
     padding: 0;
     border: none;
-    border-radius: var(--openbitfun-radius-base);
+    border-radius: var(--bitfun-radius-base);
     background: transparent;
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-flow-support-font-size);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-support-font-size);
     cursor: pointer;
     outline: none;
 
     &:hover,
     &--open {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
     }
 
     &:focus-visible {
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--openbitfun-color-accent-default) 20%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 20%, transparent);
     }
 
     &:disabled {
@@ -33,20 +33,20 @@
     }
   }
 
-  &[data-openbitfun-presentation='label'] &__trigger {
+  &[data-bitfun-presentation='label'] &__trigger {
     width: auto;
     min-width: 0;
     padding-inline: 2px;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
   }
 
   &__trigger-label {
     min-width: 0;
     overflow: hidden;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     white-space: nowrap;
   }
 
@@ -55,7 +55,7 @@
     display: inline-grid;
     place-items: center;
     flex: none;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
 
     &[data-size='compact'] {
       width: 14px;
@@ -80,18 +80,18 @@
   }
 
   &__status-peak {
-    color: var(--openbitfun-color-accent-default);
+    color: var(--bitfun-color-accent-default);
   }
 
   &__status-off {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__menu {
     --reasoning-preset-menu-offset: -4px;
-    --openbitfun-overlay-menu-inline-size: min(232px, calc(100vw - 16px));
+    --bitfun-overlay-menu-inline-size: min(232px, calc(100vw - 16px));
 
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     transform-origin: center top;
     transition:
       opacity 100ms ease,
@@ -129,10 +129,10 @@
   }
 
   &__title {
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-dense-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-modifier-leading-dense-line-height);
   }
 
   &__auto-row {
@@ -155,16 +155,16 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    line-height: var(--openbitfun-type-modifier-leading-dense-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    line-height: var(--bitfun-type-modifier-leading-dense-line-height);
     white-space: nowrap;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-reasoning-preset-selector__menu {
+  .bitfun-reasoning-preset-selector__menu {
     transition: opacity 100ms linear;
   }
 }

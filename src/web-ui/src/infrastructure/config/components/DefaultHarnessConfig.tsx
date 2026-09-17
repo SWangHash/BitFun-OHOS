@@ -1,5 +1,5 @@
 import { HARNESS_IDS, canonicalHarnessId } from '@/shared/agents/identity';
-import { Select, type SelectOption } from '@openbitfun/ui';
+import { Select, type SelectOption } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -171,7 +171,7 @@ export function DefaultHarnessConfig(): React.ReactElement {
           align="center"
         >
           <div
-            className="openbitfun-runtime-settings__row-control"
+            className="bitfun-runtime-settings__row-control"
             data-testid="default-harness-strategy"
           >
             <Select
@@ -194,7 +194,7 @@ export function DefaultHarnessConfig(): React.ReactElement {
             align="center"
           >
             <div
-              className="openbitfun-runtime-settings__row-control"
+              className="bitfun-runtime-settings__row-control"
               data-testid="default-harness-fixed-mode"
             >
               <Select

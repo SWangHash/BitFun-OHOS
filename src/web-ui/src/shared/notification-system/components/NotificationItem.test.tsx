@@ -57,23 +57,23 @@ describe('NotificationItem accessibility', () => {
     expect(item?.getAttribute('role')).toBe('alert');
     expect(item?.getAttribute('aria-live')).toBe('assertive');
     expect(item?.getAttribute('aria-atomic')).toBe('true');
-    expect(container.querySelector('.notification-item__actions [data-openbitfun-component="button"]')?.textContent).toBe('Retry');
-    const retryAction = container.querySelector<HTMLButtonElement>('.notification-item__actions [data-openbitfun-component="button"]')!;
-    expect(retryAction.getAttribute('data-openbitfun-variant')).toBe('primary');
+    expect(container.querySelector('.notification-item__actions [data-bitfun-component="button"]')?.textContent).toBe('Retry');
+    const retryAction = container.querySelector<HTMLButtonElement>('.notification-item__actions [data-bitfun-component="button"]')!;
+    expect(retryAction.getAttribute('data-bitfun-variant')).toBe('primary');
     act(() => retryAction.click());
     expect(notification.actions![0].onClick).toHaveBeenCalledOnce();
     const dangerAction = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('.notification-item__actions [data-openbitfun-component="button"]'),
+      container.querySelectorAll<HTMLButtonElement>('.notification-item__actions [data-bitfun-component="button"]'),
     ).find(button => button.textContent === 'Delete');
-    expect(dangerAction?.getAttribute('data-openbitfun-variant')).toBe('fill');
-    expect(dangerAction?.getAttribute('data-openbitfun-tone')).toBe('danger');
+    expect(dangerAction?.getAttribute('data-bitfun-variant')).toBe('fill');
+    expect(dangerAction?.getAttribute('data-bitfun-tone')).toBe('danger');
     expect(
-      container.querySelector('[data-openbitfun-part="itemClose"] [data-openbitfun-component="icon-button"]')
+      container.querySelector('[data-bitfun-part="itemClose"] [data-bitfun-component="icon-button"]')
         ?.getAttribute('aria-label'),
     ).toBe('actions.close');
-    const closeButton = container.querySelector('[data-openbitfun-part="itemClose"] [data-openbitfun-component="icon-button"]');
-    expect(closeButton?.getAttribute('data-openbitfun-shape')).toBe('circle');
-    expect(closeButton?.getAttribute('data-openbitfun-variant')).toBe('fill');
+    const closeButton = container.querySelector('[data-bitfun-part="itemClose"] [data-bitfun-component="icon-button"]');
+    expect(closeButton?.getAttribute('data-bitfun-shape')).toBe('circle');
+    expect(closeButton?.getAttribute('data-bitfun-variant')).toBe('fill');
     expect(closeButton?.getAttribute('data-size')).toBe('xs');
     expect(item?.classList.contains('notification-item--closable')).toBe(true);
   });
@@ -94,8 +94,8 @@ describe('NotificationItem accessibility', () => {
     act(() => root.render(<NotificationItem notification={notification} />));
 
     expect(
-      container.querySelector('[data-openbitfun-part="itemIcon"] [data-openbitfun-component="icon"]')
-        ?.getAttribute('data-openbitfun-name'),
+      container.querySelector('[data-bitfun-part="itemIcon"] [data-bitfun-component="icon"]')
+        ?.getAttribute('data-bitfun-name'),
     ).toBe('check-circle');
   });
 });

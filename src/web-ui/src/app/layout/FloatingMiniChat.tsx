@@ -19,7 +19,7 @@ import type {
   ChatInputRegistration,
   ChatInputSubmission,
 } from '@/flow_chat/components/chatInputRegistration';
-import { OverflowText, Icon, IconButton, LauncherButton, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Icon, IconButton, LauncherButton, Tooltip } from '@bitfun/ui';
 
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { SessionMenu, useFlowChatSessions } from '../../flow_chat/components/session-menu';
@@ -498,29 +498,29 @@ export const FloatingMiniChat: React.FC = () => {
   );
 
   const panelClassName = [
-    'openbitfun-fmc__panel',
-    isOpen && 'openbitfun-fmc__panel--open',
-    isStreaming && 'openbitfun-fmc__panel--processing',
+    'bitfun-fmc__panel',
+    isOpen && 'bitfun-fmc__panel--open',
+    isStreaming && 'bitfun-fmc__panel--processing',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
     <div
-      data-openbitfun-component="floating-mini-chat"
-      data-openbitfun-part="root"
-      data-openbitfun-mode={activeComposerClaim ? 'miniapp' : 'chat'}
-      data-openbitfun-communication-mode={isVoiceMode ? 'voice' : 'chat'}
-      data-openbitfun-state={[
+      data-bitfun-component="floating-mini-chat"
+      data-bitfun-part="root"
+      data-bitfun-mode={activeComposerClaim ? 'miniapp' : 'chat'}
+      data-bitfun-communication-mode={isVoiceMode ? 'voice' : 'chat'}
+      data-bitfun-state={[
         isOpen && 'open',
         isStreaming && 'processing',
         isVoiceMode && 'voice',
         shouldAvoidMiniAppCustomizer && 'customizing',
       ].filter(Boolean).join(' ') || undefined}
       className={[
-        'openbitfun-fmc',
-        isOpen && 'openbitfun-fmc--open',
-        shouldAvoidMiniAppCustomizer && 'openbitfun-fmc--miniapp-customizing',
+        'bitfun-fmc',
+        isOpen && 'bitfun-fmc--open',
+        shouldAvoidMiniAppCustomizer && 'bitfun-fmc--miniapp-customizing',
       ].filter(Boolean).join(' ')}
     >
       {/* Fullscreen backdrop to catch outside clicks. It stays inert until the
@@ -540,9 +540,9 @@ export const FloatingMiniChat: React.FC = () => {
           while the panel was still scaling up never closes it. */}
       {isOpen && (
         <div
-          data-openbitfun-component="floating-mini-chat"
-          data-openbitfun-part="backdrop"
-          className="openbitfun-fmc__backdrop"
+          data-bitfun-component="floating-mini-chat"
+          data-bitfun-part="backdrop"
+          className="bitfun-fmc__backdrop"
           onMouseDown={() => { backdropArmedRef.current = phase === 'open'; }}
           onClick={() => {
             if (backdropArmedRef.current) handleClose();
@@ -556,13 +556,13 @@ export const FloatingMiniChat: React.FC = () => {
           `visibility` (not just pointer-events) while the panel is open. */}
       {isMiniAppBubbleIsolated ? (
         <button
-          data-openbitfun-component="floating-mini-chat"
-          data-openbitfun-part="trigger"
+          data-bitfun-component="floating-mini-chat"
+          data-bitfun-part="trigger"
           type="button"
           className={[
-            'openbitfun-fmc__button',
-            'openbitfun-fmc__button--miniapp',
-            isMiniAppSessionExecuting && 'openbitfun-fmc__button--processing',
+            'bitfun-fmc__button',
+            'bitfun-fmc__button--miniapp',
+            isMiniAppSessionExecuting && 'bitfun-fmc__button--processing',
           ].filter(Boolean).join(' ')}
           onPointerDown={handleTriggerPointerDown}
           onClick={handleOpen}
@@ -572,16 +572,16 @@ export const FloatingMiniChat: React.FC = () => {
         >
           {isMiniAppSessionExecuting && (
             <span
-              className="openbitfun-fmc__button-activity"
-              data-openbitfun-component="floating-mini-chat"
-              data-openbitfun-part="triggerActivity"
+              className="bitfun-fmc__button-activity"
+              data-bitfun-component="floating-mini-chat"
+              data-bitfun-part="triggerActivity"
               aria-hidden="true"
             />
           )}
           <span
-            className="openbitfun-fmc__miniapp-trigger-icon"
-            data-openbitfun-component="floating-mini-chat"
-            data-openbitfun-part="triggerIcon"
+            className="bitfun-fmc__miniapp-trigger-icon"
+            data-bitfun-component="floating-mini-chat"
+            data-bitfun-part="triggerIcon"
             aria-hidden="true"
           >
             {renderMiniAppIcon(activeMiniAppIcon, 20)}
@@ -591,19 +591,19 @@ export const FloatingMiniChat: React.FC = () => {
         <LauncherButton
           aria-expanded={isOpen}
           aria-label={t('toolCards.toolbar.startNewChat')}
-          className="openbitfun-fmc__button openbitfun-fmc__button--hello"
+          className="bitfun-fmc__button bitfun-fmc__button--hello"
           onClick={handleOpen}
           onPointerDown={handleTriggerPointerDown}
         >
           <span
             aria-hidden="true"
-            className="openbitfun-fmc__button-label openbitfun-fmc__button-label--compact"
+            className="bitfun-fmc__button-label bitfun-fmc__button-label--compact"
           >
             {tVoice('voiceCall.call.launcherCompactLabel')}
           </span>
           <span
             aria-hidden="true"
-            className="openbitfun-fmc__button-label openbitfun-fmc__button-label--expanded"
+            className="bitfun-fmc__button-label bitfun-fmc__button-label--expanded"
           >
             {tVoice('voiceCall.call.launcherLabel')}
           </span>
@@ -616,18 +616,18 @@ export const FloatingMiniChat: React.FC = () => {
         className={panelClassName}
         onKeyDown={handlePanelKeyDown}
         onTransitionEnd={handlePanelTransitionEnd}
-        data-openbitfun-component="floating-mini-chat"
-        data-openbitfun-part="panel"
+        data-bitfun-component="floating-mini-chat"
+        data-bitfun-part="panel"
       >
         {/* Header — normal chat keeps the shared SessionMenu. An isolated
             Agentic MiniApp replaces that switcher with app identity, including
             during claim/session bootstrap, so normal chats are never exposed. */}
-        {!isVoiceMode && <div className="openbitfun-fmc__header" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="header">
+        {!isVoiceMode && <div className="bitfun-fmc__header" data-bitfun-component="floating-mini-chat" data-bitfun-part="header">
           {isMiniAppBubbleIsolated ? (
             <div
-              className="openbitfun-fmc__miniapp-session-icon"
-              data-openbitfun-component="floating-mini-chat"
-              data-openbitfun-part="sessionIcon"
+              className="bitfun-fmc__miniapp-session-icon"
+              data-bitfun-component="floating-mini-chat"
+              data-bitfun-part="sessionIcon"
               aria-hidden="true"
             >
               {renderMiniAppIcon(activeMiniAppIcon, 14)}
@@ -636,9 +636,9 @@ export const FloatingMiniChat: React.FC = () => {
             <SessionMenu />
           )}
 
-          <div className="openbitfun-fmc__title-wrapper" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="title">
-            <div className="openbitfun-fmc__title-display" title={popupTitle}>
-              <OverflowText className="openbitfun-fmc__title-text">{popupTitle}</OverflowText>
+          <div className="bitfun-fmc__title-wrapper" data-bitfun-component="floating-mini-chat" data-bitfun-part="title">
+            <div className="bitfun-fmc__title-display" title={popupTitle}>
+              <OverflowText className="bitfun-fmc__title-text">{popupTitle}</OverflowText>
             </div>
           </div>
 
@@ -647,9 +647,9 @@ export const FloatingMiniChat: React.FC = () => {
               so the header only owns bubble chrome. */}
           <Tooltip content={t('session.close')}>
             <IconButton
-              data-openbitfun-component="floating-mini-chat"
-              data-openbitfun-part="headerAction"
-              className="openbitfun-fmc__close"
+              data-bitfun-component="floating-mini-chat"
+              data-bitfun-part="headerAction"
+              className="bitfun-fmc__close"
               icon={<Icon name="xmark" size="lg" />}
               onClick={handleClose}
               size="sm"
@@ -662,9 +662,9 @@ export const FloatingMiniChat: React.FC = () => {
             panel is open to avoid running a second VirtualMessageList and store
             sync in the background while the agent streams in another scene. */}
         <div
-          className="openbitfun-fmc__body"
-          data-openbitfun-component="floating-mini-chat"
-          data-openbitfun-part="body"
+          className="bitfun-fmc__body"
+          data-bitfun-component="floating-mini-chat"
+          data-bitfun-part="body"
         >
           <ConversationModeSurface
             onCloseVoice={handleClose}
@@ -697,11 +697,11 @@ export const FloatingMiniChat: React.FC = () => {
               />
             )}
             {surfaceMounted && isMiniAppBubbleIsolated && !isMiniAppSessionReady && (
-              <div className="openbitfun-fmc__miniapp-session-pending" data-openbitfun-component="floating-mini-chat" data-openbitfun-part="pending">
+              <div className="bitfun-fmc__miniapp-session-pending" data-bitfun-component="floating-mini-chat" data-bitfun-part="pending">
                 <div
-                  className="openbitfun-fmc__miniapp-session-pending-icon"
-                  data-openbitfun-component="floating-mini-chat"
-                  data-openbitfun-part="pendingIcon"
+                  className="bitfun-fmc__miniapp-session-pending-icon"
+                  data-bitfun-component="floating-mini-chat"
+                  data-bitfun-part="pendingIcon"
                   aria-hidden="true"
                 >
                   {renderMiniAppIcon(activeMiniAppIcon, 22)}

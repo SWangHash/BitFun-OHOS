@@ -89,8 +89,8 @@ export const LspPluginList: React.FC<LspPluginListProps> = ({
 
   if (plugins.length === 0) {
     return (
-      <div className={`lsp-plugin-list ${className || ''}`} data-openbitfun-component="lsp" data-openbitfun-part="pluginList" data-openbitfun-state="empty">
-        <div className="lsp-plugin-list__empty" data-openbitfun-component="lsp" data-openbitfun-part="empty">
+      <div className={`lsp-plugin-list ${className || ''}`} data-bitfun-component="lsp" data-bitfun-part="pluginList" data-bitfun-state="empty">
+        <div className="lsp-plugin-list__empty" data-bitfun-component="lsp" data-bitfun-part="empty">
           <Package size={64} />
           {onInstallPlugin && (
             <Button
@@ -109,8 +109,8 @@ export const LspPluginList: React.FC<LspPluginListProps> = ({
   }
 
   return (
-    <div className={`lsp-plugin-list ${className || ''}`} data-openbitfun-component="lsp" data-openbitfun-part="pluginList">
-      <div className="lsp-plugin-list__items" data-openbitfun-component="lsp" data-openbitfun-part="items">
+    <div className={`lsp-plugin-list ${className || ''}`} data-bitfun-component="lsp" data-bitfun-part="pluginList">
+      <div className="lsp-plugin-list__items" data-bitfun-component="lsp" data-bitfun-part="items">
         {plugins.map(plugin => (
           <PluginItem
             key={plugin.id}
@@ -135,8 +135,8 @@ interface PluginItemProps {
 
 const PluginItem: React.FC<PluginItemProps> = ({ plugin, isExpanded, onToggle, onUninstall, t }) => {
   return (
-    <Card variant="default" padding="none" className={`lsp-plugin-item ${isExpanded ? 'is-expanded' : ''}`} data-openbitfun-component="lsp" data-openbitfun-part="plugin" data-openbitfun-state={isExpanded ? 'expanded' : undefined}>
-      <div className="lsp-plugin-item__header" onClick={onToggle} data-openbitfun-component="lsp" data-openbitfun-part="pluginHeader">
+    <Card variant="default" padding="none" className={`lsp-plugin-item ${isExpanded ? 'is-expanded' : ''}`} data-bitfun-component="lsp" data-bitfun-part="plugin" data-bitfun-state={isExpanded ? 'expanded' : undefined}>
+      <div className="lsp-plugin-item__header" onClick={onToggle} data-bitfun-component="lsp" data-bitfun-part="pluginHeader">
         <div className="lsp-plugin-item__toggle">
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </div>
@@ -161,7 +161,7 @@ const PluginItem: React.FC<PluginItemProps> = ({ plugin, isExpanded, onToggle, o
       </div>
 
       {isExpanded && (
-        <CardBody className="lsp-plugin-item__details" data-openbitfun-component="lsp" data-openbitfun-part="pluginDetails">
+        <CardBody className="lsp-plugin-item__details" data-bitfun-component="lsp" data-bitfun-part="pluginDetails">
           <div className="lsp-plugin-item__section">
             <p className="lsp-plugin-item__description">{plugin.description}</p>
           </div>

@@ -57,7 +57,7 @@ export const NavigationPanel = forwardRef<HTMLElement, NavigationPanelProps>(
       <nav
         {...props}
         className={classNames(styles.root, className)}
-        data-openbitfun-component="navigation-panel"
+        data-bitfun-component="navigation-panel"
         ref={ref}
       >
         {children}
@@ -72,7 +72,7 @@ export const NavigationPanelHeader = forwardRef<HTMLDivElement, NavigationPanelH
       <div
         {...props}
         className={classNames(styles.header, className)}
-        data-openbitfun-part="header"
+        data-bitfun-part="header"
         ref={ref}
       />
     );
@@ -85,7 +85,7 @@ export const NavigationPanelBody = forwardRef<HTMLDivElement, NavigationPanelBod
       <ScrollArea
         {...props}
         className={classNames(styles.body, className)}
-        data-openbitfun-part="body"
+        data-bitfun-part="body"
         orientation="vertical"
         ref={ref}
         scrollbarVisibility={scrollbarVisibility}
@@ -100,7 +100,7 @@ export const NavigationPanelContent = forwardRef<HTMLDivElement, NavigationPanel
       <div
         {...props}
         className={classNames(styles.content, className)}
-        data-openbitfun-part="content"
+        data-bitfun-part="content"
         ref={ref}
       />
     );
@@ -113,7 +113,7 @@ export const NavigationPanelFooter = forwardRef<HTMLDivElement, NavigationPanelF
       <div
         {...props}
         className={classNames(styles.footer, className)}
-        data-openbitfun-part="footer"
+        data-bitfun-part="footer"
         ref={ref}
       />
     );
@@ -158,16 +158,16 @@ export const NavigationPanelSection = forwardRef<HTMLElement, NavigationPanelSec
         aria-label={ariaLabel}
         aria-labelledby={resolvedLabelledBy}
         className={classNames(styles.section, className)}
-        data-openbitfun-part="section"
+        data-bitfun-part="section"
         ref={ref}
       >
         {headingId && (
-          <div className={styles.heading} data-openbitfun-part="heading" id={headingId}>
-            <OverflowText className={styles.headingLabel} data-openbitfun-part="heading-label">
+          <div className={styles.heading} data-bitfun-part="heading" id={headingId}>
+            <OverflowText className={styles.headingLabel} data-bitfun-part="heading-label">
               {title}
             </OverflowText>
             {actions.length > 0 && (
-              <span className={styles.headingActions} data-openbitfun-part="heading-actions">
+              <span className={styles.headingActions} data-bitfun-part="heading-actions">
                 {actions.map((action) => (
                   <IconButton
                     aria-label={action.label}
@@ -185,7 +185,7 @@ export const NavigationPanelSection = forwardRef<HTMLElement, NavigationPanelSec
             )}
           </div>
         )}
-        <div className={styles.items} data-openbitfun-part="section-items">
+        <div className={styles.items} data-bitfun-part="section-items">
           {children}
         </div>
       </section>
@@ -199,7 +199,7 @@ export const NavigationPanelSeparator = forwardRef<HTMLDivElement, NavigationPan
       <div
         {...props}
         className={classNames(styles.separator, className)}
-        data-openbitfun-part="separator"
+        data-bitfun-part="separator"
         ref={ref}
         role="separator"
       />

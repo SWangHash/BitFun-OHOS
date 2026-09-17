@@ -1,4 +1,4 @@
-@layer openbitfun.base {
+@layer bitfun.base {
   .root {
     --_overflow-text-marquee-distance: 0px;
     --_overflow-text-marquee-duration: 2400ms;
@@ -26,11 +26,11 @@
     display: block;
     min-inline-size: max-content;
     /* Keep ascent/descent inside the clipping box, including in tight controls. */
-    line-height: var(--openbitfun-type-modifier-leading-intrinsic-line-height);
+    line-height: var(--bitfun-type-modifier-leading-intrinsic-line-height);
     /* Font ink and fractional scaling can extend beyond the natural line box.
        Include block-axis breathing room in the grid's intrinsic height so the
        horizontal clipping viewport does not shave off accents or descenders. */
-    padding-block: calc(var(--openbitfun-space-1) / 2);
+    padding-block: calc(var(--bitfun-space-1) / 2);
   }
 
   .root[data-overflow-style="ellipsis"] > .content {
@@ -62,13 +62,13 @@
     -webkit-mask-image: linear-gradient(
       to right,
       currentColor 0,
-      currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
       transparent 100%
     );
     mask-image: linear-gradient(
       to right,
       currentColor 0,
-      currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
       transparent 100%
     );
     -webkit-mask-repeat: no-repeat;
@@ -80,13 +80,13 @@
     -webkit-mask-image: linear-gradient(
       to left,
       currentColor 0,
-      currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
       transparent 100%
     );
     mask-image: linear-gradient(
       to left,
       currentColor 0,
-      currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+      currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
       transparent 100%
     );
   }
@@ -105,11 +105,11 @@
     min-inline-size: max-content;
     overflow: visible;
     text-overflow: clip;
-    animation: openbitfun-overflow-text-marquee var(--_overflow-text-marquee-duration) linear infinite alternate;
+    animation: bitfun-overflow-text-marquee var(--_overflow-text-marquee-duration) linear infinite alternate;
     will-change: transform;
   }
 
-  @keyframes openbitfun-overflow-text-marquee {
+  @keyframes bitfun-overflow-text-marquee {
     /* Start moving immediately; percentage holds delay long descriptions for seconds. */
     from {
       transform: translateX(0);
@@ -125,13 +125,13 @@
       -webkit-mask-image: linear-gradient(
         to right,
         currentColor 0,
-        currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
         transparent 100%
       );
       mask-image: linear-gradient(
         to right,
         currentColor 0,
-        currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
         transparent 100%
       );
       -webkit-mask-repeat: no-repeat;
@@ -142,13 +142,13 @@
       -webkit-mask-image: linear-gradient(
         to left,
         currentColor 0,
-        currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
         transparent 100%
       );
       mask-image: linear-gradient(
         to left,
         currentColor 0,
-        currentColor calc(100% - min(var(--openbitfun-layout-overflow-text-fade-extent), 25%)),
+        currentColor calc(100% - min(var(--bitfun-layout-overflow-text-fade-extent), 25%)),
         transparent 100%
       );
     }

@@ -10,4 +10,4 @@ pub use git_service::GitService;
 pub use git_types::*;
 pub use git_utils::*;
 pub use graph::*;
-pub use openbitfun_services_integrations::git::trust;
+pub use bitfun_services_integrations::git::trust;

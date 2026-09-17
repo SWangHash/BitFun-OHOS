@@ -31,39 +31,39 @@
     "systemAppearance": "Match system",
     "systemAppearanceDescription": "Use a light or dark appearance based on your OS setting. Updates when the system switches.",
     "presets": {
-      "openbitfun-dark": {
+      "bitfun-dark": {
         "name": "Dark",
         "description": "Default dark appearance"
       },
-      "openbitfun-light": {
+      "bitfun-light": {
         "name": "Light",
         "description": "Light appearance - Crisp white surfaces, soft neutral grays, and deep navy actions"
       },
-      "openbitfun-monochrome": {
+      "bitfun-monochrome": {
         "name": "Black & White",
         "description": "Black-and-white contrast appearance - Deep black chrome, bright white workspace, and soft neutral blocks"
       },
-      "openbitfun-midnight": {
+      "bitfun-midnight": {
         "name": "Midnight",
         "description": "Midnight gray dark appearance - Professional and elegant, inspired by JetBrains IDE"
       },
-      "openbitfun-china-style": {
+      "bitfun-china-style": {
         "name": "Ink Charm",
         "description": "Chinese style appearance - Rice paper and ink, blue and vermilion, warm and elegant"
       },
-      "openbitfun-china-night": {
+      "bitfun-china-night": {
         "name": "Ink Night",
         "description": "Chinese dark appearance - Starlit ink night, moonlight like water, serene and elegant"
       },
-      "openbitfun-cyber": {
+      "bitfun-cyber": {
         "name": "Cyber",
         "description": "Tech-style appearance - Deep black hole, neon future, ultimate tech aesthetics"
       },
-      "openbitfun-slate": {
+      "bitfun-slate": {
         "name": "Slate",
         "description": "Slate gray geometric appearance - Deep immersion, high contrast grayscale aesthetics"
       },
-      "openbitfun-tokyo-night": {
+      "bitfun-tokyo-night": {
         "name": "Tokyo Night",
         "description": "Popular Tokyo Night palette - Indigo night, blue and violet highlights"
       }

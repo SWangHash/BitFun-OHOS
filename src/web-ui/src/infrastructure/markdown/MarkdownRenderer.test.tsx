@@ -199,8 +199,8 @@ describe('Markdown file links', () => {
   });
 
   it.each([
-    '[Open Canvas](openbitfun-canvas://session/session_1/canvas/canvas_1)',
-    'openbitfun-canvas://session/session_1/canvas/canvas_1',
+    '[Open Canvas](bitfun-canvas://session/session_1/canvas/canvas_1)',
+    'bitfun-canvas://session/session_1/canvas/canvas_1',
   ])('opens Canvas artifact links in the Canvas panel: %s', async (content) => {
     openSessionHost({
       workspacePath: '/srv/project',
@@ -228,17 +228,17 @@ describe('Markdown file links', () => {
 
       expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
       expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content).toMatchObject({
-        type: 'openbitfun-canvas',
-        title: 'OpenBitFun Canvas',
+        type: 'bitfun-canvas',
+        title: 'BitFun Canvas',
         data: {
-          artifactReference: 'openbitfun-canvas://session/session_1/canvas/canvas_1',
+          artifactReference: 'bitfun-canvas://session/session_1/canvas/canvas_1',
           workspacePath: '/srv/project',
           remoteConnectionId: 'remote-connection-1',
           remoteSshHost: 'workspace.example',
           _source: { type: 'markdown-link' },
         },
         metadata: {
-          artifactReference: 'openbitfun-canvas://session/session_1/canvas/canvas_1',
+          artifactReference: 'bitfun-canvas://session/session_1/canvas/canvas_1',
           fromMarkdown: true,
         },
 
@@ -250,7 +250,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens chat http links in the built-in browser by default', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
     openSessionHost();
 
     try {
@@ -280,7 +280,7 @@ describe('Markdown file links', () => {
   });
 
   it('commits a browser view and explicitly reveals its inline host', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
     openSessionHost();
     const onExpandPanel = vi.fn();
 
@@ -309,7 +309,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens modified chat link clicks in the external browser', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
 
 
     try {
@@ -338,7 +338,7 @@ describe('Markdown file links', () => {
   });
 
   it('adds source, integrated browser, and system browser actions to FlowChat HTML file links', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
 
     await act(async () => {
       root.render(
@@ -410,7 +410,7 @@ describe('Markdown file links', () => {
   });
 
   it('keeps system-browser opening disabled for remote FlowChat HTML links', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
 
     await act(async () => {
       root.render(
@@ -445,7 +445,7 @@ describe('Markdown file links', () => {
   });
 
   it('routes detached HTML and unknown file types through the target callback and disables host actions', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
     await act(async () => {
       root.render(<MarkdownRenderer content={'[Preview](page.html) [Binary](result.bin)'} basePath="/target" fileActionsViaCallbackOnly onFileViewRequest={onFileViewRequest} />);
     });
@@ -462,7 +462,7 @@ describe('Markdown file links', () => {
     expect(mocks.revealInExplorer).not.toHaveBeenCalled();
   });
 
-  it.each(['computer://preview.png', 'openbitfun://current-session/artifacts/preview.png'])(
+  it.each(['computer://preview.png', 'bitfun://current-session/artifacts/preview.png'])(
     'renders dispatched image %s through the session provider only', async source => {
       const read = vi.fn().mockResolvedValue('data:image/png;base64,YQ==');
       await act(async () => root.render(<MarkdownRenderer content={`![Preview](${source})`}
@@ -752,7 +752,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Missing diagram"]')).toBeNull();
-    const fallback = container.querySelector('[data-openbitfun-part="imageFallback"]');
+    const fallback = container.querySelector('[data-bitfun-part="imageFallback"]');
     expect(fallback?.textContent).toBe('Missing diagram');
 
     await act(async () => {
@@ -766,7 +766,7 @@ describe('Markdown file links', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')).toBe(fallback);
+    expect(container.querySelector('[data-bitfun-part="imageFallback"]')).toBe(fallback);
     expect(mocks.readFileContent).toHaveBeenCalledTimes(1);
   });
 
@@ -784,7 +784,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Unavailable chart"]')).toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')?.textContent)
+    expect(container.querySelector('[data-bitfun-part="imageFallback"]')?.textContent)
       .toBe('Unavailable chart');
   });
 

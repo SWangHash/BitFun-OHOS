@@ -11,7 +11,7 @@ const slots = [
   ["LauncherButton", "icon", "inline-size", "100%"],
   ["IconButton", "icon", "inline-size", "100%"],
   ["TabGroup", "icon", "inline-size", "100%"],
-  ["ActionCard", "leading", "inline-size", "var(--openbitfun-control-action-card-icon-size)"],
+  ["ActionCard", "leading", "inline-size", "var(--bitfun-control-action-card-icon-size)"],
   ["ActionItem", "leading", "inline-size", "100%"],
   ["ActivityItem", "leading", "inline-size", "100%"],
   ["SegmentedControl", "icon", "inline-size", "100%"],
@@ -24,7 +24,7 @@ const slots = [
   ["StatusPill", "leading", "inline-size", "100%"],
   ["Avatar", "content", "inline-size", "55%"],
   ["Empty", "media", "max-inline-size", "100%"],
-  ["ConfirmDialog", "icon", "inline-size", "var(--openbitfun-layout-confirm-dialog-icon-glyph-size)"],
+  ["ConfirmDialog", "icon", "inline-size", "var(--bitfun-layout-confirm-dialog-icon-glyph-size)"],
   ["Listbox", "leading", "inline-size", "100%"],
   ["Listbox", "indicator", "inline-size", "100%"],
 ];
@@ -34,7 +34,7 @@ test("sized slots apply the same geometry to SVG and catalog icons, regardless o
     const css = await readFile(new URL(`../src/components/${component}/${component}.module.css`, import.meta.url), "utf8");
     // Class + attribute specificity beats Icon's class-only dimensions, even if
     // the Icon stylesheet loads later during source HMR or a production build.
-    const selector = `.${slot} > [data-openbitfun-component="icon"]`;
+    const selector = `.${slot} > [data-bitfun-component="icon"]`;
     const rule = [...css.matchAll(/([^{}]+)\{([^{}]+)\}/g)].find(([, selectors]) => selectors.includes(selector));
     assert.ok(rule, `${component}.${slot} must directly size catalog icons`);
     assert.match(rule[1], /svg/, `${component}.${slot} must retain SVG support`);
@@ -53,8 +53,8 @@ test("buttons route native and default-size catalog icons through identical slot
     ]) {
       const markup = renderToStaticMarkup(createElement(Component, { ...props, size }));
       assert.match(markup, new RegExp(`data-size="${size}"`));
-      assert.match(markup, /<span[^>]*class="[^"]*_icon_[^"]*"[^>]*><span[^>]*data-openbitfun-component="icon"/);
-      assert.match(markup, /data-openbitfun-name="settings"[^>]*data-size="lg"/);
+      assert.match(markup, /<span[^>]*class="[^"]*_icon_[^"]*"[^>]*><span[^>]*data-bitfun-component="icon"/);
+      assert.match(markup, /data-bitfun-name="settings"[^>]*data-size="lg"/);
     }
   }
 });
@@ -66,8 +66,8 @@ test("buttons constrain normalized line fallbacks through the same icon slot", (
     [IconButton, { "aria-label": "Network", icon: lineIcon }],
   ]) {
     const markup = renderToStaticMarkup(createElement(Component, props));
-    assert.match(markup, /data-openbitfun-component="icon"/);
-    assert.match(markup, /data-openbitfun-source="line"/);
+    assert.match(markup, /data-bitfun-component="icon"/);
+    assert.match(markup, /data-bitfun-source="line"/);
     assert.match(markup, /<svg[^>]*stroke-width="1.6"/);
   }
 });
@@ -82,9 +82,9 @@ test("tabs keep native session icons and catalog scene icons in the same sized r
       { value: "assistant", label: "Assistant", icon: createElement(Icon, { name: "user" }) },
     ],
   }));
-  assert.equal((markup.match(/data-openbitfun-part="icon"/g) ?? []).length, 3);
-  assert.match(markup, /data-openbitfun-part="icon"[^>]*><svg/);
-  assert.match(markup, /data-openbitfun-part="icon"[^>]*><span[^>]*data-openbitfun-component="icon"/);
+  assert.equal((markup.match(/data-bitfun-part="icon"/g) ?? []).length, 3);
+  assert.match(markup, /data-bitfun-part="icon"[^>]*><svg/);
+  assert.match(markup, /data-bitfun-part="icon"[^>]*><span[^>]*data-bitfun-component="icon"/);
 });
 
 test("standalone catalog sizes are retained instead of globally shrinking every icon", () => {

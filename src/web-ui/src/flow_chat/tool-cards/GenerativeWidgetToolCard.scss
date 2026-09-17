@@ -2,44 +2,44 @@
   overflow: hidden;
 }
 
-.generative-widget-card[data-openbitfun-interactive='true'] {
+.generative-widget-card[data-bitfun-interactive='true'] {
   cursor: pointer;
 }
 
-.generative-widget-card [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='expanded'],
-.generative-widget-card [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='error'] {
+.generative-widget-card [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='expanded'],
+.generative-widget-card [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='error'] {
   padding: 0;
 }
 
 .generative-widget-card__icon {
-  color: var(--openbitfun-domain-generative-ui);
+  color: var(--bitfun-domain-generative-ui);
 }
 
 .generative-widget-card__title {
   display: inline-flex;
   align-items: center;
-  gap: var(--openbitfun-control-flow-chat-inline-gap);
+  gap: var(--bitfun-control-flow-chat-inline-gap);
   min-width: 0;
 }
 
 .generative-widget-card__extra {
   display: inline-flex;
   align-items: center;
-  gap: var(--openbitfun-control-flow-chat-control-gap);
+  gap: var(--bitfun-control-flow-chat-control-gap);
 }
 
 .generative-widget-card__status {
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  color: var(--openbitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  color: var(--bitfun-color-content-secondary);
   white-space: nowrap;
 }
 
 .generative-widget-card__status--error {
-  color: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 72%, var(--openbitfun-color-content-on-dark));
+  color: color-mix(in srgb, var(--bitfun-color-status-danger-content) 72%, var(--bitfun-color-content-on-dark));
 }
 
 .generative-widget-card__preview {
-  padding: var(--openbitfun-control-flow-chat-card-expanded-padding-block) var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
+  padding: var(--bitfun-control-flow-chat-card-expanded-padding-block) var(--bitfun-control-flow-chat-card-expanded-padding-inline);
 }
 
 .generative-widget-card__preview--export {
@@ -51,13 +51,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--openbitfun-space-4);
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-flow-control-font-size);
+  padding: var(--bitfun-space-4);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-control-font-size);
 }
 
 .generative-widget-card__placeholder--error {
-  color: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 64%, var(--openbitfun-color-content-on-dark));
+  color: color-mix(in srgb, var(--bitfun-color-status-danger-content) 64%, var(--bitfun-color-content-on-dark));
 }
 
 .generative-widget-card__capture-root {
@@ -70,17 +70,17 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-panel) 84%, transparent);
-  color: var(--openbitfun-color-content-secondary);
+  border: 1px solid var(--bitfun-color-border-subtle);
+  background: color-mix(in srgb, var(--bitfun-color-surface-panel) 84%, transparent);
+  color: var(--bitfun-color-content-secondary);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--openbitfun-color-surface-panel) 92%, transparent);
-    color: var(--openbitfun-color-content-primary);
-    border-color: var(--openbitfun-color-border-default);
+    background: color-mix(in srgb, var(--bitfun-color-surface-panel) 92%, transparent);
+    color: var(--bitfun-color-content-primary);
+    border-color: var(--bitfun-color-border-default);
   }
 
   &:disabled {
@@ -100,6 +100,6 @@
 }
 
 .generative-widget-card__export-stage-inner {
-  padding: var(--openbitfun-space-5);
-  background: var(--openbitfun-color-surface-scene);
+  padding: var(--bitfun-space-5);
+  background: var(--bitfun-color-surface-scene);
 }

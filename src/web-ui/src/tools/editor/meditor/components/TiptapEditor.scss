@@ -6,7 +6,7 @@
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  padding: var(--openbitfun-space-4);
+  padding: var(--bitfun-space-4);
   border-radius: 0;
 
   /* Single contenteditable surface: suppress global :focus-visible ring on the whole editor */
@@ -22,13 +22,13 @@
     min-height: 100%;
     outline: none;
     .m-editor-tiptap-block-highlighted {
-      background: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 15%, transparent);
+      background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 15%, transparent);
     }
     > .m-editor-frontmatter + * { margin-top: 0; }
     > p.is-empty { position: relative; }
     > p.is-empty::before {
       content: attr(data-placeholder);
-      color: var(--openbitfun-color-content-disabled);
+      color: var(--bitfun-color-content-disabled);
       float: left;
       height: 0;
       pointer-events: none;
@@ -44,8 +44,8 @@
     position: absolute;
     z-index: 20;
     width: auto;
-    max-width: calc(100% - var(--openbitfun-space-8));
-    color: var(--openbitfun-color-content-primary);
+    max-width: calc(100% - var(--bitfun-space-8));
+    color: var(--bitfun-color-content-primary);
   }
 
   .m-editor-inline-ai__surface {
@@ -55,12 +55,12 @@
   .m-editor-inline-ai__panel {
     @include surfaces.floating;
 
-    width: min(26rem, calc(100vw - var(--openbitfun-space-8)));
+    width: min(26rem, calc(100vw - var(--bitfun-space-8)));
     padding: 10px 10px 8px;
   }
 
   .m-editor-inline-ai__composer {
-    margin-bottom: var(--openbitfun-space-1);
+    margin-bottom: var(--bitfun-space-1);
   }
 
   .m-editor-inline-ai__composer-input {
@@ -79,20 +79,20 @@
     padding: 2px 8px;
     min-height: 0;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--openbitfun-color-content-muted) 14%, transparent);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 14%, transparent);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
     white-space: nowrap;
   }
 
   .m-editor-inline-ai__section-title {
-    margin: var(--openbitfun-space-2) 0 6px;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-micro-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    margin: var(--bitfun-space-2) 0 6px;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-micro-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
     opacity: 0.72;
   }
 
@@ -111,7 +111,7 @@
   .m-editor-inline-ai__footer {
     display: flex;
     justify-content: flex-end;
-    margin-top: var(--openbitfun-space-1);
+    margin-top: var(--bitfun-space-1);
   }
 
   .m-editor-inline-ai-widget {
@@ -120,9 +120,9 @@
   }
 
   .m-editor-inline-ai-preview {
-    margin: var(--openbitfun-space-2) 0 var(--openbitfun-space-3);
+    margin: var(--bitfun-space-2) 0 var(--bitfun-space-3);
     padding: 0;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   .m-editor-inline-ai-preview--inline {
@@ -133,20 +133,20 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     margin-bottom: 6px;
   }
 
   .m-editor-inline-ai-preview__title {
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-accent-default);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-accent-default);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
   }
 
   .m-editor-inline-ai-preview__status {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-disabled);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-disabled);
     white-space: nowrap;
   }
 
@@ -154,9 +154,9 @@
     overflow: visible;
     position: relative;
     color: inherit;
-    padding-left: var(--openbitfun-space-3);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    padding-left: var(--bitfun-space-3);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
   }
 
   .m-editor-inline-ai-preview__body::before {
@@ -167,25 +167,25 @@
     bottom: 6px;
     width: 2px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent);
   }
 
   .m-editor-inline-ai-preview--streaming,
   .m-editor-inline-ai-preview--submitting,
   .m-editor-inline-ai-preview--ready {
     .m-editor-inline-ai-preview__body {
-      color: color-mix(in srgb, var(--openbitfun-color-accent-default) 68%, var(--openbitfun-color-content-secondary));
+      color: color-mix(in srgb, var(--bitfun-color-accent-default) 68%, var(--bitfun-color-content-secondary));
     }
   }
 
   .m-editor-inline-ai-preview--error {
     .m-editor-inline-ai-preview__title,
     .m-editor-inline-ai-preview__body {
-      color: var(--openbitfun-color-status-danger-content);
+      color: var(--bitfun-color-status-danger-content);
     }
 
     .m-editor-inline-ai-preview__body::before {
-      background: var(--openbitfun-color-status-danger-border);
+      background: var(--bitfun-color-status-danger-border);
     }
   }
 
@@ -194,9 +194,9 @@
   }
 
   .m-editor-inline-ai-rendered__loading {
-    margin-bottom: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-disabled);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    margin-bottom: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-disabled);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   .m-editor-inline-ai-rendered__content {
@@ -208,7 +208,7 @@
     margin: 0 0 6px;
     padding: 4px 8px;
     border-radius: 8px;
-    transition: background var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   }
 
   .m-editor-inline-ai-rendered__content > *:first-child {
@@ -223,20 +223,20 @@
   .m-editor-inline-ai-rendered__content.markdown-body h2,
   .m-editor-inline-ai-rendered__content.markdown-body h3 {
     color: inherit;
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .m-editor-inline-ai-rendered__content.markdown-body h1 {
-    font-size: var(--openbitfun-type-body-lg-font-size);
+    font-size: var(--bitfun-type-body-lg-font-size);
     text-align: left;
   }
 
   .m-editor-inline-ai-rendered__content.markdown-body h2 {
-    font-size: var(--openbitfun-type-body-md-font-size);
+    font-size: var(--bitfun-type-body-md-font-size);
   }
 
   .m-editor-inline-ai-rendered__content.markdown-body h3 {
-    font-size: var(--openbitfun-type-label-md-font-size);
+    font-size: var(--bitfun-type-label-md-font-size);
   }
 
   .m-editor-inline-ai-rendered__content.markdown-body p {
@@ -247,7 +247,7 @@
     margin: 0 0 6px;
     padding: markdownCode.$bq-padding;
     font-style: italic;
-    font-size: var(--openbitfun-type-meta-font-size);
+    font-size: var(--bitfun-type-meta-font-size);
     color: markdownCode.$bq-fg;
     background: markdownCode.$bq-bg;
     border-left: 3px solid markdownCode.$bq-border;
@@ -258,13 +258,13 @@
   .m-editor-inline-ai-rendered__content.markdown-body pre {
     margin: 0 0 6px;
     padding: 8px 10px;
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
-    font-family:var(--openbitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
+    font-family:var(--bitfun-type-code-md-font-family);
     color: markdownCode.$pre-code-fg;
     background: markdownCode.$pre-bg;
     border: 1px dashed markdownCode.$pre-border;
-    border-radius: var(--openbitfun-control-flow-chat-card-radius);
+    border-radius: var(--bitfun-control-flow-chat-card-radius);
     box-shadow: markdownCode.$pre-shadow;
     overflow-x: auto;
     transition:
@@ -297,9 +297,9 @@
   .m-editor-inline-ai-rendered__content.markdown-body td code,
   .m-editor-inline-ai-rendered__content.markdown-body th code {
     padding: 0.1em 0.35em;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    font-family:var(--openbitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    font-family:var(--bitfun-type-code-md-font-family);
     color: markdownCode.$inline-code-fg;
     background: markdownCode.$inline-code-bg;
     border: 1px solid markdownCode.$inline-code-border;
@@ -307,7 +307,7 @@
   }
 
   .m-editor-inline-ai-rendered__content.markdown-body hr {
-    margin: var(--openbitfun-space-2) 0;
+    margin: var(--bitfun-space-2) 0;
     border: none;
     border-top: 1px solid color-mix(in srgb, currentColor 24%, transparent);
   }
@@ -329,8 +329,8 @@
 
   .m-editor-inline-ai-preview__placeholder {
     color: inherit;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
     padding: 4px 6px;
   }
 
@@ -339,32 +339,32 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 6px;
-    margin-left: var(--openbitfun-space-3);
+    margin-left: var(--bitfun-space-3);
   }
 
   .m-editor-inline-ai__error {
-    margin-top: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-status-danger-content);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    margin-top: var(--bitfun-space-2);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   .m-editor-image { display: inline-block; max-width: 100%; }
 
   .m-editor-image-fields {
     display: grid;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2);
+    font-size: var(--bitfun-type-label-sm-font-size);
 
     &[hidden] { display: none; }
-    label { display: grid; gap: var(--openbitfun-space-1); }
+    label { display: grid; gap: var(--bitfun-space-1); }
     input {
       min-width: 0;
-      color: var(--openbitfun-color-content-primary);
-      background: var(--openbitfun-color-surface-scene);
-      border: 1px solid var(--openbitfun-color-border-default);
-      border-radius: var(--openbitfun-radius-base);
-      padding: var(--openbitfun-space-1);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-surface-scene);
+      border: 1px solid var(--bitfun-color-border-default);
+      border-radius: var(--bitfun-radius-base);
+      padding: var(--bitfun-space-1);
       font: inherit;
     }
   }
@@ -372,11 +372,11 @@
   .m-editor-source-block-action {
     display: block;
     margin: 0;
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-2);
-    border: 1px solid var(--openbitfun-color-border-default);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-content-secondary);
-    background: var(--openbitfun-color-surface-scene);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-content-secondary);
+    background: var(--bitfun-color-surface-scene);
     font: inherit;
     cursor: pointer;
 
@@ -388,23 +388,23 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-label-sm-line-height);
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-label-sm-line-height);
     user-select: none;
   }
 
   .m-editor-embed-label {
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-code-md-font-family);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-code-md-font-family);
   }
 
   .m-editor-source-block-action:hover,
   .m-editor-source-block-action:focus-visible {
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-primary);
-    outline: 1px solid var(--openbitfun-color-border-default);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-primary);
+    outline: 1px solid var(--bitfun-color-border-default);
   }
 
   .m-editor-inline-math {
@@ -416,7 +416,7 @@
     &__pane--preview,
     &__preview,
     &__preview .markdown-body,
-    &__preview [data-openbitfun-part='math'],
+    &__preview [data-bitfun-part='math'],
     &__preview p { display: inline; margin: 0; }
 
     &__pane--editor {
@@ -426,9 +426,9 @@
       left: 0;
       display: block;
       width: min(26rem, calc(100vw - 40px));
-      border: 1px solid var(--openbitfun-color-border-default);
-      border-radius: var(--openbitfun-radius-base);
-      background: var(--openbitfun-color-surface-scene);
+      border: 1px solid var(--bitfun-color-border-default);
+      border-radius: var(--bitfun-radius-base);
+      background: var(--bitfun-color-surface-scene);
     }
 
     &[data-editing='false'] .m-editor-inline-math__pane--editor { display: none; }
@@ -437,13 +437,13 @@
       box-sizing: border-box;
       width: 100%;
       min-height: 64px;
-      padding: var(--openbitfun-space-3);
+      padding: var(--bitfun-space-3);
       border: 0;
-      border-top: 1px solid var(--openbitfun-color-border-default);
-      color: var(--openbitfun-color-content-primary);
+      border-top: 1px solid var(--bitfun-color-border-default);
+      color: var(--bitfun-color-content-primary);
       background: transparent;
-      font-family: var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-code-md-font-size);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-code-md-font-size);
       resize: vertical;
     }
     &__source-fallback { display: none; }
@@ -453,12 +453,12 @@
   .m-editor-render-only-block,
   .m-editor-raw-html-block,
   .m-editor-frontmatter {
-    margin: var(--openbitfun-space-3) 0;
+    margin: var(--bitfun-space-3) 0;
     overflow: hidden;
-    border: 1px solid var(--openbitfun-color-border-default);
-    border-radius: var(--openbitfun-radius-base);
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-secondary);
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-base);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-secondary);
   }
 
   // Embedded content has document appearance until its local editor is open.
@@ -472,33 +472,33 @@
   }
 
   .m-editor-frontmatter {
-    margin: 0 0 var(--openbitfun-space-4);
-    .m-editor-embed-toolbar { border-bottom: 1px solid var(--openbitfun-color-border-default); }
+    margin: 0 0 var(--bitfun-space-4);
+    .m-editor-embed-toolbar { border-bottom: 1px solid var(--bitfun-color-border-default); }
     .m-editor-embed-label {
       font-family: inherit;
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      color: var(--openbitfun-color-content-secondary);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-secondary);
     }
   }
 
   .m-editor-frontmatter__header {
     display: flex;
     align-items: center;
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
     user-select: none;
   }
 
   .m-editor-frontmatter__label {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .m-editor-raw-html-inline {
-    color: var(--openbitfun-color-content-secondary);
-    background: color-mix(in srgb, var(--openbitfun-color-status-warning-content) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-status-warning-content) 28%, transparent);
+    color: var(--bitfun-color-content-secondary);
+    background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-status-warning-content) 28%, transparent);
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -509,11 +509,11 @@
 
   .m-editor-raw-html-block__label,
   .m-editor-raw-html-inline__label {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
     text-transform: uppercase;
-    color: var(--openbitfun-color-status-warning-content);
+    color: var(--bitfun-color-status-warning-content);
   }
 
   .m-editor-raw-html-inline__source {
@@ -522,8 +522,8 @@
     background: transparent;
     border: 0;
     margin: 0;
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -564,18 +564,18 @@
   .m-editor-raw-html-block__textarea,
   .m-editor-frontmatter__textarea {
     margin: 0;
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
     display: block;
     width: 100%;
     min-height: 100px;
     resize: vertical;
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-primary) 12%, transparent);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-scene) 94%, var(--openbitfun-color-content-on-light));
-    color: var(--openbitfun-color-content-primary);
-    padding: var(--openbitfun-space-3);
-    line-height: var(--openbitfun-type-support-line-height);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-content-primary) 12%, transparent);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-surface-scene) 94%, var(--bitfun-color-content-on-light));
+    color: var(--bitfun-color-content-primary);
+    padding: var(--bitfun-space-3);
+    line-height: var(--bitfun-type-support-line-height);
     word-break: break-word;
     outline: none;
     user-select: text;
@@ -583,8 +583,8 @@
     -webkit-user-drag: none;
 
     &:focus {
-      border-color: color-mix(in srgb, var(--openbitfun-color-content-primary) 20%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--openbitfun-color-content-primary) 10%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-content-primary) 20%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bitfun-color-content-primary) 10%, transparent);
     }
   }
 
@@ -609,7 +609,7 @@
 
     &:focus {
       border-color: transparent;
-      box-shadow: inset 0 0 0 1px var(--openbitfun-color-border-default);
+      box-shadow: inset 0 0 0 1px var(--bitfun-color-border-default);
     }
   }
 
@@ -619,16 +619,16 @@
 
   .m-editor-frontmatter__preview > .m-editor-frontmatter__source {
     margin: 0;
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
     overflow-x: auto;
     border: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    color: var(--openbitfun-color-content-secondary);
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    line-height: var(--openbitfun-type-support-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    line-height: var(--bitfun-type-support-line-height);
     white-space: pre;
 
     &:hover {
@@ -640,7 +640,7 @@
 
   .m-editor-render-only-block__preview .m-editor-render-only-block__markdown,
   .m-editor-raw-html-block__preview .m-editor-raw-html-block__markdown {
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
   }
 
   .m-editor-render-only-block__preview .m-editor-render-only-block__markdown > :first-child,
@@ -668,16 +668,16 @@
   .m-editor-frontmatter__source-fallback {
     display: none;
     margin: 0;
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
     white-space: pre-wrap;
     word-break: break-word;
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-primary) 12%, transparent);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-scene) 94%, var(--openbitfun-color-content-on-light));
-    color: var(--openbitfun-color-content-primary);
-    padding: var(--openbitfun-space-3);
-    line-height: var(--openbitfun-type-support-line-height);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-content-primary) 12%, transparent);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-surface-scene) 94%, var(--bitfun-color-content-on-light));
+    color: var(--bitfun-color-content-primary);
+    padding: var(--bitfun-space-3);
+    line-height: var(--bitfun-type-support-line-height);
   }
 
   .m-editor-render-only-block[data-preview-empty='true'] .m-editor-render-only-block__preview,
@@ -698,8 +698,8 @@
   .m-editor-render-only-block__details-summary,
   .m-editor-raw-html-block__details-summary {
     cursor: pointer;
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
     list-style-position: outside;
   }
 
@@ -710,7 +710,7 @@
 
   .m-editor-render-only-block__details-body,
   .m-editor-raw-html-block__details-body {
-    margin-top: var(--openbitfun-space-3);
+    margin-top: var(--bitfun-space-3);
   }
 
   .m-editor-render-only-block__details-body > :first-child,
@@ -727,24 +727,24 @@
     display: grid;
     grid-template-columns: 20px minmax(0, 1fr);
     align-items: start;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   [data-type='details'] > button {
     border: none;
     background: transparent;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     cursor: pointer;
     padding: 0;
     width: 20px;
     height: 20px;
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
     margin-top: 2px;
   }
 
   [data-type='details'] > button::before {
     content: '▸';
-    font-size: var(--openbitfun-type-body-md-font-size);
+    font-size: var(--bitfun-type-body-md-font-size);
   }
 
   [data-type='details'].is-open > button::before {
@@ -775,32 +775,32 @@
   }
 
   .m-editor-details-block {
-    margin: var(--openbitfun-space-3) 0;
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-primary) 10%, transparent);
-    border-radius: var(--openbitfun-radius-base);
-    background: color-mix(in srgb, var(--openbitfun-color-surface-scene) 88%, var(--openbitfun-color-content-on-dark));
+    margin: var(--bitfun-space-3) 0;
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-content-primary) 10%, transparent);
+    border-radius: var(--bitfun-radius-base);
+    background: color-mix(in srgb, var(--bitfun-color-surface-scene) 88%, var(--bitfun-color-content-on-dark));
     overflow: hidden;
   }
 
   .m-editor-details-block__header {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    background: color-mix(in srgb, var(--openbitfun-color-content-primary) 4%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--openbitfun-color-content-primary) 8%, transparent);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    background: color-mix(in srgb, var(--bitfun-color-content-primary) 4%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--bitfun-color-content-primary) 8%, transparent);
   }
 
   .m-editor-details-block__toggle {
     border: none;
     background: transparent;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     cursor: pointer;
     padding: 0;
     width: 20px;
     height: 20px;
-    font-size: var(--openbitfun-type-body-md-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+    font-size: var(--bitfun-type-body-md-font-size);
+    line-height: var(--bitfun-type-modifier-leading-none-line-height);
   }
 
   .m-editor-details-block__summary {
@@ -808,18 +808,18 @@
     min-width: 0;
     border: none;
     background: transparent;
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
     outline: none;
   }
 
   .m-editor-details-block__summary::placeholder {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   .m-editor-details-block__body {
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
   }
 
   .m-editor-details-block__content > :first-child {
@@ -831,9 +831,9 @@
   }
 }
 
-:root[data-openbitfun-appearance-mode="light"] .m-editor-tiptap,
-:root[data-openbitfun-appearance-mode="light"] .m-editor-tiptap,
-[data-openbitfun-appearance-mode="light"] .m-editor-tiptap,
+:root[data-bitfun-appearance-mode="light"] .m-editor-tiptap,
+:root[data-bitfun-appearance-mode="light"] .m-editor-tiptap,
+[data-bitfun-appearance-mode="light"] .m-editor-tiptap,
 .light .m-editor-tiptap {
 
 

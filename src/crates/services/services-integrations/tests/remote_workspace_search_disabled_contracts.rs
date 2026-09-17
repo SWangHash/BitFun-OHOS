@@ -4,7 +4,7 @@
     not(feature = "remote-ssh-concrete")
 ))]
 
-use openbitfun_services_integrations::remote_ssh::workspace_search::disabled::{
+use bitfun_services_integrations::remote_ssh::workspace_search::disabled::{
     remote_workspace_search_service_for_path, RemoteWorkspaceSearchService,
 };
 

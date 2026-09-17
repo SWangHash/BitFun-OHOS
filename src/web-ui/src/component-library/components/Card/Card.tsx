@@ -44,12 +44,12 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(({
       ref={ref}
       data-mouse-glow-surface=""
       className={classNames}
-      data-openbitfun-component="card"
-      data-openbitfun-part="root"
-      data-openbitfun-variant={variant}
-      data-openbitfun-padding={padding}
-      data-openbitfun-radius={radius}
-      data-openbitfun-state={appearanceState || undefined}
+      data-bitfun-component="card"
+      data-bitfun-part="root"
+      data-bitfun-variant={variant}
+      data-bitfun-padding={padding}
+      data-bitfun-radius={radius}
+      data-bitfun-state={appearanceState || undefined}
       {...props}
     >
       {children}
@@ -77,13 +77,13 @@ export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(({
   ...props
 }, ref) => {
   return (
-    <div ref={ref} className={`v-card-header ${className}`} {...props} data-openbitfun-component="card" data-openbitfun-part="header">
-      <div className="v-card-header__content" data-openbitfun-component="card" data-openbitfun-part="headerContent">
-        {title && <div className="v-card-header__title" data-openbitfun-component="card" data-openbitfun-part="title">{title}</div>}
-        {subtitle && <div className="v-card-header__subtitle" data-openbitfun-component="card" data-openbitfun-part="subtitle">{subtitle}</div>}
+    <div ref={ref} className={`v-card-header ${className}`} {...props} data-bitfun-component="card" data-bitfun-part="header">
+      <div className="v-card-header__content" data-bitfun-component="card" data-bitfun-part="headerContent">
+        {title && <div className="v-card-header__title" data-bitfun-component="card" data-bitfun-part="title">{title}</div>}
+        {subtitle && <div className="v-card-header__subtitle" data-bitfun-component="card" data-bitfun-part="subtitle">{subtitle}</div>}
         {children}
       </div>
-      {extra && <div className="v-card-header__extra" data-openbitfun-component="card" data-openbitfun-part="extra">{extra}</div>}
+      {extra && <div className="v-card-header__extra" data-bitfun-component="card" data-bitfun-part="extra">{extra}</div>}
     </div>
   );
 });
@@ -98,7 +98,7 @@ export const CardBody = forwardRef<HTMLDivElement, CardBodyProps>(({
   ...props
 }, ref) => {
   return (
-    <div ref={ref} className={`v-card-body ${className}`} data-openbitfun-component="card" data-openbitfun-part="body" {...props}>
+    <div ref={ref} className={`v-card-body ${className}`} data-bitfun-component="card" data-bitfun-part="body" {...props}>
       {children}
     </div>
   );
@@ -122,9 +122,9 @@ export const CardFooter = forwardRef<HTMLDivElement, CardFooterProps>(({
       ref={ref} 
       className={`v-card-footer v-card-footer--${align} ${className}`} 
       {...props}
-      data-openbitfun-component="card"
-      data-openbitfun-part="footer"
-      data-openbitfun-align={align}
+      data-bitfun-component="card"
+      data-bitfun-part="footer"
+      data-bitfun-align={align}
     >
       {children}
     </div>

@@ -1,7 +1,7 @@
 import { X as LucideX } from 'lucide-react';
 import React from 'react';
 import { useI18n } from '../i18n';
-import { MobileBanner, MobileIconButton } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileIconButton } from '@bitfun/ui/mobile';
 
 interface ChatFeedbackProps {
   actionMessage: string | null;

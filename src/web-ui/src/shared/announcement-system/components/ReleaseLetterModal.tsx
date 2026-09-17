@@ -5,7 +5,7 @@ import {
   DialogClose,
   ScrollArea,
   ThemeRoot,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import { useAnnouncementI18n } from '../hooks/useAnnouncementI18n';
 import { useAnnouncementStore } from '../store/announcementStore';
 import { useReleaseLetterMotion } from '../hooks/useReleaseLetterMotion';
@@ -43,9 +43,9 @@ function ReleaseLetterScene({ title, body, titleId, descriptionId, closable }: {
   const paragraphs = parseReleaseLetterBody(body);
   return (
     <div ref={sceneRef} className="release-letter-scene" data-motion-state="intro" data-content-ready="false" lang={currentLanguage}>
-      <ScrollArea className="release-letter-scroll" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterScroll">
+      <ScrollArea className="release-letter-scroll" data-bitfun-component="announcement" data-bitfun-part="releaseLetterScroll">
         <article className="release-letter" aria-labelledby={titleId}>
-          <div className="release-letter__construction" aria-hidden="true" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterArtwork">
+          <div className="release-letter__construction" aria-hidden="true" data-bitfun-component="announcement" data-bitfun-part="releaseLetterArtwork">
             <div className="release-letter__drawing-box">
               <ReleaseLetterDrawing />
               <div className="release-letter__intro-wordmark">BitFun</div>
@@ -55,7 +55,7 @@ function ReleaseLetterScene({ title, body, titleId, descriptionId, closable }: {
           <header className="release-letter__header">
             <div className="release-letter__brand" data-reveal="0">BitFun</div>
           </header>
-          <section className="release-letter__copy" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterCopy">
+          <section className="release-letter__copy" data-bitfun-component="announcement" data-bitfun-part="releaseLetterCopy">
             <h1 className="release-letter__title" id={titleId} data-reveal="1">{title}</h1>
             <div className="release-letter__rule" aria-hidden="true" data-reveal="2" />
             <div className="release-letter__paragraphs" id={descriptionId}>
@@ -65,7 +65,7 @@ function ReleaseLetterScene({ title, body, titleId, descriptionId, closable }: {
                 </p>
               ))}
             </div>
-            <footer className="release-letter__signature" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterSignature">
+            <footer className="release-letter__signature" data-bitfun-component="announcement" data-bitfun-part="releaseLetterSignature">
               <div className="release-letter__team">
                 <span aria-hidden="true" />
                 <p>
@@ -80,7 +80,7 @@ function ReleaseLetterScene({ title, body, titleId, descriptionId, closable }: {
               </button>
             </footer>
           </section>
-          <footer className="release-letter__marks" data-reveal="10" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterMarks">
+          <footer className="release-letter__marks" data-reveal="10" data-bitfun-component="announcement" data-bitfun-part="releaseLetterMarks">
             <button type="button" className="release-letter__version-mark" onClick={replay} aria-label={t('announcements.release_letter.replay')}>
               <span>1.0.0</span><span>A NEW BEGINNING</span>
             </button>
@@ -143,8 +143,8 @@ const ReleaseLetterModal: React.FC = () => {
         className="release-letter-theme"
         colorScheme="light"
         density="comfortable"
-        data-openbitfun-component="announcement"
-        data-openbitfun-part="releaseLetter"
+        data-bitfun-component="announcement"
+        data-bitfun-part="releaseLetter"
       >
         <DialogBody className="release-letter-dialog__body" inset="none">
           {modalVisible && <ReleaseLetterScene key={openModal.id} title={page.title} body={page.body} titleId={titleId} descriptionId={descriptionId} closable={modal.closable} />}

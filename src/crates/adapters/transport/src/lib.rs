@@ -1,7 +1,7 @@
 pub mod adapters;
 pub mod emitter;
 mod json;
-/// OpenBitFun Transport Layer
+/// BitFun Transport Layer
 ///
 /// Event delivery abstraction used by current product hosts.
 pub mod traits;

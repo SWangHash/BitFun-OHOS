@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MobileBanner, MobileButton, MobileTextarea } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileTextarea } from '@bitfun/ui/mobile';
 import type { RemoteSessionManager } from '../services/RemoteSessionManager';
 import ChatAskQuestionCard, {QuestionInteractionContext} from './ChatAskQuestionCard';
 import { useI18n } from '../i18n';

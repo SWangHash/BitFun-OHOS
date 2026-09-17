@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, IconButton, Tooltip, Icon, type IconName } from '@openbitfun/ui';
+import { Button, IconButton, Tooltip, Icon, type IconName } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ClipboardList, Code, FileText, Lightbulb, TestTube, Wrench, type LucideIcon } from 'lucide-react';
 import { recommendationRegistry } from './RecommendationRegistry';
@@ -112,18 +112,18 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
 
   return (
     <div
-      data-openbitfun-component="smart-recommendations"
-      data-openbitfun-part="root"
-      data-openbitfun-state={hasLoadingAction ? 'loading' : undefined}
-      className={`openbitfun-smart-recommendations ${className}`}
+      data-bitfun-component="smart-recommendations"
+      data-bitfun-part="root"
+      data-bitfun-state={hasLoadingAction ? 'loading' : undefined}
+      className={`bitfun-smart-recommendations ${className}`}
     >
-      <div data-openbitfun-component="smart-recommendations" data-openbitfun-part="header" className="openbitfun-smart-recommendations__header">
-        <span data-openbitfun-component="smart-recommendations" data-openbitfun-part="title" className="openbitfun-smart-recommendations__title">{t('smartRecommendations.title')}</span>
+      <div data-bitfun-component="smart-recommendations" data-bitfun-part="header" className="bitfun-smart-recommendations__header">
+        <span data-bitfun-component="smart-recommendations" data-bitfun-part="title" className="bitfun-smart-recommendations__title">{t('smartRecommendations.title')}</span>
         <Tooltip content={t('smartRecommendations.close')}>
           <IconButton
-            data-openbitfun-component="smart-recommendations"
-            data-openbitfun-part="close"
-            className="openbitfun-smart-recommendations__close"
+            data-bitfun-component="smart-recommendations"
+            data-bitfun-part="close"
+            className="bitfun-smart-recommendations__close"
             onClick={handleClose}
             icon={<Icon name="xmark" size="md" />}
             size="sm"
@@ -133,7 +133,7 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
         </Tooltip>
       </div>
 
-      <div data-openbitfun-component="smart-recommendations" data-openbitfun-part="actions" className="openbitfun-smart-recommendations__actions">
+      <div data-bitfun-component="smart-recommendations" data-bitfun-part="actions" className="bitfun-smart-recommendations__actions">
         {actions.map(action => {
           const CatalogIconName = action.icon ? RECOMMENDATION_CATALOG[action.icon] : undefined;
           const IconComponent = action.icon

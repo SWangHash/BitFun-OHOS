@@ -169,7 +169,7 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     }, []);
 
     return (
-      <div data-openbitfun-component="aux-pane" data-openbitfun-part="root" className="openbitfun-aux-pane">
+      <div data-bitfun-component="aux-pane" data-bitfun-part="root" className="bitfun-aux-pane">
         <ContentCanvas
           workspacePath={workspacePath}
           mode="agent"
@@ -182,9 +182,9 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
           missionControlEnabled={false}
           emptyState={
             <div
-              className="openbitfun-aux-pane__empty-state"
-              data-openbitfun-component="aux-pane"
-              data-openbitfun-part="emptyState"
+              className="bitfun-aux-pane__empty-state"
+              data-bitfun-component="aux-pane"
+              data-bitfun-part="emptyState"
             >
               {t('canvas.noContentOpen')}
             </div>

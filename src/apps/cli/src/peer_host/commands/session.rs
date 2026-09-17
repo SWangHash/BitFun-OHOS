@@ -5,17 +5,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentSessionModelSelection, AgentSessionModelSelectionUpdateRequest,
     AgentSessionRestoreRequest, AgentSessionRestoreResult, PortErrorKind, RuntimeError,
     SessionEventBackfill, SessionEventProjectionSnapshot, SessionInteractionSnapshot,
 };
-use openbitfun_core::agentic::core::Session;
-use openbitfun_core::agentic::get_agent_registry;
-use openbitfun_core::util::errors::OpenBitFunError;
-use openbitfun_events::{project_agentic_frontend_event, AgenticEvent};
-use openbitfun_product_domains::product_search::SessionContentSearchRequest;
-use openbitfun_runtime_ports::{
+use bitfun_core::agentic::core::Session;
+use bitfun_core::agentic::get_agent_registry;
+use bitfun_core::util::errors::BitFunError;
+use bitfun_events::{project_agentic_frontend_event, AgenticEvent};
+use bitfun_product_domains::product_search::SessionContentSearchRequest;
+use bitfun_runtime_ports::{
     AgentSessionArchiveRequest, AgentSessionCreateRequest, AgentSessionDeleteRequest,
     AgentSessionModeUpdateRequest, AgentSessionRenameRequest, AgentThreadGoalGetRequest,
     SessionStoragePathRequest, SessionTurnWindowRequest,
@@ -144,7 +144,7 @@ pub(super) async fn resolved_session_storage_scope(
 
 fn validated_session_id(request: &Value) -> Result<String, String> {
     let session_id = get_string(request, "sessionId")?;
-    openbitfun_agent_runtime::session_control::validate_session_id(&session_id)?;
+    bitfun_agent_runtime::session_control::validate_session_id(&session_id)?;
     Ok(session_id)
 }
 
@@ -194,9 +194,9 @@ fn restored_session_to_json(restored: AgentSessionRestoreResult) -> Value {
     })
 }
 
-fn peer_core_session_error(operation: &str, error: OpenBitFunError) -> String {
+fn peer_core_session_error(operation: &str, error: BitFunError) -> String {
     match error {
-        OpenBitFunError::SessionInUse { session_id } => format!(
+        BitFunError::SessionInUse { session_id } => format!(
             "{SESSION_IN_USE_ERROR_CODE}: Session is already open for writing: {session_id}"
         ),
         error => format!("{operation}: {error}"),
@@ -278,7 +278,7 @@ pub(crate) async fn save_session_metadata(
     state: &PeerHostState,
     args: &Value,
 ) -> Result<Value, String> {
-    use openbitfun_core::service::session::{
+    use bitfun_core::service::session::{
         apply_session_title_metadata, apply_session_unread_completion, SessionMetadata,
     };
     let request = request_value(args);
@@ -752,7 +752,7 @@ pub(crate) async fn get_available_modes(
         .await
         .map_err(|error| error.encode())?;
     if let Some(workspace) = workspace.as_deref() {
-        if let Err(error) = openbitfun_core::plugin_host::ensure_configured_plugin_instance(
+        if let Err(error) = bitfun_core::plugin_host::ensure_configured_plugin_instance(
             crate::PLUGIN_HOST_LAUNCH_POLICY,
             workspace.to_path_buf(),
             workspace.to_path_buf(),
@@ -760,7 +760,7 @@ pub(crate) async fn get_available_modes(
         )
         .await
         {
-            openbitfun_core::plugin_host::report_configured_plugin_activation_failure(
+            bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                 "CLI Peer mode catalog",
                 Some(workspace),
                 error,
@@ -768,7 +768,7 @@ pub(crate) async fn get_available_modes(
             .await;
         }
         if let Err(error) =
-            openbitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
+            bitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
                 workspace,
             ))
             .await
@@ -815,7 +815,7 @@ pub(crate) async fn get_session_stats(
     let request = request_value(args);
     let session_id = get_string(request, "sessionId")?;
     let workspace_path = get_string(request, "workspacePath")?;
-    openbitfun_agent_runtime::session_control::validate_session_id(&session_id)
+    bitfun_agent_runtime::session_control::validate_session_id(&session_id)
         .map_err(session_stats_validation_error)?;
     require_local_snapshot_workspace(request, &workspace_path).await?;
 
@@ -860,11 +860,11 @@ pub(crate) async fn save_session_turn(
         .cloned()
         .ok_or_else(|| "Missing 'turn_data' field".to_string())?;
 
-    let turn: openbitfun_core::service::session::DialogTurnData =
+    let turn: bitfun_core::service::session::DialogTurnData =
         serde_json::from_value(turn_data).map_err(|e| format!("Invalid turn_data: {e}"))?;
-    openbitfun_agent_runtime::session_control::validate_session_id(&turn.session_id)?;
+    bitfun_agent_runtime::session_control::validate_session_id(&turn.session_id)?;
     if let Some(request_session_id) = optional_string(request, "sessionId") {
-        openbitfun_agent_runtime::session_control::validate_session_id(&request_session_id)?;
+        bitfun_agent_runtime::session_control::validate_session_id(&request_session_id)?;
         if request_session_id != turn.session_id {
             return Err("turn_data session_id does not match request session_id".to_string());
         }
@@ -894,21 +894,21 @@ mod tests {
         overlay_live_session_state, peer_core_session_error, peer_runtime_session_error,
         restored_session_to_json, runtime_event_snapshot_to_json, session_stats_validation_error,
     };
-    use openbitfun_agent_runtime::sdk::{
+    use bitfun_agent_runtime::sdk::{
         AgentSessionRestoreResult, AgentSessionSummary, PortError, PortErrorKind, RuntimeError,
         SessionEventProjectionSnapshot, SessionState,
     };
-    use openbitfun_core::agentic::core::{
+    use bitfun_core::agentic::core::{
         ProcessingPhase, Session as CoreSession, SessionConfig, SessionState as CoreSessionState,
     };
-    use openbitfun_core::util::errors::OpenBitFunError;
-    use openbitfun_events::AgenticEvent;
+    use bitfun_core::util::errors::BitFunError;
+    use bitfun_events::AgenticEvent;
 
     #[test]
     fn peer_writer_conflicts_keep_the_stable_transport_code() {
         let core_error = peer_core_session_error(
             "Failed to restore session with turns",
-            OpenBitFunError::SessionInUse {
+            BitFunError::SessionInUse {
                 session_id: "session-1".to_string(),
             },
         );

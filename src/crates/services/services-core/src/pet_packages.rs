@@ -12,7 +12,7 @@ use std::{
 const MANIFEST_LIMIT: u64 = 64 * 1024;
 const IMAGE_LIMIT: u64 = 32 * 1024 * 1024;
 const ARCHIVE_LIMIT: u64 = 64 * 1024 * 1024;
-const RECEIPT: &str = ".openbitfun-import.json";
+const RECEIPT: &str = ".bitfun-import.json";
 const MAX_PACKAGES: usize = 128;
 type Result<T> = std::result::Result<T, String>;
 
@@ -699,7 +699,7 @@ mod tests {
             "/sprite.png",
             "C:/sprite.png",
             "folder\\sprite.png",
-            ".openbitfun-import.json",
+            ".bitfun-import.json",
         ] {
             fs::write(
                 src.join("pet.json"),

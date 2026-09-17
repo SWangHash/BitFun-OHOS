@@ -10,7 +10,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@openbitfun/ui';
+import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 import { CircleAlert } from 'lucide-react';
 import type { ModelRound, ModelRoundAttempt, ModelRoundAttemptDiagnostic, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem, ToolRejectOptions } from '../../types/flow-chat';
 import { useI18n } from '@/infrastructure/i18n';
@@ -170,9 +170,9 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
       <IconButton
         type="button"
         className="model-round-item__attempt-diagnostic-copy"
-        data-openbitfun-product-component="model-round-item"
-        data-openbitfun-product-part="action"
-        data-openbitfun-state={copiedValue === valueKey ? 'copied' : undefined}
+        data-bitfun-product-component="model-round-item"
+        data-bitfun-product-part="action"
+        data-bitfun-state={copiedValue === valueKey ? 'copied' : undefined}
         onClick={() => void copyValue(value, valueKey)}
         aria-label={t('modelRound.attemptDiagnostics.copy')}
         icon={copiedValue === valueKey ? <Icon name="check-line" size="lg" style={{ width: 13, height: 13 }} /> : <Icon name="duplicate" size="lg" style={{ width: 13, height: 13 }} />}
@@ -188,9 +188,9 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
         <IconButton
           type="button"
           className="model-round-item__attempt-diagnostic-toggle"
-          data-openbitfun-product-component="model-round-item"
-          data-openbitfun-product-part="diagnosticToggle"
-          data-openbitfun-state={isOpen ? 'expanded' : undefined}
+          data-bitfun-product-component="model-round-item"
+          data-bitfun-product-part="diagnosticToggle"
+          data-bitfun-state={isOpen ? 'expanded' : undefined}
           onClick={() => setIsOpen(current => !current)}
           aria-expanded={isOpen}
           aria-controls={detailsId}
@@ -203,19 +203,19 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
         <div
           id={detailsId}
           className="model-round-item__attempt-diagnostic-details"
-          data-openbitfun-product-component="model-round-item"
-          data-openbitfun-product-part="diagnosticDetails"
+          data-bitfun-product-component="model-round-item"
+          data-bitfun-product-part="diagnosticDetails"
         >
           <div
             className="model-round-item__attempt-diagnostic-category"
-            data-openbitfun-product-component="model-round-item"
-            data-openbitfun-product-part="diagnosticSection"
+            data-bitfun-product-component="model-round-item"
+            data-bitfun-product-part="diagnosticSection"
           >
             {attemptDiagnosticCategoryLabel(diagnostic, t)}
           </div>
 
           {diagnostic.rawError && (
-            <div className="model-round-item__attempt-diagnostic-section" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="diagnosticSection">
+            <div className="model-round-item__attempt-diagnostic-section" data-bitfun-product-component="model-round-item" data-bitfun-product-part="diagnosticSection">
               <div className="model-round-item__attempt-diagnostic-section-header">
                 <span>{t('modelRound.attemptDiagnostics.providerError')}</span>
                 {renderCopyButton(diagnostic.rawError, 'raw-error')}
@@ -230,8 +230,8 @@ const AttemptDiagnosticDetails: React.FC<{ diagnostic: ModelRoundAttemptDiagnost
               <div
                 key={`${toolCall.toolId ?? toolCall.toolName ?? 'tool'}:${index}`}
                 className="model-round-item__attempt-diagnostic-section"
-                data-openbitfun-product-component="model-round-item"
-                data-openbitfun-product-part="diagnosticSection"
+                data-bitfun-product-component="model-round-item"
+                data-bitfun-product-part="diagnosticSection"
               >
                 <div className="model-round-item__attempt-diagnostic-tool-title">
                   {t('modelRound.attemptDiagnostics.toolArguments', { name: toolLabel })}
@@ -318,9 +318,9 @@ const TaskWithSubagentWrapper: React.FC<TaskWithSubagentWrapperProps> = React.me
   return (
     <div
       className={className}
-      data-openbitfun-product-component="model-round-item"
-      data-openbitfun-product-part="subagent"
-      data-openbitfun-state={!isCollapsed ? 'expanded' : undefined}
+      data-bitfun-product-component="model-round-item"
+      data-bitfun-product-part="subagent"
+      data-bitfun-state={!isCollapsed ? 'expanded' : undefined}
     >
       <FlowItemRenderer
         item={taskItem}
@@ -580,10 +580,10 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         className={getModelRoundItemClassName({
           isVisuallyStreaming,
         })}
-        data-openbitfun-product-component="model-round-item"
-        data-openbitfun-product-part="root"
-        data-openbitfun-status={round.status}
-        data-openbitfun-state={isVisuallyStreaming ? 'streaming' : undefined}
+        data-bitfun-product-component="model-round-item"
+        data-bitfun-product-part="root"
+        data-bitfun-status={round.status}
+        data-bitfun-state={isVisuallyStreaming ? 'streaming' : undefined}
         data-testid="chat-assistant-message"
         data-turn-id={turnId}
         data-round-id={round.id}
@@ -607,13 +607,13 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         )}
 
         {historyRounds.length > 0 && (
-          <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+          <div className="model-round-item__retry-history" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryHistory">
             <Button labelBehavior="static" variant="text"
               type="button"
               className="model-round-item__retry-toggle"
-              data-openbitfun-product-component="model-round-item"
-              data-openbitfun-product-part="retryToggle"
-              data-openbitfun-state={showRoundHistory ? 'expanded' : undefined}
+              data-bitfun-product-component="model-round-item"
+              data-bitfun-product-part="retryToggle"
+              data-bitfun-state={showRoundHistory ? 'expanded' : undefined}
               onClick={() => setShowRoundHistory(current => !current)}
             >
               {showRoundHistory
@@ -638,18 +638,18 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               });
 
               return (
-                <div key={historyRound.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
-                  <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
+                <div key={historyRound.id} className="model-round-item__retry-attempt" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryAttempt">
+                  <div className="model-round-item__retry-attempt-label" data-bitfun-product-component="model-round-item" data-bitfun-product-part="attemptLabel">
                     {t('modelRound.roundRetryLabel', { index: historyIndex + 1 })}
                   </div>
                   {historyOlderAttempts.length > 0 && (
-                    <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+                    <div className="model-round-item__retry-history" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryHistory">
                       <Button labelBehavior="static" variant="text"
                         type="button"
                         className="model-round-item__retry-toggle"
-                        data-openbitfun-product-component="model-round-item"
-                        data-openbitfun-product-part="retryToggle"
-                        data-openbitfun-state={showHistoryRoundAttempts ? 'expanded' : undefined}
+                        data-bitfun-product-component="model-round-item"
+                        data-bitfun-product-part="retryToggle"
+                        data-bitfun-state={showHistoryRoundAttempts ? 'expanded' : undefined}
                         onClick={() => toggleHistoryRoundAttempts(historyRound.id)}
                       >
                         {showHistoryRoundAttempts
@@ -666,8 +666,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                         });
 
                         return (
-                          <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
-                            <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
+                          <div key={attempt.id} className="model-round-item__retry-attempt" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryAttempt">
+                            <div className="model-round-item__retry-attempt-label" data-bitfun-product-component="model-round-item" data-bitfun-product-part="attemptLabel">
                               <span>{t('modelRound.attemptLabel', { index: attempt.index })}</span>
                               {attempt.diagnostic && <AttemptDiagnosticDetails diagnostic={attempt.diagnostic} />}
                             </div>
@@ -693,13 +693,13 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         )}
 
         {historicalAttempts.length > 0 && (
-          <div className="model-round-item__retry-history" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryHistory">
+          <div className="model-round-item__retry-history" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryHistory">
             <Button labelBehavior="static" variant="text"
               type="button"
               className="model-round-item__retry-toggle"
-              data-openbitfun-product-component="model-round-item"
-              data-openbitfun-product-part="retryToggle"
-              data-openbitfun-state={showRetryHistory ? 'expanded' : undefined}
+              data-bitfun-product-component="model-round-item"
+              data-bitfun-product-part="retryToggle"
+              data-bitfun-state={showRetryHistory ? 'expanded' : undefined}
               onClick={() => setShowRetryHistory(current => !current)}
             >
               {showRetryHistory
@@ -716,8 +716,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               });
 
               return (
-                <div key={attempt.id} className="model-round-item__retry-attempt" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="retryAttempt">
-                  <div className="model-round-item__retry-attempt-label" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="attemptLabel">
+                <div key={attempt.id} className="model-round-item__retry-attempt" data-bitfun-product-component="model-round-item" data-bitfun-product-part="retryAttempt">
+                  <div className="model-round-item__retry-attempt-label" data-bitfun-product-component="model-round-item" data-bitfun-product-part="attemptLabel">
                     <span>{t('modelRound.attemptLabel', { index: attempt.index })}</span>
                     {attempt.diagnostic && <AttemptDiagnosticDetails diagnostic={attempt.diagnostic} />}
                   </div>
@@ -741,8 +741,8 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         {canvasArtifactItems.length > 0 && (
           <div
             className="model-round-item__canvas-attachments"
-            data-openbitfun-product-component="model-round-item"
-            data-openbitfun-product-part="canvasAttachments"
+            data-bitfun-product-component="model-round-item"
+            data-bitfun-product-part="canvasAttachments"
           >
             {canvasArtifactItems.map((item, index) => (
               <FlowItemRenderer
@@ -760,24 +760,24 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         {shouldReserveFooter && (
           <div
             className={`model-round-item__footer${shouldRevealFooter ? '' : ' model-round-item__footer--pending'}`}
-            data-openbitfun-product-component="model-round-item"
-            data-openbitfun-product-part="footer"
-            data-openbitfun-state={shouldRevealFooter ? undefined : 'pending'}
+            data-bitfun-product-component="model-round-item"
+            data-bitfun-product-part="footer"
+            data-bitfun-state={shouldRevealFooter ? undefined : 'pending'}
             aria-hidden={!shouldRevealFooter}
           >
             {completionMetaItems.length > 0 && (
               <div
                 className="model-round-item__meta"
-                data-openbitfun-product-component="model-round-item"
-                data-openbitfun-product-part="meta"
+                data-bitfun-product-component="model-round-item"
+                data-bitfun-product-part="meta"
                 aria-label={t('modelRound.meta.label')}
               >
                 {completionMetaItems.map(item => (
                   <span
                     key={item.key}
                     className="model-round-item__meta-item"
-                    data-openbitfun-product-component="model-round-item"
-                    data-openbitfun-product-part="metaItem"
+                    data-bitfun-product-component="model-round-item"
+                    data-bitfun-product-part="metaItem"
                     aria-label={`${item.label}: ${item.value}`}
                   >
                     {item.value}
@@ -804,7 +804,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                   aria-expanded={isCopyMenuOpen}
                   aria-label={copied ? t('modelRound.copiedDialog') : t('modelRound.copyDialog')}
                   data-testid="model-round-copy-btn"
-                  data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="action" data-openbitfun-state={copied ? 'copied' : undefined}
+                  data-bitfun-product-component="model-round-item" data-bitfun-product-part="action" data-bitfun-state={copied ? 'copied' : undefined}
                   icon={<Icon name={copied ? 'check-line' : 'duplicate'} size="sm" />}
                 />
               </Tooltip>
@@ -814,7 +814,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                   ref={copyMenuRef}
                   className="model-round-item__copy-menu"
                   data-testid="model-round-copy-menu"
-                  data-openbitfun-placement={copyMenuLayout?.placement ?? 'top'}
+                  data-bitfun-placement={copyMenuLayout?.placement ?? 'top'}
                   style={{
                     top: `${copyMenuLayout?.top ?? 0}px`,
                     left: `${copyMenuLayout?.left ?? 0}px`,
@@ -911,7 +911,7 @@ const FlowItemRenderer: React.FC<FlowItemRendererProps> = ({
       const toolItem = item as FlowToolItem;
 
       return (
-        <div className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool" data-openbitfun-product-component="model-round-item" data-openbitfun-product-part="toolItem">
+        <div className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool" data-bitfun-product-component="model-round-item" data-bitfun-product-part="toolItem">
           <FlowToolCard
             toolItem={toolItem}
             isLastItem={isLastItem}

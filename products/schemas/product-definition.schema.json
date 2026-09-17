@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://openbitfun.com/schemas/product-definition-v1.json",
-  "title": "OpenBitFun product definition",
+  "$id": "https://bitfun.com/schemas/product-definition-v1.json",
+  "title": "BitFun product definition",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "productId", "dataNamespace", "localeRoot", "members"],

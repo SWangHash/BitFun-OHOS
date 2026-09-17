@@ -55,10 +55,10 @@ export async function runCodePreviewStreamingPerfProbe({
   autoScrollToBottom = false,
   charsPerLine = 80,
 }: CodePreviewStreamingProbeOptions = {}): Promise<CodePreviewStreamingProbeResult> {
-  document.getElementById('openbitfun-code-preview-perf-probe')?.remove();
+  document.getElementById('bitfun-code-preview-perf-probe')?.remove();
 
   const host = document.createElement('div');
-  host.id = 'openbitfun-code-preview-perf-probe';
+  host.id = 'bitfun-code-preview-perf-probe';
   host.style.cssText = [
     'position: fixed',
     'left: 0',

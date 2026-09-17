@@ -1,18 +1,18 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .button {
     --_button-background: transparent;
-    --_button-background-hover: var(--openbitfun-component-button-fill-background);
-    --_button-background-active: var(--openbitfun-component-button-fill-background);
-    --_button-border: var(--openbitfun-component-button-outline-border);
-    --_button-border-hover: var(--openbitfun-component-button-outline-border-interactive);
-    --_button-border-active: var(--openbitfun-component-button-outline-border-interactive);
-    --_button-content: var(--openbitfun-component-button-content);
-    --_button-content-disabled: var(--openbitfun-color-action-neutral-content-disabled);
-    --_button-font-size: var(--openbitfun-type-label-md-font-size);
-    --_button-height: var(--openbitfun-control-height-md);
+    --_button-background-hover: var(--bitfun-component-button-fill-background);
+    --_button-background-active: var(--bitfun-component-button-fill-background);
+    --_button-border: var(--bitfun-component-button-outline-border);
+    --_button-border-hover: var(--bitfun-component-button-outline-border-interactive);
+    --_button-border-active: var(--bitfun-component-button-outline-border-interactive);
+    --_button-content: var(--bitfun-component-button-content);
+    --_button-content-disabled: var(--bitfun-color-action-neutral-content-disabled);
+    --_button-font-size: var(--bitfun-type-label-md-font-size);
+    --_button-height: var(--bitfun-control-height-md);
     --_button-leading-icon-size: 16px;
-    --_button-padding-block: var(--openbitfun-space-component-block);
-    --_button-padding-inline: var(--openbitfun-space-5);
+    --_button-padding-block: var(--bitfun-space-component-block);
+    --_button-padding-inline: var(--bitfun-space-5);
     --_button-trailing-icon-size: 14px;
 
     position: relative;
@@ -26,21 +26,21 @@
     block-size: var(--_button-height);
     padding-block: var(--_button-padding-block);
     padding-inline: var(--_button-padding-inline);
-    border: var(--openbitfun-border-width-default) solid var(--_button-border);
-    border-radius: var(--openbitfun-radius-pill);
+    border: var(--bitfun-border-width-default) solid var(--_button-border);
+    border-radius: var(--bitfun-radius-pill);
     color: var(--_button-content);
     background: transparent;
-    font-family: var(--openbitfun-type-label-md-font-family);
+    font-family: var(--bitfun-type-label-md-font-family);
     font-size: var(--_button-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
-    line-height: var(--openbitfun-type-label-md-line-height);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    line-height: var(--bitfun-type-label-md-line-height);
     white-space: nowrap;
     cursor: pointer;
     isolation: isolate;
     transition:
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .button::before {
@@ -51,29 +51,29 @@
     background: var(--_button-background);
     content: "";
     pointer-events: none;
-    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .button:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled)::before {
+  .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled)::before {
     background: var(--_button-background-hover);
   }
 
-  .button:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
+  .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
     border-color: var(--_button-border-hover);
   }
 
-  .button:is(:active, [data-openbitfun-preview-state="active"]):not(:disabled)::before {
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled)::before {
     background: var(--_button-background-active);
   }
 
-  .button:is(:active, [data-openbitfun-preview-state="active"]):not(:disabled) {
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
     border-color: var(--_button-border-active);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .button:focus-visible {
-    outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-    outline-offset: var(--openbitfun-focus-offset);
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
   }
 
   .button:disabled {
@@ -81,137 +81,137 @@
     cursor: not-allowed;
   }
 
-  .button[data-openbitfun-variant="fill"] {
-    --_button-background: var(--openbitfun-component-button-fill-background);
-    --_button-background-hover: var(--openbitfun-component-button-fill-background-hover);
-    --_button-background-active: var(--openbitfun-component-button-fill-background-pressed);
+  .button[data-bitfun-variant="fill"] {
+    --_button-background: var(--bitfun-component-button-fill-background);
+    --_button-background-hover: var(--bitfun-component-button-fill-background-hover);
+    --_button-background-active: var(--bitfun-component-button-fill-background-pressed);
     --_button-border: transparent;
     --_button-border-hover: transparent;
     --_button-border-active: transparent;
   }
 
-  .button[data-openbitfun-variant="primary"] {
-    --_button-background: var(--openbitfun-component-button-primary-background);
-    --_button-background-hover: var(--openbitfun-component-button-primary-background-hover);
-    --_button-background-active: var(--openbitfun-component-button-primary-background-pressed);
+  .button[data-bitfun-variant="primary"] {
+    --_button-background: var(--bitfun-component-button-primary-background);
+    --_button-background-hover: var(--bitfun-component-button-primary-background-hover);
+    --_button-background-active: var(--bitfun-component-button-primary-background-pressed);
     --_button-border: transparent;
     --_button-border-hover: transparent;
     --_button-border-active: transparent;
-    --_button-content: var(--openbitfun-color-action-primary-content);
-    --_button-content-disabled: var(--openbitfun-component-button-primary-content-disabled);
+    --_button-content: var(--bitfun-color-action-primary-content);
+    --_button-content-disabled: var(--bitfun-component-button-primary-content-disabled);
   }
 
-  .button[data-openbitfun-variant="secondary"] {
-    --_button-background: var(--openbitfun-color-surface-tertiary);
-    --_button-background-hover: var(--openbitfun-color-surface-tertiary);
-    --_button-background-active: var(--openbitfun-color-surface-tertiary);
+  .button[data-bitfun-variant="secondary"] {
+    --_button-background: var(--bitfun-color-surface-tertiary);
+    --_button-background-hover: var(--bitfun-color-surface-tertiary);
+    --_button-background-active: var(--bitfun-color-surface-tertiary);
     --_button-border: transparent;
-    --_button-border-hover: var(--openbitfun-color-border-default);
-    --_button-border-active: var(--openbitfun-color-border-strong);
-    --_button-content: var(--openbitfun-color-action-neutral-content);
+    --_button-border-hover: var(--bitfun-color-border-default);
+    --_button-border-active: var(--bitfun-color-border-strong);
+    --_button-content: var(--bitfun-color-action-neutral-content);
   }
 
-  .button[data-openbitfun-variant="primary"]:disabled {
-    --_button-background: var(--openbitfun-component-button-fill-background);
+  .button[data-bitfun-variant="primary"]:disabled {
+    --_button-background: var(--bitfun-component-button-fill-background);
   }
 
-  .button[data-openbitfun-variant="secondary"]:disabled {
-    --_button-background: var(--openbitfun-color-surface-tertiary);
-    --_button-content: var(--openbitfun-color-action-neutral-content-disabled);
+  .button[data-bitfun-variant="secondary"]:disabled {
+    --_button-background: var(--bitfun-color-surface-tertiary);
+    --_button-content: var(--bitfun-color-action-neutral-content-disabled);
   }
 
-  .button[data-openbitfun-variant="text"] {
+  .button[data-bitfun-variant="text"] {
     --_button-background: transparent;
     --_button-background-hover: transparent;
     --_button-background-active: transparent;
     --_button-border: transparent;
     --_button-border-hover: transparent;
     --_button-border-active: transparent;
-    --_button-content: var(--openbitfun-component-button-text-content);
-    --_button-content-disabled: var(--openbitfun-component-button-text-content-disabled);
+    --_button-content: var(--bitfun-component-button-text-content);
+    --_button-content-disabled: var(--bitfun-component-button-text-content-disabled);
 
     border-radius: 0;
   }
 
-  .button[data-openbitfun-variant="text"]:is(:hover, [data-openbitfun-preview-state="hover"]):not(:disabled) {
-    --_button-content: var(--openbitfun-component-button-text-content-hover);
+  .button[data-bitfun-variant="text"]:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    --_button-content: var(--bitfun-component-button-text-content-hover);
 
     text-decoration: underline;
     text-underline-offset: 0.12em;
   }
 
-  .button[data-openbitfun-variant="text"]:is(:active, [data-openbitfun-preview-state="active"]):not(:disabled) {
-    --_button-content: var(--openbitfun-component-button-text-content);
+  .button[data-bitfun-variant="text"]:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) {
+    --_button-content: var(--bitfun-component-button-text-content);
 
     text-decoration: underline;
     text-underline-offset: 0.12em;
   }
 
-  .button[data-openbitfun-variant="fill"]:disabled {
-    --_button-background: var(--openbitfun-component-button-fill-background);
+  .button[data-bitfun-variant="fill"]:disabled {
+    --_button-background: var(--bitfun-component-button-fill-background);
   }
 
-  .button[data-openbitfun-tone="danger"] {
-    --_button-background-hover: var(--openbitfun-color-status-danger-surface);
-    --_button-background-active: var(--openbitfun-color-status-danger-surface);
-    --_button-border: var(--openbitfun-color-status-danger-border);
+  .button[data-bitfun-tone="danger"] {
+    --_button-background-hover: var(--bitfun-color-status-danger-surface);
+    --_button-background-active: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
     --_button-border-hover: var(--_button-border);
     --_button-border-active: var(--_button-border);
-    --_button-content: var(--openbitfun-color-status-danger-content);
-    --_button-content-disabled: var(--openbitfun-color-action-neutral-content-disabled);
+    --_button-content: var(--bitfun-color-status-danger-content);
+    --_button-content-disabled: var(--bitfun-color-action-neutral-content-disabled);
   }
 
-  .button[data-openbitfun-tone="danger"][data-openbitfun-variant="fill"] {
-    --_button-background: var(--openbitfun-color-status-danger-surface);
-    --_button-border: var(--openbitfun-color-status-danger-border);
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"] {
+    --_button-background: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
   }
 
-  .button[data-openbitfun-tone="danger"][data-openbitfun-variant="primary"] {
-    --_button-background: var(--openbitfun-color-status-danger-content);
-    --_button-background-hover: var(--openbitfun-color-status-danger-content);
-    --_button-background-active: var(--openbitfun-color-status-danger-content);
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="primary"] {
+    --_button-background: var(--bitfun-color-status-danger-content);
+    --_button-background-hover: var(--bitfun-color-status-danger-content);
+    --_button-background-active: var(--bitfun-color-status-danger-content);
     --_button-border: transparent;
-    --_button-content: var(--openbitfun-color-content-inverse);
+    --_button-content: var(--bitfun-color-content-inverse);
   }
 
-  .button[data-openbitfun-tone="danger"][data-openbitfun-variant="secondary"] {
-    --_button-background: var(--openbitfun-color-status-danger-surface);
-    --_button-background-hover: var(--openbitfun-color-status-danger-surface);
-    --_button-background-active: var(--openbitfun-color-status-danger-surface);
-    --_button-border: var(--openbitfun-color-status-danger-border);
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="secondary"] {
+    --_button-background: var(--bitfun-color-status-danger-surface);
+    --_button-background-hover: var(--bitfun-color-status-danger-surface);
+    --_button-background-active: var(--bitfun-color-status-danger-surface);
+    --_button-border: var(--bitfun-color-status-danger-border);
   }
 
-  .button[data-openbitfun-tone="danger"][data-openbitfun-variant="text"] {
-    --_button-content: var(--openbitfun-color-status-danger-content);
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="text"] {
+    --_button-content: var(--bitfun-color-status-danger-content);
   }
 
-  .button[data-openbitfun-tone="danger"][data-openbitfun-variant="fill"]:disabled {
-    --_button-background: var(--openbitfun-color-status-danger-surface);
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"]:disabled {
+    --_button-background: var(--bitfun-color-status-danger-surface);
   }
 
   .button[data-size="xs"] {
-    --_button-font-size: var(--openbitfun-type-meta-font-size);
-    --_button-height: var(--openbitfun-control-button-xs-height);
-    --_button-leading-icon-size: var(--openbitfun-control-button-xs-leading-icon-size);
-    --_button-padding-block: var(--openbitfun-space-1);
-    --_button-padding-inline: var(--openbitfun-control-button-xs-padding-inline);
-    --_button-trailing-icon-size: var(--openbitfun-control-button-xs-trailing-icon-size);
+    --_button-font-size: var(--bitfun-type-meta-font-size);
+    --_button-height: var(--bitfun-control-button-xs-height);
+    --_button-leading-icon-size: var(--bitfun-control-button-xs-leading-icon-size);
+    --_button-padding-block: var(--bitfun-space-1);
+    --_button-padding-inline: var(--bitfun-control-button-xs-padding-inline);
+    --_button-trailing-icon-size: var(--bitfun-control-button-xs-trailing-icon-size);
   }
 
   .button[data-size="sm"] {
-    --_button-font-size: var(--openbitfun-type-label-sm-font-size);
-    --_button-height: var(--openbitfun-control-height-sm);
+    --_button-font-size: var(--bitfun-type-label-sm-font-size);
+    --_button-height: var(--bitfun-control-height-sm);
     --_button-leading-icon-size: 12px;
-    --_button-padding-block: var(--openbitfun-space-1);
-    --_button-padding-inline: var(--openbitfun-space-4);
+    --_button-padding-block: var(--bitfun-space-1);
+    --_button-padding-inline: var(--bitfun-space-4);
     --_button-trailing-icon-size: 10px;
   }
 
   .button[data-size="lg"] {
-    --_button-font-size: var(--openbitfun-type-label-lg-font-size);
-    --_button-height: var(--openbitfun-control-height-lg);
+    --_button-font-size: var(--bitfun-type-label-lg-font-size);
+    --_button-height: var(--bitfun-control-height-lg);
     --_button-leading-icon-size: 20px;
-    --_button-padding-inline: var(--openbitfun-space-6);
+    --_button-padding-inline: var(--bitfun-space-6);
     --_button-trailing-icon-size: 16px;
   }
 
@@ -221,15 +221,15 @@
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   .label {
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
-    gap: var(--openbitfun-space-1);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    gap: var(--bitfun-space-1);
+    line-height: var(--bitfun-type-body-sm-line-height);
     overflow: hidden;
   }
 
@@ -246,7 +246,7 @@
   }
 
   .icon {
-    --openbitfun-opacity-icon-artwork: 1;
+    --bitfun-opacity-icon-artwork: 1;
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
@@ -255,7 +255,7 @@
   }
 
   .icon > :where(svg, img),
-  .icon > [data-openbitfun-component="icon"] {
+  .icon > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -293,10 +293,10 @@
 
   .button[data-loading="true"] .progress {
     opacity: 1;
-    animation: openbitfun-button-progress var(--openbitfun-motion-duration-loop) linear infinite;
+    animation: bitfun-button-progress var(--bitfun-motion-duration-loop) linear infinite;
   }
 
-  @keyframes openbitfun-button-progress {
+  @keyframes bitfun-button-progress {
     to {
       transform: rotate(360deg);
     }

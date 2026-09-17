@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import {
   Button, Checkbox, Dialog, DialogBody, DialogClose, DialogHeader, DialogHeading,
   DialogTitle, Input, OverflowText, ScrollArea, SearchField,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import type { UserSkillGroup } from '@/infrastructure/config/types';
@@ -97,7 +97,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
         <DialogClose disabled={saving} />
       </DialogHeader>
       <DialogBody>
-        <form className="skill-group-editor" data-openbitfun-scene="skills" data-openbitfun-part="groupEditor"
+        <form className="skill-group-editor" data-bitfun-scene="skills" data-bitfun-part="groupEditor"
           onSubmit={event => { event.preventDefault(); void save(); }}>
           {!draft.readOnly && (
             <div className="skill-group-editor__field">
@@ -118,7 +118,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
           </div>
           <span className="skill-group-editor__meta">{t('groups.memberCount', { count: selected.size })}</span>
           {!catalogReady && <p role="status" className="skill-group-editor__meta">{t('groups.catalogUnavailable')}</p>}
-          <ScrollArea className="skill-group-editor__members" data-openbitfun-scene="skills" data-openbitfun-part="groupMembers">
+          <ScrollArea className="skill-group-editor__members" data-bitfun-scene="skills" data-bitfun-part="groupMembers">
             {visible.map(({ key, skill }) => {
               const title = (
                 <OverflowText className="skill-group-editor__member-title">{skill?.name ?? key}</OverflowText>
@@ -127,7 +127,7 @@ export function SkillGroupEditor({ draft, skills, catalogReady, saving, onClose,
                 ? [skill.sourceLabel ?? skill.sourceSlot, skill.description, skill.runtimeStatus].filter(Boolean).join(' · ')
                 : t(catalogReady ? 'groups.unavailableMember' : 'groups.unresolvedMember');
               return (
-                <div key={key} className="skill-group-editor__member" data-overflow-trigger data-openbitfun-scene="skills" data-openbitfun-part="groupMember">
+                <div key={key} className="skill-group-editor__member" data-overflow-trigger data-bitfun-scene="skills" data-bitfun-part="groupMember">
                   {draft.readOnly ? (
                     <div className="skill-group-editor__identity">
                       {title}

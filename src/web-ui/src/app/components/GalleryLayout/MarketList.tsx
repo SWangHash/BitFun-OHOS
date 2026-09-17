@@ -34,9 +34,9 @@ export class MarketList extends Component<MarketListProps, Record<string, never>
     if (!snapshot || !root || !this.shouldAnimate() || !root.getClientRects().length) return;
     const origin = root.getBoundingClientRect();
     const style = getComputedStyle(root);
-    const durationToken = style.getPropertyValue('--openbitfun-motion-duration-normal').trim();
+    const durationToken = style.getPropertyValue('--bitfun-motion-duration-normal').trim();
     const duration = durationToken.endsWith('ms') ? parseFloat(durationToken) : parseFloat(durationToken) * 1000;
-    const easing = style.getPropertyValue('--openbitfun-motion-easing-standard').trim() || 'ease-out';
+    const easing = style.getPropertyValue('--bitfun-motion-easing-standard').trim() || 'ease-out';
     for (const item of root.querySelectorAll<HTMLElement>(':scope > [data-market-key]')) {
       if (typeof item.animate !== 'function') continue;
       const rect = item.getBoundingClientRect();

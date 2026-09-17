@@ -94,7 +94,7 @@ describe('DefaultToolCard', () => {
     for (const [index, expanded] of [false, true, false].entries()) {
       expect(container.textContent).not.toContain('TOOL');
       const button = container.querySelector<HTMLButtonElement>(
-        '[data-openbitfun-part="iconAffordanceButton"]',
+        '[data-bitfun-part="iconAffordanceButton"]',
       );
       expect(button).not.toBeNull();
       expect(button?.getAttribute('aria-expanded')).toBe(String(expanded));
@@ -149,7 +149,7 @@ describe('DefaultToolCard', () => {
     });
 
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
     expect(card).not.toBeNull();
 

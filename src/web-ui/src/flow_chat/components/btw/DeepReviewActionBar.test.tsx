@@ -45,9 +45,9 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
-  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
+  Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
   Button: ({
     children,
     disabled,
@@ -602,7 +602,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
 
     expect(container.textContent).toContain('Waiting for model capacity');
-    expect(container.textContent).toContain('OpenBitFun is waiting for temporary model capacity.');
+    expect(container.textContent).toContain('BitFun is waiting for temporary model capacity.');
     expect(container.textContent).toContain('Reason: model concurrency limit');
     expect(container.textContent).toContain('Waited 12s of 1m 0s');
     expect(container.textContent).toContain('Your active session is busy.');
@@ -1133,9 +1133,9 @@ describeWithJsdom('DeepReviewActionBar', () => {
 
     const customToggle = container.querySelector<HTMLButtonElement>('.deep-review-action-bar__custom-toggle')!;
     await act(async () => customToggle.click());
-    const input = container.querySelector<HTMLTextAreaElement>('textarea[data-openbitfun-product-part="customInput"]')!;
+    const input = container.querySelector<HTMLTextAreaElement>('textarea[data-bitfun-product-part="customInput"]')!;
     expect(input.rows).toBe(2);
-    expect(input.getAttribute('data-openbitfun-part')).toBe('input');
+    expect(input.getAttribute('data-bitfun-part')).toBe('input');
     expect(input.parentElement?.getAttribute('data-auto-resize')).toBe('false');
     expect(input.parentElement?.getAttribute('data-resize')).toBe('vertical');
     const instructions = 'Keep existing data.\n保留兼容行为。';
@@ -1155,7 +1155,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     expect(sendMessageMock).not.toHaveBeenCalled();
 
     const legacy: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
       id: 'test.review-input', name: 'Review input', version: '1.0.0', mode: 'dark',
       components: { 'deep-review-action-bar': { parts: {
         customInput: { base: { opacity: { kind: 'number', value: 0.6 } } },
@@ -1166,8 +1166,8 @@ describeWithJsdom('DeepReviewActionBar', () => {
     const snapshot = new AppearanceCompiler(new AppearanceRegistry()
       .registerComponent(deepReviewActionBarAppearanceDescriptor)).compile(restored, 1);
     expect(JSON.stringify(restored)).toBe(serialized);
-    document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+    document.documentElement.setAttribute('data-bitfun-appearance', snapshot.id);
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', String(snapshot.revision));
     const style = document.createElement('style');
     style.textContent = snapshot.cssText;
     document.head.appendChild(style);
@@ -1212,7 +1212,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     const stagedPathButton = Array.from(container.querySelectorAll<HTMLButtonElement>('.deep-review-action-bar__decision-gate-option'))
       .find((button) => button.textContent?.includes('Staged path'));
     expect(stagedPathButton).toBeTruthy();
-    expect(stagedPathButton?.closest('[data-openbitfun-component="action-card"]')).not.toBeNull();
+    expect(stagedPathButton?.closest('[data-bitfun-component="action-card"]')).not.toBeNull();
     expect(container.querySelector('.deep-review-action-bar__decision-gate-options [role="radio"]')).toBeNull();
 
     await act(async () => {

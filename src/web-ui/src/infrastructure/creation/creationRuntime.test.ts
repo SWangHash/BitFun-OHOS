@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activateCreationRuntime } from './creationRuntime';
 
 function loadedStyle() {
-  document.querySelector('link[data-openbitfun-creation]')!.dispatchEvent(new Event('load'));
+  document.querySelector('link[data-bitfun-creation]')!.dispatchEvent(new Event('load'));
 }
 
 afterEach(() => { document.head.innerHTML = ''; document.body.innerHTML = ''; });
@@ -32,7 +32,7 @@ describe('packaged UI customization lifecycle', () => {
     dispose(); dispose(); controller.abort();
     expect(deactivate).toHaveBeenCalledOnce();
     expect(disposeApi).toHaveBeenCalledOnce();
-    expect(document.querySelector('link[data-openbitfun-creation]')).toBeNull();
+    expect(document.querySelector('link[data-bitfun-creation]')).toBeNull();
   });
 
   it('cleans up and rejects a broken module instead of reporting a ready candidate', async () => {

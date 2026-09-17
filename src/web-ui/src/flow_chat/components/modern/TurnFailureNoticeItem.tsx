@@ -1,6 +1,6 @@
 import React, { useCallback, useId, useMemo, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
-import { OverflowText, Tooltip, Icon } from '@openbitfun/ui';
+import { OverflowText, Tooltip, Icon } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import {
   getAiErrorPresentation,
@@ -44,18 +44,18 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
   }, [rawError]);
 
   return (
-    <section data-openbitfun-component="turn-failure-notice" data-openbitfun-part="root" data-openbitfun-state={[isOpen && 'open', copied && 'copied'].filter(Boolean).join(' ')}
+    <section data-bitfun-component="turn-failure-notice" data-bitfun-part="root" data-bitfun-state={[isOpen && 'open', copied && 'copied'].filter(Boolean).join(' ')}
       className={`turn-failure-notice turn-failure-notice--${presentation.severity}`}
       aria-label={t(presentation.titleKey)}
     >
-      <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="icon" className="turn-failure-notice__icon" aria-hidden="true">
+      <div data-bitfun-component="turn-failure-notice" data-bitfun-part="icon" className="turn-failure-notice__icon" aria-hidden="true">
         <AlertCircle size={16} />
       </div>
-      <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="content" className="turn-failure-notice__content">
-        <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="header" className="turn-failure-notice__header">
-          <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="summary" className="turn-failure-notice__summary">
-            <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="title" className="turn-failure-notice__title">{t(presentation.titleKey)}</div>
-            <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="message" className="turn-failure-notice__message"><OverflowText>{t(presentation.messageKey)}</OverflowText></div>
+      <div data-bitfun-component="turn-failure-notice" data-bitfun-part="content" className="turn-failure-notice__content">
+        <div data-bitfun-component="turn-failure-notice" data-bitfun-part="header" className="turn-failure-notice__header">
+          <div data-bitfun-component="turn-failure-notice" data-bitfun-part="summary" className="turn-failure-notice__summary">
+            <div data-bitfun-component="turn-failure-notice" data-bitfun-part="title" className="turn-failure-notice__title">{t(presentation.titleKey)}</div>
+            <div data-bitfun-component="turn-failure-notice" data-bitfun-part="message" className="turn-failure-notice__message"><OverflowText>{t(presentation.messageKey)}</OverflowText></div>
           </div>
 
           {(facts.length > 0 || rawError) && (
@@ -65,8 +65,8 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
             >
               <button
                 type="button"
-                data-openbitfun-component="turn-failure-notice"
-                data-openbitfun-part="toggle"
+                data-bitfun-component="turn-failure-notice"
+                data-bitfun-part="toggle"
                 className="turn-failure-notice__details-toggle"
                 aria-expanded={isOpen}
                 aria-controls={detailsId}
@@ -80,11 +80,11 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
         </div>
 
         {isOpen && (
-          <div id={detailsId} data-openbitfun-component="turn-failure-notice" data-openbitfun-part="details" className="turn-failure-notice__details">
+          <div id={detailsId} data-bitfun-component="turn-failure-notice" data-bitfun-part="details" className="turn-failure-notice__details">
             {facts.length > 0 && (
-              <dl data-openbitfun-component="turn-failure-notice" data-openbitfun-part="facts" className="turn-failure-notice__facts">
+              <dl data-bitfun-component="turn-failure-notice" data-bitfun-part="facts" className="turn-failure-notice__facts">
                 {facts.map(fact => (
-                  <div key={fact.label} data-openbitfun-component="turn-failure-notice" data-openbitfun-part="fact" className="turn-failure-notice__fact">
+                  <div key={fact.label} data-bitfun-component="turn-failure-notice" data-bitfun-part="fact" className="turn-failure-notice__fact">
                     <dt>{fact.label}</dt>
                     <dd>{fact.value}</dd>
                   </div>
@@ -92,14 +92,14 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
               </dl>
             )}
             {rawError && (
-              <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="rawError" className="turn-failure-notice__raw-error">
-                <div data-openbitfun-component="turn-failure-notice" data-openbitfun-part="rawHeader" className="turn-failure-notice__raw-error-header">
+              <div data-bitfun-component="turn-failure-notice" data-bitfun-part="rawError" className="turn-failure-notice__raw-error">
+                <div data-bitfun-component="turn-failure-notice" data-bitfun-part="rawHeader" className="turn-failure-notice__raw-error-header">
                   <span>{t('turnFailure.providerError')}</span>
                   <Tooltip content={copied ? t('turnFailure.copied') : t('turnFailure.copy')} placement="top">
                     <button
                       type="button"
-                      data-openbitfun-component="turn-failure-notice"
-                      data-openbitfun-part="copy"
+                      data-bitfun-component="turn-failure-notice"
+                      data-bitfun-part="copy"
                       className="turn-failure-notice__copy"
                       onClick={() => void copyRawError()}
                       aria-label={t('turnFailure.copy')}
@@ -108,7 +108,7 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
                     </button>
                   </Tooltip>
                 </div>
-                <pre data-openbitfun-component="turn-failure-notice" data-openbitfun-part="code">{rawError}</pre>
+                <pre data-bitfun-component="turn-failure-notice" data-bitfun-part="code">{rawError}</pre>
               </div>
             )}
           </div>

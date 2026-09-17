@@ -3,10 +3,10 @@
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
 use log::{error, info};
-use openbitfun_core::service::config::{
+use bitfun_core::service::config::{
     ConfigExport, SaveCloudSpeechConfigRequest, SaveCloudSpeechConfigResult,
 };
-use openbitfun_core::util::errors::OpenBitFunError;
+use bitfun_core::util::errors::BitFunError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -68,9 +68,9 @@ fn to_json_value<T: Serialize>(value: T, context: &str) -> Result<Value, String>
     serde_json::to_value(value).map_err(|e| format!("Failed to serialize {}: {}", context, e))
 }
 
-fn is_expected_config_path_not_found(error: &OpenBitFunError, path: Option<&str>) -> bool {
+fn is_expected_config_path_not_found(error: &BitFunError, path: Option<&str>) -> bool {
     match (error, path) {
-        (OpenBitFunError::NotFound(message), Some(path)) => {
+        (BitFunError::NotFound(message), Some(path)) => {
             message == &format!("Config path '{}' not found", path)
         }
         _ => false,
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn recognizes_expected_config_path_not_found_errors() {
-        let error = OpenBitFunError::NotFound(
+        let error = BitFunError::NotFound(
             "Config path 'ai.review_team_rate_limit_status' not found".to_string(),
         );
 
@@ -180,7 +180,7 @@ mod tests {
         ));
         assert!(!is_expected_config_path_not_found(&error, None));
         assert!(!is_expected_config_path_not_found(
-            &OpenBitFunError::config("Config path 'ai.review_team_rate_limit_status' not found"),
+            &BitFunError::config("Config path 'ai.review_team_rate_limit_status' not found"),
             Some("ai.review_team_rate_limit_status"),
         ));
     }
@@ -196,7 +196,7 @@ pub async fn set_config(
     let trace_started = Instant::now();
     let trace_target = request.path.clone();
 
-    let result = match crate::openbitfun_control_host::set_config_from_gui(
+    let result = match crate::bitfun_control_host::set_config_from_gui(
         &app,
         &request.path,
         request.value,
@@ -249,8 +249,8 @@ pub async fn save_cloud_speech_config(
 pub async fn get_web_search_credential_status(
     _state: State<'_, AppState>,
     request: GetWebSearchCredentialStatusRequest,
-) -> Result<openbitfun_core::service::web_search::WebSearchCredentialStatus, String> {
-    openbitfun_core::service::web_search::get_web_search_credential_status(&request.provider)
+) -> Result<bitfun_core::service::web_search::WebSearchCredentialStatus, String> {
+    bitfun_core::service::web_search::get_web_search_credential_status(&request.provider)
         .await
         .map_err(|error| format!("Failed to read WebSearch credential status: {error}"))
 }
@@ -258,9 +258,9 @@ pub async fn get_web_search_credential_status(
 #[tauri::command]
 pub async fn save_web_search_credential(
     _state: State<'_, AppState>,
-    request: openbitfun_core::service::web_search::SaveWebSearchCredentialRequest,
-) -> Result<openbitfun_core::service::web_search::WebSearchCredentialStatus, String> {
-    openbitfun_core::service::web_search::save_web_search_credential(request)
+    request: bitfun_core::service::web_search::SaveWebSearchCredentialRequest,
+) -> Result<bitfun_core::service::web_search::WebSearchCredentialStatus, String> {
+    bitfun_core::service::web_search::save_web_search_credential(request)
         .await
         .map_err(|error| format!("Failed to save WebSearch credential: {error}"))
 }
@@ -268,9 +268,9 @@ pub async fn save_web_search_credential(
 #[tauri::command]
 pub async fn clear_web_search_credential(
     _state: State<'_, AppState>,
-    request: openbitfun_core::service::web_search::ClearWebSearchCredentialRequest,
-) -> Result<openbitfun_core::service::web_search::WebSearchCredentialStatus, String> {
-    openbitfun_core::service::web_search::clear_web_search_credential(request)
+    request: bitfun_core::service::web_search::ClearWebSearchCredentialRequest,
+) -> Result<bitfun_core::service::web_search::WebSearchCredentialStatus, String> {
+    bitfun_core::service::web_search::clear_web_search_credential(request)
         .await
         .map_err(|error| format!("Failed to clear WebSearch credential: {error}"))
 }
@@ -336,7 +336,7 @@ pub async fn import_config(
 ) -> Result<Value, String> {
     let config_service = &state.config_service;
     let export: ConfigExport = serde_json::from_value(request.config_data)
-        .map_err(|error| format!("Failed to parse OpenBitFun config export: {error}"))?;
+        .map_err(|error| format!("Failed to parse BitFun config export: {error}"))?;
 
     match config_service.import_config(export).await {
         Ok(result) => {
@@ -387,7 +387,7 @@ pub async fn reload_config(state: State<'_, AppState>) -> Result<String, String>
 
 #[tauri::command]
 pub async fn get_global_config_health() -> Result<bool, String> {
-    Ok(openbitfun_core::service::config::GlobalConfigManager::is_initialized())
+    Ok(bitfun_core::service::config::GlobalConfigManager::is_initialized())
 }
 
 #[tauri::command]
@@ -427,7 +427,7 @@ pub async fn append_flow_chat_diagnostics(
 #[tauri::command]
 pub async fn get_agent_profile_configs(_state: State<'_, AppState>) -> Result<Value, String> {
     let agent_profiles =
-        openbitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_views()
+        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_views()
             .await
             .map_err(|e| format!("Failed to get agent profile configs: {}", e))?;
 
@@ -440,7 +440,7 @@ pub async fn get_agent_profile_config(
     agent_id: String,
 ) -> Result<Value, String> {
     let config =
-        openbitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(
+        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(
             &agent_id,
         )
         .await
@@ -457,7 +457,7 @@ pub async fn set_agent_profile_config(
 ) -> Result<String, String> {
     let _ = state;
 
-    match openbitfun_core::service::config::mode_config_canonicalizer::persist_agent_profile_from_value(
+    match bitfun_core::service::config::mode_config_canonicalizer::persist_agent_profile_from_value(
         &agent_id, config,
     )
     .await
@@ -478,7 +478,7 @@ pub async fn reset_agent_profile_config(
     _state: State<'_, AppState>,
     agent_id: String,
 ) -> Result<String, String> {
-    match openbitfun_core::service::config::mode_config_canonicalizer::reset_agent_profile_to_default(
+    match bitfun_core::service::config::mode_config_canonicalizer::reset_agent_profile_to_default(
         &agent_id,
     )
     .await
@@ -501,7 +501,7 @@ pub async fn reset_agent_profile_config(
 pub async fn canonicalize_agent_profile_configs(
     _state: State<'_, AppState>,
 ) -> Result<Value, String> {
-    match openbitfun_core::service::config::mode_config_canonicalizer::canonicalize_agent_profile_configs(
+    match bitfun_core::service::config::mode_config_canonicalizer::canonicalize_agent_profile_configs(
     )
     .await {
         Ok(report) => {

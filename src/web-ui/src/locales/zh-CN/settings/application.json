@@ -31,39 +31,39 @@
     "systemAppearance": "跟随系统",
     "systemAppearanceDescription": "根据系统设置自动使用亮色或暗色外观，并随系统切换而更新。",
     "presets": {
-      "openbitfun-dark": {
+      "bitfun-dark": {
         "name": "暗色",
         "description": "默认暗色外观"
       },
-      "openbitfun-light": {
+      "bitfun-light": {
         "name": "亮色",
         "description": "亮色外观 - 纯白界面、柔和中性灰与深海军蓝操作色"
       },
-      "openbitfun-monochrome": {
+      "bitfun-monochrome": {
         "name": "黑白撞色",
         "description": "黑白撞色外观 - 深黑结构层、明亮白色工作区与柔和中性灰块面"
       },
-      "openbitfun-midnight": {
+      "bitfun-midnight": {
         "name": "午夜",
         "description": "午夜灰暗色外观 - 专业优雅，灵感来自 JetBrains IDE"
       },
-      "openbitfun-china-style": {
+      "bitfun-china-style": {
         "name": "墨韵",
         "description": "中国风外观 - 宣纸墨香，青花朱砂，温润典雅"
       },
-      "openbitfun-china-night": {
+      "bitfun-china-night": {
         "name": "墨夜",
         "description": "中国风暗色外观 - 墨夜星辰，月华如水，沉静典雅"
       },
-      "openbitfun-cyber": {
+      "bitfun-cyber": {
         "name": "赛博",
         "description": "科技感外观 - 深邃黑洞，霓虹未来，极致科技美学"
       },
-      "openbitfun-slate": {
+      "bitfun-slate": {
         "name": "石板灰",
         "description": "石板灰几何外观 - 极深沉浸，高对比度灰度美学"
       },
-      "openbitfun-tokyo-night": {
+      "bitfun-tokyo-night": {
         "name": "东京夜",
         "description": "Tokyo Night 经典配色 - 靛蓝夜色，蓝紫高光"
       }

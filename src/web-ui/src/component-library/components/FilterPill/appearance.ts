@@ -4,7 +4,7 @@ export const filterPillAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'filter-pill',
   parts: [{ id: 'root' }, { id: 'label' }, { id: 'count' }, { id: 'group' }],
   states: [
-    { id: 'active', selector: { kind: 'self', suffix: '[data-openbitfun-state~="active"]' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
+    { id: 'active', selector: { kind: 'self', suffix: '[data-bitfun-state~="active"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
   ],
 };

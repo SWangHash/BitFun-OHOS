@@ -52,7 +52,7 @@ export const ActionCard = forwardRef<HTMLButtonElement, ActionCardProps>(
     return (
       <span
         className={classNames(styles.root, className)}
-        data-openbitfun-component="action-card"
+        data-bitfun-component="action-card"
         data-disabled={disabled ? "true" : "false"}
         data-has-actions={actions.length > 0 ? "true" : "false"}
         data-selected={selected ? "true" : "false"}
@@ -61,27 +61,27 @@ export const ActionCard = forwardRef<HTMLButtonElement, ActionCardProps>(
         <button data-overflow-trigger
           {...props}
           className={classNames(styles.trigger, triggerClassName)}
-          data-openbitfun-part="trigger"
+          data-bitfun-part="trigger"
           disabled={disabled}
           ref={ref}
           type={type}
         >
           {leading !== undefined && leading !== null && (
-            <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+            <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
               {leading}
             </span>
           )}
-          {body !== undefined ? body : <span className={styles.content} data-openbitfun-part="content">
-            <OverflowText className={styles.title} data-openbitfun-part="title">{children}</OverflowText>
+          {body !== undefined ? body : <span className={styles.content} data-bitfun-part="content">
+            <OverflowText className={styles.title} data-bitfun-part="title">{children}</OverflowText>
             {description !== undefined && description !== null && (
-              <OverflowText className={styles.description} data-openbitfun-part="description">
+              <OverflowText className={styles.description} data-bitfun-part="description">
                 {description}
               </OverflowText>
             )}
           </span>}
         </button>
         {actions.length > 0 && (
-          <span className={styles.actions} data-openbitfun-part="actions">
+          <span className={styles.actions} data-bitfun-part="actions">
             {actions.map((action) => (
               <IconButton
                 aria-label={action.label}

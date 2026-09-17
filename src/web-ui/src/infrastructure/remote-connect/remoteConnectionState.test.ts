@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ConnectionResult, RemoteConnectStatus, RemoteConnectionMethod } from '../api/service-api/RemoteConnectAPI';
 import { remoteNetworkMethod, selectRemoteNetworkConnection, invitationRelayUrl } from './remoteConnectionState';
 
-const official = 'https://remote.openbitfun.com/v/1.0.1';
+const official = 'https://remote.bitfun.com/v/1.0.1';
 const lan = 'http://192.168.1.2:9700';
-const method = (url: string): RemoteConnectionMethod => url === official ? 'openbitfun_server' : { lan: { ip: '192.168.1.2' } };
+const method = (url: string): RemoteConnectionMethod => url === official ? 'bitfun_server' : { lan: { ip: '192.168.1.2' } };
 const status = (url: string): RemoteConnectStatus => ({
   relay_connected: true, relay_url: url, active_method: method(url), clients: [], bot_connected: null, bot_verbose_mode: false,
 });
@@ -28,7 +28,7 @@ describe('one account device connection contract', () => {
   });
   it('accepts only canonical typed methods', () => {
     expect(remoteNetworkMethod({ lan: { ip: '192.168.1.2' } })).toBe('lan');
-    expect(remoteNetworkMethod('openbitfun_server')).toBe('openbitfun_server');
+    expect(remoteNetworkMethod('bitfun_server')).toBe('bitfun_server');
     expect(remoteNetworkMethod('bot_feishu')).toBe(null);
   });
   it('does not infer connectivity from a missing or invalid endpoint', () => {

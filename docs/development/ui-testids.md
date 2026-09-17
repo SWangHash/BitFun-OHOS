@@ -2,7 +2,7 @@
 
 # UI Test IDs
 
-This document records stable `data-testid` values used by OpenBitFun UI automation.
+This document records stable `data-testid` values used by BitFun UI automation.
 Test IDs are grouped by product area and should be added only when an automated
 workflow needs a stable locator.
 
@@ -239,7 +239,7 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Model list | `settings-model-list` | Container for configured model rows. |
 | Create first model config button | `settings-model-create-first-config-btn` | Starts the first model provider setup from the empty state. |
 | Custom model config button | `settings-model-custom-config-btn` | Starts custom provider configuration. Includes `data-provider-id="custom"`. |
-| Model provider option | `settings-model-provider-option` | Repeated provider row. Pair with `data-provider-id`, for example `openbitfun`. The resting list is truncated, so reach a provider outside it through the search field or the expand button below. |
+| Model provider option | `settings-model-provider-option` | Repeated provider row. Pair with `data-provider-id`, for example `bitfun`. The resting list is truncated, so reach a provider outside it through the search field or the expand button below. |
 | Model provider search | `settings-model-provider-search` | Filters the preset provider list by provider name, id, or model name. |
 | Model provider expand button | `settings-model-provider-expand-btn` | Expands the truncated preset provider list to every provider, and collapses it again. |
 | Model provider name input | `settings-model-provider-name-input` | Provider/config display name field, such as a mock LLM provider name. |
@@ -270,7 +270,7 @@ Avoid adding IDs to these surfaces unless there is a clear automated workflow.
 | Appearance language option | `appearance-language-option` | Repeated language dropdown option. Includes `data-locale-id` and Select-provided `data-selected`. |
 | Appearance theme select | `appearance-theme-select` | Theme select trigger in Appearance settings. |
 | Appearance palette option | `appearance-palette-option` | Repeated appearance dropdown option. Includes `data-appearance-id` and Select-provided `data-selected`. |
-| Appearance UI font level group | `appearance-ui-font-level-group` | UI font preset control root. Presets render as design-system segmented control segments; target one via `[data-openbitfun-part="segment"][data-openbitfun-value="<level>"]`, selected segment has `aria-checked="true"`. |
+| Appearance UI font level group | `appearance-ui-font-level-group` | UI font preset control root. Presets render as design-system segmented control segments; target one via `[data-bitfun-part="segment"][data-bitfun-value="<level>"]`, selected segment has `aria-checked="true"`. |
 | Appearance UI font custom controls | `appearance-ui-font-custom-controls` | Custom UI font px controls root, rendered when custom is active. |
 | Appearance UI font custom input | `appearance-ui-font-custom-input` | Custom UI font px number input. Includes `data-font-level="custom"`. |
 | Appearance UI font custom step minus | `appearance-ui-font-custom-step-minus` | Custom UI font px decrement button. |

@@ -1,6 +1,6 @@
-//! SSH transport for persistent OpenBitFun dispatch jobs.
+//! SSH transport for persistent BitFun dispatch jobs.
 //!
-//! The target-side runner is the `openbitfun dispatch` CLI surface. This module is
+//! The target-side runner is the `bitfun dispatch` CLI surface. This module is
 //! deliberately only a controller transport: the remote CLI owns jobs,
 //! workspaces, sessions, transcripts, process detachment, supervision, and
 //! cancellation semantics.
@@ -13,7 +13,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use base64::Engine as _;
-use openbitfun_services_core::dispatch_contract::{
+use bitfun_services_core::dispatch_contract::{
     DispatchAccountDaemonIdentity, DispatchAccountDaemonProvisionRequest,
     DispatchAccountDaemonProvisionResponse, DISPATCH_ACCOUNT_DAEMON_PROVISIONING_CAPABILITY,
 };
@@ -34,13 +34,13 @@ use super::release_verify::{
 use super::remote_git::shell_quote_posix;
 use super::types::SSHCommandOptions;
 
-const GITHUB_RELEASE_BASE: &str = "https://github.com/GCWing/OpenBitFun/releases";
-const OPENBITFUN_RELEASE_BASE: &str = "https://openbitfun.com/release";
+const GITHUB_RELEASE_BASE: &str = "https://github.com/GCWing/BitFun/releases";
+const BITFUN_RELEASE_BASE: &str = "https://bitfun.com/release";
 const GITHUB_LATEST_MANIFEST: &str =
-    "https://github.com/GCWing/OpenBitFun/releases/latest/download/latest-v1.json";
-const OPENBITFUN_LATEST_MANIFEST: &str = "https://openbitfun.com/release/latest-v1.json";
+    "https://github.com/GCWing/BitFun/releases/latest/download/latest-v1.json";
+const BITFUN_LATEST_MANIFEST: &str = "https://bitfun.com/release/latest-v1.json";
 const INSTALL_STEM: &str = "install-cli";
-const INSTALL_DONE_MARKER: &str = "OPENBITFUN_DISPATCH_CLI_INSTALL_DONE";
+const INSTALL_DONE_MARKER: &str = "BITFUN_DISPATCH_CLI_INSTALL_DONE";
 const INSTALL_PREPARE_GRACE_SECONDS: u64 = 30;
 const COMMAND_TIMEOUT_MS: u64 = 30_000;
 const ACCOUNT_DAEMON_COMMAND_TIMEOUT_MS: u64 = 90_000;
@@ -93,7 +93,7 @@ impl Drop for UnverifiedResultBundle {
 /// `scripts/ci/check-glibc-floor.sh`, which enforces it at release time.
 const GLIBC_FLOOR: &str = "2.35";
 const DISPATCH_PROTOCOL_VERSION: u64 =
-    openbitfun_services_core::dispatch_contract::DISPATCH_PROTOCOL_VERSION as u64;
+    bitfun_services_core::dispatch_contract::DISPATCH_PROTOCOL_VERSION as u64;
 /// First stable release whose CLI is known to contain every capability below.
 ///
 /// Development builds can require capabilities before their next stable
@@ -105,7 +105,7 @@ const FIRST_COMPATIBLE_STABLE_DISPATCH_RELEASE: (u64, u64, u64) = (1, 0, 0);
 /// plus the platform-conditional detached worker.
 static REQUIRED_DISPATCH_CAPABILITIES: std::sync::LazyLock<Vec<&'static str>> =
     std::sync::LazyLock::new(|| {
-        openbitfun_services_core::dispatch_contract::dispatch_required_target_capabilities()
+        bitfun_services_core::dispatch_contract::dispatch_required_target_capabilities()
             .collect()
     });
 
@@ -222,7 +222,7 @@ struct ResolvedRelease {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReleaseOrigin {
     GitHub,
-    OpenBitFun,
+    BitFun,
 }
 
 #[derive(Debug, Clone)]
@@ -312,7 +312,7 @@ pub async fn probe(
                 Ok(release) => (
                     None,
                     Some(format!(
-                        "published OpenBitFun CLI {} does not carry the dispatch capabilities this controller requires",
+                        "published BitFun CLI {} does not carry the dispatch capabilities this controller requires",
                         release.public.version
                     )),
                 ),
@@ -355,7 +355,7 @@ impl PrebuiltIncompatibility {
     fn describe(&self) -> String {
         match self {
             Self::UnsupportedPlatform { os, arch } => format!(
-                "OpenBitFun publishes no CLI binary for {os} {arch}"
+                "BitFun publishes no CLI binary for {os} {arch}"
             ),
             Self::MuslLibc => format!(
                 "target uses musl libc; published binaries are linked against glibc {GLIBC_FLOOR} or newer"
@@ -419,7 +419,7 @@ fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
 /// Whether a published artifact is expected to implement the controller's
 /// required protocol.
 ///
-/// OpenBitFun starts at 1.0.0. No OpenBitFun 0.x artifact is a compatible install
+/// BitFun starts at 1.0.0. No BitFun 0.x artifact is a compatible install
 /// candidate, even if it was built from a checkout that happened to carry a
 /// similar dispatch surface.
 fn published_release_supports_required_dispatch_protocol(version: &str) -> bool {
@@ -440,7 +440,7 @@ fn dispatch_protocol_is_compatible(protocol: &Value) -> bool {
 /// complete dispatch surface. Submission may validate only the selected
 /// unattended approval behavior in addition to the transport invariants.
 pub fn validate_dispatch_protocol(protocol: &Value, approval_policy: Option<&str>) -> Result<()> {
-    let expected_product_id = openbitfun_services_core::product_identity::product_id();
+    let expected_product_id = bitfun_services_core::product_identity::product_id();
     let product_id = protocol
         .get("productId")
         .and_then(Value::as_str)
@@ -451,7 +451,7 @@ pub fn validate_dispatch_protocol(protocol: &Value, approval_policy: Option<&str
         ));
     }
 
-    let expected_data_namespace = openbitfun_services_core::product_identity::data_namespace();
+    let expected_data_namespace = bitfun_services_core::product_identity::data_namespace();
     let data_namespace = protocol
         .get("dataNamespace")
         .and_then(Value::as_str)
@@ -508,11 +508,11 @@ pub fn validate_dispatch_protocol(protocol: &Value, approval_policy: Option<&str
     Ok(())
 }
 
-/// Explicitly install the latest confirmed OpenBitFun CLI release on the SSH target.
+/// Explicitly install the latest confirmed BitFun CLI release on the SSH target.
 ///
 /// This function fails closed when the build has no release trust root, a
 /// checksum/signature is absent, or either verification fails. It never uses
-/// sudo and writes only below `~/.local/bin` and `~/.openbitfun`.
+/// sudo and writes only below `~/.local/bin` and `~/.bitfun`.
 pub async fn install_cli_start(
     manager: &SSHConnectionManager,
     connection_id: &str,
@@ -528,7 +528,7 @@ pub async fn install_cli_start(
     let release = resolve_release(&target.os, &target.arch).await?;
     if !published_release_supports_required_dispatch_protocol(&release.public.version) {
         return Err(anyhow!(
-            "published OpenBitFun CLI {} does not contain the dispatch capabilities required by this controller",
+            "published BitFun CLI {} does not contain the dispatch capabilities required by this controller",
             release.public.version
         ));
     }
@@ -539,7 +539,7 @@ pub async fn install_cli_start(
     // may still be reading the archive or paths this attempt would replace.
     install_cli_cancel(manager, connection_id)
         .await
-        .context("stop an earlier OpenBitFun CLI installation")?;
+        .context("stop an earlier BitFun CLI installation")?;
 
     let dir = product_data_path(&target.home, &["dispatch", "install"]);
     let archive_path = format!("{dir}/{}", release.filename);
@@ -547,7 +547,7 @@ pub async fn install_cli_start(
     let script_path = format!("{dir}/{INSTALL_STEM}.sh");
     let install_token = format!(
         "{}-install-{}",
-        openbitfun_services_core::product_identity::data_namespace(),
+        bitfun_services_core::product_identity::data_namespace(),
         uuid::Uuid::new_v4().as_simple()
     );
 
@@ -593,12 +593,12 @@ pub async fn install_cli_start(
     ));
     let driver = to_unix_script(&install_driver_script(&dir, &body_path, &install_token));
     if let ArchiveSource::ControllerPush { reason } = &archive_source {
-        log::info!("OpenBitFun CLI dispatch install is pushing the archive over SFTP: {reason}");
+        log::info!("BitFun CLI dispatch install is pushing the archive over SFTP: {reason}");
         let archive = download_verified_archive(&release).await?;
         manager
             .sftp_write(connection_id, &archive_path, &archive)
             .await
-            .context("stage verified OpenBitFun CLI archive")?;
+            .context("stage verified BitFun CLI archive")?;
     }
     stage_and_launch_installer(
         manager,
@@ -681,7 +681,7 @@ async fn download_archive_on_target(
     let mirror_url = release
         .sources
         .iter()
-        .find(|source| source.origin == ReleaseOrigin::OpenBitFun)
+        .find(|source| source.origin == ReleaseOrigin::BitFun)
         .map(|source| source.url.as_str())
         .unwrap_or("");
     let script = target_download_script(
@@ -702,10 +702,10 @@ async fn download_archive_on_target(
             },
         )
         .await?;
-    ensure_command_completed(&result, "download OpenBitFun CLI release on the target")?;
+    ensure_command_completed(&result, "download BitFun CLI release on the target")?;
     if result.exit_code != 0 {
         return Err(remote_command_error(
-            "download OpenBitFun CLI release on the target",
+            "download BitFun CLI release on the target",
             result.exit_code,
             &result.stdout,
             &result.stderr,
@@ -786,7 +786,7 @@ case "$GITHUB_SPEED" in ''|*[!0-9]*) GITHUB_SPEED=0 ;; esac
 FIRST_URL="$GITHUB_URL"
 SECOND_URL="$MIRROR_URL"
 if [ -n "$MIRROR_URL" ] && [ "$GITHUB_SPEED" -lt {healthy_bps} ]; then
-  echo "GitHub CLI probe: $((GITHUB_SPEED / 1024)) KiB/s; trying OpenBitFun mirror first."
+  echo "GitHub CLI probe: $((GITHUB_SPEED / 1024)) KiB/s; trying BitFun mirror first."
   FIRST_URL="$MIRROR_URL"
   SECOND_URL="$GITHUB_URL"
 else
@@ -796,7 +796,7 @@ INSTALLED=0
 for URL in "$FIRST_URL" "$SECOND_URL"; do
   [ -n "$URL" ] || continue
   rm -f "$PART"
-  echo "Downloading OpenBitFun CLI from $URL"
+  echo "Downloading BitFun CLI from $URL"
   if {fetch}; then
     SIZE=$(wc -c <"$PART" | tr -d '[:space:]')
     if [ "$SIZE" -le "$MAX" ] && printf '%s  %s\n' "$EXPECTED" "$PART" | {verify}; then
@@ -807,7 +807,7 @@ for URL in "$FIRST_URL" "$SECOND_URL"; do
   fi
   echo "Download source failed verification; trying the next source." >&2
 done
-[ "$INSTALLED" = "1" ] || {{ echo "ERROR: every OpenBitFun CLI source failed" >&2; exit 1; }}
+[ "$INSTALLED" = "1" ] || {{ echo "ERROR: every BitFun CLI source failed" >&2; exit 1; }}
 chmod 600 "$ARCHIVE"
 trap - EXIT
 "#,
@@ -839,11 +839,11 @@ async fn stage_and_launch_installer(
     manager
         .sftp_write(connection_id, body_path, body.as_bytes())
         .await
-        .context("stage OpenBitFun CLI install body")?;
+        .context("stage BitFun CLI install body")?;
     manager
         .sftp_write(connection_id, script_path, driver.as_bytes())
         .await
-        .context("stage OpenBitFun CLI install driver")?;
+        .context("stage BitFun CLI install driver")?;
 
     exec_ok(
         manager,
@@ -887,7 +887,7 @@ async fn stage_and_launch_installer(
         Ok(channel) => channel,
         Err(error) => {
             let _ = install_cli_cancel(manager, connection_id).await;
-            return Err(error).context("start remote OpenBitFun CLI installer");
+            return Err(error).context("start remote BitFun CLI installer");
         }
     };
     tokio::spawn(async move {
@@ -903,7 +903,7 @@ fn ensure_confirmed_release(
 ) -> Result<()> {
     if resolved != expected {
         return Err(anyhow!(
-            "OpenBitFun CLI release metadata changed after confirmation; probe the target and confirm the new asset"
+            "BitFun CLI release metadata changed after confirmation; probe the target and confirm the new asset"
         ));
     }
     Ok(())
@@ -964,7 +964,7 @@ pub async fn install_cli_poll(
     };
     let mut output = output.to_string();
     if status == DispatchInstallStatus::Failed && exit_code == Some(130) && output.is_empty() {
-        output.push_str("OpenBitFun CLI installation was cancelled.\n");
+        output.push_str("BitFun CLI installation was cancelled.\n");
     }
     Ok(DispatchInstallPoll {
         cursor: size,
@@ -1020,17 +1020,17 @@ pub async fn account_daemon_identity(
             },
         )
         .await?;
-    ensure_command_completed(&result, "read OpenBitFun daemon target identity")?;
+    ensure_command_completed(&result, "read BitFun daemon target identity")?;
     if result.exit_code != 0 {
         return Err(remote_command_error(
-            "read OpenBitFun daemon target identity",
+            "read BitFun daemon target identity",
             result.exit_code,
             &result.stdout,
             &result.stderr,
         ));
     }
     let identity: DispatchAccountDaemonIdentity = serde_json::from_str(result.stdout.trim())
-        .context("OpenBitFun daemon target returned an invalid identity")?;
+        .context("BitFun daemon target returned an invalid identity")?;
     if identity.device_id.len() != 32
         || !identity
             .device_id
@@ -1041,7 +1041,7 @@ pub async fn account_daemon_identity(
         || identity.device_name.chars().any(char::is_control)
     {
         return Err(anyhow!(
-            "OpenBitFun daemon target returned an unsafe identity"
+            "BitFun daemon target returned an unsafe identity"
         ));
     }
     Ok(identity)
@@ -1110,10 +1110,10 @@ pub async fn provision_account_daemon(
         .await;
     let _ = manager.sftp_remove(connection_id, &request_path).await;
     let result = result?;
-    ensure_command_completed(&result, "provision persistent OpenBitFun daemon")?;
+    ensure_command_completed(&result, "provision persistent BitFun daemon")?;
     if result.exit_code != 0 {
         return Err(remote_command_error(
-            "provision persistent OpenBitFun daemon",
+            "provision persistent BitFun daemon",
             result.exit_code,
             &result.stdout,
             &result.stderr,
@@ -1121,10 +1121,10 @@ pub async fn provision_account_daemon(
     }
     let response: DispatchAccountDaemonProvisionResponse =
         serde_json::from_str(result.stdout.trim())
-            .context("OpenBitFun daemon provisioning returned invalid JSON")?;
+            .context("BitFun daemon provisioning returned invalid JSON")?;
     if response.device_id != request.device_id || !response.service_installed {
         return Err(anyhow!(
-            "OpenBitFun daemon provisioning returned an inconsistent result"
+            "BitFun daemon provisioning returned an inconsistent result"
         ));
     }
     Ok(response)
@@ -1155,10 +1155,10 @@ pub async fn deprovision_account_daemon(
             },
         )
         .await?;
-    ensure_command_completed(&result, "roll back OpenBitFun daemon provisioning")?;
+    ensure_command_completed(&result, "roll back BitFun daemon provisioning")?;
     if result.exit_code != 0 {
         return Err(remote_command_error(
-            "roll back OpenBitFun daemon provisioning",
+            "roll back BitFun daemon provisioning",
             result.exit_code,
             &result.stdout,
             &result.stderr,
@@ -1176,7 +1176,7 @@ async fn account_daemon_cli_path(
     let protocol = probed
         .protocol
         .as_ref()
-        .ok_or_else(|| anyhow!("the SSH target has no compatible OpenBitFun dispatch protocol"))?;
+        .ok_or_else(|| anyhow!("the SSH target has no compatible BitFun dispatch protocol"))?;
     validate_dispatch_protocol(protocol, None)?;
     let supports_provisioning = protocol
         .get("capabilities")
@@ -1188,12 +1188,12 @@ async fn account_daemon_cli_path(
         });
     if !supports_provisioning {
         return Err(anyhow!(
-            "the target OpenBitFun CLI does not support account daemon provisioning"
+            "the target BitFun CLI does not support account daemon provisioning"
         ));
     }
     probed
         .cli_path
-        .ok_or_else(|| anyhow!("the SSH target has no OpenBitFun CLI"))
+        .ok_or_else(|| anyhow!("the SSH target has no BitFun CLI"))
 }
 
 /// Keys of the `ai` config section that make up "model configuration": the
@@ -1202,7 +1202,7 @@ async fn account_daemon_cli_path(
 const MODEL_CONFIG_KEYS: [&str; 3] = ["models", "default_models", "agent_model_defaults"];
 
 /// Write the controller's model configuration into the target's global config
-/// so `openbitfun dispatch probe` can report a ready model.
+/// so `bitfun dispatch probe` can report a ready model.
 ///
 /// `ai_model_config` is the snake_case `ai` slice restricted to
 /// [`MODEL_CONFIG_KEYS`], exactly as `app.json` stores it. Everything else in
@@ -1238,7 +1238,7 @@ pub async fn sync_model_config(
     let config_dir = get("dir");
     if config_dir.is_empty() {
         return Err(anyhow!(
-            "could not resolve the target OpenBitFun config directory"
+            "could not resolve the target BitFun config directory"
         ));
     }
     let config_path = format!("{config_dir}/app.json");
@@ -1263,7 +1263,7 @@ pub async fn sync_model_config(
         ),
     )
     .await?;
-    let data_namespace = openbitfun_services_core::product_identity::data_namespace();
+    let data_namespace = bitfun_services_core::product_identity::data_namespace();
     let staging_path = format!("{config_path}.{data_namespace}-sync.tmp");
     manager
         .sftp_write(connection_id, &staging_path, merged.as_bytes())
@@ -1339,8 +1339,8 @@ fn locate_target_config_script() -> &'static str {
     r#"
 LC_ALL=C
 case "$(uname -s 2>/dev/null)" in
-  Darwin) CONFIG_DIR="$HOME/Library/Application Support/openbitfun/config" ;;
-  Linux) CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/openbitfun/config" ;;
+  Darwin) CONFIG_DIR="$HOME/Library/Application Support/bitfun/config" ;;
+  Linux) CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/bitfun/config" ;;
   *) printf 'os=unsupported\n'; exit 0 ;;
 esac
 printf 'os=supported\n'
@@ -1457,7 +1457,7 @@ pub async fn sync_workspace(
     ensure_plain_ssh_target(manager, connection_id).await?;
     let target = probe_remote_target(manager, connection_id).await?;
     let cli_path = target.cli_path.as_deref().ok_or_else(|| {
-        anyhow!("OpenBitFun CLI is not installed on the SSH target; install it before syncing")
+        anyhow!("BitFun CLI is not installed on the SSH target; install it before syncing")
     })?;
 
     // A clean incremental sync has `headCommit == knownHead`. Without an
@@ -1697,7 +1697,7 @@ async fn invoke_workspace_operation(
     ensure_plain_ssh_target(manager, connection_id).await?;
     let target = probe_remote_target(manager, connection_id).await?;
     let cli_path = target.cli_path.as_deref().ok_or_else(|| {
-        anyhow!("OpenBitFun CLI is not installed on the SSH target; install it before dispatching")
+        anyhow!("BitFun CLI is not installed on the SSH target; install it before dispatching")
     })?;
     let deadline = tokio::time::Instant::now() + WORKSPACE_OPERATION_WAIT;
     loop {
@@ -1739,7 +1739,7 @@ pub async fn upload_bundle(
     ensure_plain_ssh_target(manager, connection_id).await?;
     let target = probe_remote_target(manager, connection_id).await?;
     let cli_path = target.cli_path.as_deref().ok_or_else(|| {
-        anyhow!("OpenBitFun CLI is not installed on the SSH target; install it before dispatching")
+        anyhow!("BitFun CLI is not installed on the SSH target; install it before dispatching")
     })?;
 
     let begin = invoke_json_at_path(
@@ -1865,16 +1865,16 @@ where
                 .install_error
                 .as_deref()
                 .or(probed.protocol_error.as_deref())
-                .unwrap_or("this SSH target cannot run the OpenBitFun CLI")
+                .unwrap_or("this SSH target cannot run the BitFun CLI")
         ));
     }
     if let Some(reason) = probed.prebuilt_incompatible.as_deref() {
         return Err(anyhow!(
-            "no published OpenBitFun CLI can run on this target ({reason}); install OpenBitFun there manually and retry"
+            "no published BitFun CLI can run on this target ({reason}); install BitFun there manually and retry"
         ));
     }
     let release = probed.release.clone().ok_or_else(|| {
-        anyhow!("could not resolve an OpenBitFun CLI release for this target's platform")
+        anyhow!("could not resolve an BitFun CLI release for this target's platform")
     })?;
 
     progress(
@@ -1887,7 +1887,7 @@ where
             "reason": probed
                 .protocol_error
                 .clone()
-                .unwrap_or_else(|| "the target has no compatible OpenBitFun CLI".to_string()),
+                .unwrap_or_else(|| "the target has no compatible BitFun CLI".to_string()),
         }),
     )
     .await
@@ -1912,7 +1912,7 @@ where
             DispatchInstallStatus::Succeeded => break,
             DispatchInstallStatus::Failed => {
                 let error = anyhow!(
-                    "OpenBitFun CLI installation failed on the SSH target: {}",
+                    "BitFun CLI installation failed on the SSH target: {}",
                     bounded_detail(&poll.output)
                 );
                 emit_cli_install_failure(&mut progress, "install-status", &error).await?;
@@ -1923,7 +1923,7 @@ where
         if tokio::time::Instant::now() >= deadline {
             let _ = install_cli_cancel(manager, connection_id).await;
             let error = anyhow!(
-                "OpenBitFun CLI installation did not finish within {} minutes",
+                "BitFun CLI installation did not finish within {} minutes",
                 CLI_INSTALL_WAIT.as_secs() / 60
             );
             emit_cli_install_failure(&mut progress, "install-timeout", &error).await?;
@@ -1945,7 +1945,7 @@ where
             let error = anyhow!(
                 "{}",
                 reprobed.protocol_error.as_deref().unwrap_or(
-                    "the installed OpenBitFun CLI still does not answer the dispatch protocol"
+                    "the installed BitFun CLI still does not answer the dispatch protocol"
                 )
             );
             emit_cli_install_failure(&mut progress, "protocol-validation", &error).await?;
@@ -2014,7 +2014,7 @@ async fn invoke_json(
     ensure_plain_ssh_target(manager, connection_id).await?;
     let target = probe_remote_target(manager, connection_id).await?;
     let cli_path = target.cli_path.as_deref().ok_or_else(|| {
-        anyhow!("OpenBitFun CLI is not installed on the SSH target; confirm installation first")
+        anyhow!("BitFun CLI is not installed on the SSH target; confirm installation first")
     })?;
     invoke_json_at_path(
         manager,
@@ -2039,7 +2039,7 @@ async fn invoke_json_at_path(
     verb: &'static str,
     request: &Value,
 ) -> Result<Value> {
-    use openbitfun_core_types::agent_identity_wire::{
+    use bitfun_core_types::agent_identity_wire::{
         translate_agent_identity_command, translate_agent_identity_response, AgentIdentityDialect,
     };
     let request =
@@ -2233,12 +2233,12 @@ else printf 'downloader=\n'; fi
 if command -v sha256sum >/dev/null 2>&1; then printf 'digest=sha256sum\n'
 elif command -v shasum >/dev/null 2>&1; then printf 'digest=shasum\n'
 else printf 'digest=\n'; fi
-if [ -x "$HOME/.local/bin/openbitfun" ]; then
-  OPENBITFUN_BIN="$HOME/.local/bin/openbitfun"
+if [ -x "$HOME/.local/bin/bitfun" ]; then
+  BITFUN_BIN="$HOME/.local/bin/bitfun"
 else
-  OPENBITFUN_BIN="$(command -v openbitfun 2>/dev/null || true)"
+  BITFUN_BIN="$(command -v bitfun 2>/dev/null || true)"
 fi
-printf 'cli=%s\n' "$OPENBITFUN_BIN"
+printf 'cli=%s\n' "$BITFUN_BIN"
 if [ "$(uname -s 2>/dev/null || true)" = "Linux" ]; then
   if ls /lib/ld-musl-* >/dev/null 2>&1 || ldd --version 2>&1 | head -n1 | grep -qi musl; then
     printf 'libc=musl\n'
@@ -2255,7 +2255,7 @@ async fn resolve_release(os: &str, arch: &str) -> Result<ResolvedRelease> {
     let target = release_target(os, arch)?;
     let client = release_http_client()?;
     let version = fetch_latest_release_version(&client).await?;
-    let filename = format!("openbitfun-cli-{version}-{target}.tar.gz");
+    let filename = format!("bitfun-cli-{version}-{target}.tar.gz");
     let sources = release_sources(&version, &filename);
     let (sha256, checksum_signature_verified) =
         resolve_release_digest(&client, &sources, pubkey, &filename).await?;
@@ -2286,8 +2286,8 @@ fn release_sources(version: &str, filename: &str) -> Vec<ReleaseArtifactSource> 
             format!("{GITHUB_RELEASE_BASE}/download/{tag}"),
         ),
         (
-            ReleaseOrigin::OpenBitFun,
-            format!("{OPENBITFUN_RELEASE_BASE}/{version}"),
+            ReleaseOrigin::BitFun,
+            format!("{BITFUN_RELEASE_BASE}/{version}"),
         ),
     ]
     .into_iter()
@@ -2306,7 +2306,7 @@ fn release_sources(version: &str, filename: &str) -> Vec<ReleaseArtifactSource> 
 
 async fn fetch_latest_release_version(client: &reqwest::Client) -> Result<String> {
     let mut failures = Vec::new();
-    for manifest_url in [GITHUB_LATEST_MANIFEST, OPENBITFUN_LATEST_MANIFEST] {
+    for manifest_url in [GITHUB_LATEST_MANIFEST, BITFUN_LATEST_MANIFEST] {
         let text = match fetch_required_text(client, manifest_url).await {
             Ok(text) => text,
             Err(error) => {
@@ -2320,7 +2320,7 @@ async fn fetch_latest_release_version(client: &reqwest::Client) -> Result<String
         }
     }
     Err(anyhow!(
-        "could not resolve the latest OpenBitFun release: {}",
+        "could not resolve the latest BitFun release: {}",
         failures.join("; ")
     ))
 }
@@ -2391,7 +2391,7 @@ fn release_target(os: &str, arch: &str) -> Result<&'static str> {
         ("Darwin", "x86_64" | "amd64") => Ok("x86_64-apple-darwin"),
         ("Darwin", "aarch64" | "arm64") => Ok("aarch64-apple-darwin"),
         (os, arch) => Err(anyhow!(
-            "OpenBitFun SSH dispatch CLI install does not support {os} {arch}"
+            "BitFun SSH dispatch CLI install does not support {os} {arch}"
         )),
     }
 }
@@ -2404,7 +2404,7 @@ fn release_http_client() -> Result<reqwest::Client> {
         // still fail instead of hanging the installer forever.
         .read_timeout(Duration::from_secs(RELEASE_READ_TIMEOUT_SECONDS))
         .build()
-        .context("build OpenBitFun release HTTP client")
+        .context("build BitFun release HTTP client")
 }
 
 async fn fetch_required_text(client: &reqwest::Client, url: &str) -> Result<String> {
@@ -2504,7 +2504,7 @@ async fn download_verified_archive(release: &ResolvedRelease) -> Result<Vec<u8>>
     }
 
     Err(anyhow!(
-        "OpenBitFun CLI archive failed from every source: {}",
+        "BitFun CLI archive failed from every source: {}",
         failures.join("; ")
     ))
 }
@@ -2540,12 +2540,12 @@ fn order_release_sources_for_speed(sources: &mut [ReleaseArtifactSource], github
     if github_speed >= GITHUB_HEALTHY_THROUGHPUT
         || !sources
             .iter()
-            .any(|source| source.origin == ReleaseOrigin::OpenBitFun)
+            .any(|source| source.origin == ReleaseOrigin::BitFun)
     {
         sources.swap(0, github_index);
     } else if let Some(mirror_index) = sources
         .iter()
-        .position(|source| source.origin == ReleaseOrigin::OpenBitFun)
+        .position(|source| source.origin == ReleaseOrigin::BitFun)
     {
         sources.swap(0, mirror_index);
     }
@@ -2598,7 +2598,7 @@ async fn download_release_bytes(client: &reqwest::Client, url: &str) -> Result<V
         .is_some_and(|length| length > MAX_ARCHIVE_BYTES as u64)
     {
         return Err(anyhow!(
-            "OpenBitFun CLI archive exceeds the {} MB safety limit",
+            "BitFun CLI archive exceeds the {} MB safety limit",
             MAX_ARCHIVE_BYTES / (1024 * 1024)
         ));
     }
@@ -2616,7 +2616,7 @@ async fn download_release_bytes(client: &reqwest::Client, url: &str) -> Result<V
 fn extend_bounded_archive(archive: &mut Vec<u8>, chunk: &[u8], limit: usize) -> Result<()> {
     if archive.len().saturating_add(chunk.len()) > limit {
         return Err(anyhow!(
-            "OpenBitFun CLI archive exceeds the {} MB safety limit",
+            "BitFun CLI archive exceeds the {} MB safety limit",
             limit / (1024 * 1024)
         ));
     }
@@ -2628,7 +2628,7 @@ fn extend_bounded_archive(archive: &mut Vec<u8>, chunk: &[u8], limit: usize) -> 
 /// every signed release installation.
 fn install_preamble_fragment(dir: &str, expected_version: &str) -> String {
     let product_home = product_home_shell_path(&[]);
-    let hidden_data_directory = openbitfun_services_core::product_identity::hidden_data_directory();
+    let hidden_data_directory = bitfun_services_core::product_identity::hidden_data_directory();
     format!(
         r#"#!/bin/bash
 set -euo pipefail
@@ -2639,12 +2639,12 @@ TOKEN="${{1:-}}"
 PIDF="$D/{INSTALL_STEM}.pid"
 EXITF="$D/{INSTALL_STEM}.exit"
 TMP="$D/unpack.$$"
-TARGET="$HOME/.local/bin/openbitfun"
+TARGET="$HOME/.local/bin/bitfun"
 # Stage under the final filename on the same filesystem as the target so the
 # publish step is one atomic rename.
 STAGE="$HOME/.local/bin/{hidden_data_directory}-dispatch-stage-$$"
-NEW="$STAGE/openbitfun"
-BACKUP="$D/previous-openbitfun.$$"
+NEW="$STAGE/bitfun"
+BACKUP="$D/previous-bitfun.$$"
 HAD_TARGET=0
 TARGET_INSTALLED=0
 COMMITTED=0
@@ -2652,7 +2652,7 @@ rollback_install() {{
   if [ "$TARGET_INSTALLED" = "1" ]; then rm -f "$TARGET"; fi
   if [ "$HAD_TARGET" = "1" ] && [ -f "$BACKUP" ]; then
     mv -f "$BACKUP" "$TARGET" \
-      || echo "ERROR: could not restore previous openbitfun" >&2
+      || echo "ERROR: could not restore previous bitfun" >&2
   fi
 }}
 finish() {{
@@ -2678,12 +2678,12 @@ chmod 700 "{product_home}" "$STAGE"
     )
 }
 
-/// Stage, smoke-test, and atomically commit the single `openbitfun` binary.
+/// Stage, smoke-test, and atomically commit the single `bitfun` binary.
 ///
 /// `post_commit` runs once the swap has succeeded, for path-specific cleanup.
 fn install_commit_fragment(post_commit: &str) -> String {
-    let product_id = openbitfun_services_core::product_identity::product_id();
-    let data_namespace = openbitfun_services_core::product_identity::data_namespace();
+    let product_id = bitfun_services_core::product_identity::product_id();
+    let data_namespace = bitfun_services_core::product_identity::data_namespace();
     format!(
         r#"cp "$BINARY" "$NEW"
 chmod 755 "$NEW"
@@ -2697,28 +2697,28 @@ esac
 # anything is replaced — turns "install succeeded but the target is still
 # reported incompatible" into one honest error at the point of cause.
 if ! staged_dispatch="$("$NEW" dispatch --help 2>&1 >/dev/null)"; then
-  echo "ERROR: this OpenBitFun build does not provide dispatch support: $staged_dispatch" >&2
+  echo "ERROR: this BitFun build does not provide dispatch support: $staged_dispatch" >&2
   exit 1
 fi
 if ! staged_probe="$(printf '{{}}\n' | "$NEW" dispatch probe 2>/dev/null)"; then
-  echo "ERROR: staged OpenBitFun dispatch probe failed" >&2
+  echo "ERROR: staged BitFun dispatch probe failed" >&2
   exit 1
 fi
 case "$staged_probe" in
   *'"productId":"{product_id}",'*) ;;
-  *) echo "ERROR: staged OpenBitFun CLI returned the wrong product identity" >&2; exit 1 ;;
+  *) echo "ERROR: staged BitFun CLI returned the wrong product identity" >&2; exit 1 ;;
 esac
 case "$staged_probe" in
   *'"dataNamespace":"{data_namespace}",'*) ;;
-  *) echo "ERROR: staged OpenBitFun CLI returned the wrong data namespace" >&2; exit 1 ;;
+  *) echo "ERROR: staged BitFun CLI returned the wrong data namespace" >&2; exit 1 ;;
 esac
 case "$staged_probe" in
   *'"protocolVersion":{protocol_version},'*) ;;
-  *) echo "ERROR: staged OpenBitFun CLI returned an incompatible dispatch protocol" >&2; exit 1 ;;
+  *) echo "ERROR: staged BitFun CLI returned an incompatible dispatch protocol" >&2; exit 1 ;;
 esac
 case "$staged_probe" in
   *'"{worker_profile_capability}"'*) ;;
-  *) echo "ERROR: staged OpenBitFun CLI lacks safe dispatch worker profile selection" >&2; exit 1 ;;
+  *) echo "ERROR: staged BitFun CLI lacks safe dispatch worker profile selection" >&2; exit 1 ;;
 esac
 if [ -e "$TARGET" ]; then
   mv -f "$TARGET" "$BACKUP"
@@ -2733,7 +2733,7 @@ case "$installed" in
 esac
 COMMITTED=1
 {post_commit}
-echo "Installed $installed at $HOME/.local/bin/openbitfun"
+echo "Installed $installed at $HOME/.local/bin/bitfun"
 echo {INSTALL_DONE_MARKER}
 "#,
         product_id = product_id,
@@ -2764,15 +2764,15 @@ fn install_body_script(
 echo {source_note}
 tar -xzf "$ARCHIVE" -C "$TMP"
 BINARY=""
-for candidate in "$TMP"/*/openbitfun; do
+for candidate in "$TMP"/*/bitfun; do
   [ -f "$candidate" ] || continue
-  [ -z "$BINARY" ] || {{ echo "ERROR: archive contains multiple openbitfun binaries" >&2; exit 1; }}
+  [ -z "$BINARY" ] || {{ echo "ERROR: archive contains multiple bitfun binaries" >&2; exit 1; }}
   BINARY="$candidate"
 done
-for candidate in "$TMP"/*/openbitfun-cli; do
+for candidate in "$TMP"/*/bitfun-cli; do
   [ ! -e "$candidate" ] || {{ echo "ERROR: archive contains an unsupported legacy CLI entrypoint" >&2; exit 1; }}
 done
-[ -n "$BINARY" ] || {{ echo "ERROR: archive contains no openbitfun binary" >&2; exit 1; }}
+[ -n "$BINARY" ] || {{ echo "ERROR: archive contains no bitfun binary" >&2; exit 1; }}
 "#,
         archive = shell_quote_posix(archive_path),
         source_note = shell_quote_posix(&source_note),
@@ -3038,7 +3038,7 @@ fi
 rm -f "$PIDF" "$DRIVER_PIDF" "$PREPF"
 if [ "$active" = "1" ]; then
   printf '130\n' >"$EXITF"
-  printf '\nOpenBitFun CLI installation cancelled by client.\n' >>"$LOG"
+  printf '\nBitFun CLI installation cancelled by client.\n' >>"$LOG"
 fi
 exit 0
 "#
@@ -3127,15 +3127,15 @@ mod tests {
     #[test]
     fn generated_install_scripts_are_lf_only_and_never_use_sudo() {
         let body = install_body_script(
-            "/home/user/.openbitfun/dispatch/install",
-            "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+            "/home/user/.bitfun/dispatch/install",
+            "/home/user/.bitfun/dispatch/install/archive.tar.gz",
             "1.2.3",
             &ArchiveSource::TargetDownload,
         );
         let driver = install_driver_script(
-            "/home/user/.openbitfun/dispatch/install",
-            "/home/user/.openbitfun/dispatch/install/install-cli-body.sh",
-            "openbitfun-install-test-token",
+            "/home/user/.bitfun/dispatch/install",
+            "/home/user/.bitfun/dispatch/install/install-cli-body.sh",
+            "bitfun-install-test-token",
         );
         for (name, script) in [("body", body), ("driver", driver)] {
             let script = to_unix_script(&script);
@@ -3149,8 +3149,8 @@ mod tests {
     }
 
     fn test_release(checksum_signature_verified: bool) -> ResolvedRelease {
-        let github_url = "https://github.example.invalid/openbitfun-cli.tar.gz";
-        let mirror_url = "https://mirror.example.invalid/openbitfun-cli.tar.gz";
+        let github_url = "https://github.example.invalid/bitfun-cli.tar.gz";
+        let mirror_url = "https://mirror.example.invalid/bitfun-cli.tar.gz";
         ResolvedRelease {
             public: DispatchCliRelease {
                 version: "1.2.3".to_string(),
@@ -3158,10 +3158,10 @@ mod tests {
                 url: github_url.to_string(),
                 sha256: "a".repeat(64),
             },
-            filename: "openbitfun-cli.tar.gz".to_string(),
+            filename: "bitfun-cli.tar.gz".to_string(),
             sources: [
                 (ReleaseOrigin::GitHub, github_url),
-                (ReleaseOrigin::OpenBitFun, mirror_url),
+                (ReleaseOrigin::BitFun, mirror_url),
             ]
             .into_iter()
             .map(|(origin, url)| ReleaseArtifactSource {
@@ -3280,14 +3280,14 @@ mod tests {
         assert!(validate_managed_result_path(
             "/home/user",
             "job-1",
-            "/home/user/.openbitfun/dispatch/workspaces/job-1/result.bundle"
+            "/home/user/.bitfun/dispatch/workspaces/job-1/result.bundle"
         )
         .is_ok());
         for hostile in [
             "/home/user/.ssh/id_ed25519",
-            "/home/user/.openbitfun/dispatch/workspaces/job-2/result.bundle",
-            "/home/user/.openbitfun/dispatch/workspaces/job-1/../../../.ssh/id_ed25519",
-            "/home/user/.openbitfun/dispatch/workspaces/job-1/current/secret",
+            "/home/user/.bitfun/dispatch/workspaces/job-2/result.bundle",
+            "/home/user/.bitfun/dispatch/workspaces/job-1/../../../.ssh/id_ed25519",
+            "/home/user/.bitfun/dispatch/workspaces/job-1/current/secret",
         ] {
             assert!(
                 validate_managed_result_path("/home/user", "job-1", hostile).is_err(),
@@ -3353,8 +3353,8 @@ mod tests {
     #[test]
     fn the_install_path_uses_the_shared_staging_and_commit_implementation() {
         let release = install_body_script(
-            "/home/user/.openbitfun/dispatch/install",
-            "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+            "/home/user/.bitfun/dispatch/install",
+            "/home/user/.bitfun/dispatch/install/archive.tar.gz",
             "1.2.3",
             &ArchiveSource::TargetDownload,
         );
@@ -3371,7 +3371,7 @@ mod tests {
             "release must use the shared commit"
         );
         assert!(
-            release.contains(r#"NEW="$STAGE/openbitfun""#),
+            release.contains(r#"NEW="$STAGE/bitfun""#),
             "release must stage under the final filename"
         );
         assert!(
@@ -3384,7 +3384,7 @@ mod tests {
         );
         assert!(
             !release.contains("cargo build"),
-            "no install path may compile OpenBitFun on the target"
+            "no install path may compile BitFun on the target"
         );
     }
 
@@ -3392,11 +3392,11 @@ mod tests {
     fn release_compatibility_uses_capability_floor_not_installed_version() {
         assert!(
             !published_release_supports_required_dispatch_protocol("0.2.15"),
-            "OpenBitFun releases predate the OpenBitFun product contract"
+            "BitFun releases predate the BitFun product contract"
         );
         assert!(
             !published_release_supports_required_dispatch_protocol("0.2.16"),
-            "a previously compatible OpenBitFun release is not an OpenBitFun release"
+            "a previously compatible BitFun release is not an BitFun release"
         );
         assert!(!published_release_supports_required_dispatch_protocol(
             "0.3.0+build.1"
@@ -3429,18 +3429,18 @@ mod tests {
     }
 
     #[test]
-    fn latest_cli_sources_are_github_then_the_versioned_openbitfun_mirror() {
-        let filename = "openbitfun-cli-1.2.3-x86_64-unknown-linux-gnu.tar.gz";
+    fn latest_cli_sources_are_github_then_the_versioned_bitfun_mirror() {
+        let filename = "bitfun-cli-1.2.3-x86_64-unknown-linux-gnu.tar.gz";
         let sources = release_sources("1.2.3", filename);
         assert_eq!(sources[0].origin, ReleaseOrigin::GitHub);
         assert_eq!(
             sources[0].url,
-            format!("https://github.com/GCWing/OpenBitFun/releases/download/v1.2.3/{filename}")
+            format!("https://github.com/GCWing/BitFun/releases/download/v1.2.3/{filename}")
         );
-        assert_eq!(sources[1].origin, ReleaseOrigin::OpenBitFun);
+        assert_eq!(sources[1].origin, ReleaseOrigin::BitFun);
         assert_eq!(
             sources[1].url,
-            format!("https://openbitfun.com/release/1.2.3/{filename}")
+            format!("https://bitfun.com/release/1.2.3/{filename}")
         );
     }
 
@@ -3448,7 +3448,7 @@ mod tests {
     fn dispatch_cli_uses_the_mirror_only_below_the_github_speed_floor() {
         let mut slow = test_release(true).sources;
         order_release_sources_for_speed(&mut slow, GITHUB_HEALTHY_THROUGHPUT - 1);
-        assert_eq!(slow[0].origin, ReleaseOrigin::OpenBitFun);
+        assert_eq!(slow[0].origin, ReleaseOrigin::BitFun);
 
         let mut healthy = test_release(true).sources;
         healthy.swap(0, 1);
@@ -3461,15 +3461,15 @@ mod tests {
         let script = target_download_script(
             RemoteDownloader::Curl,
             RemoteDigestTool::Sha256Sum,
-            "/tmp/openbitfun.tar.gz",
-            "https://github.example/openbitfun.tar.gz",
-            "https://mirror.example/openbitfun.tar.gz",
+            "/tmp/bitfun.tar.gz",
+            "https://github.example/bitfun.tar.gz",
+            "https://mirror.example/bitfun.tar.gz",
             &"a".repeat(64),
         );
         assert!(script.contains("524288"));
         assert!(script.contains("GITHUB_SPEED"));
-        assert!(script.contains("https://github.example/openbitfun.tar.gz"));
-        assert!(script.contains("https://mirror.example/openbitfun.tar.gz"));
+        assert!(script.contains("https://github.example/bitfun.tar.gz"));
+        assert!(script.contains("https://mirror.example/bitfun.tar.gz"));
     }
 
     #[test]
@@ -3596,27 +3596,27 @@ mod tests {
     }
 
     #[test]
-    fn install_body_stages_only_the_openbitfun_binary_under_its_real_name() {
+    fn install_body_stages_only_the_bitfun_binary_under_its_real_name() {
         let body = install_body_script(
-            "/home/user/.openbitfun/dispatch/install",
-            "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+            "/home/user/.bitfun/dispatch/install",
+            "/home/user/.bitfun/dispatch/install/archive.tar.gz",
             "1.2.3",
             &ArchiveSource::TargetDownload,
         );
         assert!(
-            body.contains(r#"TARGET="$HOME/.local/bin/openbitfun""#),
+            body.contains(r#"TARGET="$HOME/.local/bin/bitfun""#),
             "the managed target must use the canonical CLI name"
         );
         assert!(
-            body.contains(r#"NEW="$STAGE/openbitfun""#),
+            body.contains(r#"NEW="$STAGE/bitfun""#),
             "the binary must stage under its final filename"
         );
         assert!(
             !body.contains("LEGACY_TARGET") && !body.contains("LEGACY_NEW"),
             "the installer must not publish a companion or compatibility entrypoint"
         );
-        assert!(body.contains(r#""productId":"openbitfun""#));
-        assert!(body.contains(r#""dataNamespace":"openbitfun""#));
+        assert!(body.contains(r#""productId":"bitfun""#));
+        assert!(body.contains(r#""dataNamespace":"bitfun""#));
     }
 
     fn dispatch_capable_binary(capabilities: &str) -> String {
@@ -3628,9 +3628,9 @@ mod tests {
              fi\n\
              exit 0\n\
              fi\n\
-             echo \"openbitfun 1.2.3\"\n",
-            openbitfun_services_core::product_identity::product_id(),
-            openbitfun_services_core::product_identity::data_namespace(),
+             echo \"bitfun 1.2.3\"\n",
+            bitfun_services_core::product_identity::product_id(),
+            bitfun_services_core::product_identity::data_namespace(),
             DISPATCH_PROTOCOL_VERSION,
         )
     }
@@ -3642,7 +3642,7 @@ mod tests {
          echo \"error: unrecognized subcommand 'dispatch'\" >&2\n\
          exit 2\n\
          fi\n\
-         echo \"openbitfun 1.2.3\"\n";
+         echo \"bitfun 1.2.3\"\n";
 
     #[cfg(unix)]
     #[test]
@@ -3667,7 +3667,7 @@ mod tests {
             "the underlying message must survive: {stderr}"
         );
         assert!(
-            !home.join(".local/bin/openbitfun").exists(),
+            !home.join(".local/bin/bitfun").exists(),
             "nothing may be published when the build cannot serve dispatch"
         );
     }
@@ -3687,7 +3687,7 @@ mod tests {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(!temp.path().join(".local/bin/openbitfun").exists());
+        assert!(!temp.path().join(".local/bin/bitfun").exists());
     }
 
     #[cfg(unix)]
@@ -3698,11 +3698,11 @@ mod tests {
         let home = temp.path().to_path_buf();
         let install_dir = home.join(install_state_relative_dir());
         std::fs::create_dir_all(&install_dir).expect("install dir");
-        let pkg = temp.path().join("pkg/openbitfun-cli-1.2.3-test");
+        let pkg = temp.path().join("pkg/bitfun-cli-1.2.3-test");
         std::fs::create_dir_all(&pkg).expect("package dir");
-        std::fs::write(pkg.join("openbitfun"), primary).expect("write binary");
+        std::fs::write(pkg.join("bitfun"), primary).expect("write binary");
         std::fs::set_permissions(
-            pkg.join("openbitfun"),
+            pkg.join("bitfun"),
             std::fs::Permissions::from_mode(0o755),
         )
         .expect("chmod package binary");
@@ -3712,7 +3712,7 @@ mod tests {
             .arg(&archive)
             .arg("-C")
             .arg(temp.path().join("pkg"))
-            .arg("openbitfun-cli-1.2.3-test")
+            .arg("bitfun-cli-1.2.3-test")
             .status()
             .expect("run tar")
             .success());
@@ -3737,14 +3737,14 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn install_body_installs_only_openbitfun_onto_a_bare_host() {
+    fn install_body_installs_only_bitfun_onto_a_bare_host() {
         let binary = dispatch_capable_binary("[\"dispatch_worker_cli_profile\"]");
         let (output, temp) = run_install_body_fixture(&binary);
         let home = temp.path();
 
         assert!(
             output.status.success(),
-            "install must succeed on a host with no pre-existing OpenBitFun CLI:\nstdout: {}\nstderr: {}",
+            "install must succeed on a host with no pre-existing BitFun CLI:\nstdout: {}\nstderr: {}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
@@ -3753,20 +3753,20 @@ mod tests {
             "install must report completion"
         );
 
-        let installed = home.join(".local/bin/openbitfun");
+        let installed = home.join(".local/bin/bitfun");
         let run = std::process::Command::new(&installed)
             .arg("--version")
             .output()
             .expect("run installed binary");
-        assert!(run.status.success(), "openbitfun must run after install");
-        assert!(String::from_utf8_lossy(&run.stdout).contains("openbitfun 1.2.3"));
+        assert!(run.status.success(), "bitfun must run after install");
+        assert!(String::from_utf8_lossy(&run.stdout).contains("bitfun 1.2.3"));
         let installed_entries: Vec<_> = std::fs::read_dir(home.join(".local/bin"))
             .expect("read bin dir")
             .map(|entry| entry.expect("read installed entry").file_name())
             .collect();
         assert_eq!(
             installed_entries,
-            vec![std::ffi::OsString::from("openbitfun")],
+            vec![std::ffi::OsString::from("bitfun")],
             "only the canonical CLI may remain; no aliases or staging directories"
         );
     }
@@ -3776,30 +3776,30 @@ mod tests {
     fn generated_install_scripts_parse_as_bash() {
         for script in [
             install_body_script(
-                "/home/user/.openbitfun/dispatch/install",
-                "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+                "/home/user/.bitfun/dispatch/install",
+                "/home/user/.bitfun/dispatch/install/archive.tar.gz",
                 "1.2.3",
                 &ArchiveSource::TargetDownload,
             ),
             install_driver_script(
-                "/home/user/.openbitfun/dispatch/install",
-                "/home/user/.openbitfun/dispatch/install/install-cli-body.sh",
-                "openbitfun-install-test-token",
+                "/home/user/.bitfun/dispatch/install",
+                "/home/user/.bitfun/dispatch/install/install-cli-body.sh",
+                "bitfun-install-test-token",
             ),
             target_download_script(
                 RemoteDownloader::Curl,
                 RemoteDigestTool::Sha256Sum,
-                "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+                "/home/user/.bitfun/dispatch/install/archive.tar.gz",
                 "https://example.invalid/archive.tar.gz",
-                "https://openbitfun.example.invalid/archive.tar.gz",
+                "https://bitfun.example.invalid/archive.tar.gz",
                 &"a".repeat(64),
             ),
             target_download_script(
                 RemoteDownloader::Wget,
                 RemoteDigestTool::Shasum,
-                "/home/user/.openbitfun/dispatch/install/archive.tar.gz",
+                "/home/user/.bitfun/dispatch/install/archive.tar.gz",
                 "https://example.invalid/archive.tar.gz",
-                "https://openbitfun.example.invalid/archive.tar.gz",
+                "https://bitfun.example.invalid/archive.tar.gz",
                 &"a".repeat(64),
             ),
             install_poll_script(17),
@@ -3888,7 +3888,7 @@ mod tests {
         std::fs::create_dir_all(&state_dir).expect("install state dir");
         let body_path = state_dir.join(format!("{INSTALL_STEM}-body.sh"));
         std::fs::write(&body_path, "sleep 30\n").expect("installer body");
-        let token = "openbitfun-install-test-token";
+        let token = "bitfun-install-test-token";
         let mut installer = std::process::Command::new("bash")
             .arg(&body_path)
             .arg(token)
@@ -3936,7 +3936,7 @@ mod tests {
             format!("touch {}\n", shell_quote_posix(&sentinel.to_string_lossy())),
         )
         .expect("installer body");
-        let token = "openbitfun-install-cancelled-before-driver";
+        let token = "bitfun-install-cancelled-before-driver";
         let driver = install_driver_script(
             &state_dir.to_string_lossy(),
             &body_path.to_string_lossy(),
@@ -3968,7 +3968,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp dir");
         let bin_dir = temp.path().join("bin with space");
         std::fs::create_dir_all(&bin_dir).expect("bin dir");
-        let cli = bin_dir.join("openbitfun's");
+        let cli = bin_dir.join("bitfun's");
         std::fs::write(&cli, "#!/bin/sh\ncat\n").expect("fake CLI");
         let mut permissions = std::fs::metadata(&cli).unwrap().permissions();
         permissions.set_mode(0o700);
@@ -4014,9 +4014,9 @@ mod tests {
     fn probe_prefers_the_managed_cli_over_an_incompatible_path_copy() {
         let script = probe_remote_target_script();
         let managed = script
-            .find(r#"[ -x "$HOME/.local/bin/openbitfun" ]"#)
+            .find(r#"[ -x "$HOME/.local/bin/bitfun" ]"#)
             .expect("managed CLI check");
-        let path_lookup = script.find("command -v openbitfun").expect("PATH fallback");
+        let path_lookup = script.find("command -v bitfun").expect("PATH fallback");
         assert!(managed < path_lookup);
     }
 
@@ -4103,7 +4103,7 @@ mod tests {
         let confirmed = DispatchCliRelease {
             version: "1.2.3".to_string(),
             target: "aarch64-apple-darwin".to_string(),
-            url: "https://example.test/openbitfun.tar.gz".to_string(),
+            url: "https://example.test/bitfun.tar.gz".to_string(),
             sha256: "a".repeat(64),
         };
         ensure_confirmed_release(&confirmed, &confirmed).expect("exact asset");
@@ -4143,24 +4143,24 @@ mod tests {
     fn incompatible_dispatch_protocols_require_an_upgrade() {
         let capabilities = REQUIRED_DISPATCH_CAPABILITIES.clone();
         let compatible = serde_json::json!({
-            "productId": openbitfun_services_core::product_identity::product_id(),
-            "dataNamespace": openbitfun_services_core::product_identity::data_namespace(),
+            "productId": bitfun_services_core::product_identity::product_id(),
+            "dataNamespace": bitfun_services_core::product_identity::data_namespace(),
             "protocolVersion": DISPATCH_PROTOCOL_VERSION,
             "capabilities": capabilities,
         });
         assert!(dispatch_protocol_is_compatible(&compatible));
 
         let old = serde_json::json!({
-            "productId": openbitfun_services_core::product_identity::product_id(),
-            "dataNamespace": openbitfun_services_core::product_identity::data_namespace(),
+            "productId": bitfun_services_core::product_identity::product_id(),
+            "dataNamespace": bitfun_services_core::product_identity::data_namespace(),
             "protocolVersion": DISPATCH_PROTOCOL_VERSION - 1,
             "capabilities": capabilities,
         });
         assert!(!dispatch_protocol_is_compatible(&old));
 
         let missing = serde_json::json!({
-            "productId": openbitfun_services_core::product_identity::product_id(),
-            "dataNamespace": openbitfun_services_core::product_identity::data_namespace(),
+            "productId": bitfun_services_core::product_identity::product_id(),
+            "dataNamespace": bitfun_services_core::product_identity::data_namespace(),
             "protocolVersion": DISPATCH_PROTOCOL_VERSION,
             "capabilities": ["persistent_jobs", "cursor_events"],
         });
@@ -4185,8 +4185,8 @@ mod tests {
             .collect();
         reject_capabilities.push("approval_reject_and_report");
         let reject_only = serde_json::json!({
-            "productId": openbitfun_services_core::product_identity::product_id(),
-            "dataNamespace": openbitfun_services_core::product_identity::data_namespace(),
+            "productId": bitfun_services_core::product_identity::product_id(),
+            "dataNamespace": bitfun_services_core::product_identity::data_namespace(),
             "protocolVersion": DISPATCH_PROTOCOL_VERSION,
             "capabilities": reject_capabilities,
         });
@@ -4203,8 +4203,8 @@ mod tests {
             .collect();
         unsafe_capabilities.push("approval_reject_and_report");
         let unsafe_worker = serde_json::json!({
-            "productId": openbitfun_services_core::product_identity::product_id(),
-            "dataNamespace": openbitfun_services_core::product_identity::data_namespace(),
+            "productId": bitfun_services_core::product_identity::product_id(),
+            "dataNamespace": bitfun_services_core::product_identity::data_namespace(),
             "protocolVersion": DISPATCH_PROTOCOL_VERSION,
             "capabilities": unsafe_capabilities,
         });

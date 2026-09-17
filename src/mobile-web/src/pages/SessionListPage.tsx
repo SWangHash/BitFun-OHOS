@@ -39,7 +39,7 @@ import {
   MobileSegmentedControl,
   MobileStatus,
   MobileTextField,
-} from '@openbitfun/ui/mobile';
+} from '@bitfun/ui/mobile';
 import LanguageToggleButton from '../components/LanguageToggleButton';
 import SessionOverlays from '../components/SessionOverlays';
 import CompactSettingsSheet from '../components/CompactSettingsSheet';
@@ -57,8 +57,8 @@ import { useMobileStore } from '../services/store';
 import { createRemoteCacheScope, remoteCache } from '../services/RemoteCache';
 import { sessionMatchesWorkspace, workspaceIdentityKey } from '../services/workspaceIdentity';
 import { useTheme } from '../theme';
-import logoMarkDark from '../assets/openbitfun-mark-dark.png';
-import logoMarkLight from '../assets/openbitfun-mark-light.png';
+import logoMarkDark from '../assets/bitfun-mark-dark.png';
+import logoMarkLight from '../assets/bitfun-mark-light.png';
 import {
   isAccountIdentityChangedError,
   type RelayHttpClient,

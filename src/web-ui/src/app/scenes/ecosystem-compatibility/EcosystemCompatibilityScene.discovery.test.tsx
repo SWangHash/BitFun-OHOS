@@ -30,9 +30,9 @@ vi.mock('./ecosystemCompatibilityStore', () => ({
     selectedProductId: mocks.selectedProductId, ownerSurface: mocks.ownerSurface, setOwnerSurface: mocks.setOwnerSurface,
   }),
 }));
-vi.mock('@openbitfun/ui', async () => {
+vi.mock('@bitfun/ui', async () => {
   const { createElement, forwardRef } = await import('react');
-  const { Alert, Switch, Tooltip } = await vi.importActual<typeof import('@openbitfun/ui')>('@openbitfun/ui');
+  const { Alert, Switch, Tooltip } = await vi.importActual<typeof import('@bitfun/ui')>('@bitfun/ui');
   const Wrapper = forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
     ({ children }, ref) => createElement('div', { ref }, children),
   );
@@ -223,9 +223,9 @@ describe('compatibility discovery lifecycle', () => {
     await act(async () => discoverySwitch().click());
     const alert = container.querySelector('[data-external-discovery-control] [role="alert"]');
     expect(alert?.textContent).toBe('discovery.saveFailed');
-    expect(alert?.getAttribute('data-openbitfun-component')).toBe('alert');
+    expect(alert?.getAttribute('data-bitfun-component')).toBe('alert');
     expect(alert?.getAttribute('aria-live')).toBe('assertive');
-    expect(alert?.querySelector('[data-openbitfun-part="icon"]')).toBeNull();
+    expect(alert?.querySelector('[data-bitfun-part="icon"]')).toBeNull();
     expect(discoverySwitch().checked).toBe(true);
     expect(discoverySwitch().disabled).toBe(false);
     expect(mocks.getDiscoverySnapshot).toHaveBeenLastCalledWith('/workspace', false);
@@ -362,7 +362,7 @@ describe('compatibility discovery lifecycle', () => {
   it('counts external Skills once, focuses the header from legacy settings links, and reloads on host changes', async () => {
     mocks.skills = [
       { key: 'project::codex::sample', name: 'sample', sourceId: 'codex', sourceSlot: 'codex', path: '/workspace/.codex/skills/sample' },
-      { key: 'project::openbitfun::sample', name: 'sample', sourceId: 'openbitfun', sourceSlot: 'openbitfun', path: '/workspace/.openbitfun/skills/sample', importOrigin: { sourceId: 'codex' } },
+      { key: 'project::bitfun::sample', name: 'sample', sourceId: 'bitfun', sourceSlot: 'bitfun', path: '/workspace/.bitfun/skills/sample', importOrigin: { sourceId: 'codex' } },
     ];
     mocks.getDiscoverySnapshot.mockResolvedValue(snapshot(true, false, true));
     await renderMcp();

@@ -86,17 +86,17 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
   return (
     <div 
       className={`window-controls ${className}`}
-      data-openbitfun-component="window-controls"
-      data-openbitfun-part="root"
-      data-openbitfun-state={[disabled && 'disabled', isMaximized && 'maximized'].filter(Boolean).join(' ') || undefined}
+      data-bitfun-component="window-controls"
+      data-bitfun-part="root"
+      data-bitfun-state={[disabled && 'disabled', isMaximized && 'maximized'].filter(Boolean).join(' ') || undefined}
       {...props}
     >
       {showMinimize && (
         <Tooltip content={t('window.minimize')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--minimize"
-            data-openbitfun-component="window-controls"
-            data-openbitfun-part="minimize"
+            data-bitfun-component="window-controls"
+            data-bitfun-part="minimize"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -118,8 +118,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         <Tooltip content={isMaximized ? t('window.restore') : t('window.maximize')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--maximize"
-            data-openbitfun-component="window-controls"
-            data-openbitfun-part="maximize"
+            data-bitfun-component="window-controls"
+            data-bitfun-part="maximize"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -144,8 +144,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         <Tooltip content={t('window.close')} placement="bottom">
           <button
             className="window-controls__btn window-controls__btn--close"
-            data-openbitfun-component="window-controls"
-            data-openbitfun-part="close"
+            data-bitfun-component="window-controls"
+            data-bitfun-part="close"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();

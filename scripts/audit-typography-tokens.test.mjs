@@ -13,11 +13,11 @@ function codesFor(source, relativePath) {
 test('accepts canonical CSS typography, inheritance, structural zeros, and documented geometry', () => {
   const issues = auditTypographyText(`
     .body {
-      font-family: var(--openbitfun-type-body-md-font-family);
-      font-size: var(--openbitfun-type-body-md-font-size);
-      font-weight: var(--openbitfun-font-weight-regular);
-      line-height: var(--openbitfun-line-height-base);
-      letter-spacing: var(--openbitfun-letter-spacing-normal);
+      font-family: var(--bitfun-type-body-md-font-family);
+      font-size: var(--bitfun-type-body-md-font-size);
+      font-weight: var(--bitfun-font-weight-regular);
+      line-height: var(--bitfun-line-height-base);
+      letter-spacing: var(--bitfun-letter-spacing-normal);
     }
     .inherit { font: inherit; }
     .structural { font-size: 0; line-height: 0; }
@@ -47,14 +47,14 @@ test('rejects raw CSS sizes, weights, line heights, tracking, and font stacks', 
 test('accepts only build-owned font faces and stacks in Web font profiles', () => {
   const issues = auditTypographyText(`
     @font-face {
-      font-family: "OpenBitFun HarmonyOS Sans";
+      font-family: "BitFun HarmonyOS Sans";
       font-weight: 500;
     }
-    @layer openbitfun.tokens.system {
-      :where([data-openbitfun-design-system-root]) {
-        --openbitfun-font-family-sans: "OpenBitFun HarmonyOS Sans", system-ui, sans-serif;
-        --openbitfun-font-family-control: "OpenBitFun HarmonyOS Sans", system-ui, sans-serif;
-        --openbitfun-font-family-mono: "Fira Code", monospace;
+    @layer bitfun.tokens.system {
+      :where([data-bitfun-design-system-root]) {
+        --bitfun-font-family-sans: "BitFun HarmonyOS Sans", system-ui, sans-serif;
+        --bitfun-font-family-control: "BitFun HarmonyOS Sans", system-ui, sans-serif;
+        --bitfun-font-family-mono: "Fira Code", monospace;
       }
     }
   `, 'src/web-ui/src/font-profiles/harmony-bundled.css');
@@ -79,11 +79,11 @@ test('rejects unrelated raw typography inside Web font profiles', () => {
 test('requires semantic roles in the complete component library and every React product frontend', () => {
   const primitiveCodes = codesFor(`
     .title {
-      font-family: var(--openbitfun-font-family-control);
-      font-size: var(--openbitfun-font-size-sm);
-      font-weight: var(--openbitfun-font-weight-semibold);
-      line-height: var(--openbitfun-line-height-tight);
-      letter-spacing: var(--openbitfun-letter-spacing-normal);
+      font-family: var(--bitfun-font-family-control);
+      font-size: var(--bitfun-font-size-sm);
+      font-weight: var(--bitfun-font-weight-semibold);
+      line-height: var(--bitfun-line-height-tight);
+      letter-spacing: var(--bitfun-letter-spacing-normal);
     }
   `, 'design-system/packages/ui/src/components/Card/Card.module.css');
 
@@ -94,24 +94,24 @@ test('requires semantic roles in the complete component library and every React 
 
   const semanticIssues = auditTypographyText(`
     .title {
-      font-family: var(--openbitfun-type-heading-card-font-family);
-      font-size: var(--openbitfun-type-heading-card-font-size);
-      font-weight: var(--openbitfun-type-heading-card-font-weight);
-      line-height: var(--openbitfun-type-heading-card-line-height);
-      letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+      font-family: var(--bitfun-type-heading-card-font-family);
+      font-size: var(--bitfun-type-heading-card-font-size);
+      font-weight: var(--bitfun-type-heading-card-font-weight);
+      line-height: var(--bitfun-type-heading-card-line-height);
+      letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
     }
   `, 'design-system/packages/ui/src/components/Card/Card.module.css');
 
   assert.deepEqual(semanticIssues, []);
 
   const geometryIssues = auditTypographyText(`
-    .icon { inline-size: var(--openbitfun-font-size-sm); block-size: var(--openbitfun-font-size-sm); }
+    .icon { inline-size: var(--bitfun-font-size-sm); block-size: var(--bitfun-font-size-sm); }
   `, 'design-system/packages/ui/src/components/ActionItem/ActionItem.module.css');
 
   assert.deepEqual(geometryIssues, []);
 
   const flowChatCodes = codesFor(`
-    .message { font-size: var(--openbitfun-font-size-sm); }
+    .message { font-size: var(--bitfun-font-size-sm); }
   `, 'design-system/packages/ui/src/flow-chat/Message.module.css');
 
   assert.equal(
@@ -121,8 +121,8 @@ test('requires semantic roles in the complete component library and every React 
 
   const webUiCodes = codesFor(`
     .label {
-      font-size: var(--openbitfun-font-size-xs);
-      line-height: var(--openbitfun-line-height-tight);
+      font-size: var(--bitfun-font-size-xs);
+      line-height: var(--bitfun-line-height-tight);
     }
   `, 'src/web-ui/src/app/components/LegacyLabel.scss');
 
@@ -133,8 +133,8 @@ test('requires semantic roles in the complete component library and every React 
 
   const webUiIndirectCodes = codesFor(`
     .title {
-      --local-title-font: var(--openbitfun-font-family-sans);
-      min-height: calc(var(--openbitfun-font-size-sm) * var(--openbitfun-line-height-base));
+      --local-title-font: var(--bitfun-font-family-sans);
+      min-height: calc(var(--bitfun-font-size-sm) * var(--bitfun-line-height-base));
     }
   `, 'src/web-ui/src/app/components/LegacyTitle.scss');
 
@@ -145,11 +145,11 @@ test('requires semantic roles in the complete component library and every React 
 
   for (const productPath of [
     'src/mobile-web/src/styles/LegacyLabel.scss',
-    'OpenBitFun-Installer/src/styles/LegacyLabel.css',
+    'BitFun-Installer/src/styles/LegacyLabel.css',
     'design-system/apps/design-lab/src/LegacyLabel.css',
   ]) {
     const productCodes = codesFor(`
-      .label { font-size: var(--openbitfun-font-size-xs); }
+      .label { font-size: var(--bitfun-font-size-xs); }
     `, productPath);
 
     assert.equal(
@@ -167,9 +167,9 @@ test('rejects static TypeScript typography but accepts tokens, adapters, and dyn
     const compilerKeys = { fontSize: 'font-size', lineHeight: 'line-height' };
     const tokenOptions = { fontSize: getTypographyTokenPx('font.size.base') };
     const dynamicPreview = { fontSize: \`\${previewPx}px\` };
-    const tokenStyle = { fontWeight: 'var(--openbitfun-font-weight-semibold)' };
+    const tokenStyle = { fontWeight: 'var(--bitfun-font-weight-semibold)' };
     const Component = ({ fontSize = 16 }) => (
-      <svg><text fontSize={10} fontWeight="var(--openbitfun-font-weight-medium)" /></svg>
+      <svg><text fontSize={10} fontWeight="var(--bitfun-font-weight-medium)" /></svg>
     );
   `, 'fixture.tsx');
 
@@ -178,8 +178,8 @@ test('rejects static TypeScript typography but accepts tokens, adapters, and dyn
 
 test('requires semantic roles in product frontend inline styles and embedded CSS', () => {
   const codes = codesFor(`
-    const style = { fontSize: 'var(--openbitfun-font-size-sm)' };
-    const shell = \`<style>.title { font-weight: var(--openbitfun-font-weight-semibold); }</style>\`;
+    const style = { fontSize: 'var(--bitfun-font-size-sm)' };
+    const shell = \`<style>.title { font-weight: var(--bitfun-font-weight-semibold); }</style>\`;
   `, 'src/web-ui/src/fixture.tsx');
 
   assert.equal(
@@ -188,18 +188,18 @@ test('requires semantic roles in product frontend inline styles and embedded CSS
   );
 
   const semanticIssues = auditTypographyText(`
-    const style = { fontSize: 'var(--openbitfun-type-label-md-font-size)' };
-    const shell = \`<style>.title { font-weight: var(--openbitfun-type-heading-card-font-weight); }</style>\`;
+    const style = { fontSize: 'var(--bitfun-type-label-md-font-size)' };
+    const shell = \`<style>.title { font-weight: var(--bitfun-type-heading-card-font-weight); }</style>\`;
   `, 'src/web-ui/src/fixture.tsx');
 
   assert.deepEqual(semanticIssues, []);
 
   for (const productPath of [
     'src/mobile-web/src/fixture.tsx',
-    'OpenBitFun-Installer/src/fixture.tsx',
+    'BitFun-Installer/src/fixture.tsx',
   ]) {
     const productCodes = codesFor(`
-      const style = { fontSize: 'var(--openbitfun-font-size-sm)' };
+      const style = { fontSize: 'var(--bitfun-font-size-sm)' };
     `, productPath);
     assert.equal(
       productCodes.filter(code => code === 'foundation-typography-in-semantic-consumer').length,
@@ -212,7 +212,7 @@ test('requires semantic roles in product frontend inline styles and embedded CSS
 test('rejects retired aliases and FlowChat font APIs', () => {
   const codes = codesFor(`
     const oldToken = 'font.size.body';
-    const oldVar = '--openbitfun-appearance-token-flowchat-font-size-base';
+    const oldVar = '--bitfun-appearance-token-flowchat-font-size-base';
     setFlowChatFont('independent');
   `, 'fixture.ts');
 
@@ -226,7 +226,7 @@ test('rejects retired aliases and FlowChat font APIs', () => {
 test('rejects retired component typography tokens and variables', () => {
   const codes = codesFor(`
     const oldToken = 'control.button.xsFontSize';
-    const oldVariable = '--openbitfun-overlay-modal-title-font-weight';
+    const oldVariable = '--bitfun-overlay-modal-title-font-weight';
   `, 'fixture.ts');
 
   assert.deepEqual(codes.sort(), [
@@ -238,7 +238,7 @@ test('rejects retired component typography tokens and variables', () => {
 test('allows retired names only inside explicit negative-test blocks', () => {
   const issues = auditTypographyText(`
     // typography-audit: negative-test-start -- verifies the retired alias stays absent
-    expect(css).not.toContain('--openbitfun-appearance-token-font-size-base');
+    expect(css).not.toContain('--bitfun-appearance-token-font-size-base');
     // typography-audit: negative-test-end
   `, 'fixture.test.ts');
 
@@ -300,7 +300,7 @@ test('rejects a backend FlowChat font snapshot', () => {
 test('rejects retired FlowChat typography in the distributed Appearance registry', () => {
   const issues = auditTypographyFileContractText(`{
     "components": [{ "id": "font-preference", "parts": [{ "id": "flowChatControls" }] }]
-  }`, 'src/crates/assembly/core/builtin_skills/create-openbitfun-skin/references/appearance-registry.json');
+  }`, 'src/crates/assembly/core/builtin_skills/create-bitfun-skin/references/appearance-registry.json');
 
   assert.deepEqual(issues.map(issue => issue.code), [
     'appearance-registry-flowchat-font-contract-reintroduced',
@@ -308,7 +308,7 @@ test('rejects retired FlowChat typography in the distributed Appearance registry
 });
 
 test('rejects typography in the standalone Appearance validator but allows Monaco fontStyle', () => {
-  const path = 'src/crates/assembly/core/builtin_skills/create-openbitfun-skin/scripts/openbitfun_appearance.py';
+  const path = 'src/crates/assembly/core/builtin_skills/create-bitfun-skin/scripts/bitfun_appearance.py';
   const valid = auditTypographyFileContractText(`
     font_style = rule.get("fontStyle")
   `, path);

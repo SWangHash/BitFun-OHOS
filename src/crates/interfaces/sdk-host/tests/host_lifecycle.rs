@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use openbitfun_agent_runtime::event_queue::{EventQueue, EventQueueConfig};
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::event_queue::{EventQueue, EventQueueConfig};
+use bitfun_agent_runtime::sdk::{
     AgentDialogTurnPort, AgentDialogTurnRequest, AgentEventSource, AgentRuntimeBuilder,
     AgentSessionClosePort, AgentSessionCreateRequest, AgentSessionCreateResult,
     AgentSessionDeleteRequest, AgentSessionListRequest, AgentSessionManagementPort,
@@ -19,17 +19,17 @@ use openbitfun_agent_runtime::sdk::{
     PermissionRequestSource, PermissionRequestSourceKind, PortError, PortErrorKind, PortResult,
     SessionState,
 };
-use openbitfun_core_types::ErrorCategory;
-use openbitfun_events::{AgenticEvent, ToolEventData, ToolEventIdentity};
-use openbitfun_runtime_ports::{
+use bitfun_core_types::ErrorCategory;
+use bitfun_events::{AgenticEvent, ToolEventData, ToolEventIdentity};
+use bitfun_runtime_ports::{
     ClockPort, PermissionAuditRecord, PermissionAuditStorePort, PermissionGrant,
     PermissionReplyStorePort, RuntimeServiceCapability, RuntimeServicePort,
 };
-use openbitfun_sdk_host::host::{
+use bitfun_sdk_host::host::{
     ConnectionControl, HostOutput, SdkHostConfig, SdkHostConnection, TemporaryModelInstallError,
     TemporaryModelInstaller,
 };
-use openbitfun_sdk_host::protocol::{JsonRpcRequest, TemporaryModelConfig, PROTOCOL_VERSION};
+use bitfun_sdk_host::protocol::{JsonRpcRequest, TemporaryModelConfig, PROTOCOL_VERSION};
 use tokio::sync::{mpsc, Notify};
 use tokio::time::timeout;
 
@@ -3374,7 +3374,7 @@ async fn permission_request_is_streamed_and_can_be_allowed_once() {
         .unwrap();
     assert!(matches!(
         unrelated.wait().await,
-        openbitfun_agent_runtime::permission::PermissionWaitOutcome::Cancelled { .. }
+        bitfun_agent_runtime::permission::PermissionWaitOutcome::Cancelled { .. }
     ));
 
     let pending = permissions
@@ -3419,8 +3419,8 @@ async fn permission_request_is_streamed_and_can_be_allowed_once() {
     let resolution = pending.wait().await;
     assert!(matches!(
         resolution,
-        openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
-            openbitfun_agent_runtime::sdk::PermissionReply::Once
+        bitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
+            bitfun_agent_runtime::sdk::PermissionReply::Once
         )
     ));
 
@@ -3499,8 +3499,8 @@ async fn permission_request_is_streamed_and_can_be_allowed_once() {
     assert_eq!(output.recv().await.unwrap()["result"]["accepted"], true);
     assert!(matches!(
         rejected.wait().await,
-        openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
-            openbitfun_agent_runtime::sdk::PermissionReply::Reject { feedback }
+        bitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
+            bitfun_agent_runtime::sdk::PermissionReply::Reject { feedback }
         ) if feedback.as_deref() == Some("not needed")
     ));
 
@@ -3525,8 +3525,8 @@ async fn permission_request_is_streamed_and_can_be_allowed_once() {
         tokio::time::timeout(Duration::from_secs(1), expired.wait())
             .await
             .expect("permission timeout must settle through the Runtime owner"),
-        openbitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
-            openbitfun_agent_runtime::sdk::PermissionReply::Reject { feedback }
+        bitfun_agent_runtime::permission::PermissionWaitOutcome::Replied(
+            bitfun_agent_runtime::sdk::PermissionReply::Reject { feedback }
         ) if feedback.as_deref() == Some("SDK permission response timed out")
     ));
 

@@ -1,14 +1,14 @@
 //! Compatibility facade for review-platform operations.
 //!
 //! Provider detection, provider DTO mapping, token persistence, and HTTP/Git
-//! integration logic live in `openbitfun-services-integrations::review_platform`.
-//! Core only preserves the legacy static API, injects OpenBitFun storage paths, and
+//! integration logic live in `bitfun-services-integrations::review_platform`.
+//! Core only preserves the legacy static API, injects BitFun storage paths, and
 //! connects the product remote-workspace classifier.
 
 use crate::infrastructure::try_get_path_manager_arc;
 use std::sync::Arc;
 
-pub use openbitfun_services_integrations::review_platform::{
+pub use bitfun_services_integrations::review_platform::{
     classify_git_command_failure, untrusted_repository_error_message, ReviewAuthSource,
     ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness, ReviewFileStatus,
     ReviewItemState, ReviewPlatformAccount, ReviewPlatformActionResult,
@@ -25,7 +25,7 @@ pub use openbitfun_services_integrations::review_platform::{
     ReviewPlatformWorkspaceSnapshot, ReviewSubmitEvent,
 };
 
-use openbitfun_services_integrations::review_platform::{
+use bitfun_services_integrations::review_platform::{
     ReviewPlatformService as ReviewPlatformOwnerService, ReviewPlatformWorkspaceClassifier,
     REVIEW_PLATFORM_TOKEN_FILE_NAME,
 };
@@ -66,7 +66,7 @@ impl ReviewPlatformWorkspaceClassifier for CoreReviewPlatformWorkspaceClassifier
             use crate::service::remote_ssh::workspace_state::{
                 get_remote_workspace_manager, lookup_remote_connection,
             };
-            use openbitfun_services_integrations::remote_ssh::{
+            use bitfun_services_integrations::remote_ssh::{
                 build_remote_git_command, normalize_remote_workspace_path,
             };
 
@@ -115,7 +115,7 @@ impl ReviewPlatformWorkspaceClassifier for CoreReviewPlatformWorkspaceClassifier
         {
             let _ = (current_dir, args);
             Err(ReviewPlatformError::InvalidRepository(format!(
-                "Remote workspaces are not compiled into this OpenBitFun host (feature `remote-workspace`); refusing to run Git against the local filesystem for a remote workspace: {workspace_path}"
+                "Remote workspaces are not compiled into this BitFun host (feature `remote-workspace`); refusing to run Git against the local filesystem for a remote workspace: {workspace_path}"
             )))
         }
     }
@@ -389,8 +389,8 @@ mod tests {
 
         let error = classifier
             .execute_remote_git_command(
-                "/openbitfun-tests/unregistered-remote-workspace",
-                "/openbitfun-tests/unregistered-remote-workspace",
+                "/bitfun-tests/unregistered-remote-workspace",
+                "/bitfun-tests/unregistered-remote-workspace",
                 &["remote", "-v"],
             )
             .await

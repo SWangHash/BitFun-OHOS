@@ -1,5 +1,5 @@
 import React from 'react';
-import { OverflowText } from '@openbitfun/ui';
+import { OverflowText } from '@bitfun/ui';
 import { messageContextIcon, messageInlineTokenIcon } from './messageReferenceIcons';
 import './MessageReferenceCapsule.scss';
 
@@ -14,9 +14,9 @@ export const MessageReferenceCapsule: React.FC<{
   return (
     <span
       className={`message-reference-capsule message-reference-capsule--${type} user-message-item__reference user-message-item__reference--${type} ${className}`.trim()}
-      data-openbitfun-product-component="user-message-item"
-      data-openbitfun-product-part="content"
-      data-openbitfun-state={type}
+      data-bitfun-product-component="user-message-item"
+      data-bitfun-product-part="content"
+      data-bitfun-state={type}
       title={title ?? label}
     >
       {children ?? (type === 'skill' || type === 'widget'

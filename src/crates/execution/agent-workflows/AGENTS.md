@@ -1,6 +1,6 @@
 # Agent Workflows
 
-`openbitfun-agent-workflows` owns named OpenBitFun workflow policy that is independent
+`bitfun-agent-workflows` owns named BitFun workflow policy that is independent
 from hosts and concrete IO, such as DeepResearch report shaping.
 
 It may build on Agent Runtime contracts. Agent Runtime must not depend on this
@@ -12,5 +12,5 @@ Keep workflow modules independent unless they share a proven runtime primitive.
 ## Verification
 
 ```bash
-cargo test -p openbitfun-agent-workflows
+cargo test -p bitfun-agent-workflows
 ```

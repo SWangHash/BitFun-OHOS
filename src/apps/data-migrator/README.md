@@ -1,37 +1,37 @@
-# OpenBitFun Data Migrator
+# BitFun Data Migrator
 
 [中文](README.zh-CN.md)
 
 A separate, optional desktop utility for importing old **BitFun** data into
-**OpenBitFun**.
+**BitFun**.
 
 ## Download and run
 
-**Latest release: [v0.1.1 — download Data Migrator](https://github.com/GCWing/OpenBitFun/releases/tag/data-migrator-v0.1.1).**
+**Latest release: [v0.1.1 — download Data Migrator](https://github.com/GCWing/BitFun/releases/tag/data-migrator-v0.1.1).**
 
 | Platform | Download | Launch |
 | --- | --- | --- |
-| Windows x64 | `openbitfun-data-migrator-v<version>-windows-x64.zip` | Extract, then double-click `openbitfun-data-migrator.exe` |
-| macOS Apple Silicon | `openbitfun-data-migrator-v<version>-macos-arm64.dmg` | Open the DMG and its Data Migrator app |
-| macOS Intel | `openbitfun-data-migrator-v<version>-macos-x64.dmg` | Open the DMG and its Data Migrator app |
-| Linux x64 | `openbitfun-data-migrator-v<version>-linux-x64.AppImage` | Make executable and launch in a desktop session |
+| Windows x64 | `bitfun-data-migrator-v<version>-windows-x64.zip` | Extract, then double-click `bitfun-data-migrator.exe` |
+| macOS Apple Silicon | `bitfun-data-migrator-v<version>-macos-arm64.dmg` | Open the DMG and its Data Migrator app |
+| macOS Intel | `bitfun-data-migrator-v<version>-macos-x64.dmg` | Open the DMG and its Data Migrator app |
+| Linux x64 | `bitfun-data-migrator-v<version>-linux-x64.AppImage` | Make executable and launch in a desktop session |
 
 Windows needs the Microsoft Edge WebView2 runtime. macOS uses the system WebView;
 Linux packages are built on Ubuntu 22.04. No login or network connection is
 needed for migration. ARM Windows/Linux packages are not currently produced.
 
-1. Close BitFun, OpenBitFun, their CLI instances, and background data writers.
+1. Close BitFun, BitFun, their CLI instances, and background data writers.
 2. Open Data Migrator. Check the **source and destination** directories.
 3. Select the data groups, scan, then run the preflight plan.
 4. Review the destination, scope, and conflicts, then start migration. If known writers
    remain open, the tool waits for them to stop; it does not terminate them.
 5. Read the report. Sign in again or repair paths where indicated, close the
-   tool, and open OpenBitFun yourself.
+   tool, and open BitFun yourself.
 
 ## Data and compatibility
 
 Supported sources are **stable BitFun releases 0.2.17–0.2.19**, targeting
-**OpenBitFun 1.0**. Direct migration from 0.2.16 or earlier is not supported;
+**BitFun 1.0**. Direct migration from 0.2.16 or earlier is not supported;
 upgrade BitFun first, launch it, and verify that your existing data is accessible.
 
 Scanning isolates errors in individual sessions, runtime event logs, Skills,
@@ -43,7 +43,7 @@ If a domain fails during execution, it is rolled back before independent domains
 continue. Execution stops if rollback cannot complete safely. Review warnings
 and the migration report before retrying.
 
-The destination is OpenBitFun: configuration schema **1**, workspace registry
+The destination is BitFun: configuration schema **1**, workspace registry
 format **1**, coordination database schema **2**, and the session, memory,
 extension, and connection formats accepted by the shared storage owners in
 this source revision. Unknown product/configuration schemas and newer SQLite
@@ -68,7 +68,7 @@ may remain imported.
 Plans, journals, reports, backups and staging live under:
 
 ```text
-<destination settings-and-data>/data/migrations/bitfun-to-openbitfun/runs/<run-id>/
+<destination settings-and-data>/data/migrations/bitfun-to-bitfun/runs/<run-id>/
 ```
 
 Reopen the tool, select the original directories, and use **Saved migration
@@ -79,7 +79,7 @@ never replace earlier journals. Old handoff-based plans remain readable even
 if their `request.json` has expired; select the original locations before
 resuming them. Unreadable files are not deleted or reset.
 
-The tool remembers selected locations in its own `com.openbitfun.data-migrator`
+The tool remembers selected locations in its own `com.bitfun.data-migrator`
 application configuration directory. It does not write main-app onboarding or
 reminder preferences. **Export failure diagnostics** writes a sanitized file
 containing result codes and journal phases. Review personal information before
@@ -94,27 +94,27 @@ importing stored connection records does not connect to or migrate a remote host
 
 **Migration finishes, but workspaces or sessions are empty, or some data is missing**
 
-If you have already launched OpenBitFun or run a migration, existing destination data may take precedence and remain unchanged during retries.
+If you have already launched BitFun or run a migration, existing destination data may take precedence and remain unchanged during retries.
 
-If OpenBitFun contains no new data you need to keep, you can clear its destination data and retry:
+If BitFun contains no new data you need to keep, you can clear its destination data and retry:
 
-1. Fully quit BitFun, OpenBitFun, and the migrator.
-2. Back up the following directories, then delete them. **This removes existing OpenBitFun settings, sessions, and other local data.**
-3. Run the migrator again, then launch OpenBitFun after migration finishes.
+1. Fully quit BitFun, BitFun, and the migrator.
+2. Back up the following directories, then delete them. **This removes existing BitFun settings, sessions, and other local data.**
+3. Run the migrator again, then launch BitFun after migration finishes.
 
 Windows destination directories:
 
 ```text
-%APPDATA%\openbitfun
-%USERPROFILE%\.openbitfun
-%LOCALAPPDATA%\OpenBitFun
+%APPDATA%\bitfun
+%USERPROFILE%\.bitfun
+%LOCALAPPDATA%\BitFun
 ```
 
 **The issue persists after retrying**
 
-Open a report in [GitHub Issues](https://github.com/GCWing/OpenBitFun/issues) or share your feedback in the OpenBitFun user WeChat group. Include:
+Open a report in [GitHub Issues](https://github.com/GCWing/BitFun/issues) or share your feedback in the BitFun user WeChat group. Include:
 
-- Your operating system and the BitFun, OpenBitFun, and migrator versions.
+- Your operating system and the BitFun, BitFun, and migrator versions.
 - Steps to reproduce, the expected result, and the actual result.
 - The workspace and session name or ID associated with missing data.
 - Migration logs from the affected run.
@@ -122,7 +122,7 @@ Open a report in [GitHub Issues](https://github.com/GCWing/OpenBitFun/issues) or
 Windows migration log location:
 
 ```text
-%APPDATA%\openbitfun\data\migrations\bitfun-to-openbitfun\runs\<run-id>\
+%APPDATA%\bitfun\data\migrations\bitfun-to-bitfun\runs\<run-id>\
 ```
 
 Provide the log files from the affected run, such as `report.json`, `plan.json`, `journal.jsonl`, `locations.json`, and `release-observation.json` when present. The `stage` and `backup` directories contain personal data, so sharing them is optional and at your discretion; the log files listed above are usually sufficient for an initial report. Save the logs before clearing the destination directories for another attempt.
@@ -137,7 +137,7 @@ From the repository root with Rust, Node, pnpm and the platform's Tauri build pr
 pnpm install
 pnpm run data-migrator:dev       # independent window; no Desktop or dev server
 pnpm run data-migrator:build     # independent release bundle
-cargo build -p openbitfun-data-migrator --bin openbitfun-data-migrator
+cargo build -p bitfun-data-migrator --bin bitfun-data-migrator
 ```
 
 Direct Cargo builds embed the committed UI and design-system CSS. After changing

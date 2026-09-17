@@ -50,7 +50,7 @@ export const ReproductionStepsBlock: React.FC<ReproductionStepsBlockProps> = ({
       const { FlowChatManager } = await import('../../../flow_chat/services/FlowChatManager');
       const flowChatManager = FlowChatManager.getInstance();
       
-      // Log collection note: read .openbitfun/debug.log
+      // Log collection note: read .bitfun/debug.log
       await flowChatManager.sendMessage(
         t('reproductionSteps.userCompleted'),
         undefined,
@@ -82,11 +82,11 @@ export const ReproductionStepsBlock: React.FC<ReproductionStepsBlockProps> = ({
   const showContent = hasProceeded ? isExpanded : true;
 
   return (
-    <div className={`reproduction-steps-block ${hasProceeded ? 'proceeded' : ''} ${showContent ? 'expanded' : 'collapsed'}`} data-openbitfun-component="markdown" data-openbitfun-part="reproduction" data-openbitfun-state={showContent ? 'expanded' : undefined}>
+    <div className={`reproduction-steps-block ${hasProceeded ? 'proceeded' : ''} ${showContent ? 'expanded' : 'collapsed'}`} data-bitfun-component="markdown" data-bitfun-part="reproduction" data-bitfun-state={showContent ? 'expanded' : undefined}>
       <div 
         className={`reproduction-steps-header ${hasProceeded ? 'clickable' : ''}`}
-        data-openbitfun-component="markdown"
-        data-openbitfun-part="reproductionHeader"
+        data-bitfun-component="markdown"
+        data-bitfun-part="reproductionHeader"
         onClick={hasProceeded ? toggleExpand : undefined}
         role={hasProceeded ? 'button' : undefined}
         tabIndex={hasProceeded ? 0 : undefined}
@@ -111,7 +111,7 @@ export const ReproductionStepsBlock: React.FC<ReproductionStepsBlockProps> = ({
       
       {showContent && (
         <>
-          <div className="reproduction-steps-content" data-openbitfun-component="markdown" data-openbitfun-part="reproductionContent">
+          <div className="reproduction-steps-content" data-bitfun-component="markdown" data-bitfun-part="reproductionContent">
             <ol className="reproduction-steps-list">
               {stepList.map((step, index) => (
                 <li key={index} className="reproduction-step-item">
@@ -122,7 +122,7 @@ export const ReproductionStepsBlock: React.FC<ReproductionStepsBlockProps> = ({
           </div>
           
           {!hasProceeded && (
-            <div className="reproduction-steps-actions" data-openbitfun-component="markdown" data-openbitfun-part="reproductionActions">
+            <div className="reproduction-steps-actions" data-bitfun-component="markdown" data-bitfun-part="reproductionActions">
               <div className="reproduction-steps-hint">
                 {t('reproductionSteps.instruction')}
               </div>

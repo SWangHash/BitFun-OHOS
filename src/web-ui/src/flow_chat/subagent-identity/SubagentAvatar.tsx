@@ -37,11 +37,11 @@ export const SubagentAvatar: React.FC<SubagentAvatarProps> = ({
   return (
     <span
       className={classes}
-      data-openbitfun-component="subagent-avatar"
-      data-openbitfun-part="root"
-      data-openbitfun-avatar-id={presentation.avatarId}
-      data-openbitfun-avatar-color-id={presentation.colorId}
-      data-openbitfun-state={status}
+      data-bitfun-component="subagent-avatar"
+      data-bitfun-part="root"
+      data-bitfun-avatar-id={presentation.avatarId}
+      data-bitfun-avatar-color-id={presentation.colorId}
+      data-bitfun-state={status}
       style={{
         '--subagent-avatar-size': `${size}px`,
         '--subagent-avatar-hue-shift': `${presentation.hueShiftDegrees}deg`,

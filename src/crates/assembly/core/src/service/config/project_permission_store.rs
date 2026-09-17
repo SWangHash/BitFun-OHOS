@@ -1,9 +1,9 @@
 //! Workspace-scoped static tool permission rules.
 
 use crate::infrastructure::get_path_manager_arc;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_core_types::product_identity::hidden_data_directory;
-use openbitfun_runtime_ports::{PermissionRule, WorkspaceFileSystem};
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_core_types::product_identity::hidden_data_directory;
+use bitfun_runtime_ports::{PermissionRule, WorkspaceFileSystem};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -32,34 +32,34 @@ pub fn project_permission_file_path_for_remote(remote_root: &str) -> String {
 
 pub fn deserialize_project_permission_config(
     content: &str,
-) -> OpenBitFunResult<ProjectPermissionConfig> {
+) -> BitFunResult<ProjectPermissionConfig> {
     let value: Value = serde_json::from_str(content).map_err(|error| {
-        OpenBitFunError::config(format!(
+        BitFunError::config(format!(
             "Failed to parse project permission config: {error}"
         ))
     })?;
 
     if value.is_array() {
-        Err(OpenBitFunError::config(
-            "Project permission config uses the pre-OpenBitFun array format; use the explicit data migration tool instead",
+        Err(BitFunError::config(
+            "Project permission config uses the pre-BitFun array format; use the explicit data migration tool instead",
         ))
     } else {
         serde_json::from_value(value).map_err(|error| {
-            OpenBitFunError::config(format!("Invalid project permission config: {error}"))
+            BitFunError::config(format!("Invalid project permission config: {error}"))
         })
     }
 }
 
 pub async fn load_project_permission_config_local(
     workspace_root: &Path,
-) -> OpenBitFunResult<ProjectPermissionConfig> {
+) -> BitFunResult<ProjectPermissionConfig> {
     let path = project_permission_file_path(workspace_root);
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => deserialize_project_permission_config(&content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(ProjectPermissionConfig::default())
         }
-        Err(error) => Err(OpenBitFunError::config(format!(
+        Err(error) => Err(BitFunError::config(format!(
             "Failed to read project permission config '{}': {error}",
             path.display()
         ))),
@@ -69,14 +69,14 @@ pub async fn load_project_permission_config_local(
 pub async fn load_project_permission_config_remote(
     fs: &dyn WorkspaceFileSystem,
     remote_root: &str,
-) -> OpenBitFunResult<ProjectPermissionConfig> {
+) -> BitFunResult<ProjectPermissionConfig> {
     let path = project_permission_file_path_for_remote(remote_root);
     if !fs.exists(&path).await.unwrap_or(false) {
         return Ok(ProjectPermissionConfig::default());
     }
 
     let content = fs.read_file_text(&path).await.map_err(|error| {
-        OpenBitFunError::config(format!(
+        BitFunError::config(format!(
             "Failed to read remote project permission config '{}': {error}",
             path
         ))
@@ -87,7 +87,7 @@ pub async fn load_project_permission_config_remote(
 #[cfg(test)]
 mod tests {
     use super::{deserialize_project_permission_config, project_permission_file_path_for_remote};
-    use openbitfun_runtime_ports::{PermissionEffect, PermissionRule};
+    use bitfun_runtime_ports::{PermissionEffect, PermissionRule};
 
     #[test]
     fn parses_object_permission_config() {
@@ -103,13 +103,13 @@ mod tests {
     }
 
     #[test]
-    fn rejects_pre_openbitfun_array_permission_config() {
+    fn rejects_pre_bitfun_array_permission_config() {
         let error = deserialize_project_permission_config(
             r#"[{"action":"read","resource":"secrets/*","effect":"deny"}]"#,
         )
-        .expect_err("pre-OpenBitFun array config must require explicit migration");
+        .expect_err("pre-BitFun array config must require explicit migration");
 
-        assert!(error.to_string().contains("pre-OpenBitFun"), "{error}");
+        assert!(error.to_string().contains("pre-BitFun"), "{error}");
         assert!(
             error.to_string().contains("explicit data migration tool"),
             "{error}"
@@ -120,7 +120,7 @@ mod tests {
     fn remote_permission_path_is_workspace_scoped() {
         assert_eq!(
             project_permission_file_path_for_remote("/home/user/project/"),
-            "/home/user/project/.openbitfun/config/tool_permissions.json"
+            "/home/user/project/.bitfun/config/tool_permissions.json"
         );
     }
 }

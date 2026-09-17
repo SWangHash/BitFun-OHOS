@@ -93,9 +93,9 @@
         "manual": {
           "open": "Upload package",
           "title": "Manual submission",
-          "hint": "Choose a local .openbitfun-appearance archive. BitFun validates it before upload; the Skin server validates it again before review.",
+          "hint": "Choose a local .bitfun-appearance archive. BitFun validates it before upload; the Skin server validates it again before review.",
           "package": "Appearance package",
-          "packagePlaceholder": "Choose a .openbitfun-appearance file",
+          "packagePlaceholder": "Choose a .bitfun-appearance file",
           "choose": "Choose file",
           "chooseTitle": "Choose an Appearance package to submit",
           "slug": "Market slug (optional)",

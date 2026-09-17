@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { flowChatStore } from '../store/FlowChatStore';
 import { FlowChatState, Session } from '../types/flow-chat';
-import { OverflowText, Tooltip, Icon } from '@openbitfun/ui';
+import { OverflowText, Tooltip, Icon } from '@bitfun/ui';
 import { i18nService } from '@/infrastructure/i18n';
 import { resolveSessionTitle } from '../utils/sessionTitle';
 import { useSessionTitleNumbers } from '../hooks/useSessionTitleNumbers';
@@ -55,14 +55,14 @@ const CurrentSessionTitle: React.FC<CurrentSessionTitleProps> = ({ onCreateSessi
   const newSessionLabel = t('session.newCode');
 
   return (
-    <div data-openbitfun-component="current-session-title" data-openbitfun-part="root" className="openbitfun-current-session-title">
-      <OverflowText data-openbitfun-component="current-session-title" data-openbitfun-part="title" className="openbitfun-current-session-title__text">{title}</OverflowText>
+    <div data-bitfun-component="current-session-title" data-bitfun-part="root" className="bitfun-current-session-title">
+      <OverflowText data-bitfun-component="current-session-title" data-bitfun-part="title" className="bitfun-current-session-title__text">{title}</OverflowText>
       <SessionTitleNumber number={activeSession ? titleNumbers.get(activeSession.sessionId) : undefined} />
       <Tooltip content={newSessionLabel} placement="bottom">
         <button
-          data-openbitfun-component="current-session-title"
-          data-openbitfun-part="create"
-          className="openbitfun-current-session-title__create-btn"
+          data-bitfun-component="current-session-title"
+          data-bitfun-part="create"
+          className="bitfun-current-session-title__create-btn"
           onClick={handleCreateSession}
           aria-label={newSessionLabel}
         >

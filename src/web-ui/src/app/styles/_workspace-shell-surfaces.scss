@@ -6,21 +6,21 @@
  */
 
 @mixin sidebar-background {
-  background: var(--openbitfun-color-surface-chrome);
+  background: var(--bitfun-color-surface-chrome);
 }
 
 @mixin sidebar-glass {
   @include sidebar-background;
 
   @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-    background: color-mix(in srgb, var(--openbitfun-color-surface-chrome) 75%, transparent);
-    -webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);
-    backdrop-filter: var(--openbitfun-effect-blur-medium);
-    box-shadow: var(--openbitfun-shadow-inner-highlight);
+    background: color-mix(in srgb, var(--bitfun-color-surface-chrome) 75%, transparent);
+    -webkit-backdrop-filter: var(--bitfun-effect-blur-medium);
+    backdrop-filter: var(--bitfun-effect-blur-medium);
+    box-shadow: var(--bitfun-shadow-inner-highlight);
   }
 
-  :root[data-openbitfun-native-material='sidebar'] & {
-    background: color-mix(in srgb, var(--openbitfun-color-surface-chrome) 75%, transparent);
+  :root[data-bitfun-native-material='sidebar'] & {
+    background: color-mix(in srgb, var(--bitfun-color-surface-chrome) 75%, transparent);
     // The OS blurs desktop pixels; a CSS backdrop only sees the webview.
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -28,7 +28,7 @@
 
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
     &,
-    :root[data-openbitfun-native-material='sidebar'] & {
+    :root[data-bitfun-native-material='sidebar'] & {
       @include sidebar-background;
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
@@ -59,20 +59,20 @@
 }
 
 @mixin navigation-hover-feedback {
-  background: var(--openbitfun-color-action-neutral-surface);
+  background: var(--bitfun-color-action-neutral-surface);
 }
 
 @mixin navigation-selection-feedback {
-  background: var(--openbitfun-color-selection-surface);
+  background: var(--bitfun-color-selection-surface);
 }
 
 @mixin sidebar-hairline-color {
-  border-color: var(--openbitfun-color-border-subtle);
+  border-color: var(--bitfun-color-border-subtle);
 
-  :root[data-openbitfun-appearance-mode='light'] & {
+  :root[data-bitfun-appearance-mode='light'] & {
     border-color: color-mix(
       in srgb,
-      var(--openbitfun-color-content-on-light) 5%,
+      var(--bitfun-color-content-on-light) 5%,
       transparent
     );
   }

@@ -10,7 +10,7 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const e2eDirectory = path.resolve(scriptDirectory, '..');
 const manifestPath = path.join(
   os.tmpdir(),
-  `openbitfun-worktree-restart-manifest-${process.pid}-${randomUUID()}.json`,
+  `bitfun-worktree-restart-manifest-${process.pid}-${randomUUID()}.json`,
 );
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
@@ -32,8 +32,8 @@ function runPhase(phase) {
         env: {
           ...process.env,
           E2E_LOG_LEVEL: process.env.E2E_LOG_LEVEL || 'warn',
-          OPENBITFUN_E2E_WORKTREE_RESTART_PHASE: phase,
-          OPENBITFUN_E2E_WORKTREE_RESTART_MANIFEST: manifestPath,
+          BITFUN_E2E_WORKTREE_RESTART_PHASE: phase,
+          BITFUN_E2E_WORKTREE_RESTART_MANIFEST: manifestPath,
         },
       },
     );
@@ -79,7 +79,7 @@ function cleanupAbandonedFixture() {
     if (
       typeof manifest.fixtureRoot === 'string'
       && path.basename(manifest.fixtureRoot).startsWith(
-        'openbitfun-worktree-restart-e2e-',
+        'bitfun-worktree-restart-e2e-',
       )
     ) {
       fs.rmSync(manifest.fixtureRoot, { recursive: true, force: true });

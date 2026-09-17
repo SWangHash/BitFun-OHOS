@@ -147,7 +147,7 @@ function createSession(overrides: Partial<Session> = {}): Session {
     historyState: 'metadata-only',
     todos: [],
     mode: 'Standard',
-    workspacePath: 'D:/workspace/OpenBitFun',
+    workspacePath: 'D:/workspace/BitFun',
     sessionKind: 'normal',
     parentSessionId: undefined,
     parentToolCallId: undefined,
@@ -761,7 +761,7 @@ describe('SessionModule historical session coordination', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       undefined,
     );
@@ -821,7 +821,7 @@ describe('SessionModule historical session coordination', () => {
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledTimes(1);
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledWith(
       'history-2',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       undefined,
     );
@@ -917,7 +917,7 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       undefined,
       undefined,
@@ -977,14 +977,14 @@ describe('SessionModule historical session coordination', () => {
     }));
 
     await hydrateSessionHistoryForDetail(context, 'history-1', {
-      workspacePath: 'D:/workspace/OpenBitFun',
+      workspacePath: 'D:/workspace/BitFun',
       remoteConnectionId: 'remote-current',
       remoteSshHost: 'host-current',
     });
 
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       'remote-current',
       'host-current',
@@ -1002,7 +1002,7 @@ describe('SessionModule historical session coordination', () => {
 
     const weakHydrate = hydrateSessionHistoryForDetail(context, 'history-1');
     const strongHydrate = hydrateSessionHistoryForDetail(context, 'history-1', {
-      workspacePath: 'D:/workspace/OpenBitFun',
+      workspacePath: 'D:/workspace/BitFun',
       remoteConnectionId: 'remote-current',
       remoteSshHost: 'host-current',
     });
@@ -1012,7 +1012,7 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       'remote-current',
       'host-current',
@@ -1043,7 +1043,7 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.loadSessionHistory).toHaveBeenNthCalledWith(
       2,
       'history-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       undefined,
       undefined,
@@ -1413,7 +1413,7 @@ describe('SessionModule historical session coordination', () => {
 
     expect(sessionApiMocks.archiveSession).toHaveBeenCalledWith(
       'active-1',
-      'D:/workspace/OpenBitFun',
+      'D:/workspace/BitFun',
       undefined,
       undefined,
     );
@@ -1605,7 +1605,7 @@ describe('SessionModule historical session coordination', () => {
     expect(agentApiMocks.createSession).not.toHaveBeenCalled();
   });
 
-  it('does not recreate a session that another OpenBitFun instance is writing', async () => {
+  it('does not recreate a session that another BitFun instance is writing', async () => {
     const { context } = createContext(createSession({
       isHistorical: false,
       historyState: 'ready',

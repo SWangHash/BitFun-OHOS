@@ -1,4 +1,4 @@
-import { themeCssVariables } from '@openbitfun/theme-openbitfun';
+import { themeCssVariables } from '@bitfun/theme-bitfun';
 
 import type {
   AppearanceThemeScopeId,
@@ -103,16 +103,16 @@ function prefix<const Values extends readonly string[]>(
 }
 
 export const APPEARANCE_DOMAIN_TOKEN_NAMES = Object.freeze([
-  ...prefix(domainTokenSuffixes, '--openbitfun-domain-'),
-  ...prefix(languageTokenSuffixes, '--openbitfun-domain-language-'),
-  ...prefix(prismTokenSuffixes, '--openbitfun-domain-prism-'),
+  ...prefix(domainTokenSuffixes, '--bitfun-domain-'),
+  ...prefix(languageTokenSuffixes, '--bitfun-domain-language-'),
+  ...prefix(prismTokenSuffixes, '--bitfun-domain-prism-'),
 ]);
 
 export const APPEARANCE_COMPONENT_TOKEN_NAMES = Object.freeze(
   [
     // Public component colors are theme-owned; product-only component tokens stay above.
-    ...Object.values(themeCssVariables).filter(name => name.startsWith('--openbitfun-component-')),
-    ...prefix(componentTokenSuffixes, '--openbitfun-component-'),
+    ...Object.values(themeCssVariables).filter(name => name.startsWith('--bitfun-component-')),
+    ...prefix(componentTokenSuffixes, '--bitfun-component-'),
   ],
 );
 
@@ -129,7 +129,7 @@ export const APPEARANCE_ROOT_TOKEN_NAMES = Object.freeze([...new Set([
 export const APPEARANCE_SCOPED_TOKEN_NAMES = APPEARANCE_ROOT_THEME_TOKEN_NAMES;
 
 export const APPEARANCE_THEME_SCOPE_SELECTORS: Readonly<Record<AppearanceThemeScopeId, string>> = {
-  chrome: '[data-openbitfun-theme-scope="chrome"]',
+  chrome: '[data-bitfun-theme-scope="chrome"]',
 };
 
 export type AppearanceDomainTokenName = typeof APPEARANCE_DOMAIN_TOKEN_NAMES[number];

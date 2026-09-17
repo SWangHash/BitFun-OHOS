@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 pub const RELAY_INBOUND_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub fn ensure_rustls_crypto_provider() {
-    openbitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+    bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevicePresenceEntry {

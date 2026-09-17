@@ -46,12 +46,12 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>((
       className={classNames}
       disabled={disabled || isLoading}
       {...props}
-      data-openbitfun-component="icon-button"
-      data-openbitfun-part="root"
-      data-openbitfun-variant={variant}
-      data-openbitfun-size={size}
-      data-openbitfun-shape={shape}
-      data-openbitfun-state={isLoading ? 'loading' : undefined}
+      data-bitfun-component="icon-button"
+      data-bitfun-part="root"
+      data-bitfun-variant={variant}
+      data-bitfun-size={size}
+      data-bitfun-shape={shape}
+      data-bitfun-state={isLoading ? 'loading' : undefined}
     >
       {children}
     </button>

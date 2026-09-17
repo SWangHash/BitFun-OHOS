@@ -12,8 +12,8 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem } from '@openbitfun/ui';
-import { Tooltip, Icon } from '@openbitfun/ui';
+import { OverflowText, Menu, MenuItem } from '@bitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import type { AcpModeState } from '../utils/acpSessionConfig';
@@ -128,19 +128,19 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
   return (
     <div
       ref={rootRef}
-      className="openbitfun-acp-mode-selector"
-      data-openbitfun-component="acp-mode-selector"
-      data-openbitfun-part="root"
-      data-openbitfun-state={open ? 'open' : undefined}
+      className="bitfun-acp-mode-selector"
+      data-bitfun-component="acp-mode-selector"
+      data-bitfun-part="root"
+      data-bitfun-state={open ? 'open' : undefined}
     >
       <Tooltip content={triggerTooltip} disabled={open}>
         <button data-overflow-trigger
           ref={triggerRef}
           type="button"
-          className={`openbitfun-acp-mode-selector__trigger${open ? ' openbitfun-acp-mode-selector__trigger--open' : ''}`}
-          data-openbitfun-component="acp-mode-selector"
-          data-openbitfun-part="trigger"
-          data-openbitfun-state={open ? 'open' : undefined}
+          className={`bitfun-acp-mode-selector__trigger${open ? ' bitfun-acp-mode-selector__trigger--open' : ''}`}
+          data-bitfun-component="acp-mode-selector"
+          data-bitfun-part="trigger"
+          data-bitfun-state={open ? 'open' : undefined}
           data-testid="chat-acp-mode-selector-btn"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -167,9 +167,9 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
           }}
         >
           <OverflowText
-            className="openbitfun-acp-mode-selector__label"
-            data-openbitfun-component="acp-mode-selector"
-            data-openbitfun-part="label"
+            className="bitfun-acp-mode-selector__label"
+            data-bitfun-component="acp-mode-selector"
+            data-bitfun-part="label"
           >
             {currentLabel}
           </OverflowText>
@@ -183,9 +183,9 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
             id={menuId}
             ref={menuRef}
             autoFocusFirstItem={keyboardOpen}
-            className="openbitfun-acp-mode-selector__menu"
-            data-openbitfun-component="acp-mode-selector"
-            data-openbitfun-part="menu"
+            className="bitfun-acp-mode-selector__menu"
+            data-bitfun-component="acp-mode-selector"
+            data-bitfun-part="menu"
             data-placement={resolvedPlacement}
             data-open={open ? 'true' : 'false'}
             data-keyboard-open={keyboardOpen ? 'true' : 'false'}
@@ -197,13 +197,13 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
             onKeyDown={handleMenuKeyDown}
           >
             <div
-              className="openbitfun-acp-mode-selector__header"
-              data-openbitfun-component="acp-mode-selector"
-              data-openbitfun-part="header"
+              className="bitfun-acp-mode-selector__header"
+              data-bitfun-component="acp-mode-selector"
+              data-bitfun-part="header"
             >
               <span>{t('modelSelector.acpMode')}</span>
               {clientId && (
-                <OverflowText className="openbitfun-acp-mode-selector__header-hint">{clientId}</OverflowText>
+                <OverflowText className="bitfun-acp-mode-selector__header-hint">{clientId}</OverflowText>
               )}
             </div>
             {candidates.map((candidate) => {
@@ -224,15 +224,15 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
                     data-mode-value={candidate.value}
                     data-selected={isSelected ? 'true' : 'false'}
                     disabled={mode.locked || loading}
-                    className="openbitfun-acp-mode-selector__option-row"
-                    data-openbitfun-component="acp-mode-selector"
-                    data-openbitfun-part="option"
-                    data-openbitfun-state={isSelected ? 'selected' : undefined}
+                    className="bitfun-acp-mode-selector__option-row"
+                    data-bitfun-component="acp-mode-selector"
+                    data-bitfun-part="option"
+                    data-bitfun-state={isSelected ? 'selected' : undefined}
                     title={hint}
                     onClick={() => select(candidate.value)}
                     shortcut={isSelected ? <Icon name="check-line" size="sm" aria-hidden="true" /> : undefined}
                   >
-                    <span className="openbitfun-acp-mode-menu__option-content">
+                    <span className="bitfun-acp-mode-menu__option-content">
                       <strong>{candidate.name}</strong>
                     </span>
                   </MenuItem>

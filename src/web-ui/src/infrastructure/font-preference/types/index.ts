@@ -2,7 +2,7 @@
 import {
   createTypographySizeScale,
   type TypographySizeScale,
-} from '@openbitfun/design-tokens/typography-runtime';
+} from '@bitfun/design-tokens/typography-runtime';
 
 export type FontSizeLevel = 'compact' | 'small' | 'default' | 'medium' | 'large' | 'custom';
 

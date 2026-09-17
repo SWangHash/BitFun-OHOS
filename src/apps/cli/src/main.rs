@@ -2,7 +2,7 @@
 // several layers of `async fn`) exceeds the default depth.
 #![recursion_limit = "256"]
 
-/// OpenBitFun CLI
+/// BitFun CLI
 ///
 /// Command-line interface version, supports:
 /// - Interactive TUI
@@ -40,7 +40,7 @@ mod ui;
 
 use anyhow::{anyhow, Result};
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
-use openbitfun_core::service::remote_connect::DeviceIdentity;
+use bitfun_core::service::remote_connect::DeviceIdentity;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -51,12 +51,12 @@ use mcp_import::{McpImportCommand, McpImportOutputFormat};
 use modes::chat::ChatMode;
 use modes::exec::{ExecApprovalMode, ExecOutputFormat};
 
-pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: openbitfun_core::plugin_host::PluginHostLaunchPolicy =
-    openbitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled;
+pub(crate) const PLUGIN_HOST_LAUNCH_POLICY: bitfun_core::plugin_host::PluginHostLaunchPolicy =
+    bitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled;
 
 // ======================== Global MCP Service ========================
 
-static MCP_SERVICE: OnceLock<std::sync::Arc<openbitfun_core::service::mcp::MCPService>> =
+static MCP_SERVICE: OnceLock<std::sync::Arc<bitfun_core::service::mcp::MCPService>> =
     OnceLock::new();
 
 /// MCP initialization status: 0=not started, 1=in progress, 2=completed, 3=failed
@@ -88,18 +88,18 @@ fn final_change_verification_enabled(
 
 /// Get the global MCP service instance (if initialized)
 pub fn get_mcp_service(
-) -> Option<&'static std::sync::Arc<openbitfun_core::service::mcp::MCPService>> {
+) -> Option<&'static std::sync::Arc<bitfun_core::service::mcp::MCPService>> {
     MCP_SERVICE.get()
 }
 
 pub(crate) fn ensure_cli_mcp_service(
-    config_service: Arc<openbitfun_core::service::config::ConfigService>,
-) -> Option<Arc<openbitfun_core::service::mcp::MCPService>> {
+    config_service: Arc<bitfun_core::service::config::ConfigService>,
+) -> Option<Arc<bitfun_core::service::mcp::MCPService>> {
     if let Some(service) = get_mcp_service() {
         return Some(service.clone());
     }
 
-    let service = match openbitfun_core::service::mcp::MCPService::new(config_service) {
+    let service = match bitfun_core::service::mcp::MCPService::new(config_service) {
         Ok(service) => Arc::new(service),
         Err(error) => {
             tracing::warn!("Failed to create MCP service: {}", error);
@@ -111,7 +111,7 @@ pub(crate) fn ensure_cli_mcp_service(
     if MCP_SERVICE.set(service.clone()).is_err() {
         return get_mcp_service().cloned();
     }
-    openbitfun_core::service::mcp::set_global_mcp_service(service.clone());
+    bitfun_core::service::mcp::set_global_mcp_service(service.clone());
     get_mcp_init_status().store(1, Ordering::Relaxed);
 
     // Shared TUI keeps the pre-migration CLI-local MCP compatibility path. It
@@ -135,8 +135,8 @@ pub(crate) fn ensure_cli_mcp_service(
 }
 
 #[derive(Parser)]
-#[command(name = "openbitfun")]
-#[command(about = "OpenBitFun CLI - AI agent-driven command-line programming assistant", long_about = None)]
+#[command(name = "bitfun")]
+#[command(about = "BitFun CLI - AI agent-driven command-line programming assistant", long_about = None)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -174,7 +174,7 @@ struct Cli {
 }
 
 fn harness_profile_parser() -> clap::builder::PossibleValuesParser {
-    use openbitfun_core_types::agent_identity::HarnessId;
+    use bitfun_core_types::agent_identity::HarnessId;
     clap::builder::PossibleValuesParser::new(HarnessId::ALL.map(|id| {
         clap::builder::PossibleValue::new(id.as_str()).aliases(id.legacy_ids().iter().copied())
     }))
@@ -183,7 +183,7 @@ fn harness_profile_parser() -> clap::builder::PossibleValuesParser {
 fn shared_tui_requested(shared: bool, command: &Option<Commands>) -> Result<bool> {
     if shared && !matches!(command, None | Some(Commands::Chat { .. })) {
         return Err(anyhow!(
-            "--shared is available only for the interactive TUI (`openbitfun --shared` or `openbitfun chat --shared`); other commands and applications are unchanged"
+            "--shared is available only for the interactive TUI (`bitfun --shared` or `bitfun chat --shared`); other commands and applications are unchanged"
         ));
     }
     Ok(shared || matches!(command, Some(Commands::Chat { shared: true, .. })))
@@ -214,7 +214,7 @@ fn resolved_command_harness_profile(
 }
 
 fn agent_type_with_harness_profile(agent_type: String, harness_profile: Option<&str>) -> String {
-    use openbitfun_core_types::agent_identity::canonical_agent_id;
+    use bitfun_core_types::agent_identity::canonical_agent_id;
     match harness_profile {
         // The retired CLI profile was an overlay: balanced preserved --agent.
         Some("balanced") | None => canonical_agent_id(&agent_type).to_string(),
@@ -330,9 +330,9 @@ enum Commands {
         action: Option<McpAction>,
     },
 
-    /// Inspect and review OpenBitFun-managed plugin packages
+    /// Inspect and review BitFun-managed plugin packages
     ///
-    /// Package layout: <package-root>/<package-id>/openbitfun.plugin.json
+    /// Package layout: <package-root>/<package-id>/bitfun.plugin.json
     Plugins {
         #[command(subcommand)]
         action: Option<PluginAction>,
@@ -385,7 +385,7 @@ enum Commands {
         action: DispatchAction,
     },
 
-    /// Start the OpenBitFun app server over stdio
+    /// Start the BitFun app server over stdio
     ///
     /// stdout carries JSON-RPC traffic only; logs are written to stderr.
     Server,
@@ -489,13 +489,13 @@ enum AcpAction {
     /// Show ACP server status and capabilities
     Status {
         /// Command name or path to show in generated examples
-        #[arg(long, default_value = "openbitfun")]
+        #[arg(long, default_value = "bitfun")]
         command: String,
     },
     /// Check local readiness for ACP clients
     Doctor {
         /// Command name or path to show in generated examples
-        #[arg(long, default_value = "openbitfun")]
+        #[arg(long, default_value = "bitfun")]
         command: String,
     },
     /// Print editor/client integration snippets
@@ -505,10 +505,10 @@ enum AcpAction {
         client: acp_cli::AcpConfigClient,
 
         /// Command name or path your editor should execute
-        #[arg(long, default_value = "openbitfun")]
+        #[arg(long, default_value = "bitfun")]
         command: String,
     },
-    /// Manage external ACP agents that OpenBitFun can launch
+    /// Manage external ACP agents that BitFun can launch
     Clients {
         #[command(subcommand)]
         action: AcpClientsAction,
@@ -602,12 +602,12 @@ pub(crate) enum BootstrapProfile {
 impl BootstrapProfile {
     const fn starts_peer_host(
         self,
-        deployment: openbitfun_services_core::runtime_ownership::RuntimeDeployment,
+        deployment: bitfun_services_core::runtime_ownership::RuntimeDeployment,
     ) -> bool {
         matches!(self, Self::Interactive)
             && matches!(
                 deployment,
-                openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded
+                bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded
             )
     }
 
@@ -618,7 +618,7 @@ impl BootstrapProfile {
     const fn starts_plugin_host(self) -> bool {
         matches!(
             PLUGIN_HOST_LAUNCH_POLICY,
-            openbitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled
+            bitfun_core::plugin_host::PluginHostLaunchPolicy::Enabled
         ) && matches!(self, Self::Interactive | Self::Execution)
     }
 }
@@ -685,7 +685,7 @@ enum ExternalConfigAction {
     },
     /// Remove this project's overrides and inherit global settings
     ResetProject,
-    /// Back up and reset a policy written by an incompatible OpenBitFun version
+    /// Back up and reset a policy written by an incompatible BitFun version
     ResetIncompatible,
 }
 
@@ -805,7 +805,7 @@ fn terminal_scripts_dir() -> std::path::PathBuf {
         .unwrap_or_else(|| {
             std::env::temp_dir().join(format!(
                 "{}-cli",
-                openbitfun_core_types::product_identity::data_namespace()
+                bitfun_core_types::product_identity::data_namespace()
             ))
         })
         .join("temp")
@@ -813,9 +813,9 @@ fn terminal_scripts_dir() -> std::path::PathBuf {
 }
 
 async fn initialize_terminal_service() {
-    use openbitfun_core::infrastructure::try_get_path_manager_arc;
-    use openbitfun_core::service::runtime::RuntimeManager;
-    use openbitfun_core::service::terminal::{TerminalApi, TerminalConfig};
+    use bitfun_core::infrastructure::try_get_path_manager_arc;
+    use bitfun_core::service::runtime::RuntimeManager;
+    use bitfun_core::service::terminal::{TerminalApi, TerminalConfig};
 
     let mut terminal_config = TerminalConfig::default();
     terminal_config.shell_integration.scripts_dir = Some(terminal_scripts_dir());
@@ -861,7 +861,7 @@ async fn initialize_core_services(
         workspace_root,
         approval_policy,
         bootstrap_profile,
-        openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
+        bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
     )
     .await
 }
@@ -870,14 +870,14 @@ async fn initialize_core_services_for_deployment(
     workspace_root: &std::path::Path,
     approval_policy: runtime::approval::CliApprovalPolicy,
     bootstrap_profile: BootstrapProfile,
-    deployment: openbitfun_services_core::runtime_ownership::RuntimeDeployment,
+    deployment: bitfun_services_core::runtime_ownership::RuntimeDeployment,
 ) -> Result<std::sync::Arc<runtime::CliRuntimeContext>> {
-    use openbitfun_core::infrastructure::ai::AIClientFactory;
+    use bitfun_core::infrastructure::ai::AIClientFactory;
 
     agent::agentic_system::select_agentic_system_profile(
-        openbitfun_core::product_assembly::DeliveryProfile::Cli,
+        bitfun_core::product_assembly::DeliveryProfile::Cli,
     )?;
-    openbitfun_core::service::config::initialize_global_config()
+    bitfun_core::service::config::initialize_global_config()
         .await
         .map_err(|error| anyhow!("Failed to initialize global config service: {error}"))?;
     tracing::info!("Global config service initialized");
@@ -888,7 +888,7 @@ async fn initialize_core_services_for_deployment(
         if let Err(error) =
             plugin_host_activation::ensure_configured_plugin_execution_supported().await
         {
-            openbitfun_core::plugin_host::report_configured_plugin_activation_failure(
+            bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                 "CLI startup configuration",
                 Some(workspace_root),
                 error,
@@ -897,16 +897,16 @@ async fn initialize_core_services_for_deployment(
         }
     }
     if bootstrap_profile.starts_plugin_host() {
-        match openbitfun_core::plugin_host::initialize_configured_plugin_host_with_log_file(
+        match bitfun_core::plugin_host::initialize_configured_plugin_host_with_log_file(
             PLUGIN_HOST_LAUNCH_POLICY,
             logging::active_plugin_host_log_path(),
         )
         .await
         {
-            Ok(openbitfun_core::plugin_host::PluginHostStartup::Disabled) => {}
+            Ok(bitfun_core::plugin_host::PluginHostStartup::Disabled) => {}
             Ok(status) => tracing::info!("Plugin host initialization completed: {:?}", status),
             Err(error) => {
-                openbitfun_core::plugin_host::report_configured_plugin_activation_failure(
+                bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                     "CLI startup",
                     Some(workspace_root),
                     error,
@@ -915,22 +915,22 @@ async fn initialize_core_services_for_deployment(
             }
         }
     }
-    let path_manager = openbitfun_core::infrastructure::try_get_path_manager_arc()
+    let path_manager = bitfun_core::infrastructure::try_get_path_manager_arc()
         .map_err(|error| anyhow!(error.to_string()))?;
     let entrypoint = match (deployment, bootstrap_profile) {
         (
-            openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
+            bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
             BootstrapProfile::Interactive,
         ) => "cli-interactive",
-        (openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded, _) => {
+        (bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded, _) => {
             "cli-headless"
         }
-        (openbitfun_services_core::runtime_ownership::RuntimeDeployment::Shared, _) => {
+        (bitfun_services_core::runtime_ownership::RuntimeDeployment::Shared, _) => {
             "shared-tui-runtime"
         }
     };
     let runtime_ownership =
-        openbitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
+        bitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
             path_manager.as_ref(),
             entrypoint,
             workspace_root,
@@ -939,7 +939,7 @@ async fn initialize_core_services_for_deployment(
         .map_err(|error| anyhow!(error.startup_message(deployment, entrypoint)))?;
     let runtime_ownership = std::sync::Arc::new(runtime_ownership);
 
-    let config_service = openbitfun_core::service::config::get_global_config_service()
+    let config_service = bitfun_core::service::config::get_global_config_service()
         .await
         .ok();
 
@@ -951,7 +951,7 @@ async fn initialize_core_services_for_deployment(
     initialize_terminal_service().await;
 
     let agentic_system = agent::agentic_system::init_agentic_system(
-        openbitfun_core::product_assembly::DeliveryProfile::Cli,
+        bitfun_core::product_assembly::DeliveryProfile::Cli,
         runtime_ownership,
     )
     .await
@@ -1222,7 +1222,7 @@ async fn resolve_startup_session_override(
             .map(|s| s.session_id.clone())
             .ok_or_else(|| anyhow!("No history sessions for current project"));
     }
-    openbitfun_agent_runtime::session_control::validate_session_id(session_spec)
+    bitfun_agent_runtime::session_control::validate_session_id(session_spec)
         .map_err(anyhow::Error::msg)?;
     Ok(session_spec.to_string())
 }
@@ -1248,9 +1248,9 @@ fn is_dispatch_command(command: &Option<Commands>) -> bool {
 
 async fn run_cli() -> Result<()> {
     let raw_args = std::env::args_os().collect::<Vec<_>>();
-    let product_binary_name = option_env!("OPENBITFUN_PRODUCT_BINARY_NAME").unwrap_or("openbitfun");
+    let product_binary_name = option_env!("BITFUN_PRODUCT_BINARY_NAME").unwrap_or("bitfun");
     let product_display_name =
-        option_env!("OPENBITFUN_PRODUCT_DISPLAY_NAME").unwrap_or("OpenBitFun CLI");
+        option_env!("BITFUN_PRODUCT_DISPLAY_NAME").unwrap_or("BitFun CLI");
     let parsed = Cli::command()
         .name(product_binary_name)
         .bin_name(product_binary_name)
@@ -1478,21 +1478,21 @@ async fn run_cli() -> Result<()> {
             Some(PluginAction::ApproveSource { package_id }) => {
                 management::set_plugin_trust(
                     &package_id,
-                    openbitfun_core::plugin_source::ManagedPluginTrustDecision::ApproveSource,
+                    bitfun_core::plugin_source::ManagedPluginTrustDecision::ApproveSource,
                 )
                 .await?;
             }
             Some(PluginAction::Deny { package_id }) => {
                 management::set_plugin_trust(
                     &package_id,
-                    openbitfun_core::plugin_source::ManagedPluginTrustDecision::Denied,
+                    bitfun_core::plugin_source::ManagedPluginTrustDecision::Denied,
                 )
                 .await?;
             }
             Some(PluginAction::Revoke { package_id }) => {
                 management::set_plugin_trust(
                     &package_id,
-                    openbitfun_core::plugin_source::ManagedPluginTrustDecision::Revoked,
+                    bitfun_core::plugin_source::ManagedPluginTrustDecision::Revoked,
                 )
                 .await?;
             }
@@ -1518,7 +1518,7 @@ async fn run_cli() -> Result<()> {
         Some(Commands::Doctor) => {
             let workspace = std::env::current_dir()?;
             let (_, services) =
-                openbitfun_core::product_runtime::build_local_runtime_services(&workspace, 16)?;
+                bitfun_core::product_runtime::build_local_runtime_services(&workspace, 16)?;
             let product_runtime = product_assembly::assemble_cli_runtime_parts(services)?;
             if !management::print_doctor(&product_runtime).await? {
                 std::process::exit(1);
@@ -1708,7 +1708,7 @@ fn main() {
     // Install the workspace-owned ring CryptoProvider before any TLS-capable
     // work (relay WS, reqwest rustls paths, Feishu wss) so every client uses
     // the same explicit process-level provider.
-    openbitfun_core::service::remote_connect::ensure_rustls_crypto_provider();
+    bitfun_core::service::remote_connect::ensure_rustls_crypto_provider();
 
     let worker = std::thread::Builder::new()
         .stack_size(16 * 1024 * 1024)
@@ -1719,7 +1719,7 @@ fn main() {
                 .expect("failed to build tokio runtime");
             runtime.block_on(async {
                 let result = run_cli().await;
-                match openbitfun_core::plugin_host::shutdown_configured_plugin_host().await {
+                match bitfun_core::plugin_host::shutdown_configured_plugin_host().await {
                     Ok(Some(report)) => tracing::info!(
                         generation = report.generation,
                         disposition = ?report.disposition,
@@ -1736,7 +1736,7 @@ fn main() {
                 result
             })
         })
-        .expect("failed to spawn openbitfun worker thread");
+        .expect("failed to spawn bitfun worker thread");
 
     match worker.join() {
         Ok(Ok(())) => {}
@@ -1748,7 +1748,7 @@ fn main() {
             std::process::exit(1);
         }
         Err(_) => {
-            eprintln!("Error: openbitfun worker thread panicked");
+            eprintln!("Error: bitfun worker thread panicked");
             std::process::exit(1);
         }
     }
@@ -1761,7 +1761,7 @@ mod server_command_tests {
 
     #[test]
     fn server_command_parses_as_stdio_host() {
-        let parsed = Cli::try_parse_from(["openbitfun", "server"]).expect("parse server command");
+        let parsed = Cli::try_parse_from(["bitfun", "server"]).expect("parse server command");
         assert!(matches!(parsed.command, Some(Commands::Server)));
     }
 }
@@ -1773,14 +1773,14 @@ mod plugin_command_tests {
 
     #[test]
     fn plugin_commands_parse_list_and_source_review_actions() {
-        let list = Cli::try_parse_from(["openbitfun", "plugins"]).expect("parse plugin list");
+        let list = Cli::try_parse_from(["bitfun", "plugins"]).expect("parse plugin list");
         assert!(matches!(
             list.command,
             Some(Commands::Plugins { action: None })
         ));
 
         let approval =
-            Cli::try_parse_from(["openbitfun", "plugins", "approve-source", "acme.demo"])
+            Cli::try_parse_from(["bitfun", "plugins", "approve-source", "acme.demo"])
                 .expect("parse plugin source approval");
         assert!(matches!(
             approval.command,
@@ -1789,7 +1789,7 @@ mod plugin_command_tests {
             }) if package_id == "acme.demo"
         ));
 
-        let deny = Cli::try_parse_from(["openbitfun", "plugins", "deny", "acme.demo"])
+        let deny = Cli::try_parse_from(["bitfun", "plugins", "deny", "acme.demo"])
             .expect("parse plugin deny");
         assert!(matches!(
             deny.command,
@@ -1798,7 +1798,7 @@ mod plugin_command_tests {
             }) if package_id == "acme.demo"
         ));
 
-        let revoke = Cli::try_parse_from(["openbitfun", "plugins", "revoke", "acme.demo"])
+        let revoke = Cli::try_parse_from(["bitfun", "plugins", "revoke", "acme.demo"])
             .expect("parse plugin revoke");
         assert!(matches!(
             revoke.command,
@@ -1807,7 +1807,7 @@ mod plugin_command_tests {
             }) if package_id == "acme.demo"
         ));
 
-        let preview = Cli::try_parse_from(["openbitfun", "plugins", "activate", "acme.demo"])
+        let preview = Cli::try_parse_from(["bitfun", "plugins", "activate", "acme.demo"])
             .expect("parse plugin activation preview");
         assert!(matches!(
             preview.command,
@@ -1820,7 +1820,7 @@ mod plugin_command_tests {
         ));
 
         let confirm = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "plugins",
             "activate",
             "acme.demo",
@@ -1838,7 +1838,7 @@ mod plugin_command_tests {
             }) if package_id == "acme.demo" && content_hash == "sha256:previewed"
         ));
 
-        let deactivate = Cli::try_parse_from(["openbitfun", "plugins", "deactivate", "acme.demo"])
+        let deactivate = Cli::try_parse_from(["bitfun", "plugins", "deactivate", "acme.demo"])
             .expect("parse plugin deactivation");
         assert!(matches!(
             deactivate.command,
@@ -1859,7 +1859,7 @@ mod external_config_command_tests {
 
     #[test]
     fn external_config_commands_keep_scope_and_capability_explicit() {
-        let status = Cli::try_parse_from(["openbitfun", "config", "external", "status"])
+        let status = Cli::try_parse_from(["bitfun", "config", "external", "status"])
             .expect("parse external status");
         assert!(matches!(
             status.command,
@@ -1871,7 +1871,7 @@ mod external_config_command_tests {
         ));
 
         let enabled = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "config",
             "external",
             "set-enabled",
@@ -1893,7 +1893,7 @@ mod external_config_command_tests {
         ));
 
         let mode = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "config",
             "external",
             "set-mode",
@@ -1916,7 +1916,7 @@ mod external_config_command_tests {
         ));
 
         let capability = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "config",
             "external",
             "set-capability",
@@ -1940,7 +1940,7 @@ mod external_config_command_tests {
             }) if ecosystem == "opencode"
         ));
 
-        let reset = Cli::try_parse_from(["openbitfun", "config", "external", "reset-incompatible"])
+        let reset = Cli::try_parse_from(["bitfun", "config", "external", "reset-incompatible"])
             .expect("parse incompatible policy reset");
         assert!(matches!(
             reset.command,
@@ -1968,7 +1968,7 @@ mod bootstrap_profile_tests {
         for (profile, starts_peer_host, starts_mcp, starts_plugin_host) in cases {
             assert_eq!(
                 profile.starts_peer_host(
-                    openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
+                    bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded,
                 ),
                 starts_peer_host
             );
@@ -2014,7 +2014,7 @@ mod bootstrap_profile_tests {
     #[test]
     fn json_exec_parse_failures_are_detected_before_clap_exits() {
         let args = [
-            "openbitfun",
+            "bitfun",
             "exec",
             "task",
             "--output-format",
@@ -2047,11 +2047,11 @@ mod final_change_verification_cli_tests {
 
     #[test]
     fn verification_is_enabled_by_default_and_can_be_disabled() {
-        let (verify, disable) = parse_flags(&["openbitfun", "exec", "task"]);
+        let (verify, disable) = parse_flags(&["bitfun", "exec", "task"]);
         assert!(final_change_verification_enabled(verify, disable));
 
         let (verify, disable) =
-            parse_flags(&["openbitfun", "exec", "--no-verify-final-changes", "task"]);
+            parse_flags(&["bitfun", "exec", "--no-verify-final-changes", "task"]);
         assert!(!final_change_verification_enabled(verify, disable));
     }
 }
@@ -2065,7 +2065,7 @@ mod hook_import_command_tests {
     #[test]
     fn hook_import_is_preview_only_without_a_fingerprint() {
         let cli = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "hooks",
             "import",
             "--source",
@@ -2088,8 +2088,8 @@ mod hook_import_command_tests {
 
     #[test]
     fn hook_remove_requires_explicit_confirmation() {
-        assert!(Cli::try_parse_from(["openbitfun", "hooks", "remove", "import-id"]).is_err());
-        let cli = Cli::try_parse_from(["openbitfun", "hooks", "remove", "import-id", "--confirm"])
+        assert!(Cli::try_parse_from(["bitfun", "hooks", "remove", "import-id"]).is_err());
+        let cli = Cli::try_parse_from(["bitfun", "hooks", "remove", "import-id", "--confirm"])
             .expect("parse confirmed Hook removal");
         assert!(matches!(
             cli.command,
@@ -2101,8 +2101,8 @@ mod hook_import_command_tests {
 
     #[test]
     fn corrupt_hook_store_reset_requires_an_explicit_scope_and_confirmation() {
-        assert!(Cli::try_parse_from(["openbitfun", "hooks", "reset", "user"]).is_err());
-        let cli = Cli::try_parse_from(["openbitfun", "hooks", "reset", "project", "--confirm"])
+        assert!(Cli::try_parse_from(["bitfun", "hooks", "reset", "user"]).is_err());
+        let cli = Cli::try_parse_from(["bitfun", "hooks", "reset", "project", "--confirm"])
             .expect("parse confirmed project Hook store reset");
         assert!(matches!(
             cli.command,
@@ -2123,14 +2123,14 @@ mod sdk_host_command_tests {
 
     #[test]
     fn sdk_host_is_not_a_cli_command() {
-        let error = match Cli::try_parse_from(["openbitfun", "sdk-host"]) {
+        let error = match Cli::try_parse_from(["bitfun", "sdk-host"]) {
             Ok(_) => panic!("SDK Host must be a sibling application, not a CLI subcommand"),
             Err(error) => error,
         };
         assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
         let help = Cli::command().render_long_help().to_string();
         assert!(!help.contains("sdk-host"));
-        assert!(!include_str!("../Cargo.toml").contains("openbitfun-sdk-host"));
+        assert!(!include_str!("../Cargo.toml").contains("bitfun-sdk-host"));
     }
 }
 
@@ -2138,29 +2138,29 @@ mod sdk_host_command_tests {
 mod shared_tui_command_tests {
     use super::{shared_tui_requested, BootstrapProfile, Cli, Commands};
     use clap::{CommandFactory, Parser, Subcommand};
-    use openbitfun_services_core::runtime_ownership::RuntimeDeployment;
+    use bitfun_services_core::runtime_ownership::RuntimeDeployment;
 
     #[test]
     fn shared_is_an_opt_in_interactive_tui_flag() {
         let default_tui =
-            Cli::try_parse_from(["openbitfun", "--shared"]).expect("parse default TUI");
+            Cli::try_parse_from(["bitfun", "--shared"]).expect("parse default TUI");
         assert!(default_tui.shared);
 
-        let chat = Cli::try_parse_from(["openbitfun", "chat", "--shared"])
+        let chat = Cli::try_parse_from(["bitfun", "chat", "--shared"])
             .expect("parse explicit chat TUI");
         assert!(matches!(
             chat.command,
             Some(Commands::Chat { shared: true, .. })
         ));
-        let root_chat = Cli::try_parse_from(["openbitfun", "--shared", "chat"])
+        let root_chat = Cli::try_parse_from(["bitfun", "--shared", "chat"])
             .expect("parse root Shared choice before chat");
         assert!(shared_tui_requested(root_chat.shared, &root_chat.command).unwrap());
     }
 
     #[test]
     fn shared_rejects_non_interactive_surfaces_without_fallback() {
-        assert!(Cli::try_parse_from(["openbitfun", "exec", "hello", "--shared"]).is_err());
-        let exec = Cli::try_parse_from(["openbitfun", "--shared", "exec", "hello"])
+        assert!(Cli::try_parse_from(["bitfun", "exec", "hello", "--shared"]).is_err());
+        let exec = Cli::try_parse_from(["bitfun", "--shared", "exec", "hello"])
             .expect("parse root deployment choice");
         let error = shared_tui_requested(exec.shared, &exec.command)
             .expect_err("headless exec must remain Embedded");
@@ -2197,7 +2197,7 @@ mod dispatch_command_tests {
 
     #[test]
     fn dispatch_commands_parse_and_internal_worker_is_hidden() {
-        let status = Cli::try_parse_from(["openbitfun", "dispatch", "status"])
+        let status = Cli::try_parse_from(["bitfun", "dispatch", "status"])
             .expect("parse dispatch status");
         assert!(matches!(
             status.command,
@@ -2207,7 +2207,7 @@ mod dispatch_command_tests {
         ));
         assert!(is_dispatch_command(&status.command));
 
-        let worker = Cli::try_parse_from(["openbitfun", "dispatch", "__run", "--job", "job-1"])
+        let worker = Cli::try_parse_from(["bitfun", "dispatch", "__run", "--job", "job-1"])
             .expect("parse internal dispatch worker");
         assert!(matches!(
             worker.command,
@@ -2216,7 +2216,7 @@ mod dispatch_command_tests {
             }) if job == "job-1"
         ));
         assert!(is_dispatch_command(&worker.command));
-        let provision = Cli::try_parse_from(["openbitfun", "dispatch", "__workspace_provision"])
+        let provision = Cli::try_parse_from(["bitfun", "dispatch", "__workspace_provision"])
             .expect("parse internal workspace provision");
         assert!(matches!(
             provision.command,
@@ -2226,7 +2226,7 @@ mod dispatch_command_tests {
         ));
         assert!(is_dispatch_command(&provision.command));
         let unrelated =
-            Cli::try_parse_from(["openbitfun", "config", "show"]).expect("parse config");
+            Cli::try_parse_from(["bitfun", "config", "show"]).expect("parse config");
         assert!(!is_dispatch_command(&unrelated.command));
 
         let help = Cli::command().render_long_help().to_string();
@@ -2250,9 +2250,9 @@ mod harness_profile_compatibility_tests {
         let help = Cli::command().render_long_help().to_string();
         assert!(help.contains("Minimal, Standard, Ultimate, Creative"));
         assert!(!help.contains("balanced"));
-        for id in openbitfun_core_types::agent_identity::HarnessId::ALL {
+        for id in bitfun_core_types::agent_identity::HarnessId::ALL {
             let cli =
-                Cli::try_parse_from(["openbitfun", "--harness-profile", id.as_str()]).unwrap();
+                Cli::try_parse_from(["bitfun", "--harness-profile", id.as_str()]).unwrap();
             assert_eq!(
                 agent_type_with_harness_profile("Cowork".into(), cli.harness_profile.as_deref()),
                 id.as_str()
@@ -2275,7 +2275,7 @@ mod harness_profile_compatibility_tests {
     #[test]
     fn legacy_global_and_subcommand_forms_keep_precedence() {
         let cli = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "--harness-profile",
             "balanced",
             "exec",
@@ -2304,7 +2304,7 @@ mod daemon_command_tests {
 
     #[test]
     fn dispatch_daemon_bootstrap_commands_parse_and_stay_hidden() {
-        let identity = Cli::try_parse_from(["openbitfun", "daemon", "__dispatch_identity"])
+        let identity = Cli::try_parse_from(["bitfun", "daemon", "__dispatch_identity"])
             .expect("parse target identity command");
         assert!(matches!(
             identity.command,
@@ -2314,7 +2314,7 @@ mod daemon_command_tests {
         ));
 
         let provision = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "daemon",
             "__dispatch_provision",
             "/tmp/request.json",
@@ -2328,7 +2328,7 @@ mod daemon_command_tests {
         ));
 
         let rollback = Cli::try_parse_from([
-            "openbitfun",
+            "bitfun",
             "daemon",
             "__dispatch_deprovision",
             "device-1",

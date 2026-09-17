@@ -14,7 +14,7 @@ test('packages three self-contained apps with shared themes and valid executable
     assert.ok(app.locales['zh-CN'].name && app.locales['en-US'].name);
     const html = fs.readFileSync(path.join(output, `${app.id}.html`), 'utf8');
     assert.match(html, /connect-src 'none'/);
-    assert.match(html, /openbitfun-appearance-default/);
+    assert.match(html, /bitfun-appearance-default/);
     assert.doesNotMatch(html, /<(script|link)[^>]+(?:src|href)=/);
     for (const [, script] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(script);
   }
@@ -29,13 +29,13 @@ test('bridge routes local storage, ignores foreign replies and updates language 
   const media = { matches: true, addEventListener: (_name, fn) => { listeners.scheme = fn; } };
   const document = { documentElement: { style: {}, setAttribute: (key, value) => { attributes[key] = value; } } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../miniapps/bridge.js'), 'utf8'), { window, parent, document, matchMedia: () => media });
-  assert.equal(attributes['data-openbitfun-appearance-mode'], 'dark');
+  assert.equal(attributes['data-bitfun-appearance-mode'], 'dark');
   media.matches = false;
   listeners.scheme();
-  assert.equal(attributes['data-openbitfun-appearance-mode'], 'light');
+  assert.equal(attributes['data-bitfun-appearance-mode'], 'light');
   let localeChanged = false;
   window.app.onLocaleChange(() => { localeChanged = true; });
-  listeners.message({ source: parent, data: { type: 'openbitfun:event', event: 'localeChange', payload: { locale: 'zh-CN', unsupported: 'Unsupported' } } });
+  listeners.message({ source: parent, data: { type: 'bitfun:event', event: 'localeChange', payload: { locale: 'zh-CN', unsupported: 'Unsupported' } } });
   assert.equal(window.app.locale, 'zh-CN');
   assert.ok(localeChanged);
   const reading = window.app.storage.get('stats');

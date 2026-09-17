@@ -1,17 +1,17 @@
 //! MiniApp storage - persist and load MiniApp data under user data dir.
 
-use openbitfun_product_domains::miniapp::customization::MiniAppCustomizationMetadata;
-use openbitfun_product_domains::miniapp::ports::{
+use bitfun_product_domains::miniapp::customization::MiniAppCustomizationMetadata;
+use bitfun_product_domains::miniapp::ports::{
     MiniAppPortError, MiniAppPortErrorKind, MiniAppPortFuture, MiniAppStoragePort,
 };
-use openbitfun_product_domains::miniapp::storage::{
+use bitfun_product_domains::miniapp::storage::{
     build_package_json, parse_npm_dependencies, MiniAppImportBundleWriteRequest,
     MiniAppImportLayout, MiniAppStorageLayout, COMPILED_HTML, CUSTOMIZATION_JSON,
     DRAFTS_CLEANUP_MARKER, DRAFTS_CLEANUP_PREFIX, DRAFTS_DIR, DRAFT_JSON, ESM_DEPS_JSON,
     INDEX_HTML, META_JSON, PACKAGE_JSON, REQUIRED_SOURCE_FILES, STORAGE_JSON, STYLE_CSS, UI_JS,
     VERSIONS_DIR, WORKER_JS,
 };
-use openbitfun_product_domains::miniapp::types::{MiniApp, MiniAppMeta, MiniAppSource, NpmDep};
+use bitfun_product_domains::miniapp::types::{MiniApp, MiniAppMeta, MiniAppSource, NpmDep};
 use serde_json;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -1400,10 +1400,10 @@ fn map_miniapp_port_error(error: MiniAppStorageError) -> MiniAppPortError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::miniapp::customization::{
+    use bitfun_product_domains::miniapp::customization::{
         MiniAppCustomizationMetadata, MiniAppCustomizationOrigin, MiniAppCustomizationOriginKind,
     };
-    use openbitfun_product_domains::miniapp::market::InstalledMarketOrigin;
+    use bitfun_product_domains::miniapp::market::InstalledMarketOrigin;
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -1431,7 +1431,7 @@ mod tests {
 
     #[tokio::test]
     async fn storage_port_adapter_preserves_existing_file_lifecycle() {
-        let root = TestTempDir::new("openbitfun-miniapp-storage-port");
+        let root = TestTempDir::new("bitfun-miniapp-storage-port");
         let miniapps_dir = root.path().join("miniapps");
         let storage = MiniAppStorage::new(miniapps_dir);
         let port: &dyn MiniAppStoragePort = &storage;
@@ -1483,7 +1483,7 @@ mod tests {
     #[tokio::test]
     async fn storage_adapter_uses_product_domain_layout_contract() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-layout-port-{}",
+            "bitfun-miniapp-layout-port-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1517,7 +1517,7 @@ mod tests {
 
     #[tokio::test]
     async fn import_bundle_io_preserves_copy_and_fallback_contract() {
-        let root = TestTempDir::new("openbitfun-miniapp-import-bundle-io");
+        let root = TestTempDir::new("bitfun-miniapp-import-bundle-io");
         let miniapps_dir = root.path().join("miniapps");
         let import_root = root.path().join("import-source");
         let import_source_dir = import_root.join("source");
@@ -1575,7 +1575,7 @@ mod tests {
     #[tokio::test]
     async fn saving_app_files_preserves_existing_storage_json() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-storage-preserve-{}",
+            "bitfun-miniapp-storage-preserve-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1602,7 +1602,7 @@ mod tests {
     #[tokio::test]
     async fn draft_storage_is_hidden_and_isolated_from_active_storage() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-draft-storage-{}",
+            "bitfun-miniapp-draft-storage-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1646,7 +1646,7 @@ mod tests {
     #[tokio::test]
     async fn mark_stale_drafts_moves_sandboxes_off_the_active_read_path() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-stale-drafts-{}",
+            "bitfun-miniapp-stale-drafts-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1679,7 +1679,7 @@ mod tests {
     #[tokio::test]
     async fn draft_reads_skip_marked_active_root() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-marked-draft-read-{}",
+            "bitfun-miniapp-marked-draft-read-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1710,7 +1710,7 @@ mod tests {
     #[tokio::test]
     async fn cleanup_marked_drafts_removes_quarantined_sandboxes_later() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-clean-marked-drafts-{}",
+            "bitfun-miniapp-clean-marked-drafts-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1735,7 +1735,7 @@ mod tests {
     #[tokio::test]
     async fn saving_new_draft_isolates_marked_active_root_first() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-marked-draft-write-{}",
+            "bitfun-miniapp-marked-draft-write-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1769,7 +1769,7 @@ mod tests {
     #[tokio::test]
     async fn customization_metadata_roundtrips() {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-customization-meta-{}",
+            "bitfun-miniapp-customization-meta-{}",
             uuid::Uuid::new_v4()
         ));
         let miniapps_dir = root.join("miniapps");
@@ -1807,14 +1807,14 @@ mod tests {
 
     #[tokio::test]
     async fn marketplace_update_preserves_storage_and_snapshots_previous_version() {
-        let root = TestTempDir::new("openbitfun-miniapp-market-atomic");
+        let root = TestTempDir::new("bitfun-miniapp-market-atomic");
         let miniapps_dir = root.path().join("miniapps");
         let storage = MiniAppStorage::new(miniapps_dir);
         let mut previous = sample_app("market-demo");
         previous.source.npm_dependencies.clear();
         previous.source.worker_js.clear();
         previous.runtime_profile =
-            openbitfun_product_domains::miniapp::types::MiniAppRuntimeProfile::MarketStrict;
+            bitfun_product_domains::miniapp::types::MiniAppRuntimeProfile::MarketStrict;
         let initial_metadata = market_metadata(1, "release-one");
 
         storage
@@ -1863,7 +1863,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejected_marketplace_update_leaves_active_app_unchanged() {
-        let root = TestTempDir::new("openbitfun-miniapp-market-reject");
+        let root = TestTempDir::new("bitfun-miniapp-market-reject");
         let miniapps_dir = root.path().join("miniapps");
         let storage = MiniAppStorage::new(miniapps_dir);
         let previous = sample_app("market-demo");

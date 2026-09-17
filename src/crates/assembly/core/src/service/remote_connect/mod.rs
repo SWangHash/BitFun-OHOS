@@ -4,7 +4,7 @@
 //! Account-authenticated Relay connections over official or LAN URLs, plus IM bots.
 //!
 //! Bot connections (Telegram / Feishu / Weixin) run independently of relay connections
-//! (LAN / OpenBitFun Server). Calling `stop()` only
+//! (LAN / BitFun Server). Calling `stop()` only
 //! tears down the relay side; bots keep running.  Use `stop_bot()` or
 //! `stop_all()` to shut everything down.
 
@@ -15,43 +15,43 @@ pub mod lan;
 pub mod remote_server;
 
 pub mod device {
-    pub use openbitfun_services_integrations::remote_connect::device::*;
+    pub use bitfun_services_integrations::remote_connect::device::*;
 }
 
 pub mod encryption {
-    pub use openbitfun_services_integrations::remote_connect::encryption::*;
+    pub use bitfun_services_integrations::remote_connect::encryption::*;
 }
 
 pub mod pairing {
-    pub use openbitfun_services_integrations::remote_connect::pairing::*;
+    pub use bitfun_services_integrations::remote_connect::pairing::*;
 }
 
 pub mod qr_generator {
-    pub use openbitfun_services_integrations::remote_connect::qr_generator::*;
+    pub use bitfun_services_integrations::remote_connect::qr_generator::*;
 }
 
 pub mod relay_client {
-    pub use openbitfun_services_integrations::remote_connect::relay_client::*;
+    pub use bitfun_services_integrations::remote_connect::relay_client::*;
 }
 
 pub mod account {
-    pub use openbitfun_services_integrations::remote_connect::account::*;
+    pub use bitfun_services_integrations::remote_connect::account::*;
 }
 
 pub mod session_subscriber {
-    pub use openbitfun_services_integrations::remote_connect::session_subscriber::*;
+    pub use bitfun_services_integrations::remote_connect::session_subscriber::*;
 }
 
 pub mod session_log {
-    pub use openbitfun_services_integrations::remote_connect::session_log::*;
+    pub use bitfun_services_integrations::remote_connect::session_log::*;
 }
 
 pub mod session_records {
-    pub use openbitfun_services_integrations::remote_connect::session_records::*;
+    pub use bitfun_services_integrations::remote_connect::session_records::*;
 }
 
 pub mod session_store {
-    pub use openbitfun_services_integrations::remote_connect::session_store::*;
+    pub use bitfun_services_integrations::remote_connect::session_store::*;
 }
 
 pub use account::{validate_relay_base_url, AccountClient, AccountSession, DelegateToken};
@@ -79,8 +79,8 @@ pub enum ConnectionMethod {
     Lan {
         ip: Option<String>,
     },
-    #[serde(rename = "openbitfun_server")]
-    OpenBitFunServer,
+    #[serde(rename = "bitfun_server")]
+    BitFunServer,
     BotFeishu,
     BotTelegram,
     BotWeixin,
@@ -90,7 +90,7 @@ pub enum ConnectionMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteConnectConfig {
     pub lan_port: u16,
-    pub openbitfun_server_url: String,
+    pub bitfun_server_url: String,
     pub bot_feishu: Option<bot::BotConfig>,
     pub bot_telegram: Option<bot::BotConfig>,
     pub bot_weixin: Option<bot::BotConfig>,
@@ -101,7 +101,7 @@ impl Default for RemoteConnectConfig {
     fn default() -> Self {
         Self {
             lan_port: 9700,
-            openbitfun_server_url: openbitfun_product_domains::account::DEFAULT_RELAY_URL
+            bitfun_server_url: bitfun_product_domains::account::DEFAULT_RELAY_URL
                 .to_string(),
             bot_feishu: None,
             bot_telegram: None,
@@ -224,7 +224,7 @@ impl RemoteConnectService {
 
     pub async fn clear_bot_delegated_identities(&self) {
         self.set_bot_account(None).await;
-        openbitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts(
+        bitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts(
         );
     }
 
@@ -257,7 +257,7 @@ impl RemoteConnectService {
     pub async fn available_methods(&self) -> Vec<ConnectionMethod> {
         vec![
             ConnectionMethod::Lan { ip: None },
-            ConnectionMethod::OpenBitFunServer,
+            ConnectionMethod::BitFunServer,
             ConnectionMethod::BotFeishu,
             ConnectionMethod::BotTelegram,
             ConnectionMethod::BotWeixin,
@@ -278,7 +278,7 @@ impl RemoteConnectService {
                 Some(ip) => lan::build_lan_relay_url_with_ip(self.config.lan_port, ip)?,
                 None => lan::build_lan_relay_url(self.config.lan_port)?,
             },
-            ConnectionMethod::OpenBitFunServer => self.config.openbitfun_server_url.clone(),
+            ConnectionMethod::BitFunServer => self.config.bitfun_server_url.clone(),
             _ => anyhow::bail!("connection method does not use a relay"),
         };
         self.stop_relay_inner().await;
@@ -1265,8 +1265,8 @@ fn start_host_catalog_publication(publisher: &Arc<session_log::SessionPublisher>
 
 /// Live session-list state is runtime-owned but not always a metadata write.
 /// Only semantic lifecycle facts invalidate the catalog; output chunks do not.
-pub fn notify_session_catalog_event(event: &openbitfun_events::AgenticEvent) {
-    use openbitfun_events::AgenticEvent;
+pub fn notify_session_catalog_event(event: &bitfun_events::AgenticEvent) {
+    use bitfun_events::AgenticEvent;
     if matches!(
         event,
         AgenticEvent::SessionCreated { .. }

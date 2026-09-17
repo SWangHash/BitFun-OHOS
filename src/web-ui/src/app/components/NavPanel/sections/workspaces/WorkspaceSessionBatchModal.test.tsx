@@ -17,7 +17,7 @@ vi.mock('@/shared/notification-system', () => ({
 vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key, formatDate: () => '', formatRelativeTime: () => '' }),
 }));
-vi.mock('@openbitfun/ui', () => {
+vi.mock('@bitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   return {
     Dialog: Box, DialogBody: Box, DialogHeader: Box, DialogHeading: Box,

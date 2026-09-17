@@ -1,7 +1,7 @@
  
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, ScrollArea } from '@openbitfun/ui';
+import { Button, Icon, ScrollArea } from '@bitfun/ui';
 import { AlertCircle } from 'lucide-react';
 import { useContextStore, selectContexts } from '../../../stores/contextStore';
 import { ContextCard } from '../ContextCard/ContextCard';
@@ -97,13 +97,13 @@ export const ContextList: React.FC<ContextListProps> = ({
   
   if (renderedContexts.length === 0) {
     return (
-      <div className={`openbitfun-context-list openbitfun-context-list--empty ${className}`} data-openbitfun-component="context-list" data-openbitfun-part="root" data-openbitfun-state="empty">
-        <div className="openbitfun-context-list__empty-state" data-openbitfun-component="context-list" data-openbitfun-part="empty">
-          <AlertCircle size={24} className="openbitfun-context-list__empty-icon" />
-          <p className="openbitfun-context-list__empty-text">
+      <div className={`bitfun-context-list bitfun-context-list--empty ${className}`} data-bitfun-component="context-list" data-bitfun-part="root" data-bitfun-state="empty">
+        <div className="bitfun-context-list__empty-state" data-bitfun-component="context-list" data-bitfun-part="empty">
+          <AlertCircle size={24} className="bitfun-context-list__empty-icon" />
+          <p className="bitfun-context-list__empty-text">
             {t('contextSystem.contextList.emptyTitle')}
           </p>
-          <p className="openbitfun-context-list__empty-hint">
+          <p className="bitfun-context-list__empty-hint">
             {t('contextSystem.contextList.emptyHint')}
           </p>
         </div>
@@ -112,12 +112,12 @@ export const ContextList: React.FC<ContextListProps> = ({
   }
   
   return (
-    <div className={`openbitfun-context-list ${className}`} data-openbitfun-component="context-list" data-openbitfun-part="root">
+    <div className={`bitfun-context-list ${className}`} data-bitfun-component="context-list" data-bitfun-part="root">
       
-      <div className="openbitfun-context-list__header" data-openbitfun-component="context-list" data-openbitfun-part="header">
-        <div className="openbitfun-context-list__title" data-openbitfun-component="context-list" data-openbitfun-part="title">
+      <div className="bitfun-context-list__header" data-bitfun-component="context-list" data-bitfun-part="header">
+        <div className="bitfun-context-list__title" data-bitfun-component="context-list" data-bitfun-part="title">
           {t('contextSystem.contextList.title')}
-          <span className="openbitfun-context-list__count" data-openbitfun-component="context-list" data-openbitfun-part="count">
+          <span className="bitfun-context-list__count" data-bitfun-component="context-list" data-bitfun-part="count">
             {contexts.length}
           </span>
         </div>
@@ -137,23 +137,23 @@ export const ContextList: React.FC<ContextListProps> = ({
       
       
       <ScrollArea 
-        className="openbitfun-context-list__items"
+        className="bitfun-context-list__items"
         style={{ maxHeight }}
-        data-openbitfun-component="context-list"
-        data-openbitfun-part="items"
+        data-bitfun-component="context-list"
+        data-bitfun-part="items"
       >
         {renderedContexts.map(({ context, exiting }) => (
           <div
             key={context.id}
-            className="openbitfun-context-list__item"
+            className="bitfun-context-list__item"
             data-exiting={exiting ? 'true' : 'false'}
             aria-hidden={exiting || undefined}
             {...(exiting ? { inert: '' } : {})}
             onClick={exiting ? undefined : () => handleCardClick(context.id)}
-            data-openbitfun-component="context-list"
-            data-openbitfun-part="item"
+            data-bitfun-component="context-list"
+            data-bitfun-part="item"
           >
-            <div className="openbitfun-context-list__item-inner">
+            <div className="bitfun-context-list__item-inner">
               <ContextCard
                 context={context}
                 onRemove={exiting ? undefined : handleRemove}

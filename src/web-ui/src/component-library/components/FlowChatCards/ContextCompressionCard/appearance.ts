@@ -7,7 +7,7 @@ export const contextCompressionCardAppearanceDescriptor: AppearanceSurfaceDescri
     { id: 'result' }, { id: 'processing' }, { id: 'summaryRow' }, { id: 'statsRow' },
   ],
   facets: [
-    { id: 'display', attribute: 'data-openbitfun-display', values: ['compact'] },
-    { id: 'status', attribute: 'data-openbitfun-status', values: ['pending', 'preparing', 'running', 'streaming', 'completed', 'cancelled', 'error'] },
+    { id: 'display', attribute: 'data-bitfun-display', values: ['compact'] },
+    { id: 'status', attribute: 'data-bitfun-status', values: ['pending', 'preparing', 'running', 'streaming', 'completed', 'cancelled', 'error'] },
   ],
 };

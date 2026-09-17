@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Layers } from 'lucide-react';
-import { Combobox } from '@openbitfun/ui';
-import { Spinner } from '@openbitfun/ui';
+import { Combobox } from '@bitfun/ui';
+import { Spinner } from '@bitfun/ui';
 import { notificationService } from '@/shared/notification-system';
 import { configManager } from '../services/ConfigManager';
 import type {
@@ -162,7 +162,7 @@ export const DefaultModelConfig: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="default-model-config__loading" data-openbitfun-component="default-model-config" data-openbitfun-part="loading" data-openbitfun-state="loading">
+      <div className="default-model-config__loading" data-bitfun-component="default-model-config" data-bitfun-part="loading" data-bitfun-state="loading">
         <Spinner size="sm" />
         <p>{t('loading')}</p>
       </div>
@@ -172,9 +172,9 @@ export const DefaultModelConfig: React.FC = () => {
   if (models.length === 0) {
     return (
       <ConfigEmptyState
-        data-openbitfun-component="default-model-config"
-        data-openbitfun-part="empty"
-        data-openbitfun-state="empty"
+        data-bitfun-component="default-model-config"
+        data-bitfun-part="empty"
+        data-bitfun-state="empty"
         icon={<Layers size={36} aria-hidden="true" />}
         description={t('empty.noModels')}
       />
@@ -182,7 +182,7 @@ export const DefaultModelConfig: React.FC = () => {
   }
 
   return (
-    <div className="default-model-config" data-openbitfun-component="default-model-config" data-openbitfun-part="root">
+    <div className="default-model-config" data-bitfun-component="default-model-config" data-bitfun-part="root">
       <ConfigPageRow
         label={t('core.primary.label')}
         description={t('core.primary.description')}
@@ -191,8 +191,8 @@ export const DefaultModelConfig: React.FC = () => {
       >
         <Combobox
           aria-required="true"
-          data-openbitfun-component="default-model-config"
-          data-openbitfun-part="primaryModel"
+          data-bitfun-component="default-model-config"
+          data-bitfun-part="primaryModel"
           value={defaultModels.primary || ''}
           onValueChange={(value) => handleDefaultModelChange('primary', normalizeSelectValue(value))}
           placeholder={t('core.primary.placeholder')}
@@ -208,8 +208,8 @@ export const DefaultModelConfig: React.FC = () => {
         align="center"
       >
         <Combobox
-          data-openbitfun-component="default-model-config"
-          data-openbitfun-part="lightweightModel"
+          data-bitfun-component="default-model-config"
+          data-bitfun-part="lightweightModel"
           value={defaultModels.fast || ''}
           onValueChange={(value) => handleDefaultModelChange('fast', normalizeSelectValue(value))}
           placeholder={t('core.fast.placeholder')}
@@ -227,8 +227,8 @@ export const DefaultModelConfig: React.FC = () => {
         align="center"
       >
         <Combobox
-          data-openbitfun-component="default-model-config"
-          data-openbitfun-part="embeddingModel"
+          data-bitfun-component="default-model-config"
+          data-bitfun-part="embeddingModel"
           value={defaultModels.image_understanding || ''}
           onValueChange={(value) => handleDefaultModelChange('image_understanding', normalizeSelectValue(value))}
           placeholder={t('optional.selectModel')}

@@ -8,9 +8,9 @@ describe('market image URLs', () => {
   });
 
   it('replaces an existing variant and exposes responsive candidates', () => {
-    const source = 'https://market.openbitfun.com/image?variant=old';
+    const source = 'https://market.bitfun.com/image?variant=old';
     expect(marketImageUrl(source, 'large-v1'))
-      .toBe('https://market.openbitfun.com/image?variant=large-v1');
+      .toBe('https://market.bitfun.com/image?variant=large-v1');
     expect(marketImageSrcSet(source)).toContain('variant=compact-v1 640w');
     expect(marketImageSrcSet(source)).toContain('variant=large-v1 1280w');
   });

@@ -384,7 +384,7 @@ async function resolveRepositoryRevision(explicitRevision) {
     {
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': 'OpenBitFun-models-dev-updater',
+        'User-Agent': 'BitFun-models-dev-updater',
       },
     },
   );

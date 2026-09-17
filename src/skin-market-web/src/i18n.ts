@@ -5,11 +5,11 @@ export type Locale = 'en-US' | 'zh-CN';
 type MessageKey = keyof typeof messages['en-US'];
 type MessageValues = Record<string, string | number>;
 
-const LOCALE_STORAGE_KEY = 'openbitfun-skin-market-locale';
+const LOCALE_STORAGE_KEY = 'bitfun-skin-market-locale';
 
 const messages = {
   'en-US': {
-    brand: 'OpenBitFun',
+    brand: 'BitFun',
     market: 'Skin Market',
     navBrowse: 'Browse',
     navSubmissions: 'My submissions',
@@ -25,9 +25,9 @@ const messages = {
     accountError: 'Your GitHub account status could not be refreshed.',
     retryAccount: 'Try again',
     githubUnavailable: 'Sign-in is being configured. Please try again shortly.',
-    headline: 'A different atmosphere for OpenBitFun.',
+    headline: 'A different atmosphere for BitFun.',
     intro: 'Browse reviewed appearance packages, then install the one that fits your workspace.',
-    desktopInstallNote: 'Download the package, then open Settings > Appearance in OpenBitFun Desktop to import it.',
+    desktopInstallNote: 'Download the package, then open Settings > Appearance in BitFun Desktop to import it.',
     catalogTitle: 'Reviewed appearances',
     catalogIntro: 'Each release is immutable, compatibility-labeled, and ready for local import.',
     searchLabel: 'Search appearances',
@@ -60,7 +60,7 @@ const messages = {
     detailBack: 'Back to Skin Market',
     detailDownload: 'Download appearance',
     compatibility: 'Compatibility',
-    minOpenBitFun: 'OpenBitFun {version} or newer',
+    minBitFun: 'BitFun {version} or newer',
     requiredCapabilities: 'Required capabilities',
     noExtraCapabilities: 'No additional capabilities required',
     whatsNew: 'What changed',
@@ -81,22 +81,22 @@ const messages = {
     notFoundTitle: 'This appearance is not here',
     notFoundBody: 'The link may be outdated, or the release may no longer be public.',
     backToCatalog: 'Browse appearances',
-    openbitfunHome: 'OpenBitFun website',
-    getOpenBitFunTitle: 'New to OpenBitFun?',
-    getOpenBitFunCatalogNote:
-      'Appearances apply inside the OpenBitFun desktop client. Download it once, then install any appearance from this market.',
-    getOpenBitFunListingNote:
-      'This appearance applies inside the OpenBitFun desktop client. Download it first, then import the package.',
-    getOpenBitFunAction: 'Download OpenBitFun',
+    bitfunHome: 'BitFun website',
+    getBitFunTitle: 'New to BitFun?',
+    getBitFunCatalogNote:
+      'Appearances apply inside the BitFun desktop client. Download it once, then install any appearance from this market.',
+    getBitFunListingNote:
+      'This appearance applies inside the BitFun desktop client. Download it first, then import the package.',
+    getBitFunAction: 'Download BitFun',
     refresh: 'Refresh',
     submissionsTitle: 'My submissions',
-    submissionsIntro: 'Track appearance packages submitted from OpenBitFun Agent and respond to review feedback.',
+    submissionsIntro: 'Track appearance packages submitted from BitFun Agent and respond to review feedback.',
     submissionsLoading: 'Loading your submissions…',
     submissionsError: 'Your submissions could not be loaded.',
     submissionsSignInTitle: 'Sign in to view your submissions',
     submissionsSignInBody: 'Skin Market uses the same GitHub account as MiniApp Market.',
     submissionsEmptyTitle: 'No submissions yet',
-    submissionsEmptyBody: 'Ask OpenBitFun Agent to package and submit an appearance when it is ready.',
+    submissionsEmptyBody: 'Ask BitFun Agent to package and submit an appearance when it is ready.',
     submissionStatusDraft: 'Draft',
     submissionStatusSubmitted: 'In review',
     submissionStatusApproved: 'Approved',
@@ -146,7 +146,7 @@ const messages = {
     moderationFailed: 'The moderation action failed.',
   },
   'zh-CN': {
-    brand: 'OpenBitFun',
+    brand: 'BitFun',
     market: 'Skin 市场',
     navBrowse: '浏览',
     navSubmissions: '我的投稿',
@@ -162,9 +162,9 @@ const messages = {
     accountError: '暂时无法刷新 GitHub 账号状态。',
     retryAccount: '重试',
     githubUnavailable: '登录正在配置，请稍后再试。',
-    headline: '换一种 OpenBitFun 的气质。',
+    headline: '换一种 BitFun 的气质。',
     intro: '浏览经过审核的外观包，为你的工作空间选择更合适的视觉表达。',
-    desktopInstallNote: '下载外观包后，在 OpenBitFun Desktop 中打开「设置 > 外观」并导入。',
+    desktopInstallNote: '下载外观包后，在 BitFun Desktop 中打开「设置 > 外观」并导入。',
     catalogTitle: '已审核外观',
     catalogIntro: '每个版本都锁定内容哈希，并明确标注兼容要求，可安全导入本机。',
     searchLabel: '搜索外观',
@@ -197,7 +197,7 @@ const messages = {
     detailBack: '返回 Skin 市场',
     detailDownload: '下载外观包',
     compatibility: '兼容性',
-    minOpenBitFun: '需要 OpenBitFun {version} 或更高版本',
+    minBitFun: '需要 BitFun {version} 或更高版本',
     requiredCapabilities: '所需能力',
     noExtraCapabilities: '不需要额外能力',
     whatsNew: '更新说明',
@@ -218,22 +218,22 @@ const messages = {
     notFoundTitle: '这里没有这个外观',
     notFoundBody: '链接可能已经失效，或者该版本不再公开。',
     backToCatalog: '浏览外观',
-    openbitfunHome: 'OpenBitFun 官网',
-    getOpenBitFunTitle: '没有 OpenBitFun？',
-    getOpenBitFunCatalogNote:
-      '外观需要在 OpenBitFun 客户端里生效。下载客户端后，就能安装市场里的任意外观。',
-    getOpenBitFunListingNote:
-      '这个外观需要在 OpenBitFun 客户端里生效。先下载客户端，再导入外观包即可。',
-    getOpenBitFunAction: '下载 OpenBitFun 客户端',
+    bitfunHome: 'BitFun 官网',
+    getBitFunTitle: '没有 BitFun？',
+    getBitFunCatalogNote:
+      '外观需要在 BitFun 客户端里生效。下载客户端后，就能安装市场里的任意外观。',
+    getBitFunListingNote:
+      '这个外观需要在 BitFun 客户端里生效。先下载客户端，再导入外观包即可。',
+    getBitFunAction: '下载 BitFun 客户端',
     refresh: '刷新',
     submissionsTitle: '我的投稿',
-    submissionsIntro: '查看通过 OpenBitFun 智能体投稿的外观包，并跟进审核意见。',
+    submissionsIntro: '查看通过 BitFun 智能体投稿的外观包，并跟进审核意见。',
     submissionsLoading: '正在加载投稿…',
     submissionsError: '暂时无法加载你的投稿。',
     submissionsSignInTitle: '登录后查看投稿',
     submissionsSignInBody: 'Skin 市场与 MiniApp 市场使用同一个 GitHub 账号。',
     submissionsEmptyTitle: '还没有投稿',
-    submissionsEmptyBody: '外观完成后，可以让 OpenBitFun 智能体打包并投稿。',
+    submissionsEmptyBody: '外观完成后，可以让 BitFun 智能体打包并投稿。',
     submissionStatusDraft: '草稿',
     submissionStatusSubmitted: '审核中',
     submissionStatusApproved: '已通过',

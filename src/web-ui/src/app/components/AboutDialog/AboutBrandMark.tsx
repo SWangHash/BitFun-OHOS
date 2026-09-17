@@ -56,7 +56,7 @@ export function AboutBrandMark({ active = true }: { active?: boolean }) {
       if (animations.length === 0) {
         // Equal lap times preserve the spacing between highlights indefinitely.
         // Only the highlights circulate; the contours remain fixed.
-        animations = Array.from(svg.querySelectorAll('.openbitfun-about-dialog__brand-flow'))
+        animations = Array.from(svg.querySelectorAll('.bitfun-about-dialog__brand-flow'))
           .map((strand, index) => {
             const start = -index * 3;
             return strand.animate([
@@ -82,7 +82,7 @@ export function AboutBrandMark({ active = true }: { active?: boolean }) {
   return (
     <svg
       ref={svgRef}
-      className="openbitfun-about-dialog__brand-mark"
+      className="bitfun-about-dialog__brand-mark"
       viewBox="0 0 256 256"
       width={256}
       height={256}
@@ -94,7 +94,7 @@ export function AboutBrandMark({ active = true }: { active?: boolean }) {
       {contours.map((path, index) => (
         <g key={index}>
           <path d={path} opacity={index === 0 || index === CONTOUR_COUNT - 1 ? 0.58 : 0.34} />
-          <g className="openbitfun-about-dialog__brand-flow" strokeDashoffset={-index * 3}>
+          <g className="bitfun-about-dialog__brand-flow" strokeDashoffset={-index * 3}>
             {FLOW_LAYERS.map(layer => (
               <path
                 key={layer.length}

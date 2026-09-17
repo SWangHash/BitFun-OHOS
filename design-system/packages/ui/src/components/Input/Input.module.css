@@ -1,26 +1,26 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .field {
-    --_field-height: var(--openbitfun-control-height-sm);
+    --_field-height: var(--bitfun-control-height-sm);
     --_field-icon-size: 14px;
 
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
     block-size: var(--_field-height);
-    gap: var(--openbitfun-space-2);
-    padding-inline: var(--openbitfun-space-2);
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-field-background);
+    gap: var(--bitfun-space-2);
+    padding-inline: var(--bitfun-space-2);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-field-background);
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .field:hover:where(:not([data-disabled="true"])) {
-    border-color: var(--openbitfun-color-field-border-hover);
-    background: var(--openbitfun-color-field-background-hover);
+    border-color: var(--bitfun-color-field-border-hover);
+    background: var(--bitfun-color-field-background-hover);
   }
 
   .field[data-field-surface="ambient"],
@@ -29,30 +29,30 @@
   }
 
   .field:focus-within {
-    border-color: var(--openbitfun-color-field-border-active);
+    border-color: var(--bitfun-color-field-border-active);
     box-shadow: none;
   }
 
   .field[data-invalid="true"] {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .field[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
     cursor: not-allowed;
   }
 
   .field[data-size="md"] {
-    --_field-height: var(--openbitfun-control-height-md);
+    --_field-height: var(--bitfun-control-height-md);
     --_field-icon-size: 16px;
   }
 
   .field[data-disabled="true"] :is(.leading, .trailing) {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
   }
 
   .field[data-size="lg"] {
-    --_field-height: var(--openbitfun-control-height-lg);
+    --_field-height: var(--bitfun-control-height-lg);
     --_field-icon-size: 20px;
   }
 
@@ -64,18 +64,18 @@
     padding: 0;
     border: 0;
     outline: 0;
-    caret-color: var(--openbitfun-color-accent-default);
+    caret-color: var(--bitfun-color-accent-default);
     color: inherit;
     background: transparent;
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   }
 
   .input::placeholder {
-    color: var(--openbitfun-color-field-placeholder);
+    color: var(--bitfun-color-field-placeholder);
     opacity: 1;
   }
 
@@ -93,19 +93,19 @@
 
   .leading,
   .trailing {
-    --openbitfun-opacity-icon-artwork: 1;
+    --bitfun-opacity-icon-artwork: 1;
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    color: var(--openbitfun-color-field-placeholder);
+    color: var(--bitfun-color-field-placeholder);
   }
 
   .leading > :where(svg, img),
   .trailing > :where(svg, img),
-  .leading > [data-openbitfun-component="icon"],
-  .leading > [data-openbitfun-part="icon"],
-  .trailing > [data-openbitfun-component="icon"] {
+  .leading > [data-bitfun-component="icon"],
+  .leading > [data-bitfun-part="icon"],
+  .trailing > [data-bitfun-component="icon"] {
     display: block;
     inline-size: var(--_field-icon-size);
     block-size: var(--_field-icon-size);

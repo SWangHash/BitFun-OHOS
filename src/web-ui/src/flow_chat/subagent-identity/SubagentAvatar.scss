@@ -33,26 +33,26 @@
     z-index: 1;
     width: max(6px, calc(var(--subagent-avatar-size) * 0.24));
     height: max(6px, calc(var(--subagent-avatar-size) * 0.24));
-    border: 1.5px solid var(--openbitfun-color-surface-raised);
+    border: 1.5px solid var(--bitfun-color-surface-raised);
     border-radius: 50%;
-    background: var(--openbitfun-color-content-muted);
+    background: var(--bitfun-color-content-muted);
   }
 
   &--running &__status,
   &--finishing &__status {
-    background: var(--openbitfun-color-status-success-emphasis);
+    background: var(--bitfun-color-status-success-emphasis);
   }
 
   &--waiting &__status {
-    background: var(--openbitfun-color-status-warning-emphasis);
+    background: var(--bitfun-color-status-warning-emphasis);
   }
 
   &--error &__status,
   &--cancelled &__status {
-    background: var(--openbitfun-color-status-danger-emphasis);
+    background: var(--bitfun-color-status-danger-emphasis);
   }
 
   &--completed &__status {
-    background: var(--openbitfun-color-status-info-emphasis);
+    background: var(--bitfun-color-status-info-emphasis);
   }
 }

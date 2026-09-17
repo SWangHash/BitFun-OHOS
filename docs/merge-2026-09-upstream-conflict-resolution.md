@@ -18,11 +18,11 @@ inline-grid 布局）。上游在本文件继续演进**自绘版**样式。
 
 | 冲突块 | ours | theirs | 决策 |
 |---|---|---|---|
-| `.leading/.indicator` 属性 | `z-index:1; grid-area:1/1`（grid 叠放，原生布局必需） | `--openbitfun-opacity-icon-artwork:1` | **融合**：两者都保留。上游同时把颜色从 `content-muted` 改为 `color-field-placeholder`（token 语义化，light.tokens.json:184 有定义），已随自动合并生效 |
+| `.leading/.indicator` 属性 | `z-index:1; grid-area:1/1`（grid 叠放，原生布局必需） | `--bitfun-opacity-icon-artwork:1` | **融合**：两者都保留。上游同时把颜色从 `content-muted` 改为 `color-field-placeholder`（token 语义化，light.tokens.json:184 有定义），已随自动合并生效 |
 | `.value/.placeholder/.popoverHeader/.popover` + 两个 popover keyframes | （空） | 自绘 trigger 文本类 + 整个 popover 面板样式 + 弹出动画 | **保留 ours（删除）**：原生 select 的下拉由系统渲染，DOM 中不存在这些类 |
 | 同上延伸至 `>>>>>>>`（136–280 行整段） | （空） | 自绘版专属样式续 | 同上，整段删除 |
 
-验证：解决后文件 153 行，无 `Listbox`/`popover` 残留；`--openbitfun-color-field-placeholder` 在
+验证：解决后文件 153 行，无 `Listbox`/`popover` 残留；`--bitfun-color-field-placeholder` 在
 theme 中有定义。
 
 ## 2. design-system/apps/design-lab/src/pages/ComponentDetailPage.tsx（1 块）
@@ -45,7 +45,7 @@ Design Lab 组件详情页的 states 映射表：
 实际值** `["default","hover","focus-visible","invalid","disabled"]`（去掉 `"open"`），与文件 2 的实际
 代码保持一致。
 
-## 4. design-system/packages/theme-openbitfun/src/light.tokens.json（1 块）
+## 4. design-system/packages/theme-bitfun/src/light.tokens.json（1 块）
 
 light 主题 `field.border / borderHover / borderFocus` 的取值冲突：
 
@@ -101,17 +101,17 @@ item IDs 避开命令行引号问题；该插件是桌面端既有依赖。OHOS 
 ### 冲突 3：agent-companion 窗口的 `app_url` 调用
 - 两边都是同一调用，仅签名与缩进不同
 
-**决策**：取 theirs（`app_url(&app, "?openbitfunWindow=agent-companion")`）。
+**决策**：取 theirs（`app_url(&app, "?bitfunWindow=agent-companion")`）。
 
 ### 关键补救
 上游引入的 `fn use_development_frontend()` 定义位于 tests 模块与 `create_main_window` 之间，
 该区域被 ours 的大改覆盖导致**定义丢失而调用被合并**（会出现“只有引用没有定义”的断裂）。
-已手工补插原定义（debug 下默认 true、`OPENBITFUN_E2E_PACKAGED_FRONTEND` +
-`OPENBITFUN_E2E_STORAGE_GUARD` 双变量时 false；release 下 false）。
+已手工补插原定义（debug 下默认 true、`BITFUN_E2E_PACKAGED_FRONTEND` +
+`BITFUN_E2E_STORAGE_GUARD` 双变量时 false；release 下 false）。
 
 ## 8. src/apps/desktop/src/generated/bootstrap_theme.css（1 块）
 
-生成文件（bootstrap 主题 CSS）。上游新增 `--openbitfun-color-field-border-active` token 并把
+生成文件（bootstrap 主题 CSS）。上游新增 `--bitfun-color-field-border-active` token 并把
 `border-focus` 从 `#60a5fa` 改为 `#858585`。
 
 **决策**：取 theirs（与已合并的 tokens 源一致）；下次构建时生成器会再校正。
@@ -213,7 +213,7 @@ agent canvas 工作区快照同步：
 1. sidebar 外层 `<button>` 与内层 `NavigationPanelItem` 错配 → 按上游改为 `<div className="skills-sidebar__item">`
 2. shadowed StatusPill 重复渲染 → 删除重复
 3. `</span>`/`</OverflowText>` 闭合标签不匹配 → 修正
-4. 补齐 import：`NavigationPanelItem`、`OverflowText`（@openbitfun/ui）；`formatNumber`（
+4. 补齐 import：`NavigationPanelItem`、`OverflowText`（@bitfun/ui）；`formatNumber`（
    经验证 `useTranslation` 不提供，改从 `useI18n('components')` 解构）
 
 ## 18. src/web-ui/src/app/scenes/skills/hooks/useInstalledSkills.ts（1 块）

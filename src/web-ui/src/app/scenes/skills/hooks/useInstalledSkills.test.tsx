@@ -99,9 +99,9 @@ describe('useInstalledSkills', () => {
   });
 
   it('preserves available skills alongside discovery failures', async () => {
-    const skills = [{ key: 'user::openbitfun::good', name: 'good', sourceId: 'openbitfun', level: 'user', path: '/skills/good' }];
+    const skills = [{ key: 'user::bitfun::good', name: 'good', sourceId: 'bitfun', level: 'user', path: '/skills/good' }];
     getSkillConfigsMock.mockResolvedValue(skills);
-    diagnosticsMock.items = [{ path: '/skills/bad/SKILL.md', sourceId: 'openbitfun', message: 'missing description' }];
+    diagnosticsMock.items = [{ path: '/skills/bad/SKILL.md', sourceId: 'bitfun', message: 'missing description' }];
     await act(async () => root.render(<Harness enabled />));
     expect(currentInstalled?.skills).toEqual(skills);
     expect(currentInstalled?.diagnostics).toEqual(diagnosticsMock.items);
@@ -114,8 +114,8 @@ describe('useInstalledSkills', () => {
 
   it('does not repeat unchanged scan warnings on refresh, but reports changes and recurrence', async () => {
     diagnosticsMock.items = [
-      { path: '/skills/first', sourceId: 'openbitfun', message: 'missing target' },
-      { path: '/skills/second', sourceId: 'openbitfun-user', message: 'permission denied' },
+      { path: '/skills/first', sourceId: 'bitfun', message: 'missing target' },
+      { path: '/skills/second', sourceId: 'bitfun-user', message: 'permission denied' },
     ];
     await act(async () => root.render(<Harness enabled />));
     expect(notificationMocks.warning).toHaveBeenCalledTimes(1);
@@ -138,7 +138,7 @@ describe('useInstalledSkills', () => {
   });
 
   it('does not claim skills are available when every scanned skill failed', async () => {
-    diagnosticsMock.items = [{ path: '/skills/broken', sourceId: 'openbitfun', message: 'missing target' }];
+    diagnosticsMock.items = [{ path: '/skills/broken', sourceId: 'bitfun', message: 'missing target' }];
     await act(async () => root.render(<Harness enabled />));
     expect(currentInstalled?.skills).toEqual([]);
     expect(notificationMocks.warning).toHaveBeenCalledExactlyOnceWith('list.loadFailed', {
@@ -180,7 +180,7 @@ describe('useInstalledSkills', () => {
   it('shows all discovered sources and exposes the shared directory as a source filter', async () => {
     const skill = (key: string, overrides: Partial<SkillInfo> = {}): SkillInfo => ({
       key, name: 'shared-name', description: '', path: `/skills/${key}`,
-      level: 'user', sourceSlot: 'openbitfun', sourceId: 'openbitfun',
+      level: 'user', sourceSlot: 'bitfun', sourceId: 'bitfun',
       dirName: 'shared-name', isBuiltin: false, ...overrides,
     });
     const skills = [
@@ -239,7 +239,7 @@ describe('useInstalledSkills', () => {
 
   it('groups native imported copies by persisted origin and keeps native deletion available', async () => {
     const imported: SkillInfo = { key: 'owned-import', name: 'demo', description: '', path: '/native/demo',
-      level: 'user', sourceId: 'openbitfun', sourceSlot: 'openbitfun', dirName: 'demo', isBuiltin: false,
+      level: 'user', sourceId: 'bitfun', sourceSlot: 'bitfun', dirName: 'demo', isBuiltin: false,
       importOrigin: { schemaVersion: 1, importId: 'receipt', sourceKey: 'external', sourcePath: '/external/demo',
         sourceId: 'codex', sourceLabel: 'Codex', sourceSlot: 'home.codex', fingerprint: 'copy-hash' } };
     getSkillConfigsMock.mockResolvedValue([imported]);
@@ -255,7 +255,7 @@ describe('useInstalledSkills', () => {
   });
 
   it('ignores a desktop skill load that finishes after switching away', async () => {
-    diagnosticsMock.items = [{ path: '/skills/broken', sourceId: 'openbitfun', message: 'missing target' }];
+    diagnosticsMock.items = [{ path: '/skills/broken', sourceId: 'bitfun', message: 'missing target' }];
     let resolveLoad: ((skills: SkillInfo[]) => void) | undefined;
     getSkillConfigsMock.mockReturnValueOnce(new Promise<SkillInfo[]>((resolve) => {
       resolveLoad = resolve;
@@ -271,13 +271,13 @@ describe('useInstalledSkills', () => {
     });
     await act(async () => {
       resolveLoad?.([{
-        key: 'openbitfun:user:test',
+        key: 'bitfun:user:test',
         name: 'test',
         description: '',
         path: 'D:/skills/test',
         level: 'user',
-        sourceSlot: 'openbitfun-user',
-        sourceId: 'openbitfun',
+        sourceSlot: 'bitfun-user',
+        sourceId: 'bitfun',
         dirName: 'test',
         isBuiltin: false,
       }]);
@@ -296,13 +296,13 @@ describe('useInstalledSkills', () => {
       resolveDelete = resolve;
     }));
     const skill: SkillInfo = {
-      key: 'openbitfun:user:test',
+      key: 'bitfun:user:test',
       name: 'test',
       description: '',
       path: 'D:/skills/test',
       level: 'user',
-      sourceSlot: 'openbitfun-user',
-      sourceId: 'openbitfun',
+      sourceSlot: 'bitfun-user',
+      sourceId: 'bitfun',
       dirName: 'test',
       isBuiltin: false,
     };

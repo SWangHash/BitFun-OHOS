@@ -4,7 +4,7 @@
  */
 import React, { Suspense, lazy, useState } from 'react';
 
-import { TabGroup } from '@openbitfun/ui';
+import { TabGroup } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import './MiniAppGalleryScene.scss';
 
@@ -38,7 +38,7 @@ const MiniAppGalleryScene: React.FC = () => {
   );
 
   return (
-    <div className="miniapp-gallery-scene" data-openbitfun-scene="miniapp-gallery" data-openbitfun-part="root">
+    <div className="miniapp-gallery-scene" data-bitfun-scene="miniapp-gallery" data-bitfun-part="root">
       <div className="miniapp-gallery-scene__content">
         <Suspense fallback={null}>
           {activeTab === 'apps' && <MiniAppLibraryView tabs={tabs} />}

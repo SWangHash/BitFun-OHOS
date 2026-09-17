@@ -50,7 +50,7 @@ impl Agent for CreativeHarness {
     }
 
     fn description(&self) -> &str {
-        "Creative Harness for building MiniApps and customizing the OpenBitFun interface"
+        "Creative Harness for building MiniApps and customizing the BitFun interface"
     }
 
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {
@@ -93,7 +93,7 @@ mod tests {
         let mode = CreativeHarness::new();
         assert_eq!(mode.prompt_template_name(None), "creative_mode");
         let prompt = crate::agentic::agents::get_embedded_prompt("creative_mode").unwrap();
-        assert!(prompt.contains("OpenBitFunControl"));
+        assert!(prompt.contains("BitFunControl"));
         assert!(prompt
             .split_whitespace()
             .collect::<Vec<_>>()

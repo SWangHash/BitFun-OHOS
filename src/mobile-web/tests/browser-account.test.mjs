@@ -169,7 +169,7 @@ test('browser profiles remain separate even with the same user agent and GitHub 
 });
 
 test('a closed and reopened browser profile retains its login and controller key', { timeout: 40_000 }, async () => {
-  const profile = await mkdtemp(path.join(tmpdir(), 'openbitfun-browser-account-'));
+  const profile = await mkdtemp(path.join(tmpdir(), 'bitfun-browser-account-'));
   const relay = new RelayFixture();
   let persistent;
   try {
@@ -195,21 +195,21 @@ test('legacy tab credentials migrate with their keys and navigation without revi
   relay.register(LAN, 'legacy-b', new Uint8Array(32).fill(8), '123', 'legacy-token-b');
   try {
     const first = await relay.page(context, source.origin, invitation(), () => {
-      sessionStorage.setItem('openbitfun.mobile.account_session.v2', JSON.stringify({
+      sessionStorage.setItem('bitfun.mobile.account_session.v2', JSON.stringify({
         version: 2, relay_url: location.origin, username: '123', token: 'legacy-token-a', user_id: '123',
         controller_device_id: 'legacy-a', device_secret: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
       }));
-      sessionStorage.setItem('openbitfun.mobile.navigation.v1', JSON.stringify({ version: 1, accountId: '123',
+      sessionStorage.setItem('bitfun.mobile.navigation.v1', JSON.stringify({ version: 1, accountId: '123',
         relayUrl: location.origin, controllerDeviceId: 'legacy-a', routeKey: location.pathname + location.hash,
         deviceId: 'desktop-b' }));
     });
     await connected(first, 'desktop-b');
     const second = await relay.page(context, source.origin, invitation(), () => {
-      sessionStorage.setItem('openbitfun.mobile.account_session.v2', JSON.stringify({
+      sessionStorage.setItem('bitfun.mobile.account_session.v2', JSON.stringify({
         version: 2, relay_url: location.origin, username: '123', token: 'legacy-token-b', user_id: '123',
         controller_device_id: 'legacy-b', device_secret: btoa(String.fromCharCode(...new Uint8Array(32).fill(8))),
       }));
-      sessionStorage.setItem('openbitfun.mobile.navigation.v1', JSON.stringify({ version: 1, accountId: '123',
+      sessionStorage.setItem('bitfun.mobile.navigation.v1', JSON.stringify({ version: 1, accountId: '123',
         relayUrl: location.origin, controllerDeviceId: 'legacy-b', routeKey: location.pathname + location.hash,
         deviceId: 'desktop-a' }));
     });
@@ -217,7 +217,7 @@ test('legacy tab credentials migrate with their keys and navigation without revi
     assert.equal((await readAccount(second)).controllerDeviceId, 'legacy-a');
     assert.equal(relay.logins.length, 0);
     assert.ok(relay.pings.every(ping => ping.controller === 'legacy-a' && ping.client.id === 'legacy-a'));
-    assert.equal(await second.evaluate(() => JSON.parse(sessionStorage.getItem('openbitfun.mobile.navigation.v1')).controllerDeviceId), 'legacy-a');
+    assert.equal(await second.evaluate(() => JSON.parse(sessionStorage.getItem('bitfun.mobile.navigation.v1')).controllerDeviceId), 'legacy-a');
     await signOut(first);
     await second.waitForSelector('.pairing-page__form');
     await second.reload(); // init script deliberately reintroduces a stale legacy token.
@@ -308,7 +308,7 @@ test('unreadable future records are retained and the UI reports the storage prob
       const { getBrowserAccountStore, releaseBrowserAccount } = await import('/src/services/BrowserAccountStore.ts');
       releaseBrowserAccount(await getBrowserAccountStore(location.origin).read());
       await new Promise((resolve, reject) => {
-        const request = indexedDB.open('openbitfun-mobile-account', 1);
+        const request = indexedDB.open('bitfun-mobile-account', 1);
         request.onerror = reject;
         request.onsuccess = () => {
           const tx = request.result.transaction('accounts', 'readwrite');
@@ -322,7 +322,7 @@ test('unreadable future records are retained and the UI reports the storage prob
     await page.waitForSelector('.pairing-page__error');
     assert.match(await page.$eval('.pairing-page__error', el => el.textContent), /has been kept/);
     assert.deepEqual(await page.evaluate(() => new Promise((resolve, reject) => {
-      const request = indexedDB.open('openbitfun-mobile-account', 1);
+      const request = indexedDB.open('bitfun-mobile-account', 1);
       request.onerror = reject;
       request.onsuccess = () => {
         const read = request.result.transaction('accounts').objectStore('accounts').get(location.origin);
@@ -397,7 +397,7 @@ test('a retired official relay token stays archived and is never rebound to the 
   const result=await page.evaluate(async endpoint=>{
    const {BrowserAccountStore}=await import('/src/services/BrowserAccountStore.ts');
    const retired=endpoint.replace(/\/v\/[^/]+$/, '/v/retired');
-   const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('openbitfun-mobile-account',1);request.onupgradeneeded=()=>request.result.createObjectStore('accounts',{keyPath:'relayUrl'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+   const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('bitfun-mobile-account',1);request.onupgradeneeded=()=>request.result.createObjectStore('accounts',{keyPath:'relayUrl'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
    const old={version:1,relayUrl:retired,controllerDeviceId:'old-controller',privateKey:btoa(String.fromCharCode(...new Uint8Array(32).fill(3))),revision:1,session:{token:'old-database-token',userId:'42'}};
    await new Promise((resolve,reject)=>{const tx=db.transaction('accounts','readwrite');tx.objectStore('accounts').put(old);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
    const snapshot=await new BrowserAccountStore(endpoint).read();
@@ -433,7 +433,7 @@ test('sign-in uses a separate popup, can cancel and reopen a closed window, and 
       await page.waitForFunction(() => typeof window.completeAuthFixture === 'function');
       await popupPage.setRequestInterception(true);
       popupPage.on('request', request => request.respond({ status: 200, contentType: 'text/html', body: '<h1>Authentication fixture</h1>' }));
-      await popupPage.goto('https://auth.openbitfun.com/sign-in');
+      await popupPage.goto('https://auth.bitfun.com/sign-in');
       assert.equal(await popupPage.evaluate(() => window.opener !== null), true);
       const parentSession = await page.target().createCDPSession();
       const popupSession = await target.createCDPSession();

@@ -1,4 +1,4 @@
-//! OpenBitFun Page: versioned publish + Page Functions serve.
+//! BitFun Page: versioned publish + Page Functions serve.
 //!
 //! Flow: upload draft → freeze version → deploy production pointer.
 //! Preview: `/p/{user}/{slug}/@v/{version}/...`
@@ -11,7 +11,7 @@ use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use dashmap::DashMap;
-use openbitfun_page_function_runtime::{
+use bitfun_page_function_runtime::{
     run_fetch, FetchRequest, PageFunctionError, PageMeta, DEFAULT_TIMEOUT, WORKER_ENTRY_PATH,
 };
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ const MAX_PAGE_BROWSER_GRANTS: usize = 8192;
 const MAX_PAGE_BROWSER_GRANTS_PER_USER: usize = 512;
 const MAX_PAGE_LOGIN_REQUESTS: usize = 4096;
 const MAX_PAGE_LOGIN_EXCHANGES: usize = 4096;
-const PAGE_ACCESS_COOKIE: &str = "openbitfun_page_access";
+const PAGE_ACCESS_COOKIE: &str = "bitfun_page_access";
 const PAGE_UPLOAD_SESSION_TTL: Duration = Duration::from_secs(15 * 60);
 const MAX_PAGE_UPLOAD_SESSIONS: usize = 4096;
 const MAX_PAGE_UPLOAD_SESSIONS_PER_USER: usize = 64;
@@ -1312,13 +1312,13 @@ fn page_login_form_response(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>需要登录 · OpenBitFun Page</title>
+  <title>需要登录 · BitFun Page</title>
   <style>{}</style>
 </head>
 <body>
   <main>
     <div class="mark" aria-hidden="true">B</div>
-    <p class="eyebrow">OPENBITFUN PAGE</p>
+    <p class="eyebrow">BITFUN PAGE</p>
     <h1>登录后访问</h1>
     <p>此页面受访问权限保护，请使用邮箱或 GitHub 登录。</p>
     <p class="secondary">This Page is protected. Sign in with your email or GitHub account.</p>
@@ -1327,7 +1327,7 @@ fn page_login_form_response(
       <p data-page-login-error class="error" role="alert" hidden></p>
       <button data-page-login-submit class="submit" type="submit">使用邮箱或 GitHub 登录 · Sign in with email or GitHub</button>
     </form>
-    <p class="note">使用 OpenBitFun 统一账号登录。</p>
+    <p class="note">使用 BitFun 统一账号登录。</p>
     <noscript><p class="error">登录需要启用 JavaScript。 JavaScript is required to sign in.</p></noscript>
   </main>
   <script src="{client_script}" defer></script>

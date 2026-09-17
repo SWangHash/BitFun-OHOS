@@ -24,10 +24,10 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  IconButton: (await importOriginal<typeof import('@openbitfun/ui')>()).IconButton,
+vi.mock('@bitfun/ui', async importOriginal => ({
+  IconButton: (await importOriginal<typeof import('@bitfun/ui')>()).IconButton,
   Icon: ({ name, className }: { name: string; className?: string }) => (
-    <span className={className} data-openbitfun-component="icon" data-openbitfun-name={name} />
+    <span className={className} data-bitfun-component="icon" data-bitfun-name={name} />
   ),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -99,7 +99,7 @@ describe('ForkSessionButton', () => {
 
     const button = container.querySelector('.model-round-item__fork-btn');
     expect(button).not.toBeNull();
-    expect(button?.querySelector('[data-openbitfun-name="git"]')).not.toBeNull();
+    expect(button?.querySelector('[data-bitfun-name="git"]')).not.toBeNull();
   });
 
   it('keeps the original pending icon and disables duplicate forks until completion', async () => {
@@ -116,14 +116,14 @@ describe('ForkSessionButton', () => {
 
     expect(flowChatManager.forkChatSession).toHaveBeenCalledExactlyOnceWith('main-session', 'turn-1');
     expect(button.disabled).toBe(true);
-    expect(button.querySelector('.spinning[data-openbitfun-name="progress-25"]')).not.toBeNull();
+    expect(button.querySelector('.spinning[data-bitfun-name="progress-25"]')).not.toBeNull();
     expect(button.getAttribute('data-loading')).toBe('false');
     act(() => button.click());
     expect(flowChatManager.forkChatSession).toHaveBeenCalledTimes(1);
 
     await act(async () => complete());
     expect(button.disabled).toBe(false);
-    expect(button.querySelector('[data-openbitfun-name="git"]')).not.toBeNull();
+    expect(button.querySelector('[data-bitfun-name="git"]')).not.toBeNull();
   });
 
   it('restores the action after a failed fork without changing its error notification', async () => {
@@ -136,7 +136,7 @@ describe('ForkSessionButton', () => {
     await act(async () => button.click());
 
     expect(button.disabled).toBe(false);
-    expect(button.querySelector('[data-openbitfun-name="git"]')).not.toBeNull();
+    expect(button.querySelector('[data-bitfun-name="git"]')).not.toBeNull();
     expect(notificationService.error).toHaveBeenCalledExactlyOnceWith('modelRound.forkFailed', { duration: 3500 });
   });
 });

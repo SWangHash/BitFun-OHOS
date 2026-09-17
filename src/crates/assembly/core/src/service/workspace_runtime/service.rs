@@ -5,9 +5,9 @@ use super::types::{
 #[cfg(feature = "agent-runtime")]
 use crate::agentic::WorkspaceBinding;
 use crate::infrastructure::{get_path_manager_arc, PathManager};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use log::debug;
-use openbitfun_services_core::workspace_identity::{
+use bitfun_services_core::workspace_identity::{
     normalize_remote_workspace_path, remote_root_to_mirror_subpath,
     sanitize_ssh_hostname_for_mirror,
 };
@@ -82,7 +82,7 @@ impl WorkspaceRuntimeService {
     pub async fn ensure_workspace_runtime(
         &self,
         target: WorkspaceRuntimeTarget,
-    ) -> OpenBitFunResult<WorkspaceRuntimeEnsureResult> {
+    ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         let context = self.context_for_target(target);
         self.ensure_runtime_context(context).await
     }
@@ -90,7 +90,7 @@ impl WorkspaceRuntimeService {
     pub async fn ensure_local_workspace_runtime(
         &self,
         workspace_path: &Path,
-    ) -> OpenBitFunResult<WorkspaceRuntimeEnsureResult> {
+    ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         self.ensure_workspace_runtime(WorkspaceRuntimeTarget::LocalWorkspace {
             workspace_root: workspace_path.to_path_buf(),
         })
@@ -101,7 +101,7 @@ impl WorkspaceRuntimeService {
         &self,
         ssh_host: &str,
         remote_root: &str,
-    ) -> OpenBitFunResult<WorkspaceRuntimeEnsureResult> {
+    ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         self.ensure_workspace_runtime(WorkspaceRuntimeTarget::RemoteWorkspaceMirror {
             ssh_host: ssh_host.to_string(),
             remote_root: remote_root.to_string(),
@@ -113,7 +113,7 @@ impl WorkspaceRuntimeService {
     pub async fn ensure_runtime_for_workspace_binding(
         &self,
         workspace: &WorkspaceBinding,
-    ) -> OpenBitFunResult<WorkspaceRuntimeEnsureResult> {
+    ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         if workspace.is_remote() {
             self.ensure_remote_workspace_runtime(
                 &workspace.session_identity.hostname,
@@ -129,7 +129,7 @@ impl WorkspaceRuntimeService {
     async fn ensure_runtime_context(
         &self,
         context: WorkspaceRuntimeContext,
-    ) -> OpenBitFunResult<WorkspaceRuntimeEnsureResult> {
+    ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         if self.is_runtime_verified(&context.runtime_root) {
             return Ok(Self::cached_ensure_result(context));
         }
@@ -193,7 +193,7 @@ impl WorkspaceRuntimeService {
     async fn persist_layout_state(
         &self,
         context: &WorkspaceRuntimeContext,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let target_descriptor = match &context.target {
             WorkspaceRuntimeTarget::LocalWorkspace { workspace_root } => {
                 workspace_root.display().to_string()
@@ -214,12 +214,12 @@ impl WorkspaceRuntimeService {
         };
 
         let bytes = serde_json::to_vec_pretty(&state).map_err(|e| {
-            OpenBitFunError::service(format!("Failed to serialize runtime state: {}", e))
+            BitFunError::service(format!("Failed to serialize runtime state: {}", e))
         })?;
         tokio::fs::write(&context.layout_state_file, bytes)
             .await
             .map_err(|e| {
-                OpenBitFunError::service(format!(
+                BitFunError::service(format!(
                     "Failed to write runtime layout state '{}': {}",
                     context.layout_state_file.display(),
                     e
@@ -265,7 +265,7 @@ pub fn get_workspace_runtime_service_arc() -> Arc<WorkspaceRuntimeService> {
         .clone()
 }
 
-pub fn try_get_workspace_runtime_service_arc() -> OpenBitFunResult<Arc<WorkspaceRuntimeService>> {
+pub fn try_get_workspace_runtime_service_arc() -> BitFunResult<Arc<WorkspaceRuntimeService>> {
     Ok(get_workspace_runtime_service_arc())
 }
 
@@ -317,7 +317,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_local_workspace_runtime_creates_complete_layout_without_project_dot_dir() {
         let test_root =
-            std::env::temp_dir().join(format!("openbitfun-runtime-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("bitfun-runtime-test-{}", Uuid::new_v4()));
         let workspace_root = test_root.join("workspace");
         fs::create_dir_all(&workspace_root).expect("workspace should exist");
 
@@ -352,7 +352,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_local_workspace_runtime_does_not_import_project_local_runtime_entries() {
         let test_root =
-            std::env::temp_dir().join(format!("openbitfun-runtime-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("bitfun-runtime-test-{}", Uuid::new_v4()));
         let workspace_root = test_root.join("workspace");
         fs::create_dir_all(&workspace_root).expect("workspace should exist");
 
@@ -383,7 +383,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_remote_workspace_runtime_does_not_import_nested_session_store() {
         let test_root =
-            std::env::temp_dir().join(format!("openbitfun-runtime-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("bitfun-runtime-test-{}", Uuid::new_v4()));
         let path_manager = Arc::new(PathManager::with_user_root_for_tests(
             test_root.join("user"),
         ));
@@ -391,7 +391,7 @@ mod tests {
         let context = service.context_for_remote_workspace("example-host", "/root/repo");
         let nested_sessions = context
             .sessions_dir
-            .join(openbitfun_core_types::product_identity::hidden_data_directory())
+            .join(bitfun_core_types::product_identity::hidden_data_directory())
             .join("sessions");
         fs::create_dir_all(&nested_sessions).expect("nested sessions should exist");
         fs::write(nested_sessions.join("not-imported.json"), "{}")
@@ -411,7 +411,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_local_workspace_runtime_uses_verified_cache_on_repeat_calls() {
         let test_root =
-            std::env::temp_dir().join(format!("openbitfun-runtime-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("bitfun-runtime-test-{}", Uuid::new_v4()));
         let workspace_root = test_root.join("workspace");
         fs::create_dir_all(&workspace_root).expect("workspace should exist");
 

@@ -1,6 +1,6 @@
 #![cfg(feature = "function-agents")]
 
-use openbitfun_product_domains::function_agents::{
+use bitfun_product_domains::function_agents::{
     git_func_agent::{
         assemble_commit_message, build_changes_summary_from_paths, parse_commit_analysis_json,
         CommitFormat, CommitMessageOptions, CommitType, ProjectContext,
@@ -41,11 +41,11 @@ impl FunctionAgentAiPort for FunctionAgentPortStub {
         _request: CommitAiAnalysisRequest,
     ) -> FunctionAgentFuture<
         '_,
-        openbitfun_product_domains::function_agents::git_func_agent::AICommitAnalysis,
+        bitfun_product_domains::function_agents::git_func_agent::AICommitAnalysis,
     > {
         Box::pin(async {
             Ok(
-                openbitfun_product_domains::function_agents::git_func_agent::AICommitAnalysis {
+                bitfun_product_domains::function_agents::git_func_agent::AICommitAnalysis {
                     commit_type: CommitType::Chore,
                     scope: None,
                     title: "chore: test".to_string(),

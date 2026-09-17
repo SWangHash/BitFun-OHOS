@@ -7,7 +7,7 @@ const APP_BUNDLE: string = HarmonyUpgradeIdentityContract.APP_BUNDLE;
 const APP_ABILITY: string = 'EntryAbility';
 
 export default function deviceSmokeTest() {
-  describe('OpenBitFunDeviceSmoke', () => {
+  describe('BitFunDeviceSmoke', () => {
     it('opens the home surface and remote conversation entry', 0, async () => {
       const want: Want = {
         bundleName: APP_BUNDLE,

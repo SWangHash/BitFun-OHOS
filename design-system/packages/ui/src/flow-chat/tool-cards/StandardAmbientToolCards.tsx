@@ -44,8 +44,8 @@ interface AmbientCardProps
 
 function Section({ children, label }: { children: ReactNode; label?: ReactNode }) {
   return (
-    <section className={styles.section} data-openbitfun-part="section">
-      {label && <div className={styles.sectionLabel} data-openbitfun-part="sectionLabel">{label}</div>}
+    <section className={styles.section} data-bitfun-part="section">
+      {label && <div className={styles.sectionLabel} data-bitfun-part="sectionLabel">{label}</div>}
       {children}
     </section>
   );
@@ -80,15 +80,15 @@ export function RunCodeToolCard({
   return (
     <AmbientToolCard
       {...props}
-      data-openbitfun-tool-card="run-code"
+      data-bitfun-tool-card="run-code"
       expandedContent={hasDetails ? (
-        <div className={styles.sections} data-openbitfun-part="details">
+        <div className={styles.sections} data-bitfun-part="details">
           {program && <Section label={programLabel}>{program}</Section>}
           {(output || error) && (
             <Section label={outputLabel}>
               {error
                 ? <div className={styles.error}>{error}</div>
-                : <div className={styles.resultBlock} data-openbitfun-part="output">{output}</div>}
+                : <div className={styles.resultBlock} data-bitfun-part="output">{output}</div>}
             </Section>
           )}
         </div>
@@ -141,15 +141,15 @@ export function WebFetchToolCard({
   return (
     <AmbientToolCard
       {...props}
-      data-openbitfun-tool-card="web-fetch"
+      data-bitfun-tool-card="web-fetch"
       expandedContent={hasDetails ? (
-        <div className={styles.fetchMeta} data-openbitfun-part="details">
+        <div className={styles.fetchMeta} data-bitfun-part="details">
           {url && (
             onOpenUrl ? (
               <button
                 aria-label={openUrlLabel}
                 className={styles.openLink}
-                data-openbitfun-part="sourceLink"
+                data-bitfun-part="sourceLink"
                 onClick={onOpenUrl}
                 title={url}
                 type="button"
@@ -160,19 +160,19 @@ export function WebFetchToolCard({
             ) : <span className={styles.openLinkText}>{url}</span>
           )}
           {(details.length > 0 || copyAction) && (
-            <div className={styles.detailsRow} data-openbitfun-part="detailsRow">
+            <div className={styles.detailsRow} data-bitfun-part="detailsRow">
               <span className={styles.pills}>
                 {details.map((detail, index) => (
-                  <span className={styles.pill} data-openbitfun-part="detail" key={index}>{detail}</span>
+                  <span className={styles.pill} data-bitfun-part="detail" key={index}>{detail}</span>
                 ))}
               </span>
               {copyAction && <ToolCardActions>{copyAction}</ToolCardActions>}
             </div>
           )}
           {error ? (
-            <div className={styles.error} data-openbitfun-part="error">{error}</div>
+            <div className={styles.error} data-bitfun-part="error">{error}</div>
           ) : (
-            <pre className={styles.resultBlock} data-openbitfun-part="content">{content || emptyContent}</pre>
+            <pre className={styles.resultBlock} data-bitfun-part="content">{content || emptyContent}</pre>
           )}
         </div>
       ) : undefined}
@@ -233,24 +233,24 @@ export function DefaultToolCard({
   return (
     <AmbientToolCard
       {...props}
-      data-openbitfun-confirmation={requiresConfirmation ? "true" : "false"}
-      data-openbitfun-tool-card="default"
+      data-bitfun-confirmation={requiresConfirmation ? "true" : "false"}
+      data-bitfun-tool-card="default"
       expandedContent={detailsAvailable ? (
-        <div className={styles.sections} data-openbitfun-part="details">
-          <div className={styles.meta} data-openbitfun-part="meta">
+        <div className={styles.sections} data-bitfun-part="details">
+          <div className={styles.meta} data-bitfun-part="meta">
             <span className={styles.metaLabel}>{toolName}</span>
             {description && <span className={styles.metaDescription}>{description}</span>}
           </div>
           {inputPreview && (
             <Section label={inputLabel}>
-              <pre className={styles.codeBlock} data-openbitfun-part="input">{inputPreview}</pre>
+              <pre className={styles.codeBlock} data-bitfun-part="input">{inputPreview}</pre>
             </Section>
           )}
           {(resultPreview || error) && (
             <Section label={resultLabel}>
               {error
-                ? <div className={styles.error} data-openbitfun-part="error">{error}</div>
-                : <pre className={styles.codeBlock} data-openbitfun-part="result">{resultPreview}</pre>}
+                ? <div className={styles.error} data-bitfun-part="error">{error}</div>
+                : <pre className={styles.codeBlock} data-bitfun-part="result">{resultPreview}</pre>}
             </Section>
           )}
         </div>
@@ -310,16 +310,16 @@ export function ViewImageToolCard({
     <>
       <AmbientToolCard
         {...props}
-        data-openbitfun-tool-card="view-image"
+        data-bitfun-tool-card="view-image"
         expandedContent={source ? (
-          <div className={styles.imageContent} data-openbitfun-part="imageContent">
+          <div className={styles.imageContent} data-bitfun-part="imageContent">
             {imageFailed ? (
-              <div className={styles.imageError} data-openbitfun-part="imageError" role="alert">{errorText}</div>
+              <div className={styles.imageError} data-bitfun-part="imageError" role="alert">{errorText}</div>
             ) : (
               <button
                 aria-label={previewLabel}
                 className={styles.imageButton}
-                data-openbitfun-part="imagePreview"
+                data-bitfun-part="imagePreview"
                 onClick={onOpenPreview}
                 type="button"
               >
@@ -358,7 +358,7 @@ export function ViewImageToolCard({
           <DialogClose />
         </DialogHeader>
         <DialogBody>
-          <div className={styles.lightbox} data-openbitfun-part="lightbox">
+          <div className={styles.lightbox} data-bitfun-part="lightbox">
             <img alt={alt} src={source ?? ""} />
           </div>
         </DialogBody>
@@ -416,9 +416,9 @@ export function TodoToolCard({
       <div
         {...props}
         className={styles.todoCompact}
-        data-openbitfun-state={[loading && "loading", allCompleted && "completed"].filter(Boolean).join(" ") || undefined}
-        data-openbitfun-tool-card="todo"
-        data-openbitfun-view="compact"
+        data-bitfun-state={[loading && "loading", allCompleted && "completed"].filter(Boolean).join(" ") || undefined}
+        data-bitfun-tool-card="todo"
+        data-bitfun-view="compact"
       >
         <span className={styles.todoCompactIcon}>
           {loading ? <ToolProcessingDots size={14} /> : <ListTodo aria-hidden="true" />}
@@ -431,7 +431,7 @@ export function TodoToolCard({
 
   const hasItems = items.length > 0;
   const headerSummary = (
-    <span className={styles.todoSummary} data-openbitfun-part="summary">
+    <span className={styles.todoSummary} data-bitfun-part="summary">
       <OverflowText>{summary}</OverflowText>
       {hasItems && <span className={styles.todoStats}>({completedCount}/{totalCount})</span>}
     </span>
@@ -440,13 +440,13 @@ export function TodoToolCard({
   return (
     <AmbientToolCard
       {...props}
-      data-openbitfun-tool-card="todo"
+      data-bitfun-tool-card="todo"
       expandedContent={hasItems ? (
-        <div className={styles.todoList} data-openbitfun-part="todoList">
+        <div className={styles.todoList} data-bitfun-part="todoList">
           {items.map((item) => (
             <div
               className={styles.todoItem}
-              data-openbitfun-part="todoItem"
+              data-bitfun-part="todoItem"
               data-status={item.status}
               key={item.key}
             >

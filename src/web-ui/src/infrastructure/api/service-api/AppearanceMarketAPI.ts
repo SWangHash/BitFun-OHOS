@@ -22,7 +22,7 @@ export interface AppearanceMarketListingSummary {
   mode: AppearanceMarketMode;
   packageVersion: string;
   latestRelease: number;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   requiredCapabilities: string[];
   owner: AppearanceMarketUserSummary;
   previewUrl: string;
@@ -35,7 +35,7 @@ export interface AppearanceMarketRelease {
   listingId: string;
   releaseNumber: number;
   packageVersion: string;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   packageSha256: string;
   packageSize: number;
   reviewBundleHash: string;
@@ -75,7 +75,7 @@ export interface AppearanceMarketSubmission {
   author?: string;
   mode?: AppearanceMarketMode;
   packageVersion?: string;
-  minOpenBitFunVersion: string;
+  minBitFunVersion: string;
   requiredCapabilities: string[];
   changelog: string;
   license: AppearanceMarketLicense;
@@ -123,7 +123,7 @@ export interface AppearanceMarketDownloadRequest {
 export interface AppearanceMarketSubmitPackageRequest {
   packagePath: string;
   slug?: string;
-  minOpenBitFunVersion?: string;
+  minBitFunVersion?: string;
   changelog?: string;
   license: AppearanceMarketLicense;
   repositoryUrl?: string;
@@ -205,7 +205,7 @@ export class AppearanceMarketAPI {
       directory: false,
       multiple: false,
       title,
-      filters: [{ name: 'BitFun Appearance', extensions: ['openbitfun-appearance'] }],
+      filters: [{ name: 'BitFun Appearance', extensions: ['bitfun-appearance'] }],
     });
     return typeof selected === 'string' && selected.length > 0 ? selected : null;
   }

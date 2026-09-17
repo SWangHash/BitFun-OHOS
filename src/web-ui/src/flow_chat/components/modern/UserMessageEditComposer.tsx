@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Composer, ComposerToolbar, IconButton, Icon } from '@openbitfun/ui';
+import { Composer, ComposerToolbar, IconButton, Icon } from '@bitfun/ui';
 import { useImeOwnedKeyGuard } from '@/flow_chat/hooks/useImeOwnedKeyGuard';
 import type { ContextItem } from '@/shared/types/context';
 import { ChatContextPicker } from '../ChatContextPicker';
@@ -120,23 +120,23 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
   return (
     <Composer
       className="user-message-edit-composer"
-      data-openbitfun-product-component="user-message-edit-composer"
-      data-openbitfun-product-part="root"
-      data-openbitfun-mode="rich"
-      data-openbitfun-state={isSubmitting ? 'submitting' : undefined}
+      data-bitfun-product-component="user-message-edit-composer"
+      data-bitfun-product-part="root"
+      data-bitfun-mode="rich"
+      data-bitfun-state={isSubmitting ? 'submitting' : undefined}
       disabled={isSubmitting}
       toolbar={(
         <ComposerToolbar
           className="user-message-edit-composer__actions"
-          data-openbitfun-product-component="user-message-edit-composer"
-          data-openbitfun-product-part="actions"
+          data-bitfun-product-component="user-message-edit-composer"
+          data-bitfun-product-part="actions"
           trailing={(
             <>
               <IconButton
                 aria-label={cancelLabel}
-                data-openbitfun-action="cancel"
-                data-openbitfun-product-component="user-message-edit-composer"
-                data-openbitfun-product-part="action"
+                data-bitfun-action="cancel"
+                data-bitfun-product-component="user-message-edit-composer"
+                data-bitfun-product-part="action"
                 icon={<Icon name="xmark" size="sm" />}
                 onClick={onCancel}
                 size="xs"
@@ -146,15 +146,15 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
               <IconButton
                 aria-busy={isSubmitting || undefined}
                 aria-label={submitLabel}
-                data-openbitfun-action="submit"
-                data-openbitfun-product-component="user-message-edit-composer"
-                data-openbitfun-product-part="action"
+                data-bitfun-action="submit"
+                data-bitfun-product-component="user-message-edit-composer"
+                data-bitfun-product-part="action"
                 disabled={!canSubmit}
                 icon={isSubmitting ? (
                   <Loader2
                     className="user-message-edit-composer__spinner"
-                    data-openbitfun-product-component="user-message-edit-composer"
-                    data-openbitfun-product-part="spinner"
+                    data-bitfun-product-component="user-message-edit-composer"
+                    data-bitfun-product-part="spinner"
                     size={14}
                   />
                 ) : <Icon name="check-line" size="sm" />}
@@ -171,8 +171,8 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
       <div
         ref={contextPickerAnchorRef}
         className="user-message-edit-composer__rich-input"
-        data-openbitfun-product-component="user-message-edit-composer"
-        data-openbitfun-product-part="input"
+        data-bitfun-product-component="user-message-edit-composer"
+        data-bitfun-product-part="input"
       >
         <RichTextInput
           ref={editorRef}
@@ -285,23 +285,23 @@ export const UserMessageEditComposer: React.FC<UserMessageEditComposerProps> = (
   return (
     <Composer
       className="user-message-edit-composer"
-      data-openbitfun-product-component="user-message-edit-composer"
-      data-openbitfun-product-part="root"
-      data-openbitfun-mode="plain"
-      data-openbitfun-state={isSubmitting ? 'submitting' : undefined}
+      data-bitfun-product-component="user-message-edit-composer"
+      data-bitfun-product-part="root"
+      data-bitfun-mode="plain"
+      data-bitfun-state={isSubmitting ? 'submitting' : undefined}
       disabled={isSubmitting}
       toolbar={(
         <ComposerToolbar
           className="user-message-edit-composer__actions"
-          data-openbitfun-product-component="user-message-edit-composer"
-          data-openbitfun-product-part="actions"
+          data-bitfun-product-component="user-message-edit-composer"
+          data-bitfun-product-part="actions"
           trailing={(
             <>
               <IconButton
                 aria-label={cancelLabel}
-                data-openbitfun-action="cancel"
-                data-openbitfun-product-component="user-message-edit-composer"
-                data-openbitfun-product-part="action"
+                data-bitfun-action="cancel"
+                data-bitfun-product-component="user-message-edit-composer"
+                data-bitfun-product-part="action"
                 icon={<Icon name="xmark" size="sm" />}
                 onClick={onCancel}
                 size="xs"
@@ -311,15 +311,15 @@ export const UserMessageEditComposer: React.FC<UserMessageEditComposerProps> = (
               <IconButton
                 aria-busy={isSubmitting || undefined}
                 aria-label={submitLabel}
-                data-openbitfun-action="submit"
-                data-openbitfun-product-component="user-message-edit-composer"
-                data-openbitfun-product-part="action"
+                data-bitfun-action="submit"
+                data-bitfun-product-component="user-message-edit-composer"
+                data-bitfun-product-part="action"
                 disabled={!canSubmit}
                 icon={isSubmitting ? (
                   <Loader2
                     className="user-message-edit-composer__spinner"
-                    data-openbitfun-product-component="user-message-edit-composer"
-                    data-openbitfun-product-part="spinner"
+                    data-bitfun-product-component="user-message-edit-composer"
+                    data-bitfun-product-part="spinner"
                     size={14}
                   />
                 ) : <Icon name="check-line" size="sm" />}
@@ -334,8 +334,8 @@ export const UserMessageEditComposer: React.FC<UserMessageEditComposerProps> = (
       )}
     >
       <textarea
-        data-openbitfun-product-component="user-message-edit-composer"
-        data-openbitfun-product-part="input"
+        data-bitfun-product-component="user-message-edit-composer"
+        data-bitfun-product-part="input"
         ref={textareaRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}

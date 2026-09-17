@@ -1,4 +1,4 @@
-import { VoiceCallPanel } from '@openbitfun/ui';
+import { VoiceCallPanel } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { useRealtimeVoiceCall } from './RealtimeVoiceCallContext';
 
@@ -18,10 +18,10 @@ export function RealtimeVoiceCallPanel({ onClose }: RealtimeVoiceCallPanelProps)
     : undefined);
 
   return <VoiceCallPanel
-    data-openbitfun-product-component="realtime-voice-call"
-    data-openbitfun-product-part="root"
-    data-openbitfun-phase={controller.phase}
-    data-openbitfun-state={[controller.phase, controller.taskPhase?.replace(/_/g, '-')].filter(Boolean).join(' ')}
+    data-bitfun-product-component="realtime-voice-call"
+    data-bitfun-product-part="root"
+    data-bitfun-phase={controller.phase}
+    data-bitfun-state={[controller.phase, controller.taskPhase?.replace(/_/g, '-')].filter(Boolean).join(' ')}
     aria-description={controller.status}
     title={t('voiceCall.call.title')}
     labels={{
