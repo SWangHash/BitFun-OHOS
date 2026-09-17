@@ -19,6 +19,8 @@ export interface NumberInputProps {
   size?: 'small' | 'medium' | 'large';
   variant?: 'default' | 'compact' | 'stepper';
   showButtons?: boolean;
+  /** Show the min/max progress strip revealed on hover/focus. On by default. */
+  showProgress?: boolean;
   precision?: number;
   className?: string;
   label?: string;
@@ -39,6 +41,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       size = 'medium',
       variant = 'default',
       showButtons = true,
+      showProgress = true,
       precision = 0,
       className = '',
       label,
@@ -292,7 +295,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
             </div>
           )}
 
-          {min !== -Infinity && max !== Infinity && (
+          {showProgress && min !== -Infinity && max !== Infinity && (
             <div className="bitfun-number-input__progress" data-bf-component="number-input" data-bf-part="progress">
               <div
                 className="bitfun-number-input__progress-bar"

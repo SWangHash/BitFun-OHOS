@@ -8,6 +8,15 @@
  * 4. Theme CSS variables adapt to different themes.
  *    - --bf-appearance-token-scrollbar-thumb: thumb color when container is hovered
  *    - --bf-appearance-token-scrollbar-thumb-hover: thumb color on thumb hover
+ *
+ * Do NOT declare `scrollbar-width` or `scrollbar-color` here (or on scroll
+ * containers that should inherit this design). Since Chromium M121, any
+ * standard scrollbar property on an element disables ALL `::-webkit-scrollbar`
+ * styling for that element. With both declared, the desktop runtime (WebView2)
+ * rendered standard scrollbars whose thumb stayed invisible and could not be
+ * grabbed by mouse (session, agent, mini-app views, etc.). With webkit-only
+ * styling, non-Chromium browsers fall back to their default always-visible
+ * scrollbars, which remain usable.
  */
 
 /* ==================== Scrollbar base size ==================== */
@@ -44,14 +53,4 @@
 /* ==================== Show while scrolling ==================== */
 *.is-scrolling::-webkit-scrollbar-thumb {
   background: var(--bf-appearance-token-scrollbar-thumb);
-}
-
-/* ==================== Firefox scrollbar ==================== */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-*:hover {
-  scrollbar-color: var(--bf-appearance-token-scrollbar-thumb) transparent;
 }
