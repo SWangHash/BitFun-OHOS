@@ -163,10 +163,12 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     // Hide the startup splash mirror once the webview has actually painted
-    // content. Firing on the Web component's first contentful paint keeps the
-    // icon visible exactly until the page (which draws its own brand splash on
-    // OpenHarmony hosts) takes over, with no blank frame in between. The
-    // timeout is a safety net for pages that never reach a paint event.
+    // content. FCP is the earliest signal and onPageEnd is the reliable one:
+    // the document has finished loading, so its first paint already happened
+    // and the page (which draws its own brand splash on OpenHarmony hosts) is
+    // ready to take over. Some ArkWeb builds never deliver FCP, which would
+    // leave the mirror stuck until the fallback timer, so both are wired.
+    // Clearing an already-empty value is idempotent.
     .onFirstContentfulPaint(() => {
       AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
     })
@@ -185,6 +187,7 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     .onPageEnd((event) => {
+      AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
       if (typeof data?.onPageEnd === "function") {
         const url = event?.url ?? "";
         data.onPageEnd(url);
