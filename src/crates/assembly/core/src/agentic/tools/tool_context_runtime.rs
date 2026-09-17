@@ -368,6 +368,17 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
             Value::Bool(enabled == "true"),
         );
     }
+    // Prompt-resolved Qt migration paths stashed by the execution engine's
+    // turn gate (semantic analyzer output). Projected as a JSON object so the
+    // AskUserQuestion backend can seed prompt-named candidates without
+    // relying on the model echoing them.
+    if let Some(raw) = context.context_vars.get("qt_migration_resolved_paths") {
+        if let Ok(value) = serde_json::from_str::<Value>(raw) {
+            if value.is_object() {
+                extension_custom_data.insert("qt_migration_resolved_paths".to_string(), value);
+            }
+        }
+    }
     let deep_review_parent = context.subagent_parent_info.as_ref().map(|parent_info| {
         tool_context::DeepReviewToolParentContext {
             tool_call_id: parent_info.tool_call_id.as_str(),
@@ -1682,5 +1693,55 @@ mod task_context_tests {
         assert!(value.get("unlockedCollapsedTools").is_none());
         assert!(value.get("customData").is_none());
         assert!(value.get("cancellationToken").is_none());
+    }
+
+    #[test]
+    fn qt_migration_resolved_paths_context_var_is_projected_as_object() {
+        use super::build_tool_context_custom_data;
+
+        let build_context = |resolved_paths: &str| ToolExecutionContext {
+            session_id: "session_qt".to_string(),
+            dialog_turn_id: "turn_qt".to_string(),
+            round_id: "round_qt".to_string(),
+            attempt_id: None,
+            attempt_index: None,
+            observation_context: None,
+            agent_type: "QtMigration".to_string(),
+            workspace: None,
+            primary_model_facts: PrimaryModelFacts::default(),
+            context_vars: HashMap::from([
+                ("qt_migration_enabled".to_string(), "true".to_string()),
+                (
+                    "qt_migration_resolved_paths".to_string(),
+                    resolved_paths.to_string(),
+                ),
+            ]),
+            subagent_parent_info: None,
+            permission_delegation: None,
+            delegation_policy: DelegationPolicy::top_level(),
+            deferred_tools: Vec::new(),
+            loaded_deferred_tool_specs: Vec::new(),
+            allowed_tools: Vec::new(),
+            runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
+            steering_interrupt: None,
+            workspace_services: None,
+            terminal_port: None,
+            remote_exec_port: None,
+        };
+
+        let context =
+            build_context(r#"{"source_project":"D:/ws/myqt","unclassifiedPaths":["D:/ws/myqt"]}"#);
+        let custom_data = build_tool_context_custom_data(&context);
+        assert_eq!(custom_data["qt_migration_enabled"], json!(true));
+        assert_eq!(
+            custom_data["qt_migration_resolved_paths"]["source_project"],
+            json!("D:/ws/myqt")
+        );
+
+        // 非对象/坏 JSON 不得进入 custom_data，保持工具侧静默跳过。
+        let custom_data = build_tool_context_custom_data(&build_context("not-json"));
+        assert!(!custom_data.contains_key("qt_migration_resolved_paths"));
+        let custom_data = build_tool_context_custom_data(&build_context(r#""D:/ws/myqt""#));
+        assert!(!custom_data.contains_key("qt_migration_resolved_paths"));
     }
 }
