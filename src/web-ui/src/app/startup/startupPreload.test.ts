@@ -47,7 +47,7 @@ describe('startup preload shell', () => {
     });
   });
 
-  it('removes the static splash for the OpenHarmony host', () => {
+  it('brands the static splash like the native start window on OpenHarmony hosts', () => {
     const dom = new JSDOM(readIndexHtml(), {
       url: 'http://localhost:1422/',
       runScripts: 'dangerously',
@@ -61,11 +61,24 @@ describe('startup preload shell', () => {
       },
     });
 
-    expect(dom.window.document.documentElement.lang).toBe('zh-CN');
-    expect(dom.window.document.getElementById('bitfun-startup-overlay')).toBeNull();
-    expect(dom.window.document.querySelector('.splash-screen')).toBeNull();
-    expect(dom.window.document.querySelector('[data-startup-window-controls]')).toBeNull();
-    expect(dom.window.document.getElementById('root')).not.toBeNull();
+    const document = dom.window.document;
+    expect(document.documentElement.lang).toBe('zh-CN');
+    // The overlay must stay mounted so hideStartupOverlay() can fade it out
+    // instead of exposing an unstyled white gap before the React shell.
+    expect(document.getElementById('bitfun-startup-overlay')).not.toBeNull();
+    const splash = document.querySelector<HTMLElement>('.splash-screen');
+    expect(splash).not.toBeNull();
+    expect(splash?.classList.contains('splash-screen--ohos-brand')).toBe(true);
+    // Same icon and background colors as startWindowIcon / startWindowBackground.
+    expect(document.querySelector<HTMLImageElement>('.bitfun-preload__logo')?.src).toContain(
+      '/bitfun_icon_light.png',
+    );
+    expect(document.querySelector('.splash-screen--ohos-brand')).toBeTruthy();
+    // Window controls stay hidden: the OHOS window host does not implement
+    // startup_window_control, and the loading hint stays off for a seamless
+    // handoff from the native start window.
+    expect(document.querySelector('[data-startup-window-controls]')?.getAttribute('hidden')).not.toBeNull();
+    expect(document.querySelector('.splash-screen--ohos-brand .splash-screen__message')).toBeTruthy();
   });
 
   it('shows the independent pet preload for the companion window', () => {
