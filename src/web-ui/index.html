@@ -282,8 +282,10 @@
       }
 
       .splash-screen--ohos-brand .bitfun-preload__logo {
-        width: 96px;
-        height: 96px;
+        /* The inline script overrides this variable with the native start
+           window's physical icon size (649px / devicePixelRatio). */
+        width: var(--bitfun-ohos-start-icon-size, 96px);
+        height: var(--bitfun-ohos-start-icon-size, 96px);
         border-radius: 0;
       }
 
@@ -443,7 +445,22 @@
           var ohosSplash = document.querySelector('.splash-screen');
           if (ohosSplash) ohosSplash.classList.add('splash-screen--ohos-brand');
           var ohosLogo = document.querySelector('.bitfun-preload__logo');
-          if (ohosLogo) ohosLogo.src = '/bitfun_icon_light.png';
+          if (ohosLogo) {
+            ohosLogo.src = '/bitfun_icon_light.png';
+            // The native start window draws startWindowIcon at its intrinsic
+            // pixel size, centered and without density scaling. The overlay
+            // icon is the same 649x649 PNG, so render it at 649 /
+            // devicePixelRatio CSS px to cover the same physical area, clamped
+            // to the viewport so it cannot overflow a small window.
+            var ohosDpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+            var ohosIconPx = 649 / ohosDpr;
+            var ohosViewport = Math.min(window.innerWidth || Infinity, window.innerHeight || Infinity);
+            if (ohosViewport < ohosIconPx) ohosIconPx = ohosViewport;
+            document.documentElement.style.setProperty(
+              '--bitfun-ohos-start-icon-size',
+              ohosIconPx + 'px'
+            );
+          }
           return;
         }
 

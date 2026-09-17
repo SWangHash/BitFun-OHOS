@@ -74,6 +74,11 @@ describe('startup preload shell', () => {
       '/bitfun_icon_light.png',
     );
     expect(document.querySelector('.splash-screen--ohos-brand')).toBeTruthy();
+    // The native start window draws the icon at its intrinsic pixel size, so
+    // the overlay icon size is 649px / devicePixelRatio (jsdom dpr is 1).
+    expect(
+      document.documentElement.style.getPropertyValue('--bitfun-ohos-start-icon-size'),
+    ).toBe('649px');
     // Window controls stay hidden: the OHOS window host does not implement
     // startup_window_control, and the loading hint stays off for a seamless
     // handoff from the native start window.
