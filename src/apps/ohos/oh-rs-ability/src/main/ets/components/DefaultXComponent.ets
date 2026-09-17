@@ -70,13 +70,14 @@ export struct DefaultXComponent {
   @StorageProp("loadMode") loadMode: "async" | "sync" = "async";
 
   async aboutToAppear(): Promise<void> {
-    // Safety net: if the webview never reaches a first contentful paint
-    // (navigation failure, blank page), release the startup splash mirror so
-    // the app never gets stuck behind it. The normal path hides the mirror in
-    // WebBuilder's onFirstContentfulPaint, long before this timer fires.
+    // Last-resort safety net: if the webview never reaches a first contentful
+    // paint or a page-load end (navigation failure, blank page), release the
+    // startup splash mirror so the app never gets stuck behind it. The normal
+    // path hides the mirror via WebBuilder's FCP / onPageEnd handlers, long
+    // before this timer fires.
     setTimeout(() => {
       AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
-    }, 15000);
+    }, 5000);
     // Expose the controller so app-level services (e.g. BrowserWebviewService)
     // can call addWebview/removeWebview directly to create embedded child
     // webviews for the built-in browser scene, bypassing the ArkHelper path.
