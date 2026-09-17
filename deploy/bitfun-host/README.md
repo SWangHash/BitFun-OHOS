@@ -30,10 +30,10 @@ clone、`crontab` 整表安装、市场 first-install 或空 volume 的 `deploy.
 | 官网 + 下载页 | `https://bitfun.com/` 、`/download` | Nginx → `BitFun-Website/dist` | 本文「官网」 |
 | BitFun Playbook | `https://playbook.bitfun.com/` | Nginx → `/srv/bitfun-playbook/current` | 本文「BitFun Playbook」 |
 | Release 镜像 | `https://bitfun.com/release/` | cron → `/srv/bitfun-release` | 本文「Release 镜像」；脚本在 `scripts/bitfun-release-sync.sh` |
-| Relay | `https://remote.openbit.fun/relay` | `bitfun-relay:9700` | `src/apps/relay-server/README.md` + 本文 Nginx |
+| Relay | `https://remote.bitfun.fun/relay` | `bitfun-relay:9700` | `src/apps/relay-server/README.md` + 本文 Nginx |
 | MiniApp 市场 | `https://market.bitfun.com/miniapp/` | `127.0.0.1:9710` | [../miniapp-market/README.md](../miniapp-market/README.md) |
 | Skin 市场 | `https://market.bitfun.com/skin/` | `127.0.0.1:9720` | [../skin-market/README.md](../skin-market/README.md) |
-| New API | `https://api.openbit.fun/` | `0.0.0.0:33292` | **不在 BitFun 仓库**。见本文「New API」 |
+| New API | `https://api.bitfun.fun/` | `0.0.0.0:33292` | **不在 BitFun 仓库**。见本文「New API」 |
 
 当前生产 SSH 别名是 `lwb`（root）。下文旧机用 `OLD_HOST=lwb`，新机用
 `NEW_HOST`。换机后可以把 `lwb` 指到新主机，但导出/导入期间必须同时能 SSH
@@ -306,9 +306,9 @@ npm install
 npm run build
 test -f dist/index.html
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-openbit.fun.conf \
-  /etc/nginx/sites-available/openbit.fun
-ln -sfn /etc/nginx/sites-available/openbit.fun /etc/nginx/sites-enabled/openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-bitfun.fun.conf \
+  /etc/nginx/sites-available/bitfun.fun
+ln -sfn /etc/nginx/sites-available/bitfun.fun /etc/nginx/sites-enabled/bitfun.fun
 nginx -t
 systemctl reload nginx
 curl -fsS -o /dev/null -w "%{http_code}\n" \
@@ -391,16 +391,16 @@ docker run --rm \
 cd /root/repos/BitFun/src/apps/relay-server
 BITFUN_MIRROR=auto bash deploy.sh
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-remote.openbit.fun.conf \
-  /etc/nginx/sites-available/remote.openbit.fun
-ln -sfn /etc/nginx/sites-available/remote.openbit.fun \
-  /etc/nginx/sites-enabled/remote.openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-remote.bitfun.fun.conf \
+  /etc/nginx/sites-available/remote.bitfun.fun
+ln -sfn /etc/nginx/sites-available/remote.bitfun.fun \
+  /etc/nginx/sites-enabled/remote.bitfun.fun
 nginx -t
 systemctl reload nginx
 
 curl -fsS http://127.0.0.1:9700/health
 curl -fsS -o /dev/null -w "%{http_code}\n" \
-  -H "Host: remote.openbit.fun" http://127.0.0.1/relay/health
+  -H "Host: remote.bitfun.fun" http://127.0.0.1/relay/health
 docker exec bitfun-relay /app/relay-admin --db /app/data/bitfun_relay.db list-users'
 ```
 
@@ -489,10 +489,10 @@ test -d /root/repos/new_api_bak/data
 /root/repos/new_api_bak/load_image.sh
 /root/repos/new_api_bak/start.sh
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-api.openbit.fun.conf \
-  /etc/nginx/sites-available/api.openbit.fun
-ln -sfn /etc/nginx/sites-available/api.openbit.fun \
-  /etc/nginx/sites-enabled/api.openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-api.bitfun.fun.conf \
+  /etc/nginx/sites-available/api.bitfun.fun
+ln -sfn /etc/nginx/sites-available/api.bitfun.fun \
+  /etc/nginx/sites-enabled/api.bitfun.fun
 nginx -t
 systemctl reload nginx
 docker inspect --format "{{.State.Status}}" new-api'
@@ -516,24 +516,24 @@ install -m 0644 \
 ln -sfn /etc/nginx/sites-available/00-default-server.conf \
   /etc/nginx/sites-enabled/00-default-server.conf
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-openbit.fun.conf \
-  /etc/nginx/sites-available/openbit.fun
-ln -sfn /etc/nginx/sites-available/openbit.fun /etc/nginx/sites-enabled/openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-bitfun.fun.conf \
+  /etc/nginx/sites-available/bitfun.fun
+ln -sfn /etc/nginx/sites-available/bitfun.fun /etc/nginx/sites-enabled/bitfun.fun
 install -m 0644 \
   /root/repos/BitFun/deploy/bitfun-host/nginx-playbook.bitfun.com.conf \
   /etc/nginx/sites-available/playbook.bitfun.com
 ln -sfn /etc/nginx/sites-available/playbook.bitfun.com \
   /etc/nginx/sites-enabled/playbook.bitfun.com
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-remote.openbit.fun.conf \
-  /etc/nginx/sites-available/remote.openbit.fun
-ln -sfn /etc/nginx/sites-available/remote.openbit.fun \
-  /etc/nginx/sites-enabled/remote.openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-remote.bitfun.fun.conf \
+  /etc/nginx/sites-available/remote.bitfun.fun
+ln -sfn /etc/nginx/sites-available/remote.bitfun.fun \
+  /etc/nginx/sites-enabled/remote.bitfun.fun
 install -m 0644 \
-  /root/repos/BitFun/deploy/bitfun-host/nginx-api.openbit.fun.conf \
-  /etc/nginx/sites-available/api.openbit.fun
-ln -sfn /etc/nginx/sites-available/api.openbit.fun \
-  /etc/nginx/sites-enabled/api.openbit.fun
+  /root/repos/BitFun/deploy/bitfun-host/nginx-api.bitfun.fun.conf \
+  /etc/nginx/sites-available/api.bitfun.fun
+ln -sfn /etc/nginx/sites-available/api.bitfun.fun \
+  /etc/nginx/sites-enabled/api.bitfun.fun
 nginx -t
 systemctl reload nginx'
 ```
@@ -562,7 +562,7 @@ with urllib.request.urlopen(req, timeout=15) as resp:
 print("downloads.json", data["version"])
 PY
 curl -fsS -o /dev/null -w "remote /relay/health %{http_code}\n" \
-  -H "Host: remote.openbit.fun" http://127.0.0.1/relay/health
+  -H "Host: remote.bitfun.fun" http://127.0.0.1/relay/health
 curl -fsS -o /dev/null -w "unknown host %{http_code}\n" \
   -H "Host: unconfigured.bitfun.com" http://127.0.0.1/
 docker ps --format "{{.Names}} {{.Status}}"
@@ -579,7 +579,7 @@ docker exec bitfun-relay /app/relay-admin --db /app/data/bitfun_relay.db list-us
 - `https://bitfun.com/download` 显示的版本 = `downloads.json`
 - `https://bitfun.com/release/latest-v1.json` 与 GitHub latest 同版本
 - `https://bitfun.com/release/latest.json` 和 `linux-binaries.json` 保持 0.2.X，不得指向 1.X
-- `https://remote.openbit.fun/relay/health`
+- `https://remote.bitfun.fun/relay/health`
 - `https://market.bitfun.com/miniapp/api/v1/health`
 - `https://market.bitfun.com/skin/`（按 Skin 手册）
 
