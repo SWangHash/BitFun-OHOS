@@ -4079,6 +4079,15 @@ impl ExecutionEngine {
             context
                 .context
                 .insert("qt_migration_enabled".to_string(), is_migration.to_string());
+            // Stash the analyzer's prompt-resolved paths for this turn. The
+            // AskUserQuestion backend seeds its qt-migration-paths candidate
+            // list from them so a path the user wrote in the prompt reaches
+            // the option list even when the model fails to echo it in
+            // `candidates` (probe validation still applies downstream).
+            context.context.insert(
+                "qt_migration_resolved_paths".to_string(),
+                decision["resolvedPaths"].to_string(),
+            );
             initial_messages.insert(
                 0,
                 Message::user(format!(
