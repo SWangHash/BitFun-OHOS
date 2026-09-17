@@ -24,6 +24,32 @@ use crate::util::errors::BitFunResult;
 /// AskUserQuestion tool
 pub struct AskUserQuestionTool;
 
+/// Merge prompt-resolved paths (stashed by the execution engine's turn gate
+/// from the semantic analyzer decision) into the model-provided candidate
+/// map. Only the four classified field entries are used; `unclassifiedPaths`
+/// stays a model-facing hint. Exact duplicates against model-echoed paths
+/// are skipped here; the probe dedups the rest by path key and still applies
+/// its per-field structural validation.
+fn merge_prompt_resolved_paths(
+    candidates: &mut std::collections::HashMap<String, Vec<String>>,
+    resolved: &Value,
+) {
+    for field in ["source_project", "output_project", "toolchain", "template"] {
+        let Some(path) = resolved
+            .get(field)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+        else {
+            continue;
+        };
+        let entry = candidates.entry(field.to_string()).or_default();
+        if !entry.iter().any(|existing| existing == path) {
+            entry.push(path.to_string());
+        }
+    }
+}
+
 impl Default for AskUserQuestionTool {
     fn default() -> Self {
         Self::new()
@@ -240,8 +266,18 @@ Usage notes:
                         "qt-migration-paths is available only for a classified Qt to HarmonyOS migration request".to_string(),
                     ));
                 }
+                // Backend-owned seeding: prompt-resolved paths reach the
+                // option list even when the model calls the template without
+                // echoing them in `candidates`.
+                if let Some(resolved) = context.custom_data.get("qt_migration_resolved_paths") {
+                    merge_prompt_resolved_paths(&mut candidates, resolved);
+                }
                 if let Some(workspace) = context.workspace_root() {
                     if !context.is_remote() {
+                        // Pre-probe prompt-named candidate map (model echo +
+                        // seeded paths); the probe replaces `candidates` and
+                        // the output merge below re-ranks from this snapshot.
+                        let prompt_named = candidates.clone();
                         let path_manager = crate::infrastructure::get_path_manager_arc();
                         let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
                             workspace,
@@ -271,10 +307,9 @@ Usage notes:
                                     .get("source_project")
                                     .cloned()
                                     .unwrap_or_default();
-                                let model_outputs: Vec<String> = input
-                                    .get("candidates")
-                                    .and_then(|value| value.get("output_project"))
-                                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                                let model_outputs = prompt_named
+                                    .get("output_project")
+                                    .cloned()
                                     .unwrap_or_default();
                                 let output_candidates = crate::agentic::tools::qt_migration_candidates::merge_workspace_output_candidates(
                                     workspace,
@@ -429,9 +464,11 @@ Usage notes:
 
 #[cfg(test)]
 mod tests {
+    use super::merge_prompt_resolved_paths;
     use super::AskUserQuestionTool;
     use crate::agentic::tools::framework::{Tool, ToolUseContext};
     use crate::agentic::tools::user_input_manager::get_user_input_manager;
+    use crate::agentic::WorkspaceBinding;
     use bitfun_agent_runtime::user_questions::USER_INPUT_MODEL_ROUND_CONTEXT_KEY;
     use std::collections::HashMap;
 
@@ -501,6 +538,119 @@ mod tests {
         })
         .await
         .expect("explicit migration intent should reach the question mailbox");
+
+        assert!(get_user_input_manager().cancel(&tool_id));
+        let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+            .await
+            .expect("cancelled question should resume");
+        result
+            .expect("tool task must join")
+            .expect("template call should be accepted");
+    }
+
+    #[test]
+    fn prompt_resolved_paths_merge_into_candidate_map() {
+        let mut candidates = HashMap::new();
+        candidates.insert(
+            "source_project".to_string(),
+            vec!["D:/echo/myqt".to_string()],
+        );
+        let resolved = serde_json::json!({
+            "source_project": "D:/prompt/myqt",
+            "output_project": "D:/prompt/out",
+            "toolchain": "  ",
+            "template": null,
+            "unclassifiedPaths": ["D:/prompt/myqt"],
+        });
+
+        merge_prompt_resolved_paths(&mut candidates, &resolved);
+
+        assert_eq!(
+            candidates["source_project"],
+            vec!["D:/echo/myqt".to_string(), "D:/prompt/myqt".to_string()]
+        );
+        assert_eq!(
+            candidates["output_project"],
+            vec!["D:/prompt/out".to_string()]
+        );
+        assert!(!candidates.contains_key("toolchain"), "空白值不产生空候选");
+        assert!(!candidates.contains_key("template"), "null 字段跳过");
+        assert!(!candidates.contains_key("unclassifiedPaths"));
+
+        merge_prompt_resolved_paths(&mut candidates, &resolved);
+        assert_eq!(
+            candidates["source_project"].len(),
+            2,
+            "重复合并不产生重复项"
+        );
+    }
+
+    #[tokio::test]
+    async fn qt_migration_template_seeds_prompt_resolved_paths_without_model_candidates() {
+        let tool = AskUserQuestionTool::new();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let project = temp.path().join("myqt");
+        std::fs::create_dir_all(&project).expect("create project dir");
+        std::fs::write(project.join("app.pro"), "").expect("create pro file");
+
+        let unique = uuid::Uuid::new_v4().to_string();
+        let tool_id = format!("qt-question-{unique}");
+        let session_id = format!("session-{unique}");
+        let mut context = context_with_original_user_input("把 D:/somewhere/myqt 迁移到鸿蒙");
+        context.session_id = Some(session_id.clone());
+        context.workspace = Some(WorkspaceBinding::new(None, temp.path().to_path_buf()));
+        context.custom_data.insert(
+            "qt_migration_enabled".to_string(),
+            serde_json::Value::Bool(true),
+        );
+        // 引擎 turn gate 暂存的 prompt 解析路径：模型未回传 candidates 时，
+        // 卡片仍必须把用户 prompt 中的源工程路径列为推荐候选。
+        context.custom_data.insert(
+            "qt_migration_resolved_paths".to_string(),
+            serde_json::json!({
+                "source_project": project.to_string_lossy(),
+                "unclassifiedPaths": [project.to_string_lossy()],
+            }),
+        );
+        context.tool_call_id = Some(tool_id.clone());
+        let input = serde_json::json!({ "templateId": "qt-migration-paths" });
+
+        let handle = tokio::spawn(async move { tool.call(&input, &context).await });
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if get_user_input_manager().has_pending(&tool_id) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("seeded question should reach the question mailbox");
+
+        let snapshot = get_user_input_manager().pending_question_snapshot(&session_id);
+        let question = snapshot
+            .questions
+            .iter()
+            .find(|question| question.tool_id == tool_id)
+            .expect("seeded question registered");
+        let source = &question.questions["resolvedQuestions"][0];
+        assert_eq!(source["field"], "source_project");
+        let options = source["options"].as_array().expect("options array");
+        assert!(
+            !options.is_empty(),
+            "prompt-specified source project must become a candidate option"
+        );
+        assert_eq!(options[0]["label"], "askUser.qtMigration.option.default");
+        let normalize = |path: &str| path.replace('\\', "/").to_lowercase();
+        assert_eq!(
+            normalize(
+                options[0]["description"]
+                    .as_str()
+                    .expect("path description")
+            ),
+            normalize(project.to_str().expect("utf8 project path"))
+        );
 
         assert!(get_user_input_manager().cancel(&tool_id));
         let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
