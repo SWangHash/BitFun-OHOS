@@ -14,13 +14,21 @@ const BROWSER_WEBVIEW_PAGE_LOAD_EVENT = 'browser-webview-page-load';
 const WEBVIEW_CREATE_RETRY_DELAYS_MS = [0, 250, 750];
 
 // Webview labels are window-global in Tauri, while this hook can be mounted
-// once per cached editor tab. Keep allocation outside the hook so independent
-// panels cannot both start at `<prefix>-0`.
-let nextBrowserWebviewSequence = 0;
+// once per cached editor tab. Timestamp, sequence and random suffixes keep
+// labels unique across panel instances and app restarts.
+let browserWebviewLabelSequence = 0;
 
-export function allocateBrowserWebviewLabel(labelPrefix: string): string {
-  return `${labelPrefix}-${nextBrowserWebviewSequence++}`;
+export function createBrowserWebviewLabel(prefix: string): string {
+  const timestamp = Date.now().toString(36);
+  const sequence = browserWebviewLabelSequence++;
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${prefix}-${timestamp}-${sequence}-${random}`;
 }
+
+export const BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR = [
+  NATIVE_WEBVIEW_OCCLUSION_SELECTOR,
+  '.canvas-drop-zone-overlay',
+].join(', ');
 
 type BrowserLogger = {
   warn: (message: string, ...args: unknown[]) => void;
@@ -58,7 +66,17 @@ export interface UseEmbeddedBrowserWebviewOptions {
 }
 
 function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  // Check __TAURI_INTERNALS__ (what `invoke` actually needs) rather than
+  // __TAURI__ (the global API namespace, only set when withGlobalTauri is
+  // true AND the webview was created via Tauri's WebviewWindowBuilder). On
+  // OHOS the ArkUI Web component is created by @ohos-rs/ability, not Tauri's
+  // builder, so __TAURI__ may be absent even though __TAURI_INTERNALS__
+  // (and thus `invoke`) is available. Mirrors the pattern in
+  // src/infrastructure/runtime/environment.ts `isTauriRuntime`.
+  if (typeof window === 'undefined') return false;
+  const internals = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+    .__TAURI_INTERNALS__;
+  return typeof internals?.invoke === 'function';
 }
 
 function formatUnknownError(error: unknown): string {
@@ -140,13 +158,56 @@ async function setAgentTargetState(
   });
 }
 
+// Minimal `invoke` signature accepted by the command-based handle. Matches the
+// runtime shape of the project `api.invoke` once its generic `T` is erased.
+type TauriInvoke = (cmd: string, args?: Record<string, unknown> | unknown[]) => Promise<unknown>;
+
+/**
+ * Build a `BrowserWebviewHandle` whose `close / hide / show / setFocus` ops
+ * route through Tauri commands (`browser_webview_close/hide/show/set_focus`)
+ * that the Rust side resolves to the platform's native webview handle:
+ * `app.get_webview(label)` on desktop (Tauri child webview), or the ArkTS
+ * `BrowserWebviewService` on OHOS (ArkUI Web component). This avoids the
+ * `@tauri-apps/api/webview` `Webview.getByLabel()` call entirely: Tauri's
+ * `plugin:webview` commands are rejected on mobile targets ("Webview API not
+ * available on mobile"), and ArkUI Web components created by
+ * `RustWebviewNodeController.addWebview` are invisible to Tauri's registry.
+ */
+export function createCommandBasedBrowserWebviewHandle(
+  label: string,
+  invoke: TauriInvoke,
+): BrowserWebviewHandle {
+  let commandQueue: Promise<unknown> = Promise.resolve();
+  const enqueue = (command: string): Promise<void> => {
+    const operation = commandQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await invoke(command, { request: { label } });
+      });
+    commandQueue = operation;
+    return operation;
+  };
+  const close = async (): Promise<void> => {
+    await enqueue('browser_webview_close');
+  };
+  const hide = async (): Promise<void> => {
+    await enqueue('browser_webview_hide');
+  };
+  const show = async (): Promise<void> => {
+    await enqueue('browser_webview_show');
+  };
+  const setFocus = async (): Promise<void> => {
+    await enqueue('browser_webview_set_focus');
+  };
+  return { close, hide, label, setFocus, show };
+}
+
 async function createBrowserWebview(
   label: string,
   url: string,
   bounds: WebviewBounds,
   openRequestId?: string,
 ): Promise<BrowserWebviewHandle> {
-  const { Webview } = await import('@tauri-apps/api/webview');
   await api.invoke('browser_webview_create', {
     request: {
       label,
@@ -158,11 +219,7 @@ async function createBrowserWebview(
       openRequestId,
     },
   });
-  const handle = await Webview.getByLabel(label) as unknown as BrowserWebviewHandle | null;
-  if (!handle) {
-    throw new Error(`Webview not found after creation: ${label}`);
-  }
-  return handle;
+  return createCommandBasedBrowserWebviewHandle(label, api.invoke as TauriInvoke);
 }
 
 export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOptions) {
@@ -340,7 +397,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const previous = webviewRef.current;
     if (previous) await closeWebview(previous);
 
-    const { Webview } = await import('@tauri-apps/api/webview');
     const initialBounds = await waitForViewportBounds();
     let lastError: unknown = null;
 
@@ -350,7 +406,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
 
-      const label = allocateBrowserWebviewLabel(labelPrefix);
+      const label = createBrowserWebviewLabel(labelPrefix);
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
@@ -367,8 +423,9 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         return handle;
       } catch (creationError) {
         lastError = creationError;
-        const staleHandle = await Webview.getByLabel(label).catch(() => null);
-        await staleHandle?.close().catch(() => {});
+        // Clean up any partially-created webview via the command path; it
+        // works on both desktop (Tauri child webview) and OHOS (ArkUI Web node).
+        await api.invoke('browser_webview_close', { request: { label } }).catch(() => {});
         if (!isTransientWebviewCreationError(creationError)
           || attempt === WEBVIEW_CREATE_RETRY_DELAYS_MS.length - 1) {
           throw creationError;
@@ -535,7 +592,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const resizeObserver = new ResizeObserver(update);
     resizeObserver.observe(viewport);
     const checkOverlays = () => {
-      const overlays = new Set(doc.querySelectorAll(NATIVE_WEBVIEW_OCCLUSION_SELECTOR));
+      const overlays = new Set(doc.querySelectorAll(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR));
       for (const element of observed) {
         if (!overlays.has(element)) {
           resizeObserver.unobserve(element);
@@ -553,7 +610,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const observer = new MutationObserver(checkOverlays);
     observer.observe(doc.body, {
       childList: true, subtree: true, attributes: true,
-      attributeFilter: ['style', 'class', 'hidden', 'data-state', 'data-openbitfun-state', 'data-openbitfun-native-webview-occlusion'],
+      attributeFilter: ['style', 'class', 'hidden', 'data-state', 'data-bitfun-state', 'data-bitfun-native-webview-occlusion'],
     });
     checkOverlays();
     const handleToolbarActivating = () => {

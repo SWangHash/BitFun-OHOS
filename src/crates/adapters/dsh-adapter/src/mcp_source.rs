@@ -1,8 +1,8 @@
 //! Reuse explicit DSH MCP declarations without evaluating Cordis or selecting a
 //! native profile. Each file is an independent source; patches requiring another
 //! layer remain unsupported rather than silently producing a partial server.
-use openbitfun_product_domains::external_sources::*;
-use openbitfun_static_hook_support::{
+use bitfun_product_domains::external_sources::*;
+use bitfun_static_hook_support::{
     read_bounded_text, redacted_executable_preview, resolve_bounded_regular_file, BoundedTextRead,
 };
 use serde_json::{Map, Value};
@@ -208,7 +208,7 @@ impl DshMcpProvider {
                 diagnostics.push(diagnostic(&key, "composition_required", "DSH patches require profile composition; declarations in this source cannot be activated from a partial configuration"));
             }
             if !declarations.is_empty() {
-                diagnostics.push(diagnostic(&key, "declaration_scope", "Explicit MCP declarations are reused independently in OpenBitFun; native DSH profile selection, bundle overlays and reconnect lifecycle are not imported"));
+                diagnostics.push(diagnostic(&key, "declaration_scope", "Explicit MCP declarations are reused independently in BitFun; native DSH profile selection, bundle overlays and reconnect lifecycle are not imported"));
             }
             let mut identities = BTreeSet::new();
             let mut names = BTreeSet::new();

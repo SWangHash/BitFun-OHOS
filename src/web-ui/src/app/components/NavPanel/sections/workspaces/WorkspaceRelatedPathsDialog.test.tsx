@@ -16,11 +16,11 @@ vi.mock('@/infrastructure/api/service-api/ExternalSourcesAPI', () => ({
 }));
 vi.mock('@/features/ssh-remote/sshApi', () => ({ sshApi: {} }));
 vi.mock('@/features/ssh-remote/RemoteFileBrowser', () => ({ default: () => null }));
-vi.mock('@openbitfun/ui', async (importOriginal) => {
+vi.mock('@bitfun/ui', async (importOriginal) => {
   const Wrapper = ({ children }: React.PropsWithChildren) => <div>{children}</div>;
   return {
-    Disclosure: (await importOriginal<typeof import('@openbitfun/ui')>()).Disclosure,
-    Textarea: (await importOriginal<typeof import('@openbitfun/ui')>()).Textarea,
+    Disclosure: (await importOriginal<typeof import('@bitfun/ui')>()).Disclosure,
+    Textarea: (await importOriginal<typeof import('@bitfun/ui')>()).Textarea,
     Dialog: ({ open, children }: React.PropsWithChildren<{ open: boolean }>) => open ? <div role="dialog">{children}</div> : null,
     DialogBody: Wrapper, DialogHeader: Wrapper, DialogHeading: Wrapper, DialogTitle: Wrapper,
     DialogClose: () => null, Icon: () => null, Input: () => null,
@@ -52,7 +52,7 @@ describe('related directory dialog', () => {
     mocks.references.mockResolvedValue({ references: [], diagnostics: [{ code: 'source.unavailable' }] });
     await act(async () => root.render(<WorkspaceRelatedPathsDialog workspace={workspace} isOpen onClose={() => undefined} />));
     expect(mocks.references).toHaveBeenCalledExactlyOnceWith('/project', 'workspace-1');
-    const details = container.querySelector<HTMLDetailsElement>('details[data-openbitfun-component="disclosure"]')!;
+    const details = container.querySelector<HTMLDetailsElement>('details[data-bitfun-component="disclosure"]')!;
     expect(details).not.toBeNull();
     expect(details.open).toBe(false);
     const diagnostic = details.querySelector('li')!;
@@ -83,7 +83,7 @@ describe('related directory dialog', () => {
         onClose={onClose}
       />,
     ));
-    const field = container.querySelector('[data-openbitfun-component="textarea"]')!;
+    const field = container.querySelector('[data-bitfun-component="textarea"]')!;
     const input = field.querySelector('textarea')!;
     expect(field.getAttribute('data-layout')).toBe('fill');
     expect(field.getAttribute('data-resize')).toBe('none');

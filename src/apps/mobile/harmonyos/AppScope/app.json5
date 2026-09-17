@@ -1,13 +1,13 @@
 {
   "app": {
-    // Package identity is intentionally stable across the OpenBitFun rename so
+    // Package identity is intentionally stable across the BitFun rename so
     // upgrades retain encrypted sessions, preferences, and watch handoff data.
-    "bundleName": "com.openbitfun.app",
-    "vendor": "OpenBitFun",
+    "bundleName": "com.bitfun.app",
+    "vendor": "BitFun",
     "versionCode": 1,
     "versionName": "1.0.0",
     "buildVersion": "1",
-    "icon": "$media:openbitfun_app_icon",
+    "icon": "$media:bitfun_app_icon",
     "label": "$string:app_name",
     "configuration": "$profile:configuration"
   }

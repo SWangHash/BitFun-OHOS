@@ -139,8 +139,8 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
-        key: "connectionMethods.openbitfunServer",
-        value: "OpenBitFun Server",
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
@@ -185,12 +185,12 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
         key: "product.name",
-        value: "OpenBitFun",
+        value: "BitFun",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
         key: "product.remote",
-        value: "OpenBitFun Remote",
+        value: "BitFun Remote",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
@@ -324,8 +324,8 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
-        key: "connectionMethods.openbitfunServer",
-        value: "OpenBitFun Server",
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
@@ -370,12 +370,12 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
         key: "product.name",
-        value: "OpenBitFun",
+        value: "BitFun",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
         key: "product.remote",
-        value: "OpenBitFun Remote",
+        value: "BitFun Remote",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
@@ -509,8 +509,8 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
-        key: "connectionMethods.openbitfunServer",
-        value: "OpenBitFun Server",
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
@@ -555,12 +555,12 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
         key: "product.name",
-        value: "OpenBitFun",
+        value: "BitFun",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
         key: "product.remote",
-        value: "OpenBitFun Remote",
+        value: "BitFun Remote",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,

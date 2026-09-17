@@ -63,7 +63,7 @@ function createContext(dialogTurn: DialogTurn): any {
   const session = {
     sessionId: SESSION_ID,
     dialogTurns: [dialogTurn],
-    workspacePath: 'D:/workspace/OpenBitFun',
+    workspacePath: 'D:/workspace/BitFun',
     createdAt: 1,
     lastActiveAt: 2,
     status: 'active',
@@ -114,7 +114,7 @@ describe('PersistenceModule', () => {
     expect(mockSaveSessionMetadata).toHaveBeenCalledWith(expect.objectContaining({
       unreadCompletion: undefined,
       lastTurn: expect.objectContaining({ turnId: TURN_ID, status: 'completed', executionGeneration: 2 }),
-    }), 'D:/workspace/OpenBitFun', ['unreadCompletion', 'needsUserAttention'], undefined, undefined);
+    }), 'D:/workspace/BitFun', ['unreadCompletion', 'needsUserAttention'], undefined, undefined);
   });
 
   it('never writes old notification metadata to a device selected during its read', async () => {

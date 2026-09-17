@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Icon as CatalogIcon, IconButton, Tooltip } from '@openbitfun/ui';
+import { Icon as CatalogIcon, IconButton, Tooltip } from '@bitfun/ui';
 
 export interface ConfigRefreshButtonProps {
   tooltip: string;

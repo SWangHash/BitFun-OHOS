@@ -3,7 +3,7 @@
 use crate::agentic::WorkspaceBinding;
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
 use base64::Engine as _;
-use openbitfun_services_core::dispatch_contract::{
+use bitfun_services_core::dispatch_contract::{
     DispatchFileChunk, DispatchFileChunkRequest, DISPATCH_FILE_CHUNK_MAX_BYTES,
 };
 use std::path::Path;

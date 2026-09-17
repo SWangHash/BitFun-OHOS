@@ -28,7 +28,7 @@ describe('Skills scene presentation', () => {
     const scrollEnd = stylesheet.indexOf('.skills-main__grid {', scrollStart);
 
     expect(stylesheet.slice(shellStart, shellEnd)).toContain('overflow: hidden;');
-    expect(stylesheet.slice(shellStart, shellEnd)).toContain('padding: var(--openbitfun-space-2) var(--openbitfun-space-6) var(--openbitfun-space-6);');
+    expect(stylesheet.slice(shellStart, shellEnd)).toContain('padding: var(--bitfun-space-2) var(--bitfun-space-6) var(--bitfun-space-6);');
     expect(stylesheet.slice(scrollStart, scrollEnd)).toContain('flex: 0 1 auto;');
     expect(stylesheet).toContain('@include skills-list.row;');
     expect(listStylesheet).toContain('min-block-size: 88px;');
@@ -39,7 +39,7 @@ describe('Skills scene presentation', () => {
 
     expect(stylesheet).toContain('$skills-sidebar-width: 264px;');
     expect(stylesheet).toContain('min-height: 32px;');
-    expect(stylesheet).toContain('font-size: var(--openbitfun-type-heading-dialog-font-size);');
+    expect(stylesheet).toContain('font-size: var(--bitfun-type-heading-dialog-font-size);');
   });
 
   it('presents add skill as the same compact primary action used to create an agent', () => {
@@ -65,7 +65,7 @@ describe('Skills scene presentation', () => {
     const headerStart = stylesheet.indexOf('.skills-content-header {');
     const headerEnd = stylesheet.indexOf('\n}', headerStart);
 
-    expect(stylesheet).not.toContain('background: var(--openbitfun-color-surface-canvas);');
+    expect(stylesheet).not.toContain('background: var(--bitfun-color-surface-canvas);');
     expect(stylesheet.slice(listSurfaceStart, listSurfaceEnd)).toContain('@include skills-list.surface;');
     expect(listStylesheet.slice(surfaceStart, surfaceEnd)).toContain('background: transparent;');
     expect(stylesheet.slice(headerStart, headerEnd)).not.toContain('background:');
@@ -73,9 +73,9 @@ describe('Skills scene presentation', () => {
 
   it('keeps the group scrollbar on the scene edge without moving its content', () => {
     const stylesheet = readSibling('./components/SkillGroupsView.scss');
-    expect(stylesheet).toContain('--skill-groups-inline-inset: var(--openbitfun-space-6);');
+    expect(stylesheet).toContain('--skill-groups-inline-inset: var(--bitfun-space-6);');
     expect(stylesheet).toContain(
-      'padding-inline: var(--skill-groups-inline-inset) calc(var(--skill-groups-inline-inset) + var(--openbitfun-space-1));',
+      'padding-inline: var(--skill-groups-inline-inset) calc(var(--skill-groups-inline-inset) + var(--bitfun-space-1));',
     );
   });
 
@@ -84,8 +84,8 @@ describe('Skills scene presentation', () => {
     const stylesheet = readSibling('./SkillsScene.scss');
 
     expect(source).toContain('className="skills-card__actions"');
-    expect(source).toContain('data-openbitfun-part="installedCardDetails"');
-    expect(source).toContain('data-openbitfun-part="installedCardDelete"');
+    expect(source).toContain('data-bitfun-part="installedCardDetails"');
+    expect(source).toContain('data-bitfun-part="installedCardDelete"');
     expect(stylesheet).toContain('minmax(120px, 0.85fr) 64px;');
     expect(stylesheet).toContain('.skills-card__actions {');
   });

@@ -26,7 +26,7 @@ mod tests {
     fn pet_root_uses_configured_codex_home() {
         // This crate has no other environment-mutating unit tests.
         let previous = std::env::var_os("CODEX_HOME");
-        let expected = std::env::temp_dir().join("openbitfun-codex-pet-root");
+        let expected = std::env::temp_dir().join("bitfun-codex-pet-root");
         std::env::set_var("CODEX_HOME", &expected);
         let actual = super::pet_source_root();
         match previous {

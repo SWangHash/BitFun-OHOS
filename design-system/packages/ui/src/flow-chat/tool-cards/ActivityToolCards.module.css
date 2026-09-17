@@ -1,13 +1,13 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .summary {
     display: block;
     min-inline-size: 0;
     overflow: hidden;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
   }
 
   .summary[data-tone="danger"] {
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
 }

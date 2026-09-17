@@ -2,9 +2,9 @@
 
 The first public design-system packages use a fixed release group:
 
-- `@openbitfun/design-tokens`
-- `@openbitfun/theme-openbitfun`
-- `@openbitfun/ui`
+- `@bitfun/design-tokens`
+- `@bitfun/theme-bitfun`
+- `@bitfun/ui`
 
 During the initial contract-forming period they share the same version so a consumer can reason about compatibility without a matrix.
 

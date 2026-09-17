@@ -33,7 +33,7 @@ import {
   NumberBadge,
   SearchField,
   SegmentedControl,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 
 import {
   GalleryEmpty,
@@ -421,8 +421,8 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
 
   return (
     <GalleryLayout
-      data-openbitfun-component="miniapp-gallery-view"
-      data-openbitfun-part="root"
+      data-bitfun-component="miniapp-gallery-view"
+      data-bitfun-part="root"
       className="miniapp-gallery-pane miniapp-gallery"
     >
       <GalleryPageHeader
@@ -501,7 +501,7 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
 
       {tabs}
 
-      <div data-openbitfun-component="miniapp-gallery-view" data-openbitfun-part="content" className="gallery-zones">
+      <div data-bitfun-component="miniapp-gallery-view" data-bitfun-part="content" className="gallery-zones">
         {activeApps.length > 0 ? (
           <GalleryZone
             title={t('running')}
@@ -533,8 +533,8 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
           tools={(
             categories.length > 1 ? (
               <div
-                data-openbitfun-component="miniapp-gallery-view"
-                data-openbitfun-part="categoryFilters"
+                data-bitfun-component="miniapp-gallery-view"
+                data-bitfun-part="categoryFilters"
               >
                 <SegmentedControl size="md"
                   className="miniapp-gallery__categories"
@@ -553,8 +553,8 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
                       icon: categoryIcon,
                       label: (
                         <span
-                          data-openbitfun-component="miniapp-gallery-view"
-                          data-openbitfun-part="categoryFilter"
+                          data-bitfun-component="miniapp-gallery-view"
+                          data-bitfun-part="categoryFilter"
                         >
                           {category === 'all'
                             ? t('all')

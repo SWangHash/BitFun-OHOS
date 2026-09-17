@@ -1,4 +1,4 @@
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     RemoteExecSessionCompletion, RemoteExecSessionCompletionSource,
     RemoteExecSessionCompletionStatus, TerminalExecSessionCompletion,
     TerminalExecSessionCompletionSource, TerminalExecSessionCompletionStatus,

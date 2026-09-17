@@ -34,27 +34,27 @@ export const TokenUsageIndicator: React.FC<TokenUsageIndicatorProps> = ({
 
   return (
     <div
-      data-openbitfun-component="token-usage-indicator"
-      data-openbitfun-part="root"
-      data-openbitfun-level={statusClass}
-      className={`openbitfun-token-usage ${className} openbitfun-token-usage--${statusClass}`}
+      data-bitfun-component="token-usage-indicator"
+      data-bitfun-part="root"
+      data-bitfun-level={statusClass}
+      className={`bitfun-token-usage ${className} bitfun-token-usage--${statusClass}`}
       title={`Token usage: ${formatNumber(currentTokens)} / ${formatNumber(maxTokens)}`}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percentage}
     >
-      <div data-openbitfun-component="token-usage-indicator" data-openbitfun-part="track" className="openbitfun-token-usage__progress-track">
+      <div data-bitfun-component="token-usage-indicator" data-bitfun-part="track" className="bitfun-token-usage__progress-track">
         <div 
-          data-openbitfun-component="token-usage-indicator"
-          data-openbitfun-part="fill"
-          className="openbitfun-token-usage__progress-fill"
+          data-bitfun-component="token-usage-indicator"
+          data-bitfun-part="fill"
+          className="bitfun-token-usage__progress-fill"
           style={{ '--token-usage-progress': percentage / 100 } as React.CSSProperties}
         />
       </div>
       
-      <div data-openbitfun-component="token-usage-indicator" data-openbitfun-part="hover" className="openbitfun-token-usage__hover-content">
-        <span data-openbitfun-component="token-usage-indicator" data-openbitfun-part="percentage" className="openbitfun-token-usage__percentage">{percentage}%</span>
+      <div data-bitfun-component="token-usage-indicator" data-bitfun-part="hover" className="bitfun-token-usage__hover-content">
+        <span data-bitfun-component="token-usage-indicator" data-bitfun-part="percentage" className="bitfun-token-usage__percentage">{percentage}%</span>
       </div>
     </div>
   );

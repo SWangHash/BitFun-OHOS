@@ -3,7 +3,7 @@
  */
 @use '../../styles/tokens.scss' as tokens;
 
-.openbitfun-number-input {
+.bitfun-number-input {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -27,7 +27,7 @@
       border-color var(--bf-appearance-token-motion-fast) var(--bf-appearance-token-easing-standard);
     overflow: hidden;
 
-    &:hover:not(.openbitfun-number-input--disabled &) {
+    &:hover:not(.bitfun-number-input--disabled &) {
       background: var(--bf-appearance-token-element-bg-subtle);
       border-color: var(--bf-appearance-token-border-strong);
     }
@@ -178,16 +178,16 @@
   }
 
   &--small {
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       height: 28px;
       font-size: 12px;
     }
 
-    .openbitfun-number-input__value-area {
+    .bitfun-number-input__value-area {
       padding: 0 8px;
     }
 
-    .openbitfun-number-input__btn {
+    .bitfun-number-input__btn {
       width: 22px;
       height: 14px;
 
@@ -199,28 +199,28 @@
   }
 
   &--medium {
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       height: 36px;
       font-size: 14px;
     }
 
-    .openbitfun-number-input__btn {
+    .bitfun-number-input__btn {
       width: 28px;
       height: 18px;
     }
   }
 
   &--large {
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       height: 44px;
       font-size: 16px;
     }
 
-    .openbitfun-number-input__value-area {
+    .bitfun-number-input__value-area {
       padding: 0 16px;
     }
 
-    .openbitfun-number-input__btn {
+    .bitfun-number-input__btn {
       width: 36px;
       height: 22px;
 
@@ -233,21 +233,21 @@
 
 
   &--compact {
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       border-radius: var(--bf-appearance-token-size-radius-sm);
     }
 
-    .openbitfun-number-input__value-area {
+    .bitfun-number-input__value-area {
       padding: 0 8px;
     }
 
-    .openbitfun-number-input__progress {
+    .bitfun-number-input__progress {
       display: none;
     }
   }
 
   &--stepper {
-    .openbitfun-number-input__buttons {
+    .bitfun-number-input__buttons {
       flex-direction: row;
       border-left: none;
       position: absolute;
@@ -259,7 +259,7 @@
       pointer-events: none;
     }
 
-    .openbitfun-number-input__btn {
+    .bitfun-number-input__btn {
       pointer-events: auto;
       width: 32px;
       height: 100%;
@@ -276,7 +276,7 @@
       }
     }
 
-    .openbitfun-number-input__value-area {
+    .bitfun-number-input__value-area {
       padding: 0 40px;
     }
   }
@@ -286,18 +286,18 @@
     opacity: var(--bf-appearance-token-opacity-disabled);
     pointer-events: none;
 
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       background: transparent;
     }
   }
 
   &--dragging {
-    .openbitfun-number-input__container {
+    .bitfun-number-input__container {
       border-color: var(--bf-appearance-token-color-purple-500);
       background: var(--bf-appearance-token-color-purple-100);
     }
 
-    .openbitfun-number-input__progress-bar {
+    .bitfun-number-input__progress-bar {
       background: var(--bf-appearance-token-color-purple-500);
     }
   }
@@ -307,13 +307,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-number-input__container,
-  .openbitfun-number-input__progress,
-  .openbitfun-number-input__progress-bar {
+  .bitfun-number-input__container,
+  .bitfun-number-input__progress,
+  .bitfun-number-input__progress-bar {
     transition-duration: var(--bf-appearance-token-motion-instant);
   }
 
-  .openbitfun-number-input__btn {
+  .bitfun-number-input__btn {
     transition:
       background-color var(--bf-appearance-token-motion-instant) ease,
       color var(--bf-appearance-token-motion-instant) ease;

@@ -143,7 +143,7 @@ fn interactive_startup_survives_resize_multiline_input_and_emits_cleanup() {
         "interactive startup did not render the multiline input tail",
     );
     assert!(
-        !process.output().contains("Welcome to OpenBitFun CLI!"),
+        !process.output().contains("Welcome to BitFun CLI!"),
         "multiline input was submitted instead of remaining in the startup editor"
     );
 
@@ -370,7 +370,7 @@ fn export_dialog_writes_markdown_under_the_local_cli_directory() {
             .as_mut()
             .expect("PTY process child")
             .try_wait()
-            .expect("poll OpenBitFun CLI process")
+            .expect("poll BitFun CLI process")
         {
             panic!(
                 "export process exited with {status}; output:\n{}",
@@ -407,7 +407,7 @@ fn export_dialog_writes_markdown_under_the_local_cli_directory() {
     );
     assert!(markdown.contains("## Assistant"), "{markdown}");
     assert!(
-        !markdown.contains("Welcome to OpenBitFun CLI!"),
+        !markdown.contains("Welcome to BitFun CLI!"),
         "{markdown}"
     );
 }
@@ -428,7 +428,7 @@ fn session_markdown_exports(workspace: &std::path::Path) -> Vec<std::path::PathB
 fn create_editor_helper(workspace: &std::path::Path) -> std::path::PathBuf {
     #[cfg(windows)]
     {
-        let path = workspace.join("openbitfun-test-editor.cmd");
+        let path = workspace.join("bitfun-test-editor.cmd");
         std::fs::write(&path, "@echo off\r\n>\"%~1\" echo EDITOR_UPDATED_DRAFT\r\n")
             .expect("write Windows editor helper");
         path
@@ -437,7 +437,7 @@ fn create_editor_helper(workspace: &std::path::Path) -> std::path::PathBuf {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let path = workspace.join("openbitfun-test-editor.sh");
+        let path = workspace.join("bitfun-test-editor.sh");
         std::fs::write(
             &path,
             "#!/bin/sh\nprintf '%s\\n' EDITOR_UPDATED_DRAFT > \"$1\"\n",
@@ -485,7 +485,7 @@ fn assert_exec_stream_json_ctrl_c_contract() {
         "interrupt exit code changed:\n{output}"
     );
     assert!(
-        output.contains("OPENBITFUN_EXIT: cancelled:"),
+        output.contains("BITFUN_EXIT: cancelled:"),
         "missing stable cancellation diagnostic:\n{output}"
     );
     let events = strict_stream_json_events(&output);
@@ -632,7 +632,7 @@ impl PtyProcess {
         let mut child = pair
             .slave
             .spawn_command(command)
-            .expect("spawn OpenBitFun CLI in native PTY");
+            .expect("spawn BitFun CLI in native PTY");
         drop(pair.slave);
 
         let mut reader = pair.master.try_clone_reader().expect("clone PTY reader");
@@ -654,7 +654,7 @@ impl PtyProcess {
 
         // Detect an immediate startup failure before handing the process to the test.
         if let Some(status) = child.try_wait().expect("poll initial CLI process") {
-            panic!("OpenBitFun CLI exited during PTY startup: {status}");
+            panic!("BitFun CLI exited during PTY startup: {status}");
         }
 
         Self {
@@ -681,7 +681,7 @@ impl PtyProcess {
                 .as_mut()
                 .expect("PTY process child")
                 .try_wait()
-                .expect("poll OpenBitFun CLI process")
+                .expect("poll BitFun CLI process")
             {
                 let output = self.output();
                 self.close_io();
@@ -735,7 +735,7 @@ impl PtyProcess {
                 .as_mut()
                 .expect("PTY process child")
                 .try_wait()
-                .expect("poll OpenBitFun CLI process")
+                .expect("poll BitFun CLI process")
             {
                 break status;
             }

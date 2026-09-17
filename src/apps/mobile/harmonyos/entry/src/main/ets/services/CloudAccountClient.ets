@@ -97,7 +97,7 @@ interface CloudAccountDeviceWire {
   last_seen_at?: number;
 }
 
-/** Default OpenBitFun cloud relay used by the desktop account flow. */
+/** Default BitFun cloud relay used by the desktop account flow. */
 export const DEFAULT_CLOUD_RELAY_URL: string = OFFICIAL_RELAY_URL;
 
 /** Device kinds the relay accepts; mirrors `relay-service/src/db.rs::DEVICE_KINDS`. */
@@ -173,7 +173,7 @@ export class CloudAccountClient {
     const startRequest: Record<string, string> = {};
     const start = await this.post<GitHubStart>(relayUrl, '/api/auth/github/start?methods=all', startRequest);
     if (generation !== this.authorizationGeneration) throw new Error('Sign-in cancelled.');
-    if (!start.authorizationUrl.startsWith('https://github.com/login/oauth/authorize?') && !/^https:\/\/auth\.openbitfun\.com\/sign-in#ticket=[A-Za-z0-9_-]+$/.test(start.authorizationUrl)) {
+    if (!start.authorizationUrl.startsWith('https://github.com/login/oauth/authorize?') && !/^https:\/\/auth\.bitfun\.com\/sign-in#ticket=[A-Za-z0-9_-]+$/.test(start.authorizationUrl)) {
       throw new Error('Untrusted account authorization URL.');
     }
     if (!await openAuthorization(start.authorizationUrl)) throw new Error('Could not open account sign-in.');

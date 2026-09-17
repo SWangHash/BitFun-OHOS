@@ -19,8 +19,8 @@ describe('ModelSelector portal layer', () => {
 
     expect(component).toContain('createPortal(');
     expect(component).not.toContain('document.body');
-    expect(dropdownBlock).toContain('z-index: var(--openbitfun-layer-popover);');
-    expect(dropdownBlock).not.toContain('z-index: var(--openbitfun-layer-dropdown);');
+    expect(dropdownBlock).toContain('z-index: var(--bitfun-layer-popover);');
+    expect(dropdownBlock).not.toContain('z-index: var(--bitfun-layer-dropdown);');
   });
 
   it('keeps every model and reasoning menu in the shared overlay host', () => {
@@ -34,7 +34,7 @@ describe('ModelSelector portal layer', () => {
     const component = readSource('./ModelSelector.tsx');
 
     expect(component).toContain('data-testid="chat-model-selector-settings"');
-    expect(component).toContain('data-openbitfun-part="settingsButton"');
+    expect(component).toContain('data-bitfun-part="settingsButton"');
     expect(component).toContain("openModelSettings()");
   });
 });

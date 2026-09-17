@@ -4,20 +4,20 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--openbitfun-color-surface-canvas);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
 
   .browser-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem;
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
 
     h2 {
       margin: 0;
-      font-size: var(--openbitfun-type-heading-display-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      font-size: var(--bitfun-type-heading-display-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
 
     .header-actions {
@@ -28,7 +28,7 @@
 
   .browser-search {
     padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
 
     .browser-search-field {
       width: 100%;
@@ -43,8 +43,8 @@
     overflow: hidden;
 
     .resources-list {
-      border-right: 1px solid var(--openbitfun-color-border-default);
-      background: var(--openbitfun-color-surface-panel);
+      border-right: 1px solid var(--bitfun-color-border-default);
+      background: var(--bitfun-color-surface-panel);
 
       .loading-state,
       .empty-state {
@@ -54,10 +54,10 @@
         justify-content: center;
         padding: 3rem 1rem;
         text-align: center;
-        color: var(--openbitfun-color-content-secondary);
+        color: var(--bitfun-color-content-secondary);
 
         .empty-icon {
-          font-size: var(--openbitfun-type-display-lg-font-size);
+          font-size: var(--bitfun-type-display-lg-font-size);
           margin-bottom: 1rem;
           opacity: 0.5;
         }
@@ -73,7 +73,7 @@
         gap: 0.75rem;
         padding: 1rem;
         cursor: pointer;
-        border-bottom: 1px solid var(--openbitfun-color-border-default);
+        border-bottom: 1px solid var(--bitfun-color-border-default);
         transition:
           background-color 0.2s ease,
           border-color 0.2s ease,
@@ -82,17 +82,17 @@
           transform 0.2s ease;
 
         &:hover {
-          background: var(--openbitfun-color-surface-tertiary);
+          background: var(--bitfun-color-surface-tertiary);
         }
 
         &.selected {
-          background: var(--openbitfun-color-surface-tertiary);
-          border-left: 3px solid var(--openbitfun-color-accent-default);
+          background: var(--bitfun-color-surface-tertiary);
+          border-left: 3px solid var(--bitfun-color-accent-default);
         }
 
         .resource-icon {
-          font-size: var(--openbitfun-type-heading-display-font-size);
-          line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+          font-size: var(--bitfun-type-heading-display-font-size);
+          line-height: var(--bitfun-type-modifier-leading-none-line-height);
           flex-shrink: 0;
         }
 
@@ -101,15 +101,15 @@
           min-width: 0;
 
           .resource-name {
-            font-weight: var(--openbitfun-type-label-sm-font-weight);
+            font-weight: var(--bitfun-type-label-sm-font-weight);
             margin-bottom: 0.25rem;
             white-space: nowrap;
             overflow: hidden;
           }
 
           .resource-description {
-            font-size: var(--openbitfun-type-body-md-font-size);
-            color: var(--openbitfun-color-content-secondary);
+            font-size: var(--bitfun-type-body-md-font-size);
+            color: var(--bitfun-color-content-secondary);
             margin-bottom: 0.25rem;
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -118,9 +118,9 @@
           }
 
           .resource-uri {
-            font-size: var(--openbitfun-type-label-sm-font-size);
-            color: var(--openbitfun-color-content-muted);
-            font-family: var(--openbitfun-type-code-md-font-family);
+            font-size: var(--bitfun-type-label-sm-font-size);
+            color: var(--bitfun-color-content-muted);
+            font-family: var(--bitfun-type-code-md-font-family);
             white-space: nowrap;
             overflow: hidden;
           }
@@ -138,20 +138,20 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--openbitfun-color-border-default);
-        background: var(--openbitfun-color-surface-panel);
+        border-bottom: 1px solid var(--bitfun-color-border-default);
+        background: var(--bitfun-color-surface-panel);
 
         .viewer-title {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          font-weight: var(--openbitfun-type-label-sm-font-weight);
+          font-weight: var(--bitfun-type-label-sm-font-weight);
           min-width: 0;
           flex: 1;
 
           .viewer-icon {
-            font-size: var(--openbitfun-type-heading-display-font-size);
-            line-height: var(--openbitfun-type-modifier-leading-none-line-height);
+            font-size: var(--bitfun-type-heading-display-font-size);
+            line-height: var(--bitfun-type-modifier-leading-none-line-height);
             flex-shrink: 0;
           }
 
@@ -162,12 +162,12 @@
         }
 
         .viewer-mime-type {
-          font-size: var(--openbitfun-type-label-md-font-size);
-          color: var(--openbitfun-color-content-muted);
-          background: var(--openbitfun-color-surface-tertiary);
+          font-size: var(--bitfun-type-label-md-font-size);
+          color: var(--bitfun-color-content-muted);
+          background: var(--bitfun-color-surface-tertiary);
           padding: 0.25rem 0.5rem;
           border-radius: 4px;
-          font-family: var(--openbitfun-type-code-md-font-family);
+          font-family: var(--bitfun-type-code-md-font-family);
           flex-shrink: 0;
           margin-left: 1rem;
         }
@@ -182,7 +182,7 @@
           align-items: center;
           justify-content: center;
           height: 100%;
-          color: var(--openbitfun-color-content-secondary);
+          color: var(--bitfun-color-content-secondary);
         }
 
         .content-pre {
@@ -190,10 +190,10 @@
           padding: 0;
           background: none;
           border: none;
-          color: var(--openbitfun-color-content-primary);
-          font-family: var(--openbitfun-type-code-md-font-family);
-          font-size: var(--openbitfun-type-body-md-font-size);
-          line-height: var(--openbitfun-type-body-lg-line-height);
+          color: var(--bitfun-color-content-primary);
+          font-family: var(--bitfun-type-code-md-font-family);
+          font-size: var(--bitfun-type-body-md-font-size);
+          line-height: var(--bitfun-type-body-lg-line-height);
           white-space: pre-wrap;
           word-wrap: break-word;
         }
@@ -205,10 +205,10 @@
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: var(--openbitfun-color-content-secondary);
+        color: var(--bitfun-color-content-secondary);
 
         .empty-icon {
-          font-size: var(--openbitfun-type-display-lg-font-size);
+          font-size: var(--bitfun-type-display-lg-font-size);
           margin-bottom: 1rem;
           opacity: 0.5;
         }

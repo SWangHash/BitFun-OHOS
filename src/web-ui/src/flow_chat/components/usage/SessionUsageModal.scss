@@ -1,6 +1,6 @@
 .session-usage-dialog {
-  block-size: min(600px, calc(100dvh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter)));
-  max-block-size: calc(100dvh - 2 * var(--openbitfun-overlay-dialog-viewport-gutter));
+  block-size: min(600px, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
 }
 
 .session-usage-dialog__content {

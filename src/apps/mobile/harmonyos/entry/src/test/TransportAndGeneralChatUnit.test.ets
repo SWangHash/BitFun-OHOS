@@ -588,20 +588,20 @@ class AccountDeviceSwitchHarness {
 export default function transportAndGeneralChatUnitTest() {
   describe('Account device links', () => {
     it('uses the same device selector for official and LAN endpoints', 0, () => {
-      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.bitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
         const parsed = accountDeviceLink(`${endpoint}/#/pair?did=desktop-1`);
         expect(parsed?.deviceId).assertEqual('desktop-1');
         expect(parsed?.relayUrl).assertEqual(endpoint);
       }
     });
     it('rejects credentials, legacy rooms, duplicate targets and public lookalikes', 0, () => {
-      const prefix = 'https://remote.openbitfun.com/v/1.0.1/#/pair?';
+      const prefix = 'https://remote.bitfun.com/v/1.0.1/#/pair?';
       for (const suffix of ['did=desktop-1&pk=untrusted', 'did=desktop-1&relay=evil',
         'did=desktop-1&did=desktop-2', 'did=%00', 'did=%ZZ', 'room=old&pk=old']) {
         expect(accountDeviceLink(prefix + suffix)).assertUndefined();
       }
       expect(accountDeviceLink('https://evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
-      expect(accountDeviceLink('https://remote.openbitfun.com@evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
+      expect(accountDeviceLink('https://remote.bitfun.com@evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
     });
   });
 
@@ -638,7 +638,7 @@ export default function transportAndGeneralChatUnitTest() {
   describe('RemoteSessionManager account connection', () => {
     it('loads account device sessions through either relay endpoint', 0, async () => {
       const manager = new RemoteSessionManager();
-      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.bitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
         const result = await manager.connectAccountDevice(new RecordingAccountDeviceClient(), endpoint,
           { token: 'token', userId: 'account-user', masterKey: new Uint8Array(32) }, 'desktop-device');
         expect(result.workspace.path).assertEqual('/account-workspace');
@@ -936,7 +936,7 @@ export default function transportAndGeneralChatUnitTest() {
         failedAssistant
       ]);
 
-      expect(markdown).assertEqual('# 发布计划\n\n## 用户\n\n帮我整理发布计划\n\n## OpenBitFun\n\n先检查发布清单。\n');
+      expect(markdown).assertEqual('# 发布计划\n\n## 用户\n\n帮我整理发布计划\n\n## BitFun\n\n先检查发布清单。\n');
       expect(markdown.indexOf('secret retry context')).assertEqual(-1);
     });
 
@@ -956,7 +956,7 @@ export default function transportAndGeneralChatUnitTest() {
         chatMessage('assistant-1', 'assistant', '你好！有什么我可以帮你的吗？')
       ]);
 
-      expect(markdown).assertEqual('## 用户\n\n你好你好。\n\n## OpenBitFun\n\n你好！有什么我可以帮你的吗？\n');
+      expect(markdown).assertEqual('## 用户\n\n你好你好。\n\n## BitFun\n\n你好！有什么我可以帮你的吗？\n');
     });
   });
 
@@ -1538,15 +1538,15 @@ export default function transportAndGeneralChatUnitTest() {
 
   describe('ModelProviderGeneralChatAdapter', () => {
     it('infers provider protocol and request URL without a protocol setting', 0, () => {
-      const openOpenBitFunProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://api.openbitfun.com');
+      const bitFunProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://api.bitfun.com');
       const customProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://llm.example.com/v1');
 
-      expect(openOpenBitFunProtocol).assertEqual(ModelProviderProtocol.Anthropic);
+      expect(bitFunProtocol).assertEqual(ModelProviderProtocol.Anthropic);
       expect(customProtocol).assertEqual(ModelProviderProtocol.OpenAi);
       expect(ModelProviderGeneralChatAdapter.resolveRequestUrl(
-        'https://api.openbitfun.com/',
-        openOpenBitFunProtocol
-      )).assertEqual('https://api.openbitfun.com/v1/messages');
+        'https://api.bitfun.com/',
+        bitFunProtocol
+      )).assertEqual('https://api.bitfun.com/v1/messages');
       expect(ModelProviderGeneralChatAdapter.resolveRequestUrl(
         'https://llm.example.com/v1',
         customProtocol
@@ -1561,14 +1561,14 @@ export default function transportAndGeneralChatUnitTest() {
       ));
 
       await ModelProviderGeneralChatAdapter.probeConfiguration(
-        'https://api.openbitfun.com/',
+        'https://api.bitfun.com/',
         'sk-test-token',
         'deepseek-v4-flash',
         transport
       );
 
       expect(transport.requests.length).assertEqual(1);
-      expect(transport.requests[0].url).assertEqual('https://api.openbitfun.com/v1/messages');
+      expect(transport.requests[0].url).assertEqual('https://api.bitfun.com/v1/messages');
       expect(transport.requests[0].apiKey).assertEqual('sk-test-token');
       expect(transport.requests[0].protocol).assertEqual(ModelProviderProtocol.Anthropic);
       expect(transport.requests[0].body.indexOf('"max_tokens":1')).assertLarger(-1);
@@ -1582,7 +1582,7 @@ export default function transportAndGeneralChatUnitTest() {
       let message = '';
       try {
         await ModelProviderGeneralChatAdapter.probeConfiguration(
-          'https://api.openbitfun.com',
+          'https://api.bitfun.com',
           'sk-test-token',
           'deepseek-v4-flash',
           transport
@@ -1608,8 +1608,8 @@ export default function transportAndGeneralChatUnitTest() {
       expect(openAiText).assertEqual('Hello');
     });
 
-    it('places the OpenBitFun system prompt in both request formats', 0, () => {
-      const messages: ModelProviderMessage[] = [{ role: 'user', content: 'OpenBitFun 是什么？' }];
+    it('places the BitFun system prompt in both request formats', 0, () => {
+      const messages: ModelProviderMessage[] = [{ role: 'user', content: 'BitFun 是什么？' }];
       const anthropicBody = ModelProviderGeneralChatAdapter.buildRequestBody(
         'model-a',
         messages,
@@ -1630,7 +1630,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('sends attached images on the Anthropic-compatible local chat path', 0, async () => {
       const config = new InMemorySettingsConfigStore();
       config.snapshotResult = {
-        apiUrl: 'https://api.openbitfun.com',
+        apiUrl: 'https://api.bitfun.com',
         modelName: 'vision-model',
         hasApiKey: true
       };
@@ -1685,7 +1685,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('replays prior local-chat images when continuing a conversation', 0, async () => {
       const config = new InMemorySettingsConfigStore();
       config.snapshotResult = {
-        apiUrl: 'https://api.openbitfun.com',
+        apiUrl: 'https://api.bitfun.com',
         modelName: 'vision-model',
         hasApiKey: true
       };
@@ -1927,8 +1927,8 @@ export default function transportAndGeneralChatUnitTest() {
         mime_type: 'image/png'
       }]), '{"cmd":"steer_turn","session_id":"s1","turn_id":"turn-1","content":"continue","display_content":"continue","image_contexts":[{"id":"img1","data_url":"data:image/png;base64,abc","mime_type":"image/png"}]}');
       expectCommandJson(
-        RemoteCommandFactory.buildPlan('s1', '/repo/.openbitfun/plans/mobile.plan.md', 'Mobile plan', 'code'),
-        '{"cmd":"build_plan","session_id":"s1","plan_file_path":"/repo/.openbitfun/plans/mobile.plan.md","plan_name":"Mobile plan","agent_type":"code"}'
+        RemoteCommandFactory.buildPlan('s1', '/repo/.bitfun/plans/mobile.plan.md', 'Mobile plan', 'code'),
+        '{"cmd":"build_plan","session_id":"s1","plan_file_path":"/repo/.bitfun/plans/mobile.plan.md","plan_name":"Mobile plan","agent_type":"code"}'
       );
       expectCommandJson(RemoteCommandFactory.getSessionMessages('s1'), '{"cmd":"get_session_messages","session_id":"s1"}');
       expectCommandJson(RemoteCommandFactory.pollSession('s1', 7, 3, 2), '{"cmd":"poll_session","session_id":"s1","since_version":7,"known_msg_count":3,"known_model_catalog_version":2}');

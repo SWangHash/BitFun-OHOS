@@ -1,16 +1,16 @@
 //! Network providers for built-in web tools.
 
 mod exa_search_api;
-mod openbitfun_search_http;
+mod bitfun_search_http;
 mod tavily;
 
 pub use exa_search_api::ExaSearchApiProvider;
-pub use openbitfun_search_http::{OpenBitFunSearchHttpAuth, OpenBitFunSearchHttpProvider};
+pub use bitfun_search_http::{BitFunSearchHttpAuth, BitFunSearchHttpProvider};
 pub use tavily::TavilySearchProvider;
 
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate};
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     WebSearchError, WebSearchErrorKind, WebSearchProvider, WebSearchProviderId, WebSearchRequest,
     WebSearchResponse, WebSearchResult,
 };
@@ -22,7 +22,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 use thiserror::Error;
 
-const USER_AGENT_VALUE: &str = "OpenBitFun/1.0";
+const USER_AGENT_VALUE: &str = "BitFun/1.0";
 const WEB_FETCH_TIMEOUT_SECS: u64 = 30;
 const EXA_URL: &str = "https://mcp.exa.ai/mcp";
 const EXA_TIMEOUT_SECS: u64 = 60;
@@ -832,17 +832,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openbitfun_http_protocol_uses_v1_media_type_and_camel_case_body() {
+    async fn bitfun_http_protocol_uses_v1_media_type_and_camel_case_body() {
         let response_body = r#"{"results":[{"title":"One","url":"https://example.com/one","publishedAt":"2026-08-30T00:00:00Z","author":"A"}]}"#;
         let (endpoint, request_task) = serve_once(format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.openbitfun.web-search.v1+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.bitfun.web-search.v1+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             response_body.len(),
             response_body
         ))
         .await;
-        let provider = OpenBitFunSearchHttpProvider::new(
+        let provider = BitFunSearchHttpProvider::new(
             endpoint,
-            OpenBitFunSearchHttpAuth::Header {
+            BitFunSearchHttpAuth::Header {
                 name: "X-Search-Key".to_string(),
                 value: "http-secret".to_string(),
             },
@@ -855,28 +855,28 @@ mod tests {
                 max_results: 5,
             })
             .await
-            .expect("OpenBitFun HTTP fixture search should succeed");
+            .expect("BitFun HTTP fixture search should succeed");
         let request = request_task
             .await
-            .expect("OpenBitFun HTTP fixture request task");
+            .expect("BitFun HTTP fixture request task");
         let request_lower = request.to_ascii_lowercase();
 
-        assert!(request_lower.contains("accept: application/vnd.openbitfun.web-search.v1+json"));
+        assert!(request_lower.contains("accept: application/vnd.bitfun.web-search.v1+json"));
         assert!(request_lower.contains("x-search-key: http-secret"));
         assert!(request.ends_with(r#"{"query":"rust async","maxResults":5}"#));
-        assert_eq!(response.provider.as_str(), "openbitfun_search_http");
+        assert_eq!(response.provider.as_str(), "bitfun_search_http");
     }
 
     #[test]
-    fn openbitfun_http_protocol_rejects_unsafe_endpoint_and_managed_headers() {
-        assert!(OpenBitFunSearchHttpProvider::new(
+    fn bitfun_http_protocol_rejects_unsafe_endpoint_and_managed_headers() {
+        assert!(BitFunSearchHttpProvider::new(
             "http://example.com/search",
-            OpenBitFunSearchHttpAuth::None
+            BitFunSearchHttpAuth::None
         )
         .is_err());
-        assert!(OpenBitFunSearchHttpProvider::new(
+        assert!(BitFunSearchHttpProvider::new(
             "https://example.com/search",
-            OpenBitFunSearchHttpAuth::Header {
+            BitFunSearchHttpAuth::Header {
                 name: "Authorization".to_string(),
                 value: "secret".to_string(),
             }
@@ -885,13 +885,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openbitfun_http_protocol_does_not_follow_redirects() {
+    async fn bitfun_http_protocol_does_not_follow_redirects() {
         let (endpoint, request_task) = serve_once(
             "HTTP/1.1 302 Found\r\nLocation: https://example.com/other\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 .to_string(),
         )
         .await;
-        let provider = OpenBitFunSearchHttpProvider::new(endpoint, OpenBitFunSearchHttpAuth::None)
+        let provider = BitFunSearchHttpProvider::new(endpoint, BitFunSearchHttpAuth::None)
             .expect("loopback endpoint should be valid");
 
         let error = provider
@@ -906,16 +906,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openbitfun_http_protocol_maps_error_envelope_code_and_retry_after() {
+    async fn bitfun_http_protocol_maps_error_envelope_code_and_retry_after() {
         let response_body =
             r#"{"error":{"code":"rate_limited","message":"Slow down","retryAfterSeconds":17}}"#;
         let (endpoint, request_task) = serve_once(format!(
-            "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/vnd.openbitfun.web-search.v1+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/vnd.bitfun.web-search.v1+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             response_body.len(),
             response_body
         ))
         .await;
-        let provider = OpenBitFunSearchHttpProvider::new(endpoint, OpenBitFunSearchHttpAuth::None)
+        let provider = BitFunSearchHttpProvider::new(endpoint, BitFunSearchHttpAuth::None)
             .expect("loopback endpoint should be valid");
 
         let error = provider
@@ -927,7 +927,7 @@ mod tests {
             .expect_err("protocol error envelope should be mapped");
         request_task
             .await
-            .expect("OpenBitFun error fixture request task");
+            .expect("BitFun error fixture request task");
 
         assert_eq!(error.kind, WebSearchErrorKind::RateLimited);
         assert_eq!(error.message, "Slow down");

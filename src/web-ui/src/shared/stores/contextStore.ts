@@ -144,7 +144,7 @@ export const useContextStore = create<ContextState>()(
         }
       }),
       {
-        name: 'openbitfun-context-storage',
+        name: 'bitfun-context-storage',
         // Some WebViews (e.g. HarmonyOS) expose localStorage as null, which makes
         // zustand's default JSON storage throw "Cannot read properties of null
         // (reading 'setItem')" on every setState and crash the session view.
@@ -201,7 +201,7 @@ export const selectHasInvalidContexts = (state: ContextState) =>
  
 export const cleanupImageContextsFromStorage = () => {
   try {
-    const storageKey = 'openbitfun-context-storage';
+    const storageKey = 'bitfun-context-storage';
     const stored = localStorage.getItem(storageKey);
     
     if (stored) {

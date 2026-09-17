@@ -1,8 +1,8 @@
-# OpenBitFun CLI
+# BitFun CLI
 
-OpenBitFun CLI provides an interactive terminal UI, non-interactive Agent runs,
+BitFun CLI provides an interactive terminal UI, non-interactive Agent runs,
 session management, and machine-owned background tasks. The executable and
-command name is `openbitfun`.
+command name is `bitfun`.
 
 ## Install
 
@@ -12,12 +12,12 @@ From the repository root:
 pnpm run cli:install
 ```
 
-The installer builds and installs the `openbitfun` entrypoint for the current
+The installer builds and installs the `bitfun` entrypoint for the current
 platform. The default install directory is `~/.local/bin` on macOS/Linux and
-`%LOCALAPPDATA%\OpenBitFun\bin` on Windows. Open a new terminal after installation
+`%LOCALAPPDATA%\BitFun\bin` on Windows. Open a new terminal after installation
 so the updated `PATH` is visible.
 
-Official release archives contain the same `openbitfun` executable.
+Official release archives contain the same `bitfun` executable.
 
 Prerequisites for a source install are a Rust toolchain and this repository.
 See the repository [contribution guide](../../../CONTRIBUTING.md) for development
@@ -26,18 +26,18 @@ setup and build commands.
 ## Quick start
 
 ```bash
-openbitfun                                  # interactive TUI
-openbitfun exec "summarize this project"   # one non-interactive Agent run
-openbitfun exec "run tests" --auto         # approve interactive tool asks for this run
-openbitfun sessions list
-openbitfun doctor
+bitfun                                  # interactive TUI
+bitfun exec "summarize this project"   # one non-interactive Agent run
+bitfun exec "run tests" --auto         # approve interactive tool asks for this run
+bitfun sessions list
+bitfun doctor
 ```
 
 The interactive TUI asks before protected Agent tool calls. Non-interactive
 `exec` rejects permission requests by default; use `--auto` only when the
 current invocation may approve them.
 
-Run `openbitfun --help` or `openbitfun <command> --help` for the complete command and
+Run `bitfun --help` or `bitfun <command> --help` for the complete command and
 option reference.
 
 ## Interactive TUI
@@ -112,7 +112,7 @@ to chat mode. Shell and chat keep separate input histories.
 
 Press Enter to run the command in the session workspace. Shell mode is
 non-interactive: it does not allocate a PTY and does not accept image or
-structured `@` attachments. A leading `/` is shell text, not an OpenBitFun slash
+structured `@` attachments. A leading `/` is shell text, not an BitFun slash
 command. The command uses the shared Agent Runtime, normal `ExecCommand` tool,
 workspace binding, cancellation, audit, and static permission rules. Because
 the command was explicitly typed by the user, an interactive `ask` is approved
@@ -143,7 +143,7 @@ unsupported and keeps the draft unchanged.
 ### Shared TUI
 
 ```bash
-openbitfun chat --shared
+bitfun chat --shared
 ```
 
 Shared TUI lets multiple terminal processes reuse one workspace Runtime. Each
@@ -173,24 +173,24 @@ produce a non-zero result instead of reporting partial success.
 ## Other command groups
 
 ```bash
-openbitfun agents --help
-openbitfun models --help
-openbitfun mcp --help
-openbitfun plugins --help
-openbitfun hooks --help
-openbitfun config --help
-openbitfun acp --help
-openbitfun server --help
+bitfun agents --help
+bitfun models --help
+bitfun mcp --help
+bitfun plugins --help
+bitfun hooks --help
+bitfun config --help
+bitfun acp --help
+bitfun server --help
 ```
 
-`openbitfun mcp import` is an explicit preview/apply snapshot. It does not copy
+`bitfun mcp import` is an explicit preview/apply snapshot. It does not copy
 credentials, headers, environment values, or explicit working directories, and
 new native entries remain disabled until reviewed.
 
 ### Persistent tasks
 
-`openbitfun dispatch` is the machine-readable target-side interface used by other
-OpenBitFun surfaces. Jobs remain owned by this machine after the submitting client
+`bitfun dispatch` is the machine-readable target-side interface used by other
+BitFun surfaces. Jobs remain owned by this machine after the submitting client
 disconnects. Controllers should call `dispatch probe` and honor the returned
 protocol version before submitting or inspecting jobs. See the
 [detached task architecture](../../../docs/architecture/detached-task-dispatch.md)
@@ -202,7 +202,7 @@ provide required task choices in the prompt instead of waiting for a question.
 
 ### App server
 
-`openbitfun server` starts the OpenBitFun App Server surface over stdio. stdout carries
+`bitfun server` starts the BitFun App Server surface over stdio. stdout carries
 JSON-RPC traffic only, so an App Server client (for example an editor
 integration) can connect by spawning this command; logs go to stderr. The
 server scope is the current directory, matching the CLI's cwd-only session
@@ -244,27 +244,27 @@ After signing in with `/login`, a server can keep its account device route
 online without an interactive TUI:
 
 ```bash
-openbitfun daemon install
-openbitfun daemon status
+bitfun daemon install
+bitfun daemon status
 ```
 
 Linux uses a systemd user service and macOS uses a LaunchAgent. Windows does not
-currently install an auto-start service; use `openbitfun daemon run` under a
-supervisor instead. Run `openbitfun daemon --help` for lifecycle commands and
+currently install an auto-start service; use `bitfun daemon run` under a
+supervisor instead. Run `bitfun daemon --help` for lifecycle commands and
 platform diagnostics.
 
 ## Updates and troubleshooting
 
 ```bash
-openbitfun update --check
-openbitfun update
-openbitfun doctor
-openbitfun health
+bitfun update --check
+bitfun update
+bitfun doctor
+bitfun health
 ```
 
 Official Linux archive installations perform a small, rate-limited update check
 before interactive startup. Set `behavior.auto_update = false` in CLI config or
-`OPENBITFUN_CLI_DISABLE_AUTO_UPDATE=1` to disable it. Stable updates verify the
+`BITFUN_CLI_DISABLE_AUTO_UPDATE=1` to disable it. Stable updates verify the
 published checksum and, in official builds, the compiled release signing key
 before replacing either entrypoint.
 
@@ -272,7 +272,7 @@ Use `doctor` for product/runtime assembly diagnostics and `health` for required
 capability registration. They do not claim that external Network, Git, or MCP
 services are currently reachable.
 
-Account sign-in opens the shared OpenBitFun page, where you can choose GitHub or
+Account sign-in opens the shared BitFun page, where you can choose GitHub or
 an email verification code. Email sign-in creates an independent account without
 a password; it does not link to a GitHub account. Use the same method and account
 on every device you want to connect. A terminal without a browser can display the

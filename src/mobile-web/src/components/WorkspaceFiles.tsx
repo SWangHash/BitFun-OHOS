@@ -3,7 +3,7 @@ import { newUploadId, uploadRuntimeFile, type UploadProgress } from '../services
 import { sha256 } from '@noble/hashes/sha2.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDownUp, ArrowUp, ChevronRight, Download, File, FilePlus2, Folder, FolderPlus, LoaderCircle, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react';
-import { MobileBanner, MobileButton, MobileChoiceSheet, MobileFileButton, MobileSheet, MobileTextField } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileChoiceSheet, MobileFileButton, MobileSheet, MobileTextField } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { RemoteSessionManager, WorkspaceInfo } from '../services/RemoteSessionManager';
 import './WorkspaceFiles.scss';

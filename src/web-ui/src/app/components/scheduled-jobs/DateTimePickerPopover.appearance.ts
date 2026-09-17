@@ -10,7 +10,7 @@ export const dateTimePickerAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'foot' },
   ],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
-    { id: 'today', selector: { kind: 'self', suffix: '[data-openbitfun-state~="today"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
+    { id: 'today', selector: { kind: 'self', suffix: '[data-bitfun-state~="today"]' } },
   ],
 };

@@ -6,7 +6,7 @@ export struct BrandMark {
   @Param markSize: number = 96;
 
   build() {
-    TemplateIcon({ src: $r('app.media.openbitfun_brand_mark'), iconWidth: this.markSize, iconHeight: this.markSize })
+    TemplateIcon({ src: $r('app.media.bitfun_brand_mark'), iconWidth: this.markSize, iconHeight: this.markSize })
       .accessibilityLevel('no')
   }
 }

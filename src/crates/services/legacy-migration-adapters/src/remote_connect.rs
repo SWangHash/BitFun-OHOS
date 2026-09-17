@@ -3,15 +3,15 @@ use super::common::{
     relative_display, restore_unverified_file, stage_domain_dir, validate_regular_file,
     MAX_JSON_BYTES,
 };
-use openbitfun_legacy_migration::{
+use bitfun_legacy_migration::{
     atomic_write_json, DomainContext, DomainScan, LegacyDomainAdapter, LegacyMigrationError,
     LegacyMigrationResult, MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
-use openbitfun_services_integrations::remote_persistence as owner;
+use bitfun_services_integrations::remote_persistence as owner;
 use owner::{
     AccountHintRecord, AccountSessionRecord, BotChatStateRecord, BotConfigRecord,
     BotPersistenceRecord, LegacyAccountSessionKeyDomains, MachineBinding,
@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 
 const DOMAIN_DIR: &str = "remote-connect";
 const SOURCE_SCHEMA: &str = "bitfun.remote-connect.v0.2.19";
-const TARGET_SCHEMA: &str = "openbitfun.remote-connect.current";
+const TARGET_SCHEMA: &str = "bitfun.remote-connect.current";
 const MAX_REMOTE_FILES: usize = 4_096;
 const MAX_SECRET_BYTES: u64 = 16 * 1024 * 1024;
 const LEGACY_ACCOUNT_SESSION_KEY_DOMAINS: LegacyAccountSessionKeyDomains<'static> =
@@ -1167,11 +1167,11 @@ fn source_file_exists(
 mod tests {
     use super::*;
     use crate::adapters_for_groups;
-    use openbitfun_legacy_migration::{
+    use bitfun_legacy_migration::{
         probe_legacy_source, CancellationToken, CrashInjector, CrashPoint, LegacyMigrationError,
         MigrationEngine, NoCrashInjection, ProbeLimits,
     };
-    use openbitfun_product_domains::legacy_migration::{
+    use bitfun_product_domains::legacy_migration::{
         MigrationGroupId, MigrationRunStatus, MigrationSelection,
     };
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -1451,7 +1451,7 @@ mod tests {
 
     fn run_remote_group(
         roots: &MigrationRoots,
-    ) -> openbitfun_product_domains::legacy_migration::MigrationRunReport {
+    ) -> bitfun_product_domains::legacy_migration::MigrationRunReport {
         let source = probe_legacy_source(roots, ProbeLimits::default())
             .unwrap()
             .expect("legacy source");
@@ -1520,7 +1520,7 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();

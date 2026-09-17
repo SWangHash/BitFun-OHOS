@@ -34,7 +34,7 @@ export async function loadGitHubAccountProfile(
   request: typeof fetch = fetch,
 ): Promise<void> {
   if (!/^[1-9][0-9]*$/.test(userId) || signal.aborted) return;
-  const key = `openbitfun.mobile.github_profile.v1.${userId}`;
+  const key = `bitfun.mobile.github_profile.v1.${userId}`;
   try {
     const cached = JSON.parse(storage?.getItem(key) || 'null');
     if (cached?.userId === userId && Number.isFinite(cached.fetchedAt)) {

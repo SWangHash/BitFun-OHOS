@@ -5,7 +5,7 @@ use crate::types::{
     MIN_MODEL_CONTEXT_WINDOW_TOKENS,
 };
 use log::warn;
-pub use openbitfun_core_types::AIConfig;
+pub use bitfun_core_types::AIConfig;
 
 fn append_endpoint(base_url: &str, endpoint: &str) -> String {
     let base = base_url.trim();
@@ -212,8 +212,8 @@ mod tests {
     #[test]
     fn resolves_gemini_request_url_bare_host() {
         assert_eq!(
-            resolve_request_url("https://api.openbitfun.com", "gemini", "gemini-2.5-pro"),
-            "https://api.openbitfun.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
+            resolve_request_url("https://api.bitfun.com", "gemini", "gemini-2.5-pro"),
+            "https://api.bitfun.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
         );
     }
 

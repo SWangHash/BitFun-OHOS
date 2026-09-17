@@ -1,28 +1,28 @@
 .flowchat-flow-item {
   margin: 0;
-  font-size: var(--openbitfun-type-flow-body-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  font-size: var(--bitfun-type-flow-body-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
 }
 
 .flow-tool-card-wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-control-flow-chat-inline-gap);
+  gap: var(--bitfun-control-flow-chat-inline-gap);
 }
 
 .flow-tool-card-note {
   margin-inline-start: 0;
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  line-height: var(--openbitfun-type-body-sm-line-height);
-  opacity: var(--openbitfun-opacity-muted);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-md-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
+  opacity: var(--bitfun-opacity-muted);
 }
 
 .flow-tool-card-wrapper--permission-pending > :first-child {
-  outline: var(--openbitfun-border-width-default) solid var(--openbitfun-color-status-warning-border);
-  outline-offset: calc(-1 * var(--openbitfun-border-width-default));
-  border-radius: var(--openbitfun-radius-lg);
-  background: var(--openbitfun-color-status-warning-surface);
+  outline: var(--bitfun-border-width-default) solid var(--bitfun-color-status-warning-border);
+  outline-offset: calc(-1 * var(--bitfun-border-width-default));
+  border-radius: var(--bitfun-radius-lg);
+  background: var(--bitfun-color-status-warning-surface);
 }
 
 @media (forced-colors: active) {

@@ -1,10 +1,10 @@
-// Choreography and connected rig from the authored openbitfun-letter.html.
+// Choreography and connected rig from the authored bitfun-letter.html.
 // Sampling is independent of the DOM so seeking, replay, and reduced motion agree.
 export const INTRO_MS = 4800;
 export const HANDOFF_MS = 1800;
 export const CONTENT_AT = INTRO_MS + HANDOFF_MS * 0.58;
 export const SIGNATURE_AT = CONTENT_AT + 2200;
-export const SIGNATURE = 'OpenBitFun Team';
+export const SIGNATURE = 'BitFun Team';
 export const MASCOT_MS = 1480;
 
 export const clamp = (value: number) => Math.max(0, Math.min(1, value));

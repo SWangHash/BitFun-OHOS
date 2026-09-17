@@ -1,10 +1,10 @@
 {
-  "name": "openbitfun-playbook",
+  "name": "bitfun-playbook",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@openbitfun/design-tokens": "workspace:^",
-    "@openbitfun/theme-openbitfun": "workspace:^"
+    "@bitfun/design-tokens": "workspace:^",
+    "@bitfun/theme-bitfun": "workspace:^"
   },
   "scripts": {
     "build": "node scripts/build.mjs",

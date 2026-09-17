@@ -48,15 +48,15 @@ describe('Skin Market API paths', () => {
 
   it('uses the MiniApp auth broker and returns to the current Skin route', () => {
     expect(sharedMarketLoginUrl('/skin/appearances/ocean-night?q=dark')).toBe(
-      'https://auth.openbitfun.com/sign-in?locale=en-US&returnTo=%2Fskin%2Fappearances%2Focean-night%3Fq%3Ddark',
+      'https://auth.bitfun.com/sign-in?locale=en-US&returnTo=%2Fskin%2Fappearances%2Focean-night%3Fq%3Ddark',
     );
   });
 
   it('forwards the Skin-scoped CSRF alias when signing out', async () => {
-    expect(csrfTokenFromCookie('theme=dark; openbitfun_skin_csrf=shared-csrf; locale=zh')).toBe(
+    expect(csrfTokenFromCookie('theme=dark; bitfun_skin_csrf=shared-csrf; locale=zh')).toBe(
       'shared-csrf',
     );
-    vi.stubGlobal('document', { cookie: 'openbitfun_skin_csrf=shared-csrf' });
+    vi.stubGlobal('document', { cookie: 'bitfun_skin_csrf=shared-csrf' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -71,7 +71,7 @@ describe('Skin Market API paths', () => {
   });
 
   it('uses the shared Skin session and CSRF token for submission writes', async () => {
-    vi.stubGlobal('document', { cookie: 'openbitfun_skin_csrf=skin-write-token' });
+    vi.stubGlobal('document', { cookie: 'bitfun_skin_csrf=skin-write-token' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       submission: { submissionId: 'submission-1' },
     }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -91,7 +91,7 @@ describe('Skin Market API paths', () => {
   });
 
   it('uses admin moderation routes with encoded ids, CSRF, and removal reasons', async () => {
-    vi.stubGlobal('document', { cookie: 'openbitfun_skin_csrf=skin-admin-token' });
+    vi.stubGlobal('document', { cookie: 'bitfun_skin_csrf=skin-admin-token' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 

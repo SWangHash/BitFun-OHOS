@@ -4,10 +4,10 @@ import { fromB64, generateKeyPair, toB64 } from './E2EEncryption';
 import { migrateMobileNavigationController } from './MobileNavigationStore';
 import { pairingRelayUrl } from './pairingLink';
 
-const DATABASE = 'openbitfun-mobile-account';
+const DATABASE = 'bitfun-mobile-account';
 const ACCOUNTS = 'accounts';
-const CHANGE_CHANNEL = 'openbitfun.mobile.account.changed';
-const LEGACY_SESSION_KEY = 'openbitfun.mobile.account_session.v2';
+const CHANGE_CHANNEL = 'bitfun.mobile.account.changed';
+const LEGACY_SESSION_KEY = 'bitfun.mobile.account_session.v2';
 
 interface BrowserAccountRecord {
   version: 1;
@@ -169,7 +169,7 @@ export class BrowserAccountStore {
       // transaction commits. A retained signed-out record prevents resurrection
       // when another, previously suspended legacy tab later loads this build.
       window.sessionStorage.removeItem(LEGACY_SESSION_KEY);
-      window.sessionStorage.removeItem(`openbitfun.mobile.device_key:${this.relayUrl}:${legacy.controllerDeviceId}`);
+      window.sessionStorage.removeItem(`bitfun.mobile.device_key:${this.relayUrl}:${legacy.controllerDeviceId}`);
     } catch { /* A shared record is authoritative even if legacy cleanup fails. */ }
   }
 

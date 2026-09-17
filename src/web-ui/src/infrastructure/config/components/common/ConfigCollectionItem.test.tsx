@@ -33,8 +33,8 @@ describe('ConfigCollectionItem', () => {
       );
     });
 
-    const row = container.querySelector<HTMLElement>('.openbitfun-collection-item__row');
-    const toggle = container.querySelector<HTMLButtonElement>('.openbitfun-collection-item__details-toggle');
+    const row = container.querySelector<HTMLElement>('.bitfun-collection-item__row');
+    const toggle = container.querySelector<HTMLButtonElement>('.bitfun-collection-item__details-toggle');
     const control = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent === 'Active');
     expect(row?.getAttribute('role')).toBeNull();
@@ -45,13 +45,13 @@ describe('ConfigCollectionItem', () => {
     act(() => {
       control?.click();
     });
-    expect(container.querySelector('.openbitfun-collection-item__details-collapse')).toBeNull();
+    expect(container.querySelector('.bitfun-collection-item__details-collapse')).toBeNull();
 
     act(() => {
       toggle?.click();
     });
 
-    const details = container.querySelector<HTMLElement>('.openbitfun-collection-item__details-collapse');
+    const details = container.querySelector<HTMLElement>('.bitfun-collection-item__details-collapse');
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(container.textContent).toContain('Configuration location');
     expect(details?.dataset.open).toBe('true');
@@ -70,7 +70,7 @@ describe('ConfigCollectionItem', () => {
     expect(details?.isConnected).toBe(true);
     expect(details?.textContent).toBe('Configuration location');
     act(() => vi.advanceTimersByTime(1));
-    expect(container.querySelector('.openbitfun-collection-item__details-collapse')).toBeNull();
+    expect(container.querySelector('.bitfun-collection-item__details-collapse')).toBeNull();
   });
 
   it('does not expose disabled details as an interactive control', () => {
@@ -85,7 +85,7 @@ describe('ConfigCollectionItem', () => {
       );
     });
 
-    const toggle = container.querySelector<HTMLButtonElement>('.openbitfun-collection-item__details-toggle');
+    const toggle = container.querySelector<HTMLButtonElement>('.bitfun-collection-item__details-toggle');
     expect(toggle?.disabled).toBe(true);
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
 
@@ -94,7 +94,7 @@ describe('ConfigCollectionItem', () => {
     });
 
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('.openbitfun-collection-item__details-collapse')).toBeNull();
+    expect(container.querySelector('.bitfun-collection-item__details-collapse')).toBeNull();
   });
 
   it('keeps controlled details interactive after disabling the item when explicitly allowed', () => {
@@ -115,13 +115,13 @@ describe('ConfigCollectionItem', () => {
       );
     };
     act(() => root.render(<Harness />));
-    const toggle = container.querySelector<HTMLButtonElement>('.openbitfun-collection-item__details-toggle')!;
-    const label = container.querySelector<HTMLElement>('.openbitfun-collection-item__name')!;
+    const toggle = container.querySelector<HTMLButtonElement>('.bitfun-collection-item__details-toggle')!;
+    const label = container.querySelector<HTMLElement>('.bitfun-collection-item__name')!;
     const disable = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Disable')!;
 
     act(() => toggle.click());
     act(() => disable.click());
-    expect(container.querySelector('.openbitfun-collection-item')?.classList.contains('is-disabled')).toBe(true);
+    expect(container.querySelector('.bitfun-collection-item')?.classList.contains('is-disabled')).toBe(true);
     expect(toggle.disabled).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     act(() => toggle.click());
@@ -144,13 +144,13 @@ describe('ConfigCollectionItem', () => {
       );
     });
 
-    const row = container.querySelector<HTMLElement>('.openbitfun-collection-item__row');
-    const label = container.querySelector<HTMLElement>('.openbitfun-collection-item__name');
+    const row = container.querySelector<HTMLElement>('.bitfun-collection-item__row');
+    const label = container.querySelector<HTMLElement>('.bitfun-collection-item__name');
     const control = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent === 'Edit');
-    const toggle = container.querySelector<HTMLButtonElement>('.openbitfun-collection-item__details-toggle');
+    const toggle = container.querySelector<HTMLButtonElement>('.bitfun-collection-item__details-toggle');
 
-    expect(row?.classList.contains('openbitfun-collection-item__row--toggleable')).toBe(true);
+    expect(row?.classList.contains('bitfun-collection-item__row--toggleable')).toBe(true);
     expect(document.getElementById(toggle!.getAttribute('aria-labelledby')!)?.textContent).toBe('Model A');
 
     // A click on the nested icon must toggle once, without toggling the row again.

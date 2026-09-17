@@ -11,7 +11,7 @@ import {
   MobileConfirmSheet,
   MobileSheet,
   MobileTextField,
-} from '@openbitfun/ui/mobile';
+} from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { SessionInfo } from '../services/RemoteSessionManager';
 import HarnessProfilePicker from './HarnessProfilePicker';

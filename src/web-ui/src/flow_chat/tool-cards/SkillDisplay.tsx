@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import {
   SkillToolCard,
   type FlowChatToolStatus,
-} from '@openbitfun/ui/flow-chat';
+} from '@bitfun/ui/flow-chat';
 import { getSkillSourceLabelFromIdentity } from '@/infrastructure/config/skillSourcePresentation';
 import type { ToolCardProps } from '../types/flow-chat';
 

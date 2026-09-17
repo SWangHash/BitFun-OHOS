@@ -42,6 +42,6 @@ if (require.main === module) {
   const target = process.argv[2];
   if (!['android', 'ios'].includes(target)) throw new Error('Expected android or ios');
   const platformCss = target === 'ios' ? fs.readFileSync(path.resolve(__dirname, '../ios/miniapps.css'), 'utf8') : '';
-  const output = process.argv[3] || path.resolve(__dirname, target === 'android' ? '../android/app/src/main/assets/miniapps' : '../ios/OpenBitFun/Resources/MiniApps');
+  const output = process.argv[3] || path.resolve(__dirname, target === 'android' ? '../android/app/src/main/assets/miniapps' : '../ios/BitFun/Resources/MiniApps');
   generate(output, true, platformCss);
 }

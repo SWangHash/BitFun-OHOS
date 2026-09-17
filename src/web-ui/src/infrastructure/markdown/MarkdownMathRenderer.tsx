@@ -29,7 +29,7 @@ export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
   urlTransform,
   sourceRange,
 }) => (
-  <div data-openbitfun-component="markdown" data-openbitfun-part="math">
+  <div data-bitfun-component="markdown" data-bitfun-part="math">
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath, remarkAutolinkBoundaries, remarkAutolinkComputerFileLinks]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange], rehypeKatex]}

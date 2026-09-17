@@ -123,7 +123,7 @@ export function createLetterDrawing(svg: SVGSVGElement) {
     [['axes', .09 * .43, .72 * .58 * .45], ['circles', .09 * .62, .72 * .58 * .78],
       ['diagonals', .09 * .28, .72 * .42 * .68], ['bounds', .09 * .4, .72 * .42 * .38]].forEach(([name, from, to]) => {
       opacity(name as string, mix(from as number, to as number, quiet));
-      get(name as string).style.stroke = `color-mix(in srgb, var(--openbitfun-color-content-muted) ${round(mix(58, 20, quiet))}%, var(--openbitfun-color-surface-panel))`;
+      get(name as string).style.stroke = `color-mix(in srgb, var(--bitfun-color-content-muted) ${round(mix(58, 20, quiet))}%, var(--bitfun-color-surface-panel))`;
     });
     opacity('dimensionLines', .09 * .5 * (1 - quiet));
     opacity('dimensionLabels', .09 * .8 * (1 - quiet));

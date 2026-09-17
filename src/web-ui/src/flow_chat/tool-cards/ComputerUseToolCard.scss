@@ -1,9 +1,9 @@
 .computer-use-tool-card__action-code {
-  font-size: var(--openbitfun-type-meta-font-size);
+  font-size: var(--bitfun-type-meta-font-size);
   padding: 1px 6px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  color: var(--openbitfun-color-content-secondary);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  color: var(--bitfun-color-content-secondary);
   white-space: nowrap;
 }
 
@@ -17,21 +17,21 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  color: var(--openbitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  color: var(--bitfun-color-content-secondary);
 
   code {
-    font-size: var(--openbitfun-type-meta-font-size);
+    font-size: var(--bitfun-type-meta-font-size);
     padding: 1px 6px;
     border-radius: 4px;
-    background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
   }
 }
 
 .computer-use-tool-card__row-label {
   flex-shrink: 0;
   min-width: 64px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 .computer-use-tool-card__loop-warning {
@@ -40,14 +40,14 @@
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: var(--openbitfun-color-status-warning-surface);
-  color: var(--openbitfun-color-status-warning-content);
-  font-size: var(--openbitfun-type-label-sm-font-size);
+  background: var(--bitfun-color-status-warning-surface);
+  color: var(--bitfun-color-status-warning-content);
+  font-size: var(--bitfun-type-label-sm-font-size);
 
   svg {
     flex-shrink: 0;
     margin-top: 2px;
-    color: var(--openbitfun-color-status-warning-emphasis);
+    color: var(--bitfun-color-status-warning-emphasis);
   }
 }
 
@@ -59,12 +59,12 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-size: var(--openbitfun-type-label-sm-font-size);
-  color: var(--openbitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  color: var(--bitfun-color-content-secondary);
 
   p {
     margin: 0;
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 }
 

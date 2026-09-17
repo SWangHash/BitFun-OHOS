@@ -2,7 +2,7 @@
 
 use crate::agentic::tools::framework::Tool;
 use crate::agentic::tools::registry::ToolRef;
-use openbitfun_agent_tools::SnapshotToolWrapper;
+use bitfun_agent_tools::SnapshotToolWrapper;
 
 #[derive(Debug, Clone)]
 pub(super) struct ProductSnapshotToolWrapper;

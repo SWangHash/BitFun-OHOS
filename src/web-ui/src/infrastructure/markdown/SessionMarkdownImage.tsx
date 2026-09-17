@@ -1,4 +1,4 @@
-import { Button } from '@openbitfun/ui';
+import { Button } from '@bitfun/ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { i18nService } from '@/infrastructure/i18n';
 import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
@@ -32,7 +32,7 @@ export function SessionMarkdownImage({ path, alt, title, read, download }: {
 
   if (current?.src) return <img src={current.src} alt={alt || ''} title={title} loading="lazy"
     onError={() => setResult({ read, path, epoch: scope.epoch, error: i18nService.t('components:markdown.imageUnavailable') })} />;
-  return <span className="markdown-image-fallback" data-openbitfun-component="markdown" data-openbitfun-part="imageFallback" title={current?.error}>
+  return <span className="markdown-image-fallback" data-bitfun-component="markdown" data-bitfun-part="imageFallback" title={current?.error}>
     {alt || path.split('/').pop()} · {i18nService.t(current?.error ? 'components:markdown.imageUnavailable' : 'common:status.loading')}
     {current?.error && <Button labelBehavior="static" variant="text" type="button" onClick={() => setAttempt(value => value + 1)}>{i18nService.t('common:retry')}</Button>}
     {download && <Button labelBehavior="static" variant="text" type="button" onClick={() => { void download(path).catch(() => {}); }}>{i18nService.t('common:actions.download')}</Button>}

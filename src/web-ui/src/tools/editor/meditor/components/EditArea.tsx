@@ -42,8 +42,8 @@ export const EditArea = forwardRef<HTMLTextAreaElement, EditAreaProps>(
       <textarea
         ref={ref}
         className="m-editor-textarea"
-        data-openbitfun-component="editor-tool"
-        data-openbitfun-part="meditorEditArea"
+        data-bitfun-component="editor-tool"
+        data-bitfun-part="meditorEditArea"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

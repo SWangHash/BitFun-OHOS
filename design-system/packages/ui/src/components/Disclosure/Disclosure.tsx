@@ -69,8 +69,8 @@ const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
     ...props
   }, ref) {
     const generatedId = useId();
-    const triggerId = `openbitfun-disclosure-${generatedId}-trigger`;
-    const contentId = `openbitfun-disclosure-${generatedId}-content`;
+    const triggerId = `bitfun-disclosure-${generatedId}-trigger`;
+    const contentId = `bitfun-disclosure-${generatedId}-content`;
     const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
     const resolvedOpen = open ?? uncontrolledOpen;
     const inertContentAttributes: InertContentAttributes = resolvedOpen ? {} : { inert: "" };
@@ -94,7 +94,7 @@ const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
       <section
         {...props}
         className={classNames(styles.root, className)}
-        data-openbitfun-component="disclosure"
+        data-bitfun-component="disclosure"
         data-disabled={disabled ? "true" : "false"}
         data-open={resolvedOpen ? "true" : "false"}
         ref={ref}
@@ -106,7 +106,7 @@ const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
           id: triggerId,
           onClick: toggle,
           type: 'button',
-        }) : <div className={styles.header} data-openbitfun-part="header">
+        }) : <div className={styles.header} data-bitfun-part="header">
           <button data-overflow-trigger
             aria-controls={contentId}
             aria-expanded={resolvedOpen}
@@ -116,25 +116,25 @@ const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
             onClick={toggle}
             type="button"
           >
-            <span aria-hidden="true" className={styles.indicator} data-openbitfun-part="indicator">
+            <span aria-hidden="true" className={styles.indicator} data-bitfun-part="indicator">
               <Icon name="chevron-right" size="sm" />
             </span>
             {leading !== undefined && leading !== null && (
-              <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+              <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
                 {leading}
               </span>
             )}
-            <span className={styles.heading} data-openbitfun-part="heading">
-              <OverflowText className={styles.summary} data-openbitfun-part="summary">{summary}</OverflowText>
+            <span className={styles.heading} data-bitfun-part="heading">
+              <OverflowText className={styles.summary} data-bitfun-part="summary">{summary}</OverflowText>
               {description !== undefined && description !== null && (
-                <span className={styles.description} data-openbitfun-part="description">
+                <span className={styles.description} data-bitfun-part="description">
                   {description}
                 </span>
               )}
             </span>
           </button>
           {actions !== undefined && actions !== null && (
-            <span className={styles.actions} data-openbitfun-part="actions">{actions}</span>
+            <span className={styles.actions} data-bitfun-part="actions">{actions}</span>
           )}
         </div>}
         {(!unmountOnClose || resolvedOpen || retained) && <div
@@ -143,11 +143,11 @@ const CustomDisclosure = forwardRef<HTMLElement, CustomDisclosureProps>(
           aria-labelledby={triggerId}
           className={classNames(styles.content, contentClassName)}
           data-open={resolvedOpen ? "true" : "false"}
-          data-openbitfun-part="content"
+          data-bitfun-part="content"
           id={contentId}
           role="region"
         >
-          <div className={classNames(styles.contentInner, contentInnerClassName)} data-openbitfun-part="content-inner">
+          <div className={classNames(styles.contentInner, contentInnerClassName)} data-bitfun-part="content-inner">
             {children}
           </div>
         </div>}
@@ -164,14 +164,14 @@ export const Disclosure = forwardRef<HTMLElement, DisclosureProps>(
         <details
           {...detailsProps}
           className={classNames(styles.native, className)}
-          data-openbitfun-component="disclosure"
+          data-bitfun-component="disclosure"
           data-presentation={presentation}
           ref={(element) => {
             if (typeof ref === "function") ref(element);
             else if (ref) ref.current = element;
           }}
         >
-          <summary data-openbitfun-part="summary">{summary}</summary>
+          <summary data-bitfun-part="summary">{summary}</summary>
           {children}
         </details>
       );

@@ -7,7 +7,7 @@ const APP_BUNDLE: string = HarmonyUpgradeIdentityContract.APP_BUNDLE;
 const APP_ABILITY: string = 'EntryAbility';
 
 export default function deviceSmokeTest() {
-  describe('OpenBitFunDeviceSmoke', () => {
+  describe('BitFunDeviceSmoke', () => {
     it('opens the home surface and remote conversation entry', 0, async () => {
       const want: Want = {
         bundleName: APP_BUNDLE,
@@ -17,7 +17,7 @@ export default function deviceSmokeTest() {
       const driver = Driver.create();
       await driver.delayMs(800);
 
-      const homeTitle = await driver.findComponent(ON.text('OpenBitFun'));
+      const homeTitle = await driver.findComponent(ON.text('BitFun'));
       expect(homeTitle !== undefined).assertTrue();
 
       await driver.click(130, 180);

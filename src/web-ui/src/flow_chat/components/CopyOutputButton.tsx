@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Button, Icon } from '@openbitfun/ui';
+import { Button, Icon } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../types/flow-chat';
@@ -143,13 +143,13 @@ export const CopyOutputButton: React.FC<CopyOutputButtonProps> = ({
   }
 
   return (
-    <div data-openbitfun-component="copy-output-button" data-openbitfun-part="root" data-openbitfun-state={copied ? 'copied' : ''} className={`copy-output-button-group ${className}`}>
+    <div data-bitfun-component="copy-output-button" data-bitfun-part="root" data-bitfun-state={copied ? 'copied' : ''} className={`copy-output-button-group ${className}`}>
       <Button
         type="button"
         variant={copied ? 'fill' : 'outline'}
         size="sm"
         leadingIcon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
-        data-openbitfun-action="copy"
+        data-bitfun-action="copy"
         onClick={handleCopy}
         title={copied ? t('copyOutput.copiedOutputContent') : t('copyOutput.copyOutputContent')}
         aria-label={copied ? t('copyOutput.copiedOutputContent') : t('copyOutput.copyOutputContent')}
@@ -162,7 +162,7 @@ export const CopyOutputButton: React.FC<CopyOutputButtonProps> = ({
         variant="outline"
         size="sm"
         leadingIcon={<Icon name="edit" size="sm" />}
-        data-openbitfun-action="edit"
+        data-bitfun-action="edit"
         onClick={handleOpenInEditor}
         title={t('copyOutput.openInEditor')}
         aria-label={t('copyOutput.openInEditor')}

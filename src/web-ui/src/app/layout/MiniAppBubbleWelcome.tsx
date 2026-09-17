@@ -1,5 +1,5 @@
 import React from 'react';
-import { OverflowText, Icon, ScrollArea } from '@openbitfun/ui';
+import { OverflowText, Icon, ScrollArea } from '@bitfun/ui';
 import { FolderOpen } from 'lucide-react';
 import type { MiniAppBubbleCustomization } from '@/app/scenes/miniapps/miniAppStore';
 import { renderMiniAppIcon } from '@/app/scenes/miniapps/utils/miniAppIcons';
@@ -15,7 +15,7 @@ interface MiniAppBubbleWelcomeProps {
   onSuggestion: (prompt: string) => void;
 }
 
-/** Keep aligned with the block padding on `.openbitfun-fmc__miniapp-welcome-content`. */
+/** Keep aligned with the block padding on `.bitfun-fmc__miniapp-welcome-content`. */
 const WELCOME_CONTENT_BLOCK_PADDING_PX = 36;
 
 /**
@@ -40,33 +40,33 @@ export const MiniAppBubbleWelcome: React.FC<MiniAppBubbleWelcomeProps> = ({
   const inputClearance = computeFlowChatInputStackFooterPx(inputHeight);
 
   return (
-    <ScrollArea className="openbitfun-fmc__miniapp-welcome" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="root">
+    <ScrollArea className="bitfun-fmc__miniapp-welcome" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="root">
       <div
-        className="openbitfun-fmc__miniapp-welcome-content"
+        className="bitfun-fmc__miniapp-welcome-content"
         style={{
           paddingBottom: `${WELCOME_CONTENT_BLOCK_PADDING_PX + inputClearance}px`,
         }}
       >
         <div
-          className="openbitfun-fmc__miniapp-welcome-icon"
-          data-openbitfun-component="miniapp-bubble-welcome"
-          data-openbitfun-part="icon"
+          className="bitfun-fmc__miniapp-welcome-icon"
+          data-bitfun-component="miniapp-bubble-welcome"
+          data-bitfun-part="icon"
           aria-hidden="true"
         >
           {renderMiniAppIcon(appIcon, 28)}
         </div>
 
         {title !== appName && (
-          <div className="openbitfun-fmc__miniapp-welcome-eyebrow" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="eyebrow">{appName}</div>
+          <div className="bitfun-fmc__miniapp-welcome-eyebrow" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="eyebrow">{appName}</div>
         )}
-        <h2 data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="title">{title}</h2>
-        {description && <p className="openbitfun-fmc__miniapp-welcome-description" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="description">{description}</p>}
+        <h2 data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="title">{title}</h2>
+        {description && <p className="bitfun-fmc__miniapp-welcome-description" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="description">{description}</p>}
 
         {workspaceLabel && workspacePath && (
           <div
-            className="openbitfun-fmc__miniapp-workspace"
-            data-openbitfun-component="miniapp-bubble-welcome"
-            data-openbitfun-part="workspace"
+            className="bitfun-fmc__miniapp-workspace"
+            data-bitfun-component="miniapp-bubble-welcome"
+            data-bitfun-part="workspace"
             title={workspacePath}
             data-workspace-path={workspacePath}
           >
@@ -76,20 +76,20 @@ export const MiniAppBubbleWelcome: React.FC<MiniAppBubbleWelcomeProps> = ({
         )}
 
         {suggestions.length > 0 && (
-          <div className="openbitfun-fmc__miniapp-suggestions" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="suggestions">
+          <div className="bitfun-fmc__miniapp-suggestions" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="suggestions">
             {welcome?.suggestionsLabel && (
-              <div className="openbitfun-fmc__miniapp-suggestions-label" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="suggestionsLabel">
+              <div className="bitfun-fmc__miniapp-suggestions-label" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="suggestionsLabel">
                 {welcome.suggestionsLabel}
               </div>
             )}
-            <div className="openbitfun-fmc__miniapp-suggestions-list" data-openbitfun-component="miniapp-bubble-welcome" data-openbitfun-part="suggestionsList">
+            <div className="bitfun-fmc__miniapp-suggestions-list" data-bitfun-component="miniapp-bubble-welcome" data-bitfun-part="suggestionsList">
               {suggestions.map((suggestion, index) => (
                 <button
                   key={`${suggestion.label}:${index}`}
                   type="button"
-                  className="openbitfun-fmc__miniapp-suggestion"
-                  data-openbitfun-component="miniapp-bubble-welcome"
-                  data-openbitfun-part="suggestion"
+                  className="bitfun-fmc__miniapp-suggestion"
+                  data-bitfun-component="miniapp-bubble-welcome"
+                  data-bitfun-part="suggestion"
                   title={suggestion.prompt}
                   onClick={() => onSuggestion(suggestion.prompt)}
                 >

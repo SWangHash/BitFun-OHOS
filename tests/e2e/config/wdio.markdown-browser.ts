@@ -20,7 +20,7 @@ export const config: Options.Testrunner = {
   mochaOpts: { timeout: 60000 }, waitforTimeout: 15000,
   baseUrl: 'http://127.0.0.1:1447',
   async onPrepare() {
-    storage = await mkdtemp(join(tmpdir(), 'openbitfun-markdown-e2e-'));
+    storage = await mkdtemp(join(tmpdir(), 'bitfun-markdown-e2e-'));
     const file = join(storage, 'test.md');
     await writeFile(file, await readFile(join(root, 'tests/e2e/browser/markdown-fixture.md')));
     files = createServer(async (request, response) => {

@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 
 describe('public Combobox product integration', () => {
   let root: Root;
@@ -23,7 +23,7 @@ describe('public Combobox product integration', () => {
   const options = [{ value: 'a', label: 'Alpha', group: 'First' }, { value: 'b', label: 'Beta', disabled: true }, { value: 'c', label: 'Gamma', group: 'First' }];
   const render = (props: ComboboxProps = {}) => act(() => root.render(<Combobox label="Models" options={options} onValueChange={change} {...props} />));
   const renderMultiSelect = (props: MultiSelectProps = {}) => act(() => root.render(<MultiSelect label="Models" options={options} onValueChange={change} {...props} />));
-  const trigger = () => host.querySelector<HTMLButtonElement>('button[data-openbitfun-part="trigger"]')!;
+  const trigger = () => host.querySelector<HTMLButtonElement>('button[data-bitfun-part="trigger"]')!;
   const key = (element: Element, value: string, composing = false) => act(() => { element.dispatchEvent(new KeyboardEvent('keydown', { key: value, isComposing: composing, bubbles: true })); });
   const input = () => document.querySelector<HTMLInputElement>('input[role="combobox"]')!;
   const type = (value: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value); input().dispatchEvent(new Event('input', { bubbles: true })); });
@@ -53,14 +53,14 @@ describe('public Combobox product integration', () => {
     const describedBy = anchor.getAttribute('aria-describedby');
     act(() => anchor.click());
 
-    const popup = document.querySelector<HTMLElement>('[data-openbitfun-component="combobox-popup"]')!;
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="combobox-popup"]')!;
     const search = input();
     expect(popup.parentElement).toBe(document.body);
-    expect(popup.children[0]?.getAttribute('data-openbitfun-part')).toBe('search');
-    expect(popup.children[1]?.getAttribute('data-openbitfun-part')).toBe('divider');
-    expect(popup.children[2]?.getAttribute('data-openbitfun-part')).toBe('options');
+    expect(popup.children[0]?.getAttribute('data-bitfun-part')).toBe('search');
+    expect(popup.children[1]?.getAttribute('data-bitfun-part')).toBe('divider');
+    expect(popup.children[2]?.getAttribute('data-bitfun-part')).toBe('options');
     expect(popup.dataset.size).toBe(size);
-    expect(popup.querySelector('[data-openbitfun-component="search-field"]')?.getAttribute('data-variant')).toBe('embedded');
+    expect(popup.querySelector('[data-bitfun-component="search-field"]')?.getAttribute('data-variant')).toBe('embedded');
     expect(document.querySelectorAll('[role="combobox"]')).toHaveLength(1);
     expect(search.id).toBe(fieldId);
     expect(host.querySelector('label')?.htmlFor).toBe(search.id);
@@ -72,7 +72,7 @@ describe('public Combobox product integration', () => {
     expect(anchor.id).toBe('');
     expect(anchor.tabIndex).toBe(-1);
 
-    act(() => popup.querySelector<HTMLButtonElement>('[data-openbitfun-part="collapse"]')!.click());
+    act(() => popup.querySelector<HTMLButtonElement>('[data-bitfun-part="collapse"]')!.click());
     expect(document.querySelector('[role="listbox"]')).toBeNull();
     expect(document.activeElement).toBe(anchor);
     expect(anchor.id).toBe(fieldId);
@@ -83,14 +83,14 @@ describe('public Combobox product integration', () => {
     renderMultiSelect({ defaultValue: ['a', 'c'], clearable: true, size: 'sm' });
     const anchor = trigger();
     const control = anchor.parentElement!;
-    const tags = control.querySelector('[data-openbitfun-part="tags"]');
+    const tags = control.querySelector('[data-bitfun-part="tags"]');
     act(() => anchor.click());
     type('gam');
     expect(document.querySelectorAll('[role="option"]')).toHaveLength(1);
     expect(control.getAttribute('aria-hidden')).toBe('true');
-    expect(control.querySelector('[data-openbitfun-part="tags"]')).toBe(tags);
+    expect(control.querySelector('[data-bitfun-part="tags"]')).toBe(tags);
     expect([...control.querySelectorAll('button')].every(button => button.tabIndex === -1)).toBe(true);
-    const popup = document.querySelector('[data-openbitfun-component="multi-select-popup"]')!;
+    const popup = document.querySelector('[data-bitfun-component="multi-select-popup"]')!;
     const clear = popup.querySelector<HTMLButtonElement>('button[aria-label="Clear selection"]')!;
     act(() => clear.click());
     expect(input().value).toBe('');
@@ -98,7 +98,7 @@ describe('public Combobox product integration', () => {
     expect(change).not.toHaveBeenCalled();
     key(input(), 'Escape');
     expect(document.activeElement).toBe(anchor);
-    expect(control.querySelector('[data-openbitfun-part="tags"]')).toBe(tags);
+    expect(control.querySelector('[data-bitfun-part="tags"]')).toBe(tags);
   });
 
   it.each([false, true])('restores the native tab starting position before leaving the popup (shift=%s)', (shiftKey) => {
@@ -183,11 +183,11 @@ describe('public Combobox product integration', () => {
   it('flips at the bottom edge and repositions after ancestor scrolling', () => {
     let top = window.innerHeight - 48;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.dataset.openbitfunComponent === 'combobox-popup') return new DOMRect(0, 0, 240, 180);
+      if (this.dataset.bitfunComponent === 'combobox-popup') return new DOMRect(0, 0, 240, 180);
       return new DOMRect(40, top, 240, 40);
     });
     render(); act(() => trigger().click());
-    const popup = document.querySelector<HTMLElement>('[data-openbitfun-component="combobox-popup"]')!;
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="combobox-popup"]')!;
     expect(popup.dataset.placement).toBe('top');
     top = 20;
     act(() => host.dispatchEvent(new Event('scroll', { bubbles: true })));

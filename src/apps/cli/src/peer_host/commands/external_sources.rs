@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use openbitfun_core::external_sources::{
+use bitfun_core::external_sources::{
     apply_external_source_control_action, choose_external_mcp_conflict,
     choose_external_subagent_conflict, external_source_discovery_snapshot,
     external_source_snapshot, get_external_source_control_snapshot,
@@ -122,7 +122,7 @@ pub(super) async fn workspace_root(
     let known_local_workspace = opened.iter().any(|workspace| {
         !matches!(
             workspace.workspace_kind,
-            openbitfun_core::service::workspace::manager::WorkspaceKind::Remote
+            bitfun_core::service::workspace::manager::WorkspaceKind::Remote
         ) && workspace.root_path.canonicalize().ok().as_ref() == Some(&requested)
     });
     if !known_local_workspace {
@@ -134,7 +134,7 @@ pub(super) async fn workspace_root(
 }
 
 fn public_snapshot(
-    snapshot: openbitfun_core::external_sources::ExternalSourceCatalogSnapshot,
+    snapshot: bitfun_core::external_sources::ExternalSourceCatalogSnapshot,
 ) -> ExternalSourceOperationResult<Value> {
     serde_json::to_value(ExternalSourcePublicSnapshot::from(snapshot).into_legacy_v0_compatible())
         .map_err(|_| {
@@ -176,7 +176,7 @@ async fn dispatch_inner(
             ExternalSourceHostCapabilities::read_write(),
         )
         .await
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)?;
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)?;
         return serde_json::to_value(snapshot).map_err(|_| {
             ExternalSourceOperationError::new(
                 ExternalSourceOperationErrorCode::Internal,
@@ -360,7 +360,7 @@ async fn dispatch_inner(
             ))
         }
     }
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)?;
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)?;
 
     public_snapshot(snapshot)
 }
@@ -376,7 +376,7 @@ fn control_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_core::external_sources::ExternalSourceControlActionV1;
+    use bitfun_core::external_sources::ExternalSourceControlActionV1;
 
     #[test]
     fn optional_host_fields_reject_wrong_types() {

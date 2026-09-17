@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
 
 export const STREAMING_TEXT_REVEAL_MS = 160;
 const LEVELS = 32;
-const NAME = 'openbitfun-stream-reveal-';
+const NAME = 'bitfun-stream-reveal-';
 type TextHighlight = Set<Range>;
 type HighlightAPI = {
   CSS?: { highlights?: Map<string, TextHighlight> };

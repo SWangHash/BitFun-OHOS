@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .viewport,
   .list,
@@ -11,27 +11,27 @@
 
   .root {
     display: flex;
-    inline-size: var(--openbitfun-overlay-menu-inline-size);
+    inline-size: var(--bitfun-overlay-menu-inline-size);
     max-inline-size: 100%;
-    max-block-size: var(--openbitfun-overlay-menu-max-block-size);
-    padding-block: var(--openbitfun-overlay-menu-surface-padding);
-    padding-inline: var(--openbitfun-overlay-menu-surface-padding) 0;
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-overlay-menu-surface-radius);
-    color: var(--openbitfun-color-action-neutral-content);
-    background: var(--openbitfun-color-surface-panel);
-    box-shadow: var(--openbitfun-shadow-menu);
+    max-block-size: var(--bitfun-overlay-menu-max-block-size);
+    padding-block: var(--bitfun-overlay-menu-surface-padding);
+    padding-inline: var(--bitfun-overlay-menu-surface-padding) 0;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-overlay-menu-surface-radius);
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-menu);
   }
 
   .viewport {
     flex: 1 1 auto;
     min-inline-size: 0;
     max-block-size: calc(
-      var(--openbitfun-overlay-menu-max-block-size)
-      - var(--openbitfun-overlay-menu-surface-padding)
-      - var(--openbitfun-overlay-menu-surface-padding)
+      var(--bitfun-overlay-menu-max-block-size)
+      - var(--bitfun-overlay-menu-surface-padding)
+      - var(--bitfun-overlay-menu-surface-padding)
     );
-    padding-inline-end: var(--openbitfun-overlay-menu-scrollbar-gap);
+    padding-inline-end: var(--bitfun-overlay-menu-scrollbar-gap);
     /* Do not reserve an invisible one-sided track in menus that do not scroll. */
     scrollbar-gutter: auto;
   }
@@ -44,8 +44,8 @@
     padding: 0;
     /* Balance the end inset with the start inset after the viewport scrollbar gap. */
     padding-inline-end: calc(
-      var(--openbitfun-overlay-menu-surface-padding)
-      - var(--openbitfun-overlay-menu-scrollbar-gap)
+      var(--bitfun-overlay-menu-surface-padding)
+      - var(--bitfun-overlay-menu-scrollbar-gap)
     );
   }
 
@@ -62,7 +62,7 @@
   }
 
   .section + .section {
-    margin-block-start: var(--openbitfun-overlay-menu-section-gap);
+    margin-block-start: var(--bitfun-overlay-menu-section-gap);
   }
 
   .items {
@@ -73,21 +73,21 @@
     display: flex;
     align-items: center;
     min-inline-size: 0;
-    min-block-size: var(--openbitfun-overlay-menu-heading-height);
-    gap: var(--openbitfun-overlay-menu-heading-gap);
-    padding-inline: var(--openbitfun-overlay-menu-heading-padding-inline);
+    min-block-size: var(--bitfun-overlay-menu-heading-height);
+    gap: var(--bitfun-overlay-menu-heading-gap);
+    padding-inline: var(--bitfun-overlay-menu-heading-padding-inline);
   }
 
   .headingLabel {
     overflow: hidden;
     flex: 1 1 auto;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-caption);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-xs-font-weight);
-    line-height: var(--openbitfun-type-label-xs-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    color: var(--bitfun-color-content-caption);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-xs-font-weight);
+    line-height: var(--bitfun-type-label-xs-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
     white-space: nowrap;
   }
 
@@ -98,49 +98,49 @@
   }
 
   .headingAction.headingAction {
-    inline-size: var(--openbitfun-overlay-menu-heading-action-size);
-    block-size: var(--openbitfun-overlay-menu-heading-action-size);
-    border-radius: var(--openbitfun-radius-xs);
+    inline-size: var(--bitfun-overlay-menu-heading-action-size);
+    block-size: var(--bitfun-overlay-menu-heading-action-size);
+    border-radius: var(--bitfun-radius-xs);
   }
 
   .item {
     inline-size: 100%;
-    min-block-size: var(--openbitfun-overlay-menu-item-height);
-    padding-inline: var(--openbitfun-overlay-menu-item-padding-inline);
-    border-radius: var(--openbitfun-overlay-menu-item-radius);
+    min-block-size: var(--bitfun-overlay-menu-item-height);
+    padding-inline: var(--bitfun-overlay-menu-item-padding-inline);
+    border-radius: var(--bitfun-overlay-menu-item-radius);
   }
 
-  .item > [data-openbitfun-part="trigger"] {
-    gap: var(--openbitfun-overlay-menu-item-gap);
+  .item > [data-bitfun-part="trigger"] {
+    gap: var(--bitfun-overlay-menu-item-gap);
   }
 
-  .item:has(> [data-openbitfun-part="trigger"]:focus-visible) {
+  .item:has(> [data-bitfun-part="trigger"]:focus-visible) {
     /* Keep the entire focus indicator within a scrolled or clipped item. */
-    box-shadow: inset 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    box-shadow: inset 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
-  .item:has(> [data-openbitfun-part="trigger"][aria-checked="true"]),
-  .item:has(> [data-openbitfun-part="trigger"][aria-expanded="true"]) {
-    color: var(--openbitfun-color-action-neutral-content);
-    background: var(--openbitfun-color-selection-surface);
+  .item:has(> [data-bitfun-part="trigger"][aria-checked="true"]),
+  .item:has(> [data-bitfun-part="trigger"][aria-expanded="true"]) {
+    color: var(--bitfun-color-action-neutral-content);
+    background: var(--bitfun-color-selection-surface);
   }
 
-  .item [data-openbitfun-part="leading"] {
-    inline-size: var(--openbitfun-overlay-menu-item-icon-size);
-    block-size: var(--openbitfun-overlay-menu-item-icon-size);
+  .item [data-bitfun-part="leading"] {
+    inline-size: var(--bitfun-overlay-menu-item-icon-size);
+    block-size: var(--bitfun-overlay-menu-item-icon-size);
   }
 
   .separator {
     flex: 0 0 auto;
     inline-size: 100%;
-    block-size: var(--openbitfun-border-width-default);
-    margin-block: var(--openbitfun-overlay-menu-section-gap);
-    background: var(--openbitfun-color-border-subtle);
+    block-size: var(--bitfun-border-width-default);
+    margin-block: var(--bitfun-overlay-menu-section-gap);
+    background: var(--bitfun-color-border-subtle);
   }
 
   @media (prefers-contrast: more) {
     .headingLabel {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
@@ -149,8 +149,8 @@
       color: CanvasText;
     }
 
-    .item:has(> [data-openbitfun-part="trigger"]:focus-visible) {
-      box-shadow: inset 0 0 0 var(--openbitfun-focus-width) Highlight;
+    .item:has(> [data-bitfun-part="trigger"]:focus-visible) {
+      box-shadow: inset 0 0 0 var(--bitfun-focus-width) Highlight;
     }
 
     .root {

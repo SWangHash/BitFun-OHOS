@@ -133,10 +133,10 @@ describe('GetToolSpecCard', () => {
     expect(container.textContent).not.toContain('"command"');
 
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
     expect(card).not.toBeNull();
-    expect(card?.getAttribute('data-openbitfun-interactive')).toBe('false');
+    expect(card?.getAttribute('data-bitfun-interactive')).toBe('false');
   });
 
   it('shows already-loaded summary without expanded detail affordance', () => {
@@ -151,8 +151,8 @@ describe('GetToolSpecCard', () => {
 
     expect(container.textContent).toContain('WebFetch is already loaded');
     const card = container.querySelector(
-      '[data-openbitfun-component="flow-chat-tool-card"][data-openbitfun-part="surface"][data-openbitfun-attention="ambient"]',
+      '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="surface"][data-bitfun-attention="ambient"]',
     );
-    expect(card?.getAttribute('data-openbitfun-interactive')).toBe('false');
+    expect(card?.getAttribute('data-bitfun-interactive')).toBe('false');
   });
 });

@@ -1,4 +1,4 @@
-import { Icon as CatalogIcon } from '@openbitfun/ui';
+import { Icon as CatalogIcon } from '@bitfun/ui';
 /**
  * TerminalScene — renders a ConnectedTerminal for the session selected
  * via terminalSceneStore.
@@ -31,12 +31,12 @@ const TerminalScene: React.FC<TerminalSceneProps> = ({ isActive = true }) => {
   // and cursor state after resize-sensitive shell output.
   return (
     <div
-      className="openbitfun-terminal-scene"
+      className="bitfun-terminal-scene"
       aria-hidden={!isActive}
       data-testid="shell-panel"
-      data-openbitfun-scene="terminal"
-      data-openbitfun-part="root"
-      data-openbitfun-state={isActive ? undefined : 'inactive'}
+      data-bitfun-scene="terminal"
+      data-bitfun-part="root"
+      data-bitfun-state={isActive ? undefined : 'inactive'}
     >
       {activeSessionId ? (
         <ConnectedTerminal
@@ -49,9 +49,9 @@ const TerminalScene: React.FC<TerminalSceneProps> = ({ isActive = true }) => {
           closeBehavior="detach"
         />
       ) : (
-        <div className="openbitfun-terminal-scene__empty" data-testid="shell-command-list" data-openbitfun-scene="terminal" data-openbitfun-part="empty">
-          <CatalogIcon name="terminal" size="lg" className="openbitfun-terminal-scene__empty-icon" style={{ width: 32, height: 32 }} />
-          <p className="openbitfun-terminal-scene__empty-hint" data-testid="shell-panel-title">{t('emptyState')}</p>
+        <div className="bitfun-terminal-scene__empty" data-testid="shell-command-list" data-bitfun-scene="terminal" data-bitfun-part="empty">
+          <CatalogIcon name="terminal" size="lg" className="bitfun-terminal-scene__empty-icon" style={{ width: 32, height: 32 }} />
+          <p className="bitfun-terminal-scene__empty-hint" data-testid="shell-panel-title">{t('emptyState')}</p>
         </div>
       )}
     </div>

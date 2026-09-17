@@ -1,4 +1,4 @@
-$miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6)), 880px);
+$miniapp-gallery-content-inline-size: min(calc(100% - var(--bitfun-space-6)), 880px);
 
 .miniapp-gallery-scene {
   display: flex;
@@ -9,7 +9,7 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--openbitfun-color-surface-scene);
+  background: var(--bitfun-color-surface-scene);
   container-name: miniapp-gallery-scene;
   container-type: inline-size;
 
@@ -40,14 +40,14 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
 // Both panes share one compact content rail. Keep this geometry at the scene
 // owner so the library and submissions cannot drift independently.
 .miniapp-gallery-pane {
-  background: var(--openbitfun-color-surface-scene);
+  background: var(--bitfun-color-surface-scene);
 
   .gallery-page-header {
     position: relative;
     width: $miniapp-gallery-content-inline-size;
     padding: 28px 0 0;
     box-sizing: border-box;
-    background: var(--openbitfun-color-surface-scene);
+    background: var(--bitfun-color-surface-scene);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -66,18 +66,18 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
 
   .gallery-zones {
     width: $miniapp-gallery-content-inline-size;
-    gap: var(--openbitfun-space-6);
-    padding: var(--openbitfun-space-4) 0 var(--openbitfun-space-8);
+    gap: var(--bitfun-space-6);
+    padding: var(--bitfun-space-4) 0 var(--bitfun-space-8);
   }
 
   .gallery-zone {
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 }
 
 .miniapp-gallery-tabs {
   width: $miniapp-gallery-content-inline-size;
-  margin: var(--openbitfun-space-4) auto 0;
+  margin: var(--bitfun-space-4) auto 0;
   box-sizing: border-box;
 }
 
@@ -92,8 +92,8 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
   .miniapp-gallery-pane {
     .gallery-page-header {
       flex-direction: column;
-      width: calc(100% - var(--openbitfun-space-8));
-      padding-top: var(--openbitfun-space-6);
+      width: calc(100% - var(--bitfun-space-8));
+      padding-top: var(--bitfun-space-6);
     }
 
     .gallery-page-header__actions {
@@ -102,8 +102,8 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
     }
 
     .gallery-zones {
-      width: calc(100% - var(--openbitfun-space-8));
-      padding-top: var(--openbitfun-space-5);
+      width: calc(100% - var(--bitfun-space-8));
+      padding-top: var(--bitfun-space-5);
     }
 
     .gallery-zone__header {
@@ -119,14 +119,14 @@ $miniapp-gallery-content-inline-size: min(calc(100% - var(--openbitfun-space-6))
   }
 
   .miniapp-gallery-tabs {
-    width: calc(100% - var(--openbitfun-space-8));
-    margin-top: var(--openbitfun-space-4);
+    width: calc(100% - var(--bitfun-space-8));
+    margin-top: var(--bitfun-space-4);
   }
 
   .miniapp-submissions__workspace,
   .miniapp-submissions__remote-warning,
   .miniapp-submissions__loading,
   .miniapp-submissions .gallery-empty {
-    width: calc(100% - var(--openbitfun-space-8));
+    width: calc(100% - var(--bitfun-space-8));
   }
 }

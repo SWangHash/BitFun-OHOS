@@ -3,7 +3,7 @@ import { HARNESS_PRESENTATION } from '@/shared/agents/harnessPresentation';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import { notificationService } from '@/shared/notification-system';
@@ -82,7 +82,7 @@ function HarnessProfileMark({
 
   return (
     <span
-      className="openbitfun-harness-selector__density-mark"
+      className="bitfun-harness-selector__density-mark"
       data-harness-profile={profile}
       data-harness-density={densityProfile ? HARNESS_PRESENTATION[densityProfile].gear : 0}
       aria-hidden
@@ -90,13 +90,13 @@ function HarnessProfileMark({
       {profile === 'other' ? (
         <Icon
           name="user"
-          className="openbitfun-harness-selector__density-frame"
+          className="bitfun-harness-selector__density-frame"
           size="md"
         />
       ) : (
         <Icon
           name={HARNESS_PRESENTATION[profile].icon}
-          className="openbitfun-harness-selector__density-frame"
+          className="bitfun-harness-selector__density-frame"
           size="md"
         />
       )}
@@ -300,19 +300,19 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
 
   return (
     <div
-      className={`openbitfun-harness-selector openbitfun-harness-selector--${presentation}`}
-      data-openbitfun-component="harness-selector"
-      data-openbitfun-part="root"
-      data-openbitfun-presentation={presentation}
-      data-openbitfun-profile={knownSelectedProfile}
+      className={`bitfun-harness-selector bitfun-harness-selector--${presentation}`}
+      data-bitfun-component="harness-selector"
+      data-bitfun-part="root"
+      data-bitfun-presentation={presentation}
+      data-bitfun-profile={knownSelectedProfile}
     >
       <Tooltip content={triggerTooltip}>
         {presentation === 'menu-item' ? (
           <MenuItem
             ref={triggerRef}
-            data-openbitfun-component="harness-selector"
-            data-openbitfun-part="trigger"
-            data-openbitfun-state={triggerState}
+            data-bitfun-component="harness-selector"
+            data-bitfun-part="trigger"
+            data-bitfun-state={triggerState}
             data-harness-legacy={legacySession ? 'true' : undefined}
             data-harness-locked={sessionStarted ? 'true' : undefined}
             data-harness-fixed={fixedSession ? 'true' : undefined}
@@ -329,7 +329,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
             metadata={(
               <Icon
                 name="chevron-right"
-                className="openbitfun-harness-selector__trigger-chevron"
+                className="bitfun-harness-selector__trigger-chevron"
                 size="sm"
                 aria-hidden
               />
@@ -342,10 +342,10 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
           <button data-overflow-trigger
             ref={triggerRef}
             type="button"
-            className="openbitfun-harness-selector__trigger"
-            data-openbitfun-component="harness-selector"
-            data-openbitfun-part="trigger"
-            data-openbitfun-state={triggerState}
+            className="bitfun-harness-selector__trigger"
+            data-bitfun-component="harness-selector"
+            data-bitfun-part="trigger"
+            data-bitfun-state={triggerState}
             data-harness-legacy={legacySession ? 'true' : undefined}
             data-harness-locked={sessionStarted ? 'true' : undefined}
             data-harness-fixed={fixedSession ? 'true' : undefined}
@@ -356,7 +356,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
             onClick={handleTriggerClick}
             data-testid="harness-profile-selector"
           >
-            <OverflowText className="openbitfun-harness-selector__trigger-value">{triggerLabel}</OverflowText>
+            <OverflowText className="bitfun-harness-selector__trigger-value">{triggerLabel}</OverflowText>
           </button>
         )}
       </Tooltip>
@@ -365,12 +365,12 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
         <Menu
           ref={menuRef}
           id={menuId}
-          className="openbitfun-harness-selector__menu"
-          data-openbitfun-component="harness-selector"
-          data-openbitfun-part="menu"
-          data-openbitfun-state="open"
-          data-openbitfun-page={page}
-          data-openbitfun-placement={presentation === 'menu-item'
+          className="bitfun-harness-selector__menu"
+          data-bitfun-component="harness-selector"
+          data-bitfun-part="menu"
+          data-bitfun-state="open"
+          data-bitfun-page={page}
+          data-bitfun-placement={presentation === 'menu-item'
             ? 'side'
             : menuLayout?.placement ?? 'top'}
           data-harness-locked={sessionStarted ? 'true' : undefined}
@@ -404,24 +404,24 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                   return (
                     <span
                       key={id}
-                      className="openbitfun-harness-selector__row-contract"
-                      data-openbitfun-component="harness-selector"
-                      data-openbitfun-part="profile"
-                      data-openbitfun-profile={id}
-                      data-openbitfun-state={state}
+                      className="bitfun-harness-selector__row-contract"
+                      data-bitfun-component="harness-selector"
+                      data-bitfun-part="profile"
+                      data-bitfun-profile={id}
+                      data-bitfun-state={state}
                     >
                       <MenuItem
                         role={creatingNewSession ? 'menuitem' : 'menuitemradio'}
                         checked={!creatingNewSession && connected}
-                        data-openbitfun-profile={id}
-                        data-openbitfun-state={state}
+                        data-bitfun-profile={id}
+                        data-bitfun-state={state}
                         leading={<HarnessProfileMark profile={id} />}
                         metadata={(
-                          <span className="openbitfun-harness-selector__profile-status">
+                          <span className="bitfun-harness-selector__profile-status">
                             {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
                             {id === 'other' ? (
                               <>
-                                <span className="openbitfun-harness-selector__agent-count">
+                                <span className="bitfun-harness-selector__agent-count">
                                   {otherAgents.length}
                                 </span>
                                 <Icon name="chevron-right" size="sm" aria-hidden />
@@ -449,7 +449,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                 </MenuItem>
                 <MenuSeparator />
                 {otherAgents.length === 0 ? (
-                  <div className="openbitfun-harness-selector__empty">
+                  <div className="bitfun-harness-selector__empty">
                     {t('chatInput.harness.otherAgentsEmpty')}
                   </div>
                 ) : otherAgents.map(agent => {
@@ -464,20 +464,20 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                   return (
                     <span
                       key={agent.id}
-                      className="openbitfun-harness-selector__row-contract"
-                      data-openbitfun-component="harness-selector"
-                      data-openbitfun-part="agent"
-                      data-openbitfun-agent-id={agent.id}
-                      data-openbitfun-state={state}
+                      className="bitfun-harness-selector__row-contract"
+                      data-bitfun-component="harness-selector"
+                      data-bitfun-part="agent"
+                      data-bitfun-agent-id={agent.id}
+                      data-bitfun-state={state}
                     >
                       <MenuItem
                         role={creatingNewSession ? 'menuitem' : 'menuitemradio'}
                         checked={!creatingNewSession && connected}
-                        data-openbitfun-agent-id={agent.id}
-                        data-openbitfun-state={state}
+                        data-bitfun-agent-id={agent.id}
+                        data-bitfun-state={state}
                         leading={<Icon name="user" size="md" aria-hidden />}
                         metadata={(
-                          <span className="openbitfun-harness-selector__profile-status">
+                          <span className="bitfun-harness-selector__profile-status">
                             {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
                             {agent.available === false
                               ? t('chatInput.harness.unavailable')

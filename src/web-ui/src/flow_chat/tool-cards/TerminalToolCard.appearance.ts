@@ -9,7 +9,7 @@ export const terminalToolCardAppearanceDescriptor: AppearanceSurfaceDescriptor =
   ],
   facets: [{
     id: 'status',
-    attribute: 'data-openbitfun-status',
+    attribute: 'data-bitfun-status',
     values: [
       'pending', 'queued', 'waiting', 'preparing', 'streaming', 'receiving',
       'running', 'completed', 'error', 'cancelled', 'rejected',
@@ -17,10 +17,10 @@ export const terminalToolCardAppearanceDescriptor: AppearanceSurfaceDescriptor =
     ],
   }],
   states: [
-    { id: 'running', selector: { kind: 'self', suffix: '[data-openbitfun-state~="running"]' } },
-    { id: 'completed', selector: { kind: 'self', suffix: '[data-openbitfun-state~="completed"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
-    { id: 'cancelled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="cancelled"]' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
+    { id: 'running', selector: { kind: 'self', suffix: '[data-bitfun-state~="running"]' } },
+    { id: 'completed', selector: { kind: 'self', suffix: '[data-bitfun-state~="completed"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
+    { id: 'cancelled', selector: { kind: 'self', suffix: '[data-bitfun-state~="cancelled"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
   ],
 };

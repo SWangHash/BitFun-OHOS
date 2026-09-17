@@ -5,39 +5,39 @@
  */
 @use '../../styles/nav-panel-font-scope.scss' as nav-font;
 
-.openbitfun-settings-nav {
+.bitfun-settings-nav {
   @include nav-font.nav-panel-text-body;
 
   // Resolve navigation ink inside the host's light, dark, or inverse chrome.
-  --openbitfun-color-content-primary: var(--openbitfun-color-content-primary);
+  --bitfun-color-content-primary: var(--bitfun-color-content-primary);
 
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-layout-navigation-panel-content-gap);
+  gap: var(--bitfun-layout-navigation-panel-content-gap);
   width: 100%;
   inline-size: 100%;
   max-inline-size: none;
   height: 100%;
-  padding: var(--openbitfun-space-2);
+  padding: var(--bitfun-space-2);
   // Preserve the content inset on descendants so the scroll viewport itself
   // can own the panel's inline-end edge.
   padding-inline-end: 0;
   box-sizing: border-box;
   overflow: hidden;
-  line-height: var(--openbitfun-type-meta-line-height);
+  line-height: var(--bitfun-type-meta-line-height);
 
   &__panel-header {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-layout-navigation-panel-content-gap);
+    gap: var(--bitfun-layout-navigation-panel-content-gap);
     padding: 0;
-    padding-inline-end: var(--openbitfun-space-2);
+    padding-inline-end: var(--bitfun-space-2);
   }
 
   // The panel owns section spacing; the scene supplies only its outer inset.
   &__content {
     padding: 0;
-    padding-inline-end: var(--openbitfun-space-2);
+    padding-inline-end: var(--bitfun-space-2);
   }
 
   // ── Search ───────────────────────────────────────────────
@@ -56,14 +56,14 @@
     flex-direction: column;
     // Keep neighboring rounded interaction surfaces visually distinct using
     // the same compact item rhythm as the shared NavigationPanel.
-    gap: calc(var(--openbitfun-space-1) / 2);
+    gap: calc(var(--bitfun-space-1) / 2);
   }
 
   &__search-result-item {
     padding-block: 7px;
 
     &.is-highlighted:not(.is-active) {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 
@@ -79,8 +79,8 @@
   &__search-result-line {
     width: 100%;
     overflow: hidden;
-    line-height: var(--openbitfun-type-meta-line-height);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__search-result-desc {
@@ -88,23 +88,23 @@
 
     width: 100%;
     overflow: hidden;
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
   }
 
   &__search-empty {
     @include nav-font.nav-panel-text-meta;
 
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    padding: var(--bitfun-space-3) var(--bitfun-space-2);
+    font-size: var(--bitfun-type-label-md-font-size);
     text-align: center;
   }
 
   &__search-highlight {
     padding: 0;
     margin: 0;
-    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
     color: inherit;
     font-weight: inherit;
     border-radius: 2px;
@@ -115,12 +115,12 @@
   &__items {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--openbitfun-space-1) / 2);
+    gap: calc(var(--bitfun-space-1) / 2);
   }
 
   &__item {
     // Match MainNav child rows: parent icon slot (22px) + row gap (8px).
-    padding-inline-start: calc(var(--openbitfun-layout-navigation-panel-item-padding-inline) + 30px);
+    padding-inline-start: calc(var(--bitfun-layout-navigation-panel-item-padding-inline) + 30px);
   }
 
   &__item-label {
@@ -136,6 +136,6 @@
     height: 6px;
     flex: 0 0 auto;
     border-radius: 50%;
-    background: var(--openbitfun-color-status-warning-emphasis);
+    background: var(--bitfun-color-status-warning-emphasis);
   }
 }

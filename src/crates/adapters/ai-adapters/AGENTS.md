@@ -2,11 +2,11 @@
 
 Scope: this guide applies to `src/crates/adapters/ai-adapters`.
 
-`openbitfun-ai-adapters` owns provider-specific request/response mapping, stream
+`bitfun-ai-adapters` owns provider-specific request/response mapping, stream
 protocol parsing, subscription auth (in-app OAuth login and credential
 resolution), and provider/model selection helpers that are independent of core
 config IO. Keep provider quirks here, then convert stream chunks into the
-provider-neutral contracts owned by `openbitfun-agent-stream`.
+provider-neutral contracts owned by `bitfun-agent-stream`.
 
 ## Guardrails
 
@@ -47,7 +47,7 @@ Compared on 2026-09-08 against [OpenCode v1.18.29](https://github.com/anomalyco/
   Portal native Messages cache issue is unresolved. Preserve the Nous bearer
   and `x-nous-refresh-token` refresh contract, including rotated-token storage.
 - Subscription credentials own authentication and account headers regardless
-  of saved replace mode or header casing. Use OpenBitFun attribution for Codex;
+  of saved replace mode or header casing. Use BitFun attribution for Codex;
   retain provider-required compatibility headers for xAI and
   Antigravity. Public API-key configurations retain their authentication policy.
 - Additional subscription request policy is enabled only by an explicit runtime
@@ -83,17 +83,17 @@ flag describes the public API, not subscription availability. OpenCode public ca
 models must stay grouped by plan and wire format. Never mask a failed account
 lookup with a static catalog or another application's local model cache.
 
-For the auth/discovery path, use `cargo test -p openbitfun-ai-adapters --features
+For the auth/discovery path, use `cargo test -p bitfun-ai-adapters --features
 subscription-auth --lib`. Device-grant timing tests use the dev-only Tokio
 test clock and synthetic tokens; they do not authorize real accounts.
 
 ```bash
-cargo test -p openbitfun-agent-stream
-cargo test -p openbitfun-ai-adapters
-cargo test -p openbitfun-ai-adapters --lib opencode_catalog
-cargo test -p openbitfun-ai-adapters --features subscription-auth subscription_auth
-cargo test -p openbitfun-ai-adapters --lib providers::shared::tests
-cargo test -p openbitfun-ai-adapters --features subscription-auth --lib providers::shared::tests
+cargo test -p bitfun-agent-stream
+cargo test -p bitfun-ai-adapters
+cargo test -p bitfun-ai-adapters --lib opencode_catalog
+cargo test -p bitfun-ai-adapters --features subscription-auth subscription_auth
+cargo test -p bitfun-ai-adapters --lib providers::shared::tests
+cargo test -p bitfun-ai-adapters --features subscription-auth --lib providers::shared::tests
 ```
 
 If stream behavior affects core integration, also run the relevant tests in

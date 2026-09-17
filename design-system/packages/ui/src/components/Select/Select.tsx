@@ -151,7 +151,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const designSystem = useDesignSystem();
   const fieldSurface = useFieldSurface();
   const generatedId = useId();
-  const id = providedId ?? `openbitfun-select-${generatedId}`;
+  const id = providedId ?? `bitfun-select-${generatedId}`;
   const listboxId = `${id}-listbox`;
   const nativeId = `${id}-native`;
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -169,7 +169,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const resolvedInvalid = invalid || ariaInvalid === true || ariaInvalid === "true";
   const selectedOption = options.find((option) => valuesMatch(option.value, resolvedValue));
   const { groups, ungrouped } = useMemo(() => groupOptions(options), [options]);
-  const previewState = (nativeProps as Record<string, unknown>)["data-openbitfun-preview-state"];
+  const previewState = (nativeProps as Record<string, unknown>)["data-bitfun-preview-state"];
 
   const setNativeRef = useCallback((node: HTMLSelectElement | null) => {
     nativeRef.current = node;
@@ -221,7 +221,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       if (resolvedOpen) {
         const enabledOptions = Array.from(
           popoverRef.current?.querySelectorAll<HTMLButtonElement>(
-            "[data-openbitfun-listbox-option]:not(:disabled)",
+            "[data-bitfun-listbox-option]:not(:disabled)",
           ) ?? [],
         );
         const selectedIndex = enabledOptions.findIndex((option) => (
@@ -281,7 +281,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     }
     if (event.key !== "Enter" && event.key !== " ") return;
     const target = event.target instanceof Element
-      ? event.target.closest<HTMLButtonElement>("[data-openbitfun-listbox-option]")
+      ? event.target.closest<HTMLButtonElement>("[data-bitfun-listbox-option]")
       : null;
     if (!target || target.disabled) return;
     event.preventDefault();
@@ -343,17 +343,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const renderTriggerContent = () => (
     <>
       {leading !== undefined && leading !== null && (
-        <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+        <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
           {leading}
         </span>
       )}
       <OverflowText
         className={selectedOption ? styles.value : styles.placeholder}
-        data-openbitfun-part="value"
+        data-bitfun-part="value"
       >
         {selectedOption?.label ?? placeholder}
       </OverflowText>
-      <span aria-hidden="true" className={styles.indicator} data-openbitfun-part="indicator">
+      <span aria-hidden="true" className={styles.indicator} data-bitfun-part="indicator">
         <Icon name="chevron-down" size="sm" />
       </span>
     </>
@@ -362,9 +362,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const popup = resolvedOpen ? (
     <div
       className={styles.popover}
-      data-openbitfun-component="select-popup"
-      data-openbitfun-part="popover"
-      data-openbitfun-native-webview-occlusion
+      data-bitfun-component="select-popup"
+      data-bitfun-part="popover"
+      data-bitfun-native-webview-occlusion
       data-invalid={resolvedInvalid ? "true" : "false"}
       data-placement={layout?.placement ?? placement}
       data-size={size}
@@ -382,8 +382,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         aria-labelledby={ariaLabelledBy}
         aria-required={required || ariaRequired || undefined}
         className={classNames(styles.trigger, styles.popoverHeader)}
-        data-openbitfun-part="header"
-        data-openbitfun-preview-state={typeof previewState === "string" ? previewState : undefined}
+        data-bitfun-part="header"
+        data-bitfun-preview-state={typeof previewState === "string" ? previewState : undefined}
         id={id}
         onClick={() => closeListbox(true)}
         onKeyDown={handleTriggerKeyDown}
@@ -393,8 +393,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       >
         {renderTriggerContent()}
       </button>
-      <div aria-hidden="true" className={styles.divider} data-openbitfun-part="divider" />
-      <div className={styles.options} data-openbitfun-part="options">
+      <div aria-hidden="true" className={styles.divider} data-bitfun-part="divider" />
+      <div className={styles.options} data-bitfun-part="options">
         <Listbox
           aria-label={ariaLabel}
           aria-labelledby={ariaLabel ? undefined : ariaLabelledBy ?? id}
@@ -423,7 +423,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   return (
     <span
       className={classNames(styles.root, className)}
-      data-openbitfun-component="select"
+      data-bitfun-component="select"
       data-disabled={disabled ? "true" : "false"}
       data-field-surface={fieldSurface}
       data-has-leading={leading !== undefined && leading !== null ? "true" : "false"}
@@ -472,8 +472,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         aria-required={required || ariaRequired || undefined}
         autoFocus={!resolvedOpen && autoFocus}
         className={styles.trigger}
-        data-openbitfun-part="trigger"
-        data-openbitfun-preview-state={typeof previewState === "string" ? previewState : undefined}
+        data-bitfun-part="trigger"
+        data-bitfun-preview-state={typeof previewState === "string" ? previewState : undefined}
         disabled={disabled}
         id={resolvedOpen ? undefined : id}
         onClick={() => updateOpen(true)}

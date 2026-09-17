@@ -6,20 +6,20 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
 
   &__editor {
     display: flex;
     min-height: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
   }
 
   &__group-row,
   &__group-actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__group-row {
@@ -32,21 +32,21 @@
     min-width: 0;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__group-name {
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    line-height: var(--openbitfun-type-label-md-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    line-height: var(--bitfun-type-label-md-line-height);
   }
 
   &__group-meta,
   &__empty {
     margin: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__group-actions {
@@ -56,7 +56,7 @@
   &__token-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__token {

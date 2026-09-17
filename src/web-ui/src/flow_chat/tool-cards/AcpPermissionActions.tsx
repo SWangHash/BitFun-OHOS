@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Button, IconButton, Tooltip, Icon } from '@openbitfun/ui';
+import { Button, IconButton, Tooltip, Icon } from '@bitfun/ui';
 import { ShieldCheck, ShieldX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -76,7 +76,7 @@ export const AcpPermissionActions: React.FC<AcpPermissionActionsProps> = ({
   }
 
   return (
-    <span data-openbitfun-component="acp-permission-actions" data-openbitfun-part="root" data-openbitfun-presentation={presentation} className={`acp-permission-actions acp-permission-actions--${presentation} ${className}`}>
+    <span data-bitfun-component="acp-permission-actions" data-bitfun-part="root" data-bitfun-presentation={presentation} className={`acp-permission-actions acp-permission-actions--${presentation} ${className}`}>
       {options.map((option) => {
         const approve = isApprovalKind(option.kind);
         const label = fallbackLabel(option.kind, t);
@@ -100,7 +100,7 @@ export const AcpPermissionActions: React.FC<AcpPermissionActionsProps> = ({
               variant={approve ? 'primary' : 'fill'}
               size="sm"
               leadingIcon={optionIcon(option.kind)}
-              data-openbitfun-decision={approve ? 'allow' : 'reject'}
+              data-bitfun-decision={approve ? 'allow' : 'reject'}
               onClick={handleClick}
               disabled={disabled}
               title={tooltip}
@@ -114,9 +114,9 @@ export const AcpPermissionActions: React.FC<AcpPermissionActionsProps> = ({
         return (
           <Tooltip key={option.optionId} content={tooltip}>
             <IconButton
-              data-openbitfun-component="acp-permission-actions"
-              data-openbitfun-part="action"
-              data-openbitfun-decision={approve ? 'allow' : 'reject'}
+              data-bitfun-component="acp-permission-actions"
+              data-bitfun-part="action"
+              data-bitfun-decision={approve ? 'allow' : 'reject'}
               className={`tool-card-header-action acp-permission-actions__icon-button acp-permission-actions__icon-button--${option.kind}`}
               variant={approve ? 'primary' : 'fill'}
               tone={approve ? 'neutral' : 'danger'}

@@ -77,7 +77,7 @@ export class MessageFileReferenceProjector {
       if (inline.type === 'code') {
         return;
       }
-      const found: string[] = inline.text.match(/(?:computer|file|openbitfun):\/\/[^\s)\]}>"']+/g) || [];
+      const found: string[] = inline.text.match(/(?:computer|file|bitfun):\/\/[^\s)\]}>"']+/g) || [];
       found.forEach((reference: string) => {
         if (references.length < limit) {
           MessageFileReferenceProjector.add(reference, references, seenRemotePaths);
@@ -93,7 +93,7 @@ export class MessageFileReferenceProjector {
   ): void {
     const lower = reference.trim().toLowerCase();
     const explicit = lower.startsWith('computer://') || lower.startsWith('file:') ||
-      lower.startsWith('openbitfun://runtime/') || lower.startsWith('openbitfun://current-session/');
+      lower.startsWith('bitfun://runtime/') || lower.startsWith('bitfun://current-session/');
     const output = /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico|html?|pdf|docx?|xlsx?|pptx?|csv|tsv|zip|mp4|webm|mp3|wav)(?:#.*)?$/i.test(lower);
     if (!explicit && !output) return;
     const resolution = FileTargetResolver.resolve(reference, '', MessageFileReferenceProjector.CONTEXT);

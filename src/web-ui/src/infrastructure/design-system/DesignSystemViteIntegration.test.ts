@@ -13,10 +13,10 @@ describe('design-system Vite integration', () => {
 
     expect(serveAliases).toHaveLength(4);
     expect(serveAliases.map(alias => String(alias.find))).toEqual([
-      '/^@openbitfun\\/ui\\/flow-chat$/',
-      '/^@openbitfun\\/ui\\/registry$/',
-      '/^@openbitfun\\/ui\\/styles\\.css$/',
-      '/^@openbitfun\\/ui$/',
+      '/^@bitfun\\/ui\\/flow-chat$/',
+      '/^@bitfun\\/ui\\/registry$/',
+      '/^@bitfun\\/ui\\/styles\\.css$/',
+      '/^@bitfun\\/ui$/',
     ]);
     expect(path.normalize(serveAliases[0].replacement)).toContain(
       path.normalize('design-system/packages/ui/src/flow-chat.ts'),
@@ -37,7 +37,7 @@ describe('design-system Vite integration', () => {
     const config = viteConfig({ command: 'serve', mode: 'development' });
     const watcher = config.plugins?.flat(Infinity).find(
       plugin => plugin && typeof plugin === 'object'
-        && 'name' in plugin && plugin.name === 'openbitfun:watch-ui-source',
+        && 'name' in plugin && plugin.name === 'bitfun:watch-ui-source',
     ) as SourceWatchPlugin | undefined;
 
     expect(watcher).toBeDefined();
@@ -79,19 +79,19 @@ describe('design-system Vite integration', () => {
     );
 
     const layerPreludeIndex = mainSource.indexOf(
-      'import "@openbitfun/ui/styles.css"',
+      'import "@bitfun/ui/styles.css"',
     );
     const productGraphIndex = mainSource.indexOf('import App from "./app/App"');
 
-    expect(themeEntry).toContain('@import "@openbitfun/theme-openbitfun/default.css";');
-    expect(mainSource).not.toContain('import "@openbitfun/theme-openbitfun/default.css"');
+    expect(themeEntry).toContain('@import "@bitfun/theme-bitfun/default.css";');
+    expect(mainSource).not.toContain('import "@bitfun/theme-bitfun/default.css"');
     expect(layerPreludeIndex).toBeGreaterThanOrEqual(0);
     expect(productGraphIndex).toBeGreaterThan(layerPreludeIndex);
 
     const bootstrapLayerOrder =
-      '@layer openbitfun.tokens.system, openbitfun.tokens.theme, openbitfun.reset, openbitfun.base, openbitfun.components, openbitfun.overrides;';
+      '@layer bitfun.tokens.system, bitfun.tokens.theme, bitfun.reset, bitfun.base, bitfun.components, bitfun.overrides;';
     const bootstrapLayerOrderIndex = indexHtml.indexOf(bootstrapLayerOrder);
-    const bootstrapResetIndex = indexHtml.indexOf('@layer openbitfun.reset {');
+    const bootstrapResetIndex = indexHtml.indexOf('@layer bitfun.reset {');
     const moduleEntryIndex = indexHtml.indexOf(
       '<script type="module" src="/src/main.tsx"></script>',
     );
@@ -105,17 +105,17 @@ describe('design-system Vite integration', () => {
     expect(themeEntryIndex).toBeLessThan(moduleEntryIndex);
     expect(moduleEntryIndex).toBeGreaterThan(bootstrapResetIndex);
     expect(indexHtml).toMatch(
-      /@layer openbitfun\.reset\s*\{[\s\S]*?\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[\s\S]*?padding:\s*0;/,
+      /@layer bitfun\.reset\s*\{[\s\S]*?\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[\s\S]*?padding:\s*0;/,
     );
     expect(globalStyles).not.toMatch(
       /\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[\s\S]*?padding:\s*0;/,
     );
     expect(globalStyles).toMatch(
-      /@layer\s+openbitfun\.base\s*\{[\s\S]*?:focus-visible\s*\{/,
+      /@layer\s+bitfun\.base\s*\{[\s\S]*?:focus-visible\s*\{/,
     );
     expect(appLayoutStyles).not.toMatch(/^\s*\*:focus-visible\s*\{/m);
     expect(layerContract).toMatch(
-      /@layer\s+openbitfun\.tokens\.system,\s*openbitfun\.tokens\.theme,\s*openbitfun\.reset,\s*openbitfun\.base,\s*openbitfun\.components,\s*openbitfun\.overrides\s*;/,
+      /@layer\s+bitfun\.tokens\.system,\s*bitfun\.tokens\.theme,\s*bitfun\.reset,\s*bitfun\.base,\s*bitfun\.components,\s*bitfun\.overrides\s*;/,
     );
   });
 });

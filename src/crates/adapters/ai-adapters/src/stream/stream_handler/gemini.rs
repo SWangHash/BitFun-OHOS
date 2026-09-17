@@ -5,7 +5,7 @@ use crate::stream::types::unified::UnifiedResponse;
 use anyhow::{anyhow, Result};
 use eventsource_stream::Eventsource;
 use log::{error, trace};
-use openbitfun_core_types::errors::AiProviderError;
+use bitfun_core_types::errors::AiProviderError;
 use reqwest::Response;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -260,7 +260,7 @@ pub async fn handle_gemini_stream(
 mod tests {
     use super::{extract_api_error, GeminiToolCallState};
     use crate::stream::types::unified::UnifiedToolCall;
-    use openbitfun_core_types::errors::ErrorCategory;
+    use bitfun_core_types::errors::ErrorCategory;
 
     #[test]
     fn reuses_active_tool_id_by_omitting_follow_up_ids() {

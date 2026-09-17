@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Button, Icon, IconButton, Input, Tooltip } from '@openbitfun/ui';
+import { Button, Icon, IconButton, Input, Tooltip } from '@bitfun/ui';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
@@ -1201,13 +1201,13 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
   const canSubmitInlinePrompt = !!inlineAiState?.query.trim() && !isInlineBusy;
 
   return (
-    <div ref={rootRef} className="m-editor-tiptap" data-openbitfun-component="tiptap-editor" data-openbitfun-part="root">
-      <EditorContent editor={editor} data-openbitfun-component="tiptap-editor" data-openbitfun-part="content" />
+    <div ref={rootRef} className="m-editor-tiptap" data-bitfun-component="tiptap-editor" data-bitfun-part="root">
+      <EditorContent editor={editor} data-bitfun-component="tiptap-editor" data-bitfun-part="content" />
       {inlineAiState?.isOpen && inlineAiState.status === 'idle' && (
         <div
           className="m-editor-inline-ai"
-          data-openbitfun-component="tiptap-editor"
-          data-openbitfun-part="inlineAi"
+          data-bitfun-component="tiptap-editor"
+          data-bitfun-part="inlineAi"
           data-testid="md-inline-ai-panel"
           style={{
             top: `${inlineAiState.anchorTop}px`,
@@ -1219,18 +1219,18 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
         >
           <div
             className="m-editor-inline-ai__surface"
-            data-openbitfun-component="tiptap-editor"
-            data-openbitfun-part="inlineAiSurface"
+            data-bitfun-component="tiptap-editor"
+            data-bitfun-part="inlineAiSurface"
           >
             <div
               className="m-editor-inline-ai__panel"
-              data-openbitfun-component="tiptap-editor"
-              data-openbitfun-part="inlineAiPanel"
+              data-bitfun-component="tiptap-editor"
+              data-bitfun-part="inlineAiPanel"
             >
               <div
                 className="m-editor-inline-ai__composer"
-                data-openbitfun-component="tiptap-editor"
-                data-openbitfun-part="composer"
+                data-bitfun-component="tiptap-editor"
+                data-bitfun-part="composer"
               >
                 <Input
                   ref={inlineAiInputRef}
@@ -1308,8 +1308,8 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
 
               <div
                 className="m-editor-inline-ai__quick-actions"
-                data-openbitfun-component="tiptap-editor"
-                data-openbitfun-part="quickActions"
+                data-bitfun-component="tiptap-editor"
+                data-bitfun-part="quickActions"
               >
                 <Button
                   type="button"
@@ -1354,8 +1354,8 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
 
               <div
                 className="m-editor-inline-ai__footer"
-                data-openbitfun-component="tiptap-editor"
-                data-openbitfun-part="footer"
+                data-bitfun-component="tiptap-editor"
+                data-bitfun-part="footer"
               >
                 <Button
                   type="button"

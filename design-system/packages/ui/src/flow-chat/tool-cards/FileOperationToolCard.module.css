@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     min-inline-size: 0;
   }
@@ -7,19 +7,19 @@
     display: block;
     overflow: hidden;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     white-space: nowrap;
   }
 
   .path[data-operation="delete"] {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     text-decoration: line-through;
   }
 
   .inlineMessage {
     overflow: hidden;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
   }
 
@@ -30,24 +30,24 @@
     flex: 0 1 auto;
     min-inline-size: 0;
     overflow: hidden;
-    padding-block: var(--openbitfun-space-1);
-    padding-inline: var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-sm);
-    color: var(--openbitfun-color-content-muted);
-    background: var(--openbitfun-color-action-neutral-surface);
-    font-size: var(--openbitfun-type-body-sm-font-size);
+    padding-block: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    background: var(--bitfun-color-action-neutral-surface);
+    font-size: var(--bitfun-type-body-sm-font-size);
     white-space: nowrap;
   }
 
   .warningStatusIcon {
-    color: var(--openbitfun-color-status-warning-emphasis);
+    color: var(--bitfun-color-status-warning-emphasis);
   }
 
   .preview {
     overflow: hidden;
     inline-size: 100%;
     min-inline-size: 0;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
   }
 
   .preview > * {
@@ -57,33 +57,33 @@
   .error {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-status-danger-content);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-md-line-height);
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
   }
 
   .error[data-guidance="true"] {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   .errorTitle {
     display: inline-flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    gap: var(--bitfun-space-2);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .errorTitle > :where(svg, img) {
     flex: 0 0 auto;
-    inline-size: var(--openbitfun-font-size-xl);
-    block-size: var(--openbitfun-font-size-xl);
+    inline-size: var(--bitfun-font-size-xl);
+    block-size: var(--bitfun-font-size-xl);
   }
 
   .errorMessage {
     max-block-size: 20rem;
     overflow-y: auto;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

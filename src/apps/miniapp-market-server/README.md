@@ -1,4 +1,4 @@
-# OpenBitFun MiniApp Market Server
+# BitFun MiniApp Market Server
 
 这里是 MiniApp 市场 HTTP 服务的 Axum 入口。生产服务同时提供
 `/miniapp/api/v1` API 和已经构建好的 MiniApp 市场网页。
@@ -47,7 +47,7 @@
 
 ```bash
 pnpm run build:miniapp-market
-cargo run -p openbitfun-miniapp-market-server
+cargo run -p bitfun-miniapp-market-server
 ```
 
 默认监听 `127.0.0.1:9710`，默认开发数据位于
@@ -61,10 +61,10 @@ curl -fsS http://127.0.0.1:9710/miniapp/api/v1/config
 需要隔离测试数据时，使用专用临时目录；不要复用生产路径：
 
 ```bash
-MARKET_DATABASE_PATH=/tmp/openbitfun-market-dev/market.sqlite \
-MARKET_ARTIFACT_DIR=/tmp/openbitfun-market-dev/artifacts \
+MARKET_DATABASE_PATH=/tmp/bitfun-market-dev/market.sqlite \
+MARKET_ARTIFACT_DIR=/tmp/bitfun-market-dev/artifacts \
 MARKET_SESSION_SECRET=development-only-change-me \
-cargo run -p openbitfun-miniapp-market-server
+cargo run -p bitfun-miniapp-market-server
 ```
 
 开发默认 secret 不能用于 release 或生产。GitHub OAuth 未配置时，健康响应中的
@@ -73,12 +73,12 @@ cargo run -p openbitfun-miniapp-market-server
 ## 环境变量
 
 生产示例见 `../../../deploy/miniapp-market/market.env.example`。实际生产值只
-存在服务器的 `/etc/openbitfun-miniapp-market/market.env`。
+存在服务器的 `/etc/bitfun-miniapp-market/market.env`。
 
 | 变量 | 作用 |
 | --- | --- |
 | `MARKET_BIND` | 服务监听地址；生产容器内为 `0.0.0.0:9710` |
-| `MARKET_PUBLIC_BASE_URL` | 公开 base；生产为 `https://market.openbitfun.com/miniapp` |
+| `MARKET_PUBLIC_BASE_URL` | 公开 base；生产为 `https://market.bitfun.com/miniapp` |
 | `MARKET_DATABASE_PATH` | SQLite 文件 |
 | `MARKET_ARTIFACT_DIR` | 内容寻址包和截图目录 |
 | `MARKET_WEB_DIR` | 构建后的网页目录 |
@@ -98,7 +98,7 @@ env 文件内容判断已经生效。
 
 固定生产 OAuth callback 是：
 
-`https://auth.openbitfun.com/api/v1/auth/github/callback`
+`https://auth.bitfun.com/api/v1/auth/github/callback`
 
 ## 修改后的最小验证
 
@@ -106,15 +106,15 @@ Rust 后端改动在仓库根目录运行：
 
 ```bash
 pnpm run fmt:rs
-cargo test -p openbitfun-miniapp-market-service
-cargo check -p openbitfun-miniapp-market-server
+cargo test -p bitfun-miniapp-market-service
+cargo check -p bitfun-miniapp-market-server
 cargo check --workspace
 ```
 
 领域状态机或 DTO 改动再运行：
 
 ```bash
-cargo test -p openbitfun-product-domains --features miniapp
+cargo test -p bitfun-product-domains --features miniapp
 pnpm run type-check:miniapp-market
 pnpm run test:miniapp-market
 ```
@@ -132,8 +132,8 @@ MARKET_GIT_COMMIT=local-verification \
 
 ## 数据库和文件规则
 
-- SQLite 生产文件：`/srv/openbitfun-miniapp-market/data/market.sqlite`
-- artifacts：`/srv/openbitfun-miniapp-market/artifacts`
+- SQLite 生产文件：`/srv/bitfun-miniapp-market/data/market.sqlite`
+- artifacts：`/srv/bitfun-miniapp-market/artifacts`
 - 两者都是持久数据，不包含在 Docker 镜像中。
 - migration 在服务启动时执行，因此涉及 schema 的发布必须先完成一致性备份。
 - 不要在服务运行时复制 SQLite 主文件当作备份；使用部署目录提供的 SQLite

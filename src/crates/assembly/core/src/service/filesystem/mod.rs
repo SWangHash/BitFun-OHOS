@@ -19,4 +19,4 @@ pub use listing::{
 pub use service::FileSystemService;
 pub use types::{DirectoryScanResult, DirectoryStats, FileSearchOptions, FileSystemConfig};
 
-pub use openbitfun_services_core::filesystem::sort_directory_nodes;
+pub use bitfun_services_core::filesystem::sort_directory_nodes;

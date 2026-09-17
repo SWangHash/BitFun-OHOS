@@ -167,11 +167,11 @@
   }
 
   &__executing-icon {
-    animation: openbitfun-task-card-pulse 2s ease-in-out infinite;
+    animation: bitfun-task-card-pulse 2s ease-in-out infinite;
   }
 }
 
-@keyframes openbitfun-task-card-pulse {
+@keyframes bitfun-task-card-pulse {
   0%, 100% {
     opacity: 1;
   }

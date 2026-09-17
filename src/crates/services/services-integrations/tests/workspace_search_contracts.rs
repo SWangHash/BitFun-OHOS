@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use openbitfun_services_integrations::workspace_search::{
+use bitfun_services_integrations::workspace_search::{
     resolve_workspace_search_daemon_program_path, workspace_search_daemon_binary_name,
     workspace_search_daemon_binary_names, workspace_search_daemon_missing_hint,
     ContentSearchOutputMode, ContentSearchRequest, WorkspaceSearchService,
@@ -11,7 +11,7 @@ use openbitfun_services_integrations::workspace_search::{
 
 #[tokio::test]
 async fn indexed_search_requires_a_local_worktree_with_a_commit() {
-    use openbitfun_services_integrations::workspace_search::workspace_search_supports_local_root;
+    use bitfun_services_integrations::workspace_search::workspace_search_supports_local_root;
 
     let directory = tempfile::tempdir().expect("temporary directory");
     let root = directory.path();
@@ -64,8 +64,8 @@ fn daemon_binary_contract_lists_current_platform_candidate() {
 
 #[tokio::test]
 async fn non_indexable_folders_can_search_contents_without_a_daemon() {
-    use openbitfun_services_core::filesystem::{FileSearchOptions, FileSystemService};
-    use openbitfun_services_integrations::workspace_search::workspace_search_supports_local_root;
+    use bitfun_services_core::filesystem::{FileSearchOptions, FileSystemService};
+    use bitfun_services_integrations::workspace_search::workspace_search_supports_local_root;
 
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
@@ -119,7 +119,7 @@ fn service_constructs_without_core_runtime_dependencies() {
 /// The flashgrep daemon returns match positions only, so content output is
 /// hydrated from disk. This test spawns the real daemon, so it is ignored by
 /// default; run it with
-/// `cargo test -p openbitfun-services-integrations --features workspace-search
+/// `cargo test -p bitfun-services-integrations --features workspace-search
 ///  --test workspace_search_contracts -- --ignored`.
 #[tokio::test]
 #[ignore = "spawns the real flashgrep daemon and indexes a temporary repository"]
@@ -209,7 +209,7 @@ async fn content_search_hydrates_real_line_text_and_previews() {
 
 #[cfg(test)]
 fn git(repo_root: &Path, args: &[&str]) {
-    let output = openbitfun_services_core::process_manager::create_command("git")
+    let output = bitfun_services_core::process_manager::create_command("git")
         .current_dir(repo_root)
         .args(args)
         .output()

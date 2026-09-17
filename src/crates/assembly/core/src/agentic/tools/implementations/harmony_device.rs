@@ -5,7 +5,7 @@
 //! devices. Used by `start_app` and `hdc_log`.
 
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 
 use super::devecocli_run::{run_devecocli, DevecocliOptions};
 
@@ -152,10 +152,10 @@ pub(crate) fn format_connected_device_list(output: &str) -> (String, usize) {
 }
 
 /// List connected HarmonyOS devices via `devecocli device list`.
-async fn list_connected_devices(context: &ToolUseContext) -> OpenBitFunResult<Vec<HarmonyTarget>> {
+async fn list_connected_devices(context: &ToolUseContext) -> BitFunResult<Vec<HarmonyTarget>> {
     let out = run_devecocli(&["device", "list"], context, DevecocliOptions::default()).await?;
     if out.exit_code != 0 {
-        return Err(OpenBitFunError::tool(format!(
+        return Err(BitFunError::tool(format!(
             "device list failed (exit {}):\n{}",
             out.exit_code,
             if out.stderr.is_empty() {
@@ -184,7 +184,7 @@ pub(crate) enum DeviceResolution {
 pub(crate) async fn resolve_start_app_device(
     hvd: Option<&str>,
     context: &ToolUseContext,
-) -> OpenBitFunResult<DeviceResolution> {
+) -> BitFunResult<DeviceResolution> {
     let devices = list_connected_devices(context).await?;
 
     let hvd = match hvd {
@@ -203,7 +203,7 @@ pub(crate) async fn resolve_start_app_device(
         return Ok(DeviceResolution::Ready { device });
     }
 
-    Err(OpenBitFunError::tool(format!(
+    Err(BitFunError::tool(format!(
         "Device \"{}\" not found.\n\n{}",
         hvd,
         format_harmony_target_list(&devices)

@@ -39,12 +39,12 @@ export const modelSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'logoutConfirm' },
   ],
   facets: [
-    { id: 'view', attribute: 'data-openbitfun-view', values: ['selection', 'settings'] },
-    { id: 'status', attribute: 'data-openbitfun-status', values: ['starting', 'pending', 'cancelling', 'failed'] },
+    { id: 'view', attribute: 'data-bitfun-view', values: ['selection', 'settings'] },
+    { id: 'status', attribute: 'data-bitfun-status', values: ['starting', 'pending', 'cancelling', 'failed'] },
   ],
   states: [
     { id: 'hover', selector: { kind: 'self', suffix: ':hover' } },
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
   ],
 };

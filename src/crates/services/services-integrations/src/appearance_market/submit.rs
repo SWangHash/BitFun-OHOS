@@ -5,7 +5,7 @@
 use super::client::AppearanceMarketClient;
 use super::package::validate_appearance_market_package;
 use crate::miniapp_market::MarketClientError;
-use openbitfun_product_domains::appearance_market::{
+use bitfun_product_domains::appearance_market::{
     AppearanceMarketSubmission, AppearanceMarketSubmissionDraftRequest,
     AppearanceMarketSubmissionStatus, APPEARANCE_MARKET_MAX_PACKAGE_BYTES,
 };
@@ -120,12 +120,12 @@ pub async fn submit_appearance_package(
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
             name.to_ascii_lowercase()
-                .ends_with(".openbitfun-appearance")
+                .ends_with(".bitfun-appearance")
         });
     if !has_expected_extension {
         return Err(submission_error(
             "invalid_package_extension",
-            "Marketplace packages must use the .openbitfun-appearance extension.",
+            "Marketplace packages must use the .bitfun-appearance extension.",
         ));
     }
 
@@ -175,7 +175,7 @@ fn submission_error(code: impl Into<String>, message: impl Into<String>) -> Mark
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::appearance_market::{
+    use bitfun_product_domains::appearance_market::{
         AppearanceMarketLicense, AppearancePackageMode,
     };
 
@@ -196,7 +196,7 @@ mod tests {
             author: None,
             mode: Some(AppearancePackageMode::Dark),
             package_version: Some("1.0.0".to_string()),
-            min_openbitfun_version: "1.0.0".to_string(),
+            min_bitfun_version: "1.0.0".to_string(),
             required_capabilities: Vec::new(),
             changelog: "Initial".to_string(),
             license: AppearanceMarketLicense {

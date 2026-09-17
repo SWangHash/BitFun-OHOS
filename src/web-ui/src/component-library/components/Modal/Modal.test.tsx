@@ -26,10 +26,10 @@ describe('Modal behavior', () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    document.querySelectorAll('style[data-openbitfun-appearance-runtime="test"]')
+    document.querySelectorAll('style[data-bitfun-appearance-runtime="test"]')
       .forEach(style => style.remove());
-    document.documentElement.removeAttribute('data-openbitfun-appearance');
-    document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+    document.documentElement.removeAttribute('data-bitfun-appearance');
+    document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -113,17 +113,17 @@ describe('Modal behavior', () => {
     });
 
     const runtimeStyle = document.createElement('style');
-    runtimeStyle.setAttribute('data-openbitfun-appearance-runtime', 'test');
+    runtimeStyle.setAttribute('data-bitfun-appearance-runtime', 'test');
     runtimeStyle.textContent = `
-      :root[data-openbitfun-appearance="builtin"][data-openbitfun-appearance-revision="7"]
-      [data-openbitfun-component="modal"][data-openbitfun-part="dialog"][data-openbitfun-size="xlarge"] {
+      :root[data-bitfun-appearance="builtin"][data-bitfun-appearance-revision="7"]
+      [data-bitfun-component="modal"][data-bitfun-part="dialog"][data-bitfun-size="xlarge"] {
         width: 100%;
         max-width: 720px;
         max-height: 100%;
       }
     `;
-    document.documentElement.setAttribute('data-openbitfun-appearance', 'builtin');
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', '7');
+    document.documentElement.setAttribute('data-bitfun-appearance', 'builtin');
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', '7');
     document.head.appendChild(runtimeStyle);
 
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');

@@ -24,8 +24,8 @@ node scripts/test-computer-use-context.mjs
 # Real Chromium collection and ref activation, followed by compiled Rust
 # parsing/presentation of the actual browser payload (Node 22/24 + Chrome):
 node scripts/test-browser-snapshot.mjs
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib browser_control::actions::
-cargo test -p openbitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib computer_use_tool::tests::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib browser_control::actions::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib computer_use_tool::tests::
 ```
 
 The Core test target currently needs `git` for its worktree tool module and

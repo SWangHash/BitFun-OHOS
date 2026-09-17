@@ -133,19 +133,19 @@ jobs:
         env:
           # Keep the CLI self-updater and SSH installer on the same embedded
           # minisign trust root used by the Desktop updater.
-          OPENBITFUN_RELEASE_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          BITFUN_RELEASE_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
         run: |
           set -euo pipefail
           cargo build --release \
             --target ${{ matrix.platform.target }} \
-            -p openbitfun-cli
+            -p bitfun-cli
 
       - name: Build CLI (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --target ${{ matrix.platform.target }} -p openbitfun-cli
+        run: cargo build --release --target ${{ matrix.platform.target }} -p bitfun-cli
 
       - name: Test installer (Unix)
         if: runner.os != 'Windows'
@@ -187,9 +187,9 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         env:
-          OPENBITFUN_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          OPENBITFUN_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          OPENBITFUN_SIGNING_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          BITFUN_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          BITFUN_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          BITFUN_SIGNING_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
         run: |
           set -euo pipefail
           bash scripts/sign-release-assets.sh \
@@ -199,13 +199,13 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: openbitfun-cli-${{ needs.prepare.outputs.release_tag }}-${{ matrix.platform.name }}
+          name: bitfun-cli-${{ needs.prepare.outputs.release_tag }}-${{ matrix.platform.name }}
           if-no-files-found: error
           path: |
             ${{ steps.stage.outputs.archive || steps.stage-windows.outputs.archive }}
             ${{ steps.stage.outputs.checksum || steps.stage-windows.outputs.checksum }}
-            openbitfun-cli-*.tar.gz.sig
-            openbitfun-cli-*.tar.gz.sha256.sig
+            bitfun-cli-*.tar.gz.sig
+            bitfun-cli-*.tar.gz.sha256.sig
 
   # ── Aggregate and upload to GitHub Release ─────────────────────────
   upload-release-assets:
@@ -220,7 +220,7 @@ jobs:
       - name: Download CLI artifacts
         uses: actions/download-artifact@v7
         with:
-          pattern: openbitfun-cli-${{ needs.prepare.outputs.release_tag }}-*
+          pattern: bitfun-cli-${{ needs.prepare.outputs.release_tag }}-*
           path: cli-release-assets
           merge-multiple: true
 
@@ -241,7 +241,7 @@ jobs:
           # contents deterministic rather than dependent on cross-workflow timing.
           mapfile -t archives < <(
             find . -maxdepth 1 -type f \
-              \( -name 'openbitfun-cli-*.tar.gz' -o -name 'openbitfun-cli-*.zip' \) \
+              \( -name 'bitfun-cli-*.tar.gz' -o -name 'bitfun-cli-*.zip' \) \
               -printf '%f\n' | sort
           )
           [[ "${#archives[@]}" -gt 0 ]]
@@ -255,12 +255,12 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           files: |
-            cli-release-assets/openbitfun-cli-*.tar.gz
-            cli-release-assets/openbitfun-cli-*.tar.gz.sha256
-            cli-release-assets/openbitfun-cli-*.tar.gz.sig
-            cli-release-assets/openbitfun-cli-*.tar.gz.sha256.sig
-            cli-release-assets/openbitfun-cli-*.zip
-            cli-release-assets/openbitfun-cli-*.zip.sha256
+            cli-release-assets/bitfun-cli-*.tar.gz
+            cli-release-assets/bitfun-cli-*.tar.gz.sha256
+            cli-release-assets/bitfun-cli-*.tar.gz.sig
+            cli-release-assets/bitfun-cli-*.tar.gz.sha256.sig
+            cli-release-assets/bitfun-cli-*.zip
+            cli-release-assets/bitfun-cli-*.zip.sha256
             cli-release-assets/SHA256SUMS
           fail_on_unmatched_files: true
 
@@ -270,7 +270,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_DISPATCH_TOKEN }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
-          OFFICIAL_REPOSITORY: ${{ github.repository == 'GCWing/OpenBitFun' }}
+          OFFICIAL_REPOSITORY: ${{ github.repository == 'GCWing/BitFun' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -283,12 +283,12 @@ jobs:
             exit 0
           fi
 
-          echo "Dispatching openbitfun-release-published for ${RELEASE_TAG} to GCWing/homebrew-tap"
+          echo "Dispatching bitfun-release-published for ${RELEASE_TAG} to GCWing/homebrew-tap"
           PAYLOAD="$(jq -cn --arg tag_name "${RELEASE_TAG}" '{
-            event_type: "openbitfun-release-published",
+            event_type: "bitfun-release-published",
             client_payload: {
               tag_name: $tag_name,
-              primary_binary: "openbitfun"
+              primary_binary: "bitfun"
             }
           }')"
           curl -fsSL -X POST \

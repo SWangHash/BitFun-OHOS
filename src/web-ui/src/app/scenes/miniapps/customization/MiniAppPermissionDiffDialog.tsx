@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { MiniAppPermissionDiff } from '@/infrastructure/api/service-api/MiniAppAPI';

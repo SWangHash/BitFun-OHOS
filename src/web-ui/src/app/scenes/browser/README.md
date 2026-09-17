@@ -2,7 +2,7 @@
 
 Both `BrowserPanel` and `BrowserScene` use `useEmbeddedBrowserWebview` to own the
 native child view. All show/hide/focus paths go through `nativeWebviewVisibility`.
-DOM floating surfaces declare `data-openbitfun-native-webview-occlusion`; their
+DOM floating surfaces declare `data-bitfun-native-webview-occlusion`; their
 overlapping bounds suppress native visibility without destroying the page.
 
 `BrowserPreviewCache` retains one decoded JPEG in memory beneath the native view.

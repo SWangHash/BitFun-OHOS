@@ -1,1 +1,1 @@
-pub use openbitfun_core_types::Message;
+pub use bitfun_core_types::Message;

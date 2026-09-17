@@ -4,7 +4,7 @@ import { window } from '@kit.ArkUI';
 import { MobileDesignColors } from '../generated/MobileDesignTokens';
 
 const DOMAIN = 0x0000;
-const TAG = 'OpenBitFunRemote';
+const TAG = 'BitFunRemote';
 
 export default class EntryAbility extends UIAbility {
   private mainWindow?: window.Window;
@@ -12,7 +12,7 @@ export default class EntryAbility extends UIAbility {
   private previewStorage?: LocalStorage;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    const scenarioId = want.parameters?.['openbitfunDesignPreview'];
+    const scenarioId = want.parameters?.['bitfunDesignPreview'];
     if (scenarioId === 'welcome-home' || scenarioId === 'connected-conversation' ||
       scenarioId === 'streaming-dark' ||
       scenarioId === 'reconnecting-wide' || scenarioId === 'narrow-multiline' ||

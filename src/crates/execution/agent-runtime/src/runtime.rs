@@ -7,8 +7,8 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use openbitfun_agent_tools::{ToolRegistry, ToolRegistryItem};
-use openbitfun_runtime_ports::{
+use bitfun_agent_tools::{ToolRegistry, ToolRegistryItem};
+use bitfun_runtime_ports::{
     AgentBackgroundResultRequest, AgentDialogSteerRequest, AgentDialogTurnPort,
     AgentDialogTurnRecoveryOutcome, AgentDialogTurnRecoveryRequest, AgentDialogTurnRequest,
     AgentInputAttachment, AgentInteractionResponsePort, AgentLifecycleDeliveryPort,
@@ -42,7 +42,7 @@ use openbitfun_runtime_ports::{
     SessionTranscript, SessionTranscriptReader, SessionTranscriptRequest, ThreadGoal,
     WorkspaceDiffSnapshot,
 };
-use openbitfun_runtime_services::RuntimeServices;
+use bitfun_runtime_services::RuntimeServices;
 
 use crate::event_source::{AgentEventReceiver, AgentEventSource, AgentSessionEventReceiver};
 use crate::permission::{
@@ -50,7 +50,7 @@ use crate::permission::{
 };
 use crate::post_call_hooks::RuntimeHookRegistry;
 use crate::user_questions::{get_user_input_manager, PendingUserQuestionSnapshot};
-use openbitfun_runtime_ports::{PermissionReply, PermissionReplySource, PermissionRequest};
+use bitfun_runtime_ports::{PermissionReply, PermissionReplySource, PermissionRequest};
 
 #[path = "session_event_journal.rs"]
 mod session_event_journal;
@@ -1453,7 +1453,7 @@ impl AgentRuntime {
     pub async fn generate_session_usage(
         &self,
         request: AgentSessionUsageRequest,
-    ) -> Result<openbitfun_core_types::SessionUsageReport, RuntimeError> {
+    ) -> Result<bitfun_core_types::SessionUsageReport, RuntimeError> {
         let port = self.session_usage.as_ref().ok_or_else(|| {
             RuntimeError::Port(PortError::new(
                 PortErrorKind::NotAvailable,
@@ -1873,7 +1873,7 @@ impl AgentRuntime {
 mod tests {
     use super::*;
     use crate::session_state::SessionState;
-    use openbitfun_runtime_ports::{
+    use bitfun_runtime_ports::{
         AgentBackgroundResultRequest, AgentDialogTurnRequest, AgentLifecycleDeliveryPort,
         AgentSessionCompactionPort, AgentSessionCompactionRequest, AgentSessionCompactionResult,
         AgentSessionCreateResult, AgentSessionDeleteRequest, AgentSessionLifecycleStatus,
@@ -1893,7 +1893,7 @@ mod tests {
         SessionStorePort, SessionTranscript, SessionTranscriptReader, SessionTranscriptRequest,
         ThreadGoal, ThreadGoalStatus, TranscriptContent, TranscriptMessage, WorkspacePort,
     };
-    use openbitfun_runtime_services::RuntimeServicesBuilder;
+    use bitfun_runtime_services::RuntimeServicesBuilder;
 
     #[test]
     fn session_interaction_snapshot_wire_is_additive_and_camel_case() {
@@ -2187,7 +2187,7 @@ mod tests {
                     session_id: request.session_id,
                     messages: Vec::new(),
                 },
-                composer: openbitfun_runtime_ports::AgentSessionComposerUpdate::Preserve,
+                composer: bitfun_runtime_ports::AgentSessionComposerUpdate::Preserve,
                 retired_turn_ids: Vec::new(),
                 changed: true,
                 hidden_turn_count: 1,
@@ -3501,7 +3501,7 @@ mod tests {
     #[test]
     fn runtime_error_message_preserves_port_error_text() {
         let error = RuntimeError::Port(PortError::new(
-            openbitfun_runtime_ports::PortErrorKind::Backend,
+            bitfun_runtime_ports::PortErrorKind::Backend,
             "original backend message",
         ));
 
@@ -3570,7 +3570,7 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl openbitfun_runtime_ports::AgentDialogTurnPort for RecordingDialogTurnPort {
+        impl bitfun_runtime_ports::AgentDialogTurnPort for RecordingDialogTurnPort {
             async fn submit_dialog_turn(
                 &self,
                 request: AgentDialogTurnRequest,
@@ -3645,7 +3645,7 @@ mod tests {
         struct RecoveryPort;
 
         #[async_trait::async_trait]
-        impl openbitfun_runtime_ports::AgentDialogTurnPort for RecoveryPort {
+        impl bitfun_runtime_ports::AgentDialogTurnPort for RecoveryPort {
             async fn submit_dialog_turn(
                 &self,
                 _request: AgentDialogTurnRequest,
@@ -3693,7 +3693,7 @@ mod tests {
         struct MismatchedDialogTurnPort;
 
         #[async_trait::async_trait]
-        impl openbitfun_runtime_ports::AgentDialogTurnPort for MismatchedDialogTurnPort {
+        impl bitfun_runtime_ports::AgentDialogTurnPort for MismatchedDialogTurnPort {
             async fn submit_dialog_turn(
                 &self,
                 request: AgentDialogTurnRequest,
@@ -3750,7 +3750,7 @@ mod tests {
             .expect("runtime");
 
         let error = runtime
-            .steer_dialog_turn(openbitfun_runtime_ports::AgentDialogSteerRequest {
+            .steer_dialog_turn(bitfun_runtime_ports::AgentDialogSteerRequest {
                 session_id: "session_1".to_string(),
                 turn_id: "turn_1".to_string(),
                 content: "check tests".to_string(),
@@ -3768,11 +3768,11 @@ mod tests {
     async fn steer_dialog_turn_delegates_and_validates_exact_turn_identity() {
         #[derive(Debug, Default)]
         struct RecordingSteerPort {
-            requests: Mutex<Vec<openbitfun_runtime_ports::AgentDialogSteerRequest>>,
+            requests: Mutex<Vec<bitfun_runtime_ports::AgentDialogSteerRequest>>,
         }
 
         #[async_trait::async_trait]
-        impl openbitfun_runtime_ports::AgentDialogTurnPort for RecordingSteerPort {
+        impl bitfun_runtime_ports::AgentDialogTurnPort for RecordingSteerPort {
             async fn submit_dialog_turn(
                 &self,
                 request: AgentDialogTurnRequest,
@@ -3785,10 +3785,10 @@ mod tests {
 
             async fn steer_dialog_turn(
                 &self,
-                request: openbitfun_runtime_ports::AgentDialogSteerRequest,
-            ) -> PortResult<openbitfun_runtime_ports::DialogSteerOutcome> {
+                request: bitfun_runtime_ports::AgentDialogSteerRequest,
+            ) -> PortResult<bitfun_runtime_ports::DialogSteerOutcome> {
                 self.requests.lock().unwrap().push(request.clone());
-                Ok(openbitfun_runtime_ports::DialogSteerOutcome::Buffered {
+                Ok(bitfun_runtime_ports::DialogSteerOutcome::Buffered {
                     session_id: request.session_id,
                     turn_id: request.turn_id,
                     steering_id: "steer_1".to_string(),
@@ -3802,7 +3802,7 @@ mod tests {
             .with_dialog_turn_port(port.clone())
             .build()
             .expect("runtime");
-        let request = openbitfun_runtime_ports::AgentDialogSteerRequest {
+        let request = bitfun_runtime_ports::AgentDialogSteerRequest {
             session_id: "session_1".to_string(),
             turn_id: "turn_1".to_string(),
             content: "check tests".to_string(),
@@ -3819,7 +3819,7 @@ mod tests {
         assert_eq!(port.requests.lock().unwrap().as_slice(), &[request]);
         assert_eq!(
             result,
-            openbitfun_runtime_ports::DialogSteerOutcome::Buffered {
+            bitfun_runtime_ports::DialogSteerOutcome::Buffered {
                 session_id: "session_1".to_string(),
                 turn_id: "turn_1".to_string(),
                 steering_id: "steer_1".to_string(),
@@ -3833,7 +3833,7 @@ mod tests {
         struct MismatchedSteerPort;
 
         #[async_trait::async_trait]
-        impl openbitfun_runtime_ports::AgentDialogTurnPort for MismatchedSteerPort {
+        impl bitfun_runtime_ports::AgentDialogTurnPort for MismatchedSteerPort {
             async fn submit_dialog_turn(
                 &self,
                 request: AgentDialogTurnRequest,
@@ -3846,9 +3846,9 @@ mod tests {
 
             async fn steer_dialog_turn(
                 &self,
-                request: openbitfun_runtime_ports::AgentDialogSteerRequest,
-            ) -> PortResult<openbitfun_runtime_ports::DialogSteerOutcome> {
-                Ok(openbitfun_runtime_ports::DialogSteerOutcome::Buffered {
+                request: bitfun_runtime_ports::AgentDialogSteerRequest,
+            ) -> PortResult<bitfun_runtime_ports::DialogSteerOutcome> {
+                Ok(bitfun_runtime_ports::DialogSteerOutcome::Buffered {
                     session_id: request.session_id,
                     turn_id: "different-turn".to_string(),
                     steering_id: "steer_1".to_string(),
@@ -3863,7 +3863,7 @@ mod tests {
             .expect("runtime");
 
         let error = runtime
-            .steer_dialog_turn(openbitfun_runtime_ports::AgentDialogSteerRequest {
+            .steer_dialog_turn(bitfun_runtime_ports::AgentDialogSteerRequest {
                 session_id: "session_1".to_string(),
                 turn_id: "turn_1".to_string(),
                 content: "check tests".to_string(),

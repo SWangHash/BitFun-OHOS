@@ -75,7 +75,7 @@ class BroadcastChannelAppearanceSyncPort implements AppearanceSyncPort {
 export function createAppearanceSyncPort(): AppearanceSyncPort {
   if (typeof BroadcastChannel === 'undefined') return noopAppearanceSyncPort;
   try {
-    return new BroadcastChannelAppearanceSyncPort(new BroadcastChannel('openbitfun-appearance'));
+    return new BroadcastChannelAppearanceSyncPort(new BroadcastChannel('bitfun-appearance'));
   } catch {
     return noopAppearanceSyncPort;
   }

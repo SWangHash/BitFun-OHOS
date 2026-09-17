@@ -166,7 +166,7 @@ describe('Markdown rich text browser E2E', () => {
   });
 
   it('edits Mermaid with live rendering and saves across source switches and reload', async () => {
-    await expect($$('.openbitfun-markdown-editor__mode-toggle [role="radio"]')).toBeElementsArrayOfSize(2);
+    await expect($$('.bitfun-markdown-editor__mode-toggle [role="radio"]')).toBeElementsArrayOfSize(2);
     const block = await editor.editBlock('mermaid', 'graph TD\n  A[Start] --> B[Edited]');
     await expect(block.$('svg')).toHaveText(expect.stringContaining('Edited'));
     await expect(block.$('[data-testid="md-embed-source"]')).toHaveValue('graph TD\n  A[Start] --> B[Edited]');

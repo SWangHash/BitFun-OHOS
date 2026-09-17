@@ -1,6 +1,6 @@
 //! Pure OCR matching and screenshot-coordinate projection; no OS calls.
 use super::screen_ocr::OcrTextMatch;
-use openbitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
+use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
 
 /// Normalize for substring / fuzzy matching. Strips **all** Unicode whitespace so that
 /// Vision output like `"尉 怡 青"` or `"尉怡 青"` still matches query `"尉怡青"` (CJK UIs often

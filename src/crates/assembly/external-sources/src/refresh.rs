@@ -2,7 +2,7 @@
 
 use futures::future::{join_all, BoxFuture, Shared};
 use futures::FutureExt;
-use openbitfun_product_domains::external_sources::{ExternalSourceProviderError, ProviderId};
+use bitfun_product_domains::external_sources::{ExternalSourceProviderError, ProviderId};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -574,7 +574,7 @@ fn remove_generation<R: DiscoveryRequest>(
 #[cfg(test)]
 mod tests {
     use super::{DiscoveryLane, DiscoveryRequest};
-    use openbitfun_product_domains::external_sources::{ExternalSourceProviderError, ProviderId};
+    use bitfun_product_domains::external_sources::{ExternalSourceProviderError, ProviderId};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::time::Duration;

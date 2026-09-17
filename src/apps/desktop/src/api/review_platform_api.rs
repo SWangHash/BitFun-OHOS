@@ -2,7 +2,7 @@
 
 use crate::api::app_state::AppState;
 use log::error;
-use openbitfun_core::service::review_platform::{
+use bitfun_core::service::review_platform::{
     untrusted_repository_error_message, ReviewPlatformCiLog, ReviewPlatformDetailSection,
     ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind, ReviewPlatformListState,
     ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,

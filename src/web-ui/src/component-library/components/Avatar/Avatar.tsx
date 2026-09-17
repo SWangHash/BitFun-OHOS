@@ -60,9 +60,9 @@ export const Avatar: React.FC<AvatarProps> = ({
   const sizeValue = getSize();
 
   const avatarClass = [
-    'openbitfun-avatar',
-    `openbitfun-avatar--${shape}`,
-    typeof size === 'string' && `openbitfun-avatar--${size}`,
+    'bitfun-avatar',
+    `bitfun-avatar--${shape}`,
+    typeof size === 'string' && `bitfun-avatar--${size}`,
     className
   ].filter(Boolean).join(' ');
 
@@ -74,19 +74,19 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const renderContent = () => {
     if (src && !imgError) {
-      return <img src={src} alt={alt} onError={handleImgError} data-openbitfun-component="avatar" data-openbitfun-part="image" />;
+      return <img src={src} alt={alt} onError={handleImgError} data-bitfun-component="avatar" data-bitfun-part="image" />;
     }
     if (icon) {
-      return <span className="openbitfun-avatar__icon" data-openbitfun-component="avatar" data-openbitfun-part="icon">{icon}</span>;
+      return <span className="bitfun-avatar__icon" data-bitfun-component="avatar" data-bitfun-part="icon">{icon}</span>;
     }
     if (children) {
-      return <span className="openbitfun-avatar__text" data-openbitfun-component="avatar" data-openbitfun-part="text">{children}</span>;
+      return <span className="bitfun-avatar__text" data-bitfun-component="avatar" data-bitfun-part="text">{children}</span>;
     }
     return null;
   };
 
   return (
-    <span className={avatarClass} style={avatarStyle} data-openbitfun-component="avatar" data-openbitfun-part="root" data-openbitfun-size={typeof size === 'string' ? size : 'custom'} data-openbitfun-shape={shape}>
+    <span className={avatarClass} style={avatarStyle} data-bitfun-component="avatar" data-bitfun-part="root" data-bitfun-size={typeof size === 'string' ? size : 'custom'} data-bitfun-shape={shape}>
       {renderContent()}
     </span>
   );
@@ -105,10 +105,10 @@ export const AvatarGroup: React.FC<AvatarGroupProps> = ({
   const restCount = childrenArray.length - maxCount;
 
   return (
-    <div className={`openbitfun-avatar-group ${className}`} style={style} data-openbitfun-component="avatar" data-openbitfun-part="group">
+    <div className={`bitfun-avatar-group ${className}`} style={style} data-bitfun-component="avatar" data-bitfun-part="group">
       {displayChildren}
       {restCount > 0 && (
-        <Avatar className="openbitfun-avatar-group__rest"><span data-openbitfun-component="avatar" data-openbitfun-part="overflow">+{restCount}</span></Avatar>
+        <Avatar className="bitfun-avatar-group__rest"><span data-bitfun-component="avatar" data-bitfun-part="overflow">+{restCount}</span></Avatar>
       )}
     </div>
   );

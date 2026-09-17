@@ -2,7 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const deepReviewActionBarAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'deep-review-action-bar',
-  componentAttribute: 'data-openbitfun-product-component',
+  componentAttribute: 'data-bitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'progress' },
@@ -17,7 +17,7 @@ export const deepReviewActionBarAppearanceDescriptor: AppearanceSurfaceDescripto
   facets: [
     {
       id: 'phase',
-      attribute: 'data-openbitfun-phase',
+      attribute: 'data-bitfun-phase',
       values: [
         'review_running',
         'review_completed',
@@ -34,9 +34,9 @@ export const deepReviewActionBarAppearanceDescriptor: AppearanceSurfaceDescripto
         'review_error',
       ],
     },
-    { id: 'variant', attribute: 'data-openbitfun-variant', values: ['success', 'warning', 'error', 'info', 'loading'] },
+    { id: 'variant', attribute: 'data-bitfun-variant', values: ['success', 'warning', 'error', 'info', 'loading'] },
   ],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
   ],
 };

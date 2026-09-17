@@ -70,10 +70,10 @@ describe('WorkspaceLspManager', () => {
       return undefined;
     });
 
-    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\BitFun');
 
     const result = await manager.openDocument(
-      'file:///D:/workspace/OpenBitFun/src/main.rs',
+      'file:///D:/workspace/BitFun/src/main.rs',
       'rust',
       'fn main() {}'
     );
@@ -101,10 +101,10 @@ describe('WorkspaceLspManager', () => {
       return undefined;
     });
 
-    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\BitFun');
 
     const result = await manager.openDocument(
-      'file:///D:/workspace/OpenBitFun/src/main.rs',
+      'file:///D:/workspace/BitFun/src/main.rs',
       'rust',
       'fn main() {}'
     );
@@ -112,8 +112,8 @@ describe('WorkspaceLspManager', () => {
     expect(result).toEqual({ language: 'rust', opened: true });
     expect(invokeMock).toHaveBeenCalledWith('lsp_open_document', {
       request: {
-        workspacePath: 'D:\\workspace\\OpenBitFun',
-        uri: 'file:///D:/workspace/OpenBitFun/src/main.rs',
+        workspacePath: 'D:\\workspace\\BitFun',
+        uri: 'file:///D:/workspace/BitFun/src/main.rs',
         language: 'rust',
         content: 'fn main() {}'
       }
@@ -134,18 +134,18 @@ describe('WorkspaceLspManager', () => {
       return undefined;
     });
 
-    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('D:\\workspace\\BitFun');
 
-    await manager.openDocument('file:///D:/workspace/OpenBitFun/src/main.rs', 'rust', 'fn main() {}');
-    await manager.openDocument('file:///D:/workspace/OpenBitFun/src/lib.rs', 'rust', 'pub fn lib() {}');
+    await manager.openDocument('file:///D:/workspace/BitFun/src/main.rs', 'rust', 'fn main() {}');
+    await manager.openDocument('file:///D:/workspace/BitFun/src/lib.rs', 'rust', 'pub fn lib() {}');
 
     expect(invokeMock).toHaveBeenCalledTimes(2);
     expect(invokeMock).toHaveBeenCalledWith('lsp_open_workspace', {
-      request: { workspacePath: 'D:\\workspace\\OpenBitFun' }
+      request: { workspacePath: 'D:\\workspace\\BitFun' }
     });
     expect(invokeMock).toHaveBeenCalledWith('lsp_get_server_state', {
       request: {
-        workspacePath: 'D:\\workspace\\OpenBitFun',
+        workspacePath: 'D:\\workspace\\BitFun',
         language: 'rust'
       }
     });
@@ -165,14 +165,14 @@ describe('WorkspaceLspManager device surface scoping', () => {
   });
 
   it('does not share a manager for the same workspace path across devices', () => {
-    const localManager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const localManager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
 
     activateSurface('peer-device-b');
-    const peerManager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const peerManager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
 
     expect(peerManager).not.toBe(localManager);
     expect(peerManager.getSurfaceId()).toBe('peer-device-b');
-    expect(WorkspaceLspManager.get('/Users/dev/OpenBitFun')).toBe(peerManager);
+    expect(WorkspaceLspManager.get('/Users/dev/BitFun')).toBe(peerManager);
   });
 
   it('detaches for a surface switch without sending anything to the device being left', async () => {
@@ -180,7 +180,7 @@ describe('WorkspaceLspManager device surface scoping', () => {
     listenMock.mockReturnValue(unlisten);
     invokeMock.mockResolvedValue(undefined);
 
-    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
     await manager.initialize();
     invokeMock.mockClear();
 
@@ -193,7 +193,7 @@ describe('WorkspaceLspManager device surface scoping', () => {
   it('refuses to re-open a detached workspace on the device switched to', async () => {
     invokeMock.mockResolvedValue(undefined);
 
-    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
     await manager.initialize();
     WorkspaceLspManager.detachAllForSurfaceSwitch();
     activateSurface('peer-device-b');
@@ -208,13 +208,13 @@ describe('WorkspaceLspManager device surface scoping', () => {
   it('prevents every detached manager operation from reaching the next device', async () => {
     invokeMock.mockResolvedValue(undefined);
 
-    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
     await manager.initialize();
     WorkspaceLspManager.detachAllForSurfaceSwitch();
     activateSurface('peer-device-b');
     invokeMock.mockClear();
 
-    await manager.changeDocument('file:///Users/dev/OpenBitFun/src/main.rs', 'fn main() {}');
+    await manager.changeDocument('file:///Users/dev/BitFun/src/main.rs', 'fn main() {}');
 
     expect(invokeMock).not.toHaveBeenCalled();
   });
@@ -227,18 +227,18 @@ describe('WorkspaceLspManager device surface scoping', () => {
     });
     invokeMock.mockResolvedValue(undefined);
 
-    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/OpenBitFun');
+    const manager = WorkspaceLspManager.getOrCreate('/Users/dev/BitFun');
     await manager.initialize();
 
     const diagnostics = vi.fn();
-    manager.onDiagnostics('file:///Users/dev/OpenBitFun/src/main.rs', diagnostics);
+    manager.onDiagnostics('file:///Users/dev/BitFun/src/main.rs', diagnostics);
     manager.detachForSurfaceSwitch();
 
     emitLspEvent?.({
       type: 'Diagnostics',
       data: {
-        workspace_path: '/Users/dev/OpenBitFun',
-        uri: 'file:///Users/dev/OpenBitFun/src/main.rs',
+        workspace_path: '/Users/dev/BitFun',
+        uri: 'file:///Users/dev/BitFun/src/main.rs',
         diagnostics: [{ message: 'from the device we left' }],
       },
     });

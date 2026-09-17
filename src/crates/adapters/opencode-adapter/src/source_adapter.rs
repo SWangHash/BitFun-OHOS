@@ -12,19 +12,19 @@ use crate::local_source_paths::{
     OpenCodeLocalConfigOptions,
 };
 use async_trait::async_trait;
-use openbitfun_plugin_runtime_client::PluginRuntimeAdapter;
-use openbitfun_product_domains::external_hook_contributions::{
+use bitfun_plugin_runtime_client::PluginRuntimeAdapter;
+use bitfun_product_domains::external_hook_contributions::{
     ExternalHookContributionDeclaration, ExternalHookPoint, ExternalHookRiskCapability,
 };
-use openbitfun_product_domains::external_sources::SourceKey;
-use openbitfun_product_domains::plugin_source::{PluginActivationAuthority, PluginPackageInput};
-use openbitfun_runtime_ports::{
+use bitfun_product_domains::external_sources::SourceKey;
+use bitfun_product_domains::plugin_source::{PluginActivationAuthority, PluginPackageInput};
+use bitfun_runtime_ports::{
     PermissionPromptDenyState, PermissionPromptDescriptor, PermissionPromptEffectKind,
     PluginArtifactRef, PluginCapabilityRef, PluginDataClassification, PluginEffectCandidatePayload,
     PluginOwnerKind, PluginOwnerRef, PluginPermissionGate, PluginRiskLevel, PluginRollbackMode,
     PluginRollbackPolicy, PluginTargetRef,
 };
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     PluginAuditRef, PluginConfigValidationIssue, PluginConfigValidationState,
     PluginConfigValidationStatus, PluginDiagnostic, PluginDiagnosticDetail,
     PluginDiagnosticSeverity, PluginDispatchEnvelope, PluginEffectCandidate, PluginManifestRef,
@@ -145,11 +145,11 @@ impl OpenCodePluginRuntimeAdapter {
             .to_string();
         let package_path = format!("/managed-plugins/{provenance_id}/{}", source.package_id);
         let package_uri = format!(
-            "openbitfun://managed-plugins/{provenance_id}/{}",
+            "bitfun://managed-plugins/{provenance_id}/{}",
             urlencoding::encode(&source.package_id)
         );
         let config_uri = format!(
-            "openbitfun://managed-plugins/{provenance_id}/{}/opencode.json",
+            "bitfun://managed-plugins/{provenance_id}/{}/opencode.json",
             source.package_id
         );
         let mut projections = Vec::new();
@@ -812,7 +812,7 @@ impl OpenCodePackageProjection {
             source: self.source.clone(),
             code: "opencode.npm_plugin_projection_only".to_string(),
             message: format!(
-                "OpenCode npm plugin is discovered from opencode.json but is not installed or executed by OpenBitFun: {}",
+                "OpenCode npm plugin is discovered from opencode.json but is not installed or executed by BitFun: {}",
                 self.package
             ),
             detail: PluginDiagnosticDetail::Manifest {
@@ -886,8 +886,8 @@ impl OpenCodeInvalidProjection {
             package_uri,
         );
         let manifest = PluginManifestRef {
-            manifest_id: format!("{plugin_id}:openbitfun.plugin"),
-            schema_version: "openbitfun.plugin.package.v1".to_string(),
+            manifest_id: format!("{plugin_id}:bitfun.plugin"),
+            schema_version: "bitfun.plugin.package.v1".to_string(),
             path: Some(package_uri.to_string()),
         };
         Self {
@@ -1514,7 +1514,7 @@ impl OpenCodeSourceProjection {
             source,
             code: "opencode.npm_plugin_projection_only".to_string(),
             message: format!(
-                "OpenCode npm plugin is present in opencode.json but is not installed or executed by OpenBitFun: {package}"
+                "OpenCode npm plugin is present in opencode.json but is not installed or executed by BitFun: {package}"
             ),
             detail: PluginDiagnosticDetail::Manifest {
                 manifest: PluginManifestRef {
@@ -1583,7 +1583,7 @@ impl OpenCodeSourceProjection {
             source,
             code: "opencode.hook_mapped_runtime_unavailable".to_string(),
             message: format!(
-                "OpenCode Hook {event_name} was recognized from the plugin return object. It may {declared_risks}, but {safety_statement} and Hook execution is unavailable in this OpenBitFun version"
+                "OpenCode Hook {event_name} was recognized from the plugin return object. It may {declared_risks}, but {safety_statement} and Hook execution is unavailable in this BitFun version"
             ),
             detail: PluginDiagnosticDetail::Adapter {
                 adapter_id: OPENCODE_ADAPTER_ID.to_string(),
@@ -1748,8 +1748,8 @@ fn load_opencode_config_snapshot_with_options(
         };
         let path = PathBuf::from(document.location());
         let content = match document.read_bounded(MAX_CONFIG_SNAPSHOT_FILE_BYTES) {
-            Ok(openbitfun_services_core::bounded_fs::BoundedTextRead::Content(content)) => content,
-            Ok(openbitfun_services_core::bounded_fs::BoundedTextRead::TooLarge) => {
+            Ok(bitfun_services_core::bounded_fs::BoundedTextRead::Content(content)) => content,
+            Ok(bitfun_services_core::bounded_fs::BoundedTextRead::TooLarge) => {
                 return Err(OpenCodeConfigSnapshotError::Invalid {
                     path,
                     message: format!(
@@ -1757,7 +1757,7 @@ fn load_opencode_config_snapshot_with_options(
                     ),
                 });
             }
-            Ok(openbitfun_services_core::bounded_fs::BoundedTextRead::InvalidUtf8) => {
+            Ok(bitfun_services_core::bounded_fs::BoundedTextRead::InvalidUtf8) => {
                 return Err(OpenCodeConfigSnapshotError::Invalid {
                     path,
                     message: "configuration must be valid UTF-8".to_string(),
@@ -1773,7 +1773,7 @@ fn load_opencode_config_snapshot_with_options(
                 }
             })?;
         let value =
-            serde_json::from_str::<Value>(&openbitfun_services_core::jsonc::strip_jsonc(&content))
+            serde_json::from_str::<Value>(&bitfun_services_core::jsonc::strip_jsonc(&content))
                 .map_err(|error| OpenCodeConfigSnapshotError::Invalid {
                     path: path.clone(),
                     message: error.to_string(),
@@ -2210,7 +2210,7 @@ impl OpenCodeCustomTool {
                 artifact_kind: "opencode_plugin_source".to_string(),
                 display_name: self.id.clone(),
                 uri: Some(format!(
-                    "openbitfun://plugins/{plugin_id}/tools/{target_id}"
+                    "bitfun://plugins/{plugin_id}/tools/{target_id}"
                 )),
             }),
         }
@@ -2746,7 +2746,7 @@ fn managed_source_uri(provenance_id: &str, package_id: &str, relative_path: &str
         .collect::<Vec<_>>()
         .join("/");
     format!(
-        "openbitfun://managed-plugins/{provenance_id}/{}/{encoded_path}",
+        "bitfun://managed-plugins/{provenance_id}/{}/{encoded_path}",
         urlencoding::encode(package_id)
     )
 }
@@ -2800,8 +2800,8 @@ fn audit_ref(envelope: &PluginDispatchEnvelope) -> PluginAuditRef {
 #[cfg(test)]
 mod opencode_projection_contracts {
     use super::*;
-    use openbitfun_plugin_runtime_client::DefaultPluginRuntimeClient;
-    use openbitfun_runtime_ports::{
+    use bitfun_plugin_runtime_client::DefaultPluginRuntimeClient;
+    use bitfun_runtime_ports::{
         PermissionPromptDenyState, PermissionPromptEffectKind, PluginPayloadRedaction,
         PluginPayloadRef, PluginRuntimeClient, PluginRuntimeEpochs,
     };
@@ -3139,7 +3139,7 @@ export const DemoPlugin = async () => ({
                 schema_version: "agent.turn.completed.v1".to_string(),
                 data_classification: PluginDataClassification::Workspace,
                 redaction: PluginPayloadRedaction::Partial,
-                uri: Some("openbitfun://payloads/payload-1".to_string()),
+                uri: Some("bitfun://payloads/payload-1".to_string()),
             }),
         }
     }

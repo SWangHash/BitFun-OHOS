@@ -3,7 +3,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RollingText, TabGroup } from '@openbitfun/ui';
+import { RollingText, TabGroup } from '@bitfun/ui';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -111,7 +111,7 @@ describe('RollingText in the Web UI host', () => {
   }
 
   function rolling() {
-    return container.querySelector<HTMLElement>('[data-openbitfun-component="rolling-text"]')!;
+    return container.querySelector<HTMLElement>('[data-bitfun-component="rolling-text"]')!;
   }
 
   async function finishCurrentMotion() {
@@ -218,14 +218,14 @@ describe('RollingText in the Web UI host', () => {
     }
     renderTabs('Short', 'a');
     const tab = container.querySelector<HTMLButtonElement>('[role="tab"]')!;
-    const close = container.querySelector('[data-openbitfun-part="endAction"] button');
+    const close = container.querySelector('[data-bitfun-part="endAction"] button');
     tab.focus();
     renderTabs('Long session title', 'b');
     expect(container.querySelector('[role="tab"]')).toBe(tab);
     expect(document.activeElement).toBe(tab);
-    expect(container.querySelector('[data-openbitfun-part="endAction"] button')).toBe(close);
+    expect(container.querySelector('[data-bitfun-part="endAction"] button')).toBe(close);
     expect(tab.contains(close)).toBe(false);
     expect(tab.getAttribute('aria-selected')).toBe('true');
-    expect(container.querySelectorAll('[data-openbitfun-component="rolling-text"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-bitfun-component="rolling-text"]')).toHaveLength(1);
   });
 });

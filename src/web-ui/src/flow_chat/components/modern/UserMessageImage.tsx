@@ -43,8 +43,8 @@ export function UserMessageImage({ image, onPreview }: UserMessageImageProps) {
   const failure = error ? t('editor.imageViewer.loadImageFailedWithMessage', { message: error }) : null;
   return (
     <div
-      data-openbitfun-product-component="user-message-item"
-      data-openbitfun-product-part="image"
+      data-bitfun-product-component="user-message-item"
+      data-bitfun-product-part="image"
       className="user-message-item__image-thumb"
       onClick={event => { event.stopPropagation(); if (source && !error) onPreview(source); }}
       title={failure || name}

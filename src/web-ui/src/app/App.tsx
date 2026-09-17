@@ -81,7 +81,7 @@ const LazyAppLayout = lazy(async () => {
 const LazyGlobalSearchRoot = lazy(() => import('./global-search/GlobalSearchRoot'));
 
 /**
- * OpenBitFun main application component.
+ * BitFun main application component.
  *
  * Unified architecture:
  * - Use a single AppLayout component
@@ -109,8 +109,8 @@ function App() {
   const interactiveShellReadyRef = useRef(false);
   const interactiveShellReadyFrameRef = useRef<number | null>(null);
   const reportedFrontendTransactionRef = useRef<string | null>(null);
-  const openOpenBitFunControlStartupRef = useRef(false);
-  const [openOpenBitFunControlReady, setOpenBitFunControlReady] = useState(false);
+  const bitFunControlStartupRef = useRef(false);
+  const [bitFunControlReady, setBitFunControlReady] = useState(false);
   const workspaceLoadingRef = useRef(workspaceLoading);
   const appLayoutReadyRef = useRef(false);
   const [interactiveShellReady, setInteractiveShellReady] = useState(false);
@@ -137,7 +137,7 @@ function App() {
     }
     interactiveShellReadyRef.current = true;
     startupTrace.markPhase('interactive_shell_ready', { reason, afterPaint });
-    window.dispatchEvent(new CustomEvent('openbitfun:interactive-shell-ready', {
+    window.dispatchEvent(new CustomEvent('bitfun:interactive-shell-ready', {
       detail: { reason },
     }));
     setInteractiveShellReady(true);
@@ -191,11 +191,11 @@ function App() {
   // immutable host confirmation window keeps its primary action disabled
   // until this handshake succeeds.
   useEffect(() => {
-    if (!interactiveShellReady || !openOpenBitFunControlReady || !isTauriRuntime() || peerSurfaceActive) {
+    if (!interactiveShellReady || !bitFunControlReady || !isTauriRuntime() || peerSurfaceActive) {
       return;
     }
     const transactionId = new URLSearchParams(window.location.search)
-      .get('openbitfunFrontendTransaction');
+      .get('bitfunFrontendTransaction');
     const controller = new AbortController();
     const creation = createCreationUiApi(controller.signal);
     recordCreationActivationError(null);
@@ -254,7 +254,7 @@ function App() {
         window.clearTimeout(retryTimer);
       }
     };
-  }, [interactiveShellReady, openOpenBitFunControlReady, peerSurfaceActive]);
+  }, [interactiveShellReady, bitFunControlReady, peerSurfaceActive]);
 
   // Once the workspace finishes loading, wait for the remaining min-display
   // time and then begin the exit animation.
@@ -296,7 +296,7 @@ function App() {
     let disposed = false;
 
     void import('@tauri-apps/api/event')
-      .then(({ listen }) => listen('openbitfun_main_window_close_requested', () => {
+      .then(({ listen }) => listen('bitfun_main_window_close_requested', () => {
         userCloseRequestedRef.current = true;
         startupTrace.markPhase('main_window_user_close_requested', { reason: 'user-close-requested' });
       }))
@@ -329,7 +329,7 @@ function App() {
       await api.invoke('show_main_window');
       log.debug('Main window shown', { reason });
       startupTrace.markPhase('main_window_shown', { reason });
-      window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', { detail: { reason } }));
+      window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', { detail: { reason } }));
     } catch (error: any) {
       log.error('Failed to show main window', error);
 
@@ -340,7 +340,7 @@ function App() {
         await mainWindow.setFocus();
         log.debug('Main window shown via fallback', { reason });
         startupTrace.markPhase('main_window_shown_fallback', { reason });
-        window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', { detail: { reason } }));
+        window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', { detail: { reason } }));
       } catch (fallbackError) {
         log.error('Fallback window show failed', fallbackError);
         mainWindowShownRef.current = false;
@@ -384,7 +384,7 @@ function App() {
     if (isTauriRuntime()) {
       mainWindowShownRef.current = true;
       startupTrace.markPhase('main_window_shown', { reason: 'startup-native' });
-      window.dispatchEvent(new CustomEvent('openbitfun:main-window-shown', {
+      window.dispatchEvent(new CustomEvent('bitfun:main-window-shown', {
         detail: { reason: 'startup-native' },
       }));
       return;
@@ -428,20 +428,20 @@ function App() {
     if (
       !isTauriRuntime()
       || !shouldScheduleDeferredStartupSystems({ interactiveShellReady, startupOverlayVisible })
-      || openOpenBitFunControlStartupRef.current
+      || bitFunControlStartupRef.current
     ) {
       return;
     }
-    openOpenBitFunControlStartupRef.current = true;
-    void import('./global-search/openBitFunControlBridge')
-      .then(({ initializeOpenBitFunControlBridge }) => initializeOpenBitFunControlBridge())
+    bitFunControlStartupRef.current = true;
+    void import('./global-search/bitFunControlBridge')
+      .then(({ initializeBitFunControlBridge }) => initializeBitFunControlBridge())
       .then(() => {
-        startupTrace.markPhase('openbitfun_control_surface_ready');
-        setOpenBitFunControlReady(true);
+        startupTrace.markPhase('bitfun_control_surface_ready');
+        setBitFunControlReady(true);
       })
       .catch(error => {
-        openOpenBitFunControlStartupRef.current = false;
-        log.error('Failed to initialize the OpenBitFun control surface', error);
+        bitFunControlStartupRef.current = false;
+        log.error('Failed to initialize the BitFun control surface', error);
       });
   }, [interactiveShellReady, startupOverlayVisible]);
 
@@ -885,7 +885,7 @@ function App() {
         if (cancelled || !runtimeInfo.previousUnexpectedExit?.notifyOnStartup) {
           return;
         }
-        const recoveryKey = `openbitfun:unexpected-exit-notice:${runtimeInfo.previousUnexpectedExit.sessionLogDir || 'unknown'}`;
+        const recoveryKey = `bitfun:unexpected-exit-notice:${runtimeInfo.previousUnexpectedExit.sessionLogDir || 'unknown'}`;
         if (sessionStorage.getItem(recoveryKey) === 'shown') {
           return;
         }

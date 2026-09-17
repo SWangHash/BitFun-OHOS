@@ -2,7 +2,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { SegmentedControl } from '@openbitfun/ui';
+import { SegmentedControl } from '@bitfun/ui';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 

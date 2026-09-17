@@ -9,7 +9,7 @@ export const settingsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   ],
   facets: [{
     id: 'page',
-    attribute: 'data-openbitfun-page',
+    attribute: 'data-bitfun-page',
     values: [
       'application.general',
       'application.appearance',

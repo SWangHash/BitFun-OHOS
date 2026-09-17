@@ -1,55 +1,55 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
-    min-block-size: var(--openbitfun-control-height-sm);
-    gap: var(--openbitfun-space-1);
-    padding-inline: var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-action-neutral-content);
+    min-block-size: var(--bitfun-control-height-sm);
+    gap: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-action-neutral-content);
     background: transparent;
     transition:
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .root:not([data-disabled="true"]):hover,
-  .root:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="hover"]) {
-    background: var(--openbitfun-color-action-neutral-surface-hover);
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="hover"]) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
   .root:not([data-disabled="true"]):has(.trigger:active),
-  .root:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="active"]) {
-    background: var(--openbitfun-color-action-neutral-surface-hover);
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
   .root:not([data-disabled="true"]):has(.trigger:active) .label,
-  .root:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="active"]) .label {
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) .label {
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   .root:has(.trigger:focus-visible) {
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-action-neutral-content-disabled);
+    color: var(--bitfun-color-action-neutral-content-disabled);
     cursor: not-allowed;
   }
 
-  .root[data-openbitfun-tone="danger"]:not([data-disabled="true"]) {
-    color: var(--openbitfun-color-status-danger-content);
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]) {
+    color: var(--bitfun-color-status-danger-content);
   }
 
-  .root[data-openbitfun-tone="danger"]:not([data-disabled="true"]):hover,
-  .root[data-openbitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="hover"]) {
-    background: var(--openbitfun-color-status-danger-surface);
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):hover,
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="hover"]) {
+    background: var(--bitfun-color-status-danger-surface);
   }
 
-  .root[data-openbitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger:active),
-  .root[data-openbitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="active"]) {
-    background: var(--openbitfun-color-status-danger-surface);
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger:active),
+  .root[data-bitfun-tone="danger"]:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-status-danger-surface);
   }
 
   .trigger {
@@ -58,7 +58,7 @@
     align-items: center;
     min-inline-size: 0;
     min-block-size: inherit;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     margin: 0;
     padding: 0;
     border: 0;
@@ -75,17 +75,17 @@
   }
 
   .leading {
-    --openbitfun-opacity-icon-artwork: 1;
+    --bitfun-opacity-icon-artwork: 1;
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    inline-size: var(--openbitfun-font-size-sm);
-    block-size: var(--openbitfun-font-size-sm);
+    inline-size: var(--bitfun-font-size-sm);
+    block-size: var(--bitfun-font-size-sm);
   }
 
   .leading > :where(svg, img),
-  .leading > [data-openbitfun-component="icon"] {
+  .leading > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -95,11 +95,11 @@
     overflow: hidden;
     flex: 1 1 auto;
     min-inline-size: 0;
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-action-row-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-action-row-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
     white-space: nowrap;
   }
 
@@ -117,12 +117,12 @@
   }
 
   .metadata {
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
     white-space: nowrap;
   }
 
@@ -131,7 +131,7 @@
   }
 
   .actions {
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -142,7 +142,7 @@
 
   @media (forced-colors: active) {
     .root:has(.trigger:focus-visible) {
-      box-shadow: 0 0 0 var(--openbitfun-focus-width) Highlight;
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
     }
 
     .root:not([data-disabled="true"]):hover,

@@ -4,6 +4,6 @@ export const agentCapabilityOptionAppearanceDescriptor: AppearanceSurfaceDescrip
   id: 'agent-capability-option',
   parts: [{ id: 'root' }],
   states: [
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
   ],
 };

@@ -6,7 +6,7 @@ use crate::agentic::tools::page_publish_host::{
     PagePublishHostRequest,
 };
 use crate::service::remote_connect::account_runtime::AccountRuntime;
-use openbitfun_services_integrations::remote_connect::{
+use bitfun_services_integrations::remote_connect::{
     deploy_page_version_on_relay, join_relay_url, list_pages_from_relay,
     publish_page_content_on_relay,
 };

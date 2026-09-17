@@ -1,10 +1,10 @@
-# OpenBitFun Relay Server
+# BitFun Relay Server
 
 The official Relay connects devices signed in to the same GitHub identity.
 GitHub identity is shared with the marketplaces. Users sign in
-from OpenBitFun; they do not create a Relay account or deploy a server.
+from BitFun; they do not create a Relay account or deploy a server.
 
-The official endpoint is `https://remote.openbitfun.com/v/1.0.1`. This release is deployed with
+The official endpoint is `https://remote.bitfun.com/v/1.0.1`. This release is deployed with
 its own process, database, assets, and reverse-proxy location. An existing
 `/relay` deployment remains on its existing binary and data directory.
 
@@ -23,7 +23,7 @@ public-key lookup, RPC and presence all use the selected Relay endpoint.
 The two modes differ only in endpoint and host startup; no device traffic is
 forwarded from the local Relay to the official Relay.
 
-Both modes verify GitHub identity through `auth.openbitfun.com`, so signing in
+Both modes verify GitHub identity through `auth.bitfun.com`, so signing in
 requires internet access. An invitation contains only the selected endpoint
 and device id (`/#/pair?did=<device-id>`); scanning it grants no authority.
 The controller must sign in and resolve that id in its same-account directory.
@@ -43,7 +43,7 @@ Relay URL. A private Relay therefore needs a matching client build.
    and `src/mobile-web/src/services/pairingLink.ts`. Native clients have
    matching constants in KMP `core-transport/AccountDeviceLink.kt` and HarmonyOS
    `services/AccountDeviceLink.ets`; update the HarmonyOS account-link parser too.
-   Search for `https://remote.openbitfun.com/v/1.0.1` to verify every runtime
+   Search for `https://remote.bitfun.com/v/1.0.1` to verify every runtime
    reference and corresponding test before building your distribution.
 3. Decide who owns identity. You can retain the official GitHub identity
    authority, or run the [shared identity service](../../../deploy/miniapp-market/README.md)
@@ -51,8 +51,8 @@ Relay URL. A private Relay therefore needs a matching client build.
    `IDENTITY_ME_URL` in `relay-service/src/identity.rs` and
    `DEFAULT_ACCOUNT_API_URL` in `services-integrations/src/account_identity/mod.rs`
    together, and adapt the market sign-in links and callback/completion host.
-   `OPENBITFUN_ACCOUNT_API_URL` overrides the desktop/CLI identity API for
-   development; the previous `OPENBITFUN_MINIAPP_MARKET_API_URL` alias remains
+   `BITFUN_ACCOUNT_API_URL` overrides the desktop/CLI identity API for
+   development; the previous `BITFUN_MINIAPP_MARKET_API_URL` alias remains
    readable. Relay never accepts an identity authority from a client request.
 4. Use separate persistent data and asset directories, configure exact browser
    CORS origins, then put the service behind your own TLS reverse proxy. Build
@@ -82,14 +82,14 @@ shared HTTP/WebSocket implementation lives in `src/crates/services/relay-service
 
 Set `RELAY_DB_PATH` to a persistent SQLite database before starting the service.
 Startup fails if it is missing; anonymous public relay mode is unsupported.
-The service validates OpenBitFun access tokens against the fixed GitHub identity
-authority at `https://auth.openbitfun.com/api/v1/me`.
+The service validates BitFun access tokens against the fixed GitHub identity
+authority at `https://auth.bitfun.com/api/v1/me`.
 
 ```bash
-cargo build --release -p openbitfun-relay-server
-RELAY_PORT=9700 RELAY_DB_PATH=/var/lib/openbitfun-relay-v1/relay.db \
-  RELAY_ASSET_DIR=/var/lib/openbitfun-relay-v1/assets \
-  ./target/release/openbitfun-relay-server
+cargo build --release -p bitfun-relay-server
+RELAY_PORT=9700 RELAY_DB_PATH=/var/lib/bitfun-relay-v1/relay.db \
+  RELAY_ASSET_DIR=/var/lib/bitfun-relay-v1/assets \
+  ./target/release/bitfun-relay-server
 ```
 
 Use the isolated [v1 Compose project](../../../deploy/relay-v1/README.md).
@@ -224,9 +224,9 @@ together and use distinct origins when protected Pages are deployed.
 ## Verification
 
 ```bash
-cargo test -p openbitfun-relay-server --bin openbitfun-relay-server
-cargo test -p openbitfun-relay-service
-cargo check -p openbitfun-relay-server
+cargo test -p bitfun-relay-server --bin bitfun-relay-server
+cargo test -p bitfun-relay-service
+cargo check -p bitfun-relay-server
 node scripts/check-core-boundaries.mjs
 ```
 

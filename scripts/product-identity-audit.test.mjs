@@ -18,8 +18,7 @@ import {
   shouldAuditPath,
 } from './product-identity-audit.mjs';
 
-const retiredName = `${'Bit'}${'Fun'}`;
-const retiredLowerName = retiredName.toLowerCase();
+const displayBrand = `${'Bit'}${'Fun'}`;
 const shortPrefix = `${'b'}${'f'}`;
 
 function violationsFor(content, file = 'src/example.ts') {
@@ -28,27 +27,33 @@ function violationsFor(content, file = 'src/example.ts') {
 
 test('accepts the canonical product identity in supported casing and contracts', () => {
   const source = [
-    'OpenBitFun',
-    'openBitFunTheme',
-    'openbitfun',
-    'OPENBITFUN_USER_ROOT',
-    '@openbitfun/ui',
-    '.openbitfun/config',
-    'openbitfun://runtime/',
-    '--openbitfun-color-surface',
-    'data-openbitfun-component',
-    'node.dataset.openbitfunPart',
-    '@layer openbitfun.components',
-    'minOpenBitFunVersion: "1.0.0"',
-    'min_openbitfun_version: "1.2.0"',
-    'openbitfun-cli-1.0.0-aarch64-unknown-linux-gnu.tar.gz',
-    'OpenBitFun_1.0.0_windows-x86_64-setup.exe',
+    'BitFun',
+    'bitFunTheme',
+    'bitfun',
+    'BITFUN_USER_ROOT',
+    '@bitfun/ui',
+    '.bitfun/config',
+    'bitfun://runtime/',
+    '--bitfun-color-surface',
+    'data-bitfun-component',
+    'node.dataset.bitfunPart',
+    '@layer bitfun.components',
+    'minBitFunVersion: "1.0.0"',
+    'min_bitfun_version: "1.2.0"',
+    'bitfun-cli-1.0.0-aarch64-unknown-linux-gnu.tar.gz',
+    'BitFun_1.0.0_windows-x86_64-setup.exe',
+    displayBrand,
+    'BitFun Remote',
+    'Ask BitFun',
+    'bitfun',
+    'com.bitfun.desktop',
+    'BITFUN_USER_ROOT',
   ].join('\n');
 
   assert.deepEqual(violationsFor(source), []);
 });
 
-test('rejects non-canonical casing and abbreviated OpenBitFun names', () => {
+test('rejects non-canonical casing and abbreviated BitFun names', () => {
   const nonCanonicalPascal = ['Open', 'Bit', 'fun'].join('');
   const nonCanonicalCamel = ['open', 'Bit', 'fun'].join('');
   const abbreviatedPascal = ['Open', 'B', 'F'].join('');
@@ -63,121 +68,25 @@ test('rejects non-canonical casing and abbreviated OpenBitFun names', () => {
   assert.deepEqual(
     violationsFor(source).map((violation) => violation.rule),
     [
-      'noncanonical-openbitfun-casing',
-      'noncanonical-openbitfun-casing',
-      'abbreviated-openbitfun-name',
-      'abbreviated-openbitfun-name',
+      'noncanonical-bitfun-casing',
+      'noncanonical-bitfun-casing',
+      'abbreviated-bitfun-name',
+      'abbreviated-bitfun-name',
     ],
   );
 });
 
-test('rejects retired names in copy, packages, paths, protocols, and environment variables', () => {
+test('accepts the BitFun display brand in user-facing copy and identifiers', () => {
+  const lowerBrand = displayBrand.toLowerCase();
   const source = [
-    retiredName,
-    retiredLowerName,
-    `@${retiredLowerName}/ui`,
-    `.${retiredLowerName}/config`,
-    `${retiredLowerName}://runtime/`,
-    `com.${retiredLowerName}.desktop`,
-    `${retiredName.toUpperCase()}_USER_ROOT`,
+    displayBrand,
+    `${displayBrand} Remote`,
+    `Ask ${displayBrand}`,
+    `${lowerBrand}/config`,
+    `${lowerBrand}://runtime/`,
   ].join('\n');
 
-  const violations = violationsFor(source);
-  assert.equal(violations.length, 7);
-  assert.ok(violations.every((violation) => violation.rule === 'retired-product-name'));
-});
-
-test('allows only the exact legacy data-directory ignore entry', () => {
-  const legacyDataDirectoryPrefix = `.${retiredLowerName}`;
-  const legacyDataDirectoryIgnore = `${legacyDataDirectoryPrefix}/`;
-
-  assert.deepEqual(
-    auditFile({ file: '.gitignore', content: `${legacyDataDirectoryIgnore}\n` }),
-    [],
-  );
-
-  const violations = auditFile({
-    file: '.gitignore',
-    content: `${legacyDataDirectoryPrefix}-cache/\n  ${legacyDataDirectoryIgnore} # comment\n`,
-  });
-  assert.equal(violations.length, 2);
-  assert.ok(violations.every((violation) => violation.rule === 'retired-product-name'));
-});
-
-test('limits retired identity data to the one-time production migration boundary', () => {
-  for (const file of [
-  ]) {
-    assert.deepEqual(violationsFor(retiredName, file), []);
-  }
-  for (const file of [
-    'src/apps/desktop/src/lib.rs',
-    'src/web-ui/src/locales/en-US/settings.json',
-    'src/shared/interactive-capabilities/catalog.json',
-  ]) {
-    assert.equal(violationsFor(retiredName, file).length, 1);
-  }
-  const retiredField = ['min', 'Bit', 'fun', 'Version'].join('');
-  assert.deepEqual(
-    violationsFor(
-      `RETIRED_VERSION_FIELDS = ("${retiredField}",)`,
-      'deploy/openbitfun-host/migrate-market-data-v1.py',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(`const field = "${retiredField}";`, 'src/example.ts').length,
-    1,
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/services/legacy-migration/src/source.rs',
-    ),
-    [],
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/assembly/core/src/legacy_migration/source.rs',
-    ),
-    [],
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const sourceLabel = "${retiredName}";`,
-      'src/apps/data-migrator/ui/app.js',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/services/example/src/source.rs',
-    ).length,
-    1,
-  );
-  assert.equal(
-    violationsFor(
-      `const sourceLabel = "${retiredName}";`,
-      'src/apps/desktop/src/example.rs',
-    ).length,
-    1,
-  );
-});
-
-test('allows retired Harmony identifiers only at the upgrade identity boundary', () => {
-  const legacyBundle = `com.${retiredLowerName}.app`;
-  assert.deepEqual(
-    violationsFor(
-      `static readonly APP_BUNDLE: string = '${legacyBundle}';`,
-      'src/apps/mobile/harmonyos/entry/src/main/ets/services/HarmonyUpgradeIdentityContract.ets',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(`const bundle = '${legacyBundle}';`, 'src/apps/mobile/harmonyos/entry/src/main/ets/services/example.ets').length,
-    1,
-  );
+  assert.deepEqual(violationsFor(source), []);
 });
 
 test('rejects retired short CSS, DOM, dataset, layer, and environment prefixes', () => {
@@ -201,39 +110,27 @@ test('rejects retired short CSS, DOM, dataset, layer, and environment prefixes',
   ]);
 });
 
-test('checks a retired identity when it appears in a repository path', () => {
-  const file = `products/${retiredLowerName}/product.jsonc`;
-  const violations = auditFile({ file });
-
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0].location, 'path');
-  assert.equal(violations[0].rule, 'retired-product-name');
-});
-
 test('scans untracked files while ignoring tracked files deleted by a rename', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'openbitfun-identity-audit-'));
-  const retiredDirectory = path.join(root, retiredLowerName);
-  const retiredFile = path.join(retiredDirectory, 'config.json');
-  const canonicalFile = path.join(root, 'openbitfun', 'config.json');
-  mkdirSync(retiredDirectory, { recursive: true });
+  const root = mkdtempSync(path.join(tmpdir(), 'bitfun-identity-audit-'));
+  const brandDirectory = path.join(root, 'legacy', displayBrand.toLowerCase());
+  const brandFile = path.join(brandDirectory, 'config.json');
+  const canonicalFile = path.join(root, 'bitfun', 'config.json');
+  mkdirSync(brandDirectory, { recursive: true });
   mkdirSync(path.dirname(canonicalFile), { recursive: true });
-  writeFileSync(retiredFile, '{}\n');
-  writeFileSync(canonicalFile, '{"product":"OpenBitFun"}\n');
+  writeFileSync(brandFile, '{}\n');
+  writeFileSync(canonicalFile, '{"product":"BitFun"}\n');
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: root });
   execFileSync('git', ['add', '.'], { cwd: root });
-  rmSync(retiredFile);
+  rmSync(brandFile);
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
-  assert.deepEqual(listRepositoryFiles(root), ['openbitfun/config.json']);
+  assert.deepEqual(listRepositoryFiles(root), ['bitfun/config.json']);
   assert.deepEqual(auditRepository(root).violations, []);
 
-  mkdirSync(retiredDirectory, { recursive: true });
-  writeFileSync(retiredFile, '{}\n');
-  const violations = auditRepository(root).violations;
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0].location, 'path');
-  assert.equal(violations[0].rule, 'retired-product-name');
+  mkdirSync(brandDirectory, { recursive: true });
+  writeFileSync(brandFile, '{}\n');
+  assert.deepEqual(auditRepository(root).violations, []);
 });
 
 test('does not confuse unrelated abbreviations, issue ids, or hashes with product identity', () => {
@@ -261,7 +158,7 @@ test('keeps compile-time product identity reads in the canonical contract owner'
   const source = [
     'const PRODUCT_ID: &str = option_',
     'en',
-    'v!("OPENBITFUN_PRODUCT_ID").unwrap_or("openbitfun");',
+    'v!("BITFUN_PRODUCT_ID").unwrap_or("bitfun");',
   ].join('');
   const violations = violationsFor(source, 'src/example.rs');
 
@@ -273,22 +170,22 @@ test('keeps compile-time product identity reads in the canonical contract owner'
   );
 });
 
-test('rejects pre-1.0 minimum versions and OpenBitFun release assets', () => {
+test('rejects pre-1.0 minimum versions and BitFun release assets', () => {
   const preOneVersion = [0, 9, 0].join('.');
   const source = [
-    `minOpenBitFunVersion: '${preOneVersion}'`,
-    `min_openbitfun_version: "${preOneVersion}"`,
-    `openbitfun-cli-${preOneVersion}-aarch64-unknown-linux-gnu.tar.gz`,
-    `OpenBitFun_${preOneVersion}_windows-x86_64-setup.exe`,
+    `minBitFunVersion: '${preOneVersion}'`,
+    `min_bitfun_version: "${preOneVersion}"`,
+    `bitfun-cli-${preOneVersion}-aarch64-unknown-linux-gnu.tar.gz`,
+    `BitFun_${preOneVersion}_windows-x86_64-setup.exe`,
   ].join('\n');
 
   assert.deepEqual(
     violationsFor(source).map((violation) => violation.rule),
     [
-      'pre-1.0-openbitfun-minimum-version',
-      'pre-1.0-openbitfun-minimum-version',
-      'pre-1.0-openbitfun-release-asset',
-      'pre-1.0-openbitfun-release-asset',
+      'pre-1.0-bitfun-minimum-version',
+      'pre-1.0-bitfun-minimum-version',
+      'pre-1.0-bitfun-release-asset',
+      'pre-1.0-bitfun-release-asset',
     ],
   );
 });

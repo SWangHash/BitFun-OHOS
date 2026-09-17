@@ -23,7 +23,7 @@ import {
 
 const log = createLogger('PendingQueueModule');
 
-const STORAGE_PREFIX = 'openbitfun.flowChat.pendingQueue.v1.';
+const STORAGE_PREFIX = 'bitfun.flowChat.pendingQueue.v1.';
 const MAX_QUEUE_DEPTH = 20;
 
 const LIVE_TURN_STATUSES = new Set<DialogTurn['status']>([

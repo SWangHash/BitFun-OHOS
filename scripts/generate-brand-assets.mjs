@@ -9,11 +9,11 @@ import { canonicalizeIcns } from './icns-container.mjs';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
 const SOURCE_DIR = path.join(ROOT_DIR, 'assets', 'brand', 'source');
-const SOURCE_SVG = path.join(SOURCE_DIR, 'openbitfun-mark.svg');
-const SOURCE_APP_MARK = path.join(SOURCE_DIR, 'openbitfun-app-mark.png');
+const SOURCE_SVG = path.join(SOURCE_DIR, 'bitfun-mark.svg');
+const SOURCE_APP_MARK = path.join(SOURCE_DIR, 'bitfun-app-mark.png');
 const SOURCE_MARKS = {
-  dark: path.join(SOURCE_DIR, 'openbitfun-mark-dark.png'),
-  light: path.join(SOURCE_DIR, 'openbitfun-mark-light.png'),
+  dark: path.join(SOURCE_DIR, 'bitfun-mark-dark.png'),
+  light: path.join(SOURCE_DIR, 'bitfun-mark-light.png'),
 };
 
 const BRAND_SIZE = 512;
@@ -38,7 +38,7 @@ const LEGACY_APPLICATION_ASSETS = [
   'src/apps/desktop/icons/icon.png',
   'src/apps/desktop/icons/icon.ico',
   'src/apps/desktop/icons/icon.icns',
-  'src/apps/desktop/icons/openbitfun-tray-template.png',
+  'src/apps/desktop/icons/bitfun-tray-template.png',
   'src/apps/desktop/icons/Square30x30Logo.png',
   'src/apps/desktop/icons/Square44x44Logo.png',
   'src/apps/desktop/icons/Square71x71Logo.png',
@@ -51,26 +51,26 @@ const LEGACY_APPLICATION_ASSETS = [
   'src/apps/desktop/icons/StoreLogo.png',
   'src/web-ui/public/Logo-ICON.png',
   'src/web-ui/public/Logo-ICON-128.png',
-  'src/web-ui/public/OpenBitFun-Logo.png',
+  'src/web-ui/public/BitFun-Logo.png',
   'src/mobile-web/src/assets/Logo-ICON.png',
-  'OpenBitFun-Installer/src/Logo-ICON.png',
-  'OpenBitFun-Installer/src-tauri/icons/icon.png',
-  'OpenBitFun-Installer/src-tauri/icons/icon.ico',
-  'OpenBitFun-Installer/src-tauri/icons/icon.icns',
-  'src/apps/mobile/harmonyos/AppScope/resources/base/media/openbitfun_icon.png',
-  'src/apps/mobile/harmonyos/AppScope/resources/base/media/openbitfun-app-icon.png',
+  'BitFun-Installer/src/Logo-ICON.png',
+  'BitFun-Installer/src-tauri/icons/icon.png',
+  'BitFun-Installer/src-tauri/icons/icon.ico',
+  'BitFun-Installer/src-tauri/icons/icon.icns',
+  'src/apps/mobile/harmonyos/AppScope/resources/base/media/bitfun_icon.png',
+  'src/apps/mobile/harmonyos/AppScope/resources/base/media/bitfun-app-icon.png',
   'src/apps/mobile/harmonyos/AppScope/resources/base/media/background.png',
   'src/apps/mobile/harmonyos/AppScope/resources/base/media/foreground.png',
   'src/apps/mobile/harmonyos/AppScope/resources/base/media/layered_image.json',
-  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/openbitfun_icon.png',
-  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/openbitfun-app-icon.png',
-  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/openbitfun-start-window.png',
+  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/bitfun_icon.png',
+  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/bitfun-app-icon.png',
+  'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/bitfun-start-window.png',
   'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/background.png',
   'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/foreground.png',
   'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/layered_image.json',
   'src/apps/mobile/harmonyos/entry/src/main/resources/base/media/startIcon.png',
-  'src/apps/mobile/ios/OpenBitFun/Resources.xcassets/AppIcon.appiconset/openbitfun_icon.png',
-  'src/apps/mobile/ios/OpenBitFun/Resources.xcassets/OpenBitFunLogo.imageset',
+  'src/apps/mobile/ios/BitFun/Resources.xcassets/AppIcon.appiconset/bitfun_icon.png',
+  'src/apps/mobile/ios/BitFun/Resources.xcassets/BitFunLogo.imageset',
   'src/apps/relay-server/static/assets/Logo-ICON-BOaKcXgO.png',
 ];
 
@@ -88,7 +88,7 @@ async function writePng(filePath, buffer) {
 function createReusableWebMark(svg) {
   const reusableMark = svg.replaceAll('stroke="black"', 'stroke="currentColor"');
   if (reusableMark === svg) {
-    throw new Error('OpenBitFun mark source is missing its canonical black strokes');
+    throw new Error('BitFun mark source is missing its canonical black strokes');
   }
   return reusableMark;
 }
@@ -204,8 +204,8 @@ async function createAdaptiveForeground(applicationMark, size) {
 }
 
 async function generateTauriContainers(applicationIcon, renderIcon) {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'openbitfun-tauri-icons-'));
-  const inputPath = path.join(tempDir, 'openbitfun-app-icon.png');
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'bitfun-tauri-icons-'));
+  const inputPath = path.join(tempDir, 'bitfun-app-icon.png');
   const tauriCliPath = path.join(ROOT_DIR, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 
   try {
@@ -313,72 +313,72 @@ async function generateBrandAssets() {
 
   const exportDir = outputPath('assets', 'brand', 'exports');
   await mkdir(exportDir, { recursive: true });
-  await copyFile(SOURCE_SVG, path.join(exportDir, 'openbitfun-mark.svg'));
+  await copyFile(SOURCE_SVG, path.join(exportDir, 'bitfun-mark.svg'));
   for (const size of EXPORT_SIZES) {
     const dark = await renderMark(svg, size, '#202020');
     const light = await renderMark(svg, size, '#e8e8e8');
-    await writePng(path.join(exportDir, `openbitfun-mark-dark-${size}.png`), dark);
-    await writePng(path.join(exportDir, `openbitfun-mark-light-${size}.png`), light);
+    await writePng(path.join(exportDir, `bitfun-mark-dark-${size}.png`), dark);
+    await writePng(path.join(exportDir, `bitfun-mark-light-${size}.png`), light);
     await writePng(
-      path.join(exportDir, `openbitfun-app-icon-${size}.png`),
+      path.join(exportDir, `bitfun-app-icon-${size}.png`),
       await renderIcon(size),
     );
   }
-  await writeFile(path.join(exportDir, 'openbitfun-app-icon.ico'), tauriContainers.ico);
-  await writeFile(path.join(exportDir, 'openbitfun-app-icon.icns'), tauriContainers.icns);
+  await writeFile(path.join(exportDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
+  await writeFile(path.join(exportDir, 'bitfun-app-icon.icns'), tauriContainers.icns);
 
-  await writePng(outputPath('src', 'miniapp-market-web', 'public', 'assets', 'openbitfun-email-mark.png'), darkMarkSmall);
+  await writePng(outputPath('src', 'miniapp-market-web', 'public', 'assets', 'bitfun-email-mark.png'), darkMarkSmall);
 
-  await writePng(outputPath('src', 'miniapp-market-web', 'public', 'assets', 'openbitfun-email-app-icon.png'), applicationIcon);
+  await writePng(outputPath('src', 'miniapp-market-web', 'public', 'assets', 'bitfun-email-app-icon.png'), applicationIcon);
 
   await writePng(outputPath('src', 'crates', 'services', 'miniapp-market-service', 'src', 'email', 'app-icon.png'), applicationIcon);
 
   const webBrandDir = outputPath('src', 'web-ui', 'public', 'brand');
-  await writePng(path.join(webBrandDir, 'openbitfun-mark-dark.png'), darkMark);
-  await writePng(path.join(webBrandDir, 'openbitfun-mark-light.png'), lightMark);
-  await writePng(path.join(webBrandDir, 'openbitfun-mark-dark-128.png'), darkMarkSmall);
-  await writePng(path.join(webBrandDir, 'openbitfun-mark-light-128.png'), lightMarkSmall);
-  await writePng(path.join(webBrandDir, 'openbitfun-app-icon.png'), applicationIcon);
-  await writeFile(path.join(webBrandDir, 'openbitfun-mark.svg'), createReusableWebMark(svg), 'utf8');
+  await writePng(path.join(webBrandDir, 'bitfun-mark-dark.png'), darkMark);
+  await writePng(path.join(webBrandDir, 'bitfun-mark-light.png'), lightMark);
+  await writePng(path.join(webBrandDir, 'bitfun-mark-dark-128.png'), darkMarkSmall);
+  await writePng(path.join(webBrandDir, 'bitfun-mark-light-128.png'), lightMarkSmall);
+  await writePng(path.join(webBrandDir, 'bitfun-app-icon.png'), applicationIcon);
+  await writeFile(path.join(webBrandDir, 'bitfun-mark.svg'), createReusableWebMark(svg), 'utf8');
 
   const desktopIconDir = outputPath('src', 'apps', 'desktop', 'icons');
-  await writePng(path.join(desktopIconDir, 'openbitfun-app-icon.png'), applicationIconLarge);
-  await writePng(path.join(desktopIconDir, 'openbitfun-app-icon.ico'), tauriContainers.ico);
-  await writePng(path.join(desktopIconDir, 'openbitfun-app-icon.icns'), tauriContainers.icns);
+  await writePng(path.join(desktopIconDir, 'bitfun-app-icon.png'), applicationIconLarge);
+  await writePng(path.join(desktopIconDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
+  await writePng(path.join(desktopIconDir, 'bitfun-app-icon.icns'), tauriContainers.icns);
   for (const size of DESKTOP_HICOLOR_SIZES) {
     const icon = await renderIcon(size);
     await writePng(
-      outputPath('src', 'apps', 'desktop', 'icons', 'hicolor', `${size}x${size}`, 'apps', 'openbitfun-desktop.png'),
+      outputPath('src', 'apps', 'desktop', 'icons', 'hicolor', `${size}x${size}`, 'apps', 'bitfun-desktop.png'),
       icon,
     );
   }
 
   const mobileWebAssetDir = outputPath('src', 'mobile-web', 'src', 'assets');
-  await writePng(path.join(mobileWebAssetDir, 'openbitfun-mark-dark.png'), darkMark);
-  await writePng(path.join(mobileWebAssetDir, 'openbitfun-mark-light.png'), lightMark);
+  await writePng(path.join(mobileWebAssetDir, 'bitfun-mark-dark.png'), darkMark);
+  await writePng(path.join(mobileWebAssetDir, 'bitfun-mark-light.png'), lightMark);
   await writePng(
-    outputPath('src', 'mobile-web', 'public', 'brand', 'openbitfun-app-icon.png'),
+    outputPath('src', 'mobile-web', 'public', 'brand', 'bitfun-app-icon.png'),
     applicationIcon,
   );
   await writePng(
-    outputPath('src', 'apps', 'relay-server', 'static', 'brand', 'openbitfun-app-icon.png'),
+    outputPath('src', 'apps', 'relay-server', 'static', 'brand', 'bitfun-app-icon.png'),
     applicationIcon,
   );
 
-  const installerBrandDir = outputPath('OpenBitFun-Installer', 'src', 'assets');
-  await writePng(path.join(installerBrandDir, 'openbitfun-mark-dark.png'), darkMark);
-  await writePng(path.join(installerBrandDir, 'openbitfun-mark-light.png'), lightMark);
-  await writePng(path.join(installerBrandDir, 'openbitfun-app-icon.png'), applicationIcon);
-  const installerIconDir = outputPath('OpenBitFun-Installer', 'src-tauri', 'icons');
-  await writePng(path.join(installerIconDir, 'openbitfun-app-icon.png'), applicationIconLarge);
-  await writePng(path.join(installerIconDir, 'openbitfun-app-icon.ico'), tauriContainers.ico);
-  await writePng(path.join(installerIconDir, 'openbitfun-app-icon.icns'), tauriContainers.icns);
+  const installerBrandDir = outputPath('BitFun-Installer', 'src', 'assets');
+  await writePng(path.join(installerBrandDir, 'bitfun-mark-dark.png'), darkMark);
+  await writePng(path.join(installerBrandDir, 'bitfun-mark-light.png'), lightMark);
+  await writePng(path.join(installerBrandDir, 'bitfun-app-icon.png'), applicationIcon);
+  const installerIconDir = outputPath('BitFun-Installer', 'src-tauri', 'icons');
+  await writePng(path.join(installerIconDir, 'bitfun-app-icon.png'), applicationIconLarge);
+  await writePng(path.join(installerIconDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
+  await writePng(path.join(installerIconDir, 'bitfun-app-icon.icns'), tauriContainers.icns);
 
   for (const directory of [webBrandDir, installerBrandDir,
     outputPath('src', 'mobile-web', 'public', 'brand'),
     outputPath('src', 'apps', 'relay-server', 'static', 'brand')]) {
     for (const size of [16, 32]) {
-      await writePng(path.join(directory, `openbitfun-app-icon-${size}.png`), await renderIcon(size));
+      await writePng(path.join(directory, `bitfun-app-icon-${size}.png`), await renderIcon(size));
     }
   }
 
@@ -393,31 +393,31 @@ async function generateBrandAssets() {
   }
 
   await writePng(
-    outputPath('src', 'apps', 'mobile', 'ios', 'OpenBitFun', 'Resources.xcassets', 'AppIcon.appiconset', 'openbitfun-app-icon.png'),
+    outputPath('src', 'apps', 'mobile', 'ios', 'BitFun', 'Resources.xcassets', 'AppIcon.appiconset', 'bitfun-app-icon.png'),
     // App Store icons must be opaque; iOS applies its own corner mask.
     await sharp(applicationIconLarge).flatten({ background: '#000000' }).png().toBuffer(),
   );
   await writePng(
-    outputPath('src', 'apps', 'mobile', 'ios', 'OpenBitFun', 'Resources.xcassets', 'OpenBitFunMark.imageset', 'openbitfun-mark-light.png'),
+    outputPath('src', 'apps', 'mobile', 'ios', 'BitFun', 'Resources.xcassets', 'BitFunMark.imageset', 'bitfun-mark-light.png'),
     lightMark,
   );
 
   await writePng(
-    outputPath('src', 'apps', 'mobile', 'harmonyos', 'AppScope', 'resources', 'base', 'media', 'openbitfun_app_icon.png'),
+    outputPath('src', 'apps', 'mobile', 'harmonyos', 'AppScope', 'resources', 'base', 'media', 'bitfun_app_icon.png'),
     applicationIconLarge,
   );
   await writePng(
-    outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'openbitfun_app_icon.png'),
+    outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'bitfun_app_icon.png'),
     applicationIconLarge,
   );
   await writePng(
-    outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'openbitfun_start_window.png'),
+    outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'bitfun_start_window.png'),
     await resizePng(lightMark, 144),
   );
 
   await removeLegacyApplicationAssets();
 
-  console.log('Generated OpenBitFun application brand assets.');
+  console.log('Generated BitFun application brand assets.');
 }
 
 await generateBrandAssets();

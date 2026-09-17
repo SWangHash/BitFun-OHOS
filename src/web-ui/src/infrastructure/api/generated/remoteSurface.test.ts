@@ -74,7 +74,7 @@ describe('remote surface generated bindings', () => {
       'account_logout',
       'peer_mode_ping',
       'dispatch_submit',
-      'mark_openbitfun_control_surface_ready',
+      'mark_bitfun_control_surface_ready',
       'show_main_window',
       'download_update',
       'get_pending_update',

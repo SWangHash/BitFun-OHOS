@@ -37,13 +37,13 @@ const LIGHT_BORDER_BASE = getDesignSystemThemeString('light', 'color.border.defa
 const lightNavy = (alpha: number | string) => rgbaFromHex(LIGHT_NAVY, alpha);
 const lightNavyHover = (alpha: number | string) => rgbaFromHex(LIGHT_NAVY_HOVER, alpha);
 
-export const openOpenBitFunLightPalette: AppearancePalette = {
+export const bitFunLightPalette: AppearancePalette = {
 
-  id: 'openbitfun-light',
+  id: 'bitfun-light',
   name: 'Light',
   type: 'light',
   description: 'Light appearance - Crisp white surfaces, soft neutral grays, deep navy actions',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '2.5.0',
 
   layout: {

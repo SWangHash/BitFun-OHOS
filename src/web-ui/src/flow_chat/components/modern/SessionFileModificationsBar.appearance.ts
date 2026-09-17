@@ -8,11 +8,11 @@ export const sessionFileModificationsBarAppearanceDescriptor: AppearanceSurfaceD
     { id: 'fileSource' }, { id: 'fileError' }, { id: 'fileStats' },
   ],
   facets: [
-    { id: 'layout', attribute: 'data-openbitfun-layout', values: ['default', 'compact'] },
-    { id: 'operation', attribute: 'data-openbitfun-operation', values: ['write', 'delete', 'edit'] },
+    { id: 'layout', attribute: 'data-bitfun-layout', values: ['default', 'compact'] },
+    { id: 'operation', attribute: 'data-bitfun-operation', values: ['write', 'delete', 'edit'] },
   ],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
   ],
 };

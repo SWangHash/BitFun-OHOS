@@ -79,7 +79,7 @@ export const useI18nStore = create<I18nState & I18nActions>()(
       },
     }),
     {
-      name: 'openbitfun-i18n-state',
+      name: 'bitfun-i18n-state',
       // The storage adapter keeps the preference in memory when the WebView
       // exposes localStorage as null (HarmonyOS), instead of crashing on setItem.
       storage: createJSONStorage(() => storage),

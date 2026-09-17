@@ -55,7 +55,7 @@ function assignRef<T>(ref: ForwardedRef<T>, value: T | null) {
 
 function getEnabledOptions(root: HTMLElement) {
   return Array.from(
-    root.querySelectorAll<HTMLButtonElement>("[data-openbitfun-listbox-option]"),
+    root.querySelectorAll<HTMLButtonElement>("[data-bitfun-listbox-option]"),
   ).filter((option) => (
     option.closest('[role="listbox"]') === root
     && !option.disabled
@@ -65,7 +65,7 @@ function getEnabledOptions(root: HTMLElement) {
 
 function closestListboxOption(target: EventTarget | null) {
   return target && typeof (target as Element).closest === "function"
-    ? (target as Element).closest<HTMLButtonElement>("[data-openbitfun-listbox-option]")
+    ? (target as Element).closest<HTMLButtonElement>("[data-bitfun-listbox-option]")
     : null;
 }
 
@@ -184,9 +184,9 @@ export const Listbox = forwardRef<HTMLDivElement, ListboxProps>(function Listbox
       {...props}
       aria-multiselectable={multiple || undefined}
       className={classNames(styles.root, className)}
-      data-openbitfun-component="listbox"
-      data-openbitfun-focus-mode={focusMode}
-      data-openbitfun-multiple={multiple ? "true" : "false"}
+      data-bitfun-component="listbox"
+      data-bitfun-focus-mode={focusMode}
+      data-bitfun-multiple={multiple ? "true" : "false"}
       onFocusCapture={handleFocusCapture}
       onKeyDown={handleKeyDown}
       ref={setRootRef}
@@ -197,7 +197,7 @@ export const Listbox = forwardRef<HTMLDivElement, ListboxProps>(function Listbox
         orientation="vertical"
         scrollbarVisibility={scrollbarVisibility}
       >
-        <div className={styles.list} data-openbitfun-part="list">{children}</div>
+        <div className={styles.list} data-bitfun-part="list">{children}</div>
       </ScrollArea>
     </div>
   );
@@ -227,8 +227,8 @@ export const ListboxOption = forwardRef<HTMLButtonElement, ListboxOptionProps>(
         className={classNames(styles.option, className)}
         data-active={active ? "true" : "false"}
         data-overflow-active={active ? "true" : undefined}
-        data-openbitfun-listbox-option=""
-        data-openbitfun-part="option"
+        data-bitfun-listbox-option=""
+        data-bitfun-part="option"
         data-selected={selected ? "true" : "false"}
         data-value={value}
         disabled={disabled}
@@ -239,22 +239,22 @@ export const ListboxOption = forwardRef<HTMLButtonElement, ListboxOptionProps>(
         type="button"
       >
         {leading !== undefined && leading !== null && (
-          <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+          <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
             {leading}
           </span>
         )}
-        <span className={styles.content} data-openbitfun-part="content">
-          <OverflowText title={title === "" ? "" : undefined} className={styles.label} data-openbitfun-part="label" marqueeActive={active}>{children}</OverflowText>
+        <span className={styles.content} data-bitfun-part="content">
+          <OverflowText title={title === "" ? "" : undefined} className={styles.label} data-bitfun-part="label" marqueeActive={active}>{children}</OverflowText>
           {description !== undefined && description !== null && (
-            <span className={styles.description} data-openbitfun-part="description">
+            <span className={styles.description} data-bitfun-part="description">
               {description}
             </span>
           )}
         </span>
         {metadata !== undefined && metadata !== null && (
-          <OverflowText title={title === "" ? "" : undefined} className={styles.metadata} data-openbitfun-part="metadata" marqueeActive={active}>{metadata}</OverflowText>
+          <OverflowText title={title === "" ? "" : undefined} className={styles.metadata} data-bitfun-part="metadata" marqueeActive={active}>{metadata}</OverflowText>
         )}
-        <span aria-hidden="true" className={styles.indicator} data-openbitfun-part="indicator">
+        <span aria-hidden="true" className={styles.indicator} data-bitfun-part="indicator">
           {indicator ?? (selected ? <Icon name="check-line" /> : null)}
         </span>
       </button>
@@ -271,16 +271,16 @@ export const ListboxGroup = forwardRef<HTMLDivElement, ListboxGroupProps>(
         {...props}
         aria-labelledby={labelId}
         className={classNames(styles.group, className)}
-        data-openbitfun-part="group"
+        data-bitfun-part="group"
         ref={ref}
         role="group"
       >
         {labelId && (
-          <div className={styles.groupLabel} data-openbitfun-part="group-label" id={labelId}>
+          <div className={styles.groupLabel} data-bitfun-part="group-label" id={labelId}>
             {label}
           </div>
         )}
-        <div className={styles.groupOptions} data-openbitfun-part="group-options">{children}</div>
+        <div className={styles.groupOptions} data-bitfun-part="group-options">{children}</div>
       </div>
     );
   },
@@ -292,7 +292,7 @@ export const ListboxEmpty = forwardRef<HTMLDivElement, ListboxEmptyProps>(
       <div
         {...props}
         className={classNames(styles.empty, className)}
-        data-openbitfun-part="empty"
+        data-bitfun-part="empty"
         ref={ref}
         role="status"
       />

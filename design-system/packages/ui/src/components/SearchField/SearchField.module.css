@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     display: inline-flex;
     min-inline-size: 0;
@@ -6,20 +6,20 @@
 
   .field {
     inline-size: 100%;
-    border-radius: var(--openbitfun-radius-pill);
+    border-radius: var(--bitfun-radius-pill);
   }
 
   /* Search owns a quiet focus treatment without changing general-purpose Input. */
   .root[data-variant="default"] .field:where(:not([data-invalid="true"])) {
-    border-color: var(--openbitfun-color-border-subtle);
+    border-color: var(--bitfun-color-border-subtle);
   }
 
   .root[data-variant="default"] .field:where(:not([data-invalid="true"], [data-disabled="true"])):is(:hover, :focus-within) {
-    border-color: var(--openbitfun-color-border-default);
+    border-color: var(--bitfun-color-border-default);
   }
 
-  .field [data-openbitfun-part="trailing"] {
-    gap: var(--openbitfun-space-1);
+  .field [data-bitfun-part="trailing"] {
+    gap: var(--bitfun-space-1);
   }
 
   .root .clear {
@@ -27,13 +27,13 @@
     --_icon-button-background: transparent;
     --_icon-button-background-hover: transparent;
     --_icon-button-background-active: transparent;
-    --_icon-button-content: var(--openbitfun-color-field-placeholder);
+    --_icon-button-content: var(--bitfun-color-field-placeholder);
 
     background: transparent;
   }
 
   .root .clear:disabled {
-    --_icon-button-content: var(--openbitfun-color-content-disabled);
+    --_icon-button-content: var(--bitfun-color-content-disabled);
   }
 
   .root[data-variant="embedded"] .field,
@@ -48,26 +48,26 @@
 
   .root[data-variant="panel"] {
     flex-direction: column;
-    border-radius: var(--openbitfun-radius-lg);
-    outline: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    outline-offset: calc(-1 * var(--openbitfun-border-width-default));
-    color: var(--openbitfun-color-content-primary);
-    background: var(--openbitfun-color-surface-raised);
-    box-shadow: var(--openbitfun-shadow-overlay);
+    border-radius: var(--bitfun-radius-lg);
+    outline: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    outline-offset: calc(-1 * var(--bitfun-border-width-default));
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-raised);
+    box-shadow: var(--bitfun-shadow-overlay);
   }
 
   .root[data-variant="panel"]:focus-within {
-    outline-color: var(--openbitfun-color-border-default);
+    outline-color: var(--bitfun-color-border-default);
   }
 
   .root[data-variant="panel"]:has(.field[data-invalid="true"]) {
-    outline-color: var(--openbitfun-color-status-danger-border);
+    outline-color: var(--bitfun-color-status-danger-border);
   }
 
   .root[data-variant="panel"] .field,
   .root[data-variant="panel"] .field:is(:hover, :focus-within, [data-invalid="true"]) {
     /* Preserve the input row's geometry when a pill expands into a panel. */
-    border: var(--openbitfun-border-width-default) solid transparent;
+    border: var(--bitfun-border-width-default) solid transparent;
     border-radius: inherit;
     background: transparent;
     box-shadow: none;
@@ -78,36 +78,36 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-inline-size: 0;
-    min-block-size: calc(var(--openbitfun-control-height-sm) + var(--openbitfun-space-1) - var(--openbitfun-border-width-default));
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-2);
-    border-block-start: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    min-block-size: calc(var(--bitfun-control-height-sm) + var(--bitfun-space-1) - var(--bitfun-border-width-default));
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
   }
 
   @supports (backdrop-filter: none) or (-webkit-backdrop-filter: none) {
     .root[data-variant="panel"] {
       /* Surface tokens may be opaque; composite the whole panel before blurring. */
-      background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 80%, transparent);
-      -webkit-backdrop-filter: var(--openbitfun-effect-blur-medium);
-      backdrop-filter: var(--openbitfun-effect-blur-medium);
+      background: color-mix(in srgb, var(--bitfun-color-surface-raised) 80%, transparent);
+      -webkit-backdrop-filter: var(--bitfun-effect-blur-medium);
+      backdrop-filter: var(--bitfun-effect-blur-medium);
     }
   }
 
   :where(:global([data-contrast="high"])) .root[data-variant="panel"] {
-    background: var(--openbitfun-color-surface-raised);
+    background: var(--bitfun-color-surface-raised);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
     .root[data-variant="panel"] {
-      background: var(--openbitfun-color-surface-raised);
+      background: var(--bitfun-color-surface-raised);
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
     }
@@ -145,7 +145,7 @@
   }
 
   .icon > :where(svg, img),
-  .icon > [data-openbitfun-component="icon"] {
+  .icon > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -156,12 +156,12 @@
     align-items: center;
     justify-content: center;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
     white-space: nowrap;
   }
 

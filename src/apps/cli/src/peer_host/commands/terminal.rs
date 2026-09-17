@@ -3,7 +3,7 @@ use crate::peer_host::{
     args::{get_string, optional_string, request_value},
     state::PeerHostState,
 };
-use openbitfun_core::service::{
+use bitfun_core::service::{
     remote_ssh::{get_remote_workspace_manager, RemoteTerminalManager},
     terminal::{
         CloseSessionRequest, CreateSessionRequest, ResizeRequest, TerminalApi, WriteRequest,
@@ -18,7 +18,7 @@ fn api() -> Result<TerminalApi, String> {
 fn decode<T: DeserializeOwned>(args: &Value) -> Result<T, String> {
     serde_json::from_value(request_value(args).clone()).map_err(|e| e.to_string())
 }
-fn response(session: openbitfun_core::service::remote_ssh::RemoteTerminalSession) -> Value {
+fn response(session: bitfun_core::service::remote_ssh::RemoteTerminalSession) -> Value {
     json!({"id":session.id,"name":session.name,"cwd":session.cwd,"initialCwd":session.cwd,"shellType":"Remote","status":format!("{:?}",session.status),"cols":session.cols,"rows":session.rows,"connectionId":session.connection_id,"source":"user"})
 }
 async fn remote_session(id: &str) -> Option<RemoteTerminalManager> {
@@ -44,7 +44,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
     } else if explicit.is_some() {
         explicit
     } else if let Some(path) = &cwd {
-        openbitfun_core::service::remote_ssh::lookup_remote_connection(path)
+        bitfun_core::service::remote_ssh::lookup_remote_connection(path)
             .await
             .map(|entry| entry.connection_id)
     } else {
@@ -56,7 +56,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
         .await
         .ok_or("Account realtime publisher is unavailable")?;
     if let Some(connection) = connection {
-        let services = openbitfun_core::service::remote_ssh::workspace_state::ensure_saved_connection_services().await?;
+        let services = bitfun_core::service::remote_ssh::workspace_state::ensure_saved_connection_services().await?;
         let ssh = services
             .get_ssh_manager()
             .await
@@ -292,7 +292,7 @@ pub(crate) async fn shells() -> Result<Value, String> {
 }
 
 pub(crate) async fn signal(args: &Value) -> Result<Value, String> {
-    let request: openbitfun_core::service::terminal::SignalRequest = decode(args)?;
+    let request: bitfun_core::service::terminal::SignalRequest = decode(args)?;
     if let Some(manager) = remote_session(&request.session_id).await {
         let bytes: &[u8] = match request.signal.trim().to_ascii_uppercase().as_str() {
             "SIGINT" | "INT" => &[3],
@@ -315,7 +315,7 @@ pub(crate) async fn signal(args: &Value) -> Result<Value, String> {
 }
 
 pub(crate) async fn acknowledge(args: &Value) -> Result<Value, String> {
-    let request: openbitfun_core::service::terminal::AcknowledgeRequest = decode(args)?;
+    let request: bitfun_core::service::terminal::AcknowledgeRequest = decode(args)?;
     if remote_session(&request.session_id).await.is_none() {
         api()?
             .acknowledge_data(request)
@@ -335,7 +335,7 @@ pub(crate) async fn has_shell_integration(args: &Value) -> Result<Value, String>
 }
 
 pub(crate) async fn send_command(args: &Value) -> Result<Value, String> {
-    let request: openbitfun_core::service::terminal::SendCommandRequest = decode(args)?;
+    let request: bitfun_core::service::terminal::SendCommandRequest = decode(args)?;
     if let Some(manager) = remote_session(&request.session_id).await {
         manager
             .write(
@@ -372,7 +372,7 @@ pub(crate) async fn shutdown_all() -> Result<Value, String> {
 }
 
 pub(crate) async fn execute(args: &Value) -> Result<Value, String> {
-    let request: openbitfun_core::service::terminal::ExecuteCommandRequest = decode(args)?;
+    let request: bitfun_core::service::terminal::ExecuteCommandRequest = decode(args)?;
     let result = if let Some(manager) = remote_session(&request.session_id).await {
         manager
             .execute(&request.session_id, &request.command, request.timeout_ms)

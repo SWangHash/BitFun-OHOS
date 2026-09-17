@@ -19,7 +19,7 @@ export class SharedMarketAccountError extends Error {
 }
 
 export function csrfTokenFromCookie(cookieHeader: string): string | undefined {
-  const prefix = 'openbitfun_skin_csrf=';
+  const prefix = 'bitfun_skin_csrf=';
   return cookieHeader
     .split(';')
     .map((item) => item.trim())
@@ -66,5 +66,5 @@ export const sharedMarketAccountApi = {
 export function sharedMarketLoginUrl(
   returnTo = `${window.location.pathname}${window.location.search}`,
 ): string {
-  return `https://auth.openbitfun.com/sign-in?locale=${encodeURIComponent((typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'))}&returnTo=${encodeURIComponent(returnTo)}`;
+  return `https://auth.bitfun.com/sign-in?locale=${encodeURIComponent((typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'))}&returnTo=${encodeURIComponent(returnTo)}`;
 }

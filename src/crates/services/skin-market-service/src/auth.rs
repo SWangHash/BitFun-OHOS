@@ -1,14 +1,14 @@
 use crate::db::{Database, LocalUser};
 use crate::error::{SkinMarketError, SkinMarketResult};
 use axum::http::{header, HeaderMap};
-use openbitfun_product_domains::appearance_market::AppearanceMarketUserSummary;
+use bitfun_product_domains::appearance_market::AppearanceMarketUserSummary;
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 use url::Url;
 
-const SKIN_SESSION_COOKIE: &str = "openbitfun_skin_session";
-const SKIN_CSRF_COOKIE: &str = "openbitfun_skin_csrf";
+const SKIN_SESSION_COOKIE: &str = "bitfun_skin_session";
+const SKIN_CSRF_COOKIE: &str = "bitfun_skin_csrf";
 
 #[derive(Debug, Clone)]
 pub(crate) struct IdentityVerifier {
@@ -33,7 +33,7 @@ struct IdentityResponse {
 
 impl IdentityVerifier {
     pub(crate) fn new(me_url: Url) -> anyhow::Result<Self> {
-        openbitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+        bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
         Ok(Self {
             client: Client::builder()
                 .connect_timeout(Duration::from_secs(3))
@@ -239,7 +239,7 @@ mod tests {
             axum::routing::post(|headers: HeaderMap| async move {
                 assert_eq!(
                     headers.get(header::COOKIE).unwrap(),
-                    "openbitfun_skin_session=session-token; openbitfun_skin_csrf=csrf-token"
+                    "bitfun_skin_session=session-token; bitfun_skin_csrf=csrf-token"
                 );
                 assert_eq!(headers.get("x-csrf-token").unwrap(), "csrf-token");
                 assert!(headers.get(header::AUTHORIZATION).is_none());
@@ -261,7 +261,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::COOKIE,
-            "unrelated=private; openbitfun_skin_session=session-token; openbitfun_skin_csrf=csrf-token"
+            "unrelated=private; bitfun_skin_session=session-token; bitfun_skin_csrf=csrf-token"
                 .parse()
                 .unwrap(),
         );

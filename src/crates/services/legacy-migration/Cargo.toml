@@ -1,5 +1,5 @@
 [package]
-name = "openbitfun-legacy-migration"
+name = "bitfun-legacy-migration"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ description = "Offline legacy BitFun data migration service"
 autotests = false
 
 [lib]
-name = "openbitfun_legacy_migration"
+name = "bitfun_legacy_migration"
 crate-type = ["rlib"]
 
 [[example]]
@@ -23,8 +23,8 @@ chrono = { workspace = true }
 dirs = { workspace = true }
 fs2 = { workspace = true }
 hex = { workspace = true }
-openbitfun-product-domains = { path = "../../contracts/product-domains", features = ["legacy-migration"] }
-openbitfun-services-core = { path = "../services-core", features = ["process-runtime", "product-identity"] }
+bitfun-product-domains = { path = "../../contracts/product-domains", features = ["legacy-migration"] }
+bitfun-services-core = { path = "../services-core", features = ["process-runtime", "product-identity"] }
 rusqlite = { workspace = true, features = ["backup", "bundled"] }
 semver = { workspace = true }
 serde = { workspace = true }

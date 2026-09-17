@@ -7,7 +7,7 @@ export const avatarAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'group' }, { id: 'overflow' },
   ],
   facets: [
-    { id: 'size', attribute: 'data-openbitfun-size', values: ['small', 'medium', 'large', 'custom'] },
-    { id: 'shape', attribute: 'data-openbitfun-shape', values: ['circle', 'square'] },
+    { id: 'size', attribute: 'data-bitfun-size', values: ['small', 'medium', 'large', 'custom'] },
+    { id: 'shape', attribute: 'data-bitfun-shape', values: ['circle', 'square'] },
   ],
 };

@@ -26,7 +26,7 @@ function webmHeader(): Uint8Array {
 
 function manifest(): AppearancePackage {
   return {
-    schema: 'openbitfun.appearance',
+    schema: 'bitfun.appearance',
     schemaVersion: APPEARANCE_SCHEMA_VERSION,
     id: 'test.archive',
     name: 'Archive',
@@ -51,7 +51,7 @@ function manifest(): AppearancePackage {
         version: 1,
         settings: {
           tokens: {
-            '--openbitfun-color-surface-canvas': '#101820',
+            '--bitfun-color-surface-canvas': '#101820',
           },
         },
       },
@@ -87,7 +87,7 @@ describe('AppearancePackageParser', () => {
           version: 1,
           settings: {
             tokens: {
-              '--openbitfun-color-surface-canvas': '#101820',
+              '--bitfun-color-surface-canvas': '#101820',
             },
           },
         },
@@ -121,7 +121,7 @@ describe('AppearancePackageParser', () => {
 
   it('rejects unknown schemas', async () => {
     const unsupported = { ...manifest(), schema: 'example.unknown' };
-    await expect(parser.parse(await archive(unsupported))).rejects.toThrow('Schema must be openbitfun.appearance');
+    await expect(parser.parse(await archive(unsupported))).rejects.toThrow('Schema must be bitfun.appearance');
   });
 
   it('imports validated background video metadata and its poster', async () => {

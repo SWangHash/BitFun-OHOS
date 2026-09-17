@@ -6,16 +6,16 @@ use super::workspace_sessions::{
     read_workspace_sessions_manifest, target_wins_session_ids, SessionImportAction,
     WorkspaceSessionsManifest,
 };
-use openbitfun_legacy_migration::{
+use bitfun_legacy_migration::{
     atomic_write_bytes, atomic_write_json, snapshot_sqlite_read_only, validate_sqlite,
     DomainContext, DomainScan, LegacyDomainAdapter, LegacyMigrationError, LegacyMigrationResult,
     MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
-use openbitfun_services_core::coordination_persistence::{
+use bitfun_services_core::coordination_persistence::{
     coordination_table_has_column, initialize_coordination_schema, COORDINATION_SCHEMA_VERSION,
 };
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Transaction};
@@ -191,7 +191,7 @@ impl LegacyDomainAdapter for AgentCoordinationAdapter {
             },
             conflicts,
             target_schema: Some(format!(
-                "openbitfun.agent-coordination.v{COORDINATION_SCHEMA_VERSION}"
+                "bitfun.agent-coordination.v{COORDINATION_SCHEMA_VERSION}"
             )),
             dependencies: vec![MigrationDomainId::WorkspaceSessions],
         })
@@ -1413,16 +1413,16 @@ fn db_error(path: &Path, error: rusqlite::Error) -> LegacyMigrationError {
 mod tests {
     use super::*;
     use crate::adapters_for_groups;
-    use openbitfun_legacy_migration::{
+    use bitfun_legacy_migration::{
         probe_legacy_source, CancellationToken, CrashInjector, CrashPoint, MigrationEngine,
         NoCrashInjection, ProbeLimits,
     };
-    use openbitfun_product_domains::legacy_migration::{
+    use bitfun_product_domains::legacy_migration::{
         MigrationGroupId, MigrationRunStatus, MigrationSelection,
     };
-    use openbitfun_services_core::session::OfflineSessionImportStore;
-    use openbitfun_services_core::session_projection_format::validate_runtime_event_log;
-    use openbitfun_services_core::workspace_persistence::{
+    use bitfun_services_core::session::OfflineSessionImportStore;
+    use bitfun_services_core::session_projection_format::validate_runtime_event_log;
+    use bitfun_services_core::workspace_persistence::{
         validate_workspace_persistence_data, WorkspacePersistenceData,
     };
     use std::io::Read;
@@ -2015,7 +2015,7 @@ mod tests {
             )
             .unwrap()
         );
-        let layout = openbitfun_legacy_migration::MigrationLayout::new(&roots, &plan.run_id);
+        let layout = bitfun_legacy_migration::MigrationLayout::new(&roots, &plan.run_id);
         let context = DomainContext {
             roots: &roots,
             layout: &layout,
@@ -2204,12 +2204,12 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();
         tempfile::Builder::new()
-            .prefix(&format!("openbitfun-migration-{label}-"))
+            .prefix(&format!("bitfun-migration-{label}-"))
             .tempdir_in(root)
             .unwrap()
     }

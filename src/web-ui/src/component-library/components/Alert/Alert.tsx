@@ -90,20 +90,20 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(({
       style={style}
       role="alert"
       aria-live={type === 'error' ? 'assertive' : 'polite'}
-      data-openbitfun-component="alert"
-      data-openbitfun-part="root"
-      data-openbitfun-variant={type}
+      data-bitfun-component="alert"
+      data-bitfun-part="root"
+      data-bitfun-variant={type}
     >
       {showIcon && (
-        <div className="alert__icon" data-openbitfun-component="alert" data-openbitfun-part="icon">
+        <div className="alert__icon" data-bitfun-component="alert" data-bitfun-part="icon">
           {icons[type]}
         </div>
       )}
       
-      <div className="alert__content" data-openbitfun-component="alert" data-openbitfun-part="content">
-        {title && <div className="alert__title" data-openbitfun-component="alert" data-openbitfun-part="title">{title}</div>}
-        <div className="alert__message" data-openbitfun-component="alert" data-openbitfun-part="message">{message}</div>
-        {description && <div className="alert__description" data-openbitfun-component="alert" data-openbitfun-part="description">{description}</div>}
+      <div className="alert__content" data-bitfun-component="alert" data-bitfun-part="content">
+        {title && <div className="alert__title" data-bitfun-component="alert" data-bitfun-part="title">{title}</div>}
+        <div className="alert__message" data-bitfun-component="alert" data-bitfun-part="message">{message}</div>
+        {description && <div className="alert__description" data-bitfun-component="alert" data-bitfun-part="description">{description}</div>}
       </div>
 
       {closable && (
@@ -111,8 +111,8 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(({
           className="alert__close"
           onClick={handleClose}
           aria-label={t('tooltip.close')}
-          data-openbitfun-component="alert"
-          data-openbitfun-part="close"
+          data-bitfun-component="alert"
+          data-bitfun-part="close"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M1 1L11 11M11 1L1 11" strokeLinecap="round"/>

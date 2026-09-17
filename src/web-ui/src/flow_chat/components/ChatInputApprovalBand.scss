@@ -3,15 +3,15 @@
 // no child composer exists.
 @use '@/shared/styles/surface-recipes' as surfaces;
 
-.openbitfun-chat-input-approval {
+.bitfun-chat-input-approval {
   box-sizing: border-box;
   // The composer centers its children, so constrain the band before laying out
   // long resources; otherwise its intrinsic width can exceed the composer.
   width: 100%;
   min-width: 0;
-  max-width: min(100%, var(--openbitfun-overlay-dialog-max-inline-size-large));
+  max-width: min(100%, var(--bitfun-overlay-dialog-max-inline-size-large));
   margin-inline: auto;
-  margin-bottom: var(--openbitfun-space-3);
+  margin-bottom: var(--bitfun-space-3);
 
   &__surface {
     @include surfaces.floating;
@@ -22,10 +22,10 @@
   }
 
   &__owner {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    font-weight: var(--openbitfun-type-flow-support-font-weight);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    font-weight: var(--bitfun-type-flow-support-font-weight);
+    line-height: var(--bitfun-type-flow-support-line-height);
   }
 
   // Keep the full command readable without letting it widen the composer or
@@ -33,9 +33,9 @@
   &__resource {
     flex: 1;
     max-height: min(160px, 25vh);
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-code-sm-font-size);
-    line-height: var(--openbitfun-type-code-sm-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-code-sm-font-size);
+    line-height: var(--bitfun-type-code-sm-line-height);
   }
 
   &__note {
@@ -44,10 +44,10 @@
 
   &__grant-note {
     margin: 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    font-weight: var(--openbitfun-type-flow-support-font-weight);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    font-weight: var(--bitfun-type-flow-support-font-weight);
+    line-height: var(--bitfun-type-flow-support-line-height);
     overflow-wrap: anywhere;
   }
 
@@ -61,7 +61,7 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     margin-inline-start: auto;
   }
 }

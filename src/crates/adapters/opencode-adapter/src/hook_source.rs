@@ -6,20 +6,20 @@ use crate::{
     },
     source_adapter::statically_discover_hook_events,
 };
-use openbitfun_product_domains::external_hook_catalog::{
+use bitfun_product_domains::external_hook_catalog::{
     ExternalHookCatalogEntry, ExternalHookHandlerKind, ExternalHookMapping,
     ExternalHookMatcherSummary, ExternalHookNativeActivation, ExternalHookProjectionStatus,
     ExternalHookProviderIdentity, ExternalHookProviderSnapshot, ExternalHookSource,
     ExternalHookSourceKind, ExternalHookSourceProvider,
 };
-use openbitfun_product_domains::external_hook_contributions::ExternalHookPoint;
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_hook_contributions::ExternalHookPoint;
+use bitfun_product_domains::external_sources::{
     EcosystemId, ExternalSourceAssetKind, ExternalSourceContext, ExternalSourceDiagnostic,
     ExternalSourceDiagnosticSeverity, ExternalSourceHealth, ExternalSourceProviderError,
     ExternalSourceScope, SourceKey,
 };
-use openbitfun_services_core::bounded_fs::BoundedTextRead;
-use openbitfun_static_hook_support::{read_bounded_file, BoundedFileRead};
+use bitfun_services_core::bounded_fs::BoundedTextRead;
+use bitfun_static_hook_support::{read_bounded_file, BoundedFileRead};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;

@@ -63,7 +63,7 @@ pub mod workspace_runtime; // Workspace runtime layout / migration / initializat
 pub mod worktree; // Managed Git worktree lifecycle and session bindings
 
 // Terminal is implemented in the workspace-level `terminal-core` crate.
-// This re-export preserves the legacy `openbitfun_core::service::terminal` path.
+// This re-export preserves the legacy `bitfun_core::service::terminal` path.
 #[cfg(feature = "terminal")]
 pub use terminal_core as terminal;
 
@@ -99,13 +99,13 @@ pub use i18n::{I18nConfig, LocaleId, LocaleMetadata};
 #[cfg(feature = "mcp-runtime")]
 pub use mcp::MCPService;
 #[cfg(feature = "diagnostics")]
-pub use openbitfun_services_core::diagnostics;
+pub use bitfun_services_core::diagnostics;
 #[cfg(feature = "diff")]
-pub use openbitfun_services_core::diff;
+pub use bitfun_services_core::diff;
 #[cfg(feature = "process-runtime")]
-pub use openbitfun_services_core::system;
+pub use bitfun_services_core::system;
 #[cfg(feature = "file-watch")]
-pub use openbitfun_services_integrations::file_watch;
+pub use bitfun_services_integrations::file_watch;
 #[cfg(feature = "review-platform")]
 pub use review_platform::{
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,

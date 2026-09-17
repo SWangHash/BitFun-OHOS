@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn atomic_write_supports_windows_paths_beyond_max_path() {
         let temp = tempfile::Builder::new()
-            .prefix("openbitfun-legacy-migration-long-path-")
+            .prefix("bitfun-legacy-migration-long-path-")
             .tempdir()
             .unwrap();
         let mut parent = temp.path().to_path_buf();

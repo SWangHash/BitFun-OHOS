@@ -37,8 +37,8 @@ vi.mock('@/infrastructure/contexts/WorkspaceContext', () => ({
     hasWorkspace: true,
     currentWorkspace: {
       id: 'workspace-1',
-      name: 'OpenBitFun',
-      rootPath: 'D:/workspace/OpenBitFun',
+      name: 'BitFun',
+      rootPath: 'D:/workspace/BitFun',
     },
     openedWorkspacesList: [],
     openWorkspace: vi.fn(),
@@ -88,10 +88,10 @@ describe('WelcomePanel Git summary loading', () => {
     act(() => {
       root.unmount();
     });
-    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
+    document.querySelector('[data-bitfun-overlay-host="true"]')?.remove();
     document.head.querySelector('style[data-welcome-appearance-test]')?.remove();
-    document.documentElement.removeAttribute('data-openbitfun-appearance');
-    document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+    document.documentElement.removeAttribute('data-bitfun-appearance');
+    document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     container.remove();
   });
 
@@ -103,7 +103,7 @@ describe('WelcomePanel Git summary loading', () => {
       root.render(<WelcomePanel sessionMode='Standard' />);
     });
 
-    expect(gitApiMock.isGitRepository).toHaveBeenCalledWith('D:/workspace/OpenBitFun');
+    expect(gitApiMock.isGitRepository).toHaveBeenCalledWith('D:/workspace/BitFun');
 
     act(() => {
       root.unmount();
@@ -124,9 +124,9 @@ describe('WelcomePanel Git summary loading', () => {
       root.render(<WelcomePanel sessionMode='Standard' />);
     });
 
-    expect(gitApiMock.getStatus).toHaveBeenCalledWith('D:/workspace/OpenBitFun', 'welcome_panel');
-    expect(container.querySelector('[data-openbitfun-product-part="workspaceAction"]')).not.toBeNull();
-    expect(container.querySelector('[data-openbitfun-product-part="gitAction"]')).not.toBeNull();
+    expect(gitApiMock.getStatus).toHaveBeenCalledWith('D:/workspace/BitFun', 'welcome_panel');
+    expect(container.querySelector('[data-bitfun-product-part="workspaceAction"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-product-part="gitAction"]')).not.toBeNull();
   });
 
   it('does not render the retired panda mascot', async () => {
@@ -134,7 +134,7 @@ describe('WelcomePanel Git summary loading', () => {
       root.render(<WelcomePanel sessionMode="claw" workspacePath="D:/workspace/Assistant" />);
     });
 
-    expect(container.querySelector('[data-openbitfun-product-part="mascot"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-product-part="mascot"]')).toBeNull();
     expect(container.querySelector('img[src^="/panda_full_"]')).toBeNull();
   });
 
@@ -144,23 +144,23 @@ describe('WelcomePanel Git summary loading', () => {
       root.render(<WelcomePanel sessionMode='Standard' />);
     });
 
-    const trigger = container.querySelector<HTMLButtonElement>('[data-openbitfun-product-part="workspaceAction"]');
-    expect(trigger?.getAttribute('data-openbitfun-component')).toBe('button');
+    const trigger = container.querySelector<HTMLButtonElement>('[data-bitfun-product-part="workspaceAction"]');
+    expect(trigger?.getAttribute('data-bitfun-component')).toBe('button');
     expect(trigger?.querySelector('[data-overflow-behavior]')).toBeNull();
-    await act(async () => trigger?.querySelector<HTMLElement>('[data-openbitfun-part="label"]')?.click());
+    await act(async () => trigger?.querySelector<HTMLElement>('[data-bitfun-part="label"]')?.click());
 
-    const menu = document.querySelector<HTMLElement>('[data-openbitfun-product-part="workspaceMenu"]');
-    expect(menu?.parentElement?.getAttribute('data-openbitfun-overlay-host')).toBe('true');
+    const menu = document.querySelector<HTMLElement>('[data-bitfun-product-part="workspaceMenu"]');
+    expect(menu?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
     expect(menu?.style.visibility).toBe('visible');
 
-    await act(async () => trigger?.querySelector<HTMLElement>('[data-openbitfun-part="trailing-icon"]')?.click());
+    await act(async () => trigger?.querySelector<HTMLElement>('[data-bitfun-part="trailing-icon"]')?.click());
     expect(trigger?.getAttribute('aria-expanded')).toBe('false');
-    expect(document.querySelector('[data-openbitfun-product-part="workspaceMenu"]')).toBeNull();
+    expect(document.querySelector('[data-bitfun-product-part="workspaceMenu"]')).toBeNull();
   });
 
   it('keeps saved welcome action styles targeting the migrated Button', async () => {
     const legacyPackage: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
       id: 'test.welcome', name: 'Welcome', version: '1.0.0', mode: 'dark',
       components: {
         'welcome-panel': { parts: {
@@ -173,8 +173,8 @@ describe('WelcomePanel Git summary loading', () => {
     const registry = new AppearanceRegistry().registerComponent(welcomePanelAppearanceDescriptor);
     const snapshot = new AppearanceCompiler(registry).compile(restored, 1);
     expect(JSON.stringify(restored)).toBe(serialized);
-    document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+    document.documentElement.setAttribute('data-bitfun-appearance', snapshot.id);
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', String(snapshot.revision));
     const style = document.createElement('style');
     style.setAttribute('data-welcome-appearance-test', '');
     style.textContent = snapshot.cssText;
@@ -188,7 +188,7 @@ describe('WelcomePanel Git summary loading', () => {
     ) as CSSStyleRule | undefined;
     expect(rule).toBeDefined();
     expect(document.querySelector(rule!.selectorText)).toBe(
-      container.querySelector('[data-openbitfun-product-part="workspaceAction"]'),
+      container.querySelector('[data-bitfun-product-part="workspaceAction"]'),
     );
   });
 });

@@ -60,7 +60,7 @@ jobs:
           node scripts/data-migrator-release.mjs --check-version
           node --test scripts/data-migrator-tauri-build.test.mjs
       - name: Check offline data compatibility
-        run: cargo test --locked -p openbitfun-data-migrator -p openbitfun-legacy-migration-adapters -p openbitfun-legacy-migration -p openbitfun-config-contracts --lib --test migration_engine_contracts
+        run: cargo test --locked -p bitfun-data-migrator -p bitfun-legacy-migration-adapters -p bitfun-legacy-migration -p bitfun-config-contracts --lib --test migration_engine_contracts
       - name: Build independent package
         run: pnpm run data-migrator:build -- --target ${{ matrix.target }} ${{ matrix.bundles }}
       - name: Stage package and checksum
@@ -92,13 +92,13 @@ jobs:
       - name: Sign and verify with the independent migrator release key
         shell: bash
         env:
-          OPENBITFUN_SIGNING_KEY: ${{ secrets.DATA_MIGRATOR_SIGNING_PRIVATE_KEY }}
-          OPENBITFUN_SIGNING_PASSWORD: ${{ secrets.DATA_MIGRATOR_SIGNING_PRIVATE_KEY_PASSWORD }}
-          OPENBITFUN_SIGNING_PUBKEY: ${{ secrets.DATA_MIGRATOR_SIGNING_PUBKEY }}
+          BITFUN_SIGNING_KEY: ${{ secrets.DATA_MIGRATOR_SIGNING_PRIVATE_KEY }}
+          BITFUN_SIGNING_PASSWORD: ${{ secrets.DATA_MIGRATOR_SIGNING_PRIVATE_KEY_PASSWORD }}
+          BITFUN_SIGNING_PUBKEY: ${{ secrets.DATA_MIGRATOR_SIGNING_PUBKEY }}
         run: |
           set -euo pipefail
-          test -n "$OPENBITFUN_SIGNING_KEY"
-          test -n "$OPENBITFUN_SIGNING_PUBKEY"
+          test -n "$BITFUN_SIGNING_KEY"
+          test -n "$BITFUN_SIGNING_PUBKEY"
           cat migrator-release-assets/*.sha256 | sort -k2 > migrator-release-assets/SHA256SUMS
           (cd migrator-release-assets && sha256sum --check SHA256SUMS)
           bash scripts/sign-release-assets.sh migrator-release-assets/*
@@ -107,7 +107,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
-          name: OpenBitFun Data Migrator ${{ github.ref_name }}
+          name: BitFun Data Migrator ${{ github.ref_name }}
           draft: true
           make_latest: false
           files: migrator-release-assets/*

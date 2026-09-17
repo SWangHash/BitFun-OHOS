@@ -3,9 +3,9 @@
 Flashgrep accelerated search is currently unavailable for remote workspaces.
 Index controls are hidden; content-search operations that depend on Flashgrep
 return an explicit unsupported error. Remote file-name search remains available.
-OpenBitFun never falls back to searching the controller filesystem for a remote path.
+BitFun never falls back to searching the controller filesystem for a remote path.
 
-OpenBitFun remote workspaces use one saved target for the file explorer, terminal,
+BitFun remote workspaces use one saved target for the file explorer, terminal,
 Agent commands, and workspace tools. The target can be:
 
 - an SSH host;
@@ -13,7 +13,7 @@ Agent commands, and workspace tools. The target can be:
 - a Docker container on an SSH host;
 - a Docker container on the local machine; or
 - an sshd endpoint running inside a container; or
-- a WSL Linux distribution on the Windows OpenBitFun host.
+- a WSL Linux distribution on the Windows BitFun host.
 
 The local client behavior is supported on macOS, Windows, and Linux. Remote
 workspace paths are always interpreted with POSIX `/` separators, independent
@@ -23,7 +23,7 @@ paths or commands with Windows semantics.
 
 ## Windows WSL
 
-Choose **Windows WSL** as its own workspace target. OpenBitFun discovers installed
+Choose **Windows WSL** as its own workspace target. BitFun discovers installed
 distributions on the executing Windows host and connects through `wsl.exe`.
 See [Desktop WSL setup](../../src/apps/desktop/README.md#windows-wsl-workspaces)
 for prerequisites, user selection, and remote-surface support.
@@ -35,7 +35,7 @@ for prerequisites, user selection, and remote-surface support.
 `~/.ssh/config`. Each alias may provide its own `HostName`, `Port`, `User`, and
 `IdentityFile`, so hop credentials do not need to match the final target.
 
-OpenBitFun opens each hop in order and carries the next SSH handshake over a
+BitFun opens each hop in order and carries the next SSH handshake over a
 `direct-tcpip` channel. Connection errors identify the failed jump number or
 the final target, and distinguish reachability from SSH authentication.
 
@@ -46,7 +46,7 @@ timeouts, whole-chain retries, and challenge-round limits.
 
 ## Docker targets
 
-For **Docker on SSH host**, OpenBitFun first establishes the SSH connection (and
+For **Docker on SSH host**, BitFun first establishes the SSH connection (and
 optional jump chain), then wraps workspace operations with:
 
 ```text
@@ -62,7 +62,7 @@ must point directly to the container's sshd endpoint. Optional jump hosts use
 the same SSH path described above.
 
 `Auto` probes the container's published `22/tcp` endpoint and completes an SSH
-handshake. If sshd is unavailable or rejects authentication, OpenBitFun falls back
+handshake. If sshd is unavailable or rejects authentication, BitFun falls back
 to `docker exec`. The connection dialog shows the resolved access mode and can
 test jumps, the target, and the container before connecting. It can also list
 containers from local Docker or from the configured SSH Docker host.
@@ -78,7 +78,7 @@ When a Docker target is selected:
 - the workspace path is a path inside the container, not a host path.
 
 A host bind mount is visible only through the path at which it is mounted in
-the container. OpenBitFun does not silently translate host paths to container
+the container. BitFun does not silently translate host paths to container
 paths. File transfer uses binary stdin/stdout streams. Uploads write to a
 same-directory temporary file and rename atomically after success; cancellation
 leaves the previous destination intact. Ordinary SSH workspaces continue to use
@@ -100,7 +100,7 @@ temporary directory does not make an existing Docker workspace unusable;
 execution continues with transport-level cancellation as the compatibility
 fallback.
 
-The configured Docker CLI remains the security boundary. OpenBitFun does not expose
+The configured Docker CLI remains the security boundary. BitFun does not expose
 the Docker daemon over the network or bypass the current user's Docker
 permissions.
 
@@ -130,16 +130,16 @@ for recovery guidance.
 Agent Grep keeps one matching and result-processing implementation. For
 case-sensitive literals and literal alternatives such as `foo|bar`, an available
 compatible `rg` can preselect candidate files to reduce SSH transfer. Without
-`rg`, OpenBitFun can automatically use a compatible system `grep` in batches for the
+`rg`, BitFun can automatically use a compatible system `grep` in batches for the
 same purpose. Both are checked for required behavior before use. The shared
 scanner applies the query, file types, context, counting and pagination.
 Complex regular expressions, case folding or unavailable target accelerators
-use file streams through the existing workspace connection. Installing OpenBitFun
+use file streams through the existing workspace connection. Installing BitFun
 on the target is not required. Stream scanning can transfer more data and take
 longer on a slow connection; results report the backend and scanned bytes.
 
 System grep is not a transparent replacement: its default regular expression
-syntax, supported options and filename framing differ. OpenBitFun does not silently
+syntax, supported options and filename framing differ. BitFun does not silently
 substitute a weaker expression and return a misleading empty result. Search
 failures retain their diagnostics. Remote Glob uses the shared matcher on
 POSIX paths, preserving filename boundaries and applying the pattern before
@@ -147,7 +147,7 @@ the result limit.
 
 The built-in Grep tool accepts structured search arguments. This differs from
 `ExecCommand`, where the model supplies a shell command executed in the Session's
-target environment. A missing shell program is reported as such; OpenBitFun does
+target environment. A missing shell program is reported as such; BitFun does
 not silently rewrite that command or install software.
 
 ## Session forks and file previews
@@ -160,8 +160,8 @@ remote binding, even when another host has a workspace with the same path.
 
 Read, Write, Edit, Delete and LS share their tool logic across local and remote
 workspaces. Only filesystem IO changes provider. Agent Runtime, credentials,
-permissions, Session history and snapshot metadata stay on the OpenBitFun host;
-SSH workspaces do not start a remote OpenBitFun CLI or shared daemon.
+permissions, Session history and snapshot metadata stay on the BitFun host;
+SSH workspaces do not start a remote BitFun CLI or shared daemon.
 
 New remote file modifications can record snapshots in the host's local mirror,
 isolated by the complete connection identity. A successfully recorded operation
@@ -182,12 +182,12 @@ failure never causes a file tool to execute twice.
 Git refuses a repository whose directory is owned by another user until the
 path is listed in the protected `safe.directory` configuration — a common shape
 for shared SSH hosts, bind-mounted trees, and containers that run as a
-different uid. OpenBitFun classifies that refusal as its own state instead of
+different uid. BitFun classifies that refusal as its own state instead of
 reporting "not a repository", so Git-backed surfaces can explain the wall and
 the Review launch fails with a specific reason.
 
 The decision itself belongs to the machine that owns the repository. For a
-remote workspace OpenBitFun reports the state and hands over the exact command
+remote workspace BitFun reports the state and hands over the exact command
 (`git config --global --add safe.directory "<path>"`) to run on the remote
 host; it never writes the remote user's global Git configuration, and it never
 grants trust implicitly as a fallback of a failed read. The same rule applies
@@ -245,7 +245,7 @@ Legacy local-Docker profiles do not need an SSH password-vault entry, even if
 their old serialized auth placeholder is an empty password.
 
 If a saved password is unavailable after an upgrade or local keychain reset,
-OpenBitFun keeps the connection and workspace records and asks for the password on
+BitFun keeps the connection and workspace records and asks for the password on
 the next manual reconnect. A startup timeout or temporary network failure marks
 the workspace as unavailable but does not delete its restore metadata.
 

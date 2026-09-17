@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "openbitfun-mobile-shared"
+rootProject.name = "bitfun-mobile-shared"
 
 // Phase 1 fills protocol / crypto / transport / testing.
 // The remaining modules exist as skeletons so the dependency graph and the

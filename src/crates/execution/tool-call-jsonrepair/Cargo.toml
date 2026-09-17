@@ -1,5 +1,5 @@
 [package]
-name = "openbitfun-tool-call-jsonrepair"
+name = "bitfun-tool-call-jsonrepair"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

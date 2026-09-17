@@ -1,6 +1,6 @@
 {
   "modelVersion": "6.1.1",
-  "description": "OpenBitFun HarmonyOS remote client.",
+  "description": "BitFun HarmonyOS remote client.",
   "dependencies": {
   },
   "devDependencies": {

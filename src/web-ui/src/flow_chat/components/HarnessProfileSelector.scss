@@ -1,4 +1,4 @@
-.openbitfun-harness-selector {
+.bitfun-harness-selector {
   position: relative;
   display: flex;
   align-items: center;
@@ -7,7 +7,7 @@
   min-width: 0;
 }
 
-.openbitfun-harness-selector__trigger {
+.bitfun-harness-selector__trigger {
   position: relative;
   box-sizing: border-box;
   width: auto;
@@ -19,86 +19,86 @@
   border: 0;
   border-radius: 13px;
   background: transparent;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font: inherit;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  font-weight: var(--openbitfun-type-label-sm-font-weight);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  font-weight: var(--bitfun-type-label-sm-font-weight);
   white-space: nowrap;
   text-align: left;
   cursor: pointer;
   transition:
-    background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:hover,
-  &[data-openbitfun-state~='open'] {
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-primary);
+  &[data-bitfun-state~='open'] {
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-primary);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--openbitfun-color-accent-default);
+    outline: 2px solid var(--bitfun-color-accent-default);
     outline-offset: -2px;
   }
 }
 
-.openbitfun-harness-selector__trigger-value {
+.bitfun-harness-selector__trigger-value {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
 }
 
-.openbitfun-harness-selector__row-contract {
+.bitfun-harness-selector__row-contract {
   display: contents;
 }
 
-.openbitfun-harness-selector__trigger-chevron {
+.bitfun-harness-selector__trigger-chevron {
   flex: none;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 // Inside ChatInput's add menu the current Harness/main-Agent signature is a
 // normal full-width disclosure row. The secondary picker uses the shared
 // overlay host so the parent menu's scroll viewport cannot clip it.
-.openbitfun-harness-selector--menu-item {
-  --openbitfun-harness-profile-accent: var(--openbitfun-color-action-neutral-content);
+.bitfun-harness-selector--menu-item {
+  --bitfun-harness-profile-accent: var(--bitfun-color-action-neutral-content);
 
   width: 100%;
 
-  &[data-openbitfun-profile='Minimal'] {
-    --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-minimal);
+  &[data-bitfun-profile='Minimal'] {
+    --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-minimal);
   }
 
-  &[data-openbitfun-profile='Standard'] {
-    --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-standard);
+  &[data-bitfun-profile='Standard'] {
+    --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-standard);
   }
 
-  &[data-openbitfun-profile='Ultimate'] {
-    --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-ultimate);
+  &[data-bitfun-profile='Ultimate'] {
+    --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-ultimate);
   }
 
-  &[data-openbitfun-profile='Creative'] {
-    --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-creative);
+  &[data-bitfun-profile='Creative'] {
+    --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-creative);
   }
 
-  [data-openbitfun-part='label'] {
-    color: var(--openbitfun-harness-profile-accent);
-    font-family: var(--openbitfun-type-flow-control-font-family);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+  [data-bitfun-part='label'] {
+    color: var(--bitfun-harness-profile-accent);
+    font-family: var(--bitfun-type-flow-control-font-family);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
-  &[data-openbitfun-profile='Ultimate'] [data-openbitfun-component='action-item'] {
-    [data-openbitfun-part='label'] {
+  &[data-bitfun-profile='Ultimate'] [data-bitfun-component='action-item'] {
+    [data-bitfun-part='label'] {
       font-style: italic;
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
   }
 
-  &[data-openbitfun-profile='Creative'] [data-openbitfun-component='action-item'] {
-    [data-openbitfun-part='label'] {
-      font-family: var(--openbitfun-type-flow-code-font-family);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
-      letter-spacing: var(--openbitfun-type-modifier-tracking-subtle-letter-spacing);
+  &[data-bitfun-profile='Creative'] [data-bitfun-component='action-item'] {
+    [data-bitfun-part='label'] {
+      font-family: var(--bitfun-type-flow-code-font-family);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
+      letter-spacing: var(--bitfun-type-modifier-tracking-subtle-letter-spacing);
     }
   }
 }
@@ -106,12 +106,12 @@
 // The reference uses a blurred ellipse that overflows the shell's top-left
 // corner. The menu itself supplies the 220x100 clipping layer from the design;
 // the glow keeps the same geometry for every Harness identity color.
-.openbitfun-chat-input__mode-dropdown--agent-boost:has(
-  .openbitfun-harness-selector--menu-item:is(
-    [data-openbitfun-profile='Minimal'],
-    [data-openbitfun-profile='Standard'],
-    [data-openbitfun-profile='Ultimate'],
-    [data-openbitfun-profile='Creative']
+.bitfun-chat-input__mode-dropdown--agent-boost:has(
+  .bitfun-harness-selector--menu-item:is(
+    [data-bitfun-profile='Minimal'],
+    [data-bitfun-profile='Standard'],
+    [data-bitfun-profile='Ultimate'],
+    [data-bitfun-profile='Creative']
   )
 ) {
   overflow: hidden;
@@ -125,10 +125,10 @@
     height: 100px;
     left: -100px;
     top: -50px;
-    border-radius: var(--openbitfun-radius-pill);
+    border-radius: var(--bitfun-radius-pill);
     background: radial-gradient(
       ellipse 50% 50% at 50% 50%,
-      var(--openbitfun-harness-profile-accent) 0%,
+      var(--bitfun-harness-profile-accent) 0%,
       transparent 100%
     );
     filter: blur(20px);
@@ -136,93 +136,93 @@
     pointer-events: none;
   }
 
-  > [data-openbitfun-part='viewport'] {
+  > [data-bitfun-part='viewport'] {
     position: relative;
     z-index: 1;
   }
 }
 
-.openbitfun-chat-input__mode-dropdown--agent-boost:has(
-  .openbitfun-harness-selector--menu-item[data-openbitfun-profile='Minimal']
+.bitfun-chat-input__mode-dropdown--agent-boost:has(
+  .bitfun-harness-selector--menu-item[data-bitfun-profile='Minimal']
 ) {
-  --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-minimal);
+  --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-minimal);
 }
 
-.openbitfun-chat-input__mode-dropdown--agent-boost:has(
-  .openbitfun-harness-selector--menu-item[data-openbitfun-profile='Standard']
+.bitfun-chat-input__mode-dropdown--agent-boost:has(
+  .bitfun-harness-selector--menu-item[data-bitfun-profile='Standard']
 ) {
-  --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-standard);
+  --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-standard);
 }
 
-.openbitfun-chat-input__mode-dropdown--agent-boost:has(
-  .openbitfun-harness-selector--menu-item[data-openbitfun-profile='Ultimate']
+.bitfun-chat-input__mode-dropdown--agent-boost:has(
+  .bitfun-harness-selector--menu-item[data-bitfun-profile='Ultimate']
 ) {
-  --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-ultimate);
+  --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-ultimate);
 }
 
-.openbitfun-chat-input__mode-dropdown--agent-boost:has(
-  .openbitfun-harness-selector--menu-item[data-openbitfun-profile='Creative']
+.bitfun-chat-input__mode-dropdown--agent-boost:has(
+  .bitfun-harness-selector--menu-item[data-bitfun-profile='Creative']
 ) {
-  --openbitfun-harness-profile-accent: var(--openbitfun-color-identity-harness-creative);
+  --bitfun-harness-profile-accent: var(--bitfun-color-identity-harness-creative);
 }
 
 // Catalog marks share one slot; their geometry already includes each profile's
 // internal detail, so no additional center mark is layered over the asset.
-.openbitfun-harness-selector__density-mark {
+.bitfun-harness-selector__density-mark {
   position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
   width: 16px;
   height: 16px;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
 }
 
-.openbitfun-harness-selector__density-frame {
+.bitfun-harness-selector__density-frame {
   position: absolute;
   flex: none;
   color: currentColor;
 }
 
-.openbitfun-harness-selector__density-mark[data-harness-profile='Minimal'] {
-  color: var(--openbitfun-color-identity-harness-minimal);
+.bitfun-harness-selector__density-mark[data-harness-profile='Minimal'] {
+  color: var(--bitfun-color-identity-harness-minimal);
 }
 
-.openbitfun-harness-selector__density-mark[data-harness-profile='Standard'] {
-  color: var(--openbitfun-color-identity-harness-standard);
+.bitfun-harness-selector__density-mark[data-harness-profile='Standard'] {
+  color: var(--bitfun-color-identity-harness-standard);
 }
 
-.openbitfun-harness-selector__density-mark[data-harness-profile='Ultimate'] {
-  color: var(--openbitfun-color-identity-harness-ultimate);
+.bitfun-harness-selector__density-mark[data-harness-profile='Ultimate'] {
+  color: var(--bitfun-color-identity-harness-ultimate);
 }
 
-.openbitfun-harness-selector__density-mark[data-harness-profile='Creative'] {
-  color: var(--openbitfun-color-identity-harness-creative);
+.bitfun-harness-selector__density-mark[data-harness-profile='Creative'] {
+  color: var(--bitfun-color-identity-harness-creative);
 }
 
-.openbitfun-harness-selector__menu [data-openbitfun-part='label'] {
-  font-family: var(--openbitfun-type-flow-control-font-family);
+.bitfun-harness-selector__menu [data-bitfun-part='label'] {
+  font-family: var(--bitfun-type-flow-control-font-family);
 }
 
 // One surface swaps between Harness profiles and the second-level Agent list.
-.openbitfun-harness-selector__menu {
+.bitfun-harness-selector__menu {
   position: fixed;
-  z-index: var(--openbitfun-layer-popover);
+  z-index: var(--bitfun-layer-popover);
 }
 
-.openbitfun-harness-selector__empty {
+.bitfun-harness-selector__empty {
   padding: 14px 10px;
-  color: var(--openbitfun-color-content-muted);
-  font-size: var(--openbitfun-type-flow-support-font-size);
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-flow-support-font-size);
   text-align: center;
 }
 
-.openbitfun-harness-selector__profile-status {
+.bitfun-harness-selector__profile-status {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
-.openbitfun-harness-selector__agent-count {
+.bitfun-harness-selector__agent-count {
   font-variant-numeric: tabular-nums;
 }

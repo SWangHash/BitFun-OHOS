@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, ChevronRight, Folder } from 'lucide-react';
-import { MobileBanner, MobileButton, MobileIconButton, MobileListRow, MobileSheet, MobileStatus } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileIconButton, MobileListRow, MobileSheet, MobileStatus } from '@bitfun/ui/mobile';
 import type { RemoteSessionManager } from '../services/RemoteSessionManager';
 import { useI18n } from '../i18n';
 

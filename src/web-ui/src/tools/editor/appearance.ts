@@ -14,9 +14,9 @@ export const editorToolAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'meditorEditArea' },
   ],
   states: [
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
-    { id: 'largeFile', selector: { kind: 'self', suffix: '[data-openbitfun-state~="large-file"]' } },
-    { id: 'fullscreen', selector: { kind: 'self', suffix: '[data-openbitfun-state~="fullscreen"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
+    { id: 'largeFile', selector: { kind: 'self', suffix: '[data-bitfun-state~="large-file"]' } },
+    { id: 'fullscreen', selector: { kind: 'self', suffix: '[data-bitfun-state~="fullscreen"]' } },
   ],
 };

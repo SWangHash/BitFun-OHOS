@@ -4,7 +4,7 @@
 
 use crate::util::errors::*;
 use log::{debug, error};
-use openbitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
+use bitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -41,7 +41,7 @@ pub struct PathManager {
 
 impl PathManager {
     /// Create a new path manager
-    pub fn new() -> OpenBitFunResult<Self> {
+    pub fn new() -> BitFunResult<Self> {
         Self::validate_e2e_storage_guard()?;
         let user_root = Self::get_user_config_root()?;
         let product_home_override = Self::get_product_home_override();
@@ -66,48 +66,59 @@ impl PathManager {
         )
     }
 
-    fn validate_e2e_storage_guard() -> OpenBitFunResult<()> {
-        if !Self::env_flag_enabled("OPENBITFUN_E2E_STORAGE_GUARD") {
+    fn validate_e2e_storage_guard() -> BitFunResult<()> {
+        if !Self::env_flag_enabled("BITFUN_E2E_STORAGE_GUARD") {
             return Ok(());
         }
 
-        let has_user_root = Self::env_path("OPENBITFUN_USER_ROOT").is_some()
-            || Self::env_path("OPENBITFUN_E2E_USER_ROOT").is_some();
-        let has_home_root = Self::env_path("OPENBITFUN_HOME").is_some()
-            || Self::env_path("OPENBITFUN_E2E_HOME").is_some();
+        let has_user_root = Self::env_path("BITFUN_USER_ROOT").is_some()
+            || Self::env_path("BITFUN_E2E_USER_ROOT").is_some();
+        let has_home_root = Self::env_path("BITFUN_HOME").is_some()
+            || Self::env_path("BITFUN_E2E_HOME").is_some();
 
         if has_user_root && has_home_root {
             return Ok(());
         }
 
-        Err(OpenBitFunError::config(
-            "OPENBITFUN_E2E_STORAGE_GUARD requires isolated OPENBITFUN_E2E_USER_ROOT and OPENBITFUN_E2E_HOME storage roots",
+        Err(BitFunError::config(
+            "BITFUN_E2E_STORAGE_GUARD requires isolated BITFUN_E2E_USER_ROOT and BITFUN_E2E_HOME storage roots",
         ))
     }
 
     /// Get user config root directory
     ///
-    /// - Windows: %APPDATA%\openbitfun\
-    /// - macOS: ~/Library/Application Support/openbitfun/
-    /// - Linux: ~/.config/openbitfun/
-    fn get_user_config_root() -> OpenBitFunResult<PathBuf> {
-        if let Some(path) = Self::env_path("OPENBITFUN_USER_ROOT")
-            .or_else(|| Self::env_path("OPENBITFUN_E2E_USER_ROOT"))
+    /// - Windows: %APPDATA%\bitfun\
+    /// - macOS: ~/Library/Application Support/bitfun/
+    /// - Linux: ~/.config/bitfun/
+    fn get_user_config_root() -> BitFunResult<PathBuf> {
+        if let Some(path) = Self::env_path("BITFUN_USER_ROOT")
+            .or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
         {
             return Ok(path);
         }
 
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| OpenBitFunError::config("Failed to get config directory".to_string()))?;
+        // HarmonyOS: user data must stay inside the app sandbox. The XDG-style
+        // config directory resolved by `dirs` lives outside the sandbox on this
+        // target and is neither writable nor persistent, so pin the user root
+        // to the el2 files directory. Other platforms keep the config-dir
+        // behavior unchanged.
+        #[cfg(target_env = "ohos")]
+        return Ok(PathBuf::from("/data/storage/el2/base/files").join(data_namespace()));
 
-        Ok(config_dir.join(data_namespace()))
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let config_dir = dirs::config_dir()
+                .ok_or_else(|| BitFunError::config("Failed to get config directory".to_string()))?;
+
+            Ok(config_dir.join(data_namespace()))
+        }
     }
 
     fn get_product_home_override() -> Option<PathBuf> {
-        Self::env_path("OPENBITFUN_HOME").or_else(|| Self::env_path("OPENBITFUN_E2E_HOME"))
+        Self::env_path("BITFUN_HOME").or_else(|| Self::env_path("BITFUN_E2E_HOME"))
     }
 
-    /// Get assistant home root directory: ~/.openbitfun/
+    /// Get assistant home root directory: ~/.bitfun/
     pub fn product_home_dir(&self) -> PathBuf {
         if let Some(path) = &self.product_home_override {
             return path.clone();
@@ -117,7 +128,7 @@ impl PathManager {
             .join(hidden_data_directory())
     }
 
-    /// Get assistant workspace base directory: ~/.openbitfun/personal_assistant/
+    /// Get assistant workspace base directory: ~/.bitfun/personal_assistant/
     ///
     /// `override_root` is reserved for future user customization.
     pub fn assistant_workspace_base_dir(&self, override_root: Option<&Path>) -> PathBuf {
@@ -127,13 +138,13 @@ impl PathManager {
             .join("personal_assistant")
     }
 
-    /// Get the default assistant workspace directory: ~/.openbitfun/personal_assistant/workspace
+    /// Get the default assistant workspace directory: ~/.bitfun/personal_assistant/workspace
     pub fn default_assistant_workspace_dir(&self, override_root: Option<&Path>) -> PathBuf {
         self.assistant_workspace_base_dir(override_root)
             .join("workspace")
     }
 
-    /// Get a named assistant workspace directory: ~/.openbitfun/personal_assistant/workspace-<id>
+    /// Get a named assistant workspace directory: ~/.bitfun/personal_assistant/workspace-<id>
     pub fn assistant_workspace_dir(
         &self,
         assistant_id: &str,
@@ -155,10 +166,10 @@ impl PathManager {
         }
     }
 
-    /// True if `path` is this machine's OpenBitFun **assistant** workspace directory.
+    /// True if `path` is this machine's BitFun **assistant** workspace directory.
     ///
     /// Used so remote-workspace registry (especially roots like `/`) does not
-    /// mis-classify client paths such as `/Users/.../.openbitfun/personal_assistant/workspace-*`
+    /// mis-classify client paths such as `/Users/.../.bitfun/personal_assistant/workspace-*`
     /// as SSH remote paths.
     pub fn is_local_assistant_workspace_path(&self, path: &str) -> bool {
         let p = Path::new(path);
@@ -168,35 +179,36 @@ impl PathManager {
         p.starts_with(self.assistant_workspace_base_dir(None))
     }
 
-    /// Get the root directory for user-scoped OpenBitFun storage.
+    /// Get the root directory for user-scoped BitFun storage.
     pub fn user_root_dir(&self) -> &Path {
         &self.user_root
     }
 
-    /// Get user config directory: ~/.config/openbitfun/config/
+    /// Get user config directory: ~/.config/bitfun/config/
     pub fn user_config_dir(&self) -> PathBuf {
         self.user_root.join("config")
     }
 
-    /// Get app config file path: ~/.config/openbitfun/config/app.json
+    /// Get app config file path: ~/.config/bitfun/config/app.json
     pub fn app_config_file(&self) -> PathBuf {
         self.user_config_dir().join("app.json")
     }
 
-    /// Get user agent hooks file: ~/.config/openbitfun/config/hooks.json
+    /// Get user agent hooks file: ~/.config/bitfun/config/hooks.json
     pub fn user_hooks_file(&self) -> PathBuf {
         self.user_config_dir().join("hooks.json")
     }
 
-    /// Get user agent directory: ~/.config/openbitfun/agents/
+    /// Get user agent directory: ~/.config/bitfun/agents/
     pub fn user_agents_dir(&self) -> PathBuf {
         self.user_root.join("agents")
     }
 
     /// Get user skills directory:
-    /// - Windows: C:\Users\xxx\AppData\Roaming\openbitfun\skills\
-    /// - macOS: ~/Library/Application Support/openbitfun/skills/
-    /// - Linux: ~/.local/share/openbitfun/skills/
+    /// - Windows: C:\Users\xxx\AppData\Roaming\bitfun\skills\
+    /// - macOS: ~/Library/Application Support/bitfun/skills/
+    /// - Linux: ~/.local/share/bitfun/skills/
+    /// - OpenHarmony: /data/storage/el2/base/files/bitfun/skills/ (app sandbox)
     pub fn user_skills_dir(&self) -> PathBuf {
         if cfg!(target_os = "windows") {
             dirs::data_dir()
@@ -210,6 +222,9 @@ impl PathManager {
                 .join("Application Support")
                 .join(data_namespace())
                 .join("skills")
+        } else if cfg!(target_env = "ohos") {
+            // Stay inside the app sandbox; see `get_user_config_root`.
+            self.user_root.join("skills")
         } else {
             dirs::data_local_dir()
                 .unwrap_or_else(|| PathBuf::from("/tmp"))
@@ -218,14 +233,14 @@ impl PathManager {
         }
     }
 
-    /// Get OpenBitFun-managed built-in skills directory under the user skills root.
+    /// Get BitFun-managed built-in skills directory under the user skills root.
     pub fn builtin_skills_dir(&self) -> PathBuf {
         self.user_skills_dir().join(".system")
     }
 
     /// Get the shared Qt migration resource root.
     pub fn qt_migration_root_dir(&self) -> PathBuf {
-        Self::env_path("OPENBITFUN_QT_MIGRATION_ROOT").unwrap_or_else(|| {
+        Self::env_path("BITFUN_QT_MIGRATION_ROOT").unwrap_or_else(|| {
             self.user_skills_dir()
                 .parent()
                 .map(Path::to_path_buf)
@@ -252,19 +267,19 @@ impl PathManager {
             .join("downloads")
     }
 
-    /// Get cache root directory: ~/.config/openbitfun/cache/
+    /// Get cache root directory: ~/.config/bitfun/cache/
     pub fn cache_root(&self) -> PathBuf {
         self.user_root.join("cache")
     }
 
-    /// Get managed runtimes root directory: ~/.config/openbitfun/runtimes/
+    /// Get managed runtimes root directory: ~/.config/bitfun/runtimes/
     ///
-    /// OpenBitFun-managed runtime components (e.g. node/python/office) are stored here.
+    /// BitFun-managed runtime components (e.g. node/python/office) are stored here.
     pub fn managed_runtimes_dir(&self) -> PathBuf {
         self.user_root.join("runtimes")
     }
 
-    /// Get user data directory: ~/.config/openbitfun/data/
+    /// Get user data directory: ~/.config/bitfun/data/
     pub fn user_data_dir(&self) -> PathBuf {
         self.user_root.join("data")
     }
@@ -294,7 +309,7 @@ impl PathManager {
         self.temp_dir().join("speech-input")
     }
 
-    /// Get user memory database file: ~/.config/openbitfun/data/memories/memories.sqlite
+    /// Get user memory database file: ~/.config/bitfun/data/memories/memories.sqlite
     pub fn memories_database_file(&self) -> PathBuf {
         self.user_data_dir()
             .join("memories")
@@ -313,12 +328,12 @@ impl PathManager {
         self.user_data_dir().join("agent-runtime").join("ownership")
     }
 
-    /// Get user memory workspace root directory: ~/.openbitfun/memories/
+    /// Get user memory workspace root directory: ~/.bitfun/memories/
     pub fn memories_root_dir(&self) -> PathBuf {
         self.product_home_dir().join("memories")
     }
 
-    /// Root for per-host, per-remote-path workspace mirrors: `~/.openbitfun/remote_ssh/`.
+    /// Root for per-host, per-remote-path workspace mirrors: `~/.bitfun/remote_ssh/`.
     ///
     /// Session/chat persistence for SSH workspaces lives under
     /// `{this}/{sanitized_host}/{remote_path_segments}/sessions/`.
@@ -339,27 +354,27 @@ impl PathManager {
             })
     }
 
-    /// Get scheduled jobs directory: ~/.config/openbitfun/data/cron/
+    /// Get scheduled jobs directory: ~/.config/bitfun/data/cron/
     pub fn user_cron_dir(&self) -> PathBuf {
         self.user_data_dir().join("cron")
     }
 
-    /// Get scheduled jobs persistence file: ~/.config/openbitfun/data/cron/jobs.json
+    /// Get scheduled jobs persistence file: ~/.config/bitfun/data/cron/jobs.json
     pub fn cron_jobs_file(&self) -> PathBuf {
         self.user_cron_dir().join("jobs.json")
     }
 
-    /// Get miniapps root directory: ~/.config/openbitfun/data/miniapps/
+    /// Get miniapps root directory: ~/.config/bitfun/data/miniapps/
     pub fn miniapps_dir(&self) -> PathBuf {
         self.user_data_dir().join("miniapps")
     }
 
-    /// Get directory for a specific miniapp: ~/.config/openbitfun/data/miniapps/{app_id}/
+    /// Get directory for a specific miniapp: ~/.config/bitfun/data/miniapps/{app_id}/
     pub fn miniapp_dir(&self, app_id: &str) -> PathBuf {
         self.miniapps_dir().join(app_id)
     }
 
-    /// Get user-level rules directory: ~/.config/openbitfun/data/rules/
+    /// Get user-level rules directory: ~/.config/bitfun/data/rules/
     pub fn user_rules_dir(&self) -> PathBuf {
         self.user_data_dir().join("rules")
     }
@@ -369,22 +384,22 @@ impl PathManager {
         self.user_data_dir().join("plugins")
     }
 
-    /// Get logs directory: ~/.config/openbitfun/logs/
+    /// Get logs directory: ~/.config/bitfun/logs/
     pub fn logs_dir(&self) -> PathBuf {
         self.user_root.join("logs")
     }
 
-    /// Get temp directory: ~/.config/openbitfun/temp/
+    /// Get temp directory: ~/.config/bitfun/temp/
     pub fn temp_dir(&self) -> PathBuf {
         self.user_root.join("temp")
     }
 
-    /// Get project config root directory: {project}/.openbitfun/
+    /// Get project config root directory: {project}/.bitfun/
     pub fn project_root(&self, workspace_path: &Path) -> PathBuf {
         workspace_path.join(hidden_data_directory())
     }
 
-    /// Get the shared runtime projects root directory: ~/.openbitfun/projects/
+    /// Get the shared runtime projects root directory: ~/.bitfun/projects/
     pub fn projects_root(&self) -> PathBuf {
         self.product_home_dir().join("projects")
     }
@@ -394,53 +409,53 @@ impl PathManager {
         self.product_home_dir().join("worktrees")
     }
 
-    /// Get the runtime root for a workspace: ~/.openbitfun/projects/<workspace-slug>/
+    /// Get the runtime root for a workspace: ~/.bitfun/projects/<workspace-slug>/
     pub fn project_runtime_root(&self, workspace_path: &Path) -> PathBuf {
         self.projects_root()
             .join(self.project_runtime_slug(workspace_path))
     }
 
-    /// Get project internal config directory: {project}/.openbitfun/config/
+    /// Get project internal config directory: {project}/.bitfun/config/
     pub fn project_internal_config_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_root(workspace_path).join("config")
     }
 
-    /// Get project agent profiles file: {project}/.openbitfun/config/agent_profiles.json
+    /// Get project agent profiles file: {project}/.bitfun/config/agent_profiles.json
     pub fn project_agent_profiles_file(&self, workspace_path: &Path) -> PathBuf {
         self.project_internal_config_dir(workspace_path)
             .join("agent_profiles.json")
     }
 
-    /// Get project tool permission rules file: {project}/.openbitfun/config/tool_permissions.json
+    /// Get project tool permission rules file: {project}/.bitfun/config/tool_permissions.json
     pub fn project_permission_file(&self, workspace_path: &Path) -> PathBuf {
         self.project_internal_config_dir(workspace_path)
             .join("tool_permissions.json")
     }
 
-    /// Get project mode skills file: {project}/.openbitfun/config/mode_skills.json
+    /// Get project mode skills file: {project}/.bitfun/config/mode_skills.json
     pub fn project_mode_skills_file(&self, workspace_path: &Path) -> PathBuf {
         self.project_internal_config_dir(workspace_path)
             .join("mode_skills.json")
     }
 
-    /// Get project subagent overrides file: {project}/.openbitfun/config/agent_subagents.json
+    /// Get project subagent overrides file: {project}/.bitfun/config/agent_subagents.json
     pub fn project_agent_subagents_file(&self, workspace_path: &Path) -> PathBuf {
         self.project_internal_config_dir(workspace_path)
             .join("agent_subagents.json")
     }
 
-    /// Get project agent hooks file: {project}/.openbitfun/config/hooks.json
+    /// Get project agent hooks file: {project}/.bitfun/config/hooks.json
     pub fn project_hooks_file(&self, workspace_path: &Path) -> PathBuf {
         self.project_internal_config_dir(workspace_path)
             .join("hooks.json")
     }
 
-    /// Get project agent directory: {project}/.openbitfun/agents/
+    /// Get project agent directory: {project}/.bitfun/agents/
     pub fn project_agents_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_root(workspace_path).join("agents")
     }
 
-    /// Get project-level rules directory: {project}/.openbitfun/rules/
+    /// Get project-level rules directory: {project}/.bitfun/rules/
     pub fn project_rules_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_root(workspace_path).join("rules")
     }
@@ -450,17 +465,17 @@ impl PathManager {
         self.project_root(workspace_path).join("plugins")
     }
 
-    /// Get project snapshots directory: ~/.openbitfun/projects/<workspace-slug>/snapshots/
+    /// Get project snapshots directory: ~/.bitfun/projects/<workspace-slug>/snapshots/
     pub fn project_snapshots_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_runtime_root(workspace_path).join("snapshots")
     }
 
-    /// Get project sessions directory: ~/.openbitfun/projects/<workspace-slug>/sessions/
+    /// Get project sessions directory: ~/.bitfun/projects/<workspace-slug>/sessions/
     pub fn project_sessions_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_runtime_root(workspace_path).join("sessions")
     }
 
-    /// Get project plans directory: ~/.openbitfun/projects/<workspace-slug>/plans/
+    /// Get project plans directory: ~/.bitfun/projects/<workspace-slug>/plans/
     pub fn project_plans_dir(&self, workspace_path: &Path) -> PathBuf {
         self.project_runtime_root(workspace_path).join("plans")
     }
@@ -517,7 +532,7 @@ impl PathManager {
     }
 
     pub(crate) fn build_project_runtime_slug(canonical: &str) -> String {
-        openbitfun_services_core::workspace_identity::build_project_runtime_slug(canonical)
+        bitfun_services_core::workspace_identity::build_project_runtime_slug(canonical)
     }
 
     #[cfg(unix)]
@@ -544,17 +559,17 @@ impl PathManager {
     }
 
     /// Ensure directory exists
-    pub async fn ensure_dir(&self, path: &Path) -> OpenBitFunResult<()> {
+    pub async fn ensure_dir(&self, path: &Path) -> BitFunResult<()> {
         if !path.exists() {
             tokio::fs::create_dir_all(path).await.map_err(|e| {
-                OpenBitFunError::service(format!("Failed to create directory {:?}: {}", path, e))
+                BitFunError::service(format!("Failed to create directory {:?}: {}", path, e))
             })?;
         }
         Ok(())
     }
 
     /// Initialize user-level directory structure
-    pub async fn initialize_user_directories(&self) -> OpenBitFunResult<()> {
+    pub async fn initialize_user_directories(&self) -> BitFunResult<()> {
         let dirs = vec![
             self.product_home_dir(),
             self.projects_root(),
@@ -593,7 +608,7 @@ impl Default for PathManager {
                     e
                 );
                 Self {
-                    user_root: std::env::temp_dir().join("openbitfun"),
+                    user_root: std::env::temp_dir().join("bitfun"),
                     product_home_override: Self::get_product_home_override(),
                     project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
                 }
@@ -611,7 +626,7 @@ impl PathManager {
             .unwrap_or_else(|| user_root.clone());
         Self {
             user_root,
-            product_home_override: Some(base.join("home").join(".openbitfun")),
+            product_home_override: Some(base.join("home").join(".bitfun")),
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -642,9 +657,9 @@ impl GlobalPathManagerState {
         }
     }
 
-    fn strict_manager(&self) -> OpenBitFunResult<Arc<PathManager>> {
+    fn strict_manager(&self) -> BitFunResult<Arc<PathManager>> {
         if let Some(error) = &self.initialization_error {
-            return Err(OpenBitFunError::config(format!(
+            return Err(BitFunError::config(format!(
                 "global path manager is using a temporary fallback after initialization failed: {error}"
             )));
         }
@@ -652,7 +667,7 @@ impl GlobalPathManagerState {
     }
 }
 
-fn init_global_path_manager() -> OpenBitFunResult<Arc<PathManager>> {
+fn init_global_path_manager() -> BitFunResult<Arc<PathManager>> {
     PathManager::new().map(Arc::new)
 }
 
@@ -676,7 +691,7 @@ pub fn get_path_manager_arc() -> Arc<PathManager> {
 }
 
 /// Try to get the global PathManager instance (Arc)
-pub fn try_get_path_manager_arc() -> OpenBitFunResult<Arc<PathManager>> {
+pub fn try_get_path_manager_arc() -> BitFunResult<Arc<PathManager>> {
     if let Some(manager) = GLOBAL_PATH_MANAGER.get() {
         return manager.strict_manager();
     }
@@ -702,7 +717,7 @@ mod tests {
 
     #[test]
     fn runtime_ownership_lives_under_the_agent_runtime_data_root() {
-        let user_root = std::env::temp_dir().join("openbitfun-runtime-ownership-path-test");
+        let user_root = std::env::temp_dir().join("bitfun-runtime-ownership-path-test");
         let path_manager = PathManager::with_user_root_for_tests(user_root);
 
         assert_eq!(
@@ -718,7 +733,7 @@ mod tests {
     fn strict_path_access_rejects_a_cached_temporary_fallback() {
         let state = GlobalPathManagerState::fallback(
             Arc::new(PathManager::with_user_root_for_tests(
-                std::env::temp_dir().join("openbitfun-fallback-test"),
+                std::env::temp_dir().join("bitfun-fallback-test"),
             )),
             "injected initialization failure",
         );
@@ -768,7 +783,7 @@ mod tests {
         assert_eq!(pm.user_plugins_dir(), pm.user_data_dir().join("plugins"));
         assert_eq!(
             pm.project_plugins_dir(workspace),
-            workspace.join(".openbitfun").join("plugins")
+            workspace.join(".bitfun").join("plugins")
         );
         assert_eq!(
             pm.project_plugin_trust_file(workspace),
@@ -791,19 +806,19 @@ mod tests {
                 .join("workspace-xyz")
                 .to_string_lossy()
         ));
-        assert!(!pm.is_local_assistant_workspace_path("/tmp/not-openbitfun"));
+        assert!(!pm.is_local_assistant_workspace_path("/tmp/not-bitfun"));
     }
 
     #[test]
     fn project_runtime_root_uses_human_readable_workspace_slug() {
         let pm = PathManager::default();
-        let runtime_root = pm.project_runtime_root(Path::new(r"E:\Projects\OpenBitFun\Source"));
+        let runtime_root = pm.project_runtime_root(Path::new(r"E:\Projects\BitFun\Source"));
         let slug = runtime_root
             .file_name()
             .and_then(|value| value.to_str())
             .expect("runtime root should have terminal component");
 
-        assert!(slug.starts_with("e--projects-openbitfun-source"));
+        assert!(slug.starts_with("e--projects-bitfun-source"));
         assert_eq!(runtime_root.parent(), Some(pm.projects_root().as_path()));
     }
 
@@ -853,20 +868,20 @@ mod tests {
     fn env_overrides_keep_e2e_storage_out_of_real_user_profile() {
         let _guard = ENV_LOCK.lock().expect("env lock poisoned");
         let _env_guard = EnvVarGuard::capture([
-            "OPENBITFUN_USER_ROOT",
-            "OPENBITFUN_E2E_USER_ROOT",
-            "OPENBITFUN_HOME",
-            "OPENBITFUN_E2E_HOME",
-            "OPENBITFUN_E2E_STORAGE_GUARD",
+            "BITFUN_USER_ROOT",
+            "BITFUN_E2E_USER_ROOT",
+            "BITFUN_HOME",
+            "BITFUN_E2E_HOME",
+            "BITFUN_E2E_STORAGE_GUARD",
         ]);
-        let temp_root = std::env::temp_dir().join("openbitfun-e2e-path-manager-test");
+        let temp_root = std::env::temp_dir().join("bitfun-e2e-path-manager-test");
         let user_root = temp_root.join("user-root");
         let home_root = temp_root.join("home");
 
-        std::env::remove_var("OPENBITFUN_USER_ROOT");
-        std::env::set_var("OPENBITFUN_E2E_USER_ROOT", &user_root);
-        std::env::remove_var("OPENBITFUN_HOME");
-        std::env::set_var("OPENBITFUN_E2E_HOME", &home_root);
+        std::env::remove_var("BITFUN_USER_ROOT");
+        std::env::set_var("BITFUN_E2E_USER_ROOT", &user_root);
+        std::env::remove_var("BITFUN_HOME");
+        std::env::set_var("BITFUN_E2E_HOME", &home_root);
 
         let pm = PathManager::new().expect("path manager should use env overrides");
         assert_eq!(pm.user_config_dir(), user_root.join("config"));
@@ -879,23 +894,23 @@ mod tests {
     fn e2e_storage_guard_rejects_missing_isolated_roots() {
         let _guard = ENV_LOCK.lock().expect("env lock poisoned");
         let _env_guard = EnvVarGuard::capture([
-            "OPENBITFUN_USER_ROOT",
-            "OPENBITFUN_E2E_USER_ROOT",
-            "OPENBITFUN_HOME",
-            "OPENBITFUN_E2E_HOME",
-            "OPENBITFUN_E2E_STORAGE_GUARD",
+            "BITFUN_USER_ROOT",
+            "BITFUN_E2E_USER_ROOT",
+            "BITFUN_HOME",
+            "BITFUN_E2E_HOME",
+            "BITFUN_E2E_STORAGE_GUARD",
         ]);
 
-        std::env::remove_var("OPENBITFUN_USER_ROOT");
-        std::env::remove_var("OPENBITFUN_E2E_USER_ROOT");
-        std::env::remove_var("OPENBITFUN_HOME");
-        std::env::remove_var("OPENBITFUN_E2E_HOME");
-        std::env::set_var("OPENBITFUN_E2E_STORAGE_GUARD", "1");
+        std::env::remove_var("BITFUN_USER_ROOT");
+        std::env::remove_var("BITFUN_E2E_USER_ROOT");
+        std::env::remove_var("BITFUN_HOME");
+        std::env::remove_var("BITFUN_E2E_HOME");
+        std::env::set_var("BITFUN_E2E_STORAGE_GUARD", "1");
 
         let error = PathManager::new().expect_err("guard should reject real-profile storage");
         let message = error.to_string();
-        assert!(message.contains("OPENBITFUN_E2E_STORAGE_GUARD"));
-        assert!(message.contains("OPENBITFUN_E2E_USER_ROOT"));
+        assert!(message.contains("BITFUN_E2E_STORAGE_GUARD"));
+        assert!(message.contains("BITFUN_E2E_USER_ROOT"));
     }
 
     struct EnvVarGuard {

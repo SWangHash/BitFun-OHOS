@@ -10,10 +10,10 @@ test("ScrollArea defaults to a native vertical viewport with automatic visibilit
     createElement(ScrollArea, { "aria-label": "Activity" }, "Content"),
   );
 
-  assert.match(markup, /data-openbitfun-component="scroll-area"/);
-  assert.match(markup, /data-openbitfun-part="viewport"/);
-  assert.match(markup, /data-openbitfun-orientation="vertical"/);
-  assert.match(markup, /data-openbitfun-scrollbar-visibility="auto"/);
+  assert.match(markup, /data-bitfun-component="scroll-area"/);
+  assert.match(markup, /data-bitfun-part="viewport"/);
+  assert.match(markup, /data-bitfun-orientation="vertical"/);
+  assert.match(markup, /data-bitfun-scrollbar-visibility="auto"/);
   assert.match(markup, /aria-label="Activity"/);
 });
 
@@ -26,21 +26,21 @@ test("ScrollArea exposes orientation and scrollbar visibility contracts", () => 
     ),
   );
 
-  assert.match(markup, /data-openbitfun-orientation="both"/);
-  assert.match(markup, /data-openbitfun-scrollbar-visibility="always"/);
+  assert.match(markup, /data-bitfun-orientation="both"/);
+  assert.match(markup, /data-bitfun-scrollbar-visibility="always"/);
 });
 
 test("ScrollArea preserves feature-owned appearance contracts", () => {
   const markup = renderToStaticMarkup(
     createElement(
       ScrollArea,
-      { "data-openbitfun-component": "model-settings", "data-openbitfun-part": "root" },
+      { "data-bitfun-component": "model-settings", "data-bitfun-part": "root" },
       "Content",
     ),
   );
 
-  assert.match(markup, /data-openbitfun-component="model-settings"/);
-  assert.match(markup, /data-openbitfun-part="root"/);
+  assert.match(markup, /data-bitfun-component="model-settings"/);
+  assert.match(markup, /data-bitfun-part="root"/);
 });
 
 test("ScrollArea styling uses public scrollbar tokens and preserves native scrolling", async () => {
@@ -57,11 +57,11 @@ test("ScrollArea styling uses public scrollbar tokens and preserves native scrol
   // The published stylesheet must carry the shared policy for both ordinary
   // native scroll containers and ScrollArea, including standalone consumers.
   const publishedStyles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
-  assert.match(publishedStyles, /--openbitfun-scrollbar-width/);
-  assert.match(publishedStyles, /--openbitfun-scrollbar-radius/);
-  assert.match(publishedStyles, /--openbitfun-color-scrollbar-thumb/);
-  assert.match(publishedStyles, /--openbitfun-color-scrollbar-thumb-hover/);
-  assert.match(publishedStyles, /\[data-openbitfun-scrollbar-visibility\]/);
+  assert.match(publishedStyles, /--bitfun-scrollbar-width/);
+  assert.match(publishedStyles, /--bitfun-scrollbar-radius/);
+  assert.match(publishedStyles, /--bitfun-color-scrollbar-thumb/);
+  assert.match(publishedStyles, /--bitfun-color-scrollbar-thumb-hover/);
+  assert.match(publishedStyles, /\[data-bitfun-scrollbar-visibility\]/);
   assert.match(publishedStyles, /scrollbar-width:\s*none/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });

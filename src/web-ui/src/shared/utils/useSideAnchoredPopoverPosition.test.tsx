@@ -2,7 +2,7 @@
 import React, { act, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
-import { Menu, MenuItem } from '@openbitfun/ui';
+import { Menu, MenuItem } from '@bitfun/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSideAnchoredPopoverPosition } from './useSideAnchoredPopoverPosition';
 

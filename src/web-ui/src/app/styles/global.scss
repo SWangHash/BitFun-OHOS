@@ -1,5 +1,5 @@
 /**
- * OpenBitFun global styles entry point.
+ * BitFun global styles entry point.
  * Uses component library design tokens.
  */
 
@@ -12,55 +12,55 @@
 
 /*
  * Generic document styles belong below component-owned rules. Keeping them in
- * openbitfun.base prevents selectors such as :focus-visible, :disabled, and img from
+ * bitfun.base prevents selectors such as :focus-visible, :disabled, and img from
  * overriding independently packaged component anatomy.
  */
-@layer openbitfun.base {
+@layer bitfun.base {
 /* Root element styles */
 html {
-  font-size: var(--openbitfun-type-flow-title-font-size);
+  font-size: var(--bitfun-type-flow-title-font-size);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 body {
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-body-md-font-size);
-  line-height: var(--openbitfun-type-body-sm-line-height);
-  color: var(--openbitfun-color-content-primary);
-  background: var(--openbitfun-color-surface-canvas);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-md-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
   overflow: hidden;
 }
 
 /* Link styles */
 a {
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
   text-decoration: none;
-  transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+  transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 }
 
 a:hover {
-  color: color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
+  color: color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent);
   text-decoration: underline;
 }
 
 /* Text selection styles */
 ::selection {
-  background: var(--openbitfun-color-action-secondary-pressed);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-action-secondary-pressed);
+  color: var(--bitfun-color-content-primary);
 }
 
 ::-moz-selection {
-  background: var(--openbitfun-color-action-secondary-pressed);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-action-secondary-pressed);
+  color: var(--bitfun-color-content-primary);
 }
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent);
   outline-offset: 2px;
-  border-radius: var(--openbitfun-radius-sm);
+  border-radius: var(--bitfun-radius-sm);
 }
 }
 
@@ -77,10 +77,10 @@ a:hover {
   outline-offset: 0;
 }
 
-@layer openbitfun.base {
+@layer bitfun.base {
 /* Disabled state */
 :disabled {
-  opacity: var(--openbitfun-opacity-disabled);
+  opacity: var(--bitfun-opacity-disabled);
   cursor: default;
 }
 
@@ -88,7 +88,7 @@ a:hover {
 img {
   max-width: 100%;
   height: auto;
-  border-radius: var(--openbitfun-radius-sm);
+  border-radius: var(--bitfun-radius-sm);
 }
 
 /* Table styles */
@@ -100,24 +100,24 @@ table {
 th,
 td {
   text-align: left;
-  padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-  border-bottom: 1px solid var(--openbitfun-color-border-default);
+  padding: var(--bitfun-space-2) var(--bitfun-space-3);
+  border-bottom: 1px solid var(--bitfun-color-border-default);
 }
 
 th {
-  font-weight: var(--openbitfun-type-label-selected-font-weight);
-  color: var(--openbitfun-color-content-primary);
-  background: var(--openbitfun-color-action-neutral-surface);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-action-neutral-surface);
 }
 
 /* Code styles */
 code,
 pre {
-  font-family: var(--openbitfun-type-code-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  background: var(--openbitfun-color-action-neutral-surface);
-  border: 1px solid var(--openbitfun-color-border-default);
-  border-radius: var(--openbitfun-radius-sm);
+  font-family: var(--bitfun-type-code-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  background: var(--bitfun-color-action-neutral-surface);
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: var(--bitfun-radius-sm);
 }
 
 code {
@@ -125,9 +125,9 @@ code {
 }
 
 pre {
-  padding: var(--openbitfun-space-3);
+  padding: var(--bitfun-space-3);
   overflow-x: auto;
-  line-height: var(--openbitfun-type-body-lg-line-height);
+  line-height: var(--bitfun-type-body-lg-line-height);
 }
 
 pre code {
@@ -138,11 +138,11 @@ pre code {
 
 /* Blockquote styles */
 blockquote {
-  margin: var(--openbitfun-space-4) 0;
-  padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
-  border-left: 3px solid var(--openbitfun-color-accent-default);
-  background: var(--openbitfun-color-action-neutral-surface);
-  border-radius: 0 var(--openbitfun-radius-base) var(--openbitfun-radius-base) 0;
+  margin: var(--bitfun-space-4) 0;
+  padding: var(--bitfun-space-3) var(--bitfun-space-4);
+  border-left: 3px solid var(--bitfun-color-accent-default);
+  background: var(--bitfun-color-action-neutral-surface);
+  border-radius: 0 var(--bitfun-radius-base) var(--bitfun-radius-base) 0;
   font-style: italic;
 }
 
@@ -150,18 +150,18 @@ blockquote {
 hr:not(:is(.m-editor hr)) {
   border: none;
   height: 1px;
-  background: var(--openbitfun-color-border-default);
-  margin: var(--openbitfun-space-5) 0;
+  background: var(--bitfun-color-border-default);
+  margin: var(--bitfun-space-5) 0;
 }
 
 /* List styles */
 ul,
 ol {
-  padding-left: var(--openbitfun-space-5);
+  padding-left: var(--bitfun-space-5);
 }
 
 li {
-  margin-bottom: var(--openbitfun-space-1);
+  margin-bottom: var(--bitfun-space-1);
 }
 }
 
@@ -178,25 +178,25 @@ li {
 /* Loading state */
 .loading {
   pointer-events: none;
-  opacity: var(--openbitfun-opacity-hover);
+  opacity: var(--bitfun-opacity-hover);
 }
 
 /* Error state */
 .error {
-  color: var(--openbitfun-color-status-danger-content);
-  border-color: var(--openbitfun-color-status-danger-content);
+  color: var(--bitfun-color-status-danger-content);
+  border-color: var(--bitfun-color-status-danger-content);
 }
 
 /* Success state */
 .success {
-  color: var(--openbitfun-color-status-success-content);
-  border-color: var(--openbitfun-color-status-success-content);
+  color: var(--bitfun-color-status-success-content);
+  border-color: var(--bitfun-color-status-success-content);
 }
 
 /* Warning state */
 .warning {
-  color: var(--openbitfun-color-status-warning-content);
-  border-color: var(--openbitfun-color-status-warning-content);
+  color: var(--bitfun-color-status-warning-content);
+  border-color: var(--bitfun-color-status-warning-content);
 }
 
 /* Accessibility helpers */
@@ -228,11 +228,11 @@ li {
   }
 }
 
-:root[data-openbitfun-appearance-mode='light'] {
+:root[data-bitfun-appearance-mode='light'] {
   color-scheme: light;
 }
 
-:root[data-openbitfun-appearance-mode='dark'] {
+:root[data-bitfun-appearance-mode='dark'] {
   color-scheme: dark;
 }
 
@@ -264,7 +264,7 @@ html::before {
 /* Hide top-right floating debug info */
 div[style*="position: fixed"][style*="top"][style*="right"],
 div[style*="position:fixed"][style*="top"][style*="right"] {
-  &:not(.openbitfun-notification-container):not(.openbitfun-notification-center):not([class*="openbitfun"]) {
+  &:not(.bitfun-notification-container):not(.bitfun-notification-center):not([class*="bitfun"]) {
     display: none !important;
   }
 }
@@ -283,7 +283,7 @@ body > div[style*="z-index:999999"] {
 @media print {
   * {
     background: transparent !important;
-    color: var(--openbitfun-color-content-on-light) !important;
+    color: var(--bitfun-color-content-on-light) !important;
     box-shadow: none !important;
     text-shadow: none !important;
   }
@@ -299,7 +299,7 @@ body > div[style*="z-index:999999"] {
 
   pre,
   blockquote {
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-on-light) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-content-on-light) 40%, transparent);
     page-break-inside: avoid;
   }
 

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 
   &__rules {
     display: flex;
@@ -17,15 +17,15 @@
     align-items: center;
     gap: 10px;
     min-width: 0;
-    padding-inline: var(--openbitfun-layout-field-group-row-padding-inline);
+    padding-inline: var(--bitfun-layout-field-group-row-padding-inline);
   }
 
   &__rule-heading {
     min-height: 32px;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    background: var(--openbitfun-color-surface-subtle);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    background: var(--bitfun-color-surface-subtle);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__rule-row {
@@ -37,7 +37,7 @@
       transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 
     + .global-permission-rules-dialog__rule-row {
-      border-top: 1px solid var(--openbitfun-color-border-subtle);
+      border-top: 1px solid var(--bitfun-color-border-subtle);
     }
 
     &[data-exiting='true'] {
@@ -56,10 +56,10 @@
   }
 
   &__empty {
-    padding: var(--openbitfun-space-6) var(--openbitfun-layout-field-group-row-padding-inline);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    padding: var(--bitfun-space-6) var(--bitfun-layout-field-group-row-padding-inline);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
     text-align: center;
   }
 }

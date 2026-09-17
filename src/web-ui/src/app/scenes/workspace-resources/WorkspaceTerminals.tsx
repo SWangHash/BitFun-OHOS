@@ -1,5 +1,5 @@
 import { Play } from 'lucide-react';
-import { Icon, IconButton, OverflowText, Tooltip } from '@openbitfun/ui';
+import { Icon, IconButton, OverflowText, Tooltip } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 import type { ShellEntry, UseShellEntriesReturn } from '../shell/hooks';
@@ -57,33 +57,33 @@ export default function WorkspaceTerminals({ terminals, busy, selectedId, onSele
     ];
   };
   return (
-    <div className="openbitfun-file-viewer-nav__terminal-list" data-openbitfun-component="file-viewer-nav" data-openbitfun-part="terminalList" aria-busy={loading}>
+    <div className="bitfun-file-viewer-nav__terminal-list" data-bitfun-component="file-viewer-nav" data-bitfun-part="terminalList" aria-busy={loading}>
       {entries.map(entry => {
         const cwd = entry.cwd ?? entry.workingDirectory;
         const state = error ? 'unknown' : getShellEntryState(entry);
         const status = statusLabels[state];
         const label = `${entry.name} · ${status}`;
         return (
-          <div key={entry.id} className={`openbitfun-file-viewer-nav__terminal-row${selectedId === entry.sessionId ? ' is-selected' : ''}`}
-            data-openbitfun-component="file-viewer-nav" data-openbitfun-part="terminalRow"
+          <div key={entry.id} className={`bitfun-file-viewer-nav__terminal-row${selectedId === entry.sessionId ? ' is-selected' : ''}`}
+            data-bitfun-component="file-viewer-nav" data-bitfun-part="terminalRow"
             data-testid="workspace-terminal" data-session-id={entry.sessionId}
             onContextMenu={event => showResourceMenu(event, menuItems(entry), true)}>
-            <button type="button" data-overflow-trigger className="openbitfun-file-viewer-nav__terminal-open"
-              data-openbitfun-component="file-viewer-nav" data-openbitfun-part="terminalOpen"
+            <button type="button" data-overflow-trigger className="bitfun-file-viewer-nav__terminal-open"
+              data-bitfun-component="file-viewer-nav" data-bitfun-part="terminalOpen"
               aria-label={label} aria-pressed={selectedId === entry.sessionId} disabled={busy || Boolean(error) || state === 'unknown' || state === 'stopping'}
               onClick={() => open(entry)}>
               <Icon name="terminal" size="sm" />
-              <span className="openbitfun-file-viewer-nav__terminal-text">
+              <span className="bitfun-file-viewer-nav__terminal-text">
                 <OverflowText>{entry.name}</OverflowText>
-                <span className="openbitfun-file-viewer-nav__terminal-meta" data-openbitfun-component="file-viewer-nav" data-openbitfun-part="terminalMeta">
-                  <span className="openbitfun-file-viewer-nav__source">{t(entry.source === 'agent' ? 'nav.resources.agent' : 'nav.resources.manual')}</span>
+                <span className="bitfun-file-viewer-nav__terminal-meta" data-bitfun-component="file-viewer-nav" data-bitfun-part="terminalMeta">
+                  <span className="bitfun-file-viewer-nav__source">{t(entry.source === 'agent' ? 'nav.resources.agent' : 'nav.resources.manual')}</span>
                   {cwd && <OverflowText title={cwd}>{cwd}</OverflowText>}
                 </span>
               </span>
-              <span className="openbitfun-file-viewer-nav__status" data-status={state}
-                data-openbitfun-component="file-viewer-nav" data-openbitfun-part="status">{status}</span>
+              <span className="bitfun-file-viewer-nav__status" data-status={state}
+                data-bitfun-component="file-viewer-nav" data-bitfun-part="status">{status}</span>
             </button>
-            <div className="openbitfun-file-viewer-nav__terminal-actions" data-openbitfun-component="file-viewer-nav" data-openbitfun-part="terminalActions">
+            <div className="bitfun-file-viewer-nav__terminal-actions" data-bitfun-component="file-viewer-nav" data-bitfun-part="terminalActions">
               {entry.isPersisted && ['saved', 'exited', 'error'].includes(state) && (
                 <Tooltip content={t('nav.shell.context.start')}>
                   <IconButton size="xs" aria-label={t('nav.shell.context.start')} icon={<Play size={12} />}
@@ -98,7 +98,7 @@ export default function WorkspaceTerminals({ terminals, busy, selectedId, onSele
         );
       })}
       {!loading && entries.length === 0 && !error && (
-        <p className="openbitfun-file-viewer-nav__empty" data-openbitfun-component="file-viewer-nav" data-openbitfun-part="empty">{t('nav.resources.noTerminals')}</p>
+        <p className="bitfun-file-viewer-nav__empty" data-bitfun-component="file-viewer-nav" data-bitfun-part="empty">{t('nav.resources.noTerminals')}</p>
       )}
     </div>
   );

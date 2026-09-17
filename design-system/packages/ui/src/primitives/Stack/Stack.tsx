@@ -5,16 +5,16 @@ import styles from "./Stack.module.css";
 type StackGap = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "8" | "10" | "12";
 
 const stackGapVariables = {
-  "0": "var(--openbitfun-space-0)",
-  "1": "var(--openbitfun-space-1)",
-  "2": "var(--openbitfun-space-2)",
-  "3": "var(--openbitfun-space-3)",
-  "4": "var(--openbitfun-space-4)",
-  "5": "var(--openbitfun-space-5)",
-  "6": "var(--openbitfun-space-6)",
-  "8": "var(--openbitfun-space-8)",
-  "10": "var(--openbitfun-space-10)",
-  "12": "var(--openbitfun-space-12)",
+  "0": "var(--bitfun-space-0)",
+  "1": "var(--bitfun-space-1)",
+  "2": "var(--bitfun-space-2)",
+  "3": "var(--bitfun-space-3)",
+  "4": "var(--bitfun-space-4)",
+  "5": "var(--bitfun-space-5)",
+  "6": "var(--bitfun-space-6)",
+  "8": "var(--bitfun-space-8)",
+  "10": "var(--bitfun-space-10)",
+  "12": "var(--bitfun-space-12)",
 } as const satisfies Record<StackGap, string>;
 
 export interface StackProps extends HTMLAttributes<HTMLDivElement> {

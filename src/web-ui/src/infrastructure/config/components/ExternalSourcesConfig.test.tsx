@@ -301,9 +301,9 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const page = container.querySelector(
-      '.openbitfun-config-page-layout.openbitfun-external-sources-config',
+      '.bitfun-config-page-layout.bitfun-external-sources-config',
     );
-    expect(page?.querySelector('[data-openbitfun-part="pageHeaderTitle"]')?.textContent).toBe('title');
+    expect(page?.querySelector('[data-bitfun-part="pageHeaderTitle"]')?.textContent).toBe('title');
 
     /**
      * ConfigLoadingState waits out a grace period before admitting it is loading, so
@@ -311,7 +311,7 @@ describe('ExternalSourcesConfig', () => {
      */
     await act(async () => vi.advanceTimersByTimeAsync(260));
     expect(page?.querySelector(
-      '.openbitfun-config-page-content [data-openbitfun-part="loadingState"]',
+      '.bitfun-config-page-content [data-bitfun-part="loadingState"]',
     )?.textContent).toBe('loading');
 
     await act(async () => {
@@ -333,16 +333,16 @@ describe('ExternalSourcesConfig', () => {
       await Promise.resolve();
     });
 
-    const page = container.querySelector('.openbitfun-external-sources-config--governance');
+    const page = container.querySelector('.bitfun-external-sources-config--governance');
     const advanced = page?.querySelector<HTMLDetailsElement>(
-      '.openbitfun-external-sources-config__advanced',
+      '.bitfun-external-sources-config__advanced',
     );
     expect(page?.getAttribute('data-presentation')).toBe('governance');
-    expect(page?.querySelector('[data-openbitfun-part="pageHeaderTitle"]')?.textContent)
+    expect(page?.querySelector('[data-bitfun-part="pageHeaderTitle"]')?.textContent)
       .toBe('governance.title');
-    expect(page?.querySelector('.openbitfun-external-sources-config__apps')).toBeNull();
+    expect(page?.querySelector('.bitfun-external-sources-config__apps')).toBeNull();
     expect(advanced?.open).toBe(true);
-    expect(advanced?.querySelector('.openbitfun-external-sources-config__advanced-summary')).toBeNull();
+    expect(advanced?.querySelector('.bitfun-external-sources-config__advanced-summary')).toBeNull();
     expect(onSnapshotChange).toHaveBeenCalledWith(snapshot);
   });
 
@@ -402,20 +402,20 @@ describe('ExternalSourcesConfig', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelectorAll('[data-openbitfun-product-part="appAttention"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-bitfun-product-part="appAttention"]')).toHaveLength(1);
     const advanced = container.querySelector<HTMLDetailsElement>(
-      '.openbitfun-external-sources-config__advanced',
+      '.bitfun-external-sources-config__advanced',
     );
     expect(advanced?.open).toBe(false);
 
-    const openPermissions = container.querySelector<HTMLButtonElement>('[data-openbitfun-product-part="appAttention"]');
+    const openPermissions = container.querySelector<HTMLButtonElement>('[data-bitfun-product-part="appAttention"]');
     await act(async () => {
       openPermissions?.click();
       await vi.runAllTimersAsync();
     });
     expect(advanced?.open).toBe(true);
     const matchingApplicationAction = container.querySelector(
-      '[data-openbitfun-product-part="toolCard"][data-external-attention="true"]'
+      '[data-bitfun-product-part="toolCard"][data-external-attention="true"]'
         + '[data-external-ecosystem="opencode"]',
     );
     expect(matchingApplicationAction).not.toBeNull();
@@ -466,7 +466,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
+      '[data-bitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(false);
     await act(async () => applicationToggle?.click());
@@ -513,14 +513,14 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const disabledApplicationToggle = container.querySelector<HTMLElement>(
-      '[data-openbitfun-product-part="applicationToggle"]',
+      '[data-bitfun-product-part="applicationToggle"]',
     );
     await act(async () => {
       disabledApplicationToggle?.click();
       await vi.runAllTimersAsync();
     });
 
-    const policyCard = container.querySelector<HTMLElement>('[data-openbitfun-product-part="policyCard"]');
+    const policyCard = container.querySelector<HTMLElement>('[data-bitfun-product-part="policyCard"]');
     const masterSwitch = policyCard?.querySelector<HTMLInputElement>('input[type="checkbox"]');
     expect(scrolledElements).toContain(policyCard);
     expect(document.activeElement).toBe(masterSwitch);
@@ -602,7 +602,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     let applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
+      '[data-bitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(true);
     await act(async () => {
@@ -612,7 +612,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     applicationToggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-product-part="applicationToggle"] input[type="checkbox"]',
+      '[data-bitfun-product-part="applicationToggle"] input[type="checkbox"]',
     );
     expect(applicationToggle?.checked).toBe(false);
     await act(async () => {
@@ -650,7 +650,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('policy.mode.recommended');
     expect(container.textContent).toContain('policy.inherited');
     expect(container.querySelectorAll(
-      '.openbitfun-external-sources-config__capability-row',
+      '.bitfun-external-sources-config__capability-row',
     )).toHaveLength(0);
 
     const capabilityButton = Array.from(container.querySelectorAll('button')).find((button) =>
@@ -662,7 +662,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('policy.access.askBeforeUse');
 
     const policyToggle = container.querySelector(
-      '.openbitfun-external-sources-config__policy-card input[type="checkbox"]',
+      '.bitfun-external-sources-config__policy-card input[type="checkbox"]',
     ) as HTMLInputElement;
     expect(policyToggle.checked).toBe(true);
     await act(async () => policyToggle.click());
@@ -705,7 +705,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('sources.commandCount:{"count":1}');
     await act(async () => {
       container.querySelector<HTMLDetailsElement>(
-        '.openbitfun-external-sources-config__advanced',
+        '.bitfun-external-sources-config__advanced',
       )?.querySelector<HTMLElement>('summary')?.click();
     });
     const toggle = container.querySelector(
@@ -752,7 +752,7 @@ describe('ExternalSourcesConfig', () => {
 
     await act(async () => {
       container.querySelector<HTMLDetailsElement>(
-        '.openbitfun-external-sources-config__advanced',
+        '.bitfun-external-sources-config__advanced',
       )?.querySelector<HTMLElement>('summary')?.click();
     });
     const toggle = container.querySelector(
@@ -797,7 +797,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('recoveryActions.reconnect_host');
     await act(async () => {
       container.querySelector<HTMLDetailsElement>(
-        '.openbitfun-external-sources-config__advanced',
+        '.bitfun-external-sources-config__advanced',
       )?.querySelector<HTMLElement>('summary')?.click();
     });
     const toggle = container.querySelector(
@@ -845,7 +845,7 @@ describe('ExternalSourcesConfig', () => {
       button.getAttribute('aria-label') === 'policy.capabilitiesFor:{"ecosystem":"OpenCode"}');
     await act(async () => capabilityButton?.click());
     const toolRow = Array.from(container.querySelectorAll(
-      '.openbitfun-external-sources-config__capability-row',
+      '.bitfun-external-sources-config__capability-row',
     )).find((row) => row.textContent?.includes('policy.capability.tool'));
 
     expect(toolRow?.textContent).toContain('policy.access.askBeforeUse');
@@ -875,7 +875,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const policyToggle = container.querySelector(
-      '.openbitfun-external-sources-config__policy-card input[type="checkbox"]',
+      '.bitfun-external-sources-config__policy-card input[type="checkbox"]',
     ) as HTMLInputElement;
     expect(policyToggle.checked).toBe(false);
   });
@@ -991,7 +991,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     expect(container.querySelectorAll(
-      '.openbitfun-external-sources-config__source-group',
+      '.bitfun-external-sources-config__source-group',
     )).toHaveLength(1);
     expect(container.textContent?.match(/Other user configuration/g)).toHaveLength(1);
     expect(container.textContent).toContain('sources.commandCount:{"count":1}');
@@ -1138,7 +1138,7 @@ describe('ExternalSourcesConfig', () => {
         serverName: 'github',
         candidates: [{
           candidateId: 'native-mcp-github',
-          displayName: 'OpenBitFun: github',
+          displayName: 'BitFun: github',
           external: false,
           behaviorVersion: 'native-v1',
           available: true,
@@ -1183,7 +1183,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('mcp.timeoutExecution');
 
     const mcpBulkEnable = container.querySelector<HTMLButtonElement>(
-      '[data-openbitfun-bulk-capability="mcp"] button',
+      '[data-bitfun-bulk-capability="mcp"] button',
     );
     await act(async () => mcpBulkEnable?.click());
     expect(setMcpServersEnabledMock).toHaveBeenCalledWith(
@@ -1196,16 +1196,16 @@ describe('ExternalSourcesConfig', () => {
     );
 
     const approvalCard = Array.from(container.querySelectorAll(
-      '.openbitfun-external-sources-config__tool-card',
+      '.bitfun-external-sources-config__tool-card',
     )).find((candidate) => (
       candidate.textContent?.includes('github')
       && candidate.textContent?.includes('mcpApprovals.enable')
     )) as HTMLElement;
     const approvalDetail = approvalCard.querySelector(
-      '.openbitfun-external-sources-config__tool-detail',
+      '.bitfun-external-sources-config__tool-detail',
     ) as HTMLElement;
     const approvalRisk = approvalCard.querySelector(
-      '.openbitfun-external-sources-config__tool-warning',
+      '.bitfun-external-sources-config__tool-warning',
     ) as HTMLElement;
     expect(approvalDetail.textContent).toContain('mcp.command:{"command":"npx"}');
     expect(approvalDetail.textContent).toContain('mcp.workingDirectory:{"location":"<workspace>"}');
@@ -1217,7 +1217,7 @@ describe('ExternalSourcesConfig', () => {
     expect(approvalRisk.id).toBe('mcp-review-risk-mcp-decision-v1');
     expect(approvalEnable.getAttribute('aria-describedby')).toBe(approvalRisk.id);
     const remoteCard = Array.from(container.querySelectorAll(
-      '.openbitfun-external-sources-config__tool-card',
+      '.bitfun-external-sources-config__tool-card',
     )).find((candidate) => candidate.textContent?.includes('mcp.url')) as HTMLElement;
     expect(remoteCard.textContent).toContain(
       'mcp.url:{"url":"https://mcp.example.test"}',
@@ -1225,7 +1225,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('mcpApprovals.enable');
 
     const externalConflictCandidate = Array.from(
-      container.querySelectorAll('.openbitfun-external-sources-config__candidate'),
+      container.querySelectorAll('.bitfun-external-sources-config__candidate'),
     ).find((candidate) => candidate.textContent?.includes('OpenCode: github'));
     expect(externalConflictCandidate?.textContent).toContain('mcpConflicts.review');
     expect(externalConflictCandidate?.textContent).not.toContain('mcp.argumentCount');
@@ -1263,7 +1263,7 @@ describe('ExternalSourcesConfig', () => {
     );
 
     const nativeCandidate = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('OpenBitFun: github'));
+      button.textContent?.includes('BitFun: github'));
     await act(async () => nativeCandidate?.click());
     expect(chooseMcpConflictMock).toHaveBeenCalledWith(
       'D:/workspace/project',
@@ -1356,9 +1356,9 @@ describe('ExternalSourcesConfig', () => {
         selectedCandidateId: 'builtin-review',
         candidates: [{
           candidateId: 'builtin-review',
-          displayName: 'OpenBitFun Review',
+          displayName: 'BitFun Review',
           kind: 'built_in',
-          providerId: 'openbitfun.builtin',
+          providerId: 'bitfun.builtin',
           contentVersion: 'builtin-v1',
         }, {
           candidateId: 'external-review',
@@ -1375,11 +1375,11 @@ describe('ExternalSourcesConfig', () => {
       subagentConflicts: [{
         conflictKey: 'agent-conflict-v1',
         logicalId: 'review',
-        selectedCandidateId: '__openbitfun_disabled__',
+        selectedCandidateId: '__bitfun_disabled__',
         candidates: [{
           candidateId: 'builtin-agent-review',
-          displayName: 'OpenBitFun Review Agent',
-          sourceLabel: 'OpenBitFun',
+          displayName: 'BitFun Review Agent',
+          sourceLabel: 'BitFun',
           external: false,
         }, {
           candidateId: 'external-agent-review',
@@ -1402,9 +1402,9 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('conflicts.currentSelection');
     expect(container.textContent).toContain('toolConflicts.currentSelection');
     expect(container.textContent).toContain('agentConflicts.keptUnavailable');
-    expect(container.textContent).toContain('OpenBitFun Review');
+    expect(container.textContent).toContain('BitFun Review');
     expect(container.textContent).toContain('OpenCode Review Tool');
-    expect(container.textContent).toContain('OpenBitFun Review Agent');
+    expect(container.textContent).toContain('BitFun Review Agent');
     expect(container.textContent).toContain('OpenCode Review Agent');
 
     const externalTool = Array.from(container.querySelectorAll('button')).find((button) =>
@@ -1417,9 +1417,9 @@ describe('ExternalSourcesConfig', () => {
       7,
     );
 
-    const openbitfunAgent = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('OpenBitFun Review Agent'));
-    await act(async () => openbitfunAgent?.click());
+    const bitfunAgent = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('BitFun Review Agent'));
+    await act(async () => bitfunAgent?.click());
     expect(chooseSubagentConflictMock).toHaveBeenCalledWith(
       'D:/workspace/project',
       'agent-conflict-v1',
@@ -1494,9 +1494,9 @@ describe('ExternalSourcesConfig', () => {
         selectedCandidateId: 'external-review',
         candidates: [{
           candidateId: 'builtin-review',
-          displayName: 'OpenBitFun Review',
+          displayName: 'BitFun Review',
           kind: 'built_in',
-          providerId: 'openbitfun.builtin',
+          providerId: 'bitfun.builtin',
           contentVersion: 'builtin-v1',
         }, {
           candidateId: 'external-review',
@@ -1534,8 +1534,8 @@ describe('ExternalSourcesConfig', () => {
         selectedCandidateId: 'external-agent-review',
         candidates: [{
           candidateId: 'builtin-agent-review',
-          displayName: 'OpenBitFun Review Agent',
-          sourceLabel: 'OpenBitFun',
+          displayName: 'BitFun Review Agent',
+          sourceLabel: 'BitFun',
           external: false,
         }, {
           candidateId: 'external-agent-review',
@@ -1681,10 +1681,10 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('errors.loadFailed');
     expect(container.textContent).not.toContain('initial load failed');
     expect(container.textContent).not.toContain('sources.empty');
-    const initialNotice = container.querySelector('[data-openbitfun-product-part="notice"]');
+    const initialNotice = container.querySelector('[data-bitfun-product-part="notice"]');
     expect(initialNotice?.getAttribute('role')).toBe('alert');
     expect(initialNotice?.getAttribute('aria-live')).toBe('assertive');
-    expect(initialNotice?.getAttribute('data-openbitfun-component')).toBe('alert');
+    expect(initialNotice?.getAttribute('data-bitfun-component')).toBe('alert');
     expect(container.textContent).not.toContain('applications.advanced.title');
     const retry = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'recoveryActions.retry',
@@ -1733,13 +1733,13 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('errors.refreshFailed');
     expect(container.textContent).toContain('OpenCode project commands');
     expect(container.textContent).not.toContain('refresh failed');
-    const notice = container.querySelector('[data-openbitfun-product-part="notice"]');
+    const notice = container.querySelector('[data-bitfun-product-part="notice"]');
     expect(notice?.getAttribute('role')).toBe('status');
     expect(notice?.getAttribute('aria-live')).toBe('polite');
-    expect(notice?.querySelector('[data-openbitfun-part="icon"]')).toBeNull();
+    expect(notice?.querySelector('[data-bitfun-part="icon"]')).toBeNull();
 
     const legacy: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
       id: 'test.external-notice', name: 'External notice', version: '1.0.0', mode: 'dark',
       components: { 'external-sources-config': { parts: {
         notice: { base: { opacity: { kind: 'number', value: 0.8 } } },
@@ -1751,19 +1751,19 @@ describe('ExternalSourcesConfig', () => {
       .registerComponent(externalSourcesConfigAppearanceDescriptor)).compile(restored, 1);
     expect(JSON.stringify(restored)).toBe(serialized);
     const selector = appearance.cssText.match(/:root[^{}]+(?=\{)/g)
-      ?.find(candidate => candidate.includes('[data-openbitfun-product-part="notice"]'))?.trim();
+      ?.find(candidate => candidate.includes('[data-bitfun-product-part="notice"]'))?.trim();
     expect(selector).toBeDefined();
-    document.documentElement.setAttribute('data-openbitfun-appearance', appearance.id);
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(appearance.revision));
+    document.documentElement.setAttribute('data-bitfun-appearance', appearance.id);
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', String(appearance.revision));
     try {
       expect(notice?.matches(selector!)).toBe(true);
     } finally {
-      document.documentElement.removeAttribute('data-openbitfun-appearance');
-      document.documentElement.removeAttribute('data-openbitfun-appearance-revision');
+      document.documentElement.removeAttribute('data-bitfun-appearance');
+      document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     }
   });
 
-  it('describes OpenBitFun preference-storage diagnostics without blaming source files', async () => {
+  it('describes BitFun preference-storage diagnostics without blaming source files', async () => {
     getSnapshotMock.mockResolvedValue({
       ...snapshot,
       diagnostics: [{
@@ -1868,8 +1868,8 @@ describe('ExternalSourcesConfig', () => {
         logicalId: 'explore',
         candidates: [{
           candidateId: 'builtin-explore',
-          displayName: 'OpenBitFun Explore',
-          sourceLabel: 'OpenBitFun',
+          displayName: 'BitFun Explore',
+          sourceLabel: 'BitFun',
           external: false,
         }, {
           candidateId: 'external-explore-v1',
@@ -1910,7 +1910,7 @@ describe('ExternalSourcesConfig', () => {
     });
 
     const agentBulkEnable = container.querySelector<HTMLButtonElement>(
-      '[data-openbitfun-bulk-capability="subagent"] button',
+      '[data-bitfun-bulk-capability="subagent"] button',
     );
     await act(async () => agentBulkEnable?.click());
     expect(setSubagentsEnabledMock).toHaveBeenCalledWith(
@@ -2332,7 +2332,7 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('capability.file_system');
     expect(container.textContent).toContain('capability.environment');
     const toolBulkEnable = container.querySelector<HTMLButtonElement>(
-      '[data-openbitfun-bulk-capability="tool"] button',
+      '[data-bitfun-bulk-capability="tool"] button',
     );
     await act(async () => toolBulkEnable?.click());
     expect(setToolTargetsEnabledMock).toHaveBeenCalledWith(
@@ -2589,11 +2589,11 @@ describe('ExternalSourcesConfig', () => {
     expect(container.textContent).toContain('diagnostics.category.invalidSettings');
     expect(container.textContent).not.toContain('opencode.configuration.invalid');
     expect(container.querySelector(
-      '.openbitfun-external-sources-config__opencode-card [data-external-attention="true"]',
+      '.bitfun-external-sources-config__opencode-card [data-external-attention="true"]',
     )).not.toBeNull();
     expect(container.textContent?.match(/diagnostics\.category\.invalidSettings/g)).toHaveLength(1);
     const sourceToggle = container.querySelector(
-      '.openbitfun-external-sources-config__opencode-card input[aria-label^="sources.toggleLabel"]',
+      '.bitfun-external-sources-config__opencode-card input[aria-label^="sources.toggleLabel"]',
     ) as HTMLInputElement;
     expect(sourceToggle).not.toBeNull();
     await act(async () => sourceToggle.click());
@@ -2881,10 +2881,10 @@ describe('ExternalSourcesConfig', () => {
       'input[aria-label^="sources.toggleLabel"]',
     ) as HTMLInputElement;
     const policyToggle = container.querySelector(
-      '.openbitfun-external-sources-config__policy-card input[type="checkbox"]',
+      '.bitfun-external-sources-config__policy-card input[type="checkbox"]',
     ) as HTMLInputElement;
     expect(container.querySelectorAll(
-      '.openbitfun-external-sources-config__source-group',
+      '.bitfun-external-sources-config__source-group',
     )).toHaveLength(2);
     expect(sourceToggle.disabled).toBe(true);
     expect(policyToggle.disabled).toBe(true);
@@ -2970,7 +2970,7 @@ describe('ExternalSourcesConfig', () => {
       'details[data-external-attention="true"]',
     ) as HTMLDetailsElement;
     expect(firstDiagnostic.open).toBe(true);
-    expect(firstDiagnostic.getAttribute('data-openbitfun-component')).toBe('disclosure');
+    expect(firstDiagnostic.getAttribute('data-bitfun-component')).toBe('disclosure');
     expect(firstDiagnostic.getAttribute('data-presentation')).toBe('native');
     expect(document.activeElement).toBe(firstDiagnostic.querySelector('summary'));
     expect(scrollIntoView).toHaveBeenCalled();
@@ -3105,7 +3105,7 @@ describe('ExternalSourcesConfig', () => {
     await act(async () => detailsButton?.click());
 
     const pathLinks = container.querySelectorAll(
-      '.openbitfun-external-sources-config__source-detail-toggle .openbitfun-external-sources-config__path-link',
+      '.bitfun-external-sources-config__source-detail-toggle .bitfun-external-sources-config__path-link',
     );
     expect(pathLinks).toHaveLength(2);
     await act(async () => {
@@ -3169,7 +3169,7 @@ describe('ExternalSourcesConfig', () => {
 
     expect(container.textContent).toContain('opencode.title');
     expect(container.querySelector(
-      '.openbitfun-external-sources-config__opencode-card',
+      '.bitfun-external-sources-config__opencode-card',
     )).not.toBeNull();
     expect(container.textContent).not.toContain('sources.title');
 
@@ -3183,11 +3183,11 @@ describe('ExternalSourcesConfig', () => {
     });
     expect(expandButton?.getAttribute('aria-expanded')).toBe('true');
     const locationBlocks = container.querySelectorAll(
-      '.openbitfun-external-sources-config__opencode-locations',
+      '.bitfun-external-sources-config__opencode-locations',
     );
     expect(locationBlocks).toHaveLength(2);
     const expandedLinks = locationBlocks[1].querySelectorAll(
-      '.openbitfun-external-sources-config__path-link',
+      '.bitfun-external-sources-config__path-link',
     );
     expect(expandedLinks).toHaveLength(2);
     await act(async () => {
@@ -3248,10 +3248,10 @@ describe('ExternalSourcesConfig', () => {
     });
 
     expect(container.querySelector(
-      '.openbitfun-external-sources-config__opencode-locations a.openbitfun-external-sources-config__path-link',
+      '.bitfun-external-sources-config__opencode-locations a.bitfun-external-sources-config__path-link',
     )).toBeNull();
     expect(container.querySelector(
-      '.openbitfun-external-sources-config__opencode-locations .openbitfun-external-sources-config__path-link--disabled',
+      '.bitfun-external-sources-config__opencode-locations .bitfun-external-sources-config__path-link--disabled',
     )?.getAttribute('aria-label')).toBe('common.openInExplorerUnavailable');
     expect(revealSourceLocationMock).not.toHaveBeenCalled();
   });
@@ -3305,7 +3305,7 @@ describe('ExternalSourcesConfig', () => {
       await Promise.resolve();
     });
     const pathLink = container.querySelector(
-      '.openbitfun-external-sources-config__opencode-locations a.openbitfun-external-sources-config__path-link',
+      '.bitfun-external-sources-config__opencode-locations a.bitfun-external-sources-config__path-link',
     );
     await act(async () => {
       (pathLink as HTMLAnchorElement).click();

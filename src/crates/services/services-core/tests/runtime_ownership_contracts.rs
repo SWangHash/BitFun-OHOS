@@ -1,6 +1,6 @@
 #![cfg(feature = "runtime-ownership")]
 
-use openbitfun_services_core::runtime_ownership::{
+use bitfun_services_core::runtime_ownership::{
     RuntimeDeployment, RuntimeOwnershipError, RuntimeOwnershipKey, WorkspaceRuntimeOwnership,
 };
 use std::path::PathBuf;
@@ -54,14 +54,14 @@ fn ownership_key_is_stable_and_scoped_by_workspace_and_product() {
     let first_workspace = tempdir().expect("first workspace");
     let second_workspace = tempdir().expect("second workspace");
 
-    let first = RuntimeOwnershipKey::for_workspace(first_workspace.path(), "openbitfun")
+    let first = RuntimeOwnershipKey::for_workspace(first_workspace.path(), "bitfun")
         .expect("create first ownership key");
-    let same = RuntimeOwnershipKey::for_workspace(&first_workspace.path().join("."), "openbitfun")
+    let same = RuntimeOwnershipKey::for_workspace(&first_workspace.path().join("."), "bitfun")
         .expect("normalize same workspace");
-    let other_workspace = RuntimeOwnershipKey::for_workspace(second_workspace.path(), "openbitfun")
+    let other_workspace = RuntimeOwnershipKey::for_workspace(second_workspace.path(), "bitfun")
         .expect("create second ownership key");
     let other_product =
-        RuntimeOwnershipKey::for_workspace(first_workspace.path(), "openbitfun-preview")
+        RuntimeOwnershipKey::for_workspace(first_workspace.path(), "bitfun-preview")
             .expect("create product-scoped ownership key");
 
     assert_eq!(first, same);
@@ -84,8 +84,8 @@ fn ownership_key_preserves_non_utf8_workspace_bytes() {
     std::fs::create_dir(&second_path).expect("second non-UTF-8 workspace");
 
     let first =
-        RuntimeOwnershipKey::for_workspace(&first_path, "openbitfun").expect("first ownership key");
-    let second = RuntimeOwnershipKey::for_workspace(&second_path, "openbitfun")
+        RuntimeOwnershipKey::for_workspace(&first_path, "bitfun").expect("first ownership key");
+    let second = RuntimeOwnershipKey::for_workspace(&second_path, "bitfun")
         .expect("second ownership key");
 
     assert_ne!(first, second);
@@ -95,7 +95,7 @@ fn ownership_key_preserves_non_utf8_workspace_bytes() {
 fn embedded_owners_can_coexist_but_shared_ownership_is_exclusive() {
     let workspace = tempdir().expect("workspace");
     let ownership_root = tempdir().expect("ownership root");
-    let key = RuntimeOwnershipKey::for_workspace(workspace.path(), "openbitfun")
+    let key = RuntimeOwnershipKey::for_workspace(workspace.path(), "bitfun")
         .expect("create ownership key");
 
     let embedded_one = WorkspaceRuntimeOwnership::try_acquire(

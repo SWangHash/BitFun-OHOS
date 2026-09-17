@@ -49,7 +49,7 @@ export class MCPSettingsPage extends BasePage {
 
   async dismissWarning(): Promise<void> {
     if (await this.warning.isExisting()) {
-      await this.warning.$('[data-openbitfun-part="itemClose"] button').click();
+      await this.warning.$('[data-bitfun-part="itemClose"] button').click();
       await this.warning.waitForDisplayed({ reverse: true });
     }
   }

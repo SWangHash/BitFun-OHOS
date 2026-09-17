@@ -1,3 +1,8 @@
+// Backend event delivery lives in the `runtime-services` owner feature; the
+// ArkTS bridge (registration, picker, clipboard, speech call) below stays
+// available without it so `cargo check -p bitfun-core --no-default-features`
+// remains viable on non-OHOS hosts.
+#[cfg(feature = "runtime-services")]
 use crate::infrastructure::events::{emit_global_event, BackendEvent};
 use lazy_static::lazy_static;
 use napi_derive_ohos::napi;
@@ -6,6 +11,7 @@ use napi_ohos::threadsafe_function::ThreadsafeFunction;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
+#[cfg(feature = "runtime-services")]
 use std::sync::OnceLock;
 lazy_static! {
     pub static ref JS_THREADSAFE_FUNCTION: RwLock<HashMap<String, Arc<ThreadsafeFunction<String, Promise<String>>>>> =
@@ -23,11 +29,11 @@ pub fn register_arkts_function(
 
 /// The OHOS-side event name the web-ui listens for to follow live system color
 /// mode changes. Defined here so rust and the web-ui reference the same string.
-pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "openbitfun:system-color-scheme-changed";
+pub const SYSTEM_COLOR_SCHEME_CHANGED_EVENT: &str = "bitfun:system-color-scheme-changed";
 
 /// Event emitted by the HarmonyOS native window host when the user clicks the
 /// system title-bar close button. Desktop Tauri emits the same event directly.
-pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "openbitfun_main_window_close_requested";
+pub const MAIN_WINDOW_CLOSE_REQUESTED_EVENT: &str = "bitfun_main_window_close_requested";
 
 /// Event name the embedded browser webview emits to signal page-load lifecycle
 /// (started/finished) so the web-ui's `useEmbeddedBrowserWebview` hook can
@@ -47,12 +53,10 @@ pub const SPEECH_TRANSCRIPTION_EVENT: &str = "speech://transcription";
 /// silently left this `None` and dropped every color-mode change). Instead we
 /// lazily build a runtime here, mirroring the proven pattern in
 /// `get_app_config_bool` (`system_api.rs`): `OnceLock<Runtime>` + `get_or_init`.
+#[cfg(feature = "runtime-services")]
 static SYSTEM_COLOR_MODE_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
-/// Lazily creates (on first call) the runtime used to drive
-/// `emit_global_event` from the napi callback. Keeping a persistent runtime
-/// (rather than building one per call) avoids re-creating the reactor and
-/// thread on every system color-mode change.
+#[cfg(feature = "runtime-services")]
 fn system_color_mode_runtime() -> &'static tokio::runtime::Runtime {
     SYSTEM_COLOR_MODE_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_current_thread()
@@ -70,6 +74,7 @@ fn system_color_mode_runtime() -> &'static tokio::runtime::Runtime {
 /// completion on the dedicated runtime (blocking the HarmonyOS callback thread
 /// briefly, same as `get_app_config_bool`); `emit_global_event` is a fast
 /// channel send, so the blocking is negligible.
+#[cfg(feature = "runtime-services")]
 #[napi]
 pub fn notify_system_color_mode(mode: String) {
     let normalized = match mode.as_str() {
@@ -92,6 +97,7 @@ pub fn notify_system_color_mode(mode: String) {
 /// Called synchronously from the HarmonyOS `windowStageClose` callback. The
 /// native callback always consumes the close and lets the web UI apply the
 /// persisted quit / minimize-to-dock / ask policy.
+#[cfg(feature = "runtime-services")]
 #[napi]
 pub fn notify_main_window_close_requested() {
     system_color_mode_runtime().block_on(async {
@@ -112,8 +118,10 @@ pub fn notify_main_window_close_requested() {
 /// persistent runtime here to drive `emit_global_event` (a fast channel send,
 /// so blocking is negligible) without re-creating the reactor per page-load
 /// event.
+#[cfg(feature = "runtime-services")]
 static BROWSER_PAGE_LOAD_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
+#[cfg(feature = "runtime-services")]
 fn browser_page_load_runtime() -> &'static tokio::runtime::Runtime {
     BROWSER_PAGE_LOAD_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_current_thread()
@@ -132,6 +140,7 @@ fn browser_page_load_runtime() -> &'static tokio::runtime::Runtime {
 /// bar URL, and re-injects the page-init scripts. Mirrors the desktop path in
 /// `apps/desktop/src/lib.rs` `.on_page_load` handler that emits the same event
 /// to the `"main"` webview via `webview.emit_to(...)`.
+#[cfg(feature = "runtime-services")]
 #[napi]
 pub fn emit_browser_page_load(label: String, event: String, url: String) {
     browser_page_load_runtime().block_on(async move {
@@ -152,6 +161,7 @@ pub fn emit_browser_page_load(label: String, event: String, url: String) {
 }
 
 /// Forwards native HarmonyOS speech recognition results to the web UI.
+#[cfg(feature = "runtime-services")]
 #[napi]
 pub fn emit_speech_transcription(session_id: String, text: String, is_final: bool) {
     browser_page_load_runtime().block_on(async move {
@@ -254,15 +264,17 @@ pub async fn get_clipboard_files() -> Result<Vec<String>, String> {
 /// `prefix` is used in error messages to identify the originating call.
 fn parse_paths_envelope(json: &str, prefix: &str) -> Result<Vec<String>, String> {
     // Tolerate a stray non-JSON legacy return by surfacing it as an error.
-    let value: serde_json::Value =
-        serde_json::from_str(json).map_err(|e| format!("{prefix}: invalid json response: {e}: {json}"))?;
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| format!("{prefix}: invalid json response: {e}: {json}"))?;
 
     if let Some(error) = value.get("error").and_then(|v| v.as_str()) {
         return Err(error.to_owned());
     }
 
     let Some(paths) = value.get("paths").and_then(|v| v.as_array()) else {
-        return Err(format!("{prefix}: unexpected response, missing 'paths': {json}"));
+        return Err(format!(
+            "{prefix}: unexpected response, missing 'paths': {json}"
+        ));
     };
 
     let strings: Vec<String> = paths
@@ -334,12 +346,22 @@ pub async fn ohos_speech_call(name: &str, json: &str) -> Result<String, String> 
         Ok(promise) => match promise.await {
             Ok(json) => Ok(json),
             Err(err) => {
-                log::error!("[ohos_speech] {} promise rejected: {} | {:?}", name, err.to_string(), err);
+                log::error!(
+                    "[ohos_speech] {} promise rejected: {} | {:?}",
+                    name,
+                    err.to_string(),
+                    err
+                );
                 Err(err.to_string())
             }
         },
         Err(err) => {
-            log::error!("[ohos_speech] {} call_async failed: {} | {:?}", name, err.to_string(), err);
+            log::error!(
+                "[ohos_speech] {} call_async failed: {} | {:?}",
+                name,
+                err.to_string(),
+                err
+            );
             Err(err.to_string())
         }
     }

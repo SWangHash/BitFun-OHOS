@@ -206,7 +206,7 @@ describe('sessionOrdering', () => {
       sessionBelongsToWorkspaceNavRow(session, '/assistants/default')
     ).toBe(false);
     expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/OpenBitFun')
+      sessionBelongsToWorkspaceNavRow(session, '/projects/BitFun')
     ).toBe(false);
   });
 });

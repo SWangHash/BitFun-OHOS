@@ -56,11 +56,11 @@ function SessionToolCardBase({
 }: SessionToolCardBaseProps) {
   const hasDetails = fields.length > 0 || sessions.length > 0 || Boolean(emptyState || message || error);
   const expandedContent = hasDetails ? (
-    <div className={styles.details} data-openbitfun-part="details">
+    <div className={styles.details} data-bitfun-part="details">
       {fields.map((field, index) => (
         <div
           className={styles.field}
-          data-openbitfun-part="field"
+          data-bitfun-part="field"
           key={index}
         >
           <span className={styles.fieldLabel}>{field.label}</span>
@@ -69,9 +69,9 @@ function SessionToolCardBase({
       ))}
 
       {sessions.length > 0 && (
-        <div className={styles.sessionList} data-openbitfun-part="sessionList">
+        <div className={styles.sessionList} data-bitfun-part="sessionList">
           {sessions.map((session) => (
-            <div className={styles.session} data-openbitfun-part="session" key={session.key}>
+            <div className={styles.session} data-bitfun-part="session" key={session.key}>
               <span className={styles.sessionId}>{session.id}</span>
               {session.name && <OverflowText className={styles.sessionName}>{session.name}</OverflowText>}
               {session.agentType && <span className={styles.sessionAgent}>{session.agentType}</span>}
@@ -81,21 +81,21 @@ function SessionToolCardBase({
       )}
 
       {message && (
-        <div className={styles.messageSection} data-openbitfun-part="messageSection">
+        <div className={styles.messageSection} data-bitfun-part="messageSection">
           {messageLabel && <span className={styles.sectionLabel}>{messageLabel}</span>}
-          <pre className={styles.message} data-openbitfun-part="message">{message}</pre>
+          <pre className={styles.message} data-bitfun-part="message">{message}</pre>
         </div>
       )}
 
-      {emptyState && <div className={styles.empty} data-openbitfun-part="empty">{emptyState}</div>}
-      {error && <div className={styles.error} data-openbitfun-part="error">{error}</div>}
+      {emptyState && <div className={styles.empty} data-bitfun-part="empty">{emptyState}</div>}
+      {error && <div className={styles.error} data-bitfun-part="error">{error}</div>}
     </div>
   ) : undefined;
 
   return (
     <AmbientToolCard
       {...props}
-      data-openbitfun-tool-card={toolCard}
+      data-bitfun-tool-card={toolCard}
       expandedContent={expandedContent}
       header={(
         <AmbientToolCardHeader

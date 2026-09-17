@@ -155,9 +155,9 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     }
 
     return (
-      <div data-openbitfun-component="content-canvas" data-openbitfun-part="main" className="canvas-content-canvas__main">
+      <div data-bitfun-component="content-canvas" data-bitfun-part="main" className="canvas-content-canvas__main">
         {/* Editor area */}
-        <div className="canvas-content-canvas__editor" data-openbitfun-component="content-canvas" data-openbitfun-part="editor">
+        <div className="canvas-content-canvas__editor" data-bitfun-component="content-canvas" data-bitfun-part="editor">
           <EditorArea
             workspacePath={workspacePath}
             isSceneActive={isSceneActive}
@@ -180,7 +180,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
             onClose={handleAnchorClose}
           >
             {/* Anchor content (e.g., terminal) renders here */}
-            <div className="canvas-content-canvas__anchor-content" data-openbitfun-component="content-canvas" data-openbitfun-part="anchorContent">
+            <div className="canvas-content-canvas__anchor-content" data-bitfun-component="content-canvas" data-bitfun-part="anchorContent">
             </div>
           </AnchorZone>
         )}
@@ -189,11 +189,11 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   };
 
   return (
-    <div data-openbitfun-component="content-canvas" data-openbitfun-part="root"
+    <div data-bitfun-component="content-canvas" data-bitfun-part="root"
       className={`canvas-content-canvas ${layout.isMaximized ? 'is-maximized' : ''}`}
       data-canvas-mode={mode}
-      data-openbitfun-mode={mode}
-      data-openbitfun-state={layout.isMaximized ? 'maximized' : ''}
+      data-bitfun-mode={mode}
+      data-bitfun-state={layout.isMaximized ? 'maximized' : ''}
       data-shortcut-scope="canvas"
     >
       {/* Main content */}

@@ -12,16 +12,16 @@
   gap: 16px;
   min-width: 0;
   padding-block: 4px 16px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 
   &__modal {
     overflow-x: hidden;
   }
 
   &__target {
-    color: var(--openbitfun-color-content-muted);
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__intro {
@@ -29,17 +29,17 @@
     align-items: flex-start;
     gap: 8px;
     padding: 8px 10px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 6px;
-    background: var(--openbitfun-color-surface-subtle);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
 
     svg {
       flex-shrink: 0;
       margin-top: 1px;
-      color: var(--openbitfun-color-accent-default);
+      color: var(--bitfun-color-accent-default);
     }
 
     p {
@@ -52,12 +52,12 @@
     align-items: flex-start;
     gap: 8px;
     padding: 8px 10px;
-    border: 1px solid var(--openbitfun-color-status-danger-border);
+    border: 1px solid var(--bitfun-color-status-danger-border);
     border-radius: 6px;
-    background: var(--openbitfun-color-status-danger-surface);
-    color: var(--openbitfun-color-status-danger-content);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    background: var(--bitfun-color-status-danger-surface);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
 
     svg {
       flex-shrink: 0;
@@ -69,7 +69,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 8px;
     overflow: hidden;
   }
@@ -81,10 +81,10 @@
     gap: 12px;
     min-height: 44px;
     padding: 8px 12px;
-    background: var(--openbitfun-color-surface-subtle);
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
   }
 
   &__section-body {
@@ -97,9 +97,9 @@
 
   &__empty {
     margin: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__spin {
@@ -117,23 +117,23 @@
     align-items: center;
     gap: 5px;
     padding: 4px 10px 4px 7px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 6px;
-    background: var(--openbitfun-color-action-neutral-surface);
-    color: var(--openbitfun-color-content-primary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    background: var(--bitfun-color-action-neutral-surface);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-sm-font-size);
     cursor: pointer;
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 
     &:hover:not(:disabled) {
-      border-color: var(--openbitfun-color-accent-default);
-      background: var(--openbitfun-color-action-secondary-background);
-      color: var(--openbitfun-color-accent-default);
+      border-color: var(--bitfun-color-accent-default);
+      background: var(--bitfun-color-action-secondary-background);
+      color: var(--bitfun-color-accent-default);
     }
 
     &[data-state='forwarded'] {
-      background: var(--openbitfun-color-surface-subtle);
-      color: var(--openbitfun-color-content-muted);
+      background: var(--bitfun-color-surface-subtle);
+      color: var(--bitfun-color-content-muted);
     }
 
     &:disabled {
@@ -147,12 +147,12 @@
   }
 
   &__chip-port {
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__chip-process {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__rows {
@@ -170,7 +170,7 @@
     padding: 10px 12px;
 
     + .port-forward-dialog__row {
-      border-top: 1px solid var(--openbitfun-color-border-subtle);
+      border-top: 1px solid var(--bitfun-color-border-subtle);
     }
   }
 
@@ -184,22 +184,22 @@
 
   &__remote,
   &__local {
-    font-family:var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    font-family:var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__remote {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__local {
-    color: var(--openbitfun-color-content-primary);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__arrow {
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__meta {
@@ -210,8 +210,8 @@
   }
 
   &__label {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
     overflow: hidden;
     white-space: nowrap;
     max-width: 160px;
@@ -221,24 +221,24 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
     white-space: nowrap;
 
     &--warn {
-      color: var(--openbitfun-color-status-danger-content);
+      color: var(--bitfun-color-status-danger-content);
       cursor: help;
     }
   }
 
   &__note {
     flex-basis: 100%;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
 
     &--warn {
-      color: var(--openbitfun-color-status-warning-content);
+      color: var(--bitfun-color-status-warning-content);
     }
   }
 
@@ -263,8 +263,8 @@
     width: 100px;
 
     > span {
-      color: var(--openbitfun-color-content-muted);
-      font-size: var(--openbitfun-type-label-sm-font-size);
+      color: var(--bitfun-color-content-muted);
+      font-size: var(--bitfun-type-label-sm-font-size);
     }
 
     &--grow {

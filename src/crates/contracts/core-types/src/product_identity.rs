@@ -4,13 +4,13 @@
 //! definition. They are compile-time facts rather than runtime configuration:
 //! a running process cannot switch product identity or storage namespaces.
 
-const DEFAULT_PRODUCT_ID: &str = "openbitfun";
-const DEFAULT_DATA_NAMESPACE: &str = "openbitfun";
-const DEFAULT_HIDDEN_DATA_DIRECTORY: &str = ".openbitfun";
+const DEFAULT_PRODUCT_ID: &str = "bitfun";
+const DEFAULT_DATA_NAMESPACE: &str = "bitfun";
+const DEFAULT_HIDDEN_DATA_DIRECTORY: &str = ".bitfun";
 
 /// Stable identifier for the product family represented by this artifact.
 pub const fn product_id() -> &'static str {
-    match option_env!("OPENBITFUN_PRODUCT_ID") {
+    match option_env!("BITFUN_PRODUCT_ID") {
         Some(value) => value,
         None => DEFAULT_PRODUCT_ID,
     }
@@ -18,7 +18,7 @@ pub const fn product_id() -> &'static str {
 
 /// Storage namespace paired with [`product_id`].
 pub const fn data_namespace() -> &'static str {
-    match option_env!("OPENBITFUN_DATA_NAMESPACE") {
+    match option_env!("BITFUN_DATA_NAMESPACE") {
         Some(value) => value,
         None => DEFAULT_DATA_NAMESPACE,
     }
@@ -28,7 +28,7 @@ pub const fn data_namespace() -> &'static str {
 ///
 /// The same name is used for the product home and project-local product data.
 pub const fn hidden_data_directory() -> &'static str {
-    match option_env!("OPENBITFUN_HIDDEN_DATA_DIRECTORY") {
+    match option_env!("BITFUN_HIDDEN_DATA_DIRECTORY") {
         Some(value) => value,
         None => DEFAULT_HIDDEN_DATA_DIRECTORY,
     }
@@ -39,9 +39,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_identity_is_openbitfun() {
-        assert_eq!(product_id(), "openbitfun");
-        assert_eq!(data_namespace(), "openbitfun");
-        assert_eq!(hidden_data_directory(), ".openbitfun");
+    fn default_identity_is_bitfun() {
+        assert_eq!(product_id(), "bitfun");
+        assert_eq!(data_namespace(), "bitfun");
+        assert_eq!(hidden_data_directory(), ".bitfun");
     }
 }

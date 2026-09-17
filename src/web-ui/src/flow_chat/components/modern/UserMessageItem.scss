@@ -5,13 +5,13 @@
   position: relative;
   margin:
     0.06rem
-    var(--openbitfun-control-flow-chat-content-padding-inline)
-    var(--openbitfun-control-flow-chat-flow-item-gap)
-    var(--openbitfun-control-flow-chat-content-padding-inline);
+    var(--bitfun-control-flow-chat-content-padding-inline)
+    var(--bitfun-control-flow-chat-flow-item-gap)
+    var(--bitfun-control-flow-chat-content-padding-inline);
 
   @media (max-width: 768px) {
-    margin-left: var(--openbitfun-control-flow-chat-content-padding-inline-mobile);
-    margin-right: var(--openbitfun-control-flow-chat-content-padding-inline-mobile);
+    margin-left: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
+    margin-right: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
   }
 }
 
@@ -24,9 +24,9 @@
    */
   width: auto;
   padding: 0.46rem 0.68rem;
-  background: var(--openbitfun-color-action-quiet-hover);
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-border-default) 72%, transparent);
-  border-radius: calc(var(--openbitfun-control-flow-chat-card-radius) + 2px);
+  background: var(--bitfun-color-action-quiet-hover);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default) 72%, transparent);
+  border-radius: calc(var(--bitfun-control-flow-chat-card-radius) + 2px);
   margin: 0;
   box-shadow: none;
   transition: opacity 140ms ease;
@@ -38,24 +38,24 @@
   position: relative;
 
   &:hover {
-    background: var(--openbitfun-color-action-quiet-hover);
-    border-color: color-mix(in srgb, var(--openbitfun-color-border-subtle) 56%, transparent);
+    background: var(--bitfun-color-action-quiet-hover);
+    border-color: color-mix(in srgb, var(--bitfun-color-border-subtle) 56%, transparent);
   }
 
   &:focus-within {
-    border-color: color-mix(in srgb, color-mix(in srgb, var(--openbitfun-color-accent-hover) 40%, transparent) 68%, var(--openbitfun-color-border-default));
+    border-color: color-mix(in srgb, color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent) 68%, var(--bitfun-color-border-default));
   }
 
 }
 
 .user-message-item__timestamp {
   /* The timestamp shares the external meta row with the action cluster. */
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-type-flow-meta-font-family);
-  font-size: var(--openbitfun-type-flow-meta-font-size);
-  font-weight: var(--openbitfun-type-flow-meta-font-weight);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-flow-meta-font-family);
+  font-size: var(--bitfun-type-flow-meta-font-size);
+  font-weight: var(--bitfun-type-flow-meta-font-weight);
   font-variant-numeric: tabular-nums;
-  line-height: var(--openbitfun-type-flow-meta-line-height);
+  line-height: var(--bitfun-type-flow-meta-line-height);
   white-space: nowrap;
   opacity: 1;
   pointer-events: none;
@@ -71,14 +71,14 @@
   justify-content: flex-end;
   gap: 0.125rem;
   box-sizing: border-box;
-  padding: var(--openbitfun-space-1) 0 0;
+  padding: var(--bitfun-space-1) 0 0;
   pointer-events: auto;
 }
 
 .user-message-item__main {
   display: flex;
   align-items: flex-start;
-  gap: var(--openbitfun-control-flow-chat-inline-gap);
+  gap: var(--bitfun-control-flow-chat-inline-gap);
 }
 
 // Bridges children to `.user-message-item__main` flex without an extra layout box.
@@ -93,17 +93,17 @@
   width: fit-content;
   padding: 0.12rem 0.44rem;
   border-radius: 999px;
-  font-size: var(--openbitfun-type-flow-micro-font-size);
-  font-weight: var(--openbitfun-type-label-selected-font-weight);
-  line-height: var(--openbitfun-type-flow-meta-line-height);
-  letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+  font-size: var(--bitfun-type-flow-micro-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  line-height: var(--bitfun-type-flow-meta-line-height);
+  letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
   user-select: none;
 }
 
 .user-message-item__steering-tag--pending {
-  color: var(--openbitfun-color-status-warning-content);
-  background: var(--openbitfun-color-status-warning-surface);
-  border: 1px solid var(--openbitfun-color-status-warning-border);
+  color: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-warning-surface);
+  border: 1px solid var(--bitfun-color-status-warning-border);
 }
 
 .user-message-item__actions {
@@ -118,15 +118,15 @@
 }
 
 .user-message-item__blocks {
-  margin-top: var(--openbitfun-control-flow-chat-flow-item-gap);
+  margin-top: var(--bitfun-control-flow-chat-flow-item-gap);
 }
 
 .user-message-item__content {
   flex: 1;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  font-weight: var(--openbitfun-type-flow-control-font-weight);
-  line-height: var(--openbitfun-type-flow-body-line-height);
-  color: var(--openbitfun-color-content-primary);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  font-weight: var(--bitfun-type-flow-control-font-weight);
+  line-height: var(--bitfun-type-flow-body-line-height);
+  color: var(--bitfun-color-content-primary);
   white-space: pre-wrap;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -149,8 +149,8 @@
 
 // Failed messages keep the message fill and mark the failed state through text styling.
 .user-message-item--failed {
-  --_failed-font-size: var(--openbitfun-type-flow-control-font-size);
-  --_failed-line-height: var(--openbitfun-type-support-line-height);
+  --_failed-font-size: var(--bitfun-type-flow-control-font-size);
+  --_failed-line-height: var(--bitfun-type-support-line-height);
 
   border: none;
   box-shadow: none;
@@ -159,7 +159,7 @@
     display: flex;
     flex-flow: row wrap;
     align-items: flex-start;
-    column-gap: var(--openbitfun-control-flow-chat-inline-gap);
+    column-gap: var(--bitfun-control-flow-chat-inline-gap);
     row-gap: 0.28em;
     flex: 1;
     min-width: 0;
@@ -171,20 +171,20 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--openbitfun-control-flow-chat-inline-gap);
+    gap: var(--bitfun-control-flow-chat-inline-gap);
   }
 
   .user-message-item__content {
     flex: 0 1 auto;
     width: max-content;
     max-width: 100%;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     font-size: var(--_failed-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
     font-style: italic;
     line-height: var(--_failed-line-height);
     text-decoration: line-through;
-    text-decoration-color: color-mix(in srgb, var(--openbitfun-color-content-muted) 72%, transparent);
+    text-decoration-color: color-mix(in srgb, var(--bitfun-color-content-muted) 72%, transparent);
   }
 
   .user-message-item__failed-body .user-message-item__steering-tag {
@@ -218,8 +218,8 @@
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--openbitfun-radius-sm);
-  color: var(--openbitfun-color-content-secondary);
+  border-radius: var(--bitfun-radius-sm);
+  color: var(--bitfun-color-content-secondary);
   cursor: pointer;
   transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
   flex-shrink: 0;
@@ -229,24 +229,24 @@
 
   &::before { content: none; }
 
-  > [data-openbitfun-part='icon'] {
-    --openbitfun-opacity-icon-artwork: inherit;
+  > [data-bitfun-part='icon'] {
+    --bitfun-opacity-icon-artwork: inherit;
     display: contents;
   }
 
-  > :where([data-openbitfun-part='icon']) > :where(svg, [data-openbitfun-component='icon']) {
+  > :where([data-bitfun-part='icon']) > :where(svg, [data-bitfun-component='icon']) {
     inline-size: 14px;
     block-size: 14px;
   }
 
   &:hover:not(:disabled) {
     background: transparent;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
     box-shadow: none;
   }
 
   &:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--openbitfun-color-accent-hover) 40%, transparent);
+    outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent);
     outline-offset: 1px;
   }
 
@@ -256,7 +256,7 @@
   }
 
   svg,
-  [data-openbitfun-component='icon'] {
+  [data-bitfun-component='icon'] {
     width: 14px;
     height: 14px;
     display: block;
@@ -265,8 +265,8 @@
 }
 
 .user-message-item__copy-btn.copied {
-  color: var(--openbitfun-color-status-success-content);
-  background: var(--openbitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
+  background: var(--bitfun-color-status-success-surface);
 }
 
 .user-message-edit-composer {
@@ -278,8 +278,8 @@
   min-height: 5.5rem;
   max-height: 45vh;
   overflow-y: auto;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-body-line-height);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-body-line-height);
 }
 
 .user-message-edit-composer__rich-input {
@@ -294,8 +294,8 @@
     border: none;
     background: transparent;
     box-shadow: none;
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    line-height: var(--openbitfun-type-flow-body-line-height);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    line-height: var(--bitfun-type-flow-body-line-height);
   }
 }
 
@@ -335,12 +335,12 @@
   border-radius: 5px;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:hover {
     transform: scale(1.03);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--openbitfun-color-content-on-light) 30%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--bitfun-color-content-on-light) 30%, transparent);
   }
 
   img {
@@ -355,8 +355,8 @@
 .user-message-item__lightbox {
   position: fixed;
   inset: 0;
-  z-index: var(--openbitfun-layer-fullscreen);
-  background: color-mix(in srgb, var(--openbitfun-color-content-on-light) 80%, transparent);
+  z-index: var(--bitfun-layer-fullscreen);
+  background: color-mix(in srgb, var(--bitfun-color-content-on-light) 80%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,7 +366,7 @@
     max-width: 90vw;
     max-height: 85vh;
     border-radius: 8px;
-    box-shadow: 0 8px 32px var(--openbitfun-color-overlay-scrim);
+    box-shadow: 0 8px 32px var(--bitfun-color-overlay-scrim);
     object-fit: contain;
   }
 }
@@ -375,7 +375,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  background: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 15%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 15%, transparent);
   border: none;
   border-radius: 50%;
   width: 36px;
@@ -383,16 +383,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--openbitfun-color-content-on-dark);
+  color: var(--bitfun-color-content-on-dark);
   cursor: pointer;
   transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
 
   &:hover {
-    background: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 30%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 30%, transparent);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--openbitfun-color-content-on-dark);
+    outline: 2px solid var(--bitfun-color-content-on-dark);
     outline-offset: 2px;
   }
 }
@@ -419,12 +419,12 @@
   }
 }
 
-.user-message-item__lightbox[data-openbitfun-component='dialog'] {
+.user-message-item__lightbox[data-bitfun-component='dialog'] {
   padding: 0;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-.user-message-item__lightbox-surface[data-openbitfun-component='dialog'] {
+.user-message-item__lightbox-surface[data-bitfun-component='dialog'] {
   width: 100%;
   height: 100%;
   max-inline-size: none;
@@ -437,7 +437,7 @@
   box-shadow: none;
   animation: none;
 }
-.user-message-item__lightbox-close[data-openbitfun-component='icon-button'] {
+.user-message-item__lightbox-close[data-bitfun-component='icon-button'] {
   &::before { content: none; }
-  > [data-openbitfun-part='icon'] { display: contents; }
+  > [data-bitfun-part='icon'] { display: contents; }
 }

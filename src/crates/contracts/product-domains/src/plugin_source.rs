@@ -1,6 +1,6 @@
 //! Product-owned plugin package and trust contracts.
 //!
-//! These contracts identify OpenBitFun-managed packages before an ecosystem
+//! These contracts identify BitFun-managed packages before an ecosystem
 //! adapter or PluginRuntimeClient implementation is selected. Filesystem discovery and trust
 //! persistence are concrete service integration responsibilities.
 
@@ -722,7 +722,7 @@ impl fmt::Display for PluginSourceContractError {
             {
                 write!(
                     formatter,
-                    "pre-OpenBitFun plugin trust schema version {version} requires the explicit data migration tool"
+                    "pre-BitFun plugin trust schema version {version} requires the explicit data migration tool"
                 )
             }
             Self::UnsupportedTrustStoreSchema(version) => {

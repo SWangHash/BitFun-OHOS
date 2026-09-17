@@ -1,12 +1,12 @@
 //! Current Workspace registry persistence contract and validation.
 
-use crate::storage_error::{StorageError as OpenBitFunError, StorageResult as OpenBitFunResult};
+use crate::storage_error::{StorageError as BitFunError, StorageResult as BitFunResult};
 use crate::workspace_identity::{
     canonicalize_local_workspace_root, local_workspace_stable_storage_id,
     normalize_remote_workspace_path, remote_workspace_stable_id, LOCAL_WORKSPACE_SSH_HOST,
 };
 use crate::workspace_records::{PrimaryAssistantKey, WorkspaceInfo, WorkspaceKind};
-use openbitfun_core_types::product_identity::product_id;
+use bitfun_core_types::product_identity::product_id;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -32,7 +32,7 @@ pub struct WorkspacePersistenceData {
     pub saved_at: chrono::DateTime<chrono::Utc>,
 }
 
-pub fn current_workspace_storage_id(workspace: &WorkspaceInfo) -> OpenBitFunResult<String> {
+pub fn current_workspace_storage_id(workspace: &WorkspaceInfo) -> BitFunResult<String> {
     match workspace.workspace_kind {
         WorkspaceKind::Remote => {
             let ssh_host = workspace
@@ -95,7 +95,7 @@ pub fn current_workspace_storage_id(workspace: &WorkspaceInfo) -> OpenBitFunResu
 pub fn validate_workspace_persistence_data(
     data: &WorkspacePersistenceData,
     miniapps_root: &Path,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     if data.format_version != WORKSPACE_PERSISTENCE_FORMAT_VERSION {
         return Err(unsupported_workspace_persistence(format!(
             "format_version {} is not supported; expected {}",
@@ -205,7 +205,7 @@ fn validate_workspace_reference_list(
     workspaces: &HashMap<String, WorkspaceInfo>,
     ids: &[String],
     field: &str,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     let mut seen = HashSet::new();
     for id in ids {
         if !seen.insert(id.as_str()) {
@@ -222,8 +222,8 @@ fn validate_workspace_reference_list(
     Ok(())
 }
 
-pub fn unsupported_workspace_persistence(detail: impl AsRef<str>) -> OpenBitFunError {
-    OpenBitFunError::config(format!(
+pub fn unsupported_workspace_persistence(detail: impl AsRef<str>) -> BitFunError {
+    BitFunError::config(format!(
         "Unsupported workspace persistence format: {}. The persisted file was left unchanged; explicit data migration is required",
         detail.as_ref()
     ))

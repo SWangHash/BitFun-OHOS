@@ -1,7 +1,7 @@
 //! Source-built transport probe used by the cross-machine Relay experiment.
 //! Credentials are read from the environment and never printed.
 use anyhow::{anyhow, Context, Result};
-use openbitfun_services_integrations::remote_connect::realtime_client::{
+use bitfun_services_integrations::remote_connect::realtime_client::{
     Incoming, RealtimeConnection,
 };
 use serde_json::json;
@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
     let token = std::env::var("RELAY_LAB_TOKEN")?;
     #[cfg(feature = "remote-ssh-concrete")]
     if role == "seed-saved-ssh" {
-        use openbitfun_services_integrations::remote_ssh::{
+        use bitfun_services_integrations::remote_ssh::{
             SSHConnectionConfig, SSHConnectionManager,
         };
         let data = std::path::PathBuf::from(std::env::var("RELAY_LAB_SSH_DATA")?);
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     if role == "seed-test-host" {
-        use openbitfun_services_integrations::remote_connect::{device_crypto, session_store};
+        use bitfun_services_integrations::remote_connect::{device_crypto, session_store};
         let home = std::path::PathBuf::from(std::env::var("RELAY_LAB_HOME")?);
         if home.exists() && std::fs::read_dir(&home)?.next().is_some() {
             return Err(anyhow!("Lab seed requires an empty, isolated home"));
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     if role == "product-session-start" || role == "product-session-recover" {
-        use openbitfun_services_integrations::remote_connect::{
+        use bitfun_services_integrations::remote_connect::{
             account::{AccountClient, AccountSession},
             session_subscriber::{SessionEvent, SessionSubscriber},
         };
@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
         }
     }
     if role == "product-controller" {
-        use openbitfun_services_integrations::remote_connect::account::{
+        use bitfun_services_integrations::remote_connect::account::{
             AccountClient, AccountSession,
         };
         let session = AccountSession::new(token, "realtime-lab".into(), [11; 32]);
@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
         || role == "product-catalog"
         || role == "product-workspace-scopes"
     {
-        use openbitfun_services_integrations::remote_connect::account::{
+        use bitfun_services_integrations::remote_connect::account::{
             AccountClient, AccountSession,
         };
         let session = AccountSession::new(token, "realtime-lab".into(), [11; 32]);
@@ -260,7 +260,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         if role == "product-catalog" {
-            use openbitfun_services_integrations::remote_connect::{
+            use bitfun_services_integrations::remote_connect::{
                 session_log::HOST_CATALOG_ID,
                 session_subscriber::{SessionEvent, SessionSubscriber},
             };

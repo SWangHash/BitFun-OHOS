@@ -1,8 +1,8 @@
-# @openbitfun/design-tokens
+# @bitfun/design-tokens
 
-Framework-neutral token contract and system scales for OpenBitFun UI packages.
+Framework-neutral token contract and system scales for BitFun UI packages.
 
-This package intentionally contains no concrete brand palette. Install a theme package such as `@openbitfun/theme-openbitfun` alongside it.
+This package intentionally contains no concrete brand palette. Install a theme package such as `@bitfun/theme-bitfun` alongside it.
 
 ```ts
 import {
@@ -10,8 +10,8 @@ import {
   tokenCatalog,
   tokenModes,
   tokens,
-} from "@openbitfun/design-tokens";
-import "@openbitfun/design-tokens/tokens.css";
+} from "@bitfun/design-tokens";
+import "@bitfun/design-tokens/tokens.css";
 ```
 
 Only semantic and system token names are public API. Density modes reuse the same names and override values through a scoped `data-density` attribute.
@@ -57,16 +57,16 @@ fallbacks, density, and the runtime font-size preference remain synchronized:
 
 ```css
 .title {
-  font-family: var(--openbitfun-type-heading-card-font-family);
-  font-size: var(--openbitfun-type-heading-card-font-size);
-  font-weight: var(--openbitfun-type-heading-card-font-weight);
-  line-height: var(--openbitfun-type-heading-card-line-height);
-  letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+  font-family: var(--bitfun-type-heading-card-font-family);
+  font-size: var(--bitfun-type-heading-card-font-size);
+  font-weight: var(--bitfun-type-heading-card-font-weight);
+  line-height: var(--bitfun-type-heading-card-line-height);
+  letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
 }
 ```
 
-Foundation variables such as `--openbitfun-font-size-sm` remain available for renderer
-adapters and non-text geometry. Public text components should use `--openbitfun-type-*`
+Foundation variables such as `--bitfun-font-size-sm` remain available for renderer
+adapters and non-text geometry. Public text components should use `--bitfun-type-*`
 roles.
 
 When an existing composition intentionally overrides only line height or

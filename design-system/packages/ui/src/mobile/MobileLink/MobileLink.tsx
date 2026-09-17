@@ -15,7 +15,7 @@ export const MobileLink = forwardRef<HTMLAnchorElement, MobileLinkProps>(
         {...props}
         className={classNames(styles.root, className)}
         data-appearance={appearance}
-        data-openbitfun-component="mobile-link"
+        data-bitfun-component="mobile-link"
         ref={ref}
       />
     );

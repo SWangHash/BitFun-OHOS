@@ -79,10 +79,10 @@ export function openCanvasArtifactTab(options: OpenCanvasArtifactTabOptions): bo
     return false;
   }
 
-  const duplicateCheckKey = `openbitfun-canvas-${artifactReference}`;
+  const duplicateCheckKey = `bitfun-canvas-${artifactReference}`;
   createTab({
-    type: 'openbitfun-canvas',
-    title: options.title?.trim() || 'OpenBitFun Canvas',
+    type: 'bitfun-canvas',
+    title: options.title?.trim() || 'BitFun Canvas',
     data: {
       artifactReference,
       source: options.source,

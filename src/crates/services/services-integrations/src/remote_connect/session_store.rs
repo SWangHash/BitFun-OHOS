@@ -7,8 +7,8 @@
 //! requiring a fresh GitHub sign-in while keeping copied session ciphertext
 //! unusable without the separate install key.
 //!
-//! File location: `<OPENBITFUN_HOME>/relay-v1.0.0/account_session.enc` when configured,
-//! otherwise `~/.openbitfun/relay-v1.0.0/account_session.enc`.
+//! File location: `<BITFUN_HOME>/relay-v1.0.0/account_session.enc` when configured,
+//! otherwise `~/.bitfun/relay-v1.0.0/account_session.enc`.
 //! Format: base64(nonce || ciphertext) where the plaintext is a JSON
 //! payload `{ token, user_id, master_key_b64, relay_url }`.
 
@@ -41,7 +41,7 @@ fn session_store_directory() -> Result<PathBuf> {
     drop(override_path);
     super::product_home_dir()
         .map(|path| path.join("relay-v1.0.0"))
-        .ok_or_else(|| anyhow!("cannot determine OpenBitFun home directory"))
+        .ok_or_else(|| anyhow!("cannot determine BitFun home directory"))
 }
 
 /// Resolve the persistent session file path.

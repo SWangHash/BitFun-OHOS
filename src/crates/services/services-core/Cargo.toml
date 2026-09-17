@@ -1,13 +1,13 @@
 [package]
-name = "openbitfun-services-core"
+name = "bitfun-services-core"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "OpenBitFun core service owner crate"
+description = "BitFun core service owner crate"
 autotests = false
 
 [lib]
-name = "openbitfun_services_core"
+name = "bitfun_services_core"
 crate-type = ["rlib"]
 
 [dependencies]
@@ -17,10 +17,10 @@ uuid = { workspace = true, features = ["v4"], optional = true }
 anyhow = { workspace = true, optional = true }
 aes-gcm = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
-openbitfun-core-types = { path = "../../contracts/core-types", optional = true }
-openbitfun-events = { path = "../../contracts/events", optional = true }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true }
-openbitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
+bitfun-core-types = { path = "../../contracts/core-types", optional = true }
+bitfun-events = { path = "../../contracts/events", optional = true }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true }
+bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
 tokio = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -64,9 +64,9 @@ asar = []
 installed-apps = ["dep:windows", "windows/Win32_Foundation", "windows/Win32_System_Registry"]
 default = []
 pet-packages = ["dep:image", "image/png", "image/webp", "image/jpeg", "image/gif", "dep:zip", "dep:uuid", "dep:sha2", "dep:base64", "dep:dunce", "dep:fs2"]
-workspace-persistence = ["workspace-identity", "dep:openbitfun-core-types", "dep:openbitfun-runtime-ports", "dep:chrono"]
+workspace-persistence = ["workspace-identity", "dep:bitfun-core-types", "dep:bitfun-runtime-ports", "dep:chrono"]
 coordination-store = ["dep:rusqlite"]
-session-event-format = ["dep:openbitfun-events"]
+session-event-format = ["dep:bitfun-events"]
 tls-provider = ["dep:rustls"]
 credential-vault = [
     "dep:aes-gcm",
@@ -87,7 +87,7 @@ filesystem = [
     "dep:base64",
     "dep:chrono",
     "dep:ignore",
-    "dep:openbitfun-core-types",
+    "dep:bitfun-core-types",
     "dep:regex",
     "dep:sha2",
     "dep:tokio",
@@ -106,8 +106,8 @@ json-io = [
     "windows/Win32_Storage_FileSystem",
 ]
 local-storage = [
-    "dep:openbitfun-core-types",
-    "dep:openbitfun-events",
+    "dep:bitfun-core-types",
+    "dep:bitfun-events",
     "dep:chrono",
     "dep:fs2",
     "dep:libc",
@@ -124,7 +124,7 @@ local-storage = [
     "windows/Win32_Storage_FileSystem",
 ]
 memory-store = ["dep:rusqlite"]
-product-identity = ["dep:openbitfun-core-types"]
+product-identity = ["dep:bitfun-core-types"]
 token-usage-statistics = ["local-storage", "dep:chrono-tz"]
 process-runtime = [
     "dep:libc",
@@ -153,8 +153,8 @@ workspace-instructions = [
 markdown = ["dep:regex", "dep:serde_yaml"]
 workspace-transfer = [
     "dep:anyhow",
-    "dep:openbitfun-runtime-ports",
-    "openbitfun-runtime-ports/workspace-ports",
+    "dep:bitfun-runtime-ports",
+    "bitfun-runtime-ports/workspace-ports",
     "dep:sha2",
     "dep:tokio",
     "tokio/fs",
@@ -165,9 +165,9 @@ workspace-transfer = [
 workspace-runtime = [
     "dep:anyhow",
     "dep:async-trait",
-    "dep:openbitfun-runtime-ports",
-    "openbitfun-runtime-ports/runtime-event-port",
-    "openbitfun-runtime-ports/workspace-ports",
+    "dep:bitfun-runtime-ports",
+    "bitfun-runtime-ports/runtime-event-port",
+    "bitfun-runtime-ports/workspace-ports",
     "dep:dunce",
     "dep:filetime",
     "process-runtime",
@@ -179,14 +179,14 @@ workspace-identity = ["dep:dunce", "dep:sha2"]
 runtime-ownership = ["dep:dunce", "dep:fs2", "dep:sha2"]
 permission = [
     "dep:async-trait",
-    "dep:openbitfun-runtime-ports",
+    "dep:bitfun-runtime-ports",
     "dep:rusqlite",
     "dep:tokio",
-    "openbitfun-runtime-ports/permission",
+    "bitfun-runtime-ports/permission",
     "tokio/rt",
 ]
 session-search = [
-    "dep:openbitfun-product-domains",
+    "dep:bitfun-product-domains",
     "dep:rusqlite",
     "dep:tokio",
     "tokio/rt",

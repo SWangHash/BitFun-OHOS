@@ -16,7 +16,7 @@ struct AppServerProcess {
 
 impl AppServerProcess {
     async fn spawn(environment: &CliTestEnvironment) -> Self {
-        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_openbitfun"));
+        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_bitfun"));
         command
             .arg("server")
             .stdin(Stdio::piped())
@@ -164,7 +164,7 @@ async fn app_server_stdio_initializes_and_advertises_only_served_capabilities() 
     assert!(initialize.get("error").is_none(), "{initialize}");
     assert_eq!(
         initialize.pointer("/result/server/name"),
-        Some(&json!("openbitfun-app-server"))
+        Some(&json!("bitfun-app-server"))
     );
     assert_eq!(
         initialize.pointer("/result/limits/maxFrameBytes"),

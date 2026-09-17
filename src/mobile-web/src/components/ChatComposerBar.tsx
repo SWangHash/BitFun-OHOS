@@ -4,7 +4,7 @@ import {
   Plus as LucidePlus,
 } from 'lucide-react';
 import React from 'react';
-import { MobileComposer, MobileIconButton } from '@openbitfun/ui/mobile';
+import { MobileComposer, MobileIconButton } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 
 interface PendingImage {

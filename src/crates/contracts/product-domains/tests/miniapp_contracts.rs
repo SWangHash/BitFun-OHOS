@@ -1,7 +1,7 @@
 #![cfg(feature = "miniapp")]
 
-use openbitfun_product_domains::miniapp::bridge_builder::{build_bridge_script, build_csp_content};
-use openbitfun_product_domains::miniapp::builtin::{
+use bitfun_product_domains::miniapp::bridge_builder::{build_bridge_script, build_csp_content};
+use bitfun_product_domains::miniapp::builtin::{
     build_builtin_install_marker, build_builtin_package_json, build_builtin_seed_meta,
     builtin_content_hash, builtin_source_files, parse_builtin_install_marker,
     preserved_builtin_created_at, resolve_builtin_seed_action, resolve_builtin_seed_check,
@@ -9,23 +9,23 @@ use openbitfun_product_domains::miniapp::builtin::{
     BuiltinMiniAppBundle, BuiltinSeedAction, BuiltinSeedCheck, BUILTIN_INSTALL_MARKER,
     BUILTIN_PLACEHOLDER_COMPILED_HTML,
 };
-use openbitfun_product_domains::miniapp::compiler::compile;
-use openbitfun_product_domains::miniapp::customization::{
+use bitfun_product_domains::miniapp::compiler::compile;
+use bitfun_product_domains::miniapp::customization::{
     apply_draft_customization_metadata, decline_builtin_update_metadata,
     declined_builtin_update_needs_local_snapshot, is_current_declined_builtin_update,
     mark_builtin_update_available_metadata, MiniAppCustomizationBaseline,
     MiniAppCustomizationLocalSnapshot, MiniAppCustomizationMetadata, MiniAppCustomizationOrigin,
     MiniAppCustomizationOriginKind, MAX_DECLINED_BUILTIN_UPDATES,
 };
-use openbitfun_product_domains::miniapp::draft::{
+use bitfun_product_domains::miniapp::draft::{
     build_draft_manifest, build_draft_response, MINIAPP_DRAFT_STATUS_APPLIED,
     MINIAPP_DRAFT_STATUS_DRAFT,
 };
-use openbitfun_product_domains::miniapp::exporter::{
+use bitfun_product_domains::miniapp::exporter::{
     build_export_check_result, export_runtime_label, ExportCheckResult, ExportTarget,
     MISSING_JS_RUNTIME_MESSAGE,
 };
-use openbitfun_product_domains::miniapp::host_routing::{
+use bitfun_product_domains::miniapp::host_routing::{
     command_basename_allowed, command_basename_for_allowlist, fs_method_access_mode,
     fs_policy_scopes, fs_resolved_path_allowed, host_allowed_by_allowlist, is_host_primitive,
     plan_fs_host_call, plan_fs_legacy_path_check, plan_shell_host_call, shell_exec_cwd,
@@ -33,7 +33,7 @@ use openbitfun_product_domains::miniapp::host_routing::{
     shell_exec_timeout_ms, split_host_method, FsAccessMode, MiniAppFsHostCallPlan,
     MiniAppFsHostPathCheck, MiniAppHostPlanErrorKind, MiniAppShellHostCallPlan,
 };
-use openbitfun_product_domains::miniapp::lifecycle::{
+use bitfun_product_domains::miniapp::lifecycle::{
     apply_draft_permission_update_result, apply_draft_source_sync_result, apply_draft_to_active,
     apply_import_runtime_state, apply_recompile_result, apply_sync_from_fs_result,
     apply_update_patch, build_created_app, build_deps_revision, build_runtime_state,
@@ -41,17 +41,17 @@ use openbitfun_product_domains::miniapp::lifecycle::{
     ensure_runtime_state, mark_deps_installed_state, miniapp_content_hash, prepare_draft_app,
     prepare_rollback_app, workspace_dir_string, MiniAppCreateInput, MiniAppUpdatePatch,
 };
-use openbitfun_product_domains::miniapp::permission_policy::resolve_policy;
-use openbitfun_product_domains::miniapp::ports::{
+use bitfun_product_domains::miniapp::permission_policy::resolve_policy;
+use bitfun_product_domains::miniapp::ports::{
     MiniAppCompilePort, MiniAppImportFromPathRequest, MiniAppImportPort, MiniAppInstallDepsRequest,
     MiniAppPortError, MiniAppPortErrorKind, MiniAppPortFuture, MiniAppRuntimeFacade,
     MiniAppRuntimePort, MiniAppStoragePort,
 };
-use openbitfun_product_domains::miniapp::runtime::{
+use bitfun_product_domains::miniapp::runtime::{
     candidate_dirs, candidate_executable_path, detect_runtime, runtime_lookup_order,
     version_manager_roots, versioned_executable_candidate, DetectedRuntime, RuntimeKind,
 };
-use openbitfun_product_domains::miniapp::storage::{
+use bitfun_product_domains::miniapp::storage::{
     build_import_bundle_plan, build_import_fallbacks, build_package_json, parse_npm_dependencies,
     MiniAppImportBundlePlanError, MiniAppImportBundleWriteRequest, MiniAppImportLayout,
     MiniAppStorageLayout, COMPILED_HTML, CUSTOMIZATION_JSON, DRAFTS_CLEANUP_MARKER,
@@ -59,11 +59,11 @@ use openbitfun_product_domains::miniapp::storage::{
     ESM_DEPS_JSON, INDEX_HTML, META_JSON, PACKAGE_JSON, PLACEHOLDER_COMPILED_HTML,
     REQUIRED_SOURCE_FILES, SOURCE_DIR, STORAGE_JSON, STYLE_CSS, UI_JS, VERSIONS_DIR, WORKER_JS,
 };
-use openbitfun_product_domains::miniapp::types::{
+use bitfun_product_domains::miniapp::types::{
     FsPermissions, MiniApp, MiniAppAiContext, MiniAppI18n, MiniAppMeta, MiniAppPermissions,
     MiniAppRuntimeState, MiniAppSource, NetPermissions, NotificationPermissions, NpmDep,
 };
-use openbitfun_product_domains::miniapp::worker::{
+use bitfun_product_domains::miniapp::worker::{
     install_command_for_runtime, plan_install_deps, select_lru_worker, worker_idle_timeout_ms,
     worker_is_idle, worker_pool_at_capacity, InstallDepsPlan, InstallResult,
 };
@@ -79,7 +79,7 @@ struct RuntimePortStub;
 impl MiniAppRuntimePort for RuntimePortStub {
     fn detect_runtime(
         &self,
-    ) -> MiniAppPortFuture<'_, Option<openbitfun_product_domains::miniapp::runtime::DetectedRuntime>>
+    ) -> MiniAppPortFuture<'_, Option<bitfun_product_domains::miniapp::runtime::DetectedRuntime>>
     {
         Box::pin(async { Ok(None) })
     }
@@ -280,7 +280,7 @@ impl MiniAppStoragePort for StoragePortStub {
     fn load_meta(
         &self,
         app_id: String,
-    ) -> MiniAppPortFuture<'_, openbitfun_product_domains::miniapp::types::MiniAppMeta> {
+    ) -> MiniAppPortFuture<'_, bitfun_product_domains::miniapp::types::MiniAppMeta> {
         let result = {
             let state = self.state.lock().unwrap();
             if state.current.id == app_id {
@@ -639,10 +639,10 @@ fn miniapp_compiler_preserves_head_injection_contract() {
     .unwrap();
 
     assert!(out.contains("<meta charset=\"utf-8\">"));
-    assert!(out.contains("data-openbitfun-appearance-mode=\"dark\""));
+    assert!(out.contains("data-bitfun-appearance-mode=\"dark\""));
     assert!(out.contains("*::-webkit-scrollbar-track-piece"));
     assert!(out.contains("scrollbar-width: auto !important"));
-    assert!(out.contains("scrollbar-color: var(--openbitfun-scrollbar-thumb) transparent"));
+    assert!(out.contains("scrollbar-color: var(--bitfun-scrollbar-thumb) transparent"));
     assert!(out.contains("<script type=\"module\">"));
     assert!(out.contains("console.log('ready')"));
 }
@@ -691,7 +691,7 @@ fn miniapp_export_and_runtime_dtos_remain_stable() {
 
 #[test]
 fn miniapp_storage_layout_preserves_file_shape_contract() {
-    let root = PathBuf::from("/openbitfun/miniapps");
+    let root = PathBuf::from("/bitfun/miniapps");
     let layout = MiniAppStorageLayout::new(&root, "app-1");
 
     assert_eq!(META_JSON, "meta.json");
@@ -756,7 +756,7 @@ fn miniapp_storage_layout_preserves_file_shape_contract() {
 
 #[test]
 fn miniapp_runtime_search_plan_preserves_common_install_locations() {
-    let home = PathBuf::from("/home/openbitfun");
+    let home = PathBuf::from("/home/bitfun");
     let candidates = candidate_dirs(Some(&home));
 
     assert_eq!(candidates[0], PathBuf::from("/opt/homebrew/bin"));
@@ -775,10 +775,10 @@ fn miniapp_runtime_search_plan_preserves_common_install_locations() {
     );
     assert_eq!(
         versioned_executable_candidate(
-            Path::new("/home/openbitfun/.nvm/versions/node/v20"),
+            Path::new("/home/bitfun/.nvm/versions/node/v20"),
             "node"
         ),
-        PathBuf::from("/home/openbitfun/.nvm/versions/node/v20")
+        PathBuf::from("/home/bitfun/.nvm/versions/node/v20")
             .join("bin")
             .join("node")
     );
@@ -1704,7 +1704,7 @@ fn miniapp_builtin_contract_owns_seed_plan_and_marker_wire_shape() {
         esm_dependencies_json: "[]",
     };
     let artifacts =
-        openbitfun_product_domains::miniapp::builtin::build_builtin_seed_artifacts(&app);
+        bitfun_product_domains::miniapp::builtin::build_builtin_seed_artifacts(&app);
     let marker = build_builtin_install_marker(&app, &artifacts.content_hash);
 
     assert_eq!(artifacts.marker, marker);

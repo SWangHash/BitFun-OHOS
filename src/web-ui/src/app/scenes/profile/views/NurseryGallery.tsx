@@ -1,4 +1,4 @@
-import { Button, Card, Icon, NumberBadge, PageHeader, StatusPill } from '@openbitfun/ui';
+import { Button, Card, Icon, NumberBadge, PageHeader, StatusPill } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CircleAlert, LoaderCircle, Wrench } from 'lucide-react';
@@ -179,8 +179,8 @@ const NurseryGallery: React.FC = () => {
   return (
     <GalleryLayout
       className="nursery-gallery"
-      data-openbitfun-component="nursery-gallery"
-      data-openbitfun-part="root"
+      data-bitfun-component="nursery-gallery"
+      data-bitfun-part="root"
     >
       <PageHeader
         className="nursery-gallery__header"
@@ -208,10 +208,10 @@ const NurseryGallery: React.FC = () => {
         )}
       />
 
-      <div className="gallery-zones" data-openbitfun-component="nursery-gallery" data-openbitfun-part="content">
-        <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaults">
+      <div className="gallery-zones" data-bitfun-component="nursery-gallery" data-bitfun-part="content">
+        <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-bitfun-component="nursery-gallery" data-bitfun-part="defaults">
           <Card className="nursery-defaults__surface" appearance="subtle" padding="md" radius="md" gap="md">
-            <div className="nursery-defaults__content" data-openbitfun-component="nursery-gallery" data-openbitfun-part="defaultsContent">
+            <div className="nursery-defaults__content" data-bitfun-component="nursery-gallery" data-bitfun-part="defaultsContent">
               <div className="nursery-defaults__title-row">
                 <h3 className="nursery-defaults__title" id="nursery-defaults-title">
                   {t('nursery.template.title')}
@@ -222,8 +222,8 @@ const NurseryGallery: React.FC = () => {
 
               <div
                 className="nursery-defaults__stats"
-                data-openbitfun-component="nursery-gallery"
-                data-openbitfun-part="stats"
+                data-bitfun-component="nursery-gallery"
+                data-bitfun-part="stats"
                 aria-live="polite"
                 aria-busy={templateStatsStatus === 'loading'}
               >

@@ -2,7 +2,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Icon, SearchField, type SearchFieldProps } from '@openbitfun/ui';
+import { Icon, SearchField, type SearchFieldProps } from '@bitfun/ui';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -15,7 +15,7 @@ describe('public SearchField product integration', () => {
     <SearchField
       aria-label="Search sessions"
       clearLabel="Clear search"
-      defaultValue="OpenBitFun"
+      defaultValue="BitFun"
       leadingIcon={<Icon name="search" />}
       onClear={clear}
       onSearch={search}
@@ -42,8 +42,8 @@ describe('public SearchField product integration', () => {
     render({ trailing: <span role="status">1 / 5</span> });
     expect(host.textContent).toContain('1 / 5Ctrl K');
     expect(clearButton().closest('[aria-hidden="true"]')).toBeNull();
-    const iconWrapper = host.querySelector('[data-openbitfun-component="input"] > [data-openbitfun-part="leading"] > [data-openbitfun-part="icon"]');
-    expect(iconWrapper?.querySelector('[data-openbitfun-component="icon"][data-size="lg"]')).not.toBeNull();
+    const iconWrapper = host.querySelector('[data-bitfun-component="input"] > [data-bitfun-part="leading"] > [data-bitfun-part="icon"]');
+    expect(iconWrapper?.querySelector('[data-bitfun-component="icon"][data-size="lg"]')).not.toBeNull();
     act(() => clearButton().click());
     expect(clear).toHaveBeenCalledTimes(1);
   });
@@ -58,7 +58,7 @@ describe('public SearchField product integration', () => {
       clearButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(clear).not.toHaveBeenCalled();
-    expect(input.value).toBe('OpenBitFun');
+    expect(input.value).toBe('BitFun');
     render();
     act(() => clearButton().click());
     expect(clear).toHaveBeenCalledTimes(1);
@@ -80,6 +80,6 @@ describe('public SearchField product integration', () => {
     act(() => input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', isComposing: true })));
     expect(search).not.toHaveBeenCalled();
     act(() => input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })));
-    expect(search).toHaveBeenCalledWith('OpenBitFun');
+    expect(search).toHaveBeenCalledWith('BitFun');
   });
 });

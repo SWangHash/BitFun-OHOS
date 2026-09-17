@@ -1,7 +1,7 @@
 {
   "product": {
-    "name": "OpenBitFun",
-    "remote": "OpenBitFun Remote"
+    "name": "BitFun",
+    "remote": "BitFun Remote"
   },
   "features": {
     "remoteControl": "遠端控制",
@@ -37,7 +37,7 @@
   },
   "connectionMethods": {
     "lan": "區域網路",
-    "openbitfunServer": "OpenBitFun Server",
+    "bitfunServer": "BitFun Server",
     "customServer": "自訂伺服器",
     "botFeishu": "飛書機器人",
     "botTelegram": "Telegram Bot",

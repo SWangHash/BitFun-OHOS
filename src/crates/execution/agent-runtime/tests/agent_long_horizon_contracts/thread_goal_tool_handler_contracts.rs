@@ -1,7 +1,7 @@
-use openbitfun_agent_runtime::thread_goal_tools::{
+use bitfun_agent_runtime::thread_goal_tools::{
     build_goal_tool_result, parse_create_goal_args, parse_update_goal_status,
 };
-use openbitfun_runtime_ports::{ThreadGoal, ThreadGoalStatus};
+use bitfun_runtime_ports::{ThreadGoal, ThreadGoalStatus};
 
 fn goal(status: ThreadGoalStatus) -> ThreadGoal {
     ThreadGoal {

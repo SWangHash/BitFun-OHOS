@@ -1,13 +1,13 @@
 [package]
-name = "openbitfun-agent-runtime"
+name = "bitfun-agent-runtime"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Agent runtime contracts and owner decisions for OpenBitFun"
+description = "Agent runtime contracts and owner decisions for BitFun"
 autotests = false
 
 [lib]
-name = "openbitfun_agent_runtime"
+name = "bitfun_agent_runtime"
 crate-type = ["rlib"]
 
 [[example]]
@@ -18,7 +18,7 @@ required-features = ["agent-runtime"]
 [features]
 default = []
 definition-contracts = [
-    "dep:openbitfun-core-types",
+    "dep:bitfun-core-types",
     "dep:regex",
     "dep:serde",
     "dep:serde_yaml",
@@ -43,12 +43,12 @@ agent-runtime = [
     "definition-contracts",
     "native-hook-runtime",
     "dep:async-trait",
-    "dep:openbitfun-agent-stream",
-    "dep:openbitfun-agent-tools",
-    "dep:openbitfun-core-types",
-    "dep:openbitfun-events",
-    "dep:openbitfun-runtime-ports",
-    "dep:openbitfun-runtime-services",
+    "dep:bitfun-agent-stream",
+    "dep:bitfun-agent-tools",
+    "dep:bitfun-core-types",
+    "dep:bitfun-events",
+    "dep:bitfun-runtime-ports",
+    "dep:bitfun-runtime-services",
     "dep:dashmap",
     "dep:hex",
     "dep:log",
@@ -68,12 +68,12 @@ agent-runtime = [
 
 [dependencies]
 async-trait = { workspace = true, optional = true }
-openbitfun-agent-stream = { path = "../agent-stream", optional = true }
-openbitfun-agent-tools = { path = "../tool-contracts", optional = true }
-openbitfun-core-types = { path = "../../contracts/core-types", optional = true }
-openbitfun-events = { path = "../../contracts/events", optional = true }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true, features = ["agent-api", "git-port", "permission", "plugin-runtime", "remote-workspace-ports", "runtime-event-port", "terminal-port", "workspace-ports"] }
-openbitfun-runtime-services = { path = "../runtime-services", optional = true }
+bitfun-agent-stream = { path = "../agent-stream", optional = true }
+bitfun-agent-tools = { path = "../tool-contracts", optional = true }
+bitfun-core-types = { path = "../../contracts/core-types", optional = true }
+bitfun-events = { path = "../../contracts/events", optional = true }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true, features = ["agent-api", "git-port", "permission", "plugin-runtime", "remote-workspace-ports", "runtime-event-port", "terminal-port", "workspace-ports"] }
+bitfun-runtime-services = { path = "../runtime-services", optional = true }
 dashmap = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 log = { workspace = true, optional = true }

@@ -9,7 +9,7 @@ export const toolCardAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   ],
   facets: [{
     id: 'status',
-    attribute: 'data-openbitfun-status',
+    attribute: 'data-bitfun-status',
     values: [
       'pending', 'queued', 'waiting', 'preparing', 'streaming', 'receiving',
       'running', 'completed', 'error', 'cancelled', 'rejected', 'analyzing',
@@ -17,9 +17,9 @@ export const toolCardAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     ],
   }],
   states: [
-    { id: 'expanded', selector: { kind: 'self', suffix: '[data-openbitfun-state~="expanded"]' } },
-    { id: 'failed', selector: { kind: 'self', suffix: '[data-openbitfun-state~="failed"]' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
-    { id: 'confirmation', selector: { kind: 'self', suffix: '[data-openbitfun-state~="confirmation"]' } },
+    { id: 'expanded', selector: { kind: 'self', suffix: '[data-bitfun-state~="expanded"]' } },
+    { id: 'failed', selector: { kind: 'self', suffix: '[data-bitfun-state~="failed"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
+    { id: 'confirmation', selector: { kind: 'self', suffix: '[data-bitfun-state~="confirmation"]' } },
   ],
 };

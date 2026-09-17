@@ -5,7 +5,7 @@ storage generation before commit `8784bbc4258131b4e74e6f9192a23b43c454fa94`.
 It contains one relationship-complete record for each V1 migration domain and
 explicitly includes files that must be excluded.
 
-The fixture is source data, not a ready-to-copy OpenBitFun profile. Tests build
+The fixture is source data, not a ready-to-copy BitFun profile. Tests build
 SQLite databases from the checked-in SQL, enable WAL where needed, and validate
 the fixture through the migration readers before executing a plan.
 

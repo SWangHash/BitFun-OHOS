@@ -9,12 +9,12 @@ export const miniAppCustomizePanelAppearanceDescriptor: AppearanceSurfaceDescrip
   ],
   facets: [{
     id: 'stage',
-    attribute: 'data-openbitfun-stage',
+    attribute: 'data-bitfun-stage',
     values: ['idle', 'notice', 'drafting', 'preview', 'permission-review', 'applying'],
   }],
   states: [
-    { id: 'busy', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="busy"]' } },
-    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="error"]' } },
-    { id: 'previewOpen', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-openbitfun-state~="preview-open"]' } },
+    { id: 'busy', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="busy"]' } },
+    { id: 'error', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="error"]' } },
+    { id: 'previewOpen', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="preview-open"]' } },
   ],
 };

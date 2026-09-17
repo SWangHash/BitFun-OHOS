@@ -1,6 +1,6 @@
 #![cfg(feature = "announcement")]
 
-use openbitfun_services_integrations::announcement::{
+use bitfun_services_integrations::announcement::{
     AnnouncementCard, AnnouncementRemoteFetchRequest, AnnouncementState, AnnouncementStateStore,
     CardSource, CardType, CompletionAction, ModalConfig, ModalPage, ModalSize, PageLayout,
     RemoteAnnouncementFetcher, ToastConfig, TriggerCondition, TriggerRule,
@@ -128,7 +128,7 @@ fn announcement_state_and_trigger_defaults_preserve_runtime_assumptions() {
 #[tokio::test]
 async fn announcement_state_store_round_trips_state_and_defaults_missing_file() {
     let root = std::env::temp_dir().join(format!(
-        "openbitfun-announcement-state-{}-{}",
+        "bitfun-announcement-state-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -179,7 +179,7 @@ fn announcement_remote_fetch_request_preserves_legacy_query_shape() {
 #[tokio::test]
 async fn announcement_remote_fetcher_loads_disk_cache_before_network_fetch() {
     let root = std::env::temp_dir().join(format!(
-        "openbitfun-announcement-remote-cache-{}-{}",
+        "bitfun-announcement-remote-cache-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

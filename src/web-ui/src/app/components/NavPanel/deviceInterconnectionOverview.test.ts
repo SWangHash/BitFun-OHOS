@@ -49,7 +49,7 @@ describe('projectDeviceInterconnectionOverview', () => {
   it('does not turn account service availability into a connected-device state', () => {
     const overview = projectDeviceInterconnectionOverview(baseInput({
       accountService: connectionServiceFromRelayUrl(
-        'https://remote.openbitfun.com/relay',
+        'https://remote.bitfun.com/relay',
       ),
     }));
 
@@ -63,8 +63,8 @@ describe('projectDeviceInterconnectionOverview', () => {
       remoteStatus: {
         ...disconnectedStatus,
         relay_connected: true,
-        relay_url: 'https://remote.openbitfun.com/v/1.0.1',
-        active_method: 'openbitfun_server' as const,
+        relay_url: 'https://remote.bitfun.com/v/1.0.1',
+        active_method: 'bitfun_server' as const,
         clients: [{ id: 'mobile-user', name: 'My iPhone' }],
       },
     }));
@@ -189,8 +189,8 @@ describe('selectActivityFacts', () => {
   const connectedPhone = {
     ...disconnectedStatus,
     relay_connected: true,
-        relay_url: 'https://remote.openbitfun.com/v/1.0.1',
-        active_method: 'openbitfun_server' as const,
+        relay_url: 'https://remote.bitfun.com/v/1.0.1',
+        active_method: 'bitfun_server' as const,
         clients: [{ id: 'mobile-user', name: 'My iPhone' }],
   };
 
@@ -269,8 +269,8 @@ describe('selectAttachedGroups', () => {
       remoteStatus: {
         ...disconnectedStatus,
         relay_connected: true,
-        relay_url: 'https://remote.openbitfun.com/v/1.0.1',
-        active_method: 'openbitfun_server' as const,
+        relay_url: 'https://remote.bitfun.com/v/1.0.1',
+        active_method: 'bitfun_server' as const,
         clients: [{ id: 'mobile-user', name: 'My iPhone' }],
         bot_connected: 'Weixin (family group)',
       },
@@ -332,8 +332,8 @@ describe('device display names', () => {
       remoteStatus: {
         ...disconnectedStatus,
         relay_connected: true,
-        relay_url: 'https://remote.openbitfun.com/v/1.0.1',
-        active_method: 'openbitfun_server' as const,
+        relay_url: 'https://remote.bitfun.com/v/1.0.1',
+        active_method: 'bitfun_server' as const,
         clients: [{ id: 'mobile-user', name: 'Pixel.lan' }],
       },
       dispatchJobs: [
@@ -355,8 +355,8 @@ describe('device display names', () => {
 });
 
 describe('connection service classification', () => {
-  it('only classifies the canonical OpenBitFun relay host as official', () => {
-    expect(classifyAccountRelayUrl('https://remote.openbitfun.com/relay')).toBe('official-relay');
+  it('only classifies the canonical BitFun relay host as official', () => {
+    expect(classifyAccountRelayUrl('https://remote.bitfun.com/relay')).toBe('official-relay');
     expect(classifyAccountRelayUrl('https://relay.example.com')).toBe('self-hosted-relay');
     expect(classifyAccountRelayUrl('not a url')).toBe('unknown');
   });

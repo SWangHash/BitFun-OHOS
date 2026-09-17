@@ -1,7 +1,7 @@
 /** Public browse snapshots only. Installed state and account details stay live. */
 import { createLogger } from '@/shared/utils/logger';
 
-const STORAGE_KEY = 'openbitfun:market-catalog:v1';
+const STORAGE_KEY = 'bitfun:market-catalog:v1';
 const MAX_PAGES = 12;
 const MAX_BYTES = 1024 * 1024;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -68,7 +68,7 @@ export function isMarketSummary(value: unknown): value is Record<string, unknown
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   const owner = item.owner as Record<string, unknown> | undefined;
-  return ['listingId', 'slug', 'name', 'description', 'minOpenBitFunVersion']
+  return ['listingId', 'slug', 'name', 'description', 'minBitFunVersion']
     .every(key => typeof item[key] === 'string')
     && ['latestRelease', 'downloadCount', 'publishedAt'].every(key => Number.isFinite(item[key]))
     && Boolean(owner && typeof owner.login === 'string' && typeof owner.githubId === 'number');

@@ -3,7 +3,7 @@ use super::{
     detect_remote_mime_type, RemoteWorkspaceFileChunk, RemoteWorkspaceFileContent,
     RemoteWorkspaceFileInfo, REMOTE_FILE_MAX_CHUNK_BYTES,
 };
-use openbitfun_runtime_ports::{WorkspaceFileSystem, WorkspaceMetadata, WorkspacePathKind};
+use bitfun_runtime_ports::{WorkspaceFileSystem, WorkspaceMetadata, WorkspacePathKind};
 use std::{path::Path, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
@@ -17,7 +17,7 @@ pub struct SessionFileTarget {
 
 /// Decode a link once, before path resolution. Runtime URIs have their own parser.
 pub fn normalize_file_reference(raw: &str) -> Result<String, String> {
-    if raw.starts_with("openbitfun://") {
+    if raw.starts_with("bitfun://") {
         return Ok(raw.to_string());
     }
     let uri_path = raw
@@ -263,7 +263,7 @@ impl SessionFileTarget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_runtime_ports::{WorkspaceDirEntry, WorkspaceReader};
+    use bitfun_runtime_ports::{WorkspaceDirEntry, WorkspaceReader};
     use std::sync::{
         atomic::{AtomicBool, Ordering},
         Mutex,
@@ -423,8 +423,8 @@ mod tests {
             "C:/output/preview.png"
         );
         assert_eq!(
-            normalize_file_reference("openbitfun://current-session/artifacts/preview.png").unwrap(),
-            "openbitfun://current-session/artifacts/preview.png"
+            normalize_file_reference("bitfun://current-session/artifacts/preview.png").unwrap(),
+            "bitfun://current-session/artifacts/preview.png"
         );
     }
 }

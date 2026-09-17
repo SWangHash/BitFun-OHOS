@@ -1,5 +1,5 @@
 [package]
-name = "openbitfun-opencode-plugin-host"
+name = "bitfun-opencode-plugin-host"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,14 +7,14 @@ publish = false
 description = "Private OpenCode plugin host process and IPC adapter"
 
 [lib]
-name = "openbitfun_opencode_plugin_host"
+name = "bitfun_opencode_plugin_host"
 crate-type = ["rlib"]
 
 [dependencies]
 async-trait = { workspace = true }
 base64 = { workspace = true }
-openbitfun-services-core = { path = "../../services/services-core", features = ["process-runtime"] }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["hook-function-runtime"] }
+bitfun-services-core = { path = "../../services/services-core", features = ["process-runtime"] }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["hook-function-runtime"] }
 log = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }

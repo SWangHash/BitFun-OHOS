@@ -1,4 +1,4 @@
-//! OpenBitFun app-server assembly over the generic `AppServer` role.
+//! BitFun app-server assembly over the generic `AppServer` role.
 //!
 //! Request handlers are grouped by product domain under [`handlers`]. This
 //! module owns the server lifecycle, handler integration order, transport
@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use agent_client_protocol::{ConnectTo, ConnectionTo, Result};
 
-use crate::agent::OpenBitFunAppRuntime;
+use crate::agent::BitFunAppRuntime;
 use crate::management::AppManagementService;
 use crate::role::{AppClient, AppServer};
 
@@ -45,19 +45,19 @@ impl ConnectionEventState {
 
     pub(super) fn cursor(
         &self,
-        stream: openbitfun_app_server_protocol::event::EventStream,
-    ) -> openbitfun_app_server_protocol::event::EventCursor {
+        stream: bitfun_app_server_protocol::event::EventStream,
+    ) -> bitfun_app_server_protocol::event::EventCursor {
         let sequence = match stream {
-            openbitfun_app_server_protocol::event::EventStream::Agent => &self.agent_sequence,
-            openbitfun_app_server_protocol::event::EventStream::Permission => {
+            bitfun_app_server_protocol::event::EventStream::Agent => &self.agent_sequence,
+            bitfun_app_server_protocol::event::EventStream::Permission => {
                 &self.permission_sequence
             }
-            openbitfun_app_server_protocol::event::EventStream::Config => &self.config_sequence,
-            openbitfun_app_server_protocol::event::EventStream::ExternalSource => {
+            bitfun_app_server_protocol::event::EventStream::Config => &self.config_sequence,
+            bitfun_app_server_protocol::event::EventStream::ExternalSource => {
                 &self.external_source_sequence
             }
         };
-        openbitfun_app_server_protocol::event::EventCursor {
+        bitfun_app_server_protocol::event::EventCursor {
             connection_id: self.id.clone(),
             stream,
             sequence: sequence.load(Ordering::Acquire),
@@ -66,19 +66,19 @@ impl ConnectionEventState {
 
     pub(super) fn next_cursor(
         &self,
-        stream: openbitfun_app_server_protocol::event::EventStream,
-    ) -> openbitfun_app_server_protocol::event::EventCursor {
+        stream: bitfun_app_server_protocol::event::EventStream,
+    ) -> bitfun_app_server_protocol::event::EventCursor {
         let sequence = match stream {
-            openbitfun_app_server_protocol::event::EventStream::Agent => &self.agent_sequence,
-            openbitfun_app_server_protocol::event::EventStream::Permission => {
+            bitfun_app_server_protocol::event::EventStream::Agent => &self.agent_sequence,
+            bitfun_app_server_protocol::event::EventStream::Permission => {
                 &self.permission_sequence
             }
-            openbitfun_app_server_protocol::event::EventStream::Config => &self.config_sequence,
-            openbitfun_app_server_protocol::event::EventStream::ExternalSource => {
+            bitfun_app_server_protocol::event::EventStream::Config => &self.config_sequence,
+            bitfun_app_server_protocol::event::EventStream::ExternalSource => {
                 &self.external_source_sequence
             }
         };
-        openbitfun_app_server_protocol::event::EventCursor {
+        bitfun_app_server_protocol::event::EventCursor {
             connection_id: self.id.clone(),
             stream,
             sequence: sequence.fetch_add(1, Ordering::AcqRel) + 1,
@@ -86,7 +86,7 @@ impl ConnectionEventState {
     }
 }
 
-/// OpenBitFun agent kernel server over the generic app-server role.
+/// BitFun agent kernel server over the generic app-server role.
 ///
 /// Hosts may inject an [`AppServerHostPolicy`] (identity + canonical
 /// workspace scope + method allowlist, enforced fail-closed as the first
@@ -96,16 +96,16 @@ impl ConnectionEventState {
 /// transport failure. Hosts that inject none of them keep the pre-existing
 /// open surface.
 #[derive(Clone)]
-pub struct OpenBitFunAppServer {
-    runtime: Arc<OpenBitFunAppRuntime>,
+pub struct BitFunAppServer {
+    runtime: Arc<BitFunAppRuntime>,
     management: Option<Arc<AppManagementService>>,
     host_policy: Option<Arc<host_policy::AppServerHostPolicy>>,
     host_limits: host_policy::AppServerHostLimits,
     disconnect: Option<Arc<host_policy::AppServerDisconnect>>,
 }
 
-impl OpenBitFunAppServer {
-    pub fn new(runtime: OpenBitFunAppRuntime) -> Self {
+impl BitFunAppServer {
+    pub fn new(runtime: BitFunAppRuntime) -> Self {
         Self {
             runtime: Arc::new(runtime),
             management: None,
@@ -144,7 +144,7 @@ impl OpenBitFunAppServer {
     }
 
     /// Return the shared runtime used by this server.
-    pub fn runtime(&self) -> &OpenBitFunAppRuntime {
+    pub fn runtime(&self) -> &BitFunAppRuntime {
         &self.runtime
     }
 
@@ -159,7 +159,7 @@ impl OpenBitFunAppServer {
 
         AppServer
             .builder()
-            .name("openbitfun-app-server")
+            .name("bitfun-app-server")
             .with_connection_builder(host_policy::builder(host_policy.clone()))
             .with_connection_builder(handlers::app::builder(
                 runtime.clone(),

@@ -1,4 +1,4 @@
-# OpenBitFun MiniApp Market Service
+# BitFun MiniApp Market Service
 
 这里是 MiniApp 市场后端的主要业务实现。Axum 可执行入口位于
 `../../../apps/miniapp-market-server/`，生产部署文件位于
@@ -55,7 +55,7 @@
   link、重复/大小写冲突路径和超限解压。
 - GitHub token 只用于读取公开 `{id,login,avatar_url}`，随后丢弃，不能下发给
   Web 或桌面客户端。
-- 本服务是 MiniApp、Skin 和远控共用的 GitHub 身份权威，通过 `auth.openbitfun.com`
+- 本服务是 MiniApp、Skin 和远控共用的 GitHub 身份权威，通过 `auth.bitfun.com`
   提供统一入口。Web 和桌面 OAuth 完成都为
   `/miniapp` 与 `/skin` 签发同一服务端 session 的独立 Path-scoped Cookie；Skin
   不保存 OAuth secret，退出登录必须撤销 session 并清除两组 Cookie。
@@ -100,15 +100,15 @@ GitHub HTTP 连接 / 总期限为 10 / 20 秒，单个 JSON 响应不超过 64 K
 
 ```bash
 pnpm run fmt:rs
-cargo test -p openbitfun-miniapp-market-service
-cargo check -p openbitfun-miniapp-market-server
+cargo test -p bitfun-miniapp-market-service
+cargo check -p bitfun-miniapp-market-server
 cargo check --workspace
 ```
 
 领域 DTO 或状态机变化再运行：
 
 ```bash
-cargo test -p openbitfun-product-domains --features miniapp
+cargo test -p bitfun-product-domains --features miniapp
 pnpm run type-check:miniapp-market
 pnpm run test:miniapp-market
 ```
@@ -132,7 +132,7 @@ yank、上传和 migration 变化不能只测试成功路径。
 
 ## 发布
 
-此 crate 被 `openbitfun-miniapp-market-server` 编译进与网页相同的 Docker 镜像。
+此 crate 被 `bitfun-miniapp-market-server` 编译进与网页相同的 Docker 镜像。
 不要在生产服务器直接执行 `cargo run`，不要手工替换 binary，也不要直接编辑
 SQLite/artifacts。完整流程见
 [生产部署手册](../../../../deploy/miniapp-market/README.md)。
@@ -170,7 +170,7 @@ SMTP 错误不得包含地址、凭据或验证码。认证接口保留 body、�
 `smtp.qiye.aliyun.com:465`，不允许关闭证书验证。未配置密码时只关闭邮箱入口，
 `/config` 和 `/health` 的 `emailAuthConfigured` 明确报告能力。
 
-重点回归：`cargo test -p openbitfun-miniapp-market-service --lib email_`。
+重点回归：`cargo test -p bitfun-miniapp-market-service --lib email_`。
 
 The verification email uses `src/email/sign-in.html` as a multipart/alternative
 HTML body with a complete UTF-8 plain-text fallback. Layout uses presentation
@@ -184,12 +184,12 @@ copy of the application icon; do not recolor it or add a CSS placeholder backgro
 The market web build publishes the same icon separately for the sign-in page.
 
 Email clients cannot consume CSS variables or theme packages. The template's
-small inline palette is an email-specific snapshot of the existing OpenBitFun
+small inline palette is an email-specific snapshot of the existing BitFun
 reference scales: neutral 0/70/75/200/350/650/800/850/900/950/1000 and cyan 500 from
-`design-system/packages/theme-openbitfun/src/reference.tokens.json`. Preserve
+`design-system/packages/theme-bitfun/src/reference.tokens.json`. Preserve
 those source mappings when updating the template; do not add a separate brand
 palette. Check the HTML at 390px and desktop widths in light and dark mode,
-then run `cargo test -p openbitfun-miniapp-market-service --lib email_auth::tests`
+then run `cargo test -p bitfun-miniapp-market-service --lib email_auth::tests`
 and a real message render check after SMTP/template changes.
 
 Marketplace author labels are public: email accounts display their full verified

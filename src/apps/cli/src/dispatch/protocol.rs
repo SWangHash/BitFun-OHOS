@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use openbitfun_agent_runtime::sdk::{PermissionReply, PermissionRequest};
-use openbitfun_core::AIModelCatalog;
+use bitfun_agent_runtime::sdk::{PermissionReply, PermissionRequest};
+use bitfun_core::AIModelCatalog;
 
 // The wire contract (version, capability names, attachment shape and
 // limits) has one source of truth shared with the controller side.
-pub(crate) use openbitfun_services_core::dispatch_contract::{
+pub(crate) use bitfun_services_core::dispatch_contract::{
     validate_dispatch_attachments, DispatchAttachment, DISPATCH_PROTOCOL_VERSION,
 };
 
@@ -87,7 +87,7 @@ pub(crate) struct DispatchSubmitRequest {
     pub(crate) job_id: String,
     pub(crate) session_id: String,
     pub(crate) workspace_path: String,
-    #[serde(deserialize_with = "openbitfun_core_types::agent_identity::deserialize_agent_id")]
+    #[serde(deserialize_with = "bitfun_core_types::agent_identity::deserialize_agent_id")]
     pub(crate) agent_type: String,
     pub(crate) prompt: String,
     pub(crate) approval_policy: DispatchApprovalPolicy,
@@ -456,7 +456,7 @@ pub(crate) struct DispatchQueryRequest {
     pub(crate) file_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) file_chunk:
-        Option<openbitfun_services_core::dispatch_contract::DispatchFileChunkRequest>,
+        Option<bitfun_services_core::dispatch_contract::DispatchFileChunkRequest>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -635,7 +635,7 @@ pub(crate) struct DispatchJobListEntry {
     pub(crate) started_at: Option<String>,
     pub(crate) workspace_path: String,
     pub(crate) title: String,
-    #[serde(deserialize_with = "openbitfun_core_types::agent_identity::deserialize_agent_id")]
+    #[serde(deserialize_with = "bitfun_core_types::agent_identity::deserialize_agent_id")]
     pub(crate) agent_type: String,
     pub(crate) approval_policy: DispatchApprovalPolicy,
     #[serde(skip_serializing_if = "Option::is_none")]

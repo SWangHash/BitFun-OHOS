@@ -58,7 +58,7 @@ function item(status: FlowToolItem['status'] = 'running'): FlowToolItem {
 }
 
 describe('AgentWaitToolCard', () => {
-  it('shows the steering hint only for a running top-level OpenBitFun session', () => {
+  it('shows the steering hint only for a running top-level BitFun session', () => {
     const topLevel = session();
     expect(shouldShowAgentWaitSteeringHint('running', 'default', topLevel)).toBe(true);
     expect(shouldShowAgentWaitSteeringHint('completed', 'default', topLevel)).toBe(false);
@@ -84,11 +84,11 @@ describe('AgentWaitToolCard', () => {
 
     expect(html).toContain('Wait for subagents to finish');
     expect(html).toContain('Send a steering message to end the wait early');
-    expect(html).toContain('data-openbitfun-attention="ambient"');
-    expect(html).toContain('data-openbitfun-tool-card="agent-wait"');
-    expect(html).toContain('data-openbitfun-part="content"');
-    expect(html).toContain('data-openbitfun-part="summary"');
-    expect(html).not.toContain('data-openbitfun-part="steeringHint"');
+    expect(html).toContain('data-bitfun-attention="ambient"');
+    expect(html).toContain('data-bitfun-tool-card="agent-wait"');
+    expect(html).toContain('data-bitfun-part="content"');
+    expect(html).toContain('data-bitfun-part="summary"');
+    expect(html).not.toContain('data-bitfun-part="steeringHint"');
   });
 
   it('renders a normal steered result without the running hint', () => {

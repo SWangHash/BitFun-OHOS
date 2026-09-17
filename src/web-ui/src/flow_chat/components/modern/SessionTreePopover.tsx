@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageSquare, Square } from 'lucide-react';
-import { OverflowText, Spinner, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Spinner, Tooltip } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { sessionAPI, type SessionLineageSnapshot } from '@/infrastructure/api/service-api/SessionAPI';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance';
@@ -22,7 +22,7 @@ import {
   SubagentAvatar,
 } from '../../subagent-identity';
 import './SessionTreePopover.scss';
-import { IconButton, Menu, MenuItem, Icon } from '@openbitfun/ui';
+import { IconButton, Menu, MenuItem, Icon } from '@bitfun/ui';
 
 export interface SessionTreeSelection {
   sessionId: string;
@@ -432,10 +432,10 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
             nodeHasActiveWork(node) && 'session-tree-popover__node--active',
             isCancelling && 'session-tree-popover__node--cancelling',
           ].filter(Boolean).join(' ')}
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreeNode"
-          data-openbitfun-status={node.lifecycle}
-          data-openbitfun-state={isCancelling ? 'cancelling' : undefined}
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreeNode"
+          data-bitfun-status={node.lifecycle}
+          data-bitfun-state={isCancelling ? 'cancelling' : undefined}
           data-session-id={node.sessionId}
           role="treeitem"
           aria-level={depth + 1}
@@ -479,8 +479,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
             <span className="session-tree-popover__node-copy">
               <OverflowText
                 className="session-tree-popover__node-title"
-                data-openbitfun-component="flow-chat-header"
-                data-openbitfun-part="sessionTreeNodeTitle"
+                data-bitfun-component="flow-chat-header"
+                data-bitfun-part="sessionTreeNodeTitle"
               >
                 {primaryLabel}
               </OverflowText>
@@ -507,9 +507,9 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
                 <Menu
                   ref={actionMenuRef}
                   className="session-tree-popover__action-menu"
-                  data-openbitfun-component="flow-chat-header"
-                  data-openbitfun-part="sessionTreeMenu"
-                  data-openbitfun-native-webview-occlusion
+                  data-bitfun-component="flow-chat-header"
+                  data-bitfun-part="sessionTreeMenu"
+                  data-bitfun-native-webview-occlusion
                   aria-label={t('flowChatHeader.agentTreeActions')}
                   style={actionMenuPosition}
                   data-testid="flowchat-header-session-tree-menu"
@@ -517,8 +517,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
                   {canCancel ? <MenuItem
                     type="button"
                     tone="danger"
-                    data-openbitfun-component="flow-chat-header"
-                    data-openbitfun-part="sessionTreeMenuItem"
+                    data-bitfun-component="flow-chat-header"
+                    data-bitfun-part="sessionTreeMenuItem"
                     onClick={() => void handleCancel(node)}
                     disabled={isCancelling}
                     leading={<Square size={12} aria-hidden="true" />}
@@ -564,16 +564,16 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
   const treeBody = (
     <div
       className="session-tree-popover__body"
-      data-openbitfun-component="flow-chat-header"
-      data-openbitfun-part="sessionTreeBody"
+      data-bitfun-component="flow-chat-header"
+      data-bitfun-part="sessionTreeBody"
     >
       {visibleTree ? <div role="tree">{renderedTreeNodes}</div> : null}
       {isLoading && !tree ? (
         <div
           className="session-tree-popover__state"
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreeState"
-          data-openbitfun-state="loading"
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreeState"
+          data-bitfun-state="loading"
           aria-live="polite"
         >
           <Spinner size="sm" />
@@ -583,9 +583,9 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
       {!isLoading && !loadFailed && tree && descendantCount === 0 ? (
         <div
           className="session-tree-popover__state"
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreeState"
-          data-openbitfun-state="empty"
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreeState"
+          data-bitfun-state="empty"
         >
           {t(activeOnly ? 'flowChatHeader.agentTreeNoActive' : 'flowChatHeader.agentTreeEmpty')}
         </div>
@@ -593,9 +593,9 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
       {loadFailed ? (
         <div
           className="session-tree-popover__state session-tree-popover__state--error"
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreeState"
-          data-openbitfun-state="error"
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreeState"
+          data-bitfun-state="error"
         >
           <span>{t('flowChatHeader.agentTreeLoadFailed')}</span>
           <Tooltip content={t('flowChatHeader.agentTreeRetry')}>
@@ -616,8 +616,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
       <div
         className="session-tree-popover session-tree-popover--embedded"
         ref={containerRef}
-        data-openbitfun-component="flow-chat-header"
-        data-openbitfun-part="sessionTree"
+        data-bitfun-component="flow-chat-header"
+        data-bitfun-part="sessionTree"
         data-testid="flowchat-header-session-tree-content"
       >
         {treeBody}
@@ -629,8 +629,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
     <div
       className="session-tree-popover"
       ref={containerRef}
-      data-openbitfun-component="flow-chat-header"
-      data-openbitfun-part="sessionTree"
+      data-bitfun-component="flow-chat-header"
+      data-bitfun-part="sessionTree"
     >
       <Tooltip content={panelLabel}>
         <IconButton
@@ -640,9 +640,9 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
             isOpen && 'session-tree-popover__trigger--active',
             hasActiveDescendants && 'session-tree-popover__trigger--has-activity',
           ].filter(Boolean).join(' ')}
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreeTrigger"
-          data-openbitfun-state={[
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreeTrigger"
+          data-bitfun-state={[
             isOpen ? 'open' : null,
             hasActiveDescendants ? 'active' : null,
           ].filter(Boolean).join(' ') || undefined}
@@ -678,9 +678,9 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
           <div
           ref={panelRef}
           className="session-tree-popover__panel"
-          data-openbitfun-component="flow-chat-header"
-          data-openbitfun-part="sessionTreePanel"
-          data-openbitfun-placement={renderedPanelLayout?.placement ?? 'bottom'}
+          data-bitfun-component="flow-chat-header"
+          data-bitfun-part="sessionTreePanel"
+          data-bitfun-placement={renderedPanelLayout?.placement ?? 'bottom'}
           data-open={isOpen ? 'true' : 'false'}
           data-keyboard-open={keyboardNavigationOpen ? 'true' : 'false'}
           role="dialog"
@@ -695,8 +695,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
         >
           <div
             className="session-tree-popover__header"
-            data-openbitfun-component="flow-chat-header"
-            data-openbitfun-part="sessionTreeHeader"
+            data-bitfun-component="flow-chat-header"
+            data-bitfun-part="sessionTreeHeader"
           >
             <span>{panelLabel}</span>
             <span>{descendantCount + (tree ? 1 : 0)}</span>

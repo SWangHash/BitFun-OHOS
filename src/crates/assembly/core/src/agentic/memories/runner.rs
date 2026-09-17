@@ -15,7 +15,7 @@ use crate::agentic::SessionKind;
 use crate::infrastructure::get_path_manager_arc;
 use crate::service::config::get_global_config_service;
 use crate::service::session::SessionMemoryMode;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use log::{debug, info, warn};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -42,7 +42,7 @@ trait MemoryPhase2Consolidator: Send + Sync {
         &self,
         memory_root: &std::path::Path,
         model_id: Option<String>,
-    ) -> OpenBitFunResult<String>;
+    ) -> BitFunResult<String>;
 }
 
 struct InternalAgentMemoryPhase2Consolidator;
@@ -53,9 +53,9 @@ impl MemoryPhase2Consolidator for InternalAgentMemoryPhase2Consolidator {
         &self,
         memory_root: &std::path::Path,
         model_id: Option<String>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let coordinator = get_global_coordinator().ok_or_else(|| {
-            OpenBitFunError::service(
+            BitFunError::service(
                 "Memory phase2 consolidation requires an initialized agent coordinator".to_string(),
             )
         })?;
@@ -74,7 +74,7 @@ impl MemoryPhase2Consolidator for InternalAgentMemoryPhase2Consolidator {
             model_id: model_id.clone(),
             created_by: Some("memory-phase2".to_string()),
             context: HashMap::new(),
-            delegation_policy: openbitfun_runtime_ports::DelegationPolicy::top_level()
+            delegation_policy: bitfun_runtime_ports::DelegationPolicy::top_level()
                 .spawn_child(),
             runtime_tool_restrictions: memory_phase2_tool_restrictions(memory_root),
             session_kind: SessionKind::EphemeralChild,
@@ -145,7 +145,7 @@ pub struct MemoryPhase2Runner {
 }
 
 impl MemoryPhase2Runner {
-    pub async fn new() -> OpenBitFunResult<Self> {
+    pub async fn new() -> BitFunResult<Self> {
         let path_manager = get_path_manager_arc();
         let db = Arc::new(MemoryDatabase::new(path_manager.clone()));
         db.initialize().await?;
@@ -188,7 +188,7 @@ impl MemoryPhase2Runner {
         }
     }
 
-    pub async fn run_once(&self) -> OpenBitFunResult<Option<Phase2RunReport>> {
+    pub async fn run_once(&self) -> BitFunResult<Option<Phase2RunReport>> {
         let config = get_phase2_runtime_config().await;
         self.run_once_with_config(config).await
     }
@@ -196,7 +196,7 @@ impl MemoryPhase2Runner {
     async fn run_once_with_config(
         &self,
         config: crate::service::config::types::GlobalConfig,
-    ) -> OpenBitFunResult<Option<Phase2RunReport>> {
+    ) -> BitFunResult<Option<Phase2RunReport>> {
         let started_at = std::time::Instant::now();
         info!(
             "Memory phase2 run started: generate_memories={}, limit={}, max_unused_days={}, phase2_lease_seconds={}, phase2_success_cooldown_seconds={}, phase2_retry_delay_seconds={}, memory_root={}",
@@ -357,7 +357,7 @@ impl MemoryPhase2Runner {
                     selected_memory_rows.len(),
                     error
                 );
-                return Err(OpenBitFunError::io(format!(
+                return Err(BitFunError::io(format!(
                     "Failed to sync phase2 workspace inputs: {}",
                     error
                 )));
@@ -540,7 +540,7 @@ impl MemoryPhase2Runner {
     async fn run_once_with_config_for_tests(
         &self,
         config: crate::service::config::types::GlobalConfig,
-    ) -> OpenBitFunResult<Option<Phase2RunReport>> {
+    ) -> BitFunResult<Option<Phase2RunReport>> {
         self.run_once_with_config(config).await
     }
 
@@ -548,7 +548,7 @@ impl MemoryPhase2Runner {
         &self,
         rows: &[MemoryPhase2CandidateRow],
         limit: usize,
-    ) -> OpenBitFunResult<Vec<MemoryPhase2CandidateRow>> {
+    ) -> BitFunResult<Vec<MemoryPhase2CandidateRow>> {
         let mut selected = Vec::new();
         for row in rows {
             if selected.len() >= limit {
@@ -564,7 +564,7 @@ impl MemoryPhase2Runner {
     async fn phase2_row_memory_enabled(
         &self,
         row: &MemoryPhase2CandidateRow,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         let metadata = self
             .persistence
             .load_session_metadata(std::path::Path::new(&row.workspace_path), &row.session_id)
@@ -599,7 +599,7 @@ impl MemoryPhase2Runner {
     pub async fn claim_phase2_job(
         &self,
         ownership_token: &str,
-    ) -> OpenBitFunResult<MemoryPhase2ClaimOutcome> {
+    ) -> BitFunResult<MemoryPhase2ClaimOutcome> {
         let job = self.db.get_phase2_job(PHASE2_JOB_KEY).await?;
         let input_watermark = job
             .as_ref()
@@ -619,7 +619,7 @@ impl MemoryPhase2Runner {
         &self,
         ownership_token: &str,
         selection: &crate::agentic::memories::db::MemoryPhase2SelectionRow,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.db
             .complete_phase2_job_success(PHASE2_JOB_KEY, ownership_token, selection.input_watermark)
             .await
@@ -629,7 +629,7 @@ impl MemoryPhase2Runner {
         &self,
         ownership_token: &str,
         selection: &crate::agentic::memories::db::MemoryPhase2SelectionRow,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.db
             .complete_phase2_job_idle(PHASE2_JOB_KEY, ownership_token, selection.input_watermark)
             .await
@@ -639,7 +639,7 @@ impl MemoryPhase2Runner {
         &self,
         ownership_token: &str,
         error: String,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.db
             .complete_phase2_job_failure(
                 PHASE2_JOB_KEY,
@@ -650,13 +650,13 @@ impl MemoryPhase2Runner {
             .await
     }
 
-    async fn run_consolidation_agent(&self) -> OpenBitFunResult<String> {
+    async fn run_consolidation_agent(&self) -> BitFunResult<String> {
         let Ok(config_service) = get_global_config_service().await else {
             return self.consolidator.consolidate(&self.memory_root, None).await;
         };
         let config: crate::service::config::types::GlobalConfig =
             config_service.get_config(None).await.map_err(|error| {
-                OpenBitFunError::service(format!("Failed to load config: {}", error))
+                BitFunError::service(format!("Failed to load config: {}", error))
             })?;
         let model_id = Some(select_phase2_model_id(&config)?);
         info!(
@@ -676,7 +676,7 @@ impl MemoryPhase2Runner {
         Ok(output)
     }
 
-    async fn prune_prompt_artifacts(&self) -> OpenBitFunResult<()> {
+    async fn prune_prompt_artifacts(&self) -> BitFunResult<()> {
         let root = self.memory_root.clone();
         for name in ["phase2_prompt.md", "phase2_user_prompt.md"] {
             let path = root.join(name);
@@ -684,7 +684,7 @@ impl MemoryPhase2Runner {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(OpenBitFunError::io(format!(
+                    return Err(BitFunError::io(format!(
                         "Failed to prune memory prompt artifact {}: {}",
                         path.display(),
                         error
@@ -695,7 +695,7 @@ impl MemoryPhase2Runner {
         Ok(())
     }
 
-    async fn confirm_phase2_job_ownership(&self, ownership_token: &str) -> OpenBitFunResult<()> {
+    async fn confirm_phase2_job_ownership(&self, ownership_token: &str) -> BitFunResult<()> {
         let job = self.db.get_phase2_job(PHASE2_JOB_KEY).await?;
         if job.as_ref().and_then(|row| row.ownership_token.as_deref()) == Some(ownership_token) {
             self.db
@@ -708,7 +708,7 @@ impl MemoryPhase2Runner {
                 .await?
                 .then_some(())
                 .ok_or_else(|| {
-                    OpenBitFunError::service(
+                    BitFunError::service(
                         "Lost memory phase2 job ownership before resetting workspace baseline"
                             .to_string(),
                     )
@@ -716,16 +716,16 @@ impl MemoryPhase2Runner {
             return Ok(());
         }
 
-        Err(OpenBitFunError::service(
+        Err(BitFunError::service(
             "Lost memory phase2 job ownership before resetting workspace baseline".to_string(),
         ))
     }
 
-    fn confirm_phase2_job_completion(&self, completed: bool) -> OpenBitFunResult<()> {
+    fn confirm_phase2_job_completion(&self, completed: bool) -> BitFunResult<()> {
         if completed {
             Ok(())
         } else {
-            Err(OpenBitFunError::service(
+            Err(BitFunError::service(
                 "Lost memory phase2 job ownership before completing run".to_string(),
             ))
         }
@@ -786,7 +786,7 @@ pub fn current_unix_secs() -> i64 {
         .unwrap_or_default()
 }
 
-async fn phase2_retry_delay_seconds() -> OpenBitFunResult<i64> {
+async fn phase2_retry_delay_seconds() -> BitFunResult<i64> {
     let config = get_phase2_runtime_config().await;
     Ok(config
         .memories
@@ -794,14 +794,14 @@ async fn phase2_retry_delay_seconds() -> OpenBitFunResult<i64> {
         .clamp(60, 24 * 60 * 60))
 }
 
-async fn phase2_lease_seconds() -> OpenBitFunResult<i64> {
+async fn phase2_lease_seconds() -> BitFunResult<i64> {
     let config = get_phase2_runtime_config().await;
     Ok(config.memories.phase2_lease_seconds.clamp(60, 24 * 60 * 60))
 }
 
 fn select_phase2_model_id(
     config: &crate::service::config::types::GlobalConfig,
-) -> OpenBitFunResult<String> {
+) -> BitFunResult<String> {
     let ai = &config.ai;
     let model_ref = config.memories.consolidation_model.as_deref().or(config
         .ai
@@ -813,7 +813,7 @@ fn select_phase2_model_id(
         .and_then(|model_ref| ai.resolve_model_selection(model_ref))
         .or_else(|| ai.first_enabled_model_id())
         .ok_or_else(|| {
-            OpenBitFunError::service("No enabled model available for memory phase2".to_string())
+            BitFunError::service("No enabled model available for memory phase2".to_string())
         })
 }
 
@@ -850,13 +850,13 @@ mod tests {
             &self,
             memory_root: &std::path::Path,
             _model_id: Option<String>,
-        ) -> OpenBitFunResult<String> {
+        ) -> BitFunResult<String> {
             let diff = tokio::fs::read_to_string(
                 crate::agentic::memories::workspace::phase2_workspace_diff_file(memory_root),
             )
             .await
             .map_err(|error| {
-                OpenBitFunError::io(format!(
+                BitFunError::io(format!(
                     "Expected phase2 workspace diff before consolidation: {}",
                     error
                 ))

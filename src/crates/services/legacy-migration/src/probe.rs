@@ -2,7 +2,7 @@ use crate::{
     LegacyMigrationError, LegacyMigrationResult, MigrationOnboardingStore, MigrationRoots,
     LEGACY_PRODUCT_ID,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     FindingSeverity, LegacyRootDescriptor, LegacyRootKind, LegacySourceDescriptor,
     MigrationDiagnostic, MigrationPromptChoice, MigrationRunStatus,
 };

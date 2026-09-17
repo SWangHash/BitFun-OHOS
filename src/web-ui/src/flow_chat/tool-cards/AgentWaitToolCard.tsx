@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { flowChatStore } from '../store/FlowChatStore';
 import type { ToolCardProps } from '../types/flow-chat';
 import { RUNNING_STATUSES, shouldShowAgentWaitSteeringHint } from './agentWaitSteeringHint';
-import { AgentWaitToolCard as AgentWaitToolCardView } from '@openbitfun/ui/flow-chat';
+import { AgentWaitToolCard as AgentWaitToolCardView } from '@bitfun/ui/flow-chat';
 
 interface AgentWaitResult {
   status?: string;

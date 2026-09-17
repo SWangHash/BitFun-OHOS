@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Icon } from '@openbitfun/ui';
+import { Icon } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { DiffEditor } from '@/tools/editor/components/DiffEditor';
 ;
@@ -148,8 +148,8 @@ export const GitDiffEditor: React.FC<GitDiffEditorProps> = ({
   return (
     <div 
       className="git-diff-editor"
-      data-openbitfun-component="git-tool"
-      data-openbitfun-part="diffEditor"
+      data-bitfun-component="git-tool"
+      data-bitfun-part="diffEditor"
       onKeyDownCapture={handleContainerKeyDown}
     >
       {error && (

@@ -66,8 +66,8 @@ describe('ViewImageToolCard', () => {
     expect(html).toContain('height="949"');
     expect(html).toContain('Viewed 1 image');
     expect(html).not.toContain('toolCards.viewImage.viewedImages');
-    expect(html).toContain('data-openbitfun-tool-card="view-image"');
-    expect(html).toContain('data-openbitfun-part="imagePreview"');
+    expect(html).toContain('data-bitfun-tool-card="view-image"');
+    expect(html).toContain('data-bitfun-part="imagePreview"');
   });
 
   it('does not render an unsupported attachment type', () => {

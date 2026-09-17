@@ -145,28 +145,28 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
         </DialogHeader>
         {hasMessage || hasPreview ? (
           <DialogBody>
-            <div className={styles.content} data-openbitfun-component="confirm-dialog" data-openbitfun-part="content">
+            <div className={styles.content} data-bitfun-component="confirm-dialog" data-bitfun-part="content">
               {hasMessage ? (
                 <div
                   className={styles.messageRow}
-                  data-openbitfun-component="confirm-dialog"
-                  data-openbitfun-part="messageRow"
+                  data-bitfun-component="confirm-dialog"
+                  data-bitfun-part="messageRow"
                 >
                   {resolvedIcon !== null ? (
                     <span
                       aria-hidden="true"
                       className={styles.icon}
-                      data-openbitfun-component="confirm-dialog"
-                      data-openbitfun-part="icon"
-                      data-openbitfun-status={type === "error" ? "danger" : type}
+                      data-bitfun-component="confirm-dialog"
+                      data-bitfun-part="icon"
+                      data-bitfun-status={type === "error" ? "danger" : type}
                     >
                       {resolvedIcon}
                     </span>
                   ) : null}
                   <div
                     className={styles.message}
-                    data-openbitfun-component="confirm-dialog"
-                    data-openbitfun-part="message"
+                    data-bitfun-component="confirm-dialog"
+                    data-bitfun-part="message"
                   >
                     {message}
                   </div>
@@ -175,8 +175,8 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
               {hasPreview ? (
                 <div
                   className={styles.preview}
-                  data-openbitfun-component="confirm-dialog"
-                  data-openbitfun-part="preview"
+                  data-bitfun-component="confirm-dialog"
+                  data-bitfun-part="preview"
                 >
                   {typeof preview === "string" ? <pre>{preview}</pre> : preview}
                 </div>

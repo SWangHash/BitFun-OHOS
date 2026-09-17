@@ -24,7 +24,7 @@ import {
   Switch,
   Textarea,
   Tooltip,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
@@ -229,11 +229,11 @@ const EcosystemCompatibilityScene: React.FC = () => {
     const refreshClients = () => {
       void loadCompatibility(false);
     };
-    window.addEventListener('openbitfun:acp-clients-changed', refreshClients);
-    window.addEventListener('openbitfun:acp-requirements-changed', refreshClients);
+    window.addEventListener('bitfun:acp-clients-changed', refreshClients);
+    window.addEventListener('bitfun:acp-requirements-changed', refreshClients);
     return () => {
-      window.removeEventListener('openbitfun:acp-clients-changed', refreshClients);
-      window.removeEventListener('openbitfun:acp-requirements-changed', refreshClients);
+      window.removeEventListener('bitfun:acp-clients-changed', refreshClients);
+      window.removeEventListener('bitfun:acp-requirements-changed', refreshClients);
     };
   }, [loadCompatibility]);
 
@@ -294,7 +294,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
       setOwnerSurface('acp');
       return;
     }
-    window.dispatchEvent(new CustomEvent('openbitfun:create-acp-session', {
+    window.dispatchEvent(new CustomEvent('bitfun:create-acp-session', {
       detail: { clientId: client.id },
     }));
     notification.info(t('run.starting', { name: client.name || client.id }), { duration: 2400 });
@@ -578,20 +578,20 @@ const EcosystemCompatibilityScene: React.FC = () => {
     <div
       className="ecosystem-compatibility"
       data-testid="ecosystem-compatibility-scene"
-      data-openbitfun-scene="ecosystem-compatibility"
-      data-openbitfun-part="root"
+      data-bitfun-scene="ecosystem-compatibility"
+      data-bitfun-part="root"
     >
       <NavigationPanel
         className="ecosystem-compatibility__sidebar"
         aria-label={t('sidebar.label')}
-        data-openbitfun-scene="ecosystem-compatibility"
-        data-openbitfun-part="sidebar"
+        data-bitfun-scene="ecosystem-compatibility"
+        data-bitfun-part="sidebar"
       >
         <NavigationPanelHeader className="ecosystem-compatibility__sidebar-header">
           <header
             className="ecosystem-compatibility__navigation-header"
-            data-openbitfun-scene="ecosystem-compatibility"
-            data-openbitfun-part="header"
+            data-bitfun-scene="ecosystem-compatibility"
+            data-bitfun-part="header"
           >
             <strong>{t('title')}</strong>
             <div className="ecosystem-compatibility__navigation-scope">
@@ -629,8 +629,8 @@ const EcosystemCompatibilityScene: React.FC = () => {
         <NavigationPanelBody>
           <div
             className="ecosystem-compatibility__product-groups"
-            data-openbitfun-scene="ecosystem-compatibility"
-            data-openbitfun-part="productList"
+            data-bitfun-scene="ecosystem-compatibility"
+            data-bitfun-part="productList"
           >
             <NavigationPanelContent>
               {GROUP_ORDER.map((group) => {
@@ -684,14 +684,14 @@ const EcosystemCompatibilityScene: React.FC = () => {
 
       <main
         className="ecosystem-compatibility__main"
-        data-openbitfun-scene="ecosystem-compatibility"
-        data-openbitfun-part="main"
+        data-bitfun-scene="ecosystem-compatibility"
+        data-bitfun-part="main"
       >
         <ScrollArea
           ref={contentRef}
           className="ecosystem-compatibility__content"
-          data-openbitfun-scene="ecosystem-compatibility"
-          data-openbitfun-part="content"
+          data-bitfun-scene="ecosystem-compatibility"
+          data-bitfun-part="content"
         >
           <header
             className="ecosystem-compatibility__product-header"

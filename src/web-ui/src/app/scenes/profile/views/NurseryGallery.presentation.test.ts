@@ -26,17 +26,17 @@ describe('Nursery gallery presentation', () => {
     const gallerySection = stylesheet.slice(galleryStart, galleryEnd);
 
     expect(gallerySection).toMatch(
-      /\.nursery-gallery \{\s+background: var\(--openbitfun-color-surface-scene\);/,
+      /\.nursery-gallery \{\s+background: var\(--bitfun-color-surface-scene\);/,
     );
     expect(readSibling('./NurseryGallery.tsx')).toContain('appearance="subtle"');
     expect(readSibling('./AssistantCard.tsx')).toContain('appearance="subtle"');
-    expect(gallerySection).toContain('background: var(--openbitfun-color-surface-tertiary);');
-    expect(gallerySection).toContain('color: var(--openbitfun-color-content-primary);');
-    expect(gallerySection).toContain('color: var(--openbitfun-color-content-muted);');
-    expect(gallerySection).not.toContain('border-color: var(--openbitfun-color-border-subtle);');
-    expect(gallerySection).not.toContain('--openbitfun-color-content-on-dark');
-    expect(gallerySection).not.toContain('--openbitfun-color-content-on-light');
-    expect(gallerySection).not.toContain('--openbitfun-color-overlay-scrim');
+    expect(gallerySection).toContain('background: var(--bitfun-color-surface-tertiary);');
+    expect(gallerySection).toContain('color: var(--bitfun-color-content-primary);');
+    expect(gallerySection).toContain('color: var(--bitfun-color-content-muted);');
+    expect(gallerySection).not.toContain('border-color: var(--bitfun-color-border-subtle);');
+    expect(gallerySection).not.toContain('--bitfun-color-content-on-dark');
+    expect(gallerySection).not.toContain('--bitfun-color-content-on-light');
+    expect(gallerySection).not.toContain('--bitfun-color-overlay-scrim');
   });
 
   it('uses the shared button for default configuration', () => {
@@ -57,17 +57,17 @@ describe('Nursery gallery presentation', () => {
 
     expect(cardSection).toContain('&__main {');
     expect(cardSection).toContain('min-height: 148px;');
-    expect(cardSection).toContain('background: var(--openbitfun-color-action-neutral-surface-hover);');
+    expect(cardSection).toContain('background: var(--bitfun-color-action-neutral-surface-hover);');
     expect(cardSection).toContain('&__session-actions {');
-    expect(cardSection).not.toContain('border-color: var(--openbitfun-color-border-subtle);');
-    expect(cardSection).not.toContain('border-top: 1px solid var(--openbitfun-color-border-subtle);');
+    expect(cardSection).not.toContain('border-color: var(--bitfun-color-border-subtle);');
+    expect(cardSection).not.toContain('border-top: 1px solid var(--bitfun-color-border-subtle);');
     expect(cardSection).not.toContain('min-height: clamp(310px, 23.8vw, 366px);');
     expect(cardSection).not.toContain('height: 100%;');
     expect(cardSection).not.toContain('--assistant-card-action-bg');
     expect(cardSection).not.toContain('&__new-session-btn {');
     expect(cardSection).not.toContain('&__set-primary-btn {');
     expect(cardSection).not.toContain('&__delete-btn {');
-    expect(source).toMatch(/import \{[^}]*\bButton\b[^}]*} from '@openbitfun\/ui';/);
+    expect(source).toMatch(/import \{[^}]*\bButton\b[^}]*} from '@bitfun\/ui';/);
     expect(source).toContain('<CardHeader');
     expect(source).toContain('<CardFooter');
     expect(source).toContain('leadingIcon={<Icon name="side-chat" size="sm" />}');

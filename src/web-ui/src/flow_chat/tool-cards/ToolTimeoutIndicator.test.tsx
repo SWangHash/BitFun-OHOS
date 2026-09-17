@@ -106,7 +106,7 @@ describe('ToolTimeoutIndicator', () => {
     expect(durationRule).toContain('font-variant-numeric: proportional-nums;');
     expect(timeoutIndicatorStyles).not.toContain('tabular-nums');
     expect(timeoutIndicatorStyles).toMatch(
-      /\.duration-text--completed-success\s*\{\s*color:\s*var\(--openbitfun-color-code-change-added\);/,
+      /\.duration-text--completed-success\s*\{\s*color:\s*var\(--bitfun-color-code-change-added\);/,
     );
     expect(taskToolStyles).not.toMatch(/\.duration-text(?:--[\w-]+)?\s*\{/);
   });
@@ -117,7 +117,7 @@ describe('ToolTimeoutIndicator', () => {
         root!.unmount();
       });
     }
-    document.querySelector('[data-openbitfun-overlay-host="true"]')?.remove();
+    document.querySelector('[data-bitfun-overlay-host="true"]')?.remove();
     container?.remove();
     dom?.window.close();
     vi.unstubAllGlobals();
@@ -230,7 +230,7 @@ describe('ToolTimeoutIndicator', () => {
     });
 
     const popover = document.querySelector<HTMLElement>('.timeout-extend-popover');
-    expect(popover?.parentElement?.getAttribute('data-openbitfun-overlay-host')).toBe('true');
+    expect(popover?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
     expect(popover?.style.visibility).toBe('visible');
   });
 });

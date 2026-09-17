@@ -1,4 +1,4 @@
-use openbitfun_product_domains::external_integration_policy::{
+use bitfun_product_domains::external_integration_policy::{
     automatic_discovery_enabled, evaluate_external_integration_policy,
     external_integration_policy_snapshot, ExternalEcosystemPolicy, ExternalEcosystemPolicyOverride,
     ExternalIntegrationAccess, ExternalIntegrationCapabilityDescriptor,
@@ -6,12 +6,12 @@ use openbitfun_product_domains::external_integration_policy::{
     ExternalIntegrationPolicyDocument, ExternalIntegrationPolicyOverride,
     ExternalIntegrationPolicyStatus,
 };
-use openbitfun_product_domains::external_source_control::{
+use bitfun_product_domains::external_source_control::{
     ExternalSourceControlActionV1, ExternalSourceControlRequestV1, ExternalSourceControlSnapshotV1,
     ExternalSourceDesiredState, ExternalSourceDiscoveryState, ExternalSourceOperationStage,
     ExternalSourceRecoveryActionV1, ExternalSourceReviewState, EXTERNAL_SOURCE_CONTROL_SCHEMA_V1,
 };
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_sources::{
     external_mcp_approval_key, external_mcp_conflict_key, external_tool_approval_key,
     external_tool_conflict_key, prompt_command_conflict_key, EcosystemId, ExecutionDomainId,
     ExpandedPromptCommand, ExternalIntegrationCapabilityId, ExternalMcpActivationState,
@@ -33,7 +33,7 @@ use openbitfun_product_domains::external_sources::{
     SourceQualifiedCommandId, SourceQualifiedMcpServerId, SourceQualifiedToolId,
     SourceQualifiedToolTargetId,
 };
-use openbitfun_product_domains::external_subagents::{
+use bitfun_product_domains::external_subagents::{
     external_subagent_approval_key, external_subagent_candidate_id, external_subagent_conflict_key,
     external_subagent_model_binding_key, ExternalSubagentBehaviorVersion,
     ExternalSubagentCandidateId, ExternalSubagentCompatibilityState,
@@ -46,7 +46,7 @@ use openbitfun_product_domains::external_subagents::{
     ExternalSubagentProviderSnapshot, ExternalSubagentToolCapability, ExternalSubagentToolRequest,
     ExternalSubagentToolSelector, SecretText,
 };
-use openbitfun_product_domains::tool_permissions::{
+use bitfun_product_domains::tool_permissions::{
     PermissionConstraintLayer, PermissionEffect, PermissionRule,
 };
 use sha2::{Digest, Sha256};
@@ -1348,7 +1348,7 @@ fn external_mcp_decisions_change_only_with_behavior_domain_or_conflict_participa
         "/workspace-a",
         "github",
         [
-            ("openbitfun:github", "native-v1"),
+            ("bitfun:github", "native-v1"),
             (stable_id.as_str(), "behavior-v1"),
         ],
     );
@@ -1358,7 +1358,7 @@ fn external_mcp_decisions_change_only_with_behavior_domain_or_conflict_participa
         "GITHUB",
         [
             (stable_id.as_str(), "behavior-v1"),
-            ("openbitfun:github", "native-v1"),
+            ("bitfun:github", "native-v1"),
         ],
     );
     let participant_updated = external_mcp_conflict_key(
@@ -1366,7 +1366,7 @@ fn external_mcp_decisions_change_only_with_behavior_domain_or_conflict_participa
         "/workspace-a",
         "github",
         [
-            ("openbitfun:github", "native-v1"),
+            ("bitfun:github", "native-v1"),
             (stable_id.as_str(), "behavior-v2"),
         ],
     );
@@ -1379,7 +1379,7 @@ fn external_mcp_decisions_change_only_with_behavior_domain_or_conflict_participa
             "/workspace-b",
             "github",
             [
-                ("openbitfun:github", "native-v1"),
+                ("bitfun:github", "native-v1"),
                 (stable_id.as_str(), "behavior-v1"),
             ],
         )
@@ -1426,7 +1426,7 @@ fn external_mcp_product_view_is_version_guarded_and_contains_only_disclosed_fiel
         candidates: vec![
             ExternalMcpConflictCandidate {
                 candidate_id: "native_mcp:github".to_string(),
-                display_name: "OpenBitFun: github".to_string(),
+                display_name: "BitFun: github".to_string(),
                 external: false,
                 source: None,
                 behavior_version: "native-v1".to_string(),
@@ -1600,7 +1600,7 @@ fn automatic_discovery_survives_an_older_policy_read_modify_write_and_stays_out_
     .unwrap();
     let public = serde_json::to_value(public).unwrap();
     assert!(!public.to_string().contains("automaticDiscovery"));
-    let _: openbitfun_product_domains::external_integration_policy::ExternalIntegrationPolicySnapshot = serde_json::from_value(public).unwrap();
+    let _: bitfun_product_domains::external_integration_policy::ExternalIntegrationPolicySnapshot = serde_json::from_value(public).unwrap();
 }
 
 #[test]

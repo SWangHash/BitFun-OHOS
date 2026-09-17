@@ -36,8 +36,8 @@ pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> Reque
             builder = builder.header("Authorization", format!("Bearer {}", api_key));
         }
 
-        if client.config.base_url.contains("openbitfun.com") {
-            builder = builder.header("X-Verification-Code", "from_openbitfun");
+        if client.config.base_url.contains("bitfun.com") {
+            builder = builder.header("X-Verification-Code", "from_bitfun");
         }
 
         builder

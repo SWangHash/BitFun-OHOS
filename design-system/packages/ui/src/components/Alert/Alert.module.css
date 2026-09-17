@@ -1,13 +1,13 @@
-@layer openbitfun.components {
-  .root { display: flex; align-items: flex-start; gap: var(--openbitfun-space-3); padding: var(--openbitfun-space-3) var(--openbitfun-space-4); border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-status-info-border); border-radius: var(--openbitfun-radius-base); color: var(--openbitfun-color-status-info-emphasis); background: var(--openbitfun-color-status-info-surface); font-family: var(--openbitfun-type-body-sm-font-family); font-size: var(--openbitfun-type-body-sm-font-size); font-weight: var(--openbitfun-type-body-sm-font-weight); line-height: var(--openbitfun-type-body-sm-line-height); letter-spacing: var(--openbitfun-type-body-sm-letter-spacing); }
-  .root[data-openbitfun-tone="success"] { border-color: var(--openbitfun-color-status-success-border); color: var(--openbitfun-color-status-success-emphasis); background: var(--openbitfun-color-status-success-surface); }
-  .root[data-openbitfun-tone="warning"] { border-color: var(--openbitfun-color-status-warning-border); color: var(--openbitfun-color-status-warning-emphasis); background: var(--openbitfun-color-status-warning-surface); }
-  .root[data-openbitfun-tone="error"] { border-color: var(--openbitfun-color-status-danger-border); color: var(--openbitfun-color-status-danger-emphasis); background: var(--openbitfun-color-status-danger-surface); }
+@layer bitfun.components {
+  .root { display: flex; align-items: flex-start; gap: var(--bitfun-space-3); padding: var(--bitfun-space-3) var(--bitfun-space-4); border: var(--bitfun-border-width-default) solid var(--bitfun-color-status-info-border); border-radius: var(--bitfun-radius-base); color: var(--bitfun-color-status-info-emphasis); background: var(--bitfun-color-status-info-surface); font-family: var(--bitfun-type-body-sm-font-family); font-size: var(--bitfun-type-body-sm-font-size); font-weight: var(--bitfun-type-body-sm-font-weight); line-height: var(--bitfun-type-body-sm-line-height); letter-spacing: var(--bitfun-type-body-sm-letter-spacing); }
+  .root[data-bitfun-tone="success"] { border-color: var(--bitfun-color-status-success-border); color: var(--bitfun-color-status-success-emphasis); background: var(--bitfun-color-status-success-surface); }
+  .root[data-bitfun-tone="warning"] { border-color: var(--bitfun-color-status-warning-border); color: var(--bitfun-color-status-warning-emphasis); background: var(--bitfun-color-status-warning-surface); }
+  .root[data-bitfun-tone="error"] { border-color: var(--bitfun-color-status-danger-border); color: var(--bitfun-color-status-danger-emphasis); background: var(--bitfun-color-status-danger-surface); }
   .icon { display: inline-flex; flex: 0 0 auto; margin-block-start: 1px; }
-  .content { display: flex; flex: 1 1 auto; min-inline-size: 0; flex-direction: column; gap: var(--openbitfun-space-1); }
-  .title { color: var(--openbitfun-color-content-primary); font-family: var(--openbitfun-type-heading-card-font-family); font-size: var(--openbitfun-type-heading-card-font-size); font-weight: var(--openbitfun-type-heading-card-font-weight); line-height: var(--openbitfun-type-heading-card-line-height); letter-spacing: var(--openbitfun-type-heading-card-letter-spacing); }
-  .message { color: var(--openbitfun-color-content-primary); }
-  .description { color: var(--openbitfun-color-content-secondary); font-family: var(--openbitfun-type-support-font-family); font-size: var(--openbitfun-type-support-font-size); font-weight: var(--openbitfun-type-support-font-weight); line-height: var(--openbitfun-type-support-line-height); letter-spacing: var(--openbitfun-type-support-letter-spacing); }
-  .close { flex: 0 0 auto; margin: calc(var(--openbitfun-space-1) * -1); }
+  .content { display: flex; flex: 1 1 auto; min-inline-size: 0; flex-direction: column; gap: var(--bitfun-space-1); }
+  .title { color: var(--bitfun-color-content-primary); font-family: var(--bitfun-type-heading-card-font-family); font-size: var(--bitfun-type-heading-card-font-size); font-weight: var(--bitfun-type-heading-card-font-weight); line-height: var(--bitfun-type-heading-card-line-height); letter-spacing: var(--bitfun-type-heading-card-letter-spacing); }
+  .message { color: var(--bitfun-color-content-primary); }
+  .description { color: var(--bitfun-color-content-secondary); font-family: var(--bitfun-type-support-font-family); font-size: var(--bitfun-type-support-font-size); font-weight: var(--bitfun-type-support-font-weight); line-height: var(--bitfun-type-support-line-height); letter-spacing: var(--bitfun-type-support-letter-spacing); }
+  .close { flex: 0 0 auto; margin: calc(var(--bitfun-space-1) * -1); }
   @media (forced-colors: active) { .root { border-color: CanvasText; } }
 }

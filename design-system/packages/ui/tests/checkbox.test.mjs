@@ -15,7 +15,7 @@ test("Checkbox keeps native semantics and independent content", () => {
   assert.match(markup, /checked=""/);
   assert.match(markup, /Enable hooks/);
   assert.match(markup, /Runs at startup/);
-  assert.match(markup, /data-openbitfun-component="checkbox"/);
+  assert.match(markup, /data-bitfun-component="checkbox"/);
 });
 
 test("Checkbox exposes canonical sizes and states", () => {
@@ -43,9 +43,9 @@ test("Checkbox native presentation retains the input without a painted substitut
   assert.match(markup, /checked=""/);
   assert.match(markup, /disabled=""/);
   assert.match(markup, /required=""/);
-  assert.doesNotMatch(markup, /data-openbitfun-part="box"/);
+  assert.doesNotMatch(markup, /data-bitfun-part="box"/);
 
   const defaults = renderToStaticMarkup(createElement(Checkbox, { label: "Custom" }));
   assert.match(defaults, /data-appearance="custom"/);
-  assert.match(defaults, /data-openbitfun-part="box"/);
+  assert.match(defaults, /data-bitfun-part="box"/);
 });

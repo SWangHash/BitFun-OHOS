@@ -1,8 +1,8 @@
-use openbitfun_core::product_assembly::{
+use bitfun_core::product_assembly::{
     DeliveryProfile, ProductAssembler, ProductAssemblyError, ProductAssemblyInput,
     ProductRuntimeParts,
 };
-use openbitfun_runtime_services::RuntimeServices;
+use bitfun_runtime_services::RuntimeServices;
 
 pub(crate) fn assemble_cli_runtime_parts(
     services: RuntimeServices,
@@ -26,10 +26,10 @@ fn assemble_runtime_parts(
 #[cfg(test)]
 mod tests {
     use super::{assemble_acp_runtime_parts, assemble_cli_runtime_parts};
-    use openbitfun_core::product_assembly::ProductServiceCapabilityStatus;
-    use openbitfun_core::product_assembly::{product_assembly_plan_for_profile, DeliveryProfile};
-    use openbitfun_core::product_runtime::build_local_runtime_services;
-    use openbitfun_runtime_ports::{
+    use bitfun_core::product_assembly::ProductServiceCapabilityStatus;
+    use bitfun_core::product_assembly::{product_assembly_plan_for_profile, DeliveryProfile};
+    use bitfun_core::product_runtime::build_local_runtime_services;
+    use bitfun_runtime_ports::{
         PluginRuntimeAvailability, PluginRuntimeUnavailableReason, RuntimeServiceCapability,
     };
 

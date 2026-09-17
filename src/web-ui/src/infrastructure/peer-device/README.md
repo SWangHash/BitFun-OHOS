@@ -63,7 +63,7 @@ listener alone recovers an interaction emitted before attachment.
      widens that window and must keep the same scope checkpoint.
    - **Surface-scoped events must stay routed by source device.** Background
      attachments mean several agent streams share one event bus. The
-     controller tags re-emitted peer payloads with `__openbitfunSourceDeviceId`
+     controller tags re-emitted peer payloads with `__bitfunSourceDeviceId`
      and `deviceSurfaceRouting.ts` (applied inside
      `TauriTransportAdapter.listen`) drops anything not produced by the
      rendered device. Adding a fanned-out event on the Rust side means adding
@@ -196,8 +196,8 @@ listener alone recovers an interaction emitted before attachment.
     to the controller. Definitions that need a native provider or a live UI
     additionally declare `product_control_native_v1` or
     `product_control_presentation_v1`; the CLI host advertises neither and
-    returns a typed unsupported result. `mark_openbitfun_control_surface_ready`,
-    `mark_openbitfun_control_surface_unready`, and `report_openbitfun_control_result`
+    returns a typed unsupported result. `mark_bitfun_control_surface_ready`,
+    `mark_bitfun_control_surface_unready`, and `report_bitfun_control_result`
     describe or acknowledge the controller window's live Web UI and therefore
     remain `LOCAL_ONLY` in the frontend, Desktop host, and CLI host lists. A
     peer executes the same owner handler and uses its own attached presentation

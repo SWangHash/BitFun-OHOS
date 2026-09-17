@@ -381,9 +381,9 @@ export class ShortcutManager {
     }
 
     if (
-      target.classList.contains('openbitfun-chat-input') ||
+      target.classList.contains('bitfun-chat-input') ||
       target.classList.contains('rich-text-input') ||
-      target.closest('.openbitfun-chat-input') !== null ||
+      target.closest('.bitfun-chat-input') !== null ||
       target.closest('.rich-text-input') !== null
     ) {
       return true;
@@ -475,7 +475,7 @@ export class ShortcutManager {
 
   /**
    * Check whether a given config conflicts with registered shortcuts in the same scope
-   * or with app-scope shortcuts. App-scope shortcuts are active globally inside OpenBitFun,
+   * or with app-scope shortcuts. App-scope shortcuts are active globally inside BitFun,
    * so they can shadow or be shadowed by scoped shortcuts.
    * Used by the settings UI for real-time conflict detection.
    */

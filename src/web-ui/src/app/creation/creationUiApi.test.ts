@@ -18,7 +18,7 @@ describe('Creation UI API', () => {
     const root = createRoot(container);
     const shell = (label: string) => React.createElement('div', null,
       React.createElement('span', null, label),
-      React.createElement('div', { 'data-openbitfun-creation-slot': 'sidebar-footer' }));
+      React.createElement('div', { 'data-bitfun-creation-slot': 'sidebar-footer' }));
     await act(async () => root.render(shell('before')));
     const creation = createCreationUiApi(new AbortController().signal);
     const mount = creation.api.mount('sidebar-footer'); mount.textContent = 'Custom action';

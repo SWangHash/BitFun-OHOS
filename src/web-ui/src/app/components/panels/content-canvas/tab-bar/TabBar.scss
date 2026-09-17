@@ -3,13 +3,13 @@
   flex-shrink: 0;
   // Put the vertical inset inside the scroller so tab focus rings stay visible.
   padding-block: 0;
-  background: var(--openbitfun-color-surface-scene);
+  background: var(--bitfun-color-surface-scene);
 
   &__tabs {
     display: flex;
     flex: 1;
     min-inline-size: 0;
-    padding-block: var(--openbitfun-layout-toolbar-sm-padding-block);
+    padding-block: var(--bitfun-layout-toolbar-sm-padding-block);
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
@@ -26,13 +26,13 @@
     flex: 0 0 auto;
     align-items: center;
     max-inline-size: 100%;
-    transition: transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-layout-toolbar-group-gap-sm);
+    gap: var(--bitfun-layout-toolbar-group-gap-sm);
     flex-shrink: 0;
   }
 }
@@ -46,10 +46,10 @@
 .canvas-tab-drop-indicator {
   position: absolute;
   inset-inline-start: 0;
-  inset-block: var(--openbitfun-space-1);
-  inline-size: var(--openbitfun-border-width-strong);
-  background: var(--openbitfun-color-accent-default);
-  border-radius: var(--openbitfun-radius-xs);
-  z-index: var(--openbitfun-layer-decoration);
+  inset-block: var(--bitfun-space-1);
+  inline-size: var(--bitfun-border-width-strong);
+  background: var(--bitfun-color-accent-default);
+  border-radius: var(--bitfun-radius-xs);
+  z-index: var(--bitfun-layer-decoration);
   pointer-events: none;
 }

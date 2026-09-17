@@ -226,7 +226,7 @@ pub enum ProviderCatalogSource {
     Cache,
     Bundle,
     #[default]
-    OpenBitFun,
+    BitFun,
     Mixed,
 }
 
@@ -234,7 +234,7 @@ pub enum ProviderCatalogSource {
 #[serde(rename_all = "snake_case")]
 pub enum ProviderCatalogModelSource {
     ModelsDev,
-    OpenBitFun,
+    BitFun,
     Merged,
 }
 

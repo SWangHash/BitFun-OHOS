@@ -5,14 +5,14 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
   }
 
   .#{$kind}-group-picker {
     &__sections {
       display: flex;
       flex-direction: column;
-      gap: var(--openbitfun-space-5);
+      gap: var(--bitfun-space-5);
     }
 
     &__group-head,
@@ -21,7 +21,7 @@
       display: flex;
       align-items: center;
       min-width: 0;
-      gap: var(--openbitfun-space-2);
+      gap: var(--bitfun-space-2);
     }
 
     &__group-head {
@@ -35,17 +35,17 @@
 
     &__group-name {
       min-width: 0;
-      color: var(--openbitfun-color-content-primary);
-      font-size: var(--openbitfun-type-label-md-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      line-height: var(--openbitfun-type-label-md-line-height);
+      color: var(--bitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      line-height: var(--bitfun-type-label-md-line-height);
     }
 
     &__selected-count,
     &__group-count {
-      color: var(--openbitfun-color-content-muted);
-      font-size: var(--openbitfun-type-meta-font-size);
-      line-height: var(--openbitfun-type-meta-line-height);
+      color: var(--bitfun-color-content-muted);
+      font-size: var(--bitfun-type-meta-font-size);
+      line-height: var(--bitfun-type-meta-line-height);
       font-variant-numeric: tabular-nums;
     }
 
@@ -61,7 +61,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
       inline-size: 100%;
-      gap: var(--openbitfun-space-2);
+      gap: var(--bitfun-space-2);
     }
 
     &__token {
@@ -74,7 +74,7 @@
       display: flex;
       min-width: 0;
       flex-wrap: wrap;
-      gap: var(--openbitfun-space-2);
+      gap: var(--bitfun-space-2);
     }
 
     &__item {
@@ -82,9 +82,9 @@
     }
 
     &__empty {
-      color: var(--openbitfun-color-content-muted);
-      font-size: var(--openbitfun-type-body-sm-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      color: var(--bitfun-color-content-muted);
+      font-size: var(--bitfun-type-body-sm-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
   }
 }

@@ -73,7 +73,7 @@ pub mod miniapp_finalize_tool;
 pub mod miniapp_init_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod miniapp_publish_tool;
-pub mod openbitfun_control_tool;
+pub mod bitfun_control_tool;
 #[cfg(feature = "tools-pages")]
 pub mod page_deploy_tool;
 #[cfg(feature = "tools-pages")]
@@ -161,7 +161,7 @@ pub use miniapp_finalize_tool::FinalizeMiniAppTool;
 pub use miniapp_init_tool::InitMiniAppTool;
 #[cfg(feature = "tools-miniapp")]
 pub use miniapp_publish_tool::PublishMiniAppTool;
-pub use openbitfun_control_tool::OpenBitFunControlTool;
+pub use bitfun_control_tool::BitFunControlTool;
 #[cfg(feature = "tools-pages")]
 pub use page_deploy_tool::PageDeployTool;
 #[cfg(feature = "tools-pages")]

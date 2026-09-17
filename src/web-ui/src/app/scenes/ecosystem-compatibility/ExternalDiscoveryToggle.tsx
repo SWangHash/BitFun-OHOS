@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type Ref } from 'react';
-import { Alert, Switch, Tooltip } from '@openbitfun/ui';
+import { Alert, Switch, Tooltip } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';

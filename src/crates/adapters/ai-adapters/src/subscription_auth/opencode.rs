@@ -692,7 +692,7 @@ pub(crate) async fn begin_login(
         method: super::SubscriptionLoginMethod::Device,
         authorization_url,
         user_code: Some(user_code),
-        instructions: "Open the verification link and enter the code, then return to OpenBitFun."
+        instructions: "Open the verification link and enter the code, then return to BitFun."
             .to_string(),
         runner: Box::pin(runner),
     })
@@ -844,7 +844,7 @@ fn inference_headers() -> HashMap<String, String> {
             "User-Agent".to_string(),
             crate::providers::shared::product_user_agent(),
         ),
-        ("x-opencode-client".to_string(), "openbitfun".to_string()),
+        ("x-opencode-client".to_string(), "bitfun".to_string()),
     ])
 }
 

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
@@ -112,7 +112,7 @@ export const TerminalEditModal: React.FC<TerminalEditModalProps> = ({
         <DialogClose />
       </DialogHeader>
       <DialogBody inset="none">
-      <div data-openbitfun-component="terminal-edit-modal" data-openbitfun-part="content" className="terminal-edit-dialog__content">
+      <div data-bitfun-component="terminal-edit-modal" data-bitfun-part="content" className="terminal-edit-dialog__content">
         <Field label={t('dialog.editTerminal.nameLabel')}>
           <Input
             ref={nameInputRef}
@@ -151,12 +151,12 @@ export const TerminalEditModal: React.FC<TerminalEditModalProps> = ({
           </Field>
         ) : null}
         {saveError && <p role="alert" className="terminal-edit-dialog__error"
-          data-openbitfun-component="terminal-edit-modal" data-openbitfun-part="error">
+          data-bitfun-component="terminal-edit-modal" data-bitfun-part="error">
           {tCommon('nav.resources.actionFailed', { error: saveError })}
         </p>}
       </div>
 
-      <div data-openbitfun-component="terminal-edit-modal" data-openbitfun-part="footer" className="terminal-edit-dialog__footer">
+      <div data-bitfun-component="terminal-edit-modal" data-bitfun-part="footer" className="terminal-edit-dialog__footer">
         <Button variant="fill" onClick={onClose}>
           {t('dialog.editTerminal.cancel')}
         </Button>

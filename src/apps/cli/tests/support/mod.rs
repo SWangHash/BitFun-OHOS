@@ -192,7 +192,7 @@ impl CliTestEnvironment {
         let base_url = format!("{}/v1", server_base_url.trim_end_matches('/'));
         let request_url = format!("{base_url}/chat/completions");
         let mut config =
-            serde_json::to_value(openbitfun_core::service::config::GlobalConfig::default())
+            serde_json::to_value(bitfun_core::service::config::GlobalConfig::default())
                 .expect("serialize default CLI config");
         config["app"]["ai_experience"]["enable_session_title_generation"] = json!(false);
         config["ai"]["models"] = json!([{
@@ -233,8 +233,8 @@ impl CliTestEnvironment {
     }
 
     pub(crate) fn std_command(&self) -> Command {
-        let mut command = openbitfun_services_core::process_manager::create_command(env!(
-            "CARGO_BIN_EXE_openbitfun"
+        let mut command = bitfun_services_core::process_manager::create_command(env!(
+            "CARGO_BIN_EXE_bitfun"
         ));
         command.current_dir(&self.workspace);
         self.apply_std_environment(&mut command);
@@ -244,11 +244,11 @@ impl CliTestEnvironment {
     pub(crate) fn apply_tokio_environment(&self, command: &mut tokio::process::Command) {
         command
             .current_dir(&self.workspace)
-            .env_remove("OPENBITFUN_USER_ROOT")
-            .env_remove("OPENBITFUN_HOME")
-            .env("OPENBITFUN_E2E_STORAGE_GUARD", "1")
-            .env("OPENBITFUN_E2E_USER_ROOT", &self.user_root)
-            .env("OPENBITFUN_E2E_HOME", &self.home_root)
+            .env_remove("BITFUN_USER_ROOT")
+            .env_remove("BITFUN_HOME")
+            .env("BITFUN_E2E_STORAGE_GUARD", "1")
+            .env("BITFUN_E2E_USER_ROOT", &self.user_root)
+            .env("BITFUN_E2E_HOME", &self.home_root)
             .env("APPDATA", &self.config_root)
             .env("XDG_CONFIG_HOME", &self.config_root)
             .env("HOME", &self.home_root)
@@ -257,17 +257,17 @@ impl CliTestEnvironment {
     }
 
     pub(crate) fn pty_command(&self) -> CommandBuilder {
-        self.pty_command_for(env!("CARGO_BIN_EXE_openbitfun"))
+        self.pty_command_for(env!("CARGO_BIN_EXE_bitfun"))
     }
 
     fn pty_command_for(&self, binary: &str) -> CommandBuilder {
         let mut command = CommandBuilder::new(binary);
         command.cwd(&self.workspace);
-        command.env_remove("OPENBITFUN_USER_ROOT");
-        command.env_remove("OPENBITFUN_HOME");
-        command.env("OPENBITFUN_E2E_STORAGE_GUARD", "1");
-        command.env("OPENBITFUN_E2E_USER_ROOT", &self.user_root);
-        command.env("OPENBITFUN_E2E_HOME", &self.home_root);
+        command.env_remove("BITFUN_USER_ROOT");
+        command.env_remove("BITFUN_HOME");
+        command.env("BITFUN_E2E_STORAGE_GUARD", "1");
+        command.env("BITFUN_E2E_USER_ROOT", &self.user_root);
+        command.env("BITFUN_E2E_HOME", &self.home_root);
         command.env("APPDATA", &self.config_root);
         command.env("XDG_CONFIG_HOME", &self.config_root);
         command.env("HOME", &self.home_root);
@@ -278,11 +278,11 @@ impl CliTestEnvironment {
 
     fn apply_std_environment(&self, command: &mut Command) {
         command
-            .env_remove("OPENBITFUN_USER_ROOT")
-            .env_remove("OPENBITFUN_HOME")
-            .env("OPENBITFUN_E2E_STORAGE_GUARD", "1")
-            .env("OPENBITFUN_E2E_USER_ROOT", &self.user_root)
-            .env("OPENBITFUN_E2E_HOME", &self.home_root)
+            .env_remove("BITFUN_USER_ROOT")
+            .env_remove("BITFUN_HOME")
+            .env("BITFUN_E2E_STORAGE_GUARD", "1")
+            .env("BITFUN_E2E_USER_ROOT", &self.user_root)
+            .env("BITFUN_E2E_HOME", &self.home_root)
             .env("APPDATA", &self.config_root)
             .env("XDG_CONFIG_HOME", &self.config_root)
             .env("HOME", &self.home_root)
@@ -291,7 +291,7 @@ impl CliTestEnvironment {
     }
 
     fn run_git(&self, args: &[&str]) {
-        let output = openbitfun_services_core::process_manager::create_command("git")
+        let output = bitfun_services_core::process_manager::create_command("git")
             .args(args)
             .current_dir(&self.workspace)
             .output()
@@ -669,7 +669,7 @@ fn serve_product_control_response(stream: &mut TcpStream, attempt: usize) {
                             "id": call_id,
                             "type": "function",
                             "function": {
-                                "name": "OpenBitFunControl",
+                                "name": "BitFunControl",
                                 "arguments": arguments.to_string()
                             }
                         }]

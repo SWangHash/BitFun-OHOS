@@ -1,7 +1,7 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN = 0x0000;
-const TAG = 'OpenBitFunStream';
+const TAG = 'BitFunStream';
 
 export class RemoteLogger {
   static info(message: string): void {

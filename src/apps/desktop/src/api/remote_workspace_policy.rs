@@ -1378,11 +1378,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("remote_write_file", RemoteWorkspacePolicy::RemoteRouted),
     (
-        "mark_openbitfun_control_surface_ready",
+        "mark_bitfun_control_surface_ready",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
-        "mark_openbitfun_control_surface_unready",
+        "mark_bitfun_control_surface_unready",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -1403,7 +1403,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
     (
-        "report_openbitfun_control_result",
+        "report_bitfun_control_result",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     (
@@ -1996,7 +1996,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("workspace_file_upload", RemoteWorkspacePolicy::RemoteRouted),
     // HarmonyOS delivery-profile and window-chrome commands: inherently
     // host-local UI/OS automation. The Product Operation Registry does not
-    // carry rows for these OpenBitFun-OHOS additions.
+    // carry rows for these BitFun-OHOS additions.
     ("center_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("check_for_updates_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("close_window", RemoteWorkspacePolicy::LocalOnly),
@@ -2104,11 +2104,11 @@ mod tests {
     }
 
     #[test]
-    fn token_usage_statistics_are_scoped_to_the_current_openbitfun_host() {
+    fn token_usage_statistics_are_scoped_to_the_current_bitfun_host() {
         assert_eq!(
             remote_workspace_policy("get_token_usage_statistics"),
             Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
-            "token usage is recorded by the current OpenBitFun runtime and does not follow the workspace filesystem to an SSH host"
+            "token usage is recorded by the current BitFun runtime and does not follow the workspace filesystem to an SSH host"
         );
     }
 

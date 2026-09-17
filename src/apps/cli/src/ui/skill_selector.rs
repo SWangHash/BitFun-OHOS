@@ -46,7 +46,7 @@ impl SkillItem {
         }
 
         match self.source_slot.trim().trim_start_matches("home.") {
-            "openbitfun" | "openbitfun-system" => "OpenBitFun",
+            "bitfun" | "bitfun-system" => "BitFun",
             "claude" => "Claude Code",
             "codex" => "Codex",
             "cursor" => "Cursor",
@@ -539,7 +539,7 @@ mod tests {
             name: "pdf".to_string(),
             description: String::new(),
             level: "project".to_string(),
-            source_slot: "openbitfun".to_string(),
+            source_slot: "bitfun".to_string(),
             source_label: source_label.to_string(),
             enabled: true,
             selected_for_runtime: true,
@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn skill_invocation_text_uses_the_shared_inline_token_without_inserting_the_hint() {
-        let mut skill = skill_item("project::openbitfun::pdf", "OpenBitFun");
+        let mut skill = skill_item("project::bitfun::pdf", "BitFun");
         skill.argument_hint = Some("[file] [focus]".to_string());
 
         assert_eq!(skill.invocation_text(), "[$pdf] ");
@@ -560,7 +560,7 @@ mod tests {
 
     #[test]
     fn skill_coverage_uses_winner_source_label() {
-        let winner = skill_item("project::openbitfun::pdf", "OpenBitFun");
+        let winner = skill_item("project::bitfun::pdf", "BitFun");
         let mut covered = skill_item("user::home.codex::pdf", "Codex");
         covered.is_shadowed = true;
         covered.shadowed_by_key = Some(winner.key.clone());
@@ -568,14 +568,14 @@ mod tests {
         let coverage = build_coverage_source_map(&[covered.clone(), winner]);
         assert_eq!(
             coverage.get(&covered.key).map(String::as_str),
-            Some("OpenBitFun")
+            Some("BitFun")
         );
         assert!(!build_coverage_source_map(&[covered.clone()]).contains_key(&covered.key));
     }
 
     #[test]
     fn covered_enabled_skill_uses_an_indeterminate_checkbox_marker() {
-        let selected = skill_item("project::openbitfun::pdf", "OpenBitFun");
+        let selected = skill_item("project::bitfun::pdf", "BitFun");
         let mut covered = skill_item("user::home.codex::pdf", "Codex");
         covered.selected_for_runtime = false;
         covered.is_shadowed = true;
@@ -591,7 +591,7 @@ mod tests {
 
     #[test]
     fn narrow_configuration_popup_keeps_name_and_coverage_visible() {
-        let selected = skill_item("project::openbitfun::pdf", "OpenBitFun");
+        let selected = skill_item("project::bitfun::pdf", "BitFun");
         let mut covered = skill_item("user::home.claude::pdf", "Claude Code");
         covered.level = "user".to_string();
         covered.selected_for_runtime = false;
@@ -619,7 +619,7 @@ mod tests {
             .join("\n");
 
         assert!(
-            rendered.contains("[~] pdf < OpenBitF"),
+            rendered.contains("[~] pdf < BitFun"),
             "narrow configuration should prioritize the visible skill name prefix and coverage: {rendered:?}"
         );
         assert!(
@@ -627,7 +627,7 @@ mod tests {
             "source and scope missing: {rendered:?}"
         );
         assert!(
-            rendered.contains("project · OpenBi"),
+            rendered.contains("project · BitFun"),
             "project source prefix and scope missing: {rendered:?}"
         );
     }
@@ -635,7 +635,7 @@ mod tests {
     #[test]
     fn too_small_fallback_disables_hidden_selection() {
         let mut state = SkillSelectorState::new();
-        state.show_list(vec![skill_item("project::openbitfun::pdf", "OpenBitFun")]);
+        state.show_list(vec![skill_item("project::bitfun::pdf", "BitFun")]);
         let mut terminal = Terminal::new(TestBackend::new(10, 3)).expect("test terminal");
         terminal
             .draw(|frame| state.render(frame, frame.area(), &Theme::dark_ansi16()))
@@ -648,7 +648,7 @@ mod tests {
 
     #[test]
     fn compact_boundary_uses_two_line_height_for_render_and_mouse_hit_testing() {
-        let first = skill_item("project::openbitfun::pdf", "OpenBitFun");
+        let first = skill_item("project::bitfun::pdf", "BitFun");
         let second = skill_item("user::home.claude::pdf", "Claude Code");
         let mut state = SkillSelectorState::new();
         state.show_config(vec![first, second]);

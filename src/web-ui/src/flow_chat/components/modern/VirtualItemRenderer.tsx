@@ -9,7 +9,7 @@ import type { VirtualItem } from '../../store/modernFlowChatStore';
 import { UserMessageItem } from './UserMessageItem';
 import { ModelRoundItem } from './ModelRoundItem';
 import { ExploreGroupRenderer } from './ExploreGroupRenderer';
-import { AmbientToolCard, AmbientToolCardHeader } from '@openbitfun/ui/flow-chat';
+import { AmbientToolCard, AmbientToolCardHeader } from '@bitfun/ui/flow-chat';
 import { useFlowChatVolatileContext } from './FlowChatContext';
 import { TurnCompletionNoticeItem } from './TurnCompletionNoticeItem';
 import { TurnFailureNoticeItem } from './TurnFailureNoticeItem';
@@ -99,7 +99,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
 
         case 'image-analyzing':
           return (
-            <div data-openbitfun-component="virtual-item" data-openbitfun-part="imageAnalyzing" className="model-round-item model-round-item--streaming">
+            <div data-bitfun-component="virtual-item" data-bitfun-part="imageAnalyzing" className="model-round-item model-round-item--streaming">
               <AmbientToolCard
                 status="running"
                 header={
@@ -113,7 +113,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
           );
 
         default:
-          return <div data-openbitfun-component="virtual-item" data-openbitfun-part="placeholder" style={{ minHeight: '1px' }} />;
+          return <div data-bitfun-component="virtual-item" data-bitfun-part="placeholder" style={{ minHeight: '1px' }} />;
       }
     })();
     
@@ -123,9 +123,9 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
     return (
       <div
         ref={rowRef}
-        data-openbitfun-component="virtual-item"
-        data-openbitfun-part="root"
-        data-openbitfun-state={[isSearchMatch && 'searchMatch', isSearchCurrent && 'searchCurrent'].filter(Boolean).join(' ')}
+        data-bitfun-component="virtual-item"
+        data-bitfun-part="root"
+        data-bitfun-state={[isSearchMatch && 'searchMatch', isSearchCurrent && 'searchCurrent'].filter(Boolean).join(' ')}
         className="virtual-item-wrapper"
         data-testid="flowchat-message-item"
         data-turn-id={item.turnId}
@@ -141,8 +141,8 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
           aria-hidden="true"
           hidden={!searchLine}
           className="flowchat-search-line"
-          data-openbitfun-component="virtual-item"
-          data-openbitfun-part="searchLine"
+          data-bitfun-component="virtual-item"
+          data-bitfun-part="searchLine"
           style={searchLine ?? undefined}
         />
       </div>

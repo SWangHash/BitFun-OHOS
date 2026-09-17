@@ -13,7 +13,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconButton, Input, Tooltip } from '@openbitfun/ui';
+import { IconButton, Input, Tooltip } from '@bitfun/ui';
 import { CalendarDays } from 'lucide-react';
 
 import { useI18n } from '@/infrastructure/i18n';
@@ -119,10 +119,10 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
   return (
     <div
       ref={anchorRef}
-      className={['openbitfun-datetime-field', className ?? ''].filter(Boolean).join(' ')}
-      data-openbitfun-component="localized-datetime-field"
-      data-openbitfun-part="root"
-      data-openbitfun-state={error ? 'error' : undefined}
+      className={['bitfun-datetime-field', className ?? ''].filter(Boolean).join(' ')}
+      data-bitfun-component="localized-datetime-field"
+      data-bitfun-part="root"
+      data-bitfun-state={error ? 'error' : undefined}
     >
       <Input
         value={text}
@@ -131,7 +131,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
         inputMode="numeric"
         placeholder={dateTimeFormatHint(order)}
         aria-label={ariaLabel ?? t('dateTimeField.label')}
-        className="openbitfun-datetime-field__input"
+        className="bitfun-datetime-field__input"
         onFocus={() => { editingRef.current = true; }}
         onChange={event => commitText(event.currentTarget.value)}
         onBlur={handleBlur}

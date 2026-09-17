@@ -15,7 +15,7 @@ import { OverflowText,
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -957,9 +957,9 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const requiresExperienceSettings = page === 'pet' || page === 'session-workspace';
   if (loadError) {
     return (
-      <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
+      <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
         <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
+        <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
           <ConfigRetryState
             message={t('loading.failed')}
             retryLabel={t('loading.retry')}
@@ -971,9 +971,9 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   }
   if (isLoading || (requiresExperienceSettings && !settings)) {
     return (
-      <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
+      <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
         <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
+        <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
           <ConfigLoadingState label={t('loading.text')} />
         </ConfigPageContent>
       </ConfigPageLayout>
@@ -981,10 +981,10 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   }
 
   return (
-    <ConfigPageLayout className="openbitfun-runtime-settings" data-openbitfun-component="runtime-settings" data-openbitfun-part="root" data-openbitfun-view={appearanceView}>
+    <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
       <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
 
-      <ConfigPageContent className="openbitfun-runtime-settings__content" data-openbitfun-component="runtime-settings" data-openbitfun-part="content">
+      <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
 
         {page === 'pet' && settings ? (
           <>
@@ -995,7 +995,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           description={t('features.pet.subtitle')}
         >
           <ConfigPageRow label={t('features.pet.enable')} align="center">
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <Switch
                 checked={settings.enable_agent_companion}
                 onChange={(e) => updateSetting('enable_agent_companion', e.target.checked)}
@@ -1005,15 +1005,15 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
         </ConfigPageSection>
 
         <ConfigPageSection
-          className="openbitfun-runtime-settings__pet-picker"
+          className="bitfun-runtime-settings__pet-picker"
           title={t('features.pet.petLabel')}
           description={t('features.pet.petDescription')}
           bodySurface={false}
           extra={(
             <div
-              className="openbitfun-runtime-settings__pet-actions"
-              data-openbitfun-component="runtime-settings"
-              data-openbitfun-part="petActions"
+              className="bitfun-runtime-settings__pet-actions"
+              data-bitfun-component="runtime-settings"
+              data-bitfun-part="petActions"
             >
               <Button
                 size="md"
@@ -1026,18 +1026,18 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               </Button>
             </div>
           )}
-          data-openbitfun-component="runtime-settings"
-          data-openbitfun-part="petPicker"
+          data-bitfun-component="runtime-settings"
+          data-bitfun-part="petPicker"
         >
           <div
-            className="openbitfun-runtime-settings__pet-chooser"
-            data-openbitfun-component="runtime-settings"
-            data-openbitfun-part="petChooser"
+            className="bitfun-runtime-settings__pet-chooser"
+            data-bitfun-component="runtime-settings"
+            data-bitfun-part="petChooser"
           >
             <div
-              className="openbitfun-runtime-settings__pet-gallery"
-              data-openbitfun-component="runtime-settings"
-              data-openbitfun-part="petList"
+              className="bitfun-runtime-settings__pet-gallery"
+              data-bitfun-component="runtime-settings"
+              data-bitfun-part="petList"
               role="radiogroup"
               aria-label={t('features.pet.petLabel')}
             >
@@ -1053,50 +1053,50 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 const isSelected = pet.packagePath === selectedCompanionPetValue;
                 const isDisabled = isDeleting;
                 const previewStyle = {
-                  '--openbitfun-pet-preview-src': `url("${pet.previewSrc}")`,
+                  '--bitfun-pet-preview-src': `url("${pet.previewSrc}")`,
                   backgroundSize: `800% ${getPetSpriteLayout(pet.spriteVersionNumber).rows * 100}%`,
                 } as React.CSSProperties;
 
                 return (
                   <article
                     key={pet.packagePath}
-                    className="openbitfun-runtime-settings__pet-card"
+                    className="bitfun-runtime-settings__pet-card"
                     data-testid="companion-pet-card"
                     data-pet-id={pet.id}
-                    data-openbitfun-component="runtime-settings"
-                    data-openbitfun-part="petOption"
-                    data-openbitfun-state={isSelected ? 'selected' : undefined}
+                    data-bitfun-component="runtime-settings"
+                    data-bitfun-part="petOption"
+                    data-bitfun-state={isSelected ? 'selected' : undefined}
                   >
                     <button data-overflow-trigger
                       type="button"
-                      className="openbitfun-runtime-settings__pet-card-select"
-                      data-openbitfun-component="runtime-settings"
-                      data-openbitfun-part="petTrigger"
-                      data-openbitfun-state={isSelected ? 'selected' : undefined}
+                      className="bitfun-runtime-settings__pet-card-select"
+                      data-bitfun-component="runtime-settings"
+                      data-bitfun-part="petTrigger"
+                      data-bitfun-state={isSelected ? 'selected' : undefined}
                       role="radio"
                       aria-checked={isSelected}
                       aria-label={label}
                       disabled={isDisabled}
                       onClick={() => void handleCompanionPetChange(pet.packagePath)}
                     >
-                      <span className="openbitfun-runtime-settings__pet-card-preview" aria-hidden>
+                      <span className="bitfun-runtime-settings__pet-card-preview" aria-hidden>
                         <span
-                          className="openbitfun-runtime-settings__pet-preview-sprite"
+                          className="bitfun-runtime-settings__pet-preview-sprite"
                           style={previewStyle}
                         />
                         {isSelected && (
-                          <span className="openbitfun-runtime-settings__pet-selected-mark">
+                          <span className="bitfun-runtime-settings__pet-selected-mark">
                             <Icon name="check-line" size="xs" />
                           </span>
                         )}
                       </span>
                       <span
-                        className="openbitfun-runtime-settings__pet-card-body"
-                        data-openbitfun-component="runtime-settings"
-                        data-openbitfun-part="petOptionMain"
+                        className="bitfun-runtime-settings__pet-card-body"
+                        data-bitfun-component="runtime-settings"
+                        data-bitfun-part="petOptionMain"
                       >
                         <strong><OverflowText>{label}</OverflowText></strong>
-                        <OverflowText data-openbitfun-component="runtime-settings" data-openbitfun-part="petGroup">
+                        <OverflowText data-bitfun-component="runtime-settings" data-bitfun-part="petGroup">
                           {sourceLabel}
                         </OverflowText>
                       </span>
@@ -1107,7 +1107,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                           type="button"
                           size="sm"
                           tone="danger"
-                          className="openbitfun-runtime-settings__pet-card-delete"
+                          className="bitfun-runtime-settings__pet-card-delete"
                           disabled={isDeleting}
                           aria-label={`${t('features.pet.delete')}: ${label}`}
                           onClick={(event) => void handleDeleteCompanionPet(event, pet)}
@@ -1137,7 +1137,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={t('features.workspaceSearch.subtitle')}
           >
             <ConfigPageRow label={t('features.workspaceSearch.enable')} align="center">
-              <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+              <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
                 <Switch
                   checked={settings.enable_workspace_search}
                   onChange={(e) => updateSetting('enable_workspace_search', e.target.checked)}
@@ -1168,7 +1168,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 : t('permissionPolicy.askDescription')} ${t('permissionPolicy.modeDescription')}`}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <Select
                 size="sm"
                 value={resolveToolPermissionMode(toolPermissionConfig)}
@@ -1187,7 +1187,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={t('permissionPolicy.showInChatInputDescription')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control">
+            <div className="bitfun-runtime-settings__row-control">
               <Switch
                 checked={showPermissionModeControl}
                 disabled={permissionModeControlVisibilitySaving}
@@ -1200,7 +1200,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={t('permissionPolicy.globalRulesDescription')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <Button
                 type="button"
                 size="sm"
@@ -1232,7 +1232,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={tTools('config.executionTimeoutDesc')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <NumberInput
                 value={executionTimeout === '' ? 0 : parseInt(executionTimeout, 10)}
                 onValueChange={(val) => handleToolTimeoutChange(val === 0 ? '' : String(val))}
@@ -1251,7 +1251,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={tTools('config.subagentBatchPolicy.desc')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <Select
                 value={subagentBatchExecutionPolicy}
                 options={subagentBatchExecutionPolicyOptions.map(option => ({
@@ -1272,7 +1272,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={tTools('config.subagentMaxConcurrencyDesc')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <NumberInput
                 value={subagentMaxConcurrency}
                 onValueChange={(val) => void handleSubagentMaxConcurrencyChange(val)}
@@ -1290,7 +1290,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={tTools('config.swarmMaxConcurrencyDesc')}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <NumberInput
                 value={swarmMaxConcurrency}
                 onValueChange={(val) => void handleSwarmMaxConcurrencyChange(val)}
@@ -1314,7 +1314,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             description={!enableDeferredToolLoading ? t('deferredToolLoading.warning') : undefined}
             align="center"
           >
-            <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+            <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
               <Switch
                 checked={enableDeferredToolLoading}
                 onChange={(event) => handleDeferredToolLoadingChange(event.target.checked)}
@@ -1356,7 +1356,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   : null}
               />
               <ConfigPageRow label={t('computerUse.enable')} description={t('computerUse.enableDesc')} align="center">
-                <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+                <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
                   <Switch
                     checked={computerUseEnabled}
                     onChange={(e) => handleComputerUseEnabledChange(e.target.checked)}
@@ -1368,12 +1368,12 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 label={t('computerUse.accessibility')}
                 description={t('computerUse.accessibilityDesc')}
                 align="center"
-                className="openbitfun-runtime-settings__status-row"
+                className="bitfun-runtime-settings__status-row"
               >
                 <div
-                  className="openbitfun-runtime-settings__status-actions"
-                  data-openbitfun-component="runtime-settings"
-                  data-openbitfun-part="control"
+                  className="bitfun-runtime-settings__status-actions"
+                  data-bitfun-component="runtime-settings"
+                  data-bitfun-part="control"
                 >
                   <StatusPill
                     tone={computerUseStatusLoading ? 'neutral' : computerUseStatusError ? 'warning' : computerUseAccess ? 'success' : 'warning'}
@@ -1383,7 +1383,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   </StatusPill>
                   {platform === 'macos' && (
                     <Button
-                      className="openbitfun-runtime-settings__row-action-btn"
+                      className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1398,12 +1398,12 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 label={t('computerUse.screenCapture')}
                 description={t('computerUse.screenCaptureDesc')}
                 align="center"
-                className="openbitfun-runtime-settings__status-row"
+                className="bitfun-runtime-settings__status-row"
               >
                 <div
-                  className="openbitfun-runtime-settings__status-actions"
-                  data-openbitfun-component="runtime-settings"
-                  data-openbitfun-part="control"
+                  className="bitfun-runtime-settings__status-actions"
+                  data-bitfun-component="runtime-settings"
+                  data-bitfun-part="control"
                 >
                   <StatusPill
                     tone={computerUseStatusLoading ? 'neutral' : computerUseStatusError ? 'warning' : computerUseScreen ? 'success' : 'warning'}
@@ -1413,7 +1413,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   </StatusPill>
                   {platform === 'macos' && (
                     <Button
-                      className="openbitfun-runtime-settings__row-action-btn"
+                      className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={computerUseBusy || computerUseStatusLoading}
@@ -1426,18 +1426,18 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               </ConfigPageRow>
               {computerUsePlatformMessage && (
                 <div
-                  className="openbitfun-runtime-settings__platform-note"
-                  data-openbitfun-component="runtime-settings"
-                  data-openbitfun-part="platformNote"
+                  className="bitfun-runtime-settings__platform-note"
+                  data-bitfun-component="runtime-settings"
+                  data-bitfun-part="platformNote"
                   role="note"
                 >
                   <Icon
                     aria-hidden="true"
-                    className="openbitfun-runtime-settings__platform-note-icon"
+                    className="bitfun-runtime-settings__platform-note-icon"
                     name="info"
                     size="sm"
                   />
-                  <p className="openbitfun-runtime-settings__platform-note-copy">
+                  <p className="bitfun-runtime-settings__platform-note-copy">
                     <strong>{t('computerUse.platformNote')}: </strong>
                     {computerUsePlatformMessage}
                   </p>
@@ -1482,7 +1482,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 description={t(browserCdpAvailable ? 'browserControl.preferredBrowserConnectedDesc' : 'browserControl.preferredBrowserDesc')}
                 align="center"
               >
-                <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+                <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
                   <Select
                     value={preferredBrowser}
                     options={browserSelectOptions}
@@ -1497,12 +1497,12 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   label={t('browserControl.defaultCdp')}
                   description={t('browserControl.defaultCdpDesc')}
                   align="center"
-                  className="openbitfun-runtime-settings__status-row"
+                  className="bitfun-runtime-settings__status-row"
                 >
                   <div
-                    className="openbitfun-runtime-settings__status-actions"
-                    data-openbitfun-component="runtime-settings"
-                    data-openbitfun-part="control"
+                    className="bitfun-runtime-settings__status-actions"
+                    data-bitfun-component="runtime-settings"
+                    data-bitfun-part="control"
                   >
                     <StatusPill
                       tone={browserStatusLoading ? 'neutral' : browserStatusError ? 'warning' : browserDefaultCdpEnabled ? 'success' : 'neutral'}
@@ -1521,7 +1521,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   description={t('browserControl.autoConnectOnStartupDesc')}
                   align="center"
                 >
-                  <div className="openbitfun-runtime-settings__row-control" data-openbitfun-component="runtime-settings" data-openbitfun-part="control">
+                  <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">
                     <Switch
                       checked={browserAutoConnectOnStartup}
                       onChange={(e) => void handleBrowserAutoConnectChange(e.target.checked)}
@@ -1534,12 +1534,12 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 label={t('browserControl.status')}
                 description={browserStatusDescription}
                 align="center"
-                className="openbitfun-runtime-settings__status-row"
+                className="bitfun-runtime-settings__status-row"
               >
                 <div
-                  className="openbitfun-runtime-settings__status-actions"
-                  data-openbitfun-component="runtime-settings"
-                  data-openbitfun-part="control"
+                  className="bitfun-runtime-settings__status-actions"
+                  data-bitfun-component="runtime-settings"
+                  data-bitfun-part="control"
                 >
                   <StatusPill
                     tone={browserStatusLoading ? 'neutral' : browserStatusError ? 'warning' : browserCdpAvailable ? 'success' : 'neutral'}
@@ -1550,7 +1550,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   </StatusPill>
                   {browserCdpAvailable ? (
                     <Button
-                      className="openbitfun-runtime-settings__row-action-btn"
+                      className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={browserControlBusy || browserStatusLoading || browserStatusError}
@@ -1560,7 +1560,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                     </Button>
                   ) : (
                     <Button
-                      className="openbitfun-runtime-settings__row-action-btn"
+                      className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
                       disabled={browserControlBusy || browserStatusLoading || browserStatusError}
@@ -1602,14 +1602,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             <DialogClose />
           </DialogHeader>
           <DialogBody inset="none">
-          <div className="openbitfun-debug-config__modal-body" data-openbitfun-component="runtime-settings" data-openbitfun-part="restartModal">
+          <div className="bitfun-debug-config__modal-body" data-bitfun-component="runtime-settings" data-bitfun-part="restartModal">
             <p>{t('browserControl.restartModal.description', { browser: browserRestartPrompt?.browserKind || browserKind })}</p>
             <p>{t('browserControl.restartModal.warning')}</p>
             {browserRestartPrompt?.message ? (
-              <p className="openbitfun-runtime-settings__hint">{browserRestartPrompt.message}</p>
+              <p className="bitfun-runtime-settings__hint">{browserRestartPrompt.message}</p>
             ) : null}
           </div>
-          <div className="openbitfun-debug-config__modal-footer" data-openbitfun-component="runtime-settings" data-openbitfun-part="modalFooter">
+          <div className="bitfun-debug-config__modal-footer" data-bitfun-component="runtime-settings" data-bitfun-part="modalFooter">
             <Button
               variant="fill"
               size="sm"

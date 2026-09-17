@@ -36,7 +36,7 @@ pub use metadata_store::{SessionMetadataStore, SessionMetadataStoreError};
 pub use offline_import::{
     OfflineSessionBundle, OfflineSessionImportError, OfflineSessionImportStore,
 };
-pub use openbitfun_core_types::{SessionKind, SESSION_PROVIDER_ACP, SESSION_PROVIDER_METADATA_KEY};
+pub use bitfun_core_types::{SessionKind, SESSION_PROVIDER_ACP, SESSION_PROVIDER_METADATA_KEY};
 pub use page::{build_session_metadata_page, empty_session_metadata_page, SessionMetadataPage};
 pub use types::*;
 pub use write_lock::{SessionWriteLock, SessionWriteLockError};

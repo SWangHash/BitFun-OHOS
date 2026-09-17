@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { LoadingState } from '@openbitfun/ui';
+import { LoadingState } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import BrowserPanel from './BrowserPanel';
 import { htmlPreviewApi } from '@/infrastructure/api/htmlPreviewApi';
@@ -57,10 +57,10 @@ const HtmlPreviewPanel: React.FC<HtmlPreviewPanelProps> = ({
   }, [filePath, workspacePath, remoteConnectionId]);
 
   if (error) {
-    return <div className="openbitfun-html-preview__error"><AlertTriangle size={16} /><span>{error}</span></div>;
+    return <div className="bitfun-html-preview__error"><AlertTriangle size={16} /><span>{error}</span></div>;
   }
   if (!url) {
-    return <div className="openbitfun-html-preview__loading"><LoadingState size="md">{t('loading.scenes')}</LoadingState></div>;
+    return <div className="bitfun-html-preview__loading"><LoadingState size="md">{t('loading.scenes')}</LoadingState></div>;
   }
   return <BrowserPanel isActive={isActive} initialUrl={url} />;
 };

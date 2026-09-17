@@ -3,10 +3,10 @@
 //! Allows AI to ask questions to users during execution and wait for answers
 
 use async_trait::async_trait;
-use openbitfun_agent_runtime::question_templates::{
+use bitfun_agent_runtime::question_templates::{
     resolve_question_template_with_context, QtMigrationQuestionContext,
 };
-use openbitfun_agent_runtime::user_questions::{
+use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_in_context, build_answered_user_question_result,
     build_cancelled_user_question_result, build_timed_out_user_question_result,
     validate_ask_user_question_input, wait_for_user_question_response, AskUserQuestionInput,
@@ -23,7 +23,7 @@ use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::agentic::tools::implementations::analyze_migration_request_tool::AnalyzeMigrationRequestTool;
 use crate::agentic::tools::user_input_manager::get_user_input_manager;
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
-use crate::util::errors::OpenBitFunResult;
+use crate::util::errors::BitFunResult;
 
 /// AskUserQuestion tool
 pub struct AskUserQuestionTool;
@@ -73,7 +73,7 @@ impl AskUserQuestionTool {
                 }
             };
             let Some(relationship) =
-                openbitfun_services_core::session::normalized_session_relationship(&metadata)
+                bitfun_services_core::session::normalized_session_relationship(&metadata)
             else {
                 break;
             };
@@ -122,7 +122,7 @@ impl Tool for AskUserQuestionTool {
         "AskUserQuestion"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Use this tool when you need to ask the user questions during execution. This allows you to:
 1. Gather user preferences or requirements
 2. Clarify ambiguous instructions
@@ -267,9 +267,9 @@ Usage notes:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         if !Self::is_available_for_tool_context(Some(context)) {
-            return Err(crate::util::errors::OpenBitFunError::tool(
+            return Err(crate::util::errors::BitFunError::tool(
                 "AskUserQuestion is unavailable because this execution surface cannot accept interactive user input",
             ));
         }
@@ -278,7 +278,7 @@ Usage notes:
         let raw_input: Value = input.clone();
         let mut tool_input: AskUserQuestionInput =
             serde_json::from_value(input.clone()).map_err(|e| {
-                crate::util::errors::OpenBitFunError::Validation(format!(
+                crate::util::errors::BitFunError::Validation(format!(
                     "Failed to parse input parameters: {}",
                     e
                 ))
@@ -301,7 +301,7 @@ Usage notes:
             // model-provided paths with paths discovered from local resources.
             // The backend validates, deduplicates, sorts, and caps the final list.
             if template_id.as_str()
-                == openbitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+                == bitfun_agent_runtime::question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
             {
                 let migration_enabled = context
                     .custom_data
@@ -309,7 +309,7 @@ Usage notes:
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
                 if !migration_enabled {
-                    return Err(crate::util::errors::OpenBitFunError::Validation(
+                    return Err(crate::util::errors::BitFunError::Validation(
                         "qt-migration-paths is available only for a classified Qt to HarmonyOS migration request".to_string(),
                     ));
                 }
@@ -323,7 +323,7 @@ Usage notes:
                             Some(
                                 &path_manager
                                     .builtin_skills_dir()
-                                    .join(openbitfun_agent_runtime::intake_state::OHOS_QT_SKILLS_DIR),
+                                    .join(bitfun_agent_runtime::intake_state::OHOS_QT_SKILLS_DIR),
                             ),
                             &candidates,
                         );
@@ -370,7 +370,7 @@ Usage notes:
             let resolved =
                 resolve_question_template_with_context(template_id, &candidates, question_context)
                     .ok_or_else(|| {
-                        crate::util::errors::OpenBitFunError::Validation(format!(
+                        crate::util::errors::BitFunError::Validation(format!(
                             "Unknown AskUserQuestion template: {}",
                             template_id
                         ))
@@ -393,7 +393,7 @@ Usage notes:
         if let Err(error) =
             validate_ask_user_question_input(&tool_input, resolved_request.is_some())
         {
-            return Err(crate::util::errors::OpenBitFunError::Validation(error));
+            return Err(crate::util::errors::BitFunError::Validation(error));
         }
 
         let question_count = tool_input.questions.len();
@@ -527,7 +527,7 @@ mod tests {
     use super::AskUserQuestionTool;
     use crate::agentic::tools::framework::{Tool, ToolUseContext};
     use crate::agentic::tools::user_input_manager::get_user_input_manager;
-    use openbitfun_agent_runtime::user_questions::USER_INPUT_MODEL_ROUND_CONTEXT_KEY;
+    use bitfun_agent_runtime::user_questions::USER_INPUT_MODEL_ROUND_CONTEXT_KEY;
     use std::collections::HashMap;
 
     fn context_with_custom_data(custom_data: HashMap<String, serde_json::Value>) -> ToolUseContext {
@@ -542,7 +542,7 @@ mod tests {
             custom_data,
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -766,7 +766,7 @@ mod tests {
         let child = format!("child-{unique}");
         let parent = format!("parent-{unique}");
         let mut context = context_with_custom_data(HashMap::from([(
-            openbitfun_agent_runtime::user_questions::USER_INPUT_PARENT_CONTEXT_KEY.to_string(),
+            bitfun_agent_runtime::user_questions::USER_INPUT_PARENT_CONTEXT_KEY.to_string(),
             serde_json::json!({ "session_id": parent, "dialog_turn_id": "parent-turn" }),
         )]));
         context.session_id = Some(child.clone());

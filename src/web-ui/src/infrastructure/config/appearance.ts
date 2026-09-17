@@ -42,8 +42,8 @@ export const configAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'pageHeaderExtra' },
   ],
   facets: [
-    { id: 'align', attribute: 'data-openbitfun-align', values: ['start', 'center'] },
-    { id: 'layout', attribute: 'data-openbitfun-layout', values: ['default', 'multiline', 'wide', 'balanced'] },
-    { id: 'status', attribute: 'data-openbitfun-status', values: ['unsaved', 'saving', 'saved', 'error'] },
+    { id: 'align', attribute: 'data-bitfun-align', values: ['start', 'center'] },
+    { id: 'layout', attribute: 'data-bitfun-layout', values: ['default', 'multiline', 'wide', 'balanced'] },
+    { id: 'status', attribute: 'data-bitfun-status', values: ['unsaved', 'saving', 'saved', 'error'] },
   ],
 };

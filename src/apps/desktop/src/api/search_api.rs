@@ -1,7 +1,7 @@
 use crate::api::app_state::AppState;
-use openbitfun_core::infrastructure::{FileSearchResult, FileSearchResultGroup, SearchMatchType};
-use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use openbitfun_core::service::search::{
+use bitfun_core::infrastructure::{FileSearchResult, FileSearchResultGroup, SearchMatchType};
+use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use bitfun_core::service::search::{
     remote_workspace_search_service_for_path, workspace_search_daemon_available,
     workspace_search_feature_enabled, ContentSearchRequest, ContentSearchResult,
     RemoteWorkspaceSearchService, WorkspaceSearchBackend, WorkspaceSearchRepoPhase,
@@ -33,7 +33,7 @@ pub struct SearchMetadataResponse {
 
 #[derive(Clone)]
 pub(crate) enum WorkspaceContentSearchRunner {
-    Local(Arc<openbitfun_core::service::search::WorkspaceSearchService>),
+    Local(Arc<bitfun_core::service::search::WorkspaceSearchService>),
     Remote(RemoteWorkspaceSearchService),
 }
 
@@ -62,11 +62,11 @@ pub(crate) async fn remote_workspace_search_service(
         .get_remote_workspace_async()
         .await
         .and_then(|workspace| {
-            let remote_root = openbitfun_core::service::remote_ssh::normalize_remote_workspace_path(
+            let remote_root = bitfun_core::service::remote_ssh::normalize_remote_workspace_path(
                 &workspace.remote_path,
             );
             let root_path =
-                openbitfun_core::service::remote_ssh::normalize_remote_workspace_path(root_path);
+                bitfun_core::service::remote_ssh::normalize_remote_workspace_path(root_path);
             if root_path == remote_root || root_path.starts_with(&format!("{remote_root}/")) {
                 Some(workspace.connection_id)
             } else {
@@ -79,7 +79,7 @@ pub(crate) async fn remote_workspace_search_service(
 
 /// flashgrep refuses to open a directory that is not a Git worktree with a HEAD commit.
 /// That is a property of the workspace, not a failure of the index, so it is normalized into a
-/// stable OpenBitFun-owned sentence the UI can recognize instead of leaking the raw daemon error.
+/// stable BitFun-owned sentence the UI can recognize instead of leaking the raw daemon error.
 pub(crate) const NON_GIT_WORKSPACE_MESSAGE: &str =
     "Workspace search requires a Git worktree with a HEAD commit";
 
@@ -107,12 +107,12 @@ async fn workspace_search_unavailable_message(
 
     if !workspace_search_daemon_available() {
         return Some(
-            "Workspace search daemon is unavailable. OpenBitFun will continue using legacy search."
+            "Workspace search daemon is unavailable. BitFun will continue using legacy search."
                 .to_string(),
         );
     }
 
-    if !openbitfun_services_integrations::workspace_search::workspace_search_supports_local_root(
+    if !bitfun_services_integrations::workspace_search::workspace_search_supports_local_root(
         root_path,
     )
     .await
@@ -187,7 +187,7 @@ pub(crate) async fn search_file_contents_via_workspace_search(
     use_regex: bool,
     whole_word: bool,
     max_results: usize,
-) -> Result<openbitfun_core::service::search::ContentSearchResult, String> {
+) -> Result<bitfun_core::service::search::ContentSearchResult, String> {
     search_content_request_via_workspace_search(
         state,
         build_content_search_request(
@@ -214,7 +214,7 @@ pub(crate) fn build_content_search_request(
         repo_root: root_path.into(),
         search_path: None,
         pattern: pattern.to_string(),
-        output_mode: openbitfun_core::service::search::ContentSearchOutputMode::Content,
+        output_mode: bitfun_core::service::search::ContentSearchOutputMode::Content,
         case_sensitive,
         use_regex,
         whole_word,

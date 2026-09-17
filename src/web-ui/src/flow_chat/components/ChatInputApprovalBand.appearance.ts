@@ -12,7 +12,7 @@ export const chatInputApprovalBandAppearanceDescriptor: AppearanceSurfaceDescrip
     { id: 'actions' }, { id: 'scope' }, { id: 'grantScope' },
   ],
   states: [
-    { id: 'responding', selector: { kind: 'self', suffix: '[data-openbitfun-state~="responding"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
+    { id: 'responding', selector: { kind: 'self', suffix: '[data-bitfun-state~="responding"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
   ],
 };

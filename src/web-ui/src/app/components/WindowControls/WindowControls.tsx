@@ -1,6 +1,6 @@
 import { Copy as LucideCopy, Minus as LucideMinus, Square as LucideSquare, X as LucideX } from 'lucide-react';
 import React from 'react';
-import { Tooltip } from '@openbitfun/ui';
+import { Tooltip } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { isWindowsDesktopRuntime } from '@/infrastructure/runtime';
 
@@ -55,9 +55,9 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
     <div
       {...props}
       className={['window-controls', isWindows && 'window-controls--windows', className].filter(Boolean).join(' ')}
-      data-openbitfun-component="window-controls"
-      data-openbitfun-part="root"
-      data-openbitfun-state={[disabled && 'disabled', maximized && 'maximized'].filter(Boolean).join(' ') || undefined}
+      data-bitfun-component="window-controls"
+      data-bitfun-part="root"
+      data-bitfun-state={[disabled && 'disabled', maximized && 'maximized'].filter(Boolean).join(' ') || undefined}
     >
       <Tooltip content={t('window.minimize')} placement="bottom">
         <button

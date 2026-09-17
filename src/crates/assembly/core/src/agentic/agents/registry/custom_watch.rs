@@ -1,4 +1,4 @@
-use openbitfun_agent_runtime::custom_agent::CustomAgentDiscoveryRoots;
+use bitfun_agent_runtime::custom_agent::CustomAgentDiscoveryRoots;
 
 /// The mutex owning this state serializes discovery and publication. Watch events
 /// are consumed before a scan, so events arriving during it remain pending.
@@ -22,7 +22,7 @@ impl CustomAgentLoadState {
         {
             let monitor = self.monitor.get_or_insert_with(UserAgentWatch::new);
             let dirty = monitor
-                .prepare(roots.openbitfun_user_agents_dir.as_deref(), changed)
+                .prepare(roots.bitfun_user_agents_dir.as_deref(), changed)
                 .await;
             self.published = previously_published && !dirty;
             dirty
@@ -37,7 +37,7 @@ impl CustomAgentLoadState {
 }
 
 #[cfg(feature = "file-watch")]
-use openbitfun_services_integrations::file_watch::{
+use bitfun_services_integrations::file_watch::{
     FileWatchEvent, FileWatchEventKind, FileWatchService, FileWatcherConfig,
 };
 #[cfg(feature = "file-watch")]
@@ -179,7 +179,7 @@ mod tests {
         std::fs::create_dir(&agents).unwrap();
         let roots = CustomAgentDiscoveryRoots {
             workspace_root: Some(root.path().join("workspace")),
-            openbitfun_user_agents_dir: Some(agents.clone()),
+            bitfun_user_agents_dir: Some(agents.clone()),
             home_dir: None,
         };
         let mut state = CustomAgentLoadState::default();
@@ -196,7 +196,7 @@ mod tests {
         // A host with no usable root cannot mark its discovery cache fresh.
         let unavailable = CustomAgentDiscoveryRoots {
             workspace_root: None,
-            openbitfun_user_agents_dir: None,
+            bitfun_user_agents_dir: None,
             home_dir: None,
         };
         assert!(state.prepare(&unavailable).await);

@@ -1,4 +1,4 @@
-use openbitfun_services_integrations::remote_ssh::{
+use bitfun_services_integrations::remote_ssh::{
     dispatch_ssh::{
         self, DispatchCliRelease, DispatchInstallPoll, DispatchInstallStart, DispatchSshProbe,
     },
@@ -21,7 +21,7 @@ use super::{
 };
 
 pub(super) const DISPATCH_PROTOCOL_VERSION: u64 =
-    openbitfun_services_core::dispatch_contract::DISPATCH_PROTOCOL_VERSION as u64;
+    bitfun_services_core::dispatch_contract::DISPATCH_PROTOCOL_VERSION as u64;
 pub(super) const MAX_DISPATCH_TEXT_BYTES: usize = 32 * 1024;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -172,12 +172,12 @@ pub struct DispatchAppendRequest {
 
 /// The wire shape and structural limits come from the shared contract; the
 /// controller only adds transport-owned policy (the device inline budget).
-pub(super) use openbitfun_services_core::dispatch_contract::DispatchAttachment as DispatchAttachmentPayload;
+pub(super) use bitfun_services_core::dispatch_contract::DispatchAttachment as DispatchAttachmentPayload;
 
 pub(super) fn validate_attachment_payloads(
     attachments: &[DispatchAttachmentPayload],
 ) -> anyhow::Result<()> {
-    openbitfun_services_core::dispatch_contract::validate_dispatch_attachments(attachments)
+    bitfun_services_core::dispatch_contract::validate_dispatch_attachments(attachments)
         .map_err(|error| anyhow::anyhow!(error))
 }
 
@@ -189,7 +189,7 @@ pub(super) fn validate_device_attachment_budget(
         .map(|attachment| attachment.data_url.len())
         .sum();
     if total
-        > openbitfun_services_core::dispatch_contract::MAX_DEVICE_DISPATCH_ATTACHMENTS_TOTAL_BYTES
+        > bitfun_services_core::dispatch_contract::MAX_DEVICE_DISPATCH_ATTACHMENTS_TOTAL_BYTES
     {
         anyhow::bail!(
             "Device dispatch carries at most 192 KiB of inline images; use an SSH target for larger screenshots"
@@ -209,7 +209,7 @@ pub struct DispatchQueryJobRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file_chunk: Option<openbitfun_services_core::dispatch_contract::DispatchFileChunkRequest>,
+    pub file_chunk: Option<bitfun_services_core::dispatch_contract::DispatchFileChunkRequest>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -306,7 +306,7 @@ pub async fn install_cli_cancel(
 /// ready model.
 ///
 /// Credential-bearing: this writes the controller's API keys into the target
-/// user's OpenBitFun configuration. Callers are the explicit UI command and the
+/// user's BitFun configuration. Callers are the explicit UI command and the
 /// automatic submit-time repair in [`ensure_target_model_config`]; both leave
 /// a durable record of having done it.
 pub(super) async fn push_model_config(
@@ -442,7 +442,7 @@ pub async fn submit(
                 .protocol_error
                 .as_deref()
                 .or(cli_probe.install_error.as_deref())
-                .unwrap_or("OpenBitFun CLI dispatch protocol is unavailable on the SSH target")
+                .unwrap_or("BitFun CLI dispatch protocol is unavailable on the SSH target")
         )
     })?;
     dispatch_ssh::validate_dispatch_protocol(cli_protocol, Some(&request.approval_policy))?;
@@ -462,7 +462,7 @@ pub async fn submit(
     )
     .await?;
     let cli_protocol = cli_probe.protocol.as_ref().ok_or_else(|| {
-        anyhow::anyhow!("OpenBitFun CLI dispatch protocol is unavailable on the SSH target")
+        anyhow::anyhow!("BitFun CLI dispatch protocol is unavailable on the SSH target")
     })?;
     if !target_serves_model(cli_protocol, request.model.as_deref()) {
         anyhow::bail!(
@@ -521,7 +521,7 @@ pub async fn submit(
             anyhow::bail!(
                 "{}",
                 workspace_probe.protocol_error.as_deref().unwrap_or(
-                    "OpenBitFun CLI dispatch protocol is unavailable in the target worktree"
+                    "BitFun CLI dispatch protocol is unavailable in the target worktree"
                 )
             );
         }
@@ -819,7 +819,7 @@ async fn append_model_sync_audit(
             &format!("{attempt}:model-sync:{sequence}"),
             json!({
                 "timestamp": chrono::Utc::now().to_rfc3339(),
-                "action": openbitfun_services_core::dispatch_contract::DISPATCH_MODEL_SYNC_SETUP_AUDIT_ACTION,
+                "action": bitfun_services_core::dispatch_contract::DISPATCH_MODEL_SYNC_SETUP_AUDIT_ACTION,
                 "details": {
                     "stage": stage,
                     // Never the synced payload itself: it carries API keys.
@@ -846,7 +846,7 @@ fn setup_audit_for_target(events: Vec<Value>, protocol: &Value) -> Vec<Value> {
                 .get("action")
                 .and_then(Value::as_str)
                 .is_some_and(|action| {
-                    openbitfun_services_core::dispatch_contract::
+                    bitfun_services_core::dispatch_contract::
                         dispatch_target_accepts_setup_audit_action(action, &capabilities)
                 })
         })
@@ -1123,9 +1123,9 @@ pub(super) fn validate_file_query_capability(
     kind: &str,
 ) -> anyhow::Result<()> {
     let required = if kind == "readFileChunk" {
-        openbitfun_services_core::dispatch_contract::DISPATCH_FILE_CHUNKS_CAPABILITY
+        bitfun_services_core::dispatch_contract::DISPATCH_FILE_CHUNKS_CAPABILITY
     } else {
-        openbitfun_services_core::dispatch_contract::DISPATCH_READ_FILE_CAPABILITY
+        bitfun_services_core::dispatch_contract::DISPATCH_READ_FILE_CAPABILITY
     };
     let supported = protocol
         .and_then(|value| value.get("capabilities"))
@@ -1167,7 +1167,7 @@ pub(super) fn validate_query_request(request: &DispatchQueryJobRequest) -> anyho
             .ok_or_else(|| anyhow::anyhow!("Dispatch chunk query requires fileChunk"))?;
         if chunk.limit == 0
             || chunk.limit
-                > openbitfun_services_core::dispatch_contract::DISPATCH_FILE_CHUNK_MAX_BYTES
+                > bitfun_services_core::dispatch_contract::DISPATCH_FILE_CHUNK_MAX_BYTES
         {
             anyhow::bail!("Invalid dispatch output chunk size");
         }
@@ -1984,7 +1984,7 @@ mod tests {
         )
         .expect("record");
         record.baseline_worktree_path = Some(repository.to_string_lossy().to_string());
-        record.branch = Some("openbitfun/dispatch/job-branch-guard".to_string());
+        record.branch = Some("bitfun/dispatch/job-branch-guard".to_string());
 
         let error = finish_sync(
             &store,
@@ -2032,7 +2032,7 @@ mod tests {
             .expect("started audit");
         let probe = DispatchSshProbe {
             cli_installed: true,
-            cli_path: Some("/home/user/.openbitfun/bin/openbitfun".to_string()),
+            cli_path: Some("/home/user/.bitfun/bin/bitfun".to_string()),
             os: "Linux".to_string(),
             arch: "x86_64".to_string(),
             install_supported: true,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, RollingText, Stack, TabGroup } from "@openbitfun/ui";
+import { Button, RollingText, Stack, TabGroup } from "@bitfun/ui";
 import { useI18n } from "../i18n";
 
 /** Manual, event-driven specimens of the public text and tab contracts. */

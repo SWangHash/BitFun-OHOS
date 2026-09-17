@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, Files, Monitor, Server, TerminalSquare, X } from 'lucide-react';
-import { MobileBanner, MobileButton, MobileChoiceSheet, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileChoiceSheet, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus } from '@bitfun/ui/mobile';
 import { WorkspaceFiles } from '../components/WorkspaceFiles';
 import { WorkspaceTerminal } from '../components/WorkspaceTerminal';
 import type { RemoteSessionManager } from '../services/RemoteSessionManager';

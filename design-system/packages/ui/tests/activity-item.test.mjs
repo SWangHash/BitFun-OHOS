@@ -19,14 +19,14 @@ test("ActivityItem keeps identity, content, metadata, and actions independent", 
     }, "pnpm run check"),
   );
 
-  assert.match(markup, /data-openbitfun-component="activity-item"/);
+  assert.match(markup, /data-bitfun-component="activity-item"/);
   assert.match(markup, /data-appearance="surface"/);
-  assert.match(markup, /data-openbitfun-part="leading"/);
-  assert.match(markup, /data-openbitfun-part="label"[^>]*data-overflow-behavior="marquee"[^>]*><span[^>]*>Run command<\/span><\/span>/);
-  assert.match(markup, /data-openbitfun-part="description"[^>]*data-overflow-behavior="marquee"[^>]*><span[^>]*>pnpm run check<\/span><\/span>/);
-  assert.match(markup, /data-openbitfun-part="metadata"/);
-  assert.match(markup, /data-openbitfun-part="divider"/);
-  assert.match(markup, /data-openbitfun-part="actions"/);
+  assert.match(markup, /data-bitfun-part="leading"/);
+  assert.match(markup, /data-bitfun-part="label"[^>]*data-overflow-behavior="marquee"[^>]*><span[^>]*>Run command<\/span><\/span>/);
+  assert.match(markup, /data-bitfun-part="description"[^>]*data-overflow-behavior="marquee"[^>]*><span[^>]*>pnpm run check<\/span><\/span>/);
+  assert.match(markup, /data-bitfun-part="metadata"/);
+  assert.match(markup, /data-bitfun-part="divider"/);
+  assert.match(markup, /data-bitfun-part="actions"/);
   assert.equal((markup.match(/<button/g) ?? []).length, 2);
 });
 
@@ -42,7 +42,7 @@ test("ActivityItem exposes an optional native trigger without nesting sibling ac
   const siblingAction = markup.indexOf("<button", markup.indexOf("<button") + 1);
 
   assert.equal((markup.match(/<button/g) ?? []).length, 2);
-  assert.match(markup, /<button[^>]+data-openbitfun-part="trigger"/);
+  assert.match(markup, /<button[^>]+data-bitfun-part="trigger"/);
   assert.ok(triggerEnd < siblingAction);
 });
 
@@ -70,12 +70,12 @@ test("ActivityItem renders an optional full-width detail area after the row cont
     }, "src/registry.ts"),
   );
 
-  const description = markup.indexOf('data-openbitfun-part="description"');
-  const actions = markup.indexOf('data-openbitfun-part="actions"');
-  const detail = markup.indexOf('data-openbitfun-part="detail"');
+  const description = markup.indexOf('data-bitfun-part="description"');
+  const actions = markup.indexOf('data-bitfun-part="actions"');
+  const detail = markup.indexOf('data-bitfun-part="detail"');
 
   assert.match(markup, /data-has-detail="true"/);
-  assert.match(markup, /data-openbitfun-part="detail"[^>]*><pre>\+ registry\.register\(component\)<\/pre>/);
+  assert.match(markup, /data-bitfun-part="detail"[^>]*><pre>\+ registry\.register\(component\)<\/pre>/);
   assert.ok(description < actions);
   assert.ok(actions < detail);
 });
@@ -86,7 +86,7 @@ test("ActivityItem reports the absence of a detail area on the root contract", (
   );
 
   assert.match(markup, /data-has-detail="false"/);
-  assert.doesNotMatch(markup, /data-openbitfun-part="detail"/);
+  assert.doesNotMatch(markup, /data-bitfun-part="detail"/);
 });
 
 test("ChangeCount formats positive additions and deletions with distinct parts", () => {
@@ -94,19 +94,19 @@ test("ChangeCount formats positive additions and deletions with distinct parts",
     createElement(ChangeCount, { additions: -6, deletions: -2 }),
   );
 
-  assert.match(markup, /data-openbitfun-component="change-count"/);
-  assert.match(markup, /data-openbitfun-part="additions">\+6<\/span>/);
-  assert.match(markup, /data-openbitfun-part="deletions">-2<\/span>/);
+  assert.match(markup, /data-bitfun-component="change-count"/);
+  assert.match(markup, /data-bitfun-part="additions">\+6<\/span>/);
+  assert.match(markup, /data-bitfun-part="deletions">-2<\/span>/);
 });
 
 test("ActivityItem styles use public activity, code-change, and focus tokens", async () => {
   const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
 
-  assert.match(styles, /--openbitfun-control-activity-item-surface-height/);
-  assert.match(styles, /--openbitfun-control-activity-item-inline-icon-size/);
-  assert.match(styles, /--openbitfun-control-change-count-padding-block/);
-  assert.match(styles, /--openbitfun-control-icon-button-xs-size/);
-  assert.match(styles, /--openbitfun-color-code-change-added/);
-  assert.match(styles, /--openbitfun-color-code-change-removed/);
-  assert.match(styles, /--openbitfun-color-focus-ring/);
+  assert.match(styles, /--bitfun-control-activity-item-surface-height/);
+  assert.match(styles, /--bitfun-control-activity-item-inline-icon-size/);
+  assert.match(styles, /--bitfun-control-change-count-padding-block/);
+  assert.match(styles, /--bitfun-control-icon-button-xs-size/);
+  assert.match(styles, /--bitfun-color-code-change-added/);
+  assert.match(styles, /--bitfun-color-code-change-removed/);
+  assert.match(styles, /--bitfun-color-focus-ring/);
 });

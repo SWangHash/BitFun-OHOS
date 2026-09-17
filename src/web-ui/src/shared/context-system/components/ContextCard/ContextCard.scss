@@ -1,28 +1,28 @@
-.openbitfun-context-card {
+.bitfun-context-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--openbitfun-space-1);
+  gap: var(--bitfun-space-1);
   
   
   background: linear-gradient(135deg,
-    color-mix(in srgb, var(--openbitfun-color-content-on-dark) 8%, transparent) 0%,
-    color-mix(in srgb, var(--openbitfun-color-content-on-dark) 8%, transparent) 50%,
-    color-mix(in srgb, var(--openbitfun-color-content-on-dark) 12%, transparent) 100%
+    color-mix(in srgb, var(--bitfun-color-content-on-dark) 8%, transparent) 0%,
+    color-mix(in srgb, var(--bitfun-color-content-on-dark) 8%, transparent) 50%,
+    color-mix(in srgb, var(--bitfun-color-content-on-dark) 12%, transparent) 100%
   );
-  border: 1px solid var(--openbitfun-color-border-default);
-  border-radius: var(--openbitfun-radius-base);
-  padding: var(--openbitfun-space-3);
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: var(--bitfun-radius-base);
+  padding: var(--bitfun-space-3);
   
-  backdrop-filter: var(--openbitfun-effect-blur-base);
-  -webkit-backdrop-filter: var(--openbitfun-effect-blur-base);
+  backdrop-filter: var(--bitfun-effect-blur-base);
+  -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
   
   transition:
-    background-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    border-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    box-shadow var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    opacity var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    transform var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    background-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    border-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    box-shadow var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    opacity var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    transform var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   overflow: hidden;
   
   
@@ -32,7 +32,7 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    border-radius: var(--openbitfun-radius-base) 0 0 var(--openbitfun-radius-base);
+    border-radius: var(--bitfun-radius-base) 0 0 var(--bitfun-radius-base);
     opacity: 0.8;
   }
   
@@ -40,7 +40,7 @@
   &__body {
     display: flex;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     flex: 1;
     min-width: 0; 
   }
@@ -49,7 +49,7 @@
   &__toolbar {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     margin-left: auto;
   }
   
@@ -71,9 +71,9 @@
     flex-shrink: 0;
     width: 32px;
     height: 32px;
-    border-radius: var(--openbitfun-radius-sm);
-    background: var(--openbitfun-color-action-quiet-hover);
-    color: var(--openbitfun-color-content-secondary);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-secondary);
     
     svg {
       width: 18px;
@@ -82,16 +82,16 @@
   }
   
   &__icon--success {
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
   
   &__icon--error {
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
   
   &__spinner {
-    color: var(--openbitfun-color-accent-default);
-    animation: openbitfun-context-spin 1s linear infinite;
+    color: var(--bitfun-color-accent-default);
+    animation: bitfun-context-spin 1s linear infinite;
   }
   
   
@@ -101,16 +101,16 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
   
   &__title {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     
     
     overflow: hidden;
@@ -118,50 +118,50 @@
   }
   
   &__subtitle {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     
     overflow: hidden;
     white-space: nowrap;
   }
   
   &__meta {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
   }
   
   &__badge {
     display: inline-flex;
     align-items: center;
     padding: 2px 6px;
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-content-secondary);
-    background: var(--openbitfun-color-action-neutral-surface-hover);
-    border-radius: var(--openbitfun-radius-sm);
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-secondary);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    border-radius: var(--bitfun-radius-sm);
+    border: 1px solid var(--bitfun-color-border-subtle);
   }
   
   
   
   &__preview {
-    margin-top: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2);
-    background: var(--openbitfun-color-surface-tertiary);
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-sm);
+    margin-top: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2);
+    background: var(--bitfun-color-surface-tertiary);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-sm);
     max-height: 100px;
     overflow: auto;
     
   }
   
   &__code {
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
-    color: var(--openbitfun-color-content-secondary);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
     white-space: pre-wrap;
     word-break: break-all;
   }
@@ -171,7 +171,7 @@
   &__actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     margin-left: auto;
   }
   
@@ -184,47 +184,47 @@
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
-    border-radius: var(--openbitfun-radius-sm);
+    color: var(--bitfun-color-content-muted);
+    border-radius: var(--bitfun-radius-sm);
     cursor: pointer;
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      color: var(--openbitfun-color-content-secondary);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      color: var(--bitfun-color-content-secondary);
     }
   }
   
   &__remove-btn {
-    @extend .openbitfun-context-card__action-btn;
+    @extend .bitfun-context-card__action-btn;
 
     flex-shrink: 1;
 
     // Keep the remove action's existing danger feedback on its root.
     &::before { content: none; }
 
-    > [data-openbitfun-part='icon'] {
-      --openbitfun-opacity-icon-artwork: inherit;
+    > [data-bitfun-part='icon'] {
+      --bitfun-opacity-icon-artwork: inherit;
       display: contents;
     }
 
-    > :where([data-openbitfun-part='icon']) > :where([data-openbitfun-component='icon']) {
-      inline-size: var(--openbitfun-control-icon-size-sm);
-      block-size: var(--openbitfun-control-icon-size-sm);
+    > :where([data-bitfun-part='icon']) > :where([data-bitfun-component='icon']) {
+      inline-size: var(--bitfun-control-icon-size-sm);
+      block-size: var(--bitfun-control-icon-size-sm);
     }
 
     &:focus-visible {
-      outline: 2px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent);
+      outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent);
       outline-offset: 2px;
     }
     
     &:hover {
-      background: var(--openbitfun-color-status-danger-surface);
-      color: var(--openbitfun-color-status-danger-content);
+      background: var(--bitfun-color-status-danger-surface);
+      color: var(--bitfun-color-status-danger-content);
     }
   }
   
@@ -234,11 +234,11 @@
   &__warning {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
-    padding: var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    border-radius: var(--openbitfun-radius-sm);
-    margin-top: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-1);
+    padding: var(--bitfun-space-2);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    border-radius: var(--bitfun-radius-sm);
+    margin-top: var(--bitfun-space-2);
     
     svg {
       flex-shrink: 0;
@@ -246,26 +246,26 @@
     
     span {
       flex: 1;
-      line-height: var(--openbitfun-type-modifier-leading-ui-line-height);
+      line-height: var(--bitfun-type-modifier-leading-ui-line-height);
     }
   }
   
   &__error {
-    background: var(--openbitfun-color-status-danger-surface);
-    border: 1px solid var(--openbitfun-color-status-danger-border);
-    color: var(--openbitfun-color-status-danger-content);
+    background: var(--bitfun-color-status-danger-surface);
+    border: 1px solid var(--bitfun-color-status-danger-border);
+    color: var(--bitfun-color-status-danger-content);
   }
   
   &__warnings {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
   
   &__warning {
-    background: var(--openbitfun-color-status-warning-surface);
-    border: 1px solid var(--openbitfun-color-status-warning-border);
-    color: var(--openbitfun-color-status-warning-content);
+    background: var(--bitfun-color-status-warning-surface);
+    border: 1px solid var(--bitfun-color-status-warning-border);
+    color: var(--bitfun-color-status-warning-content);
   }
   
   
@@ -275,19 +275,19 @@
   }
   
   &--invalid {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
     
-    .openbitfun-context-card__indicator {
-      background-color: var(--openbitfun-color-status-danger-content) !important;
+    .bitfun-context-card__indicator {
+      background-color: var(--bitfun-color-status-danger-content) !important;
     }
   }
   
   
   
   &--compact {
-    padding: var(--openbitfun-space-2);
+    padding: var(--bitfun-space-2);
     
-    .openbitfun-context-card__icon {
+    .bitfun-context-card__icon {
       width: 24px;
       height: 24px;
       
@@ -297,12 +297,12 @@
       }
     }
     
-    .openbitfun-context-card__title {
-      font-size: var(--openbitfun-type-label-sm-font-size);
+    .bitfun-context-card__title {
+      font-size: var(--bitfun-type-label-sm-font-size);
     }
     
-    .openbitfun-context-card__preview,
-    .openbitfun-context-card__subtitle {
+    .bitfun-context-card__preview,
+    .bitfun-context-card__subtitle {
       display: none;
     }
   }
@@ -314,15 +314,15 @@
     
     &:hover {
       background: linear-gradient(135deg,
-        var(--openbitfun-color-action-secondary-background) 0%,
-        color-mix(in srgb, var(--openbitfun-color-accent-default) 6%, transparent) 50%,
-        var(--openbitfun-color-action-secondary-background) 100%
+        var(--bitfun-color-action-secondary-background) 0%,
+        color-mix(in srgb, var(--bitfun-color-accent-default) 6%, transparent) 50%,
+        var(--bitfun-color-action-secondary-background) 100%
       );
-      border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 30%, transparent);
+      border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 30%, transparent);
       transform: translateY(-2px);
       box-shadow: 
-        0 8px 24px var(--openbitfun-color-action-secondary-hover),
-        0 4px 12px color-mix(in srgb, var(--openbitfun-color-content-on-light) 12%, transparent);
+        0 8px 24px var(--bitfun-color-action-secondary-hover),
+        0 4px 12px color-mix(in srgb, var(--bitfun-color-content-on-light) 12%, transparent);
     }
     
     &:active {
@@ -335,40 +335,40 @@
   &__fallback {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     width: 100%;
   }
   
   
   
   &--file {
-    .openbitfun-context-card__icon {
-      color: var(--openbitfun-color-accent-default);
+    .bitfun-context-card__icon {
+      color: var(--bitfun-color-accent-default);
     }
   }
   
   &--code-snippet {
-    .openbitfun-context-card__icon {
-      color: var(--openbitfun-color-accent-secondary);
+    .bitfun-context-card__icon {
+      color: var(--bitfun-color-accent-secondary);
     }
   }
   
   &--mermaid-node {
-    .openbitfun-context-card__icon {
-      color: var(--openbitfun-domain-mermaid-diagram);
+    .bitfun-context-card__icon {
+      color: var(--bitfun-domain-mermaid-diagram);
     }
   }
   
   &--image {
-    .openbitfun-context-card__icon {
-      color: var(--openbitfun-color-status-success-content);
+    .bitfun-context-card__icon {
+      color: var(--bitfun-color-status-success-content);
     }
   }
 }
 
 
 
-@keyframes openbitfun-context-spin {
+@keyframes bitfun-context-spin {
   from {
     transform: rotate(0deg);
   }
@@ -378,7 +378,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-context-card__spinner {
+  .bitfun-context-card__spinner {
     animation: none;
     transform: none;
   }

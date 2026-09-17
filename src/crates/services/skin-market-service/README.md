@@ -2,9 +2,9 @@
 
 This crate owns the concrete HTTP, SQLite, artifact, validation, review and
 retention behavior for the public Skin catalog. “Skin” is product copy only;
-the package/runtime contract remains Appearance (`.openbitfun-appearance`,
-`appearance.json`, `openbitfun.appearance`). Stable DTOs and pure state policy live
-in `openbitfun-product-domains::appearance_market`.
+the package/runtime contract remains Appearance (`.bitfun-appearance`,
+`appearance.json`, `bitfun.appearance`). Stable DTOs and pure state policy live
+in `bitfun-product-domains::appearance_market`.
 
 The service is isolated from the MiniApp market database and artifacts. It
 does not own OAuth credentials: authenticated Desktop requests carry the
@@ -34,9 +34,9 @@ Key invariants:
 Focused verification:
 
 ```bash
-cargo test -p openbitfun-product-domains --no-default-features --features appearance-market
-cargo test -p openbitfun-skin-market-service
-cargo check -p openbitfun-skin-market-server
+cargo test -p bitfun-product-domains --no-default-features --features appearance-market
+cargo test -p bitfun-skin-market-service
+cargo check -p bitfun-skin-market-server
 ```
 
 Production deployment, backup and rollback are documented in
@@ -48,4 +48,4 @@ and ownership references, and keeps email accounts in a separate namespace.
 Neither an email match nor a shared display name links accounts. Old binaries do
 not support email identities after this migration; use a forward fix rather than
 rolling an old binary over new email-user data. Focused upgrade regression:
-`cargo test -p openbitfun-skin-market-service --lib email_tests`.
+`cargo test -p bitfun-skin-market-service --lib email_tests`.

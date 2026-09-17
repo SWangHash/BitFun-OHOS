@@ -89,8 +89,8 @@ describe('MarkdownEditor', () => {
     );
 
     expect(html).toContain('aria-label="Copy Markdown"');
-    expect(html).toContain('data-openbitfun-component="toolbar"');
-    expect(html).toContain('data-openbitfun-component="icon-button"');
+    expect(html).toContain('data-bitfun-component="toolbar"');
+    expect(html).toContain('data-bitfun-component="icon-button"');
   });
 
   it('does not show the IR fallback warning in the preview/source file UI', () => {

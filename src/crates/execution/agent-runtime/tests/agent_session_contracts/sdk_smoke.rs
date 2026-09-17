@@ -2,11 +2,11 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use openbitfun_agent_runtime::native_hooks::{
+use bitfun_agent_runtime::native_hooks::{
     AgentHookMatcher, BuiltinHookExecutor, HookCall, HookHandler, HookHandlerResult,
     RuntimeHookRegistration, RuntimeHookSource,
 };
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentEventStream, AgentModeCatalogEntry, AgentModeCatalogPort, AgentModeCatalogQuery,
     AgentRunRequest, AgentRuntimeBuilder, AgentRuntimeSdkCompatibility, AgentRuntimeSdkStability,
     AgentSessionClosePort, AgentSessionCreateRequest, AgentSessionCreateResult,

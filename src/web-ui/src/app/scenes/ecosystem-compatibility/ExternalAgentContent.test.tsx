@@ -43,10 +43,10 @@ vi.mock('@/infrastructure/config/services/AIExperienceConfigService', () => ({ a
 vi.mock('@/infrastructure/api/service-api/AIApi', () => ({ aiApi: { listSubscriptionAccounts: mocks.getAccounts } }));
 vi.mock('@/infrastructure/api/service-api/InstructionSourcesAPI', () => ({ instructionSourcesAPI: { getCatalog: mocks.getInstructions } }));
 vi.mock('@/infrastructure/api/service-api/MCPAPI', () => ({ MCPAPI: { loadMCPJsonConfig: mocks.loadMcp, saveMCPJsonConfig: mocks.saveMcp } }));
-vi.mock('@openbitfun/ui', async (importOriginal) => {
+vi.mock('@bitfun/ui', async (importOriginal) => {
   const Wrapper = ({ children }: React.PropsWithChildren) => <div>{children}</div>;
   return {
-    Alert: (await importOriginal<typeof import('@openbitfun/ui')>()).Alert,
+    Alert: (await importOriginal<typeof import('@bitfun/ui')>()).Alert,
     Input: ({ size: _size, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Switch: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input type="checkbox" role="switch" {...props} />,
     Checkbox: ({ size: _size, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => <input type="checkbox" {...props} />,
@@ -78,9 +78,9 @@ function fixture() {
       staticStatus: { state: 'ready' }, environmentKeys: [], headerNames: [], commandPreview: 'docs-server',
     } })),
   } as unknown as ExternalSourceCatalogSnapshot;
-  const skills = ['codex', 'claude-code', 'openbitfun'].map((sourceId) => ({
+  const skills = ['codex', 'claude-code', 'bitfun'].map((sourceId) => ({
     key: sourceId, sourceId, sourceSlot: sourceId, sourceLabel: sourceId, name: `${sourceId}-Skill`,
-    path: `/${sourceId}/skills/demo`, dirName: sourceId === 'openbitfun' ? 'native' : 'demo',
+    path: `/${sourceId}/skills/demo`, dirName: sourceId === 'bitfun' ? 'native' : 'demo',
     level: 'user', isBuiltin: false, description: 'Skill description',
   }));
   const hookSources = ['codex', 'claude-code'].map((ecosystemId) => ({ ecosystemId,
@@ -126,12 +126,12 @@ describe('external agent content and explicit import boundary', () => {
     mocks.planHook.mockResolvedValue(data.hookPlan);
     mocks.validateSkill.mockResolvedValue({ valid: true });
     mocks.addSkill.mockImplementation(async () => {
-      data.skills.push({ ...data.skills[0], key: 'imported-copy', sourceId: 'openbitfun', sourceSlot: 'openbitfun', path: '/native/skills/demo' });
+      data.skills.push({ ...data.skills[0], key: 'imported-copy', sourceId: 'bitfun', sourceSlot: 'bitfun', path: '/native/skills/demo' });
       return 'ok';
     });
     mocks.deleteSkill.mockImplementation(async () => { data.skills = data.skills.filter((skill) => skill.key !== 'imported-copy'); mocks.getSkills.mockImplementation(async () => [...data.skills]); return 'ok'; });
     mocks.saveMcp.mockResolvedValue({ runtimeApplied: true });
-    mocks.loadMcp.mockResolvedValue({ fingerprint: 'native-v1', jsonConfig: JSON.stringify({ mcpServers: { docs: { command: 'docs-server', _openbitfunImport: { sourceCandidateId: 'codex', behaviorVersion: 'v1' } }, keep: { command: 'keep' } } }) });
+    mocks.loadMcp.mockResolvedValue({ fingerprint: 'native-v1', jsonConfig: JSON.stringify({ mcpServers: { docs: { command: 'docs-server', _bitfunImport: { sourceCandidateId: 'codex', behaviorVersion: 'v1' } }, keep: { command: 'keep' } } }) });
     mocks.mutateHook.mockResolvedValue(data.hooks);
     mocks.applyMcp.mockResolvedValue({ outcome: { status: 'applied' } });
     mocks.applyHook.mockResolvedValue({ outcome: { kind: 'applied', snapshot: data.hooks } });
@@ -605,7 +605,7 @@ describe('external agent content and explicit import boundary', () => {
   });
 
   it('preserves existing native copies while managing their source independently', async () => {
-    data.skills.push({ ...data.skills[0], key: 'native-copy', sourceId: 'openbitfun', path: '/native/copy' });
+    data.skills.push({ ...data.skills[0], key: 'native-copy', sourceId: 'bitfun', path: '/native/copy' });
     await render(); await expand('skill');
     expect(container.querySelectorAll('[data-import-kind="skill"]')).toHaveLength(1);
     expect(container.querySelector('[data-import-kind="skill"]')?.getAttribute('data-import-state')).toBe('available');
@@ -682,7 +682,7 @@ describe('external agent content and explicit import boundary', () => {
   it('shows only the selected agent’s content and makes no import on discovery or inspection', async () => {
     await render();
     await expand('skill'); expect(container.textContent).toContain('codex-Skill'); await expand('hook'); expect(container.textContent).toContain('codex-Hooks'); await expand('mcp'); expect(container.textContent).toContain('codex-MCP');
-    expect(container.textContent).not.toContain('claude-code-Skill'); expect(container.textContent).not.toContain('claude-code-MCP'); expect(container.textContent).not.toContain('claude-code-Hooks'); expect(container.textContent).not.toContain('openbitfun-Skill');
+    expect(container.textContent).not.toContain('claude-code-Skill'); expect(container.textContent).not.toContain('claude-code-MCP'); expect(container.textContent).not.toContain('claude-code-Hooks'); expect(container.textContent).not.toContain('bitfun-Skill');
     await click('content.view', 'mcp');
     expect(container.textContent).toContain('docs-server');
     expect(mocks.applyMcp).not.toHaveBeenCalled(); expect(mocks.addSkill).not.toHaveBeenCalled(); expect(mocks.applyHook).not.toHaveBeenCalled();

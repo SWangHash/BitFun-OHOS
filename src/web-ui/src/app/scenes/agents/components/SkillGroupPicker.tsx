@@ -1,4 +1,4 @@
-import { Button, Checkbox, FieldGroup, FieldRow, FormSection, Icon, OverflowText, StatusPill, Toolbar } from '@openbitfun/ui';
+import { Button, Checkbox, FieldGroup, FieldRow, FormSection, Icon, OverflowText, StatusPill, Toolbar } from '@bitfun/ui';
 import React, { useMemo } from 'react';
 import { useI18n, type UseI18nReturn } from '@/infrastructure/i18n/hooks/useI18n';
 import type { UserSkillGroup } from '@/infrastructure/config/types';
@@ -124,26 +124,26 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
   }, [groups, t]);
 
   return (
-    <div data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="root" className="skill-group-picker" data-testid={testId}>
+    <div data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="root" className="skill-group-picker" data-testid={testId}>
       <Toolbar
         bordered={false}
-        data-openbitfun-product-component="skill-group-picker"
-        data-openbitfun-product-part="head"
+        data-bitfun-product-component="skill-group-picker"
+        data-bitfun-product-part="head"
         leading={<span className="skill-group-picker__selected-count">
           {t('agentsOverview.skillGroupPicker.selectedCount', { count: selectedCount })}
           {' · '}{t('agentsOverview.selectionSaveHint')}
         </span>}
       />
-      <div className="skill-group-picker__sections" data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="sections">
+      <div className="skill-group-picker__sections" data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="sections">
         {sections.map(([sectionLabel, sectionGroups]) => (
           <FormSection key={sectionLabel} headingAs="h4" title={sectionLabel}
-            data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="section">
+            data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="section">
             {sectionGroups.map((group) => {
               const selectedInGroup = selectedGroupSkillCount(group, selectedSkillKeys);
               const allSelected = isGroupEnabled(group, selectedSkillKeys);
               return (
-                <FieldGroup data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="group" key={group.id}>
-                  <FieldRow data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="groupHeader">
+                <FieldGroup data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="group" key={group.id}>
+                  <FieldRow data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="groupHeader">
                     <div className="skill-group-picker__group-head">
                       <div className="skill-group-picker__group-title-wrap">
                         <OverflowText className="skill-group-picker__group-name">{group.label}</OverflowText>
@@ -156,7 +156,7 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="skill-group-picker__group-actions" data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="groupActions">
+                      <div className="skill-group-picker__group-actions" data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="groupActions">
                         {selectedInGroup > 0 && !allSelected ? (
                           <Button
                             variant="text"
@@ -190,7 +190,7 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
                     </div>
                   </FieldRow>
                   <FieldRow align="start">
-                    <div className="skill-group-picker__token-grid" data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="tokenGrid">
+                    <div className="skill-group-picker__token-grid" data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="tokenGrid">
                       {group.skills.map((skill) => {
                         const selected = selectedSkillKeys.includes(skill.key);
                         const tooltipFields = skillTooltipFields(skill, t, true);
@@ -206,9 +206,9 @@ export const SkillGroupPicker: React.FC<SkillGroupPickerProps> = ({
                               className="skill-group-picker__token"
                               checked={selected}
                               label={skillDisplayName(skill, duplicateNames)}
-                              data-openbitfun-product-component="skill-group-picker"
-                              data-openbitfun-product-part="token"
-                              data-openbitfun-state={selected ? 'selected' : undefined}
+                              data-bitfun-product-component="skill-group-picker"
+                              data-bitfun-product-part="token"
+                              data-bitfun-state={selected ? 'selected' : undefined}
                               onCheckedChange={(checked) => onSelectionChange(
                                 setSkillGroupSelection(selectedSkillKeys, [skill.key], checked),
                               )}
@@ -248,11 +248,11 @@ export const SkillGroupSummary: React.FC<SkillGroupSummaryProps> = ({
   }), [selectedSkillKeys, skills, t, userGroups]);
 
   if (groups.length === 0) {
-    return <span data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="empty" className="skill-group-summary__empty">{t('agentsOverview.noSkills')}</span>;
+    return <span data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="empty" className="skill-group-summary__empty">{t('agentsOverview.noSkills')}</span>;
   }
 
   return (
-    <div data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="summary" className="skill-group-summary">
+    <div data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="summary" className="skill-group-summary">
       <Toolbar
         bordered={false}
         leading={<span className="skill-group-summary__count">
@@ -264,7 +264,7 @@ export const SkillGroupSummary: React.FC<SkillGroupSummaryProps> = ({
       />
       {groups.map((group) => (
         <FormSection key={group.id} headingAs="h4" title={group.label}
-          data-openbitfun-product-component="skill-group-picker" data-openbitfun-product-part="summaryGroup">
+          data-bitfun-product-component="skill-group-picker" data-bitfun-product-part="summaryGroup">
           <div className="skill-group-summary__skills">
             {group.skills.map((skill) => {
               const tooltipFields = skillTooltipFields(skill, t);

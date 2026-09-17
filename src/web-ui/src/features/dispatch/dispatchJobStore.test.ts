@@ -67,9 +67,9 @@ describe('dispatchJobStore', () => {
     registerJob();
     dispatchJobStore.getState().updateTitle('job-1', 'Investigate build failure', source);
     const storage = dispatchJobStore.persist.getOptions().storage!;
-    const saved = (await storage.getItem('openbitfun-dispatch-jobs-v1'))!;
+    const saved = (await storage.getItem('bitfun-dispatch-jobs-v1'))!;
     dispatchJobStore.setState({ jobs: {} });
-    await storage.setItem('openbitfun-dispatch-jobs-v1', saved);
+    await storage.setItem('bitfun-dispatch-jobs-v1', saved);
     await dispatchJobStore.persist.rehydrate();
     const job = dispatchJobStore.getState().jobs['job-1'];
     dispatchJobStore.getState().mergeOutboundRecords([{
@@ -93,10 +93,10 @@ describe('dispatchJobStore', () => {
   it('preserves legacy manual names without titleSource when the index still has the submission name', async () => {
     registerJob();
     const storage = dispatchJobStore.persist.getOptions().storage!;
-    const legacy = (await storage.getItem('openbitfun-dispatch-jobs-v1'))!;
+    const legacy = (await storage.getItem('bitfun-dispatch-jobs-v1'))!;
     legacy.state.jobs['job-1'].title = 'My investigation';
     delete legacy.state.jobs['job-1'].titleSource;
-    await storage.setItem('openbitfun-dispatch-jobs-v1', legacy);
+    await storage.setItem('bitfun-dispatch-jobs-v1', legacy);
     await dispatchJobStore.persist.rehydrate();
     const job = dispatchJobStore.getState().jobs['job-1'];
     dispatchJobStore.getState().mergeOutboundRecords([{
@@ -240,9 +240,9 @@ describe('dispatchJobStore', () => {
       sourceWorkspacePath: '/controller/repo',
       sourceWorkspaceId: 'workspace-1',
       baselineWorktreeId: 'worktree-1',
-      baselineWorktreePath: '/controller/.openbitfun/worktrees/baseline',
+      baselineWorktreePath: '/controller/.bitfun/worktrees/baseline',
       baseCommit: 'abc123',
-      branch: 'openbitfun/dispatch/job-rest',
+      branch: 'bitfun/dispatch/job-rest',
       remoteUrl: 'git@example.test:team/repo.git',
       syncedHeadCommit: 'def456',
       lastCursor: 900,
@@ -259,8 +259,8 @@ describe('dispatchJobStore', () => {
       reasoningPreset: 'high',
       sourceWorkspacePath: '/controller/repo',
       sourceWorkspaceId: 'workspace-1',
-      branch: 'openbitfun/dispatch/job-rest',
-      baselineWorktreePath: '/controller/.openbitfun/worktrees/baseline',
+      branch: 'bitfun/dispatch/job-rest',
+      baselineWorktreePath: '/controller/.bitfun/worktrees/baseline',
       syncedHeadCommit: 'def456',
       cursor: 0,
     });
@@ -279,8 +279,8 @@ describe('dispatchJobStore', () => {
         displayName: 'build-host',
       },
       sourceWorkspacePath: '/source',
-      baselineWorktreePath: '/source/.openbitfun/worktrees/baseline',
-      branch: 'openbitfun/dispatch/job-1',
+      baselineWorktreePath: '/source/.bitfun/worktrees/baseline',
+      branch: 'bitfun/dispatch/job-1',
       syncedHeadCommit: 'def456',
       workspacePath: '/target/repo',
       promptPreview: 'Dispatch test',
@@ -291,8 +291,8 @@ describe('dispatchJobStore', () => {
     }]);
 
     expect(dispatchJobStore.getState().jobs['job-1']).toMatchObject({
-      branch: 'openbitfun/dispatch/job-1',
-      baselineWorktreePath: '/source/.openbitfun/worktrees/baseline',
+      branch: 'bitfun/dispatch/job-1',
+      baselineWorktreePath: '/source/.bitfun/worktrees/baseline',
       syncedHeadCommit: 'def456',
     });
   });
@@ -416,7 +416,7 @@ describe('dispatchJobStore', () => {
       baselineProjectWorkspacePath: '/controller/main-project',
       baselineWorktreeId: 'worktree-1',
       baselineWorktreePath: '/controller/baselines/job-stable-project',
-      branch: 'openbitfun/dispatch/job-stable-project',
+      branch: 'bitfun/dispatch/job-stable-project',
       workspacePath: '/target/repo',
       promptPreview: 'Prompt preview',
       lastCursor: 0,

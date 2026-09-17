@@ -1,4 +1,4 @@
-use openbitfun_product_domains::canvas::types::{
+use bitfun_product_domains::canvas::types::{
     CanvasDiagnostic, CanvasDiagnosticCategory, CanvasDiagnosticSeverity,
 };
 
@@ -39,7 +39,7 @@ pub(super) fn validate_canvas_import_shadowing(
                 severity: CanvasDiagnosticSeverity::Error,
                 category: CanvasDiagnosticCategory::TypeScript,
                 message: format!(
-                    "`{}` is imported from openbitfun/canvas and also declared locally",
+                    "`{}` is imported from bitfun/canvas and also declared locally",
                     name
                 ),
                 code: Some("canvas.compile.sdk_name_shadowed".to_string()),
@@ -440,7 +440,7 @@ pub(super) fn canvas_runtime_binding_prelude(import_bindings: &CanvasSdkImportBi
         .map(|name| {
             (
                 (*name).to_string(),
-                format!("__OpenBitFunCanvasSDK.{}", property_access(name)),
+                format!("__BitFunCanvasSDK.{}", property_access(name)),
             )
         })
         .collect::<BTreeMap<_, _>>();
@@ -455,18 +455,18 @@ pub(super) fn canvas_runtime_binding_prelude(import_bindings: &CanvasSdkImportBi
         local_bindings.insert(
             namespace.local.clone(),
             match namespace.source {
-                CanvasSdkImportSource::Canvas => "__OpenBitFunCanvasSDK".to_string(),
-                CanvasSdkImportSource::React => "__OpenBitFunCanvasReactCompat".to_string(),
+                CanvasSdkImportSource::Canvas => "__BitFunCanvasSDK".to_string(),
+                CanvasSdkImportSource::React => "__BitFunCanvasReactCompat".to_string(),
             },
         );
     }
 
     let mut prelude = String::from(
-        "const __OpenBitFunCanvasSDK = window.OpenBitFunCanvasSDK;\n\
-const __OpenBitFunCanvasRuntime = window.OpenBitFunCanvasRuntime;\n\
-const __OpenBitFunCanvasReactCompat = Object.freeze({ ...__OpenBitFunCanvasSDK, createElement: __OpenBitFunCanvasRuntime.h, Fragment: __OpenBitFunCanvasRuntime.Fragment });\n\
-const h = __OpenBitFunCanvasRuntime.h;\n\
-const Fragment = __OpenBitFunCanvasRuntime.Fragment;\n",
+        "const __BitFunCanvasSDK = window.BitFunCanvasSDK;\n\
+const __BitFunCanvasRuntime = window.BitFunCanvasRuntime;\n\
+const __BitFunCanvasReactCompat = Object.freeze({ ...__BitFunCanvasSDK, createElement: __BitFunCanvasRuntime.h, Fragment: __BitFunCanvasRuntime.Fragment });\n\
+const h = __BitFunCanvasRuntime.h;\n\
+const Fragment = __BitFunCanvasRuntime.Fragment;\n",
     );
     for (local, expression) in local_bindings {
         if local == "h" || local == "Fragment" {
@@ -484,7 +484,7 @@ const Fragment = __OpenBitFunCanvasRuntime.Fragment;\n",
 #[cfg(feature = "canvas-runtime")]
 fn canvas_sdk_import_source(source: &str) -> Option<CanvasSdkImportSource> {
     match source {
-        "openbitfun/canvas" | "cursor/canvas" => Some(CanvasSdkImportSource::Canvas),
+        "bitfun/canvas" | "cursor/canvas" => Some(CanvasSdkImportSource::Canvas),
         "react" => Some(CanvasSdkImportSource::React),
         _ => None,
     }
@@ -504,23 +504,23 @@ fn named_import_target(source: CanvasSdkImportSource, imported: &str) -> Option<
                 .contains(&imported)
                 .then(|| NamedImportTarget {
                     canonical: imported.to_string(),
-                    expression: format!("__OpenBitFunCanvasSDK.{}", property_access(imported)),
+                    expression: format!("__BitFunCanvasSDK.{}", property_access(imported)),
                 })
         }
         CanvasSdkImportSource::React => match imported {
             "useState" | "useRef" | "useEffect" | "useCallback" | "useMemo" => {
                 Some(NamedImportTarget {
                     canonical: imported.to_string(),
-                    expression: format!("__OpenBitFunCanvasSDK.{}", property_access(imported)),
+                    expression: format!("__BitFunCanvasSDK.{}", property_access(imported)),
                 })
             }
             "Fragment" => Some(NamedImportTarget {
                 canonical: "Fragment".to_string(),
-                expression: "__OpenBitFunCanvasRuntime.Fragment".to_string(),
+                expression: "__BitFunCanvasRuntime.Fragment".to_string(),
             }),
             "createElement" => Some(NamedImportTarget {
                 canonical: "createElement".to_string(),
-                expression: "__OpenBitFunCanvasRuntime.h".to_string(),
+                expression: "__BitFunCanvasRuntime.h".to_string(),
             }),
             _ => None,
         },
@@ -545,7 +545,7 @@ fn unsupported_sdk_import_diagnostic(
 ) -> CanvasDiagnostic {
     let (line, column) = line_column(source, offset);
     let module = match import_source {
-        CanvasSdkImportSource::Canvas => "openbitfun/canvas",
+        CanvasSdkImportSource::Canvas => "bitfun/canvas",
         CanvasSdkImportSource::React => "react",
     };
     CanvasDiagnostic {
@@ -584,9 +584,9 @@ fn is_reserved_canvas_runtime_binding(name: &str) -> bool {
     matches!(
         name,
         "h" | "Fragment"
-            | "__OpenBitFunCanvasSDK"
-            | "__OpenBitFunCanvasRuntime"
-            | "__OpenBitFunCanvasReactCompat"
+            | "__BitFunCanvasSDK"
+            | "__BitFunCanvasRuntime"
+            | "__BitFunCanvasReactCompat"
     )
 }
 
@@ -613,7 +613,7 @@ fn is_identifier(value: &str) -> bool {
 
 #[cfg(feature = "canvas-runtime")]
 pub(super) fn sdk_runtime_exports() -> &'static [&'static str] {
-    openbitfun_product_domains::canvas::CANVAS_SDK_RUNTIME_EXPORTS
+    bitfun_product_domains::canvas::CANVAS_SDK_RUNTIME_EXPORTS
 }
 
 #[cfg(feature = "canvas-runtime")]
@@ -660,7 +660,7 @@ pub(super) fn rewrite_canvas_module_for_runtime(
         cursor = end;
     }
     rewritten.push_str(&source[cursor..]);
-    rewritten.push_str("\nwindow.OpenBitFunCanvasRuntime.mount(__OpenBitFunCanvasComponent);\n");
+    rewritten.push_str("\nwindow.BitFunCanvasRuntime.mount(__BitFunCanvasComponent);\n");
     Ok(rewritten)
 }
 
@@ -678,14 +678,14 @@ fn default_export_replacement(
             *start,
             *end,
             format!(
-                "const __OpenBitFunCanvasComponent = {};",
+                "const __BitFunCanvasComponent = {};",
                 source[*expression_start..*end].trim()
             ),
         ),
         CanvasDefaultExport::Identifier { start, end, name } => (
             *start,
             *end,
-            format!("const __OpenBitFunCanvasComponent = {name};"),
+            format!("const __BitFunCanvasComponent = {name};"),
         ),
     }
 }

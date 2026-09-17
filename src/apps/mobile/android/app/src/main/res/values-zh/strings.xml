@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OpenBitFun</string>
+    <string name="app_name">BitFun</string>
     <string name="navigation_general_chat">聊天</string>
     <string name="navigation_remote">远程</string>
     <string name="navigation_account">账号</string>
@@ -17,7 +17,7 @@
     <string name="settings_general_chat_section">普通对话</string>
     <string name="settings_about_section">关于</string>
     <string name="settings_about_product">产品</string>
-    <string name="settings_about_product_value">OpenBitFun 安卓版</string>
+    <string name="settings_about_product_value">BitFun 安卓版</string>
     <string name="settings_about_version">版本</string>
     <string name="settings_theme">外观</string>
     <string name="settings_theme_system">跟随系统</string>
@@ -27,12 +27,12 @@
     <string name="account_login_title">使用邮箱或 GitHub 登录</string>
     <string name="account_login_body">使用邮箱或 GitHub 登录并连接自己的电脑。\n任务和模型配置保留在被控电脑上。</string>
     <string name="account_login_server">登录服务器</string>
-    <string name="account_username_placeholder">OpenBitFun 用户名</string>
-    <string name="account_password_placeholder">OpenBitFun 密码</string>
+    <string name="account_username_placeholder">BitFun 用户名</string>
+    <string name="account_password_placeholder">BitFun 密码</string>
     <string name="account_relay_url_placeholder">Relay 地址，例如 https://relay.example.com</string>
     <string name="account_signing_in">正在登录…</string>
     <string name="account_profile_title">个人资料</string>
-    <string name="account_openbitfun_account">OpenBitFun 账号</string>
+    <string name="account_bitfun_account">BitFun 账号</string>
     <string name="account_signed_in_body">当前连接已通过账号 %1$s 验证。</string>
     <string name="account_connect">连接</string>
     <string name="account_device_current_control">当前控制</string>
@@ -116,7 +116,7 @@
 
     <string name="common_cancel">取消</string>
     <string name="pairing_title">连接电脑</string>
-    <string name="pairing_subtitle">粘贴电脑端 OpenBitFun 显示的配对链接。</string>
+    <string name="pairing_subtitle">粘贴电脑端 BitFun 显示的配对链接。</string>
     <string name="pairing_url_label">配对链接</string>
     <string name="pairing_user_label">用户 ID（可选）</string>
     <string name="pairing_password_label">账号密码</string>
@@ -126,8 +126,8 @@
     <string name="pairing_dismiss">知道了</string>
     <string name="pairing_disconnect">断开</string>
     <string name="connect_title">获取配对码</string>
-    <string name="connect_body">请确保电脑端 OpenBitFun 已打开你要使用的工作区。</string>
-    <string name="connect_steps">在电脑端 OpenBitFun 侧边栏中打开“设置 › 远程控制”，即可看到配对码。</string>
+    <string name="connect_body">请确保电脑端 BitFun 已打开你要使用的工作区。</string>
+    <string name="connect_steps">在电脑端 BitFun 侧边栏中打开“设置 › 远程控制”，即可看到配对码。</string>
     <string name="connect_scan_action">扫描二维码</string>
     <string name="connect_scan_title">扫描桌面端二维码</string>
     <string name="connect_have_pair_code">我有配对码</string>
@@ -223,7 +223,7 @@
     <string name="common_back">返回</string>
     <string name="common_open">打开</string>
     <string name="session_messages_title">消息</string>
-    <string name="message_input_label">向 OpenBitFun 提问</string>
+    <string name="message_input_label">向 BitFun 提问</string>
     <string name="message_send">发送</string>
     <string name="message_stop">停止</string>
     <string name="message_attach_image">添加图片</string>
@@ -344,7 +344,7 @@
     <string name="connection_waiting">等待连接</string>
     <string name="chat_status_messages_synced">消息已同步</string>
     <string name="chat_status_restoring_connection">正在恢复连接</string>
-    <string name="chat_status_executing">OpenBitFun 正在执行...</string>
+    <string name="chat_status_executing">BitFun 正在执行...</string>
     <string name="connection_checking">正在检测连接……</string>
     <string name="connection_lost_detail">桌面端已停止响应。配对仍然有效，可以重试，或断开后重新配对。</string>
     <string name="connection_check_again">重新检测</string>
@@ -352,7 +352,7 @@
     <string name="sessions_failed_network">无法连接中继服务。</string>
     <string name="sessions_failed_timeout">桌面端没有及时响应。</string>
     <string name="sessions_failed_rate_limited">请求过于频繁，请稍后重试。</string>
-    <string name="sessions_failed_protocol_mismatch">桌面端返回了本应用无法识别的格式，请升级桌面端的 OpenBitFun。</string>
+    <string name="sessions_failed_protocol_mismatch">桌面端返回了本应用无法识别的格式，请升级桌面端的 BitFun。</string>
     <string name="sessions_failed_session_not_found">该会话已不在桌面端。</string>
     <!-- 8.3 会话界面 -->
     <string name="conversation_back">返回会话列表</string>
@@ -405,7 +405,7 @@
     <string name="tool_op_ask_confirmation">请求确认</string>
     <string name="create_title">新建任务</string>
     <string name="create_back">返回</string>
-    <string name="create_placeholder">告诉 OpenBitFun 要做什么</string>
+    <string name="create_placeholder">告诉 BitFun 要做什么</string>
     <string name="create_chat">聊天</string>
     <string name="create_workspace_picker">选择工作区</string>
     <string name="create_no_workspaces">没有最近工作区，请先在桌面端打开工作区。</string>
@@ -418,7 +418,7 @@
     <string name="remote_settings_source_account_device">账号设备</string>
     <string name="remote_settings_source_qr">扫码配对</string>
     <string name="remote_settings_source_none">未连接</string>
-    <string name="remote_settings_desktop_product">OpenBitFun 桌面版</string>
+    <string name="remote_settings_desktop_product">BitFun 桌面版</string>
     <string name="remote_settings_no_desktop">尚未连接桌面端</string>
     <string name="remote_settings_disconnect">断开</string>
     <string name="remote_settings_reconnect">重新连接</string>
@@ -428,24 +428,24 @@
     <string name="remote_settings_profile_details">资料</string>
     <string name="remote_settings_user_id">用户 ID</string>
     <string name="remote_settings_device_id">本机设备 ID</string>
-    <string name="remote_settings_openbitfun_user">OpenBitFun 用户</string>
+    <string name="remote_settings_bitfun_user">BitFun 用户</string>
     <string name="remote_settings_account_signed_in">已认证</string>
     <string name="chat_load_older_messages">加载更早消息</string>
-    <string name="account_open_github">打开 OpenBitFun 授权</string>
-    <string name="account_device_link_invalid">请使用当前版本的 OpenBitFun 设备二维码。</string>
-    <string name="account_device_link_unavailable">该设备已离线，或不属于当前 OpenBitFun 账户。</string>
+    <string name="account_open_github">打开 BitFun 授权</string>
+    <string name="account_device_link_invalid">请使用当前版本的 BitFun 设备二维码。</string>
+    <string name="account_device_link_unavailable">该设备已离线，或不属于当前 BitFun 账户。</string>
     <string name="chat_image_prepare_failed">无法处理这张图片，请选择其他图片。</string>
     <string name="harness_minimal">极简</string>
     <string name="harness_standard">标准</string>
     <string name="harness_ultimate">极致</string>
     <string name="task_completed_title">任务已完成</string>
-    <string name="task_completed_body">打开 OpenBitFun 查看结果。</string>
+    <string name="task_completed_body">打开 BitFun 查看结果。</string>
     <string name="notification_onboarding_title">开启任务完成提醒</string>
     <string name="notification_onboarding_later">稍后</string>
     <string name="notification_onboarding_enable">开启通知</string>
-    <string name="notification_onboarding_body">允许 OpenBitFun 在任务完成时发送通知。你可以稍后在系统设置中更改。</string>
-    <string name="connect_scan_body">在 OpenBitFun 桌面端点击「连接移动端」\n扫描二维码完成连接</string>
-    <string name="connect_camera_permission_denied">需要相机权限才能扫码，请在系统设置中允许 OpenBitFun 访问相机，或改为手动配对。</string>
+    <string name="notification_onboarding_body">允许 BitFun 在任务完成时发送通知。你可以稍后在系统设置中更改。</string>
+    <string name="connect_scan_body">在 BitFun 桌面端点击「连接移动端」\n扫描二维码完成连接</string>
+    <string name="connect_camera_permission_denied">需要相机权限才能扫码，请在系统设置中允许 BitFun 访问相机，或改为手动配对。</string>
     <string name="connect_camera_unavailable">无法打开相机，请检查权限后重试，或改为手动配对。</string>
     <string name="connect_scan_hint">扫描二维码或粘贴远程连接链接后会显示桌面端连接状态。</string>
     <string name="welcome_login">登录账号</string>

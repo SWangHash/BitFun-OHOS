@@ -10,38 +10,38 @@
   box-sizing: border-box;
   width: min(100%, 900px);
   margin: 0 auto;
-  padding: 0 var(--openbitfun-control-flow-chat-content-padding-inline);
+  padding: 0 var(--bitfun-control-flow-chat-content-padding-inline);
 
   @media (max-width: 768px) {
-    padding: 0 var(--openbitfun-control-flow-chat-content-padding-inline-mobile);
+    padding: 0 var(--bitfun-control-flow-chat-content-padding-inline-mobile);
   }
 }
 
 // ==================== Collapsible (header + animated content) ====================
 
 .explore-region--collapsible {
-  margin: 0 0 var(--openbitfun-control-flow-chat-flow-item-gap) 0;
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  margin: 0 0 var(--bitfun-control-flow-chat-flow-item-gap) 0;
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
 
   .explore-region__header {
-    min-block-size: max(1lh, var(--openbitfun-control-tool-card-ambient-row-min-block-size));
+    min-block-size: max(1lh, var(--bitfun-control-tool-card-ambient-row-min-block-size));
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-control-flow-chat-row-icon-gap);
+    gap: var(--bitfun-control-flow-chat-row-icon-gap);
     padding: 0;
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
     cursor: pointer;
     user-select: none;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     transition: color 0.15s ease;
 
     &:hover {
       .explore-region__summary {
-        color: var(--openbitfun-color-content-secondary);
+        color: var(--bitfun-color-content-secondary);
         opacity: 1;
       }
 
@@ -61,16 +61,16 @@
 
   .explore-region__leading-icon {
     position: relative;
-    width: var(--openbitfun-control-flow-chat-row-icon-size);
-    height: var(--openbitfun-control-flow-chat-row-icon-size);
+    width: var(--bitfun-control-flow-chat-row-icon-size);
+    height: var(--bitfun-control-flow-chat-row-icon-size);
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--openbitfun-color-content-caption);
+    color: var(--bitfun-color-content-caption);
     transition: opacity 0.15s ease;
 
-    > [data-openbitfun-component='icon'] {
+    > [data-bitfun-component='icon'] {
       position: absolute;
       inset: 0;
       transition: opacity 0.15s ease;
@@ -87,9 +87,9 @@
   }
 
   .explore-region__summary {
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    line-height: var(--openbitfun-type-flow-support-line-height);
-    color: var(--openbitfun-color-content-secondary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    line-height: var(--bitfun-type-flow-support-line-height);
+    color: var(--bitfun-color-content-secondary);
   }
 
   // Inner div must have min-height: 0 for height animation clipping to work.
@@ -103,7 +103,7 @@
     position: relative;
     // Keep expanded rows on the same leading edge as the collapsed group.
     // A nested inset makes auto-collapse read as a horizontal jump.
-    padding: var(--openbitfun-space-2) 0 0;
+    padding: var(--bitfun-space-2) 0 0;
     box-sizing: border-box;
     // Hide scrollbar track by default; only show when content actually overflows.
     overflow: hidden;
@@ -137,7 +137,7 @@
     content: '';
     position: absolute;
     // Account for collapsible header height.
-    top: max(1lh, var(--openbitfun-control-tool-card-ambient-row-min-block-size));
+    top: max(1lh, var(--bitfun-control-tool-card-ambient-row-min-block-size));
     left: 0;
     right: 0;
     height: 16px;
@@ -145,8 +145,8 @@
     z-index: 3;
     background: linear-gradient(
       to bottom,
-      var(--openbitfun-color-surface-scene) 0%,
-      color-mix(in srgb, var(--openbitfun-color-surface-scene) 60%, transparent) 50%,
+      var(--bitfun-color-surface-scene) 0%,
+      color-mix(in srgb, var(--bitfun-color-surface-scene) 60%, transparent) 50%,
       transparent 100%
     );
   }
@@ -164,8 +164,8 @@
     z-index: 3;
     background: linear-gradient(
       to top,
-      var(--openbitfun-color-surface-scene) 0%,
-      color-mix(in srgb, var(--openbitfun-color-surface-scene) 60%, transparent) 50%,
+      var(--bitfun-color-surface-scene) 0%,
+      color-mix(in srgb, var(--bitfun-color-surface-scene) 60%, transparent) 50%,
       transparent 100%
     );
   }
@@ -179,7 +179,7 @@
     max-height: 400px;
     // Add bottom padding so the last line of text isn't obscured by the
     // gradient overlay or clipped at the container edge.
-    padding-bottom: var(--openbitfun-space-2);
+    padding-bottom: var(--bitfun-space-2);
   }
 }
 

@@ -13,35 +13,35 @@
     flex-direction: column;
     gap: 6px;
     padding: 10px;
-    border: 1px solid var(--openbitfun-color-border-subtle);
+    border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--openbitfun-color-action-quiet-hover) 70%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-action-quiet-hover) 70%, transparent);
 
     code {
       min-width: 0;
-      color: var(--openbitfun-color-content-primary);
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      color: var(--bitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
       white-space: nowrap;
       overflow: hidden;
     }
   }
 
   &__summary-label {
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-meta-font-size);
   }
 
   &__textarea {
-    .openbitfun-textarea__field {
+    .bitfun-textarea__field {
       min-height: 96px;
       resize: vertical;
-      font-family:var(--openbitfun-type-code-md-font-family);
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      line-height: var(--openbitfun-type-body-sm-line-height);
+      font-family:var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      line-height: var(--bitfun-type-body-sm-line-height);
     }
 
-    &--masked .openbitfun-textarea__field {
+    &--masked .bitfun-textarea__field {
       -webkit-text-security: disc;
     }
   }
@@ -51,20 +51,20 @@
     flex-wrap: wrap;
     gap: 12px;
 
-    .openbitfun-checkbox__label {
-      color: var(--openbitfun-color-content-primary);
+    .bitfun-checkbox__label {
+      color: var(--bitfun-color-content-primary);
     }
 
-    .openbitfun-checkbox__description {
-      color: var(--openbitfun-color-content-secondary);
+    .bitfun-checkbox__description {
+      color: var(--bitfun-color-content-secondary);
     }
   }
 
   &__note {
     margin: 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__actions {

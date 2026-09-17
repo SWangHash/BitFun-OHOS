@@ -1,6 +1,6 @@
 import { Folder as LucideFolder, X as LucideX, Monitor, Server, ChevronDown } from 'lucide-react';
 import React, { useEffect, useState, useCallback } from 'react';
-import { MobileBanner, MobileButton, MobileTextField, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus, MobileChoiceSheet } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileTextField, MobileIconButton, MobileListRow, MobilePageHeader, MobileStatus, MobileChoiceSheet } from '@bitfun/ui/mobile';
 import './WorkspacePage.scss';
 import { WorkspaceTerminal } from '../components/WorkspaceTerminal';
 import { WorkspaceFolderPicker } from '../components/WorkspaceFolderPicker';

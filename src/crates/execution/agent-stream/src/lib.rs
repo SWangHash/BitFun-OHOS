@@ -17,8 +17,8 @@ use crate::tool_call_accumulator::{
 use futures::{Stream, StreamExt};
 pub use hidden_text::{HiddenTextBlock, HiddenTextStreamParser, HiddenTextTag};
 use log::{debug, error, trace};
-use openbitfun_core_types::{errors::AiProviderError, ReasoningContentKind};
-use openbitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
+use bitfun_core_types::{errors::AiProviderError, ReasoningContentKind};
+use bitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashSet, VecDeque};
@@ -691,7 +691,7 @@ impl StreamProcessor {
                 tool_call.tool_id
             );
 
-            let identity = openbitfun_events::ToolEventIdentity::direct(
+            let identity = bitfun_events::ToolEventIdentity::direct(
                 tool_call.tool_id,
                 tool_call.tool_name,
             );
@@ -807,7 +807,7 @@ impl StreamProcessor {
                         attempt_id: Some(ctx.attempt_id.clone()),
                         attempt_index: Some(ctx.attempt_index),
                         tool_event: ToolEventData::EarlyDetected {
-                            identity: openbitfun_events::ToolEventIdentity::direct(
+                            identity: bitfun_events::ToolEventIdentity::direct(
                                 early_detected.tool_id,
                                 early_detected.tool_name,
                             ),
@@ -831,7 +831,7 @@ impl StreamProcessor {
                         attempt_id: Some(ctx.attempt_id.clone()),
                         attempt_index: Some(ctx.attempt_index),
                         tool_event: ToolEventData::ParamsPartial {
-                            identity: openbitfun_events::ToolEventIdentity::direct(
+                            identity: bitfun_events::ToolEventIdentity::direct(
                                 params_partial.tool_id,
                                 params_partial.tool_name,
                             ),
@@ -1329,9 +1329,9 @@ mod tests {
     };
     use super::{UnifiedResponse, UnifiedTokenUsage, UnifiedToolCall};
     use futures::StreamExt;
-    use openbitfun_core_types::errors::{AiProviderError, ErrorCategory};
-    use openbitfun_core_types::{ModelResponseReplayItem, ReasoningContentKind};
-    use openbitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
+    use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
+    use bitfun_core_types::{ModelResponseReplayItem, ReasoningContentKind};
+    use bitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
@@ -1551,8 +1551,8 @@ mod tests {
     fn memory_hidden_tag() -> HiddenTextTag {
         HiddenTextTag::new(
             "memory_citation",
-            "<openbitfun-mem-citation>",
-            "</openbitfun-mem-citation>",
+            "<bitfun-mem-citation>",
+            "</bitfun-mem-citation>",
         )
     }
 
@@ -1562,12 +1562,12 @@ mod tests {
         let processor = StreamProcessor::new(sink.clone());
         let stream = iter(vec![
             Ok(UnifiedResponse {
-                text: Some("hello <openbitfun-mem-".to_string()),
+                text: Some("hello <bitfun-mem-".to_string()),
                 ..Default::default()
             }),
             Ok(UnifiedResponse {
                 text: Some(
-                    "citation><citation_entries>\nMEMORY.md:1-2|note=[x]\n</citation_entries></openbitfun-mem-citation> world"
+                    "citation><citation_entries>\nMEMORY.md:1-2|note=[x]\n</citation_entries></bitfun-mem-citation> world"
                         .to_string(),
                 ),
                 ..Default::default()
@@ -1612,14 +1612,14 @@ mod tests {
         assert_eq!(text_chunks, vec!["hello ", " world"]);
         assert!(!text_chunks
             .iter()
-            .any(|text| text.contains("<openbitfun-mem-citation>")));
+            .any(|text| text.contains("<bitfun-mem-citation>")));
     }
 
     #[tokio::test]
     async fn auto_closes_unterminated_hidden_text_tag_on_stream_end() {
         let processor = build_processor();
         let stream = iter(vec![Ok(UnifiedResponse {
-            text: Some("hello<openbitfun-mem-citation>payload".to_string()),
+            text: Some("hello<bitfun-mem-citation>payload".to_string()),
             ..Default::default()
         })])
         .boxed();

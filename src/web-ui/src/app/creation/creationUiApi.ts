@@ -6,11 +6,11 @@ import type { ProductControlCapabilityId, ProductControlOperationId, ProductCont
 import { selectActiveSceneId, useSceneStore } from '../stores/sceneStore';
 
 export const CREATION_PARTS = Object.freeze({
-  shell: '[data-openbitfun-component="app-layout"][data-openbitfun-part="root"]',
-  workspace: '[data-openbitfun-scene="workbench"][data-openbitfun-part="workspace"]',
-  sidebar: '[data-openbitfun-scene="workbench"][data-openbitfun-part="navArea"]',
-  content: '[data-openbitfun-scene="workbench"][data-openbitfun-part="sceneArea"]',
-  tabs: '[data-openbitfun-component="scene-bar"][data-openbitfun-part="root"]',
+  shell: '[data-bitfun-component="app-layout"][data-bitfun-part="root"]',
+  workspace: '[data-bitfun-scene="workbench"][data-bitfun-part="workspace"]',
+  sidebar: '[data-bitfun-scene="workbench"][data-bitfun-part="navArea"]',
+  content: '[data-bitfun-scene="workbench"][data-bitfun-part="sceneArea"]',
+  tabs: '[data-bitfun-component="scene-bar"][data-bitfun-part="root"]',
 });
 export const CREATION_SLOTS = ['sidebar-footer', 'scene-header', 'scene-footer'] as const;
 type CreationSlot = typeof CREATION_SLOTS[number];
@@ -33,7 +33,7 @@ export function createCreationUiApi(signal: AbortSignal) {
       parts: Object.fromEntries(Object.entries(CREATION_PARTS).map(([name, selector]) =>
         [name, { selector, present: document.querySelector(selector) !== null }])),
       slots: CREATION_SLOTS.map(id => {
-        const host = document.querySelector(`[data-openbitfun-creation-slot="${id}"]`);
+        const host = document.querySelector(`[data-bitfun-creation-slot="${id}"]`);
         return { id, present: host !== null, mounts: host?.childElementCount ?? 0 };
       }),
     };
@@ -54,7 +54,7 @@ export function createCreationUiApi(signal: AbortSignal) {
     mount(slot: CreationSlot): HTMLDivElement {
       assertActive();
       if (!CREATION_SLOTS.includes(slot)) throw new Error(`Unknown UI customization slot: ${slot}`);
-      const host = document.querySelector(`[data-openbitfun-creation-slot="${slot}"]`);
+      const host = document.querySelector(`[data-bitfun-creation-slot="${slot}"]`);
       if (!host) throw new Error(`UI customization slot is unavailable: ${slot}`);
       const root = document.createElement('div');
       host.append(root);

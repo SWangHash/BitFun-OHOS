@@ -10,10 +10,10 @@
 
 // Overflow menu
 .canvas-tab-overflow-menu {
-  --openbitfun-overlay-menu-inline-size: min(280px, calc(100vw - 16px));
-  --openbitfun-overlay-menu-max-block-size: min(360px, calc(100vh - 16px));
+  --bitfun-overlay-menu-inline-size: min(280px, calc(100vw - 16px));
+  --bitfun-overlay-menu-max-block-size: min(360px, calc(100vh - 16px));
   min-width: 200px;
-  z-index: var(--openbitfun-layer-popover);
+  z-index: var(--bitfun-layer-popover);
   animation: menuSlideIn 0.12s ease-out;
 
   @keyframes menuSlideIn {
@@ -31,12 +31,12 @@
   &__mission-control {
     > span {
       flex: 1;
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
     }
 
     svg {
-      color: var(--openbitfun-color-accent-default);
+      color: var(--bitfun-color-accent-default);
     }
   }
 
@@ -57,8 +57,8 @@
       min-width: 0;
       overflow: hidden;
       white-space: nowrap;
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      color: var(--openbitfun-color-content-primary);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      color: var(--bitfun-color-content-primary);
 
       em {
         font-style: italic;
@@ -68,8 +68,8 @@
 
     &-dirty {
       flex-shrink: 0;
-      font-size: var(--openbitfun-type-overline-xs-font-size);
-      color: var(--openbitfun-color-status-warning-content);
+      font-size: var(--bitfun-type-overline-xs-font-size);
+      color: var(--bitfun-color-status-warning-content);
     }
 
   }

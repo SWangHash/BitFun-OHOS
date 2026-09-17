@@ -172,7 +172,7 @@ class MarkdownErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-openbitfun-component="markdown" data-openbitfun-part="fallback" data-openbitfun-state="fallback">
+        <div className="markdown-renderer markdown-renderer--fallback" style={{ whiteSpace: 'pre-wrap' }} data-bitfun-component="markdown" data-bitfun-part="fallback" data-bitfun-state="fallback">
           {this.props.fallbackContent}
         </div>
       );
@@ -598,8 +598,8 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({
     return (
       <span
         className="markdown-image-fallback"
-        data-openbitfun-component="markdown"
-        data-openbitfun-part="imageFallback"
+        data-bitfun-component="markdown"
+        data-bitfun-part="imageFallback"
         title={typeof alt === 'string' && alt ? alt : undefined}
       >
         {typeof alt === 'string' ? alt : null}
@@ -738,13 +738,13 @@ const CodeBlockFallback: React.FC<FlowCodeBlockFallbackProps> = ({
     <pre
       className={`language-${language} code-block-fallback code-block-fallback--linenumbers`}
       style={bodyStyle}
-      data-openbitfun-component="markdown"
-      data-openbitfun-part="codePre"
+      data-bitfun-component="markdown"
+      data-bitfun-part="codePre"
     >
       <code
         style={{ ...codeTagStyle, display: 'flex' }}
-        data-openbitfun-component="markdown"
-        data-openbitfun-part="codeContent"
+        data-bitfun-component="markdown"
+        data-bitfun-part="codeContent"
       >
         <span
           aria-hidden="true"
@@ -1026,7 +1026,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     }
 
     return Boolean(
-      targetElement.closest('.openbitfun-session-scene') &&
+      targetElement.closest('.bitfun-session-scene') &&
       targetElement.closest('.modern-flowchat-container, .flow-chat-container')
     );
   }, []);
@@ -1244,12 +1244,12 @@ export const Markdown = React.memo<MarkdownProps>(({
         : 'color-mix(in srgb, var(--bf-appearance-token-color-static-white) 40%, var(--bf-appearance-token-color-static-black))';
 
       return (
-        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-openbitfun-component="markdown" data-openbitfun-part="codeBlock" data-openbitfun-state={streaming ? 'streaming' : undefined}>
-          <div className="code-block-toolbar" data-openbitfun-component="markdown" data-openbitfun-part="codeToolbar">
+        <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-bitfun-component="markdown" data-bitfun-part="codeBlock" data-bitfun-state={streaming ? 'streaming' : undefined}>
+          <div className="code-block-toolbar" data-bitfun-component="markdown" data-bitfun-part="codeToolbar">
             <span className="code-block-lang">{formatCodeLanguageLabel(normalizedLang)}</span>
             <CopyButton code={code} />
           </div>
-          <div className="code-block-body" data-openbitfun-component="markdown" data-openbitfun-part="codeBody">
+          <div className="code-block-body" data-bitfun-component="markdown" data-bitfun-part="codeBody">
             {/*
               Always mount AsyncPrismSyntaxHighlighter. While streaming,
               preferFallback keeps the lightweight line-numbered pre so we do
@@ -1342,8 +1342,8 @@ export const Markdown = React.memo<MarkdownProps>(({
           const fileLinkButton = (
             <button
               className="file-link"
-              data-openbitfun-component="markdown"
-              data-openbitfun-part="fileLink"
+              data-bitfun-component="markdown"
+              data-bitfun-part="fileLink"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1385,8 +1385,8 @@ export const Markdown = React.memo<MarkdownProps>(({
         return (
           <button
             className="visualization-link"
-            data-openbitfun-component="markdown"
-            data-openbitfun-part="visualizationLink"
+            data-bitfun-component="markdown"
+            data-bitfun-part="visualizationLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1410,8 +1410,8 @@ export const Markdown = React.memo<MarkdownProps>(({
         return (
           <button
             className="tab-link"
-            data-openbitfun-component="markdown"
-            data-openbitfun-part="tabLink"
+            data-bitfun-component="markdown"
+            data-bitfun-part="tabLink"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1490,7 +1490,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     
     table({ children }: any) {
       return (
-        <div className="table-wrapper" data-openbitfun-component="markdown" data-openbitfun-part="table">
+        <div className="table-wrapper" data-bitfun-component="markdown" data-bitfun-part="table">
           <table>{children}</table>
         </div>
       );
@@ -1515,7 +1515,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     },
     
     blockquote({ children }: any) {
-      return <blockquote className="custom-blockquote" data-openbitfun-component="markdown" data-openbitfun-part="blockquote">{children}</blockquote>;
+      return <blockquote className="custom-blockquote" data-bitfun-component="markdown" data-bitfun-part="blockquote">{children}</blockquote>;
     },
     
     ul({ children, ...props }: any) {
@@ -1573,7 +1573,7 @@ export const Markdown = React.memo<MarkdownProps>(({
   ), [components, markdownContent]);
 
   return (
-    <div className={wrapperClassName} data-openbitfun-component="markdown" data-openbitfun-part="root" data-openbitfun-state={isStreaming ? 'streaming' : undefined}>
+    <div className={wrapperClassName} data-bitfun-component="markdown" data-bitfun-part="root" data-bitfun-state={isStreaming ? 'streaming' : undefined}>
       {renderTraceEnabled && renderTraceStartedAtMs !== null && (
         <MarkdownRenderTrace
           startedAtMs={renderTraceStartedAtMs}

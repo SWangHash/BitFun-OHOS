@@ -1,22 +1,22 @@
-//! OpenBitFun generic JSON-RPC App Server host surface.
+//! BitFun generic JSON-RPC App Server host surface.
 //!
 //! This crate owns a protocol-agnostic JSON-RPC server/client scaffold built on
 //! [`agent_client_protocol`] using custom roles ([`AppServer`]/[`AppClient`]),
 //! instead of the built-in ACP `Agent`/`Client` roles. Consumers register their
 //! own `JsonRpcRequest` / `JsonRpcNotification` types; the crate binds no
-//! schema method set, unlike [`openbitfun_acp`].
+//! schema method set, unlike [`bitfun_acp`].
 //!
-//! [`OpenBitFunAppServer`] exposes the selected Agent Kernel and management
+//! [`BitFunAppServer`] exposes the selected Agent Kernel and management
 //! operations over a host-injected runtime. Behavior-light wire contracts are
-//! owned by `openbitfun-app-server-protocol`; [`schema`] remains a compatibility
+//! owned by `bitfun-app-server-protocol`; [`schema`] remains a compatibility
 //! re-export for existing server-side imports. Typed clients are owned by the
-//! separate `openbitfun-app-server-client` crate.
+//! separate `bitfun-app-server-client` crate.
 //!
 //! # Example
 //!
 //! ```no_run
-//! use openbitfun_app_server::{AppServer, AppClient, transport};
-//! use openbitfun_app_server::prelude::*;
+//! use bitfun_app_server::{AppServer, AppClient, transport};
+//! use bitfun_app_server::prelude::*;
 //! # use serde::{Deserialize, Serialize};
 //! #
 //! # #[derive(Debug, Clone, Serialize, Deserialize, agent_client_protocol::JsonRpcRequest)]
@@ -32,12 +32,12 @@
 //! # }
 //! ```
 //!
-//! [`openbitfun_acp`]: openbitfun_acp
+//! [`bitfun_acp`]: bitfun_acp
 //!
 //! # Crate boundary
 //!
 //! This crate is an **internal interface crate**, not a versioned public API.
-//! The server-side surface ([`OpenBitFunAppServer`], [`schema`], [`agent`]) is the
+//! The server-side surface ([`BitFunAppServer`], [`schema`], [`agent`]) is the
 //! production path consumed by the Server Host. This crate does not own a
 //! second client implementation.
 
@@ -45,7 +45,7 @@
 // `ChainedHandler` layer per registered request handler, and with the
 // agent-kernel + permission + git + config surface all on one builder the
 // monomorphized handler tower overflows the default recursion limit when the
-// `agent_kernel` integration test instantiates the full `OpenBitFunAppServer::serve`
+// `agent_kernel` integration test instantiates the full `BitFunAppServer::serve`
 // connection. Raise it so the chain keeps compiling as more host-service groups
 // land under option C.
 #![recursion_limit = "256"]
@@ -57,7 +57,7 @@ pub mod schema;
 pub mod server;
 pub mod transport;
 
-pub use agent::OpenBitFunAppRuntime;
+pub use agent::BitFunAppRuntime;
 pub use agent_client_protocol as protocol;
 pub use management::{
     AppManagementCapabilities, AppManagementError, AppManagementErrorKind, AppManagementResult,
@@ -69,13 +69,13 @@ pub use server::host_policy::{
     AppServerDisconnect, AppServerHostLimits, AppServerHostPolicy, HostPolicyViolation,
     DEFAULT_EVENT_BUFFER_CAPACITY, DEFAULT_MAX_FRAME_BYTES,
 };
-pub use server::OpenBitFunAppServer;
+pub use server::BitFunAppServer;
 
 /// Convenience prelude for consumers building an app-server connection.
 pub mod prelude {
     pub use crate::{
-        agent, schema, server, transport, AppClient, AppServer, OpenBitFunAppRuntime,
-        OpenBitFunAppServer,
+        agent, schema, server, transport, AppClient, AppServer, BitFunAppRuntime,
+        BitFunAppServer,
     };
     pub use agent_client_protocol::{
         Builder, ConnectionTo, Dispatch, Handled, JsonRpcNotification, JsonRpcRequest,

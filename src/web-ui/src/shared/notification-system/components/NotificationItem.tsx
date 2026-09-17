@@ -1,7 +1,7 @@
  
 
 import React from 'react';
-import { Button, Icon, IconButton } from '@openbitfun/ui';
+import { Button, Icon, IconButton } from '@bitfun/ui';
 import { AlertTriangle, XCircle } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Notification } from '../types';
@@ -50,25 +50,25 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
   return (
     <div
       className={`notification-item notification-item--${type}${closable ? ' notification-item--closable' : ''}${isExiting ? ' notification-item--exiting' : ''}`}
-      data-openbitfun-component="notification"
-      data-openbitfun-part="item"
+      data-bitfun-component="notification"
+      data-bitfun-part="item"
       role={isAssertive ? 'alert' : 'status'}
       aria-live={isAssertive ? 'assertive' : 'polite'}
       aria-atomic="true"
     >
       
-      <div className="notification-item__icon" data-openbitfun-component="notification" data-openbitfun-part="itemIcon">
+      <div className="notification-item__icon" data-bitfun-component="notification" data-bitfun-part="itemIcon">
         {getIcon()}
       </div>
 
       
-      <div className="notification-item__content" data-openbitfun-component="notification" data-openbitfun-part="itemContent">
-        <div className="notification-item__title" data-openbitfun-component="notification" data-openbitfun-part="itemTitle">{title}</div>
-        <div className="notification-item__message" data-openbitfun-component="notification" data-openbitfun-part="itemMessage">{messageNode ?? message}</div>
+      <div className="notification-item__content" data-bitfun-component="notification" data-bitfun-part="itemContent">
+        <div className="notification-item__title" data-bitfun-component="notification" data-bitfun-part="itemTitle">{title}</div>
+        <div className="notification-item__message" data-bitfun-component="notification" data-bitfun-part="itemMessage">{messageNode ?? message}</div>
 
         
         {actions && actions.length > 0 && (
-          <div className="notification-item__actions" data-openbitfun-component="notification" data-openbitfun-part="itemActions">
+          <div className="notification-item__actions" data-bitfun-component="notification" data-bitfun-part="itemActions">
             {actions.map((action, index) => (
               <Button
                 key={index}
@@ -88,8 +88,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
       {closable && (
         <span
           className="notification-item__close"
-          data-openbitfun-component="notification"
-          data-openbitfun-part="itemClose"
+          data-bitfun-component="notification"
+          data-bitfun-part="itemClose"
         >
           <IconButton
             shape="circle"

@@ -1,4 +1,4 @@
-//! OpenBitFun MiniApp marketplace service.
+//! BitFun MiniApp marketplace service.
 
 mod artifacts;
 mod auth;
@@ -28,7 +28,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 pub use error::{MarketError, MarketResult};
 pub use package::{
-    validate_market_package, validate_min_openbitfun_version, validate_screenshot,
+    validate_market_package, validate_min_bitfun_version, validate_screenshot,
     ValidatedMarketPackage, ValidatedScreenshot,
 };
 

@@ -18,14 +18,14 @@ const AnnouncementToastStack: React.FC = () => {
   const ghostCount = Math.min(queue.length, 2);
 
   return (
-    <div className="announcement-toast-stack" aria-label="Announcements" data-openbitfun-component="announcement" data-openbitfun-part="stack">
-      <div className="announcement-toast-deck" data-openbitfun-component="announcement" data-openbitfun-part="deck">
+    <div className="announcement-toast-stack" aria-label="Announcements" data-bitfun-component="announcement" data-bitfun-part="stack">
+      <div className="announcement-toast-deck" data-bitfun-component="announcement" data-bitfun-part="deck">
         {/* Ghost layers: rendered before active card = lower in DOM = behind */}
         {ghostCount >= 2 && (
-          <div className="announcement-toast-ghost announcement-toast-ghost--2" aria-hidden data-openbitfun-component="announcement" data-openbitfun-part="ghost" data-openbitfun-depth="2" />
+          <div className="announcement-toast-ghost announcement-toast-ghost--2" aria-hidden data-bitfun-component="announcement" data-bitfun-part="ghost" data-bitfun-depth="2" />
         )}
         {ghostCount >= 1 && (
-          <div className="announcement-toast-ghost announcement-toast-ghost--1" aria-hidden data-openbitfun-component="announcement" data-openbitfun-part="ghost" data-openbitfun-depth="1" />
+          <div className="announcement-toast-ghost announcement-toast-ghost--1" aria-hidden data-bitfun-component="announcement" data-bitfun-part="ghost" data-bitfun-depth="1" />
         )}
         <AnnouncementToastItem card={activeToast} />
       </div>

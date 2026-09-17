@@ -1,15 +1,15 @@
-use openbitfun_opencode_adapter::{
+use bitfun_opencode_adapter::{
     OpenCodeCommandProviderOptions, OpenCodeSubagentProvider, OpenCodeSubagentProviderOptions,
 };
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_sources::{
     ExecutionDomainId, ExternalSourceContext, ExternalSourceScope,
 };
-use openbitfun_product_domains::external_subagents::{
+use bitfun_product_domains::external_subagents::{
     ExternalSubagentCompatibilityState, ExternalSubagentDiscoveryInput, ExternalSubagentMode,
     ExternalSubagentModelProfileRequest, ExternalSubagentModelRequest,
     ExternalSubagentSourceProvider, ExternalSubagentToolCapability,
 };
-use openbitfun_product_domains::tool_permissions::{
+use bitfun_product_domains::tool_permissions::{
     PermissionEffect, PermissionEvaluator, PermissionRule,
 };
 use std::collections::BTreeSet;
@@ -41,8 +41,8 @@ fn provider(temp: &TempDir, workspace: &std::path::Path) -> OpenCodeSubagentProv
 fn discover(
     provider: &OpenCodeSubagentProvider,
     workspace: PathBuf,
-    suppressed_sources: BTreeSet<openbitfun_product_domains::external_sources::SourceKey>,
-) -> openbitfun_product_domains::external_subagents::ExternalSubagentProviderSnapshot {
+    suppressed_sources: BTreeSet<bitfun_product_domains::external_sources::SourceKey>,
+) -> bitfun_product_domains::external_subagents::ExternalSubagentProviderSnapshot {
     provider
         .discover(&ExternalSubagentDiscoveryInput {
             context: context(workspace),

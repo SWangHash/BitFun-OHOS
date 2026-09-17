@@ -1,6 +1,6 @@
 //! Desktop host API for ecosystem-neutral external AI application sources.
 
-use openbitfun_core::external_sources::{
+use bitfun_core::external_sources::{
     acknowledge_external_ecosystems, apply_external_source_control_action,
     choose_external_mcp_conflict, choose_external_subagent_conflict,
     expand_external_prompt_command, external_source_discovery_snapshot,
@@ -21,15 +21,15 @@ use openbitfun_core::external_sources::{
     NativePromptCommandDescriptor, PromptCommandInvocationOutcome,
     PromptCommandShellReviewDecision,
 };
-use openbitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use openbitfun_core::service::remote_ssh::workspace_state::{
+use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
+use bitfun_core::service::remote_ssh::workspace_state::{
     canonicalize_local_workspace_root, local_workspace_roots_equal,
 };
-use openbitfun_core::service::workspace::manager::WorkspaceKind;
-use openbitfun_product_domains::external_sources::{
+use bitfun_core::service::workspace::manager::WorkspaceKind;
+use bitfun_product_domains::external_sources::{
     ExternalMcpImportApplyRequestV1, ExternalMcpImportApplyResultV1, ExternalMcpImportPlanV1,
 };
-use openbitfun_product_domains::workspace_references::WorkspaceReferenceSnapshot;
+use bitfun_product_domains::workspace_references::WorkspaceReferenceSnapshot;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::State;
@@ -291,7 +291,7 @@ pub async fn plan_external_mcp_import_command(
     let workspace = require_local_workspace(request.workspace_path.as_deref())
         .await?
         .map(Path::to_path_buf);
-    openbitfun_core::external_mcp_import::plan_external_mcp_import(workspace).await
+    bitfun_core::external_mcp_import::plan_external_mcp_import(workspace).await
 }
 
 #[tauri::command]
@@ -301,7 +301,7 @@ pub async fn apply_external_mcp_import_command(
     let workspace = require_local_workspace(request.workspace_path.as_deref())
         .await?
         .map(Path::to_path_buf);
-    openbitfun_core::external_mcp_import::apply_external_mcp_import(
+    bitfun_core::external_mcp_import::apply_external_mcp_import(
         workspace,
         request.import_request,
     )
@@ -338,7 +338,7 @@ pub async fn update_external_integration_policy_command(
     update_external_integration_policy(workspace, request.mutation)
         .await
         .map(Into::into)
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -349,15 +349,15 @@ pub async fn get_external_source_snapshot(
     external_source_snapshot(workspace, request.force_refresh)
         .await
         .map(|snapshot| ExternalSourcePublicSnapshot::from(snapshot).into_legacy_v0_compatible())
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
 pub async fn get_instruction_source_catalog(
     request: ExternalSourceSnapshotRequest,
-) -> ExternalSourceOperationResult<openbitfun_core::external_sources::InstructionSourceCatalog> {
+) -> ExternalSourceOperationResult<bitfun_core::external_sources::InstructionSourceCatalog> {
     let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
-    Ok(openbitfun_core::external_sources::instruction_source_catalog(workspace).await)
+    Ok(bitfun_core::external_sources::instruction_source_catalog(workspace).await)
 }
 
 #[tauri::command]
@@ -421,7 +421,7 @@ pub async fn get_workspace_reference_snapshot(
     let native_related_paths = workspace_info.related_paths;
     workspace_reference_snapshot(workspace, &native_related_paths, request.force_refresh)
         .await
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 fn ensure_registered_workspace_reference_kind(
@@ -459,9 +459,9 @@ pub async fn reveal_external_source_location(
     let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
     let path = external_source_location_for_host_action(workspace, &request.source_key)
         .await
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)?;
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)?;
     super::commands::reveal_local_path_in_explorer(&path, &request.source_key)
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -488,7 +488,7 @@ pub async fn get_external_source_discovery_snapshot(
         ExternalSourceHostCapabilities::local_desktop(),
     )
     .await
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -513,7 +513,7 @@ pub async fn get_external_ecosystem_awareness_command(
                 unacknowledged_ecosystem_ids,
             },
         )
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 /// Records that the user has seen these external applications.
@@ -527,7 +527,7 @@ pub async fn acknowledge_external_ecosystems_command(
     let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
     acknowledge_external_ecosystems(workspace, request.ecosystem_ids)
         .await
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -543,7 +543,7 @@ pub async fn set_external_source_enabled_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -559,7 +559,7 @@ pub async fn set_external_source_conflict_choice_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -569,7 +569,7 @@ pub async fn get_native_prompt_command_conflicts_command(
     let workspace = require_local_workspace(request.workspace_path.as_deref()).await?;
     native_prompt_command_conflicts(workspace, request.native_commands)
         .await
-        .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+        .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -584,7 +584,7 @@ pub async fn set_native_prompt_command_conflict_choice_command(
         request.expected_preference_revision,
     )
     .await
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -604,7 +604,7 @@ pub async fn expand_external_prompt_command_command(
         request.shell_review_decision.as_ref(),
     )
     .await
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -621,7 +621,7 @@ pub async fn set_external_tool_target_decision_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -642,7 +642,7 @@ pub async fn set_external_tool_targets_enabled_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -658,7 +658,7 @@ pub async fn set_external_tool_conflict_choice_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -676,7 +676,7 @@ pub async fn set_external_subagent_activation_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -697,7 +697,7 @@ pub async fn set_external_subagents_enabled_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -714,7 +714,7 @@ pub async fn set_external_subagent_model_binding_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -732,7 +732,7 @@ pub async fn choose_external_subagent_conflict_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -750,7 +750,7 @@ pub async fn set_external_mcp_server_decision_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -771,7 +771,7 @@ pub async fn set_external_mcp_servers_enabled_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[tauri::command]
@@ -789,7 +789,7 @@ pub async fn choose_external_mcp_conflict_command(
     )
     .await
     .map(Into::into)
-    .map_err(openbitfun_core::external_sources::sanitize_external_source_operation_error)
+    .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
 }
 
 #[cfg(test)]
@@ -808,7 +808,7 @@ mod tests {
     }
 
     use super::*;
-    use openbitfun_core::external_sources::{
+    use bitfun_core::external_sources::{
         ExternalSourceCatalogSnapshot, ExternalSourceControlActionV1,
     };
 
@@ -946,7 +946,7 @@ mod tests {
                 "arguments": "focus on auth",
                 "nativeCommands": [{
                     "commandName": "review",
-                    "candidateId": "openbitfun.desktop:action:review",
+                    "candidateId": "bitfun.desktop:action:review",
                     "behaviorVersion": "action:review:v1"
                 }],
                 "candidateId": "claude-code.commands:project:review",

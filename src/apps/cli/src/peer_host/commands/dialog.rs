@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tokio::sync::Mutex as AsyncMutex;
 
-use openbitfun_agent_runtime::sdk::AgentUserAnswersRequest;
-use openbitfun_runtime_ports::{
+use bitfun_agent_runtime::sdk::AgentUserAnswersRequest;
+use bitfun_runtime_ports::{
     AgentDialogTurnRequest, AgentInputAttachment, AgentSubmissionSource,
     AgentTurnCancellationRequest, DialogSubmissionPolicy, DialogTriggerSource,
 };
@@ -96,7 +96,7 @@ fn peer_image_attachments(request: &Value) -> Result<Vec<AgentInputAttachment>, 
     let images = match request.get("imageContexts") {
         None | Some(Value::Null) => return Ok(Vec::new()),
         Some(value) => serde_json::from_value::<
-            Vec<openbitfun_core::agentic::image_analysis::ImageContextData>,
+            Vec<bitfun_core::agentic::image_analysis::ImageContextData>,
         >(value.clone())
         .map_err(|error| format!("Invalid imageContexts: {error}"))?,
     };

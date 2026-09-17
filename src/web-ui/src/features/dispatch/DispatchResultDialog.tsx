@@ -1,7 +1,7 @@
 import {
   Alert, Button, ScrollArea, Dialog, DialogBody, DialogClose, DialogDescription,
   DialogFooter, DialogHeader, DialogHeading, DialogTitle, Disclosure, Icon,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
@@ -82,12 +82,12 @@ export const DispatchResultDialog: React.FC<DispatchResultDialogProps> = ({
     >
       <div
         className="dispatch-result-dialog"
-        data-openbitfun-component="dispatch-result-dialog"
-        data-openbitfun-part="root"
+        data-bitfun-component="dispatch-result-dialog"
+        data-bitfun-part="root"
       >
         <DialogHeader
-          data-openbitfun-component="dispatch-result-dialog"
-          data-openbitfun-part="header"
+          data-bitfun-component="dispatch-result-dialog"
+          data-bitfun-part="header"
         >
           <DialogHeading>
             <DialogTitle id={DIALOG_TITLE_ID}>{t('dispatch.syncTitle')}</DialogTitle>
@@ -102,8 +102,8 @@ export const DispatchResultDialog: React.FC<DispatchResultDialogProps> = ({
 
         <DialogBody
           className="dispatch-result-dialog__body"
-          data-openbitfun-component="dispatch-result-dialog"
-          data-openbitfun-part="body"
+          data-bitfun-component="dispatch-result-dialog"
+          data-bitfun-part="body"
         >
           {error ? (
             <Alert tone="error" message={error} closable onClose={() => setError(null)} />
@@ -195,8 +195,8 @@ export const DispatchResultDialog: React.FC<DispatchResultDialogProps> = ({
 
         <div
           className="dispatch-result-dialog__actions"
-          data-openbitfun-component="dispatch-result-dialog"
-          data-openbitfun-part="actions"
+          data-bitfun-component="dispatch-result-dialog"
+          data-bitfun-part="actions"
         >
           <DialogFooter>
           <Button variant="fill" size="sm" onClick={onClose}>

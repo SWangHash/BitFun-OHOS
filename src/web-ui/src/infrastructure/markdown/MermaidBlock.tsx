@@ -1,4 +1,4 @@
-import { Icon as CatalogIcon } from '@openbitfun/ui';
+import { Icon as CatalogIcon } from '@bitfun/ui';
 /**
  * MermaidBlock component
  * Renders Mermaid diagrams in Markdown
@@ -165,9 +165,9 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
     switch (state) {
       case 'streaming':
         return (
-          <div data-openbitfun-component="mermaid-block" data-openbitfun-part="streaming" className="mermaid-block__streaming">
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="codePreview" className="mermaid-block__code-preview">
-              <pre data-openbitfun-component="mermaid-block" data-openbitfun-part="code" className="mermaid-code">
+          <div data-bitfun-component="mermaid-block" data-bitfun-part="streaming" className="mermaid-block__streaming">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="codePreview" className="mermaid-block__code-preview">
+              <pre data-bitfun-component="mermaid-block" data-bitfun-part="code" className="mermaid-code">
                 <code>{code}</code>
                 <span className="streaming-cursor">█</span>
               </pre>
@@ -178,12 +178,12 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
       case 'incomplete':
         return (
           <div className="mermaid-block__incomplete">
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="codePreview" className="mermaid-block__code-preview">
-              <pre data-openbitfun-component="mermaid-block" data-openbitfun-part="code" className="mermaid-code">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="codePreview" className="mermaid-block__code-preview">
+              <pre data-bitfun-component="mermaid-block" data-bitfun-part="code" className="mermaid-code">
                 <code>{code}</code>
               </pre>
             </div>
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="hint" className="mermaid-block__hint">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="hint" className="mermaid-block__hint">
               <AlertCircle size={14} />
               <span>{t('mermaidBlock.codeIncomplete')}</span>
             </div>
@@ -192,7 +192,7 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
 
       case 'loading':
         return (
-          <div data-openbitfun-component="mermaid-block" data-openbitfun-part="loading" className="mermaid-block__loading">
+          <div data-bitfun-component="mermaid-block" data-bitfun-part="loading" className="mermaid-block__loading">
             <div className="mermaid-block__loading-indicator">
               <Loader2 size={20} className="spinning" />
               <span>{t('mermaidBlock.rendering')}</span>
@@ -202,18 +202,18 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
 
       case 'rendered':
         return (
-          <div data-openbitfun-component="mermaid-block" data-openbitfun-part="rendered" className="mermaid-block__rendered">
+          <div data-bitfun-component="mermaid-block" data-bitfun-part="rendered" className="mermaid-block__rendered">
             <div 
               className="mermaid-block__diagram"
-              data-openbitfun-component="mermaid-block"
-              data-openbitfun-part="diagram"
+              data-bitfun-component="mermaid-block"
+              data-bitfun-part="diagram"
               dangerouslySetInnerHTML={{ __html: svgContent }}
             />
             
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="actions" className="mermaid-block__actions">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="actions" className="mermaid-block__actions">
               <button
-                data-openbitfun-component="mermaid-block"
-                data-openbitfun-part="action"
+                data-bitfun-component="mermaid-block"
+                data-bitfun-part="action"
                 className="mermaid-icon-btn"
                 onClick={() => setShowCode(!showCode)}
                 title={showCode ? t('mermaidBlock.hideCode') : t('mermaidBlock.showCode')}
@@ -221,9 +221,9 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
                 <Code2 size={14} />
               </button>
               <button
-                data-openbitfun-component="mermaid-block"
-                data-openbitfun-part="action"
-                data-openbitfun-state={copied ? 'copied' : undefined}
+                data-bitfun-component="mermaid-block"
+                data-bitfun-part="action"
+                data-bitfun-state={copied ? 'copied' : undefined}
                 className={`mermaid-icon-btn ${copied ? 'copied' : ''}`}
                 onClick={handleCopy}
                 title={t('mermaidBlock.copyCode')}
@@ -233,8 +233,8 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
             </div>
 
             {showCode && (
-              <div data-openbitfun-component="mermaid-block" data-openbitfun-part="source" className="mermaid-block__source">
-                <pre data-openbitfun-component="mermaid-block" data-openbitfun-part="code" className="mermaid-code">
+              <div data-bitfun-component="mermaid-block" data-bitfun-part="source" className="mermaid-block__source">
+                <pre data-bitfun-component="mermaid-block" data-bitfun-part="code" className="mermaid-code">
                   <code>{code}</code>
                 </pre>
               </div>
@@ -244,21 +244,21 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
 
       case 'error':
         return (
-          <div data-openbitfun-component="mermaid-block" data-openbitfun-part="error" className="mermaid-block__error">
+          <div data-bitfun-component="mermaid-block" data-bitfun-part="error" className="mermaid-block__error">
             <div className="mermaid-block__error-message">
               <AlertCircle size={16} />
               <span>{t('mermaidBlock.renderFailed')}: {error}</span>
             </div>
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="codePreview" className="mermaid-block__code-preview">
-              <pre data-openbitfun-component="mermaid-block" data-openbitfun-part="code" className="mermaid-code">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="codePreview" className="mermaid-block__code-preview">
+              <pre data-bitfun-component="mermaid-block" data-bitfun-part="code" className="mermaid-code">
                 <code>{code}</code>
               </pre>
             </div>
-            <div data-openbitfun-component="mermaid-block" data-openbitfun-part="actions" className="mermaid-block__actions">
+            <div data-bitfun-component="mermaid-block" data-bitfun-part="actions" className="mermaid-block__actions">
               <button
-                data-openbitfun-component="mermaid-block"
-                data-openbitfun-part="action"
-                data-openbitfun-state={copied ? 'copied' : undefined}
+                data-bitfun-component="mermaid-block"
+                data-bitfun-part="action"
+                data-bitfun-state={copied ? 'copied' : undefined}
                 className={`mermaid-icon-btn ${copied ? 'copied' : ''}`}
                 onClick={handleCopy}
                 title={t('mermaidBlock.copyCode')}
@@ -275,7 +275,7 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({
   };
 
   return (
-    <div className={`mermaid-block mermaid-block--${state} ${className}`} data-openbitfun-component="mermaid-block" data-openbitfun-part="root" data-openbitfun-state={state === 'error' ? 'error' : state === 'streaming' ? 'streaming' : state === 'loading' ? 'loading' : undefined}>
+    <div className={`mermaid-block mermaid-block--${state} ${className}`} data-bitfun-component="mermaid-block" data-bitfun-part="root" data-bitfun-state={state === 'error' ? 'error' : state === 'streaming' ? 'streaming' : state === 'loading' ? 'loading' : undefined}>
       {renderContent()}
     </div>
   );

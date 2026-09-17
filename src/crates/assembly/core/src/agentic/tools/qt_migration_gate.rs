@@ -9,8 +9,8 @@
 
 use crate::agentic::coordination::get_global_coordinator;
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
-use openbitfun_agent_runtime::intake_state::{
+use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_agent_runtime::intake_state::{
     is_valid_qt_migration_receipt, IntakeStateSnapshot, IntakeStatus, INTAKE_REQUIRED_FIELDS,
 };
 
@@ -48,13 +48,13 @@ impl QtMigrationAdmissionRejection {
     /// Render into the stable error text consumed by the model and surfaced to
     /// the Host/UI: `code: kind[; missing: ...]; recovery: ...`. The Host
     /// matches `code` and may parse `kind`/`missing` without depending on prose.
-    pub(crate) fn to_error(&self) -> OpenBitFunError {
+    pub(crate) fn to_error(&self) -> BitFunError {
         let missing_part = if self.missing_fields.is_empty() {
             String::new()
         } else {
             format!("; missing: {}", self.missing_fields.join(", "))
         };
-        OpenBitFunError::tool(format!(
+        BitFunError::tool(format!(
             "{}: {}{}; recovery: {}",
             self.code, self.kind, missing_part, self.recovery_action
         ))
@@ -65,7 +65,7 @@ impl QtMigrationAdmissionRejection {
 /// admission state. Returns `Ok(())` when allowed, or a structured rejection
 /// error otherwise. Sessions without an activated intake are never gated
 /// (zero overhead for the rest of the product).
-pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> OpenBitFunResult<()> {
+pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> BitFunResult<()> {
     let Some(session_id) = context.session_id.as_deref() else {
         return Ok(());
     };
@@ -104,7 +104,7 @@ pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> Open
 pub(crate) fn check_admission_for_intake(
     tool_name: &str,
     intake: &IntakeStateSnapshot,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     if intake.status == IntakeStatus::NotApplicable {
         return Ok(());
     }
@@ -178,7 +178,7 @@ pub(crate) fn check_admission_for_intake(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_agent_runtime::intake_state::{
+    use bitfun_agent_runtime::intake_state::{
         FieldResolutionState, IntakeFieldState, LoadedSkillReceipt, INTAKE_REQUIRED_FIELDS,
         OHOS_QT_SKILLS_DIR,
     };

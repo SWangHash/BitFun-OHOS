@@ -1,4 +1,4 @@
-import { Button } from '@openbitfun/ui';
+import { Button } from '@bitfun/ui';
 import React from 'react';
 
 import { ConfigMessage } from './ConfigMessage';
@@ -26,9 +26,9 @@ export const ConfigRetryState: React.FC<ConfigRetryStateProps> = ({
   className = '',
 }) => (
   <div
-    className={['openbitfun-config-retry-state', className].filter(Boolean).join(' ')}
-    data-openbitfun-component="config"
-    data-openbitfun-part="retryState"
+    className={['bitfun-config-retry-state', className].filter(Boolean).join(' ')}
+    data-bitfun-component="config"
+    data-bitfun-part="retryState"
   >
     <ConfigMessage message={{ type: 'error', text: message }} />
     <Button

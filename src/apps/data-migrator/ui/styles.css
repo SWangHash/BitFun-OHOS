@@ -1,13 +1,13 @@
 /* Native UI adapter for the public design-system token contract. */
 :root {
   color-scheme: light;
-  font-family: var(--openbitfun-type-body-md-font-family);
-  font-size: var(--openbitfun-type-body-md-font-size);
-  font-weight: var(--openbitfun-type-body-md-font-weight);
-  line-height: var(--openbitfun-type-body-md-line-height);
-  letter-spacing: var(--openbitfun-type-body-md-letter-spacing);
-  color: var(--openbitfun-color-content-primary);
-  background: var(--openbitfun-color-surface-canvas);
+  font-family: var(--bitfun-type-body-md-font-family);
+  font-size: var(--bitfun-type-body-md-font-size);
+  font-weight: var(--bitfun-type-body-md-font-weight);
+  line-height: var(--bitfun-type-body-md-line-height);
+  letter-spacing: var(--bitfun-type-body-md-letter-spacing);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
 }
 
 :root[data-color-scheme="dark"] {
@@ -27,16 +27,16 @@ body {
 }
 
 .shell {
-  width: min(760px, calc(100% - var(--openbitfun-space-10)));
+  width: min(760px, calc(100% - var(--bitfun-space-10)));
   margin-inline: auto;
-  padding-block: var(--openbitfun-space-8) var(--openbitfun-space-12);
+  padding-block: var(--bitfun-space-8) var(--bitfun-space-12);
 }
 
 .locations-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--openbitfun-space-4);
-  margin-block: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
+  margin-block: var(--bitfun-space-4);
 }
 
 fieldset {
@@ -47,25 +47,25 @@ fieldset {
 }
 
 legend {
-  margin-block-end: var(--openbitfun-space-3);
-  font-weight: var(--openbitfun-type-heading-card-font-weight);
+  margin-block-end: var(--bitfun-space-3);
+  font-weight: var(--bitfun-type-heading-card-font-weight);
 }
 
 fieldset label {
   display: block;
-  margin-block: var(--openbitfun-space-2);
-  color: var(--openbitfun-color-content-secondary);
+  margin-block: var(--bitfun-space-2);
+  color: var(--bitfun-color-content-secondary);
 }
 
 input[type="text"],
 select {
   min-inline-size: 0;
   max-inline-size: 100%;
-  padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
-  border-radius: var(--openbitfun-radius-md);
-  background: var(--openbitfun-color-field-background);
-  color: var(--openbitfun-color-content-primary);
+  padding: var(--bitfun-space-2) var(--bitfun-space-3);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+  border-radius: var(--bitfun-radius-md);
+  background: var(--bitfun-color-field-background);
+  color: var(--bitfun-color-content-primary);
   font: inherit;
 }
 
@@ -76,8 +76,8 @@ input[type="text"],
 
 input[type="text"]:focus-visible,
 select:focus-visible {
-  outline: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border-focus);
-  outline-offset: var(--openbitfun-space-1);
+  outline: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border-focus);
+  outline-offset: var(--bitfun-space-1);
 }
 
 @media (max-width: 640px) {
@@ -85,7 +85,7 @@ select:focus-visible {
 }
 
 header {
-  margin-block-end: var(--openbitfun-space-6);
+  margin-block-end: var(--bitfun-space-6);
 }
 
 h1,
@@ -96,55 +96,55 @@ p {
 }
 
 h1 {
-  margin-block-end: var(--openbitfun-space-2);
-  font-family: var(--openbitfun-type-heading-page-font-family);
-  font-size: var(--openbitfun-type-heading-page-font-size);
-  font-weight: var(--openbitfun-type-heading-page-font-weight);
-  line-height: var(--openbitfun-type-heading-page-line-height);
-  letter-spacing: var(--openbitfun-type-heading-page-letter-spacing);
+  margin-block-end: var(--bitfun-space-2);
+  font-family: var(--bitfun-type-heading-page-font-family);
+  font-size: var(--bitfun-type-heading-page-font-size);
+  font-weight: var(--bitfun-type-heading-page-font-weight);
+  line-height: var(--bitfun-type-heading-page-line-height);
+  letter-spacing: var(--bitfun-type-heading-page-letter-spacing);
 }
 
 h2 {
-  margin-block-end: var(--openbitfun-space-2);
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-heading-card-font-family);
-  font-size: var(--openbitfun-type-heading-card-font-size);
-  font-weight: var(--openbitfun-type-heading-card-font-weight);
-  line-height: var(--openbitfun-type-heading-card-line-height);
-  letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+  margin-block-end: var(--bitfun-space-2);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-heading-card-font-family);
+  font-size: var(--bitfun-type-heading-card-font-size);
+  font-weight: var(--bitfun-type-heading-card-font-weight);
+  line-height: var(--bitfun-type-heading-card-line-height);
+  letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
 }
 
 .eyebrow,
 .step {
-  margin-block-end: var(--openbitfun-space-2);
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-type-meta-font-family);
-  font-size: var(--openbitfun-type-meta-font-size);
-  font-weight: var(--openbitfun-type-meta-font-weight);
-  line-height: var(--openbitfun-type-meta-line-height);
-  letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+  margin-block-end: var(--bitfun-space-2);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-meta-font-family);
+  font-size: var(--bitfun-type-meta-font-size);
+  font-weight: var(--bitfun-type-meta-font-weight);
+  line-height: var(--bitfun-type-meta-line-height);
+  letter-spacing: var(--bitfun-type-meta-letter-spacing);
 }
 
 .eyebrow {
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 .lead,
 .muted {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
 }
 
 .card {
-  margin-block-end: var(--openbitfun-space-4);
-  padding: var(--openbitfun-layout-card-padding-md);
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-layout-card-radius-md);
-  background: var(--openbitfun-color-surface-tertiary);
-  font-family: var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-body-sm-font-size);
-  font-weight: var(--openbitfun-type-body-sm-font-weight);
-  line-height: var(--openbitfun-type-body-sm-line-height);
-  letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+  margin-block-end: var(--bitfun-space-4);
+  padding: var(--bitfun-layout-card-padding-md);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-layout-card-radius-md);
+  background: var(--bitfun-color-surface-tertiary);
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  font-weight: var(--bitfun-type-body-sm-font-weight);
+  line-height: var(--bitfun-type-body-sm-line-height);
+  letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
 }
 
 .card > :last-child {
@@ -157,11 +157,11 @@ h2 {
   display: flex;
   justify-content: space-between;
   min-inline-size: 0;
-  gap: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
 }
 
 .card-heading {
-  gap: var(--openbitfun-layout-card-header-gap);
+  gap: var(--bitfun-layout-card-header-gap);
 }
 
 .card-heading > div {
@@ -171,62 +171,62 @@ h2 {
 .badge {
   flex: 0 0 auto;
   align-self: flex-start;
-  padding-block: var(--openbitfun-control-status-pill-padding-block);
-  padding-inline: var(--openbitfun-control-status-pill-padding-inline);
-  border-radius: var(--openbitfun-control-status-pill-radius);
-  color: var(--openbitfun-color-content-secondary);
-  background: var(--openbitfun-color-action-neutral-surface);
-  font-family: var(--openbitfun-type-meta-font-family);
-  font-size: var(--openbitfun-type-meta-font-size);
-  font-weight: var(--openbitfun-type-meta-font-weight);
-  line-height: var(--openbitfun-type-meta-line-height);
-  letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+  padding-block: var(--bitfun-control-status-pill-padding-block);
+  padding-inline: var(--bitfun-control-status-pill-padding-inline);
+  border-radius: var(--bitfun-control-status-pill-radius);
+  color: var(--bitfun-color-content-secondary);
+  background: var(--bitfun-color-action-neutral-surface);
+  font-family: var(--bitfun-type-meta-font-family);
+  font-size: var(--bitfun-type-meta-font-size);
+  font-weight: var(--bitfun-type-meta-font-weight);
+  line-height: var(--bitfun-type-meta-line-height);
+  letter-spacing: var(--bitfun-type-meta-letter-spacing);
 }
 
 .badge[data-tone="success"] {
-  color: var(--openbitfun-color-status-success-content);
-  background: var(--openbitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
+  background: var(--bitfun-color-status-success-surface);
 }
 
 .badge[data-tone="warning"] {
-  color: var(--openbitfun-color-status-warning-content);
-  background: var(--openbitfun-color-status-warning-surface);
+  color: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-warning-surface);
 }
 
 .path {
   overflow-wrap: anywhere;
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-font-family-mono);
-  font-size: var(--openbitfun-type-support-font-size);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-font-family-mono);
+  font-size: var(--bitfun-type-support-font-size);
 }
 
 .scope-list,
 .result-list {
   display: grid;
-  gap: var(--openbitfun-space-2);
-  margin-block: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-2);
+  margin-block: var(--bitfun-space-4);
 }
 
 .scope-option,
 .result-row {
-  padding: var(--openbitfun-space-3);
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-  border-radius: var(--openbitfun-radius-base);
-  background: var(--openbitfun-color-surface-scene);
+  padding: var(--bitfun-space-3);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-base);
+  background: var(--bitfun-color-surface-scene);
 }
 
 .scope-option {
   justify-content: flex-start;
-  gap: var(--openbitfun-space-3);
+  gap: var(--bitfun-space-3);
 }
 
 .scope-option:has(input:checked) {
-  border-color: var(--openbitfun-color-border-default);
-  background: var(--openbitfun-color-selection-surface);
+  border-color: var(--bitfun-color-border-default);
+  background: var(--bitfun-color-selection-surface);
 }
 
 .scope-option:has(input:enabled):hover {
-  border-color: var(--openbitfun-color-field-border-hover);
+  border-color: var(--bitfun-color-field-border-hover);
 }
 
 .scope-option label {
@@ -247,26 +247,26 @@ h2 {
 
 .scope-option strong,
 .result-row strong {
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-label-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  font-weight: var(--openbitfun-type-label-md-font-weight);
-  line-height: var(--openbitfun-type-label-md-line-height);
-  letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
 }
 
 .scope-option span,
 .result-row small {
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-type-support-font-family);
-  font-size: var(--openbitfun-type-support-font-size);
-  font-weight: var(--openbitfun-type-support-font-weight);
-  line-height: var(--openbitfun-type-support-line-height);
-  letter-spacing: var(--openbitfun-type-support-letter-spacing);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-support-font-family);
+  font-size: var(--bitfun-type-support-font-size);
+  font-weight: var(--bitfun-type-support-font-weight);
+  line-height: var(--bitfun-type-support-line-height);
+  letter-spacing: var(--bitfun-type-support-letter-spacing);
 }
 
 .scope-option span {
-  margin-block-start: var(--openbitfun-space-1);
+  margin-block-start: var(--bitfun-space-1);
 }
 
 .result-row > * {
@@ -284,29 +284,29 @@ input[type="checkbox"] {
   display: grid;
   flex: 0 0 auto;
   place-content: center;
-  inline-size: var(--openbitfun-space-4);
-  block-size: var(--openbitfun-space-4);
-  margin: var(--openbitfun-border-width-default) 0 0;
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
-  border-radius: var(--openbitfun-radius-sm);
-  color: var(--openbitfun-color-content-inverse);
-  background: var(--openbitfun-color-field-background);
+  inline-size: var(--bitfun-space-4);
+  block-size: var(--bitfun-space-4);
+  margin: var(--bitfun-border-width-default) 0 0;
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
+  border-radius: var(--bitfun-radius-sm);
+  color: var(--bitfun-color-content-inverse);
+  background: var(--bitfun-color-field-background);
   cursor: pointer;
 }
 
 input[type="checkbox"]::before {
   content: "";
-  inline-size: var(--openbitfun-space-2);
-  block-size: var(--openbitfun-space-1);
-  border-inline-start: var(--openbitfun-border-width-strong) solid currentColor;
-  border-block-end: var(--openbitfun-border-width-strong) solid currentColor;
+  inline-size: var(--bitfun-space-2);
+  block-size: var(--bitfun-space-1);
+  border-inline-start: var(--bitfun-border-width-strong) solid currentColor;
+  border-block-end: var(--bitfun-border-width-strong) solid currentColor;
   transform: translateY(-1px) rotate(-45deg);
   visibility: hidden;
 }
 
 input[type="checkbox"]:checked {
-  border-color: var(--openbitfun-color-accent-default);
-  background: var(--openbitfun-color-accent-default);
+  border-color: var(--bitfun-color-accent-default);
+  background: var(--bitfun-color-accent-default);
 }
 
 input[type="checkbox"]:checked::before {
@@ -314,152 +314,152 @@ input[type="checkbox"]:checked::before {
 }
 
 input[type="checkbox"]:disabled {
-  opacity: var(--openbitfun-opacity-disabled);
+  opacity: var(--bitfun-opacity-disabled);
   cursor: default;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--openbitfun-space-2);
-  margin-block-start: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-2);
+  margin-block-start: var(--bitfun-space-4);
 }
 
 button {
-  min-block-size: var(--openbitfun-control-height-md);
+  min-block-size: var(--bitfun-control-height-md);
   max-inline-size: 100%;
-  padding: var(--openbitfun-space-component-block) var(--openbitfun-space-5);
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-action-neutral-border);
-  border-radius: var(--openbitfun-radius-pill);
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-action-neutral-content);
+  padding: var(--bitfun-space-component-block) var(--bitfun-space-5);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-action-neutral-border);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-action-neutral-content);
   cursor: pointer;
   overflow-wrap: anywhere;
-  font-family: var(--openbitfun-type-label-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  font-weight: var(--openbitfun-type-label-md-font-weight);
-  line-height: var(--openbitfun-type-label-md-line-height);
-  letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   transition:
-    background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 }
 
 button:hover:not(:disabled) {
-  background: var(--openbitfun-color-action-neutral-surface-hover);
+  background: var(--bitfun-color-action-neutral-surface-hover);
 }
 
 button:active:not(:disabled) {
-  background: var(--openbitfun-color-action-neutral-surface-pressed);
+  background: var(--bitfun-color-action-neutral-surface-pressed);
 }
 
 button.primary {
   border-color: transparent;
-  background: var(--openbitfun-color-action-primary-background);
-  color: var(--openbitfun-color-action-primary-content);
+  background: var(--bitfun-color-action-primary-background);
+  color: var(--bitfun-color-action-primary-content);
 }
 
 button.primary:hover:not(:disabled) {
-  background: var(--openbitfun-color-action-primary-hover);
+  background: var(--bitfun-color-action-primary-hover);
 }
 
 button.primary:active:not(:disabled) {
-  background: var(--openbitfun-color-action-primary-pressed);
+  background: var(--bitfun-color-action-primary-pressed);
 }
 
 button.quiet {
   border-color: transparent;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 button.quiet:hover:not(:disabled) {
-  color: var(--openbitfun-color-accent-hover);
+  color: var(--bitfun-color-accent-hover);
   text-decoration: underline;
   text-underline-offset: 0.12em;
 }
 
 button:disabled {
   cursor: not-allowed;
-  color: var(--openbitfun-color-action-neutral-content-disabled);
+  color: var(--bitfun-color-action-neutral-content-disabled);
 }
 
 button.primary:disabled {
-  background: var(--openbitfun-color-action-neutral-surface);
+  background: var(--bitfun-color-action-neutral-surface);
 }
 
 button:focus-visible,
 input:focus-visible {
-  outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-  outline-offset: var(--openbitfun-focus-offset);
+  outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+  outline-offset: var(--bitfun-focus-offset);
 }
 
 .notice,
 .warning {
-  padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
-  border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-status-info-border);
-  border-radius: var(--openbitfun-radius-base);
-  color: var(--openbitfun-color-status-info-content);
-  background: var(--openbitfun-color-status-info-surface);
+  padding: var(--bitfun-space-3) var(--bitfun-space-4);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-status-info-border);
+  border-radius: var(--bitfun-radius-base);
+  color: var(--bitfun-color-status-info-content);
+  background: var(--bitfun-color-status-info-surface);
   overflow-wrap: anywhere;
-  font-family: var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-body-sm-font-size);
-  line-height: var(--openbitfun-type-body-sm-line-height);
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
 }
 
 .notice {
-  margin-block-end: var(--openbitfun-space-4);
+  margin-block-end: var(--bitfun-space-4);
 }
 
 .notice[data-tone="danger"] {
-  border-color: var(--openbitfun-color-status-danger-border);
-  color: var(--openbitfun-color-status-danger-content);
-  background: var(--openbitfun-color-status-danger-surface);
+  border-color: var(--bitfun-color-status-danger-border);
+  color: var(--bitfun-color-status-danger-content);
+  background: var(--bitfun-color-status-danger-surface);
 }
 
 .warning {
-  margin-block-start: var(--openbitfun-space-3);
-  border-color: var(--openbitfun-color-status-warning-border);
-  color: var(--openbitfun-color-status-warning-content);
-  background: var(--openbitfun-color-status-warning-surface);
+  margin-block-start: var(--bitfun-space-3);
+  border-color: var(--bitfun-color-status-warning-border);
+  color: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-warning-surface);
 }
 
 .progress-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--openbitfun-space-3);
-  margin-block: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-3);
+  margin-block: var(--bitfun-space-4);
 }
 
 .progress-facts div {
-  padding: var(--openbitfun-space-3);
-  border-radius: var(--openbitfun-radius-base);
-  background: var(--openbitfun-color-surface-scene);
+  padding: var(--bitfun-space-3);
+  border-radius: var(--bitfun-radius-base);
+  background: var(--bitfun-color-surface-scene);
 }
 
 .progress-facts dt {
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-type-meta-font-family);
-  font-size: var(--openbitfun-type-meta-font-size);
-  line-height: var(--openbitfun-type-meta-line-height);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-meta-font-family);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
 }
 
 .progress-facts dd {
-  margin: var(--openbitfun-space-2) 0 0;
-  color: var(--openbitfun-color-content-primary);
+  margin: var(--bitfun-space-2) 0 0;
+  color: var(--bitfun-color-content-primary);
   overflow-wrap: anywhere;
-  font-weight: var(--openbitfun-type-label-md-font-weight);
+  font-weight: var(--bitfun-type-label-md-font-weight);
   font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 680px) {
   .shell {
-    width: calc(100% - var(--openbitfun-space-6));
-    padding-block-start: var(--openbitfun-space-6);
+    width: calc(100% - var(--bitfun-space-6));
+    padding-block-start: var(--bitfun-space-6);
   }
 
   .card {
-    padding: var(--openbitfun-layout-card-padding-sm);
+    padding: var(--bitfun-layout-card-padding-sm);
   }
 
   .progress-facts {
@@ -468,7 +468,7 @@ input:focus-visible {
 
   .result-row {
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   .result-row small {

@@ -220,22 +220,22 @@ function getProgressBarColor(phase: ProcessingPhase | null): string {
       return APPEARANCE_DOMAIN_TOKENS.progress.compacting;
 
     case ProcessingPhase.STARTING:
-      return 'var(--openbitfun-color-accent-hover)';
+      return 'var(--bitfun-color-accent-hover)';
     
     case ProcessingPhase.THINKING:
-      return 'var(--openbitfun-color-accent-hover)';
+      return 'var(--bitfun-color-accent-hover)';
     
     case ProcessingPhase.STREAMING:
-      return 'linear-gradient(90deg, var(--openbitfun-color-accent-hover), var(--openbitfun-color-accent-secondary))';
+      return 'linear-gradient(90deg, var(--bitfun-color-accent-hover), var(--bitfun-color-accent-secondary))';
     
     case ProcessingPhase.TOOL_CALLING:
-      return 'var(--openbitfun-color-accent-secondary)';
+      return 'var(--bitfun-color-accent-secondary)';
     
     case ProcessingPhase.TOOL_CONFIRMING:
-      return 'var(--openbitfun-color-status-warning-content)';
+      return 'var(--bitfun-color-status-warning-content)';
     
     default:
-      return 'var(--openbitfun-color-accent-hover)';
+      return 'var(--bitfun-color-accent-hover)';
   }
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate authored OpenBitFun agent Markdown without changing the file."""
+"""Validate authored BitFun agent Markdown without changing the file."""
 
 import argparse
 import copy

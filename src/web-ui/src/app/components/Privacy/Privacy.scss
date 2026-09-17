@@ -1,4 +1,4 @@
-.openbitfun-privacy-dialog__metadata {
+.bitfun-privacy-dialog__metadata {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 20px;
@@ -6,12 +6,12 @@
   font-size: 12px;
 }
 
-.openbitfun-privacy-dialog__metadata strong {
+.bitfun-privacy-dialog__metadata strong {
   color: var(--bf-appearance-token-color-accent-500);
   font-weight: 600;
 }
 
-.openbitfun-privacy-dialog__mode {
+.bitfun-privacy-dialog__mode {
   display: grid;
   gap: 4px;
   padding: 12px 20px;
@@ -29,13 +29,13 @@
   }
 }
 
-.openbitfun-privacy-dialog__actions {
+.bitfun-privacy-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
 }
 
-.openbitfun-privacy-document {
+.bitfun-privacy-document {
   width: min(100%, 860px);
   margin: 0 auto;
   color: var(--bf-appearance-token-color-text-primary);
@@ -63,44 +63,44 @@
   }
 }
 
-.openbitfun-privacy-dialog {
+.bitfun-privacy-dialog {
   display: flex;
   flex-direction: column;
   min-height: min(72vh, 680px);
   max-height: 82vh;
 }
 
-.openbitfun-privacy-dialog__body {
+.bitfun-privacy-dialog__body {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
 }
 
-.openbitfun-privacy-dialog__metadata {
+.bitfun-privacy-dialog__metadata {
   padding: 14px 20px;
   border-bottom: 1px solid var(--bf-appearance-token-border-subtle);
   background: var(--bf-appearance-token-element-bg-subtle);
 }
 
-.openbitfun-privacy-dialog__document {
+.bitfun-privacy-dialog__document {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 20px 28px;
 }
 
-.openbitfun-privacy-dialog__actions {
+.bitfun-privacy-dialog__actions {
   padding: 14px 20px;
   border-top: 1px solid var(--bf-appearance-token-border-subtle);
 }
 
-.openbitfun-privacy-dialog__error {
+.bitfun-privacy-dialog__error {
   padding: 10px 20px 0;
   border-top: 1px solid var(--bf-appearance-token-border-subtle);
 }
 
-.openbitfun-privacy-dialog__consent {
+.bitfun-privacy-dialog__consent {
   display: flex;
   width: 100%;
   align-items: center;
@@ -108,7 +108,7 @@
   gap: 20px;
 }
 
-.openbitfun-privacy-updated {
+.bitfun-privacy-updated {
   display: inline-flex;
   margin-left: 5px;
   color: var(--bf-appearance-token-color-accent-500);
@@ -116,7 +116,7 @@
 }
 
 @media (max-width: 620px) {
-  .openbitfun-privacy-dialog__consent {
+  .bitfun-privacy-dialog__consent {
     align-items: stretch;
     flex-direction: column;
   }

@@ -1,4 +1,4 @@
-use openbitfun_legacy_migration::{
+use bitfun_legacy_migration::{
     atomic_write_bytes, LegacyMigrationError, LegacyMigrationResult,
 };
 use serde::de::DeserializeOwned;
@@ -99,14 +99,14 @@ pub(crate) fn restore_unverified_file(
 }
 
 pub(crate) fn stage_domain_dir(
-    context: &openbitfun_legacy_migration::DomainContext<'_>,
+    context: &bitfun_legacy_migration::DomainContext<'_>,
     name: &str,
 ) -> PathBuf {
     context.layout.stage_root().join(name)
 }
 
 pub(crate) fn backup_domain_dir(
-    context: &openbitfun_legacy_migration::DomainContext<'_>,
+    context: &bitfun_legacy_migration::DomainContext<'_>,
     name: &str,
 ) -> PathBuf {
     context.layout.backup_root().join(name)

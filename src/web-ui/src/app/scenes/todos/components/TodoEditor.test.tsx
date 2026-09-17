@@ -42,8 +42,8 @@ vi.mock('@/app/components/scheduled-jobs/LocalizedDateTimeField', () => ({
   ),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Button: ({
     children,
     isLoading: _isLoading,
@@ -118,8 +118,8 @@ vi.mock('@openbitfun/ui', async importOriginal => ({
 const workspaceOption: TodoWorkspaceOption = {
   workspace: {
     id: 'workspace-1',
-    name: 'OpenBitFun',
-    rootPath: 'D:/workspace/OpenBitFun',
+    name: 'BitFun',
+    rootPath: 'D:/workspace/BitFun',
     workspaceType: WorkspaceType.SingleProject,
     workspaceKind: WorkspaceKind.Normal,
     languages: ['TypeScript'],
@@ -128,8 +128,8 @@ const workspaceOption: TodoWorkspaceOption = {
     tags: [],
   },
   value: 'workspace-1',
-  label: 'OpenBitFun',
-  description: 'D:/workspace/OpenBitFun',
+  label: 'BitFun',
+  description: 'D:/workspace/BitFun',
   remoteConnectionId: null,
   remoteSshHost: null,
 };

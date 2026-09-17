@@ -24,14 +24,14 @@ afterEach(() => {
 function start(deviceId: string | null, sessionId: string): void {
   routeSurfaceEvent('agentic://dialog-turn-started', {
     sessionId,
-    ...(deviceId ? { __openbitfunSourceDeviceId: deviceId } : {}),
+    ...(deviceId ? { __bitfunSourceDeviceId: deviceId } : {}),
   });
 }
 
 function finish(deviceId: string | null, sessionId: string): void {
   routeSurfaceEvent('agentic://dialog-turn-completed', {
     sessionId,
-    ...(deviceId ? { __openbitfunSourceDeviceId: deviceId } : {}),
+    ...(deviceId ? { __bitfunSourceDeviceId: deviceId } : {}),
   });
 }
 

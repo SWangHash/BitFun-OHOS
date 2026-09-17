@@ -1,21 +1,21 @@
 [package]
-name = "openbitfun-agent-stream"
+name = "bitfun-agent-stream"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Lightweight agent stream processing for OpenBitFun"
+description = "Lightweight agent stream processing for BitFun"
 
 [lib]
-name = "openbitfun_agent_stream"
+name = "bitfun_agent_stream"
 crate-type = ["rlib"]
 
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-openbitfun-events = { path = "../../contracts/events" }
-openbitfun-core-types = { path = "../../contracts/core-types" }
+bitfun-events = { path = "../../contracts/events" }
+bitfun-core-types = { path = "../../contracts/core-types" }
 futures = { workspace = true }
-openbitfun-tool-call-jsonrepair = { path = "../tool-call-jsonrepair" }
+bitfun-tool-call-jsonrepair = { path = "../tool-call-jsonrepair" }
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -24,7 +24,7 @@ tokio-util = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
-openbitfun-agent-tools = { path = "../tool-contracts" }
+bitfun-agent-tools = { path = "../tool-contracts" }
 tokio-stream = { workspace = true }
 
 [lints]

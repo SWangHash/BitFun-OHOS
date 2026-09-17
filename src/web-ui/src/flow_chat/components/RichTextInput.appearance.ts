@@ -12,7 +12,7 @@ export const richTextInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [
     {
       id: 'contextType',
-      attribute: 'data-openbitfun-context-type',
+      attribute: 'data-bitfun-context-type',
       values: [
         'file',
         'directory',
@@ -34,7 +34,7 @@ export const richTextInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     },
   ],
   states: [
-    { id: 'focused', selector: { kind: 'self', suffix: '[data-openbitfun-state~="focused"]' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
+    { id: 'focused', selector: { kind: 'self', suffix: '[data-bitfun-state~="focused"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
   ],
 };

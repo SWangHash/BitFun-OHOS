@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use agent_client_protocol::{Builder, HandleDispatchFrom};
-use openbitfun_app_server_protocol::workspace::*;
+use bitfun_app_server_protocol::workspace::*;
 
-use crate::agent::{runtime_call, OpenBitFunAppRuntime};
+use crate::agent::{runtime_call, BitFunAppRuntime};
 use crate::role::{AppClient, AppServer};
 
 pub(in crate::server) fn builder(
-    runtime: Arc<OpenBitFunAppRuntime>,
+    runtime: Arc<BitFunAppRuntime>,
 ) -> Builder<AppServer, impl HandleDispatchFrom<AppClient>> {
     AppServer
         .builder()

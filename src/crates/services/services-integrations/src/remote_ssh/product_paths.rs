@@ -3,7 +3,7 @@
 //! Remote paths must use POSIX separators even when the controller runs on
 //! Windows, so they cannot be assembled with `std::path::Path`.
 
-use openbitfun_services_core::product_identity::hidden_data_directory;
+use bitfun_services_core::product_identity::hidden_data_directory;
 
 fn data_relative_path(hidden_directory: &str, segments: &[&str]) -> String {
     let mut path = hidden_directory.trim_matches('/').to_string();
@@ -50,11 +50,11 @@ mod tests {
     fn default_remote_paths_use_the_compiled_product_identity() {
         assert_eq!(
             product_data_path("/home/user", &["dispatch", "install"]),
-            "/home/user/.openbitfun/dispatch/install"
+            "/home/user/.bitfun/dispatch/install"
         );
         assert_eq!(
             product_home_shell_path(&["relay-deploy", "relay.port"]),
-            "$HOME/.openbitfun/relay-deploy/relay.port"
+            "$HOME/.bitfun/relay-deploy/relay.port"
         );
     }
 
@@ -68,6 +68,6 @@ mod tests {
 
     #[test]
     fn root_base_keeps_its_leading_separator() {
-        assert_eq!(product_data_path("/", &["bin"]), "/.openbitfun/bin");
+        assert_eq!(product_data_path("/", &["bin"]), "/.bitfun/bin");
     }
 }

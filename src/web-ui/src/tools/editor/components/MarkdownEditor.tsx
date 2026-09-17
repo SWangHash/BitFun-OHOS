@@ -5,7 +5,7 @@
  * @module components/MarkdownEditor
  */
 
-import { Button, Icon, IconButton, SegmentedControl, Toolbar, ToolbarGroup } from '@openbitfun/ui';
+import { Button, Icon, IconButton, SegmentedControl, Toolbar, ToolbarGroup } from '@bitfun/ui';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MEditor } from '../meditor';
 import { resourcePathKey } from '@/shared/utils/resourcePath';
@@ -21,7 +21,7 @@ import {
   isPeerDeviceModeActive,
   PEER_MODE_FILE_SYNC_POLL_MS,
 } from '@/infrastructure/peer-device/peerModeFlag';
-import { LoadingState } from '@openbitfun/ui';
+import { LoadingState } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import {
   diskVersionFromMetadata,
@@ -631,7 +631,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
   if (loading) {
     return (
-      <div className={`openbitfun-markdown-editor-loading ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="loading" data-openbitfun-state="loading">
+      <div className={`bitfun-markdown-editor-loading ${className}`} data-bitfun-product-component="markdown-editor" data-bitfun-product-part="loading" data-bitfun-state="loading">
         <LoadingState size="md">{t('editor.markdownEditor.loadingFile')}</LoadingState>
       </div>
     );
@@ -639,7 +639,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
   if (error) {
     return (
-      <div className={`openbitfun-markdown-editor-error ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="error" data-openbitfun-state="error">
+      <div className={`bitfun-markdown-editor-error ${className}`} data-bitfun-product-component="markdown-editor" data-bitfun-product-part="error" data-bitfun-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
           <p>{error}</p>
@@ -654,11 +654,11 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }
 
   return (
-    <div className={`openbitfun-markdown-editor ${className}`} data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="root" data-openbitfun-view={viewMode}>
+    <div className={`bitfun-markdown-editor ${className}`} data-bitfun-product-component="markdown-editor" data-bitfun-product-part="root" data-bitfun-view={viewMode}>
       <Toolbar
-        className="openbitfun-markdown-editor__mode-toolbar"
-        data-openbitfun-product-component="markdown-editor"
-        data-openbitfun-product-part="toolbar"
+        className="bitfun-markdown-editor__mode-toolbar"
+        data-bitfun-product-component="markdown-editor"
+        data-bitfun-product-part="toolbar"
         size="sm"
         leading={(
           <SegmentedControl
@@ -677,7 +677,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           />
         )}
         trailing={(
-          <ToolbarGroup data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="actions">
+          <ToolbarGroup data-bitfun-product-component="markdown-editor" data-bitfun-product-part="actions">
             <IconButton
               type="button"
               size="sm"
@@ -693,7 +693,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           </ToolbarGroup>
         )}
       />
-      <div className="openbitfun-markdown-editor__body" data-openbitfun-product-component="markdown-editor" data-openbitfun-product-part="body">
+      <div className="bitfun-markdown-editor__body" data-bitfun-product-component="markdown-editor" data-bitfun-product-part="body">
         <MEditor
           ref={editorRef}
           value={content}

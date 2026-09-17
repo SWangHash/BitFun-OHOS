@@ -27,7 +27,7 @@
   // Keep the first message aligned to the list header and steering messages
   // grouped with the active Turn.
   &[data-item-type='user-message']:not([data-virtual-index='0']) {
-    padding-top: calc(var(--openbitfun-control-flow-chat-turn-gap) + var(--openbitfun-space-4));
+    padding-top: calc(var(--bitfun-control-flow-chat-turn-gap) + var(--bitfun-space-4));
   }
 
   /* Turn spacing has one owner: this virtual-row boundary. Remove only the
@@ -78,8 +78,8 @@
   &[data-ambient-tool-run-continuation-after='true']
     > .model-round-item
     > .flowchat-flow-item:last-child:has(
-      > .flow-tool-card-wrapper[data-openbitfun-attention='ambient']
-        [data-openbitfun-component='flow-chat-tool-card'][data-openbitfun-part='root'][data-openbitfun-expanded-shell='false']
+      > .flow-tool-card-wrapper[data-bitfun-attention='ambient']
+        [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='root'][data-bitfun-expanded-shell='false']
     ) {
     margin-bottom: 0;
   }
@@ -113,25 +113,25 @@
 .flowchat-search-line {
   position: absolute;
   pointer-events: none;
-  background: var(--openbitfun-color-action-neutral-surface);
+  background: var(--bitfun-color-action-neutral-surface);
 
   &::before {
     content: '';
     position: absolute;
     inset-block: 0;
-    inset-inline-start: calc(-1 * var(--openbitfun-space-2));
-    border-inline-start: var(--openbitfun-focus-width) solid var(--openbitfun-color-control-switch-track-checked);
+    inset-inline-start: calc(-1 * var(--bitfun-space-2));
+    border-inline-start: var(--bitfun-focus-width) solid var(--bitfun-color-control-switch-track-checked);
   }
 }
 
-::highlight(openbitfun-flowchat-search-current) {
+::highlight(bitfun-flowchat-search-current) {
   color: inherit;
-  background: var(--openbitfun-color-accent-border-subtle);
+  background: var(--bitfun-color-accent-border-subtle);
 }
 
-::highlight(openbitfun-flowchat-search-match) {
+::highlight(bitfun-flowchat-search-match) {
   color: inherit;
-  background: var(--openbitfun-color-selection-surface);
+  background: var(--bitfun-color-selection-surface);
 }
 
 @media (forced-colors: active) {
@@ -143,12 +143,12 @@
     }
   }
 
-  ::highlight(openbitfun-flowchat-search-current) {
+  ::highlight(bitfun-flowchat-search-current) {
     color: HighlightText;
     background: Highlight;
   }
 
-  ::highlight(openbitfun-flowchat-search-match) {
+  ::highlight(bitfun-flowchat-search-match) {
     color: MarkText;
     background: Mark;
   }

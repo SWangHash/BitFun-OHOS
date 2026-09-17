@@ -25,25 +25,25 @@ export const GridLayout: React.FC<GridLayoutProps> = ({
   return (
     <div
       className={gridClass}
-      data-openbitfun-component="component-preview"
-      data-openbitfun-part="gridRoot"
-      data-openbitfun-columns={String(columns)}
+      data-bitfun-component="component-preview"
+      data-bitfun-part="gridRoot"
+      data-bitfun-columns={String(columns)}
     >
       {components.map((component) => (
-        <div key={component.id} className="grid-card" data-openbitfun-component="component-preview" data-openbitfun-part="gridCard">
-          <div className="grid-card-header" data-openbitfun-component="component-preview" data-openbitfun-part="gridHeader">
+        <div key={component.id} className="grid-card" data-bitfun-component="component-preview" data-bitfun-part="gridCard">
+          <div className="grid-card-header" data-bitfun-component="component-preview" data-bitfun-part="gridHeader">
             <h3 className="grid-card-title">{component.name}</h3>
             <p className="grid-card-description">{component.description}</p>
           </div>
           
-          <div className="grid-card-preview" data-openbitfun-component="component-preview" data-openbitfun-part="gridPreview">
+          <div className="grid-card-preview" data-bitfun-component="component-preview" data-bitfun-part="gridPreview">
             <div className="preview-label">{t('componentLibrary.layouts.previewLabel')}</div>
-            <div className="preview-canvas" data-openbitfun-component="component-preview" data-openbitfun-part="gridCanvas">
+            <div className="preview-canvas" data-bitfun-component="component-preview" data-bitfun-part="gridCanvas">
               <component.component />
             </div>
           </div>
           
-          <div className="grid-card-info" data-openbitfun-component="component-preview" data-openbitfun-part="gridInfo">
+          <div className="grid-card-info" data-bitfun-component="component-preview" data-bitfun-part="gridInfo">
             <dl className="info-list">
               <dt>{t('componentLibrary.layouts.idLabel')}</dt>
               <dd>{component.id}</dd>

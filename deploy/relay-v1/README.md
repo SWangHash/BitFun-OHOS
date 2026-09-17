@@ -4,10 +4,10 @@ The owner guide is [Relay Server](../../src/apps/relay-server/README.md).
 Use this independent Compose project for `/v/1.0.1/`. Keep `/v/1.0.0/` and the older Relay
 container, paths, image, database, and `/relay` proxy location intact.
 
-Deploy from a committed checkout at `/srv/openbitfun-relay-v1.0.1/app`. Set
+Deploy from a committed checkout at `/srv/bitfun-relay-v1.0.1/app`. Set
 `RELAY_GIT_COMMIT` to that checkout's verified full commit. Build mobile web
 from the same checkout with `pnpm run build:mobile-web` and stage its `dist`
-contents into `/srv/openbitfun-relay-v1.0.1/static`. Create `data` and `assets`
+contents into `/srv/bitfun-relay-v1.0.1/static`. Create `data` and `assets`
 under that root owned by UID/GID 10001 before starting Compose.
 
 The Linux host network plus explicit `127.0.0.1:19701` listener lets the service
@@ -23,11 +23,11 @@ peers. Keep the range list synchronized with the WAF control plane. Raise
 16384; validate with `nginx -t` before a graceful reload.
 
 Published Pages use the existing official Relay address:
-`https://remote.openbitfun.com/v/1.0.1/p/{github_username}/{slug}`.
+`https://remote.bitfun.com/v/1.0.1/p/{github_username}/{slug}`.
 Compose sets this public base URL and the separate sign-in base URL
-`https://auth.openbitfun.com/v/1.0.1`. Users do not configure domains.
+`https://auth.bitfun.com/v/1.0.1`. Users do not configure domains.
 Install the versioned Pages sign-in locations from
-[`nginx-auth.openbitfun.com.conf`](../miniapp-market/nginx-auth.openbitfun.com.conf)
+[`nginx-auth.bitfun.com.conf`](../miniapp-market/nginx-auth.bitfun.com.conf)
 in the existing auth server as well. Keep its marketplace sign-in routes intact.
 These locations forward only Page sign-in and GitHub start/poll endpoints to
 Relay, preserve the auth Host, and omit query strings from access logs.

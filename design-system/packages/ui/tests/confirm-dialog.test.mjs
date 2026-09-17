@@ -14,10 +14,10 @@ test("ConfirmDialog composes semantic content and actions on Dialog", async () =
   assert.match(source, /<DialogTitle>\{title\}<\/DialogTitle>/);
   assert.match(source, /<DialogBody>/);
   assert.match(source, /<DialogFooter>/);
-  assert.match(source, /data-openbitfun-component="confirm-dialog" data-openbitfun-part="content"/);
-  assert.match(source, /data-openbitfun-part="messageRow"/);
-  assert.match(source, /data-openbitfun-part="preview"/);
-  assert.match(source, /data-openbitfun-status=\{type === "error" \? "danger" : type\}/);
+  assert.match(source, /data-bitfun-component="confirm-dialog" data-bitfun-part="content"/);
+  assert.match(source, /data-bitfun-part="messageRow"/);
+  assert.match(source, /data-bitfun-part="preview"/);
+  assert.match(source, /data-bitfun-status=\{type === "error" \? "danger" : type\}/);
   assert.match(source, /tone=\{confirmDanger \|\| type === "error" \? "danger" : "neutral"\}/);
 });
 
@@ -50,7 +50,7 @@ test("ConfirmDialog presents semantic icons as bare glyphs", async () => {
   const iconRule = styles.match(/\.icon\s*\{[^}]+\}/)?.[0];
 
   assert.ok(iconRule, "missing ConfirmDialog icon rule");
-  assert.match(iconRule, /flex:\s*0 0 var\(--openbitfun-layout-confirm-dialog-icon-glyph-size\)/);
+  assert.match(iconRule, /flex:\s*0 0 var\(--bitfun-layout-confirm-dialog-icon-glyph-size\)/);
   assert.match(iconRule, /block-size:\s*1lh/);
   assert.doesNotMatch(
     styles,
@@ -61,11 +61,11 @@ test("ConfirmDialog presents semantic icons as bare glyphs", async () => {
 test("ConfirmDialog styles use public status, layout, and typography tokens", async () => {
   const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
 
-  assert.match(styles, /--openbitfun-layout-confirm-dialog-content-gap/);
-  assert.match(styles, /--openbitfun-layout-confirm-dialog-icon-glyph-size/);
-  assert.match(styles, /--openbitfun-layout-confirm-dialog-preview-max-block-size/);
-  assert.match(styles, /--openbitfun-layout-confirm-dialog-preview-padding-inline/);
-  assert.match(styles, /--openbitfun-color-status-warning-emphasis/);
-  assert.match(styles, /--openbitfun-color-status-danger-emphasis/);
-  assert.match(styles, /--openbitfun-type-code-sm-font-family/);
+  assert.match(styles, /--bitfun-layout-confirm-dialog-content-gap/);
+  assert.match(styles, /--bitfun-layout-confirm-dialog-icon-glyph-size/);
+  assert.match(styles, /--bitfun-layout-confirm-dialog-preview-max-block-size/);
+  assert.match(styles, /--bitfun-layout-confirm-dialog-preview-padding-inline/);
+  assert.match(styles, /--bitfun-color-status-warning-emphasis/);
+  assert.match(styles, /--bitfun-color-status-danger-emphasis/);
+  assert.match(styles, /--bitfun-type-code-sm-font-family/);
 });

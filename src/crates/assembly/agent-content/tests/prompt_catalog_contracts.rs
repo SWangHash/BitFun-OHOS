@@ -1,4 +1,4 @@
-use openbitfun_agent_content::{
+use bitfun_agent_content::{
     agent_prompt, agent_prompt_names,
     insights::{
         AREAS, AT_A_GLANCE, FACET_EXTRACTION, FRICTION, FUN_ENDING, HORIZON, INTERACTION_STYLE,

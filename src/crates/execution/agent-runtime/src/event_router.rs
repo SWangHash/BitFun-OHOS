@@ -3,7 +3,7 @@
 use crate::event_bus::{EventBusResult, EventSubscriberResult};
 use dashmap::DashMap;
 use log::{debug, trace, warn};
-use openbitfun_events::{AgenticEvent, AgenticEventEnvelope as EventEnvelope};
+use bitfun_events::{AgenticEvent, AgenticEventEnvelope as EventEnvelope};
 use std::sync::Arc;
 
 /// Event subscriber trait

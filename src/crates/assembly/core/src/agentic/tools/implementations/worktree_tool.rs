@@ -13,10 +13,10 @@ use crate::service::worktree::{
     WorktreeRemoveRequest, WorktreeService,
 };
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use openbitfun_agent_runtime::session_control::session_control_creator_marker;
-use openbitfun_runtime_ports::{
+use bitfun_agent_runtime::session_control::session_control_creator_marker;
+use bitfun_runtime_ports::{
     AgentSessionCreateRequest, AgentSessionListRequest, AgentSessionWorkspaceRequest,
 };
 use serde::Deserialize;
@@ -57,12 +57,12 @@ impl WorktreeTool {
         Self
     }
 
-    fn project_path(context: &ToolUseContext) -> OpenBitFunResult<String> {
+    fn project_path(context: &ToolUseContext) -> BitFunResult<String> {
         let workspace = context.workspace.as_ref().ok_or_else(|| {
-            OpenBitFunError::tool("Worktree requires a workspace-bound session".to_string())
+            BitFunError::tool("Worktree requires a workspace-bound session".to_string())
         })?;
         if workspace.is_remote() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "Managed worktrees are not supported for remote SSH workspaces yet".to_string(),
             ));
         }
@@ -70,7 +70,7 @@ impl WorktreeTool {
             .project_workspace_root()
             .map(|path| path.to_string_lossy().to_string())
             .ok_or_else(|| {
-                OpenBitFunError::tool("Project workspace root is unavailable".to_string())
+                BitFunError::tool("Project workspace root is unavailable".to_string())
             })
     }
 
@@ -92,20 +92,20 @@ impl WorktreeTool {
         context: &ToolUseContext,
         project_workspace_path: &str,
         worktree_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let current_root = context.workspace_root().ok_or_else(|| {
-            OpenBitFunError::tool("Current workspace root is unavailable".to_string())
+            BitFunError::tool("Current workspace root is unavailable".to_string())
         })?;
         let worktree = WorktreeService::list(WorktreeListRequest {
             project_workspace_path: project_workspace_path.to_string(),
         })
         .await
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?
+        .map_err(|error| BitFunError::tool(error.to_string()))?
         .into_iter()
         .find(|worktree| worktree.worktree_id == worktree_id)
-        .ok_or_else(|| OpenBitFunError::NotFound("Worktree was not found".to_string()))?;
+        .ok_or_else(|| BitFunError::NotFound("Worktree was not found".to_string()))?;
         if Self::same_path(current_root, Path::new(&worktree.path)) {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "Worktree cannot remove or rebind the worktree running this tool".to_string(),
             ));
         }
@@ -118,10 +118,10 @@ impl WorktreeTool {
         workspace_service: &WorkspaceService,
         tracked_workspace_id: Option<&str>,
         failure: impl Into<String>,
-    ) -> OpenBitFunError {
+    ) -> BitFunError {
         let failure = failure.into();
         if !created.created {
-            return OpenBitFunError::tool(failure);
+            return BitFunError::tool(failure);
         }
 
         let mut rollback_issues = Vec::new();
@@ -140,9 +140,9 @@ impl WorktreeTool {
             }
         }
         if rollback_issues.is_empty() {
-            OpenBitFunError::tool(failure)
+            BitFunError::tool(failure)
         } else {
-            OpenBitFunError::tool(format!(
+            BitFunError::tool(format!(
                 "rollback_incomplete: {failure}; {}; recovery_path={}",
                 rollback_issues.join("; "),
                 created.execution_target.root_path
@@ -163,7 +163,7 @@ impl Tool for WorktreeTool {
         "Worktree"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(
             r#"Manage isolated Git worktrees for the current main project.
 
@@ -240,9 +240,9 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<PermissionIntent>> {
+    ) -> BitFunResult<Vec<PermissionIntent>> {
         let input: WorktreeToolInput = serde_json::from_value(input.clone())
-            .map_err(|error| OpenBitFunError::validation(format!("Invalid input: {error}")))?;
+            .map_err(|error| BitFunError::validation(format!("Invalid input: {error}")))?;
         let project = Self::project_path(context)?;
         let intent = match input.operation {
             WorktreeToolOperation::List => return Ok(Vec::new()),
@@ -337,9 +337,9 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let input: WorktreeToolInput = serde_json::from_value(input.clone())
-            .map_err(|error| OpenBitFunError::tool(format!("Invalid input: {error}")))?;
+            .map_err(|error| BitFunError::tool(format!("Invalid input: {error}")))?;
         let project_workspace_path = Self::project_path(context)?;
 
         let data = match input.operation {
@@ -348,7 +348,7 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
                     project_workspace_path: project_workspace_path.clone(),
                 })
                 .await
-                .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+                .map_err(|error| BitFunError::tool(error.to_string()))?;
                 json!({
                     "success": true,
                     "operation": "list",
@@ -361,11 +361,11 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
                 let operation_request_id = Self::request_id(context, "create_session");
                 let stable_session_id =
                     WorktreeService::session_id_for_request(&operation_request_id)
-                        .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+                        .map_err(|error| BitFunError::tool(error.to_string()))?;
                 let source_workspace_path = context
                     .workspace_root()
                     .ok_or_else(|| {
-                        OpenBitFunError::tool(
+                        BitFunError::tool(
                             "Current execution workspace is unavailable".to_string(),
                         )
                     })?
@@ -381,10 +381,10 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
                     claimed_by: None,
                 })
                 .await
-                .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+                .map_err(|error| BitFunError::tool(error.to_string()))?;
 
                 let workspace_service = get_global_workspace_service().ok_or_else(|| {
-                    OpenBitFunError::tool("Workspace service is not initialized".to_string())
+                    BitFunError::tool("Workspace service is not initialized".to_string())
                 })?;
                 let tracked_workspace = match workspace_service
                     .track_workspace_activity(
@@ -565,7 +565,7 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
                     branch: input.branch.unwrap_or_default(),
                 })
                 .await
-                .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+                .map_err(|error| BitFunError::tool(error.to_string()))?;
                 json!({
                     "success": true,
                     "operation": "create_branch",
@@ -583,7 +583,7 @@ The tool cannot remove or rebind the worktree in which it is running. Use Sessio
                     force: false,
                 })
                 .await
-                .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+                .map_err(|error| BitFunError::tool(error.to_string()))?;
                 json!({
                     "success": result.removed,
                     "operation": "remove",

@@ -1,4 +1,4 @@
-import { Textarea, Button, Disclosure } from '@openbitfun/ui';
+import { Textarea, Button, Disclosure } from '@bitfun/ui';
 import {
   ArrowLeft,
   ExternalLink as ArrowSquareOut,
@@ -17,7 +17,7 @@ import {
   formatPackageSize,
   shortHash,
 } from './format';
-import { GetOpenBitFunCta } from './GetOpenBitFunCta';
+import { GetBitFunCta } from './GetBitFunCta';
 import type { Locale, Translate } from './i18n';
 import { PosterImage } from './PosterImage';
 import type {
@@ -70,7 +70,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
   useEffect(() => {
     if (!detail) return;
     const previous = document.title;
-    document.title = `${detail.name} | OpenBitFun Skin Market`;
+    document.title = `${detail.name} | BitFun Skin Market`;
     return () => { document.title = previous; };
   }, [detail]);
 
@@ -189,14 +189,14 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
               <Desktop size={19} aria-hidden="true" />
               <span>{t('desktopInstallNote')}</span>
             </p>
-            <GetOpenBitFunCta placement="listing" t={t} />
+            <GetBitFunCta placement="listing" t={t} />
           </div>
         </section>
 
         <section className="detail-fact-strip" aria-label={t('compatibility')}>
           <div><span>{t('mode')}</span><strong>{modeLabel}</strong></div>
           <div><span>{t('version')}</span><strong>{detail.packageVersion}</strong></div>
-          <div><span>{t('compatibility')}</span><strong>{t('minOpenBitFun', { version: detail.minOpenBitFunVersion })}</strong></div>
+          <div><span>{t('compatibility')}</span><strong>{t('minBitFun', { version: detail.minBitFunVersion })}</strong></div>
         </section>
 
         <div className="detail-content">
@@ -262,7 +262,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
             <section className="aside-section" aria-labelledby="compatibility-heading">
               <ShieldCheck size={24} aria-hidden="true" />
               <h2 id="compatibility-heading">{t('compatibility')}</h2>
-              <p>{t('minOpenBitFun', { version: detail.minOpenBitFunVersion })}</p>
+              <p>{t('minBitFun', { version: detail.minBitFunVersion })}</p>
               <h3>{t('requiredCapabilities')}</h3>
               {detail.requiredCapabilities.length ? (
                 <ul className="capability-list">
@@ -412,7 +412,7 @@ function ReleaseItem({
         </span>
       </div>
       <dl className="release-facts">
-        <div><dt>{t('compatibility')}</dt><dd>{t('minOpenBitFun', { version: release.minOpenBitFunVersion })}</dd></div>
+        <div><dt>{t('compatibility')}</dt><dd>{t('minBitFun', { version: release.minBitFunVersion })}</dd></div>
         <div><dt>{t('packageSize')}</dt><dd>{formatPackageSize(release.packageSize, locale)}</dd></div>
         <div><dt>{t('checksum')}</dt><dd><code title={release.packageSha256}>{shortHash(release.packageSha256)}</code></dd></div>
       </dl>

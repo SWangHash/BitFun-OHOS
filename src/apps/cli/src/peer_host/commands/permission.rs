@@ -2,9 +2,9 @@
 
 use serde_json::{json, Value};
 
-use openbitfun_agent_runtime::sdk::{PermissionGrantKey, PermissionReply};
-use openbitfun_core::service::remote_ssh::workspace_state::resolve_workspace_session_identity;
-use openbitfun_core::service::workspace::WorkspaceKind;
+use bitfun_agent_runtime::sdk::{PermissionGrantKey, PermissionReply};
+use bitfun_core::service::remote_ssh::workspace_state::resolve_workspace_session_identity;
+use bitfun_core::service::workspace::WorkspaceKind;
 
 use crate::peer_host::args::{get_string, request_value};
 use crate::peer_host::state::PeerHostState;
@@ -62,7 +62,7 @@ async fn permission_project_id_for_workspace(
     )
     .await
     .ok_or_else(|| format!("Workspace identity is unavailable: {workspace_id}"))?;
-    openbitfun_core::agentic::tools::pipeline::permission_project_id_for_workspace_identity(
+    bitfun_core::agentic::tools::pipeline::permission_project_id_for_workspace_identity(
         &identity, is_remote,
     )
     .map_err(|error| error.to_string())
@@ -246,7 +246,7 @@ pub(crate) async fn session_permission_mode(
     active_turn_only: bool,
 ) -> Result<Value, String> {
     use crate::peer_host::args::{get_string, optional_string};
-    use openbitfun_core::agentic::core::SessionState;
+    use bitfun_core::agentic::core::SessionState;
 
     let request = request_value(args);
     let session_id = get_string(request, "sessionId")?;
@@ -304,8 +304,8 @@ pub(crate) async fn session_permission_mode(
 
 fn parse_selector_mode(
     request: &Value,
-) -> Result<Option<openbitfun_runtime_ports::PermissionMode>, String> {
-    use openbitfun_runtime_ports::PermissionMode;
+) -> Result<Option<bitfun_runtime_ports::PermissionMode>, String> {
+    use bitfun_runtime_ports::PermissionMode;
     match request.get("mode") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) if value.trim().is_empty() => Ok(None),
@@ -320,7 +320,7 @@ fn parse_selector_mode(
 #[cfg(test)]
 mod selector_tests {
     use super::*;
-    use openbitfun_runtime_ports::PermissionMode;
+    use bitfun_runtime_ports::PermissionMode;
 
     #[test]
     fn legacy_and_current_selectors_preserve_clear_and_explicit_modes() {

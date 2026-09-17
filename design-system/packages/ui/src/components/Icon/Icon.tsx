@@ -271,11 +271,11 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
       aria-hidden={label ? undefined : "true"}
       aria-label={label}
       className={classNames(styles.icon, className)}
-      data-openbitfun-component="icon"
-      data-openbitfun-name={name}
-      data-openbitfun-source={asset ? "catalog" : "line"}
-      data-openbitfun-artwork={name && name !== "progress-25" && name !== "turn" ? "monochrome" : undefined}
-      data-openbitfun-tone={tone}
+      data-bitfun-component="icon"
+      data-bitfun-name={name}
+      data-bitfun-source={asset ? "catalog" : "line"}
+      data-bitfun-artwork={name && name !== "progress-25" && name !== "turn" ? "monochrome" : undefined}
+      data-bitfun-tone={tone}
       data-size={size}
       ref={ref}
       role={label ? "img" : undefined}

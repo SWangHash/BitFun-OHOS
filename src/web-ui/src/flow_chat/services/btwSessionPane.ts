@@ -70,8 +70,8 @@ const isRightPanelCollapsed = (): boolean => {
       return false;
     }
     const layoutState = (window as unknown as {
-      __OPENBITFUN_LAYOUT_STATE__?: { rightPanelCollapsed?: boolean };
-    }).__OPENBITFUN_LAYOUT_STATE__;
+      __BITFUN_LAYOUT_STATE__?: { rightPanelCollapsed?: boolean };
+    }).__BITFUN_LAYOUT_STATE__;
     return layoutState?.rightPanelCollapsed ?? false;
   } catch {
     return false;

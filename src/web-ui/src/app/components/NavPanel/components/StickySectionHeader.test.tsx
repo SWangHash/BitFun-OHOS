@@ -57,7 +57,7 @@ describe('StickySectionHeader', () => {
     const stickyHeader = container.querySelector<HTMLElement>(
       '[data-testid="nav-sessions-sticky-header"]',
     );
-    expect(stickyHeader?.dataset.openbitfunState).toBeUndefined();
+    expect(stickyHeader?.dataset.bitfunState).toBeUndefined();
     expect(container.querySelectorAll('[data-testid="session-filter"]')).toHaveLength(1);
 
     act(() => {
@@ -68,12 +68,12 @@ describe('StickySectionHeader', () => {
           intersectionRect: {} as DOMRectReadOnly,
           isIntersecting: true,
           rootBounds: { top: 10 } as DOMRectReadOnly,
-          target: container.querySelector('.openbitfun-nav-panel__sticky-section-sentinel')!,
+          target: container.querySelector('.bitfun-nav-panel__sticky-section-sentinel')!,
           time: 0,
         },
       ], {} as IntersectionObserver);
     });
-    expect(stickyHeader?.dataset.openbitfunState).toBeUndefined();
+    expect(stickyHeader?.dataset.bitfunState).toBeUndefined();
 
     act(() => {
       observerCallback([
@@ -83,12 +83,12 @@ describe('StickySectionHeader', () => {
           intersectionRect: {} as DOMRectReadOnly,
           isIntersecting: false,
           rootBounds: { top: 10 } as DOMRectReadOnly,
-          target: container.querySelector('.openbitfun-nav-panel__sticky-section-sentinel')!,
+          target: container.querySelector('.bitfun-nav-panel__sticky-section-sentinel')!,
           time: 1,
         },
       ], {} as IntersectionObserver);
     });
-    expect(stickyHeader?.dataset.openbitfunState).toBe('stuck');
+    expect(stickyHeader?.dataset.bitfunState).toBe('stuck');
     expect(stickyHeader?.classList.contains('is-stuck')).toBe(true);
     expect(container.querySelectorAll('[data-testid="session-filter"]')).toHaveLength(1);
   });

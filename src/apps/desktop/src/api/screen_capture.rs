@@ -16,7 +16,7 @@
 //! rect to that display's local space, and `capture_area`.
 
 use async_trait::async_trait;
-use openbitfun_services_core::screen_capture::{CapturedImage, DisplayInfo, ScreenCapture};
+use bitfun_services_core::screen_capture::{CapturedImage, DisplayInfo, ScreenCapture};
 
 /// `ScreenCapture` backed by the `screenshots` crate.
 #[derive(Debug)]

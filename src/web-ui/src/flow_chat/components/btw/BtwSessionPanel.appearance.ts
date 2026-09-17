@@ -17,11 +17,11 @@ export const btwSessionPanelAppearanceDescriptor: AppearanceSurfaceDescriptor = 
     { id: 'actionBar' },
   ],
   facets: [
-    { id: 'view', attribute: 'data-openbitfun-view', values: ['empty', 'session'] },
+    { id: 'view', attribute: 'data-bitfun-view', values: ['empty', 'session'] },
   ],
   states: [
-    { id: 'hasActionBar', selector: { kind: 'self', suffix: '[data-openbitfun-state~="hasActionBar"]' } },
-    { id: 'minimized', selector: { kind: 'self', suffix: '[data-openbitfun-state~="minimized"]' } },
-    { id: 'hidden', selector: { kind: 'self', suffix: '[data-openbitfun-state~="hidden"]' } },
+    { id: 'hasActionBar', selector: { kind: 'self', suffix: '[data-bitfun-state~="hasActionBar"]' } },
+    { id: 'minimized', selector: { kind: 'self', suffix: '[data-bitfun-state~="minimized"]' } },
+    { id: 'hidden', selector: { kind: 'self', suffix: '[data-bitfun-state~="hidden"]' } },
   ],
 };

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, MenuItem } from '@openbitfun/ui';
+import { Menu, MenuItem } from '@bitfun/ui';
 import { Timer, Infinity as InfinityIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -152,12 +152,12 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
     );
 
     return (
-      <span data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="root" data-openbitfun-mode="completed"
+      <span data-bitfun-component="tool-timeout-indicator" data-bitfun-part="root" data-bitfun-mode="completed"
         className={`duration-text duration-text--completed${completedStatus ? ` duration-text--completed-${completedStatus}` : ''}`}
         title={completionLabel}
         aria-label={completionLabel}
       >
-        <span data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="duration">{durationLabel}</span>
+        <span data-bitfun-component="tool-timeout-indicator" data-bitfun-part="duration">{durationLabel}</span>
       </span>
     );
   }
@@ -177,16 +177,16 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
     displayRemaining < timeoutMs * 0.2;
 
   return (
-    <span data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="root" data-openbitfun-mode="live" data-openbitfun-state={[isWarning && 'warning', isTimeoutDisabled && 'disabled', isPopoverOpen && 'open'].filter(Boolean).join(' ')} className="tool-timeout-indicator">
-      <span data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="duration" className={`duration-text duration-text--live ${isWarning ? 'duration-text--warning' : ''}`}>
+    <span data-bitfun-component="tool-timeout-indicator" data-bitfun-part="root" data-bitfun-mode="live" data-bitfun-state={[isWarning && 'warning', isTimeoutDisabled && 'disabled', isPopoverOpen && 'open'].filter(Boolean).join(' ')} className="tool-timeout-indicator">
+      <span data-bitfun-component="tool-timeout-indicator" data-bitfun-part="duration" className={`duration-text duration-text--live ${isWarning ? 'duration-text--warning' : ''}`}>
         <Timer size={13} strokeWidth={2} />
-        <span data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="elapsed" className="duration-elapsed">{formatDurationLive(elapsedMs)}</span>
+        <span data-bitfun-component="tool-timeout-indicator" data-bitfun-part="elapsed" className="duration-elapsed">{formatDurationLive(elapsedMs)}</span>
         {hasTimeout && (
           <>
             <span className="duration-separator">/</span>
             <span
-              data-openbitfun-component="tool-timeout-indicator"
-              data-openbitfun-part="timeout"
+              data-bitfun-component="tool-timeout-indicator"
+              data-bitfun-part="timeout"
               className={`duration-timeout ${isTimeoutDisabled ? 'duration-timeout--disabled' : ''} ${isWarning ? 'duration-timeout--warning' : ''}`}
             >
               {isTimeoutDisabled
@@ -200,12 +200,12 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
       </span>
 
       {canControlTimeout && (
-        <div data-openbitfun-component="tool-timeout-indicator" data-openbitfun-part="controls" className="timeout-control-wrapper" ref={controlRef}>
+        <div data-bitfun-component="tool-timeout-indicator" data-bitfun-part="controls" className="timeout-control-wrapper" ref={controlRef}>
           <button
             ref={triggerRef}
             type="button"
-            data-openbitfun-component="tool-timeout-indicator"
-            data-openbitfun-part="toggle"
+            data-bitfun-component="tool-timeout-indicator"
+            data-bitfun-part="toggle"
             className={`timeout-ignore-btn ${isTimeoutDisabled ? 'is-active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
@@ -229,9 +229,9 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
           {isPopoverOpen && createPortal(
             <Menu
               ref={popoverRef}
-              data-openbitfun-component="tool-timeout-indicator"
-              data-openbitfun-part="popover"
-              data-openbitfun-placement={popoverLayout?.placement ?? 'bottom'}
+              data-bitfun-component="tool-timeout-indicator"
+              data-bitfun-part="popover"
+              data-bitfun-placement={popoverLayout?.placement ?? 'bottom'}
               className="timeout-extend-popover"
               style={{
                 top: `${popoverLayout?.top ?? 0}px`,
@@ -243,8 +243,8 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
             >
               {remainingAtDisable > 0 ? (
                 <MenuItem
-                  data-openbitfun-component="tool-timeout-indicator"
-                  data-openbitfun-part="option"
+                  data-bitfun-component="tool-timeout-indicator"
+                  data-bitfun-part="option"
                   onClick={(e) => {
                     e.stopPropagation();
                     extendTimeout(remainingAtDisable);
@@ -254,8 +254,8 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
                 </MenuItem>
               ) : null}
               <MenuItem
-                data-openbitfun-component="tool-timeout-indicator"
-                data-openbitfun-part="option"
+                data-bitfun-component="tool-timeout-indicator"
+                data-bitfun-part="option"
                 onClick={(e) => {
                   e.stopPropagation();
                   extendTimeout(60);
@@ -264,8 +264,8 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
                 +1m
               </MenuItem>
               <MenuItem
-                data-openbitfun-component="tool-timeout-indicator"
-                data-openbitfun-part="option"
+                data-bitfun-component="tool-timeout-indicator"
+                data-bitfun-part="option"
                 onClick={(e) => {
                   e.stopPropagation();
                   extendTimeout(300);
@@ -274,8 +274,8 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
                 +5m
               </MenuItem>
               <MenuItem
-                data-openbitfun-component="tool-timeout-indicator"
-                data-openbitfun-part="option"
+                data-bitfun-component="tool-timeout-indicator"
+                data-bitfun-part="option"
                 onClick={(e) => {
                   e.stopPropagation();
                   extendTimeout(600);

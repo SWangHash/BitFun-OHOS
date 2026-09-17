@@ -93,11 +93,11 @@ async function showUsageModal(): Promise<void> {
       import('/src/flow_chat/components/usage/sessionUsageModalState.ts'),
     ]);
 
-    await appearanceService.activate('openbitfun-light');
+    await appearanceService.activate('bitfun-light');
     await i18nService.changeLanguage('zh-CN');
     modalState.openSessionUsageModal({
       sessionId: fixture.sessionId,
-      workspacePath: 'D:/workspace/OpenBitFun',
+      workspacePath: 'D:/workspace/BitFun',
     });
     modalState.showSessionUsageModalReport({
       sessionId: fixture.sessionId,

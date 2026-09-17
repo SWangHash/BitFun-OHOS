@@ -13,7 +13,7 @@ import {
   X as LucideX,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MobileButton, MobileCard, MobileDisclosure, MobileMessage } from '@openbitfun/ui/mobile';
+import { MobileButton, MobileCard, MobileDisclosure, MobileMessage } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { ActiveTurnSnapshot, ChatMessage, ChatMessageItem, RemoteToolStatus } from '../services/RemoteSessionManager';
 import ChatAskQuestionCard from './ChatAskQuestionCard';
@@ -152,13 +152,13 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
   const statusIcon = (s: string) => {
     switch (s) {
       case 'completed':
-        return <LucideCircleCheck width="12" height="12" stroke="var(--openbitfun-color-status-success-content)" aria-hidden="true" />;
+        return <LucideCircleCheck width="12" height="12" stroke="var(--bitfun-color-status-success-content)" aria-hidden="true" />;
       case 'in_progress':
-        return <LucideCirclePlay width="12" height="12" stroke="var(--openbitfun-color-accent-default)" aria-hidden="true" />;
+        return <LucideCirclePlay width="12" height="12" stroke="var(--bitfun-color-accent-default)" aria-hidden="true" />;
       case 'cancelled':
-        return <LucideCircleX width="12" height="12" stroke="var(--openbitfun-color-status-danger-content)" aria-hidden="true" />;
+        return <LucideCircleX width="12" height="12" stroke="var(--bitfun-color-status-danger-content)" aria-hidden="true" />;
       default:
-        return <LucideCircle width="12" height="12" stroke="var(--openbitfun-color-content-muted)" aria-hidden="true" />;
+        return <LucideCircle width="12" height="12" stroke="var(--bitfun-color-content-muted)" aria-hidden="true" />;
     }
   };
 
@@ -353,9 +353,9 @@ export const TaskToolCard: React.FC<{
                     <div key={`sub-tool-${t.id}-${idx}`} className="chat-task-card__step-wrap">
                       <div className={`chat-task-card__step chat-task-card__step--tool ${isDone ? 'is-done' : isErr ? 'is-error' : 'is-running'}`}>
                       {isDone ? (
-                        <LucideCheck width="10" height="10" color="var(--openbitfun-color-status-success-content)" aria-hidden="true" />
+                        <LucideCheck width="10" height="10" color="var(--bitfun-color-status-success-content)" aria-hidden="true" />
                       ) : isErr ? (
-                        <LucideX width="10" height="10" color="var(--openbitfun-color-status-danger-content)" aria-hidden="true" />
+                        <LucideX width="10" height="10" color="var(--bitfun-color-status-danger-content)" aria-hidden="true" />
                       ) : (
                         <span className="chat-task-card__step-spinner" />
                       )}
@@ -565,7 +565,7 @@ const ReadFilesToggle: React.FC<{ tools: RemoteToolStatus[] }> = ({ tools }) => 
               const preview = t.input_preview || '';
               return (
                 <div key={t.id} style={{
-                  fontSize: 'var(--openbitfun-type-body-xs-font-size)',
+                  fontSize: 'var(--bitfun-type-body-xs-font-size)',
                   padding: '2px 0',
                   opacity: 0.8,
                 }}>

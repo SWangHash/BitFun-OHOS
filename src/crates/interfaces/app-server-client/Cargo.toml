@@ -1,17 +1,17 @@
 [package]
-name = "openbitfun-app-server-client"
+name = "bitfun-app-server-client"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Transport-agnostic lightweight client for the OpenBitFun App Server"
+description = "Transport-agnostic lightweight client for the BitFun App Server"
 
 [lib]
-name = "openbitfun_app_server_client"
+name = "bitfun_app_server_client"
 
 [dependencies]
 agent-client-protocol = { workspace = true }
 anyhow = { workspace = true }
-openbitfun-app-server-protocol = { path = "../app-server-protocol" }
+bitfun-app-server-protocol = { path = "../app-server-protocol" }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 

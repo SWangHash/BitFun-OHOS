@@ -1,6 +1,6 @@
 use crate::app_state::{CommandError, DiagnosticsExportView, MigratorCoordinator, MigratorView};
-use openbitfun_legacy_migration::MigrationRoots;
-use openbitfun_product_domains::legacy_migration::MigrationSelection;
+use bitfun_legacy_migration::MigrationRoots;
+use bitfun_product_domains::legacy_migration::MigrationSelection;
 use serde::Deserialize;
 use tauri::{AppHandle, State};
 

@@ -2,16 +2,16 @@ use super::common::{
     backup_domain_dir, io_error, read_bounded_json, read_optional_bounded_json, stage_domain_dir,
     validate_regular_file,
 };
-use openbitfun_legacy_migration::{
+use bitfun_legacy_migration::{
     atomic_write_bytes, atomic_write_json, snapshot_sqlite_read_only, validate_sqlite,
     DomainContext, DomainScan, LegacyDomainAdapter, LegacyMigrationError, LegacyMigrationResult,
     MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
-use openbitfun_services_core::memory_store::{
+use bitfun_services_core::memory_store::{
     classify_memory_workspace_file, decode_memory_record, initialize_memory_schema,
     read_memory_store_snapshot, upsert_memory_record, MemoryRecord, MemoryStoreSnapshot,
     MemoryWorkspaceFileKind, MEMORY_STORE_SCHEMA,
@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 const STRUCTURED_MEMORY_RELATIVE_PATH: &str = "data/memories/memories.sqlite";
 const LEGACY_STRUCTURED_MEMORY_SCHEMA: &str = "bitfun.memory.stage1.v1";
-const FILE_MEMORY_SCHEMA: &str = "openbitfun.memory-files.v1";
+const FILE_MEMORY_SCHEMA: &str = "bitfun.memory-files.v1";
 const MAX_MEMORY_FILE_COUNT: usize = 4_096;
 const MAX_MEMORY_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_MEMORY_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
@@ -1476,11 +1476,11 @@ fn owner_error(error: impl std::fmt::Display) -> LegacyMigrationError {
 mod tests {
     use super::*;
     use crate::adapters_for_groups;
-    use openbitfun_legacy_migration::{
+    use bitfun_legacy_migration::{
         probe_legacy_source, CancellationToken, CrashInjector, CrashPoint, MigrationEngine,
         NoCrashInjection, ProbeLimits,
     };
-    use openbitfun_product_domains::legacy_migration::{
+    use bitfun_product_domains::legacy_migration::{
         MigrationGroupId, MigrationRunStatus, MigrationSelection,
     };
     use std::io::Read;
@@ -2300,7 +2300,7 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();

@@ -25,7 +25,7 @@ it('renames a remote file once and keeps IME and outside clicks from dismissing 
     const rename = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(node => node.textContent === 'ssh.remote.rename')!;
     await act(async () => rename.click());
     const dialog = document.querySelector<HTMLElement>('.remote-file-browser__dialog')!;
-    expect(dialog.getAttribute('data-openbitfun-component')).toBe('dialog');
+    expect(dialog.getAttribute('data-bitfun-component')).toBe('dialog');
     const input = dialog.querySelector('input')!;
     expect(input.value).toBe('old.txt');
     act(() => {

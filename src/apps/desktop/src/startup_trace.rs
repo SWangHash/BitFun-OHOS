@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use openbitfun_core::util::elapsed_ms;
+use bitfun_core::util::elapsed_ms;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]

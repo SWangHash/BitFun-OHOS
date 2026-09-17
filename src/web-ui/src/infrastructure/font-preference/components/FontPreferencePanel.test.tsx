@@ -59,8 +59,8 @@ describe('FontPreferencePanel', () => {
     ]);
     expect(previewInput?.placeholder).toBe('appearance.fontSize.previewPlaceholder');
     expect(previewInput?.style.fontSize).toBe('14px');
-    expect(previewInput?.closest('[data-openbitfun-component="input"]')?.getAttribute('data-size')).toBe('sm');
-    expect(previewInput?.closest('[data-openbitfun-component="input"]')?.getAttribute('data-field-surface')).toBe('ambient');
+    expect(previewInput?.closest('[data-bitfun-component="input"]')?.getAttribute('data-size')).toBe('sm');
+    expect(previewInput?.closest('[data-bitfun-component="input"]')?.getAttribute('data-field-surface')).toBe('ambient');
     expect(document.querySelector('[data-testid="appearance-font-reset-btn"]')).toBeNull();
   });
 
@@ -78,7 +78,7 @@ describe('FontPreferencePanel', () => {
 
     expect(
       customControls
-        ?.querySelector('[data-openbitfun-component="number-input"]')
+        ?.querySelector('[data-bitfun-component="number-input"]')
         ?.getAttribute('data-size'),
     ).toBe('sm');
     expect(numberInput?.value).toBe('18');

@@ -11,7 +11,7 @@ export const acpModeSelectorAppearanceDescriptor: AppearanceSurfaceDescriptor = 
     { id: 'option' },
   ],
   states: [
-    { id: 'open', selector: { kind: 'self', suffix: '[data-openbitfun-state~="open"]' } },
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'open', selector: { kind: 'self', suffix: '[data-bitfun-state~="open"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
   ],
 };

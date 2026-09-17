@@ -10,7 +10,7 @@ export const sessionAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'terminal', propertyProfile: 'layout', visualRole: 'panel', continuityGroup: 'session-workspace' },
   ],
   states: [
-    { id: 'dragging', selector: { kind: 'self', suffix: '[data-openbitfun-state~="dragging"]' } },
-    { id: 'terminalBottom', selector: { kind: 'self', suffix: '[data-openbitfun-state~="terminal-bottom"]' } },
+    { id: 'dragging', selector: { kind: 'self', suffix: '[data-bitfun-state~="dragging"]' } },
+    { id: 'terminalBottom', selector: { kind: 'self', suffix: '[data-bitfun-state~="terminal-bottom"]' } },
   ],
 };

@@ -56,12 +56,12 @@ It does not test Tauri, relay, SSH, peer transport, or detached dispatch.
 For actual desktop integration, build the current desktop and frontend, then run:
 
 ```bash
-cargo build -p openbitfun-desktop
+cargo build -p bitfun-desktop
 pnpm run build:web
 pnpm --dir tests/e2e exec wdio run ./config/wdio.markdown-native.ts
 ```
 
-The native spec opens a temporary workspace in OpenBitFun, opens its Markdown file
+The native spec opens a temporary workspace in BitFun, opens its Markdown file
 from the file tree, edits native and embedded blocks, saves via the production
 Tauri transport, and closes/reopens the file. Packaged frontend mode prevents
 accidentally testing another checkout's Vite server. The focused runner uses a

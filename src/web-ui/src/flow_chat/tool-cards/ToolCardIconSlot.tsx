@@ -40,8 +40,8 @@ export const ToolCardIconSlot: React.FC<ToolCardIconSlotProps> = ({
   return (
     <div
       className={`tool-card-icon-slot${expandable ? ' tool-card-icon-slot--expandable' : ''}${expandable && isPanelAffordance ? ' tool-card-icon-slot--affordance-panel' : ''}${!showDivider ? ' tool-card-icon-slot--no-divider' : ''}${className ? ` ${className}` : ''}`}
-      data-openbitfun-component="tool-card"
-      data-openbitfun-part="icon"
+      data-bitfun-component="tool-card"
+      data-bitfun-part="icon"
     >
       <div className="tool-card-icon-marks">
         <div className={`tool-card-icon tool-identifier-icon tool-card-icon-main ${iconClassName || ''}`}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MobileBanner, MobileButton } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton } from '@bitfun/ui/mobile';
 import { ArrowUpRight, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react';
 import { useI18n } from '../i18n';
 

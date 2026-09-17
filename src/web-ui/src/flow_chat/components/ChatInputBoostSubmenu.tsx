@@ -1,7 +1,7 @@
 import React, { useCallback, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-import { Menu, MenuItem, Icon } from '@openbitfun/ui';
+import { Menu, MenuItem, Icon } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useSideAnchoredPopoverPosition } from '@/shared/utils/useSideAnchoredPopoverPosition';
 
@@ -37,21 +37,21 @@ export const ChatInputBoostSubmenu: React.FC<ChatInputBoostSubmenuProps> = ({
     setOpen(true);
     if (focusFirstItem) {
       requestAnimationFrame(() => {
-        submenuRef.current?.querySelector<HTMLButtonElement>('[data-openbitfun-menu-item]')?.focus();
+        submenuRef.current?.querySelector<HTMLButtonElement>('[data-bitfun-menu-item]')?.focus();
       });
     }
   }, [setOpen]);
 
   return (
     <div
-      className="openbitfun-chat-input__boost-submenu-host"
+      className="bitfun-chat-input__boost-submenu-host"
       data-testid={testId}
     >
       <MenuItem
         ref={triggerRef}
-        data-openbitfun-component="chat-input"
-        data-openbitfun-part="boostSubmenuTrigger"
-        data-openbitfun-state={open ? 'open' : undefined}
+        data-bitfun-component="chat-input"
+        data-bitfun-part="boostSubmenuTrigger"
+        data-bitfun-state={open ? 'open' : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}
@@ -82,11 +82,11 @@ export const ChatInputBoostSubmenu: React.FC<ChatInputBoostSubmenuProps> = ({
         <Menu
           ref={submenuRef}
           id={panelId}
-          className="openbitfun-chat-input__boost-submenu-panel"
-          data-openbitfun-component="chat-input"
-          data-openbitfun-part="boostSubmenuPanel"
-          data-openbitfun-state="open"
-          data-openbitfun-placement={layout ? `${layout.placement}-${layout.alignment}` : 'right-start'}
+          className="bitfun-chat-input__boost-submenu-panel"
+          data-bitfun-component="chat-input"
+          data-bitfun-part="boostSubmenuPanel"
+          data-bitfun-state="open"
+          data-bitfun-placement={layout ? `${layout.placement}-${layout.alignment}` : 'right-start'}
           style={{
             top: layout?.top ?? 0,
             left: layout?.left ?? 0,

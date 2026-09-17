@@ -80,7 +80,7 @@ describe('dispatch controller-only routing contract', () => {
   ];
 
   // Preparing a target means installing the signed release and nothing else.
-  // Compiling OpenBitFun on someone else's machine is not a command this client
+  // Compiling BitFun on someone else's machine is not a command this client
   // can issue, so the name must not survive anywhere in the routing surface.
   it('exposes no way to build the CLI on a target', () => {
     const sources = [
@@ -146,18 +146,18 @@ describe('dispatch wire contract single source', () => {
     expect(productIdentity).toContain('pub const fn product_id()');
     expect(productIdentity).toContain('pub const fn data_namespace()');
     expect(targetDispatch).toContain(
-      'openbitfun_services_core::product_identity::product_id()',
+      'bitfun_services_core::product_identity::product_id()',
     );
     expect(targetDispatch).toContain(
-      'openbitfun_services_core::product_identity::data_namespace()',
+      'bitfun_services_core::product_identity::data_namespace()',
     );
     expect(targetProtocol).toContain('pub(crate) product_id: String');
     expect(targetProtocol).toContain('pub(crate) data_namespace: String');
     expect(transportValidator).toContain(
-      'openbitfun_services_core::product_identity::product_id()',
+      'bitfun_services_core::product_identity::product_id()',
     );
     expect(transportValidator).toContain(
-      'openbitfun_services_core::product_identity::data_namespace()',
+      'bitfun_services_core::product_identity::data_namespace()',
     );
     expect(transportValidator).toContain('.get("productId")');
     expect(transportValidator).toContain('.get("dataNamespace")');

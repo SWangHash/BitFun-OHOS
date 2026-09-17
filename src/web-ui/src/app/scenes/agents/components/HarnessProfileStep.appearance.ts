@@ -6,7 +6,7 @@ export const harnessProfileStepAppearanceDescriptor: AppearanceSurfaceDescriptor
   facets: [
     {
       id: 'profile',
-      attribute: 'data-openbitfun-profile',
+      attribute: 'data-bitfun-profile',
       values: ['Minimal', 'Standard', 'Ultimate', 'Creative'],
     },
   ],

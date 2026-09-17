@@ -3,7 +3,7 @@ import { PermissionMailbox } from '../components/PermissionMailbox';
 import { QuestionInteractionContext } from "../components/ChatAskQuestionCard";
 import { ChevronDown as LucideChevronDown } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { MobileIconButton } from '@openbitfun/ui/mobile';
+import { MobileIconButton } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { useControlTargetEpoch } from '../hooks/useControlTargetEpoch';
 import {

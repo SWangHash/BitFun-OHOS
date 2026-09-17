@@ -1,4 +1,4 @@
-# Caddyfile for OpenBitFun Relay Server
+# Caddyfile for BitFun Relay Server
 # Replace YOUR_DOMAIN with your actual domain, or use :443 with self-signed cert.
 #
 # Bulk RPC ciphertext uses /v1/rpc/payloads. Configure body limits for your

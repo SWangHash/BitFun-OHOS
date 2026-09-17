@@ -138,7 +138,7 @@ describe('useResolvedModeSkills', () => {
     const external = ['claude-code', 'codex', 'cursor', 'opencode', 'agent-skills', 'deepseek-harness', 'pi'].map(sourceId => ({
       name: sourceId, key: sourceId, sourceId, effectiveEnabled: true, selectedForRuntime: true,
     } as ModeSkillInfo));
-    const imported = { ...skills[0], sourceId: 'openbitfun', importOrigin: { sourceId: 'codex' } } as ModeSkillInfo;
+    const imported = { ...skills[0], sourceId: 'bitfun', importOrigin: { sourceId: 'codex' } } as ModeSkillInfo;
     await render();
     await act(async () => requests[0].resolve([...external, imported]));
     expect(latest.skills).toEqual([...external, imported]);

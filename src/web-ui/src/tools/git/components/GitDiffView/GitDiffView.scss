@@ -1,100 +1,100 @@
 @use '@/shared/styles/surface-recipes' as surfaces;
 
-.openbitfun-git-diff-view {
+.bitfun-git-diff-view {
   display: flex;
   flex-direction: column;
   height: 100%;
   flex: 1;
-  background: var(--openbitfun-color-surface-canvas);
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-body-sm-font-family);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-body-sm-font-family);
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
-    border-bottom: 1px solid var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-surface-canvas);
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
+    border-bottom: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-canvas);
     flex-shrink: 0;
   }
 
   &__header-left {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__header-right {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
   }
 
   &__commit-range,
   &__diff-type {
-    padding: 2px var(--openbitfun-space-2);
-    background: var(--openbitfun-color-action-neutral-surface);
-    border: 1px solid var(--openbitfun-color-border-default);
-    border-radius: var(--openbitfun-radius-xs);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    color: var(--openbitfun-color-content-secondary);
+    padding: 2px var(--bitfun-space-2);
+    background: var(--bitfun-color-action-neutral-surface);
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-xs);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-family: var(--bitfun-type-code-md-font-family);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__loading-indicator {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-secondary);
+    gap: var(--bitfun-space-2);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__commit-controls {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__view-options {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__option-btn {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-2);
-    background: var(--openbitfun-color-action-neutral-surface);
-    border: 1px solid var(--openbitfun-color-border-default);
-    border-radius: var(--openbitfun-radius-sm);
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    gap: var(--bitfun-space-1);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    background: var(--bitfun-color-action-neutral-surface);
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
     cursor: pointer;
     transition:
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      border-color: var(--openbitfun-color-field-border-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      border-color: var(--bitfun-color-field-border-hover);
     }
 
     &--active {
-      background: var(--openbitfun-color-action-secondary-background);
-      border-color: var(--openbitfun-color-accent-default);
-      color: var(--openbitfun-color-accent-default);
+      background: var(--bitfun-color-action-secondary-background);
+      border-color: var(--bitfun-color-accent-default);
+      color: var(--bitfun-color-accent-default);
     }
   }
 
   &__content {
     flex: 1;
     overflow: auto;
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
     min-height: 0;
   }
 
@@ -106,36 +106,36 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    padding: var(--openbitfun-space-10);
+    padding: var(--bitfun-space-10);
     text-align: center;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
 
     svg {
-      margin-bottom: var(--openbitfun-space-4);
-      opacity: var(--openbitfun-opacity-muted);
+      margin-bottom: var(--bitfun-space-4);
+      opacity: var(--bitfun-opacity-muted);
     }
 
     h3 {
-      font-size: var(--openbitfun-type-body-lg-font-size);
-      font-weight: var(--openbitfun-type-label-sm-font-weight);
-      margin-bottom: var(--openbitfun-space-2);
-      color: var(--openbitfun-color-content-primary);
+      font-size: var(--bitfun-type-body-lg-font-size);
+      font-weight: var(--bitfun-type-label-sm-font-weight);
+      margin-bottom: var(--bitfun-space-2);
+      color: var(--bitfun-color-content-primary);
     }
 
     p {
-      font-size: var(--openbitfun-type-label-md-font-size);
-      opacity: var(--openbitfun-opacity-hover);
+      font-size: var(--bitfun-type-label-md-font-size);
+      opacity: var(--bitfun-opacity-hover);
     }
   }
 
   &__loading-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--openbitfun-color-border-default);
-    border-top-color: var(--openbitfun-color-accent-default);
-    border-radius: var(--openbitfun-radius-pill);
-    animation: openbitfun-git-diff-view-spin 1s linear infinite;
-    margin-bottom: var(--openbitfun-space-4);
+    border: 3px solid var(--bitfun-color-border-default);
+    border-top-color: var(--bitfun-color-accent-default);
+    border-radius: var(--bitfun-radius-pill);
+    animation: bitfun-git-diff-view-spin 1s linear infinite;
+    margin-bottom: var(--bitfun-space-4);
   }
 
   &__file-list {
@@ -145,168 +145,168 @@
   }
 
   &__file-item {
-    background: var(--openbitfun-color-surface-canvas);
-    border-radius: var(--openbitfun-radius-base);
+    background: var(--bitfun-color-surface-canvas);
+    border-radius: var(--bitfun-radius-base);
     overflow: hidden;
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__file-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-    background: var(--openbitfun-color-surface-subtle);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    background: var(--bitfun-color-surface-subtle);
     cursor: pointer;
     user-select: none;
-    transition: background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      background: var(--openbitfun-color-action-neutral-surface);
+      background: var(--bitfun-color-action-neutral-surface);
     }
   }
 
   &__file-info {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     flex: 1;
     min-width: 0;
   }
 
   &__file-path {
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    color: var(--openbitfun-color-content-primary);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
     white-space: nowrap;
     overflow: hidden;
   }
   
   &__file-status-icon {
     flex-shrink: 0;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     display: flex;
     align-items: center;
   }
 
   &__file-status {
-    padding: 2px var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-sm);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    color: var(--openbitfun-color-content-muted);
+    padding: 2px var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-sm);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    font-family: var(--bitfun-type-code-md-font-family);
+    color: var(--bitfun-color-content-muted);
 
     &--added {
-      background: color-mix(in srgb, var(--openbitfun-color-code-change-added) 10%, transparent);
-      color: var(--openbitfun-color-code-change-added);
+      background: color-mix(in srgb, var(--bitfun-color-code-change-added) 10%, transparent);
+      color: var(--bitfun-color-code-change-added);
     }
 
     &--modified {
-      background: color-mix(in srgb, var(--openbitfun-domain-git-changes) 10%, transparent);
-      color: var(--openbitfun-domain-git-changes);
+      background: color-mix(in srgb, var(--bitfun-domain-git-changes) 10%, transparent);
+      color: var(--bitfun-domain-git-changes);
     }
 
     &--deleted {
-      background: color-mix(in srgb, var(--openbitfun-color-code-change-removed) 10%, transparent);
-      color: var(--openbitfun-color-code-change-removed);
+      background: color-mix(in srgb, var(--bitfun-color-code-change-removed) 10%, transparent);
+      color: var(--bitfun-color-code-change-removed);
     }
 
     &--renamed {
-      background: var(--openbitfun-domain-git-branch-background);
-      color: var(--openbitfun-domain-git-branch);
+      background: var(--bitfun-domain-git-branch-background);
+      color: var(--bitfun-domain-git-branch);
     }
   }
 
   &__file-stats {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    gap: var(--bitfun-space-3);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
     flex-shrink: 0;
   }
 
   &__additions {
-    color: var(--openbitfun-color-code-change-added);
+    color: var(--bitfun-color-code-change-added);
     display: flex;
     align-items: center;
     gap: 4px;
   }
 
   &__deletions {
-    color: var(--openbitfun-color-code-change-removed);
+    color: var(--bitfun-color-code-change-removed);
     display: flex;
     align-items: center;
     gap: 4px;
   }
 
   &__expand-icon {
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    transition: transform var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    transition: transform var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   }
 
   &__diff-content {
     padding: 0;
-    background: var(--openbitfun-color-surface-canvas);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    background: var(--bitfun-color-surface-canvas);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-lg-line-height);
     overflow-x: auto;
-    border-top: 1px solid var(--openbitfun-color-border-default);
+    border-top: 1px solid var(--bitfun-color-border-default);
 
   }
 
   &__diff-line {
     display: flex;
     min-width: fit-content;
-    transition: background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &--added {
-      background: color-mix(in srgb, var(--openbitfun-color-code-change-added) 10%, transparent);
+      background: color-mix(in srgb, var(--bitfun-color-code-change-added) 10%, transparent);
       
       &:hover {
-        background: color-mix(in srgb, var(--openbitfun-color-code-change-added) 15%, transparent);
+        background: color-mix(in srgb, var(--bitfun-color-code-change-added) 15%, transparent);
       }
 
-      .openbitfun-git-diff-view__line-content {
-        color: var(--openbitfun-color-code-change-added);
+      .bitfun-git-diff-view__line-content {
+        color: var(--bitfun-color-code-change-added);
       }
     }
 
     &--deleted {
-      background: color-mix(in srgb, var(--openbitfun-color-code-change-removed) 10%, transparent);
+      background: color-mix(in srgb, var(--bitfun-color-code-change-removed) 10%, transparent);
       
       &:hover {
-        background: color-mix(in srgb, var(--openbitfun-color-code-change-removed) 15%, transparent);
+        background: color-mix(in srgb, var(--bitfun-color-code-change-removed) 15%, transparent);
       }
 
-      .openbitfun-git-diff-view__line-content {
-        color: var(--openbitfun-color-code-change-removed);
+      .bitfun-git-diff-view__line-content {
+        color: var(--bitfun-color-code-change-removed);
       }
     }
 
     &--context {
       &:hover {
-        background: var(--openbitfun-color-surface-subtle);
+        background: var(--bitfun-color-surface-subtle);
       }
     }
 
     &--hunk-header {
-      background: var(--openbitfun-color-action-neutral-surface);
-      border-top: 1px solid var(--openbitfun-color-border-default);
-      border-bottom: 1px solid var(--openbitfun-color-border-default);
+      background: var(--bitfun-color-action-neutral-surface);
+      border-top: 1px solid var(--bitfun-color-border-default);
+      border-bottom: 1px solid var(--bitfun-color-border-default);
 
-      .openbitfun-git-diff-view__line-content {
-        color: var(--openbitfun-color-accent-default);
-        font-weight: var(--openbitfun-type-label-sm-font-weight);
+      .bitfun-git-diff-view__line-content {
+        color: var(--bitfun-color-accent-default);
+        font-weight: var(--bitfun-type-label-sm-font-weight);
       }
     }
   }
@@ -314,20 +314,20 @@
   &__line-number {
     flex-shrink: 0;
     width: 50px;
-    padding: 2px var(--openbitfun-space-2);
+    padding: 2px var(--bitfun-space-2);
     text-align: right;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     user-select: none;
-    border-right: 1px solid var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-surface-subtle);
-    font-size: var(--openbitfun-type-meta-font-size);
+    border-right: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-subtle);
+    font-size: var(--bitfun-type-meta-font-size);
   }
 
   &__line-content {
     flex: 1;
-    padding: 2px var(--openbitfun-space-3);
+    padding: 2px var(--bitfun-space-3);
     white-space: pre;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
     overflow-x: visible;
   }
 
@@ -340,108 +340,108 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--openbitfun-color-content-on-light) 60%, transparent);
-    z-index: var(--openbitfun-layer-modal);
+    background: color-mix(in srgb, var(--bitfun-color-content-on-light) 60%, transparent);
+    z-index: var(--bitfun-layer-modal);
     backdrop-filter: blur(4px);
-    animation: openbitfun-git-diff-view-fade-in 0.2s ease-out;
+    animation: bitfun-git-diff-view-fade-in 0.2s ease-out;
   }
 
   &__commit-dialog {
     @include surfaces.dialog;
 
-    padding: var(--openbitfun-space-6);
+    padding: var(--bitfun-space-6);
     min-width: 500px;
     max-width: 600px;
-    animation: openbitfun-git-diff-view-scale-in 0.2s ease-out;
+    animation: bitfun-git-diff-view-scale-in 0.2s ease-out;
   }
 
   &__commit-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: var(--openbitfun-space-4);
-    gap: var(--openbitfun-space-3);
+    margin-bottom: var(--bitfun-space-4);
+    gap: var(--bitfun-space-3);
   }
 
   &__dialog-title {
-    font-size: var(--openbitfun-type-flow-title-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-title-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__ai-generate-btn {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     flex-shrink: 0;
   }
 
   &__ai-spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid color-mix(in srgb, var(--openbitfun-color-content-on-dark) 30%, transparent);
+    border: 2px solid color-mix(in srgb, var(--bitfun-color-content-on-dark) 30%, transparent);
     border-top-color: currentColor;
     border-radius: 50%;
-    animation: openbitfun-git-diff-view-spin 0.8s linear infinite;
+    animation: bitfun-git-diff-view-spin 0.8s linear infinite;
   }
 
   &__ai-error {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
-    margin-bottom: var(--openbitfun-space-3);
-    background: var(--openbitfun-color-status-danger-surface);
-    border: 1px solid var(--openbitfun-color-status-danger-border);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-status-danger-content);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    animation: openbitfun-git-diff-view-shake 0.4s ease-in-out;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
+    margin-bottom: var(--bitfun-space-3);
+    background: var(--bitfun-color-status-danger-surface);
+    border: 1px solid var(--bitfun-color-status-danger-border);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-label-md-font-size);
+    animation: bitfun-git-diff-view-shake 0.4s ease-in-out;
   }
 
   &__dialog-form {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
   }
 
   &__form-group {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__form-label {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    color: var(--openbitfun-color-content-secondary);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    font-size: var(--bitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__form-textarea {
     min-height: 120px;
-    padding: var(--openbitfun-space-3);
-    background: var(--openbitfun-color-action-neutral-surface);
-    border: 1px solid var(--openbitfun-color-border-default);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    line-height: var(--openbitfun-type-body-lg-line-height);
+    padding: var(--bitfun-space-3);
+    background: var(--bitfun-color-action-neutral-surface);
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    line-height: var(--bitfun-type-body-lg-line-height);
     resize: vertical;
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:focus {
       outline: none;
-      border-color: var(--openbitfun-color-accent-default);
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      box-shadow: 0 0 0 3px var(--openbitfun-color-action-secondary-background);
+      border-color: var(--bitfun-color-accent-default);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      box-shadow: 0 0 0 3px var(--bitfun-color-action-secondary-background);
     }
 
     &::placeholder {
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
 
     &:disabled {
@@ -453,88 +453,88 @@
   &__ai-info {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
-    margin-top: var(--openbitfun-space-2);
-    background: color-mix(in srgb, var(--openbitfun-color-accent-default) 5%, transparent);
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 20%, transparent);
-    border-radius: var(--openbitfun-radius-base);
-    animation: openbitfun-git-diff-view-slide-up 0.3s ease-out;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
+    margin-top: var(--bitfun-space-2);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 20%, transparent);
+    border-radius: var(--bitfun-radius-base);
+    animation: bitfun-git-diff-view-slide-up 0.3s ease-out;
   }
 
   &__ai-info-item {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    gap: var(--bitfun-space-2);
+    font-size: var(--bitfun-type-label-md-font-size);
   }
 
   &__ai-info-label {
-    color: var(--openbitfun-color-content-muted);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-muted);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__ai-info-badge {
     padding: 2px 8px;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    color: var(--openbitfun-color-accent-default);
-    background: var(--openbitfun-color-action-secondary-hover);
-    border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 30%, transparent);
-    border-radius: var(--openbitfun-radius-sm);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-accent-default);
+    background: var(--bitfun-color-action-secondary-hover);
+    border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 30%, transparent);
+    border-radius: var(--bitfun-radius-sm);
     text-transform: capitalize;
   }
 
   &__ai-info-value {
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-code-md-font-family);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-code-md-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__ai-confidence {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__ai-confidence-bar {
     width: 60px;
     height: 4px;
-    background: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 12%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 12%, transparent);
     border-radius: 2px;
     overflow: hidden;
   }
 
   &__ai-confidence-fill {
     height: 100%;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--openbitfun-color-accent-default) 40%, transparent), var(--openbitfun-color-accent-hover));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--bitfun-color-accent-default) 40%, transparent), var(--bitfun-color-accent-hover));
     border-radius: 2px;
-    transition: width var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    transition: width var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   }
 
   &__ai-confidence-text {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-secondary);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   &__amend-warning {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-2);
-    margin-top: var(--openbitfun-space-2);
-    background: var(--openbitfun-color-status-warning-surface);
-    border: 1px solid var(--openbitfun-color-status-warning-border);
-    border-radius: var(--openbitfun-radius-base);
-    color: var(--openbitfun-color-status-warning-content);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2);
+    margin-top: var(--bitfun-space-2);
+    background: var(--bitfun-color-status-warning-surface);
+    border: 1px solid var(--bitfun-color-status-warning-border);
+    border-radius: var(--bitfun-radius-base);
+    color: var(--bitfun-color-status-warning-content);
+    font-size: var(--bitfun-type-label-sm-font-size);
   }
 
   &__form-checkbox {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     cursor: pointer;
 
     input[type="checkbox"] {
@@ -544,37 +544,37 @@
     }
 
     label {
-      font-size: var(--openbitfun-type-label-md-font-size);
-      color: var(--openbitfun-color-content-secondary);
+      font-size: var(--bitfun-type-label-md-font-size);
+      color: var(--bitfun-color-content-secondary);
       cursor: pointer;
     }
   }
 
   &__dialog-actions {
     display: flex;
-    gap: var(--openbitfun-space-3);
-    margin-top: var(--openbitfun-space-4);
+    gap: var(--bitfun-space-3);
+    margin-top: var(--bitfun-space-4);
     justify-content: flex-end;
   }
 
   &__stats-summary {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-3);
-    padding: var(--openbitfun-space-3);
-    background: var(--openbitfun-color-action-neutral-surface);
-    border-radius: var(--openbitfun-radius-base);
-    margin-bottom: var(--openbitfun-space-4);
-    font-size: var(--openbitfun-type-label-md-font-size);
+    gap: var(--bitfun-space-3);
+    padding: var(--bitfun-space-3);
+    background: var(--bitfun-color-action-neutral-surface);
+    border-radius: var(--bitfun-radius-base);
+    margin-bottom: var(--bitfun-space-4);
+    font-size: var(--bitfun-type-label-md-font-size);
 
     strong {
-      color: var(--openbitfun-color-content-primary);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-primary);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
     }
   }
 }
 
-@keyframes openbitfun-git-diff-view-spin {
+@keyframes bitfun-git-diff-view-spin {
   from {
     transform: rotate(0deg);
   }
@@ -583,7 +583,7 @@
   }
 }
 
-@keyframes openbitfun-git-diff-view-fade-in {
+@keyframes bitfun-git-diff-view-fade-in {
   from {
     opacity: 0;
   }
@@ -592,7 +592,7 @@
   }
 }
 
-@keyframes openbitfun-git-diff-view-scale-in {
+@keyframes bitfun-git-diff-view-scale-in {
   from {
     opacity: 0;
     transform: scale(0.95) translateY(-10px);
@@ -603,7 +603,7 @@
   }
 }
 
-@keyframes openbitfun-git-diff-view-slide-up {
+@keyframes bitfun-git-diff-view-slide-up {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -614,7 +614,7 @@
   }
 }
 
-@keyframes openbitfun-git-diff-view-shake {
+@keyframes bitfun-git-diff-view-shake {
   0%, 100% {
     transform: translateX(0);
   }
@@ -627,22 +627,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-git-diff-view__loading-spinner,
-  .openbitfun-git-diff-view__ai-spinner,
-  .openbitfun-git-diff-view__commit-dialog-overlay,
-  .openbitfun-git-diff-view__commit-dialog,
-  .openbitfun-git-diff-view__ai-error,
-  .openbitfun-git-diff-view__ai-info {
+  .bitfun-git-diff-view__loading-spinner,
+  .bitfun-git-diff-view__ai-spinner,
+  .bitfun-git-diff-view__commit-dialog-overlay,
+  .bitfun-git-diff-view__commit-dialog,
+  .bitfun-git-diff-view__ai-error,
+  .bitfun-git-diff-view__ai-info {
     animation: none;
   }
 }
 
 @media (max-width: 768px) {
-  .openbitfun-git-diff-view {
+  .bitfun-git-diff-view {
     &__header {
       flex-direction: column;
-      gap: var(--openbitfun-space-3);
-      padding: var(--openbitfun-space-3);
+      gap: var(--bitfun-space-3);
+      padding: var(--bitfun-space-3);
     }
 
     &__header-left,
@@ -654,11 +654,11 @@
     &__commit-dialog {
       min-width: auto;
       max-width: 90vw;
-      margin: var(--openbitfun-space-4);
+      margin: var(--bitfun-space-4);
     }
 
     &__diff-content {
-      font-size: var(--openbitfun-type-meta-font-size);
+      font-size: var(--bitfun-type-meta-font-size);
     }
 
     &__line-number {

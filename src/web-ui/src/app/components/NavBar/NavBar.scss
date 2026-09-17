@@ -4,16 +4,16 @@
  */
 @use '../../styles/workspace-shell-surfaces' as shell-surfaces;
 
-.openbitfun-nav-bar {
+.bitfun-nav-bar {
   @include shell-surfaces.sidebar-background;
 
   display: flex;
   align-items: center;
-  height: var(--openbitfun-layout-toolbar-md-height);
+  height: var(--bitfun-layout-toolbar-md-height);
   min-width: 0;
   flex-shrink: 0;
-  padding: 0 var(--openbitfun-space-2);
-  gap: var(--openbitfun-space-1);
+  padding: 0 var(--bitfun-space-2);
+  gap: var(--bitfun-space-1);
   user-select: none;
 
   &--collapsed {
@@ -37,15 +37,15 @@
   &__title {
     flex: 1 1 0;
     min-width: 0;
-    margin-inline-start: var(--openbitfun-space-1);
+    margin-inline-start: var(--bitfun-space-1);
     overflow: hidden;
     white-space: nowrap;
     text-align: start;
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-body-sm-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   &__btn,
@@ -58,17 +58,17 @@
     flex-shrink: 0;
     padding: 0;
     border: none;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     cursor: pointer;
     flex-shrink: 0;
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-                background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+                background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover:not(.is-inactive) {
-      color: var(--openbitfun-color-content-primary);
-      background: var(--openbitfun-color-action-quiet-hover);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-action-quiet-hover);
     }
 
     &.is-inactive {
@@ -77,11 +77,11 @@
     }
 
     &:active:not(.is-inactive) {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
+      background: var(--bitfun-color-action-neutral-surface-hover);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--openbitfun-color-accent-default);
+      outline: 2px solid var(--bitfun-color-accent-default);
       outline-offset: -1px;
     }
   }
@@ -96,18 +96,18 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     cursor: pointer;
-    transition: color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-                background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+                background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
-      color: var(--openbitfun-color-content-primary);
-      background: var(--openbitfun-color-action-quiet-hover);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-action-quiet-hover);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--openbitfun-color-accent-default);
+      outline: 2px solid var(--bitfun-color-accent-default);
       outline-offset: -1px;
     }
   }
@@ -118,8 +118,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-nav-bar__btn,
-  .openbitfun-nav-bar__panel-toggle {
+  .bitfun-nav-bar__btn,
+  .bitfun-nav-bar__panel-toggle {
     transition: none;
     transform: none;
   }

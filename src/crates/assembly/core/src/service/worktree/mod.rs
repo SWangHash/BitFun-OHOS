@@ -12,13 +12,13 @@ use crate::service::workspace::{
     get_global_workspace_service, WorkspaceActivityMode, WorkspaceCreateOptions, WorkspaceKind,
 };
 use crate::service::workspace_runtime::get_workspace_runtime_service_arc;
-use openbitfun_core_types::{
+use bitfun_core_types::{
     product_identity::hidden_data_directory, SessionExecutionTarget, SessionExecutionTargetKind,
     WorktreeError, WorktreeErrorCode, WorktreeLifecycle, WorktreeSessionSummary, WorktreeSettings,
     WorktreeSummary,
 };
-use openbitfun_services_core::json_store::JsonFileStore;
-use openbitfun_services_core::session::{SessionMetadata, SessionMetadataStore, SessionStatus};
+use bitfun_services_core::json_store::JsonFileStore;
+use bitfun_services_core::session::{SessionMetadata, SessionMetadataStore, SessionStatus};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -333,7 +333,7 @@ impl WorktreeService {
     }
 
     /// Lists local Git projects known to the workspace service together with
-    /// worktrees beneath the configured OpenBitFun worktree root. Invalid and
+    /// worktrees beneath the configured BitFun worktree root. Invalid and
     /// non-Git workspace records are ignored so one stale project cannot hide
     /// the rest of the catalog.
     pub async fn list_projects(
@@ -1008,7 +1008,7 @@ impl WorktreeService {
 
     async fn acquire_repository_process_lock(
         context: &RepositoryContext,
-    ) -> Result<openbitfun_services_core::json_store::JsonFileCrossProcessLock, WorktreeError> {
+    ) -> Result<bitfun_services_core::json_store::JsonFileCrossProcessLock, WorktreeError> {
         JsonFileStore
             .acquire_cross_process_lock(&context.registry_path)
             .await
@@ -2037,7 +2037,7 @@ mod tests {
     };
     use crate::infrastructure::PathManager;
     use crate::service::git::GitError;
-    use openbitfun_core_types::{
+    use bitfun_core_types::{
         WorktreeErrorCode, WorktreeLifecycle, WorktreeSettings, WorktreeSummary,
     };
     use std::path::Path;
@@ -2114,17 +2114,17 @@ mod tests {
 
     #[test]
     fn managed_directory_name_includes_project_name_and_short_worktree_id() {
-        let project = Path::new("projects").join("OpenBitFun");
+        let project = Path::new("projects").join("BitFun");
 
         assert_eq!(
             managed_worktree_directory_name(&project, "48e8b457e87649aebf801b408698f46c"),
-            "OpenBitFun-48e8b457"
+            "BitFun-48e8b457"
         );
     }
 
     #[test]
     fn managed_directory_names_are_distinct_for_different_worktrees() {
-        let project = Path::new("projects").join("OpenBitFun");
+        let project = Path::new("projects").join("BitFun");
 
         assert_ne!(
             managed_worktree_directory_name(&project, "48e8b457e87649aebf801b408698f46c"),
@@ -2136,7 +2136,7 @@ mod tests {
     async fn managed_target_path_uses_readable_leaf_and_rejects_collisions() {
         let root = tempfile::tempdir().expect("temp root");
         let worktree_root = root.path().join("managed-worktrees");
-        let project = root.path().join("projects").join("OpenBitFun");
+        let project = root.path().join("projects").join("BitFun");
         let settings = WorktreeSettings {
             root_path: worktree_root.to_string_lossy().to_string(),
             ..WorktreeSettings::default()
@@ -2148,7 +2148,7 @@ mod tests {
             .expect("managed target path");
         assert_eq!(
             target.file_name().and_then(|name| name.to_str()),
-            Some("OpenBitFun-48e8b457")
+            Some("BitFun-48e8b457")
         );
         assert_eq!(
             target
@@ -2177,7 +2177,7 @@ mod tests {
         let target = managed_target_path(
             &settings,
             "repository-id",
-            &root.path().join("projects/OpenBitFun"),
+            &root.path().join("projects/BitFun"),
             "48e8b457e87649aebf801b408698f46c",
         )
         .await
@@ -2233,10 +2233,10 @@ mod tests {
 
     #[test]
     fn windows_style_default_root_uses_the_managed_path_contract() {
-        let user_root = std::env::temp_dir().join("openbitfun-worktree-root-test");
+        let user_root = std::env::temp_dir().join("bitfun-worktree-root-test");
         let path_manager = PathManager::with_user_root_for_tests(user_root);
         let settings = WorktreeSettings {
-            root_path: r"~\.openbitfun\worktrees".to_string(),
+            root_path: r"~\.bitfun\worktrees".to_string(),
             ..WorktreeSettings::default()
         };
 

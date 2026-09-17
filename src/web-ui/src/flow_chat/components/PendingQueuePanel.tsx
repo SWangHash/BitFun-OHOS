@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListEnd } from 'lucide-react';
-import { OverflowText, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Tooltip } from '@bitfun/ui';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { stateMachineManager } from '../state-machine';
 import { FlowChatStore } from '../store/FlowChatStore';
@@ -31,7 +31,7 @@ import type { QueuedMessage, SteeringImage } from '../types/flow-chat';
 import { isAcpFlowSession } from '../utils/acpSession';
 import { getQueuedMessageAttachmentCount } from '../utils/pendingQueuePresentation';
 import './PendingQueuePanel.scss';
-import { IconButton, Icon } from '@openbitfun/ui';
+import { IconButton, Icon } from '@bitfun/ui';
 import {
   ChatComposerQueue,
   ChatComposerQueueAttachmentBadge,
@@ -42,7 +42,7 @@ import {
   ChatComposerQueueList,
   ChatComposerQueueTitle,
   type ChatComposerQueueItemState,
-} from '@openbitfun/ui/flow-chat';
+} from '@bitfun/ui/flow-chat';
 
 const log = createLogger('PendingQueuePanel');
 
@@ -206,30 +206,30 @@ export function PendingQueuePanel({
   return (
     <ChatComposerQueue data-overflow-trigger
       aria-label={t('pendingQueue.label', { count: visibleItems.length })}
-      className={`openbitfun-pending-queue-panel ${className ?? ''}`.trim()}
-      data-openbitfun-product-component="pending-queue-panel"
-      data-openbitfun-product-part="root"
+      className={`bitfun-pending-queue-panel ${className ?? ''}`.trim()}
+      data-bitfun-product-component="pending-queue-panel"
+      data-bitfun-product-part="root"
       data-testid="pending-queue-panel"
       onClick={e => {
         e.stopPropagation();
       }}
     >
       <ChatComposerQueueHeader
-        data-openbitfun-product-component="pending-queue-panel"
-        data-openbitfun-product-part="header"
+        data-bitfun-product-component="pending-queue-panel"
+        data-bitfun-product-part="header"
       >
         <ListEnd aria-hidden="true" />
         <ChatComposerQueueTitle
           count={visibleItems.length}
-          data-openbitfun-product-component="pending-queue-panel"
-          data-openbitfun-product-part="title"
+          data-bitfun-product-component="pending-queue-panel"
+          data-bitfun-product-part="title"
         >
           {t('pendingQueue.title')}
         </ChatComposerQueueTitle>
       </ChatComposerQueueHeader>
       <ChatComposerQueueList
-        data-openbitfun-product-component="pending-queue-panel"
-        data-openbitfun-product-part="list"
+        data-bitfun-product-component="pending-queue-panel"
+        data-bitfun-product-part="list"
       >
         {visibleItems.map(item => {
           const isSendingNow = item.status === 'sending_now';
@@ -243,9 +243,9 @@ export function PendingQueuePanel({
               ? 'failed'
               : 'default';
           const itemClass = [
-            'openbitfun-pending-queue-panel__item',
-            isSending && 'openbitfun-pending-queue-panel__item--sending',
-            isFailed && 'openbitfun-pending-queue-panel__item--failed',
+            'bitfun-pending-queue-panel__item',
+            isSending && 'bitfun-pending-queue-panel__item--sending',
+            isFailed && 'bitfun-pending-queue-panel__item--failed',
           ]
             .filter(Boolean)
             .join(' ');
@@ -253,35 +253,35 @@ export function PendingQueuePanel({
           return (
             <ChatComposerQueueItem
               className={itemClass}
-              data-openbitfun-product-component="pending-queue-panel"
-              data-openbitfun-product-part="item"
-              data-openbitfun-state={itemState === 'default' ? undefined : itemState}
+              data-bitfun-product-component="pending-queue-panel"
+              data-bitfun-product-part="item"
+              data-bitfun-state={itemState === 'default' ? undefined : itemState}
               key={item.id}
               state={itemState}
             >
               <ChatComposerQueueItemContent
-                className="openbitfun-pending-queue-panel__content"
-                data-openbitfun-product-component="pending-queue-panel"
-                data-openbitfun-product-part="content"
+                className="bitfun-pending-queue-panel__content"
+                data-bitfun-product-component="pending-queue-panel"
+                data-bitfun-product-part="content"
               >
                 {isSendingNow ? (
                   <>
                     <div
-                      className="openbitfun-pending-queue-panel__preview"
-                      data-openbitfun-product-component="pending-queue-panel"
-                      data-openbitfun-product-part="preview"
+                      className="bitfun-pending-queue-panel__preview"
+                      data-bitfun-product-component="pending-queue-panel"
+                      data-bitfun-product-part="preview"
                       title={previewText}
                     ><OverflowText behavior="marquee">
                       {previewText || (
-                        <span className="openbitfun-pending-queue-panel__preview-empty">
+                        <span className="bitfun-pending-queue-panel__preview-empty">
                           {t('pendingQueue.emptyPlaceholder')}
                         </span>
                       )}
                     </OverflowText></div>
                     <div
-                      className="openbitfun-pending-queue-panel__sending-label"
-                      data-openbitfun-product-component="pending-queue-panel"
-                      data-openbitfun-product-part="status"
+                      className="bitfun-pending-queue-panel__sending-label"
+                      data-bitfun-product-component="pending-queue-panel"
+                      data-bitfun-product-part="status"
                     >
                       {t('pendingQueue.statusSending')}
                     </div>
@@ -289,22 +289,22 @@ export function PendingQueuePanel({
                 ) : (
                   <>
                     <div
-                      className="openbitfun-pending-queue-panel__preview"
-                      data-openbitfun-product-component="pending-queue-panel"
-                      data-openbitfun-product-part="preview"
+                      className="bitfun-pending-queue-panel__preview"
+                      data-bitfun-product-component="pending-queue-panel"
+                      data-bitfun-product-part="preview"
                       title={previewText}
                     ><OverflowText behavior="marquee">
                       {previewText || (
-                        <span className="openbitfun-pending-queue-panel__preview-empty">
+                        <span className="bitfun-pending-queue-panel__preview-empty">
                           {t('pendingQueue.emptyPlaceholder')}
                         </span>
                       )}
                     </OverflowText></div>
                     {isFailed && (
                       <div
-                        className="openbitfun-pending-queue-panel__failed-label"
-                        data-openbitfun-product-component="pending-queue-panel"
-                        data-openbitfun-product-part="status"
+                        className="bitfun-pending-queue-panel__failed-label"
+                        data-bitfun-product-component="pending-queue-panel"
+                        data-bitfun-product-part="status"
                       >
                         {t('pendingQueue.statusFailed')}
                       </div>
@@ -321,16 +321,16 @@ export function PendingQueuePanel({
               ) : null}
 
               <ChatComposerQueueItemActions
-                className="openbitfun-pending-queue-panel__actions"
-                data-openbitfun-product-component="pending-queue-panel"
-                data-openbitfun-product-part="actions"
+                className="bitfun-pending-queue-panel__actions"
+                data-bitfun-product-component="pending-queue-panel"
+                data-bitfun-product-part="actions"
               >
                 <Tooltip content={t('pendingQueue.tooltip.sendNow')}>
                   <IconButton
                     aria-label={t('pendingQueue.actions.sendNow')}
-                    className="openbitfun-pending-queue-panel__btn"
-                    data-openbitfun-product-component="pending-queue-panel"
-                    data-openbitfun-product-part="action"
+                    className="bitfun-pending-queue-panel__btn"
+                    data-bitfun-product-component="pending-queue-panel"
+                    data-bitfun-product-part="action"
                     disabled={isSending || recoveryInFlight}
                     icon={<Icon name="arrow-up" size="lg" />}
                     loading={isSendingNow}
@@ -343,9 +343,9 @@ export function PendingQueuePanel({
                 <Tooltip content={t('pendingQueue.actions.delete')}>
                   <IconButton
                     aria-label={t('pendingQueue.actions.delete')}
-                    className="openbitfun-pending-queue-panel__btn openbitfun-pending-queue-panel__btn--danger"
-                    data-openbitfun-product-component="pending-queue-panel"
-                    data-openbitfun-product-part="action"
+                    className="bitfun-pending-queue-panel__btn bitfun-pending-queue-panel__btn--danger"
+                    data-bitfun-product-component="pending-queue-panel"
+                    data-bitfun-product-part="action"
                     disabled={isSending}
                     icon={<Icon name="delete" size="lg" />}
                     size="xs"
@@ -355,9 +355,9 @@ export function PendingQueuePanel({
                 <Tooltip content={t('pendingQueue.actions.edit')}>
                   <IconButton
                     aria-label={t('pendingQueue.actions.edit')}
-                    className="openbitfun-pending-queue-panel__btn"
-                    data-openbitfun-product-component="pending-queue-panel"
-                    data-openbitfun-product-part="action"
+                    className="bitfun-pending-queue-panel__btn"
+                    data-bitfun-product-component="pending-queue-panel"
+                    data-bitfun-product-part="action"
                     disabled={isSending}
                     icon={<Icon name="edit" size="lg" />}
                     size="xs"

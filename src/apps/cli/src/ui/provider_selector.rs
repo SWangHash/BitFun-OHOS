@@ -15,7 +15,7 @@ use ratatui::{
 };
 
 use crate::ui::theme::{StyleKind, Theme};
-use openbitfun_core_types::ProviderCatalog;
+use bitfun_core_types::ProviderCatalog;
 
 /// A preset provider template
 #[derive(Debug, Clone)]

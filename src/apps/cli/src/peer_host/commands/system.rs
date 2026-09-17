@@ -2,12 +2,12 @@
 
 use serde_json::{json, Value};
 
-use openbitfun_core::service::token_usage::TokenUsageStatisticsRequest;
+use bitfun_core::service::token_usage::TokenUsageStatisticsRequest;
 
 use crate::peer_host::state::PeerHostState;
 
 pub(crate) async fn get_system_info() -> Result<Value, String> {
-    let info = openbitfun_core::service::system::get_system_info();
+    let info = bitfun_core::service::system::get_system_info();
     Ok(json!({
         "platform": info.platform,
         "arch": info.arch,
@@ -39,7 +39,7 @@ mod tests {
     #[tokio::test]
     async fn system_info_home_contract_reports_serving_host_in_camel_case() {
         let response = super::get_system_info().await.unwrap();
-        let info = openbitfun_core::service::system::get_system_info();
+        let info = bitfun_core::service::system::get_system_info();
         assert_eq!(response["homeDir"], serde_json::json!(info.home_dir));
         assert!(response.get("home_dir").is_none());
         assert_eq!(response["platform"], info.platform);

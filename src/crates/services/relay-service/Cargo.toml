@@ -1,12 +1,12 @@
 [package]
-name = "openbitfun-relay-service"
+name = "bitfun-relay-service"
 version = "1.0.0"
-authors = ["OpenBitFun Team"]
+authors = ["BitFun Team"]
 edition = "2021"
-description = "Reusable relay runtime for OpenBitFun Remote Connect"
+description = "Reusable relay runtime for BitFun Remote Connect"
 
 [lib]
-name = "openbitfun_relay_service"
+name = "bitfun_relay_service"
 path = "src/lib.rs"
 
 [dependencies]
@@ -37,7 +37,7 @@ webpki-roots = "1"
 # The relay stores verified account identity, device public keys, and opaque blobs.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }
-openbitfun-page-function-runtime = { path = "../page-function-runtime" }
+bitfun-page-function-runtime = { path = "../page-function-runtime" }
 # Two SQLite drivers here is deliberate, not drift. They own disjoint databases:
 #
 #   sqlx     -> async access to the relay's own control-plane schema (`db.rs`),

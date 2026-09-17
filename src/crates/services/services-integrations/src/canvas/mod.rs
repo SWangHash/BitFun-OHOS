@@ -7,7 +7,7 @@
 mod compiler;
 
 pub use compiler::{compile_canvas_component_js, compile_canvas_html, compile_canvas_source};
-use openbitfun_product_domains::canvas::{
+use bitfun_product_domains::canvas::{
     is_safe_canvas_ref_segment, CanvasArtifact, CanvasCompileResult, CanvasCompiledPayload,
     CanvasDiagnostic, CanvasDiagnosticSeverity, CanvasId, CanvasPortError, CanvasPortErrorKind,
     CanvasPortFuture, CanvasPortResult, CanvasRevision, CanvasSessionId, CanvasSnapshot,
@@ -42,8 +42,8 @@ impl CanvasMemoryStore {
         }
     }
 
-    pub fn capability_status() -> openbitfun_product_domains::canvas::CanvasCapabilityStatus {
-        openbitfun_product_domains::canvas::CanvasCapabilityStatus::supported()
+    pub fn capability_status() -> bitfun_product_domains::canvas::CanvasCapabilityStatus {
+        bitfun_product_domains::canvas::CanvasCapabilityStatus::supported()
     }
 
     fn key(session_id: CanvasSessionId, canvas_id: CanvasId) -> (CanvasSessionId, CanvasId) {
@@ -188,7 +188,7 @@ impl CanvasStoragePort for CanvasMemoryStore {
         &self,
         artifact: CanvasArtifact,
         source: CanvasSource,
-        diagnostics: Vec<openbitfun_product_domains::canvas::CanvasDiagnostic>,
+        diagnostics: Vec<bitfun_product_domains::canvas::CanvasDiagnostic>,
     ) -> CanvasPortFuture<'_, CanvasSnapshot> {
         let store = self.clone();
         Box::pin(async move {
@@ -526,9 +526,9 @@ impl CanvasStoragePort for CanvasMemoryStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::canvas::{
+    use bitfun_product_domains::canvas::{
         CanvasDiagnosticCategory, CanvasDiagnosticSeverity, CanvasRevision, CanvasScope,
-        CanvasWorkspaceId, OPENBITFUN_CANVAS_RUNTIME_VERSION,
+        CanvasWorkspaceId, BITFUN_CANVAS_RUNTIME_VERSION,
     };
     use std::collections::BTreeMap;
 
@@ -555,7 +555,7 @@ mod tests {
             CanvasId::new(canvas_id),
             CanvasRevision::new("rev_1"),
             "canvas.tsx",
-            "import { Stack } from 'openbitfun/canvas'; export default function C() { return <Stack />; }",
+            "import { Stack } from 'bitfun/canvas'; export default function C() { return <Stack />; }",
             "0.1.0",
             1,
         )
@@ -665,7 +665,7 @@ mod tests {
     #[tokio::test]
     async fn canvas_store_persists_snapshots_by_session() {
         let sessions_dir = std::env::temp_dir().join(format!(
-            "openbitfun-canvas-store-test-{}",
+            "bitfun-canvas-store-test-{}",
             uuid::Uuid::new_v4()
         ));
         let store = CanvasMemoryStore::persistent(&sessions_dir);
@@ -730,7 +730,7 @@ mod tests {
     #[tokio::test]
     async fn persistent_canvas_store_rejects_unsafe_path_segments() {
         let sessions_dir = std::env::temp_dir().join(format!(
-            "openbitfun-canvas-store-test-{}",
+            "bitfun-canvas-store-test-{}",
             uuid::Uuid::new_v4()
         ));
         let store = CanvasMemoryStore::persistent(&sessions_dir);
@@ -791,8 +791,8 @@ mod tests {
                 CanvasSessionId::new("session_1"),
                 CanvasId::new("canvas_1"),
                 CanvasRevision::new("rev_1"),
-                OPENBITFUN_CANVAS_RUNTIME_VERSION.to_string(),
-                openbitfun_product_domains::canvas::OPENBITFUN_CANVAS_SDK_VERSION.to_string(),
+                BITFUN_CANVAS_RUNTIME_VERSION.to_string(),
+                bitfun_product_domains::canvas::BITFUN_CANVAS_SDK_VERSION.to_string(),
             )
             .await
             .unwrap();
@@ -910,7 +910,7 @@ mod tests {
                 CanvasId::new("canvas_1"),
                 CanvasRevision::new("rev_1"),
                 "legacy-runtime".to_string(),
-                openbitfun_product_domains::canvas::OPENBITFUN_CANVAS_SDK_VERSION.to_string(),
+                bitfun_product_domains::canvas::BITFUN_CANVAS_SDK_VERSION.to_string(),
             )
             .await
             .unwrap();
@@ -922,7 +922,7 @@ mod tests {
                 CanvasSessionId::new("session_1"),
                 CanvasId::new("canvas_1"),
                 CanvasRevision::new("rev_1"),
-                OPENBITFUN_CANVAS_RUNTIME_VERSION.to_string(),
+                BITFUN_CANVAS_RUNTIME_VERSION.to_string(),
                 "legacy-sdk".to_string(),
             )
             .await
@@ -955,8 +955,8 @@ mod tests {
                 CanvasSessionId::new("session_1"),
                 CanvasId::new("canvas_1"),
                 CanvasRevision::new("rev_1"),
-                OPENBITFUN_CANVAS_RUNTIME_VERSION.to_string(),
-                openbitfun_product_domains::canvas::OPENBITFUN_CANVAS_SDK_VERSION.to_string(),
+                BITFUN_CANVAS_RUNTIME_VERSION.to_string(),
+                bitfun_product_domains::canvas::BITFUN_CANVAS_SDK_VERSION.to_string(),
             )
             .await
             .unwrap();
@@ -989,8 +989,8 @@ mod tests {
         assert!(result.compiled, "{:?}", result.diagnostics);
         let html = result.payload.unwrap().html;
 
-        assert!(html.contains("openbitfun-canvas-root"));
-        assert!(html.contains("OpenBitFunCanvasRuntime.mount"));
+        assert!(html.contains("bitfun-canvas-root"));
+        assert!(html.contains("BitFunCanvasRuntime.mount"));
         assert!(html.contains("connect-src 'none'"));
         assert!(!html.contains("</script><unsafe>"));
     }

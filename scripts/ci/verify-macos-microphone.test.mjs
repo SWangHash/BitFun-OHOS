@@ -11,7 +11,7 @@ const config = JSON.parse(readFileSync(join(desktop, 'tauri.conf.json'), 'utf8')
 const plist = body => `<?xml version="1.0"?><plist version="1.0"><dict>${body}</dict></plist>`;
 
 function verifyFixture(t, { entitlement = 'configured', usage = true } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'openbitfun-microphone-'));
+  const dir = mkdtempSync(join(tmpdir(), 'bitfun-microphone-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const app = join(dir, 'Microphone.app');
   const executable = join(app, 'Contents/MacOS/fixture');
@@ -20,7 +20,7 @@ function verifyFixture(t, { entitlement = 'configured', usage = true } = {}) {
   const usagePlist = readFileSync(join(desktop, 'Info.plist'), 'utf8');
   const usageBody = usage ? usagePlist.match(/<dict>([\s\S]*?)<\/dict>/)[1] : '';
   writeFileSync(join(app, 'Contents/Info.plist'), plist(`
-    <key>CFBundleIdentifier</key><string>com.openbitfun.microphone-fixture</string>
+    <key>CFBundleIdentifier</key><string>com.bitfun.microphone-fixture</string>
     <key>CFBundleExecutable</key><string>fixture</string>
     <key>CFBundlePackageType</key><string>APPL</string>${usageBody}`));
   const entitlementPath = join(dir, 'entitlements.plist');

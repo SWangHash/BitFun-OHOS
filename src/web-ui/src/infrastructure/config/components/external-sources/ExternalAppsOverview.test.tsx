@@ -55,10 +55,10 @@ describe('ExternalAppsOverview', () => {
     await render([application]);
 
     expect(container.textContent).toContain('OpenCode');
-    expect(container.querySelector('[data-openbitfun-product-part="applicationToggle"] input')).not.toBeNull();
-    expect(container.querySelector('.openbitfun-external-sources-config__app-status')).toBeNull();
-    expect(container.querySelector('.openbitfun-external-sources-config__app-expand')).toBeNull();
-    expect(container.querySelector('.openbitfun-external-sources-config__app-capability-chip')).toBeNull();
+    expect(container.querySelector('[data-bitfun-product-part="applicationToggle"] input')).not.toBeNull();
+    expect(container.querySelector('.bitfun-external-sources-config__app-status')).toBeNull();
+    expect(container.querySelector('.bitfun-external-sources-config__app-expand')).toBeNull();
+    expect(container.querySelector('.bitfun-external-sources-config__app-capability-chip')).toBeNull();
   });
 
   it('opens existing owner settings from an icon-only permission hint', async () => {
@@ -66,7 +66,7 @@ describe('ExternalAppsOverview', () => {
     await render([{ ...application, attentionCount: 2 }], { onOpenAttention });
 
     const permissionHint = container.querySelector<HTMLButtonElement>(
-      '[data-openbitfun-product-part="appAttention"]',
+      '[data-bitfun-product-part="appAttention"]',
     );
     expect(permissionHint?.tagName).toBe('BUTTON');
     expect(permissionHint?.textContent).toBe('');
@@ -80,7 +80,7 @@ describe('ExternalAppsOverview', () => {
     await render([application], { onToggle });
 
     const toggle = container.querySelector<HTMLInputElement>(
-      '[data-openbitfun-product-part="applicationToggle"] input',
+      '[data-bitfun-product-part="applicationToggle"] input',
     );
     await act(async () => toggle?.click());
     expect(onToggle).toHaveBeenCalledWith(application, false);
@@ -91,7 +91,7 @@ describe('ExternalAppsOverview', () => {
     await render([application], { policiesEnabled: false, onOpenPolicy });
 
     const disabledToggle = container.querySelector<HTMLElement>(
-      '[data-openbitfun-product-part="applicationToggle"]',
+      '[data-bitfun-product-part="applicationToggle"]',
     );
     expect(disabledToggle?.getAttribute('title')).toBe('applications.enableInAdvanced');
     expect(disabledToggle?.getAttribute('aria-label')).toBe('applications.enableInAdvanced');

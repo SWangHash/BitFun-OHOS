@@ -12,17 +12,17 @@ use crate::agentic::tools::framework::{
     PermissionIntent, Tool, ToolExposure, ToolResult, ToolUseContext,
 };
 use crate::service::config::global::GlobalConfigManager;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::ToolImageAttachment;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use log::{debug, warn};
-use openbitfun_agent_tools::computer_use::{
+use bitfun_agent_tools::computer_use::{
     build_screenshot_tool_body_and_hint, coordinate_mode,
     ensure_pointer_move_uses_screen_coordinates_only, parse_screenshot_params,
     use_screen_coordinates,
 };
-use openbitfun_core_types::product_identity::hidden_data_directory;
+use bitfun_core_types::product_identity::hidden_data_directory;
 use serde_json::{json, Value};
 
 fn computer_use_permission_resource(input: &Value) -> String {
@@ -116,7 +116,7 @@ pub(crate) async fn computer_use_augment_result_json(
 /// Filenames: `cu_<ms>_full.jpg` (whole display) or `cu_<ms>_crop_<x>_<y>.jpg` when a point crop was requested.
 const COMPUTER_USE_DEBUG_DIRECTORY_NAME: &str = "computer_use_debug";
 /// Set to `1` to enable on-disk debug copies of Computer use screenshots.
-const COMPUTER_USE_DEBUG_SCREENSHOTS_ENV: &str = "OPENBITFUN_COMPUTER_USE_DEBUG_SCREENSHOTS";
+const COMPUTER_USE_DEBUG_SCREENSHOTS_ENV: &str = "BITFUN_COMPUTER_USE_DEBUG_SCREENSHOTS";
 /// Newest debug screenshots retained in the product debug directory; older files are deleted.
 const COMPUTER_USE_DEBUG_MAX_FILES: usize = 20;
 
@@ -385,7 +385,7 @@ The **primary model cannot consume images** in tool results — **do not** use *
         text_query: &str,
         ocr_region_native: Option<OcrRegionNative>,
         matches: &[ScreenOcrTextMatch],
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         Self::require_multimodal_tool_output_for_screenshot(context)?;
         let take = matches.len().min(Self::MOVE_TO_TEXT_DISAMBIGUATION_MAX);
         let mut attachments: Vec<ToolImageAttachment> = Vec::with_capacity(take);
@@ -468,7 +468,7 @@ The **primary model cannot consume images** in tool results — **do not** use *
         text_query: &str,
         ocr_region_native: Option<OcrRegionNative>,
         matches: &[ScreenOcrTextMatch],
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let take = matches.len().min(Self::MOVE_TO_TEXT_DISAMBIGUATION_MAX);
         let mut candidates: Vec<Value> = Vec::with_capacity(take);
         for (i, m) in matches.iter().take(take).enumerate() {
@@ -535,7 +535,7 @@ The **primary model cannot consume images** in tool results — **do not** use *
         host: &dyn ComputerUseHost,
         _input: &Value,
         text_only: bool,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         // For a text-only model this *is* the observation step, so it clears
         // the same guard a `screenshot` would. Without this the guard can only
         // ever be cleared by a capture the model cannot consume.
@@ -666,16 +666,16 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
 
     /// Screenshot tool results attach JPEGs via `tool_image_attachments`; only providers whose
     /// request converters emit multimodal tool output are supported (Anthropic + OpenAI-compatible).
-    fn require_multimodal_tool_output_for_screenshot(ctx: &ToolUseContext) -> OpenBitFunResult<()> {
+    fn require_multimodal_tool_output_for_screenshot(ctx: &ToolUseContext) -> BitFunResult<()> {
         if !ctx.primary_model_supports_image_understanding() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "The primary model does not accept images; do not use ComputerUse action `screenshot` or other image-producing steps. Use `click_element`, `locate`, `move_to_text` (with `move_to_text_match_index` when listed), `mouse_move` with globals from tool JSON, `key_chord`, etc.".to_string(),
             ));
         }
         if ctx.primary_model_facts().multimodal_tool_output_supported() {
             return Ok(());
         }
-        Err(OpenBitFunError::tool(
+        Err(BitFunError::tool(
             "Screenshot results include images in tool results; set the primary model to Anthropic (Claude) or OpenAI-compatible API format. Other providers are not supported for screenshots yet.".to_string(),
         ))
     }
@@ -685,7 +685,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
         input: &Value,
         x: i32,
         y: i32,
-    ) -> OpenBitFunResult<(f64, f64)> {
+    ) -> BitFunResult<(f64, f64)> {
         if use_screen_coordinates(input) {
             return Ok((x as f64, y as f64));
         }
@@ -697,19 +697,19 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
     }
 
     /// `click` must not carry coordinate fields — use `mouse_move` (or `move_to_text`, etc.) separately.
-    fn ensure_click_has_no_coordinate_fields(input: &Value) -> OpenBitFunResult<()> {
+    fn ensure_click_has_no_coordinate_fields(input: &Value) -> BitFunResult<()> {
         if input.get("x").is_some() || input.get("y").is_some() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "click does not accept x or y. Position with move_to_text, click_element, or `mouse_move` with use_screen_coordinates: true (globals from tool results), then `click` with only button and num_clicks.".to_string(),
             ));
         }
         if input.get("coordinate_mode").is_some() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "click does not accept coordinate_mode. Use `mouse_move` with use_screen_coordinates: true, then `click`.".to_string(),
             ));
         }
         if input.get("use_screen_coordinates").is_some() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "click does not accept use_screen_coordinates. Use `mouse_move` with use_screen_coordinates, then `click`.".to_string(),
             ));
         }
@@ -739,7 +739,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
         host_ref: &dyn crate::agentic::tools::computer_use_host::ComputerUseHost,
         text_query: &str,
         region_native: Option<crate::agentic::tools::computer_use_host::OcrRegionNative>,
-    ) -> OpenBitFunResult<Vec<ScreenOcrTextMatch>> {
+    ) -> BitFunResult<Vec<ScreenOcrTextMatch>> {
         let matches = host_ref
             .ocr_find_text_matches(text_query, region_native)
             .await?;
@@ -798,7 +798,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
     async fn resolve_target_point(
         host_ref: &dyn crate::agentic::tools::computer_use_host::ComputerUseHost,
         input: &Value,
-    ) -> OpenBitFunResult<ResolvedDesktopTarget> {
+    ) -> BitFunResult<ResolvedDesktopTarget> {
         let mut query = parse_locate_query(input);
         if query.text_contains.is_none() {
             if let Some(target_text) = input
@@ -855,7 +855,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
                 let selected = match requested_index {
                     Some(idx) if idx >= 1 && idx <= matches.len() => idx - 1,
                     Some(idx) => {
-                        return Err(OpenBitFunError::tool(format!(
+                        return Err(BitFunError::tool(format!(
                             "target_match_index/move_to_text_match_index must be between 1 and {} (got {}).",
                             matches.len(),
                             idx
@@ -916,7 +916,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
             });
         }
 
-        Err(OpenBitFunError::tool(
+        Err(BitFunError::tool(
             "move_to_target/click_target requires a target: node_idx, target_text/text_query/text_contains/title_contains, role_substring, identifier_contains, or x/y with use_screen_coordinates: true.".to_string(),
         ))
     }
@@ -1013,7 +1013,7 @@ and compare `ax_state_digest` across actions to verify state changes.{}",
     async fn pack_screenshot_tool_output(
         shot: &ComputerScreenshot,
         debug_rel: Option<String>,
-    ) -> OpenBitFunResult<(Value, ToolImageAttachment, String)> {
+    ) -> BitFunResult<(Value, ToolImageAttachment, String)> {
         let b64 = B64.encode(&shot.bytes);
         let (data, hint) = build_screenshot_tool_body_and_hint(shot, debug_rel);
         let attach = ToolImageAttachment {
@@ -1033,7 +1033,7 @@ pub(crate) async fn ensure_global_xy_on_display(
     host: &dyn crate::agentic::tools::computer_use_host::ComputerUseHost,
     gx: f64,
     gy: f64,
-) -> OpenBitFunResult<()> {
+) -> BitFunResult<()> {
     let displays = host.list_displays().await.unwrap_or_default();
     if displays.is_empty() {
         // Host can't enumerate displays (non-desktop runtime) — skip the guard.
@@ -1111,7 +1111,7 @@ fn parse_locate_query(input: &Value) -> UiElementLocateQuery {
 
 fn parse_ocr_region_native(
     input: &Value,
-) -> OpenBitFunResult<Option<crate::agentic::tools::computer_use_host::OcrRegionNative>> {
+) -> BitFunResult<Option<crate::agentic::tools::computer_use_host::OcrRegionNative>> {
     let v = input
         .get("ocr_region_native")
         .or_else(|| input.get("ocr_region"));
@@ -1122,27 +1122,27 @@ fn parse_ocr_region_native(
         return Ok(None);
     }
     let o = val.as_object().ok_or_else(|| {
-        OpenBitFunError::tool(
+        BitFunError::tool(
             "ocr_region_native must be an object { x0, y0, width, height } in global native pixels."
                 .to_string(),
         )
     })?;
     let x0 = o.get("x0").and_then(|x| x.as_i64()).ok_or_else(|| {
-        OpenBitFunError::tool("ocr_region_native.x0 (integer) is required.".to_string())
+        BitFunError::tool("ocr_region_native.x0 (integer) is required.".to_string())
     })? as i32;
     let y0 = o.get("y0").and_then(|x| x.as_i64()).ok_or_else(|| {
-        OpenBitFunError::tool("ocr_region_native.y0 (integer) is required.".to_string())
+        BitFunError::tool("ocr_region_native.y0 (integer) is required.".to_string())
     })? as i32;
     let width = o.get("width").and_then(|x| x.as_u64()).ok_or_else(|| {
-        OpenBitFunError::tool("ocr_region_native.width (positive integer) is required.".to_string())
+        BitFunError::tool("ocr_region_native.width (positive integer) is required.".to_string())
     })? as u32;
     let height = o.get("height").and_then(|x| x.as_u64()).ok_or_else(|| {
-        OpenBitFunError::tool(
+        BitFunError::tool(
             "ocr_region_native.height (positive integer) is required.".to_string(),
         )
     })? as u32;
     if width == 0 || height == 0 {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "ocr_region_native width and height must be greater than zero.".to_string(),
         ));
     }
@@ -1162,7 +1162,7 @@ impl Tool for ComputerUseTool {
         "ComputerUse"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         let os = Self::host_os_label();
         let keys = Self::key_chord_os_hint();
         Ok(format!(
@@ -1197,7 +1197,7 @@ impl Tool for ComputerUseTool {
     async fn description_with_context(
         &self,
         context: Option<&ToolUseContext>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let vision = context
             .map(|c| c.primary_model_supports_image_understanding())
             .unwrap_or(true);
@@ -1274,7 +1274,7 @@ impl Tool for ComputerUseTool {
         &self,
         input: &Value,
         _context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<PermissionIntent>> {
+    ) -> BitFunResult<Vec<PermissionIntent>> {
         Ok(vec![PermissionIntent::new(
             "computer_use",
             vec![computer_use_permission_resource(input)],
@@ -1304,9 +1304,9 @@ impl Tool for ComputerUseTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         if context.is_remote() {
-            return Err(OpenBitFunError::tool(
+            return Err(BitFunError::tool(
                 "ComputerUse cannot run while the session workspace is remote (SSH).".to_string(),
             ));
         }
@@ -1314,7 +1314,7 @@ impl Tool for ComputerUseTool {
         let action = input
             .get("action")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| OpenBitFunError::tool("action is required".to_string()))?;
+            .ok_or_else(|| BitFunError::tool("action is required".to_string()))?;
 
         // Browser-boundary guard: physical input actions (click/type/scroll/…)
         // must not drive a CDP-drivable (Chromium-family) browser from the
@@ -1344,8 +1344,8 @@ impl Tool for ComputerUseTool {
         }
 
         let host = context.computer_use_host.as_ref().ok_or_else(|| {
-            OpenBitFunError::tool(
-                "Computer use is only available in the OpenBitFun desktop app.".to_string(),
+            BitFunError::tool(
+                "Computer use is only available in the BitFun desktop app.".to_string(),
             )
         })?;
 
@@ -1463,7 +1463,7 @@ impl Tool for ComputerUseTool {
                     && query.identifier_contains.is_none()
                     && query.node_idx.is_none()
                 {
-                    return Err(OpenBitFunError::tool(
+                    return Err(BitFunError::tool(
                         "click_element requires at least one of text_contains, title_contains, role_substring, identifier_contains, or node_idx.".to_string(),
                     ));
                 }
@@ -1560,7 +1560,7 @@ impl Tool for ComputerUseTool {
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .ok_or_else(|| {
-                        OpenBitFunError::tool(
+                        BitFunError::tool(
                             "move_to_text requires non-empty string field `text_query`."
                                 .to_string(),
                         )
@@ -1576,7 +1576,7 @@ impl Tool for ComputerUseTool {
                         Self::find_text_on_screen(host_ref, text_query, ocr_region_native.clone())
                             .await?;
                     if matches.is_empty() {
-                        return Err(OpenBitFunError::tool(format!(
+                        return Err(BitFunError::tool(format!(
                             "move_to_text found no visible OCR match for {:?}. Take a fresh screenshot and try a shorter or more distinctive substring, or use click_element.",
                             text_query
                         )));
@@ -1607,7 +1607,7 @@ impl Tool for ComputerUseTool {
                         None => 0,
                         Some(idx) => {
                             if idx < 1 || idx > n as u32 {
-                                return Err(OpenBitFunError::tool(format!(
+                                return Err(BitFunError::tool(format!(
                                     "move_to_text_match_index must be between 1 and {} ({} OCR matches for {:?}).",
                                     n, n, text_query
                                 )));
@@ -1771,7 +1771,7 @@ impl Tool for ComputerUseTool {
                 let dx = input.get("delta_x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let dy = input.get("delta_y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 if dx == 0 && dy == 0 {
-                    return Err(OpenBitFunError::tool(
+                    return Err(BitFunError::tool(
                         "scroll requires non-zero delta_x and/or delta_y".to_string(),
                     ));
                 }
@@ -1970,7 +1970,7 @@ impl Tool for ComputerUseTool {
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0) as i32;
                 if dx == 0 && dy == 0 {
-                    return Err(OpenBitFunError::tool(
+                    return Err(BitFunError::tool(
                         "pointer_move_rel requires a non-zero delta. Accepts `delta_x`|`dx` and `delta_y`|`dy` (screen pixels); at least one must be non-zero.".to_string(),
                     ));
                 }
@@ -2048,7 +2048,7 @@ impl Tool for ComputerUseTool {
                 let text = input
                     .get("text")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| OpenBitFunError::tool("text is required".to_string()))?;
+                    .ok_or_else(|| BitFunError::tool("text is required".to_string()))?;
                 host_ref.type_text(text).await?;
                 let input_coords =
                     json!({ "kind": "type_text", "char_count": text.chars().count() });
@@ -2068,7 +2068,7 @@ impl Tool for ComputerUseTool {
                 let ms = input
                     .get("ms")
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| OpenBitFunError::tool("ms is required".to_string()))?;
+                    .ok_or_else(|| BitFunError::tool("ms is required".to_string()))?;
                 host_ref.wait_ms(ms).await?;
                 let body = computer_use_augment_result_json(
                     host_ref,
@@ -2086,7 +2086,7 @@ impl Tool for ComputerUseTool {
                     .get("app_name")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        OpenBitFunError::tool("open_app requires `app_name` parameter.".to_string())
+                        BitFunError::tool("open_app requires `app_name` parameter.".to_string())
                     })?;
                 let result = host_ref.open_app(app_name).await?;
                 // A live process with zero windows is the one launch outcome
@@ -2166,14 +2166,14 @@ Do not fall back to screen-coordinate clicks — there is no window to hit.",
                     .get("script")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        OpenBitFunError::tool(
+                        BitFunError::tool(
                             "run_apple_script requires `script` parameter.".to_string(),
                         )
                     })?;
                 #[cfg(not(target_os = "macos"))]
                 {
                     let _ = script;
-                    return Err(OpenBitFunError::tool(
+                    return Err(BitFunError::tool(
                         "run_apple_script is only available on macOS.".to_string(),
                     ));
                 }
@@ -2186,8 +2186,8 @@ Do not fall back to screen-coordinate clicks — there is no window to hit.",
                             .output()
                     })
                     .await
-                    .map_err(|e| OpenBitFunError::tool(format!("spawn: {}", e)))?
-                    .map_err(|e| OpenBitFunError::tool(format!("osascript: {}", e)))?;
+                    .map_err(|e| BitFunError::tool(format!("spawn: {}", e)))?
+                    .map_err(|e| BitFunError::tool(format!("osascript: {}", e)))?;
 
                     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -2226,7 +2226,7 @@ Do not fall back to screen-coordinate clicks — there is no window to hit.",
                 }
             }
 
-            _ => Err(OpenBitFunError::tool(format!("Unknown action: {}", action))),
+            _ => Err(BitFunError::tool(format!("Unknown action: {}", action))),
         }
     }
 }
@@ -2257,12 +2257,12 @@ struct ScreenOcrTextMatch {
     bounds_height: f64,
 }
 
-fn req_i32(input: &Value, key: &str) -> OpenBitFunResult<i32> {
+fn req_i32(input: &Value, key: &str) -> BitFunResult<i32> {
     input
         .get(key)
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
-        .ok_or_else(|| OpenBitFunError::tool(format!("{} is required (integer)", key)))
+        .ok_or_else(|| BitFunError::tool(format!("{} is required (integer)", key)))
 }
 
 #[cfg(test)]
@@ -2276,7 +2276,7 @@ mod tests {
         ComputerUsePermissionSnapshot, ComputerUseScreenshotParams, ComputerUseSessionSnapshot,
     };
     use crate::agentic::tools::framework::{Tool, ToolUseContext};
-    use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+    use crate::util::errors::{BitFunError, BitFunResult};
     use serde_json::{json, Value};
 
     #[test]
@@ -2505,58 +2505,58 @@ mod tests {
     #[derive(Debug)]
     struct ChromeForegroundHost;
 
-    fn not_expected<T>() -> OpenBitFunResult<T> {
-        Err(OpenBitFunError::tool(
+    fn not_expected<T>() -> BitFunResult<T> {
+        Err(BitFunError::tool(
             "not expected to be called in this test".to_string(),
         ))
     }
 
     #[async_trait::async_trait]
     impl ComputerUseHost for ChromeForegroundHost {
-        async fn permission_snapshot(&self) -> OpenBitFunResult<ComputerUsePermissionSnapshot> {
+        async fn permission_snapshot(&self) -> BitFunResult<ComputerUsePermissionSnapshot> {
             not_expected()
         }
-        async fn request_accessibility_permission(&self) -> OpenBitFunResult<()> {
+        async fn request_accessibility_permission(&self) -> BitFunResult<()> {
             not_expected()
         }
-        async fn request_screen_capture_permission(&self) -> OpenBitFunResult<()> {
+        async fn request_screen_capture_permission(&self) -> BitFunResult<()> {
             not_expected()
         }
         async fn screenshot_display(
             &self,
             _params: ComputerUseScreenshotParams,
-        ) -> OpenBitFunResult<ComputerScreenshot> {
+        ) -> BitFunResult<ComputerScreenshot> {
             not_expected()
         }
-        fn map_image_coords_to_pointer(&self, _x: i32, _y: i32) -> OpenBitFunResult<(i32, i32)> {
+        fn map_image_coords_to_pointer(&self, _x: i32, _y: i32) -> BitFunResult<(i32, i32)> {
             not_expected()
         }
         fn map_normalized_coords_to_pointer(
             &self,
             _x: i32,
             _y: i32,
-        ) -> OpenBitFunResult<(i32, i32)> {
+        ) -> BitFunResult<(i32, i32)> {
             not_expected()
         }
-        async fn mouse_move(&self, _x: i32, _y: i32) -> OpenBitFunResult<()> {
+        async fn mouse_move(&self, _x: i32, _y: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn pointer_move_relative(&self, _dx: i32, _dy: i32) -> OpenBitFunResult<()> {
+        async fn pointer_move_relative(&self, _dx: i32, _dy: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn mouse_click(&self, _button: &str) -> OpenBitFunResult<()> {
+        async fn mouse_click(&self, _button: &str) -> BitFunResult<()> {
             not_expected()
         }
-        async fn scroll(&self, _delta_x: i32, _delta_y: i32) -> OpenBitFunResult<()> {
+        async fn scroll(&self, _delta_x: i32, _delta_y: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn key_chord(&self, _keys: Vec<String>) -> OpenBitFunResult<()> {
+        async fn key_chord(&self, _keys: Vec<String>) -> BitFunResult<()> {
             not_expected()
         }
-        async fn type_text(&self, _text: &str) -> OpenBitFunResult<()> {
+        async fn type_text(&self, _text: &str) -> BitFunResult<()> {
             not_expected()
         }
-        async fn wait_ms(&self, _ms: u64) -> OpenBitFunResult<()> {
+        async fn wait_ms(&self, _ms: u64) -> BitFunResult<()> {
             not_expected()
         }
         async fn computer_use_session_snapshot(&self) -> ComputerUseSessionSnapshot {
@@ -2582,50 +2582,50 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ComputerUseHost for GuardRecordingHost {
-        async fn permission_snapshot(&self) -> OpenBitFunResult<ComputerUsePermissionSnapshot> {
+        async fn permission_snapshot(&self) -> BitFunResult<ComputerUsePermissionSnapshot> {
             not_expected()
         }
-        async fn request_accessibility_permission(&self) -> OpenBitFunResult<()> {
+        async fn request_accessibility_permission(&self) -> BitFunResult<()> {
             not_expected()
         }
-        async fn request_screen_capture_permission(&self) -> OpenBitFunResult<()> {
+        async fn request_screen_capture_permission(&self) -> BitFunResult<()> {
             not_expected()
         }
         async fn screenshot_display(
             &self,
             _params: ComputerUseScreenshotParams,
-        ) -> OpenBitFunResult<ComputerScreenshot> {
+        ) -> BitFunResult<ComputerScreenshot> {
             not_expected()
         }
-        fn map_image_coords_to_pointer(&self, _x: i32, _y: i32) -> OpenBitFunResult<(i32, i32)> {
+        fn map_image_coords_to_pointer(&self, _x: i32, _y: i32) -> BitFunResult<(i32, i32)> {
             not_expected()
         }
         fn map_normalized_coords_to_pointer(
             &self,
             _x: i32,
             _y: i32,
-        ) -> OpenBitFunResult<(i32, i32)> {
+        ) -> BitFunResult<(i32, i32)> {
             not_expected()
         }
-        async fn mouse_move(&self, _x: i32, _y: i32) -> OpenBitFunResult<()> {
+        async fn mouse_move(&self, _x: i32, _y: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn pointer_move_relative(&self, _dx: i32, _dy: i32) -> OpenBitFunResult<()> {
+        async fn pointer_move_relative(&self, _dx: i32, _dy: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn mouse_click(&self, _button: &str) -> OpenBitFunResult<()> {
+        async fn mouse_click(&self, _button: &str) -> BitFunResult<()> {
             not_expected()
         }
-        async fn scroll(&self, _delta_x: i32, _delta_y: i32) -> OpenBitFunResult<()> {
+        async fn scroll(&self, _delta_x: i32, _delta_y: i32) -> BitFunResult<()> {
             not_expected()
         }
-        async fn key_chord(&self, _keys: Vec<String>) -> OpenBitFunResult<()> {
+        async fn key_chord(&self, _keys: Vec<String>) -> BitFunResult<()> {
             not_expected()
         }
-        async fn type_text(&self, _text: &str) -> OpenBitFunResult<()> {
+        async fn type_text(&self, _text: &str) -> BitFunResult<()> {
             not_expected()
         }
-        async fn wait_ms(&self, _ms: u64) -> OpenBitFunResult<()> {
+        async fn wait_ms(&self, _ms: u64) -> BitFunResult<()> {
             not_expected()
         }
         async fn computer_use_session_snapshot(&self) -> ComputerUseSessionSnapshot {

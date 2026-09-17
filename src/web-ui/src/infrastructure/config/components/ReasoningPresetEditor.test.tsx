@@ -33,8 +33,8 @@ interface SelectSpyProps {
 
 const selectProps: Record<string, SelectSpyProps> = {};
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -191,7 +191,7 @@ describe('ReasoningPresetEditor', () => {
     expect(model?.options ?? []).toHaveLength(0);
   });
 
-  it('lists a provider outside the OpenBitFun built-in overlay', () => {
+  it('lists a provider outside the BitFun built-in overlay', () => {
     render({ catalog: { source: 'models_dev', provider: 'github-copilot', model: '' }, presets: [] });
     const model = selectProps['reasoningPresets.catalogModel'];
     expect(model?.options?.map(o => o.value)).toEqual(['gpt-5.1-codex']);
@@ -217,7 +217,7 @@ describe('ReasoningPresetEditor', () => {
       'OpenAI (chat/completions)',
     );
 
-    const warning = activeContainer?.querySelector('[data-openbitfun-part="unavailableWarning"]');
+    const warning = activeContainer?.querySelector('[data-bitfun-part="unavailableWarning"]');
     expect(warning?.textContent).toContain('reasoningPresets.unavailableTitle');
     expect(warning?.textContent).toContain('OpenAI (chat/completions)');
     expect(warning?.textContent).toContain('Low, High');
@@ -452,7 +452,7 @@ describe('ReasoningPresetEditor', () => {
       'textarea[aria-label="reasoningPresets.settingPatch"]',
     );
     expect(textarea?.value).toContain('"effort": "low"');
-    expect(activeContainer?.querySelector('[data-openbitfun-part="actionControls"]')).toBeNull();
+    expect(activeContainer?.querySelector('[data-bitfun-part="actionControls"]')).toBeNull();
     expect(textarea?.placeholder).toContain('OpenAI (responses)');
 
     act(() => {
@@ -490,7 +490,7 @@ describe('ReasoningPresetEditor', () => {
 
     expect(textarea?.value).toBe('');
     expect(textarea?.placeholder).toBe('reasoningPresets.patchPlaceholder: Gemini');
-    expect(activeContainer?.querySelector('.openbitfun-reasoning-preset-editor__row-preview')).toBeNull();
+    expect(activeContainer?.querySelector('.bitfun-reasoning-preset-editor__row-preview')).toBeNull();
   });
 
   it('preserves legacy actions until the user explicitly replaces them', () => {
@@ -511,7 +511,7 @@ describe('ReasoningPresetEditor', () => {
     act(() => activeContainer
       ?.querySelector<HTMLButtonElement>('button[aria-label="Legacy"]')
       ?.click());
-    const legacyActions = activeContainer?.querySelectorAll('[data-openbitfun-part="action"]');
+    const legacyActions = activeContainer?.querySelectorAll('[data-bitfun-part="action"]');
     expect(legacyActions).toHaveLength(3);
     expect(activeContainer?.textContent).toContain('reasoningPresets.legacyTitle');
     expect(activeContainer?.textContent).toContain('high');

@@ -3,10 +3,10 @@
 use crate::api::app_state::AppState;
 #[cfg(not(target_env = "ohos"))]
 use crate::computer_use::DesktopComputerUseHost;
-use openbitfun_core::agentic::tools::computer_use_host::ComputerUseHost;
-use openbitfun_core::service::config::types::AIConfig;
+use bitfun_core::agentic::tools::computer_use_host::ComputerUseHost;
+use bitfun_core::service::config::types::AIConfig;
 #[cfg(target_os = "windows")]
-use openbitfun_core::util::process_manager;
+use bitfun_core::util::process_manager;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 

@@ -81,22 +81,22 @@ export function GitToolCard({
 }: GitToolCardProps) {
   const hasDetails = Boolean(stdout || stderr || error || footerItems.length > 0);
   const body = hasDetails ? (
-    <div className={styles.output} data-openbitfun-part="details">
-      {stdout && <pre className={styles.outputBlock} data-openbitfun-part="stdout">{stdout}</pre>}
+    <div className={styles.output} data-bitfun-part="details">
+      {stdout && <pre className={styles.outputBlock} data-bitfun-part="stdout">{stdout}</pre>}
       {stderr && (
-        <div className={styles.outputGroup} data-openbitfun-part="stderr" data-tone={stderrTone}>
+        <div className={styles.outputGroup} data-bitfun-part="stderr" data-tone={stderrTone}>
           {stderrLabel && <span className={styles.outputLabel}>{stderrLabel}</span>}
           <pre className={styles.outputBlock}>{stderr}</pre>
         </div>
       )}
       {error && (
-        <div className={styles.error} data-openbitfun-part="error">
+        <div className={styles.error} data-bitfun-part="error">
           {error}
           {errorMeta && <div className={styles.errorMeta}>{errorMeta}</div>}
         </div>
       )}
       {footerItems.length > 0 && (
-        <div className={styles.footer} data-openbitfun-part="footer">
+        <div className={styles.footer} data-bitfun-part="footer">
           {footerItems.map((item, index) => (
             <span
               className={styles.footerItem}
@@ -116,7 +116,7 @@ export function GitToolCard({
   return (
     <ProminentToolCard
       {...props}
-      data-openbitfun-tool-card="git"
+      data-bitfun-tool-card="git"
       errorContent={status === "error" ? body : undefined}
       expandedContent={status === "error" ? undefined : body}
       summary={(
@@ -171,7 +171,7 @@ export function FileDiffToolCard({
   ...props
 }: FileDiffToolCardProps) {
   const body = preview || textPreview || message ? (
-    <div className={styles.diffBody} data-openbitfun-part="details">
+    <div className={styles.diffBody} data-bitfun-part="details">
       {message && <div className={styles.message}>{message}</div>}
       {preview}
       {textPreview && <pre className={styles.textPreview}>{textPreview}</pre>}
@@ -180,7 +180,7 @@ export function FileDiffToolCard({
   return (
     <ProminentToolCard
       {...props}
-      data-openbitfun-tool-card="file-diff"
+      data-bitfun-tool-card="file-diff"
       errorContent={error ? <div className={styles.error}>{error}</div> : undefined}
       expandedContent={body}
       summary={(
@@ -190,7 +190,7 @@ export function FileDiffToolCard({
             <OverflowText
               className={styles.diffPath}
               data-path={path}
-              data-openbitfun-part="path"
+              data-bitfun-part="path"
               title={path}
             >
               {pathLabel}
@@ -244,9 +244,9 @@ export function ReviewSummaryToolCard({
   return (
     <ProminentToolCard
       {...props}
-      data-openbitfun-tool-card="review-summary"
+      data-bitfun-tool-card="review-summary"
       expandedContent={(
-        <div className={styles.reviewDetails} data-openbitfun-part="details">
+        <div className={styles.reviewDetails} data-bitfun-part="details">
           <p className={styles.reviewSummary}>{summary}</p>
           {changedFiles.length > 0 && (
             <div>
@@ -308,7 +308,7 @@ function PageLifecycleToolCardBase({
 }: PageLifecycleToolCardBaseProps) {
   const hasDetails = fields.length > 0 || Boolean(actions || error);
   const body = hasDetails ? (
-    <div className={styles.lifecycleDetails} data-openbitfun-part="details">
+    <div className={styles.lifecycleDetails} data-bitfun-part="details">
       {fields.map((field, index) => (
         <div className={styles.field} key={index}>
           <span className={styles.fieldLabel}>{field.label}</span>
@@ -322,7 +322,7 @@ function PageLifecycleToolCardBase({
   return (
     <ProminentToolCard
       {...props}
-      data-openbitfun-tool-card={toolCard}
+      data-bitfun-tool-card={toolCard}
       errorContent={status === "error" ? body : undefined}
       expandedContent={status === "error" ? undefined : body}
       summary={(
@@ -406,7 +406,7 @@ export function AgentControlToolCard({
   ...props
 }: AgentControlToolCardProps) {
   const expandedContent = details ?? (prompt ? (
-    <div className={styles.agentPrompt} data-openbitfun-part="prompt">{prompt}</div>
+    <div className={styles.agentPrompt} data-bitfun-part="prompt">{prompt}</div>
   ) : undefined);
   const expandable = Boolean(onToggle && (
     expandedContent || summaryExpandAffordance || isExpanded
@@ -416,10 +416,10 @@ export function AgentControlToolCard({
   const hasExtra = Boolean(statusMeta || statusLabel);
 
   const identity = (
-    <span className={styles.agentIdentity} data-openbitfun-part="agentIdentity">
-      <OverflowText className={styles.agentName} data-openbitfun-part="agentName">{agentName}</OverflowText>
+    <span className={styles.agentIdentity} data-bitfun-part="agentIdentity">
+      <OverflowText className={styles.agentName} data-bitfun-part="agentName">{agentName}</OverflowText>
       {agentModel !== undefined && agentModel !== null && agentModel !== false && (
-        <OverflowText className={styles.agentModel} data-openbitfun-part="agentModel">{agentModel}</OverflowText>
+        <OverflowText className={styles.agentModel} data-bitfun-part="agentModel">{agentModel}</OverflowText>
       )}
     </span>
   );
@@ -428,7 +428,7 @@ export function AgentControlToolCard({
     <ProminentToolCard
       {...props}
       className={className}
-      data-openbitfun-tool-card="agent-control"
+      data-bitfun-tool-card="agent-control"
       errorContent={error ? <div className={styles.error}>{error}</div> : undefined}
       expandedContent={expandedContent}
       summary={(
@@ -438,7 +438,7 @@ export function AgentControlToolCard({
             <ToolCardActions>
               <IconButton
                 aria-label={interruptAction!.label}
-                data-openbitfun-part="interruptAgentButton"
+                data-bitfun-part="interruptAgentButton"
                 disabled={interruptAction!.disabled}
                 icon={interruptAction!.pending
                   ? <ToolProcessingDots size={12} />
@@ -453,22 +453,22 @@ export function AgentControlToolCard({
             </ToolCardActions>
           ) : undefined}
           content={summary !== undefined && summary !== null && summary !== false ? (
-            <OverflowText className={styles.agentSummary} data-openbitfun-part="agentSummary">{summary}</OverflowText>
+            <OverflowText className={styles.agentSummary} data-bitfun-part="agentSummary">{summary}</OverflowText>
           ) : undefined}
           extra={hasExtra ? (
-            <span className={styles.agentExtra} data-openbitfun-part="agentExtra">
+            <span className={styles.agentExtra} data-bitfun-part="agentExtra">
               {statusMeta !== undefined && statusMeta !== null && statusMeta !== false && (
-                <OverflowText className={styles.agentMeta} data-openbitfun-part="agentMeta">{statusMeta}</OverflowText>
+                <OverflowText className={styles.agentMeta} data-bitfun-part="agentMeta">{statusMeta}</OverflowText>
               )}
               {statusLabel !== undefined && statusLabel !== null && statusLabel !== false && (
-                <OverflowText className={styles.agentStatus} data-openbitfun-part="agentStatus" data-tone={statusTone}>
+                <OverflowText className={styles.agentStatus} data-bitfun-part="agentStatus" data-tone={statusTone}>
                   {statusLabel}
                 </OverflowText>
               )}
             </span>
           ) : undefined}
           icon={(
-            <span className={styles.agentAvatar} data-openbitfun-part="avatar">
+            <span className={styles.agentAvatar} data-bitfun-part="avatar">
               {avatar ?? <Icon name="user" aria-hidden="true" />}
             </span>
           )}
@@ -479,9 +479,9 @@ export function AgentControlToolCard({
             <ToolCardActions>
               <IconButton
                 aria-label={openAgentLabel!}
-                data-openbitfun-affordance="open-panel-right"
-                data-openbitfun-part="openAgentButton"
-                icon={<ArrowUpRight aria-hidden="true" data-openbitfun-icon="open-panel-right" />}
+                data-bitfun-affordance="open-panel-right"
+                data-bitfun-part="openAgentButton"
+                icon={<ArrowUpRight aria-hidden="true" data-bitfun-icon="open-panel-right" />}
                 onClick={onOpenAgent!}
                 size="sm"
                 data-testid={openAgentTestId}

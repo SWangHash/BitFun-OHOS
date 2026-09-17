@@ -95,36 +95,36 @@ const WelcomeScene: React.FC = () => {
     <section
       className="welcome-scene"
       data-testid="welcome-scene"
-      data-openbitfun-scene="welcome"
-      data-openbitfun-part="root"
+      data-bitfun-scene="welcome"
+      data-bitfun-part="root"
       aria-labelledby="welcome-scene-title"
     >
-      <div className="welcome-scene__content" data-openbitfun-scene="welcome" data-openbitfun-part="content">
+      <div className="welcome-scene__content" data-bitfun-scene="welcome" data-bitfun-part="content">
         <div
           className="welcome-scene__greeting"
-          data-openbitfun-scene="welcome"
-          data-openbitfun-part="greeting"
+          data-bitfun-scene="welcome"
+          data-bitfun-part="greeting"
         >
           <h1
             id="welcome-scene-title"
             className="welcome-scene__brand"
-            data-openbitfun-scene="welcome"
-            data-openbitfun-part="title"
+            data-bitfun-scene="welcome"
+            data-bitfun-part="title"
           >
             <span
               className="welcome-scene__logo"
-              data-openbitfun-scene="welcome"
-              data-openbitfun-part="logo"
+              data-bitfun-scene="welcome"
+              data-bitfun-part="logo"
               aria-hidden="true"
             />
             <span className="welcome-scene__brand-name">
-              OpenBitFun{t('welcomeScene.space.separator')}
+              BitFun{t('welcomeScene.space.separator')}
             </span>
           </h1>
           <h2
             className="welcome-scene__tagline"
-            data-openbitfun-scene="welcome"
-            data-openbitfun-part="subtitle"
+            data-bitfun-scene="welcome"
+            data-bitfun-part="subtitle"
             aria-label={phrases[YOUR_WORD_INDEX]}
           >
             <span className="welcome-scene__phrase-slot" aria-hidden="true">

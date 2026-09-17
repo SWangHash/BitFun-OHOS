@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { Button, Icon, IconButton, Input, Select, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@openbitfun/ui';
+import { Button, Icon, IconButton, Input, Select, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import {
   GlobalWorkerOptions,
   PermissionFlag,
@@ -38,7 +38,7 @@ const PAGE_SIZE_CONCURRENCY = 8;
 const NEARBY_PAGE_DISTANCE = 2;
 const RENDER_ROOT_MARGIN = '150% 0px';
 const PDFJS_FONT_HEIGHT_PROPERTY = ['--font', 'height'].join('-');
-const PDF_GLYPH_HEIGHT_PROPERTY = '--openbitfun-pdf-glyph-height';
+const PDF_GLYPH_HEIGHT_PROPERTY = '--bitfun-pdf-glyph-height';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -276,10 +276,10 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   return (
     <div
       ref={setPageElement}
-      className="openbitfun-pdf-viewer__page"
-      data-openbitfun-component="pdf-viewer"
-      data-openbitfun-part="page"
-      data-openbitfun-state={rendering ? 'rendering' : undefined}
+      className="bitfun-pdf-viewer__page"
+      data-bitfun-component="pdf-viewer"
+      data-bitfun-part="page"
+      data-bitfun-state={rendering ? 'rendering' : undefined}
       data-page-number={pageNumber}
       style={{ width: displaySize.width, height: displaySize.height }}
     >
@@ -292,9 +292,9 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
           />
           <div
             ref={textLayerContainerRef}
-            className="openbitfun-pdf-viewer__text-layer"
-            data-openbitfun-component="pdf-viewer"
-            data-openbitfun-part="textLayer"
+            className="bitfun-pdf-viewer__text-layer"
+            data-bitfun-component="pdf-viewer"
+            data-bitfun-part="textLayer"
             onCopy={copyAllowed ? undefined : event => event.preventDefault()}
           />
         </>
@@ -680,19 +680,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
 
   return (
     <div
-      className={`openbitfun-pdf-viewer ${className}`}
-      data-openbitfun-component="pdf-viewer"
-      data-openbitfun-part="root"
+      className={`bitfun-pdf-viewer ${className}`}
+      data-bitfun-component="pdf-viewer"
+      data-bitfun-part="root"
     >
       <Toolbar
-        className="openbitfun-pdf-viewer__toolbar"
+        className="bitfun-pdf-viewer__toolbar"
         leading={
-          <div className="openbitfun-pdf-viewer__info" data-openbitfun-component="pdf-viewer" data-openbitfun-part="info">
+          <div className="bitfun-pdf-viewer__info" data-bitfun-component="pdf-viewer" data-bitfun-part="info">
             {pageCount > 0 && (
-              <span className="openbitfun-pdf-viewer__page-label">
+              <span className="bitfun-pdf-viewer__page-label">
                 <Input
                   aria-label={t('editor.pdfViewer.currentPage')}
-                  className="openbitfun-pdf-viewer__page-input"
+                  className="bitfun-pdf-viewer__page-input"
                   disabled={loading}
                   inputMode="numeric"
                   onBlur={() => setPageNumberInput(String(pageNumber))}
@@ -717,7 +717,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
                   value={pageNumberInput}
                 />
                 <span aria-hidden="true">/</span>
-                <span className="openbitfun-pdf-viewer__page-total">{formatNumber(pageCount)}</span>
+                <span className="bitfun-pdf-viewer__page-total">{formatNumber(pageCount)}</span>
                 <span className="sr-only" aria-live="polite">{pageLabel}</span>
               </span>
             )}
@@ -751,7 +751,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
             <ToolbarGroup>
               <Select
                 aria-label={t('editor.pdfViewer.zoomLevel')}
-                className="openbitfun-pdf-viewer__zoom-display"
+                className="bitfun-pdf-viewer__zoom-display"
                 disabled={loading}
                 onValueChange={selectZoom}
                 options={zoomOptions}
@@ -798,21 +798,21 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
 
       <div
         ref={containerRef}
-        className="openbitfun-pdf-viewer__container"
-        data-openbitfun-component="pdf-viewer"
-        data-openbitfun-part="container"
+        className="bitfun-pdf-viewer__container"
+        data-bitfun-component="pdf-viewer"
+        data-bitfun-part="container"
       >
         {loading && (
-          <div className="openbitfun-pdf-viewer__status" data-openbitfun-component="pdf-viewer" data-openbitfun-part="loading">
-            <div className="openbitfun-pdf-viewer__spinner" />
+          <div className="bitfun-pdf-viewer__status" data-bitfun-component="pdf-viewer" data-bitfun-part="loading">
+            <div className="bitfun-pdf-viewer__spinner" />
             <p>{t('editor.pdfViewer.loading')}</p>
           </div>
         )}
 
         {error && (
-          <div className="openbitfun-pdf-viewer__status openbitfun-pdf-viewer__status--error" data-openbitfun-component="pdf-viewer" data-openbitfun-part="error">
+          <div className="bitfun-pdf-viewer__status bitfun-pdf-viewer__status--error" data-bitfun-component="pdf-viewer" data-bitfun-part="error">
             <p>{error}</p>
-            <p className="openbitfun-pdf-viewer__error-path">{filePath}</p>
+            <p className="bitfun-pdf-viewer__error-path">{filePath}</p>
             <Button variant="outline" size="sm" onClick={() => void loadDocument()}>
               {t('editor.common.retry')}
             </Button>
@@ -820,7 +820,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
         )}
 
         {!loading && !error && document && (
-          <div className="openbitfun-pdf-viewer__pages">
+          <div className="bitfun-pdf-viewer__pages">
             {pageSizes.map((size, index) => {
               const number = index + 1;
               const label = t('editor.pdfViewer.pageCount', {

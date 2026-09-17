@@ -451,7 +451,7 @@ class MonacoModelManager {
   }
   
   public normalizeUri(filePath: string): monaco.Uri {
-    if (filePath.startsWith('openbitfun-document:')) return monacoApi.Uri.parse(filePath);
+    if (filePath.startsWith('bitfun-document:')) return monacoApi.Uri.parse(filePath);
     try {
       if (filePath.includes('%')) {
         filePath = decodeURIComponent(filePath);

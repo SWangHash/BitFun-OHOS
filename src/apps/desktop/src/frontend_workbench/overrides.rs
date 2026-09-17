@@ -4,9 +4,9 @@ use std::{fs, path::Path};
 
 use serde::{Deserialize, Serialize};
 
-pub(super) const CSS: &str = "openbitfun-creation.css";
-pub(super) const JS: &str = "openbitfun-creation.js";
-pub(super) const API_DOC: &str = "openbitfun-creation-api.md";
+pub(super) const CSS: &str = "bitfun-creation.css";
+pub(super) const JS: &str = "bitfun-creation.js";
+pub(super) const API_DOC: &str = "bitfun-creation-api.md";
 pub(super) const MANIFEST: &str = ".creation-overlay.json";
 
 #[derive(Debug, Serialize, Deserialize)]

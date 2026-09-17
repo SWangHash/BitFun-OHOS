@@ -5,7 +5,7 @@ export class MarkdownEditorPage {
   get source() { return $('.m-editor-textarea'); }
   get dirty() { return $('[data-testid="dirty"]'); }
   block(language: string) { return $(`[data-testid="md-embed-block"][data-language="${language}"]`); }
-  async mode(index: number) { await (await $$('.openbitfun-markdown-editor__mode-toggle [role="radio"]'))[index].click(); }
+  async mode(index: number) { await (await $$('.bitfun-markdown-editor__mode-toggle [role="radio"]'))[index].click(); }
   async open() {
     await browser.url('/tests/e2e/markdown-editor.html');
     await this.richText.waitForDisplayed();

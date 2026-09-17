@@ -18,7 +18,7 @@ interface FileViewerSceneProps {
 const FileViewerScene: React.FC<FileViewerSceneProps> = ({ workspacePath }) => {
   return (
     <CanvasStoreModeContext.Provider value="project">
-      <div className="openbitfun-file-viewer-scene" data-openbitfun-scene="file-viewer" data-openbitfun-part="root">
+      <div className="bitfun-file-viewer-scene" data-bitfun-scene="file-viewer" data-bitfun-part="root">
         <ContentCanvas workspacePath={workspacePath} mode="project" />
       </div>
     </CanvasStoreModeContext.Provider>

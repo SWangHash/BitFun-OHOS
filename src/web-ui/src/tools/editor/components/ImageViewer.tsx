@@ -8,7 +8,7 @@ import { useEditorDocument } from '../services/EditorDocument';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
-import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
 
 import { useI18n } from '@/infrastructure/i18n';
@@ -179,23 +179,23 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
   return (
     <div
-      className={`openbitfun-image-viewer ${className} ${isFullscreen ? 'fullscreen' : ''}`}
-      data-openbitfun-component="image-viewer"
-      data-openbitfun-part="root"
-      data-openbitfun-state={isFullscreen ? 'fullscreen' : undefined}
+      className={`bitfun-image-viewer ${className} ${isFullscreen ? 'fullscreen' : ''}`}
+      data-bitfun-component="image-viewer"
+      data-bitfun-part="root"
+      data-bitfun-state={isFullscreen ? 'fullscreen' : undefined}
     >
       <Toolbar
-        className="openbitfun-image-viewer__toolbar"
+        className="bitfun-image-viewer__toolbar"
         leading={
-          <div data-openbitfun-component="image-viewer" data-openbitfun-part="info" className="openbitfun-image-viewer__info">
-            <OverflowText className="openbitfun-image-viewer__filename">{fileName || filePath.split(/[/\\]/).pop()}</OverflowText>
+          <div data-bitfun-component="image-viewer" data-bitfun-part="info" className="bitfun-image-viewer__info">
+            <OverflowText className="bitfun-image-viewer__filename">{fileName || filePath.split(/[/\\]/).pop()}</OverflowText>
             {originCurrent && imageDimensions && (
-              <span className="openbitfun-image-viewer__dimensions">
+              <span className="bitfun-image-viewer__dimensions">
                 {imageDimensions.width} × {imageDimensions.height}
               </span>
             )}
             {originCurrent && fileSize > 0 && (
-              <span className="openbitfun-image-viewer__filesize">
+              <span className="bitfun-image-viewer__filesize">
                 {formatBytes(fileSize)}
               </span>
             )}
@@ -218,7 +218,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                 <Button
                   size="sm"
                   variant="text"
-                  className="openbitfun-image-viewer__zoom-display"
+                  className="bitfun-image-viewer__zoom-display"
                   onClick={handleZoomReset}
                 >
                   {zoom}%
@@ -273,29 +273,29 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         }
       />
 
-      <div data-openbitfun-component="image-viewer" data-openbitfun-part="container" className="openbitfun-image-viewer__container">
+      <div data-bitfun-component="image-viewer" data-bitfun-part="container" className="bitfun-image-viewer__container">
         {(!originCurrent || loading) && (
-          <div data-openbitfun-component="image-viewer" data-openbitfun-part="loading" className="openbitfun-image-viewer__loading">
-            <div className="openbitfun-image-viewer__spinner" />
+          <div data-bitfun-component="image-viewer" data-bitfun-part="loading" className="bitfun-image-viewer__loading">
+            <div className="bitfun-image-viewer__spinner" />
             <p>{t('editor.common.loading')}</p>
           </div>
         )}
 
         {originCurrent && error && (
-          <div data-openbitfun-component="image-viewer" data-openbitfun-part="error" className="openbitfun-image-viewer__error">
+          <div data-bitfun-component="image-viewer" data-bitfun-part="error" className="bitfun-image-viewer__error">
             <p>{error}</p>
-            <p className="openbitfun-image-viewer__error-path">{filePath}</p>
+            <p className="bitfun-image-viewer__error-path">{filePath}</p>
           </div>
         )}
 
         {originCurrent && !loading && !error && imageUrl && (
-          <div data-openbitfun-component="image-viewer" data-openbitfun-part="imageWrapper" className="openbitfun-image-viewer__image-wrapper">
+          <div data-bitfun-component="image-viewer" data-bitfun-part="imageWrapper" className="bitfun-image-viewer__image-wrapper">
             <img
               src={imageUrl}
               alt={fileName || filePath}
-              className="openbitfun-image-viewer__image"
-              data-openbitfun-component="image-viewer"
-              data-openbitfun-part="image"
+              className="bitfun-image-viewer__image"
+              data-bitfun-component="image-viewer"
+              data-bitfun-part="image"
               style={{
                 transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
               }}
@@ -306,7 +306,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         )}
         
         {originCurrent && !loading && !error && !imageUrl && (
-          <div data-openbitfun-component="image-viewer" data-openbitfun-part="error" className="openbitfun-image-viewer__error">
+          <div data-bitfun-component="image-viewer" data-bitfun-part="error" className="bitfun-image-viewer__error">
             <p>{t('editor.imageViewer.imageUrlEmpty')}</p>
           </div>
         )}

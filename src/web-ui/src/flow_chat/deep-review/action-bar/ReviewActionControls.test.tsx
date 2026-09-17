@@ -18,8 +18,8 @@ vi.mock('react-i18next', async () => {
   };
 });
 
-vi.mock('@openbitfun/ui', () => ({
-  Icon: ({ name }: { name: string }) => <span data-openbitfun-component="icon" data-openbitfun-name={name} />,
+vi.mock('@bitfun/ui', () => ({
+  Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
   Button: ({
     children,
     disabled,

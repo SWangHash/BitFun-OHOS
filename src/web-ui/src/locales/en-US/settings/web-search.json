@@ -5,13 +5,13 @@
     "exaMcpFree": "Exa MCP (free)",
     "exaSearchApi": "Exa Search API",
     "tavily": "Tavily Search API",
-    "openbitfunSearchHttp": "Custom HTTP service"
+    "bitfunSearchHttp": "Custom HTTP service"
   },
   "providerDescriptions": {
     "exaMcpFree": "Use Exa's free search service without an API key or additional setup.",
     "exaSearchApi": "Use your Exa API key to access the search service. Enter and save your credential below.",
     "tavily": "Use your Tavily API key to access the search service. Enter and save your credential below.",
-    "openbitfunSearchHttp": "Connect a self-hosted or enterprise service that implements the OpenBitFun search protocol. Enter its address below and configure authentication if needed."
+    "bitfunSearchHttp": "Connect a self-hosted or enterprise service that implements the BitFun search protocol. Enter its address below and configure authentication if needed."
   },
   "auth": {
     "none": "No authentication",
@@ -23,8 +23,8 @@
       "title": "Search provider"
     },
     "http": {
-      "title": "OpenBitFun Search HTTP Protocol v1",
-      "description": "Connect a self-hosted or enterprise endpoint that implements the fixed OpenBitFun protocol."
+      "title": "BitFun Search HTTP Protocol v1",
+      "description": "Connect a self-hosted or enterprise endpoint that implements the fixed BitFun protocol."
     },
     "protocol": {
       "title": "Protocol specification",
@@ -85,12 +85,12 @@
     },
     "error": {
       "title": "Error response",
-      "description": "A non-2xx response may use this shape. OpenBitFun also maps common errors from the HTTP status when the envelope is absent.",
+      "description": "A non-2xx response may use this shape. BitFun also maps common errors from the HTTP status when the envelope is absent.",
       "codes": "Supported codes:"
     },
     "notes": {
-      "resultHandling": "The service may return fewer than maxResults results. OpenBitFun validates, deduplicates, and truncates results, and ignores unknown response-root fields.",
-      "transportLimits": "OpenBitFun does not follow redirects. Requests time out after 60 seconds, and response bodies are limited to 1 MiB."
+      "resultHandling": "The service may return fewer than maxResults results. BitFun validates, deduplicates, and truncates results, and ignores unknown response-root fields.",
+      "transportLimits": "BitFun does not follow redirects. Requests time out after 60 seconds, and response bodies are limited to 1 MiB."
     }
   },
   "actions": {

@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plane, Presentation, ListTodo, CalendarDays, ClipboardList, Mail, FileSpreadsheet, HandCoins, TrendingUp, FileText, RotateCcw } from 'lucide-react';
-import { ActionCard, IconButton, Tooltip, Icon } from '@openbitfun/ui';
+import { ActionCard, IconButton, Tooltip, Icon } from '@bitfun/ui';
 import './CoworkExampleCards.scss';
 
 type ExampleId =
@@ -86,7 +86,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
       return (
         <ActionCard
           key={example.id}
-          className="openbitfun-cowork-example-cards__card"
+          className="bitfun-cowork-example-cards__card"
           description={description}
           leading={example.icon}
           size="md"
@@ -99,10 +99,10 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
   }, [onSelectPrompt, selected, t]);
 
   return (
-    <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="root" className="openbitfun-cowork-example-cards">
-      <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="header" className="openbitfun-cowork-example-cards__header">
-        <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="title" className="openbitfun-cowork-example-cards__title">{t('coworkExamples.title')}</div>
-        <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="actions" className="openbitfun-cowork-example-cards__header-actions">
+    <div data-bitfun-component="cowork-example-cards" data-bitfun-part="root" className="bitfun-cowork-example-cards">
+      <div data-bitfun-component="cowork-example-cards" data-bitfun-part="header" className="bitfun-cowork-example-cards__header">
+        <div data-bitfun-component="cowork-example-cards" data-bitfun-part="title" className="bitfun-cowork-example-cards__title">{t('coworkExamples.title')}</div>
+        <div data-bitfun-component="cowork-example-cards" data-bitfun-part="actions" className="bitfun-cowork-example-cards__header-actions">
           {onAddPlugin && (
             <Tooltip content={t('coworkExamples.addPlugin')}>
               <IconButton
@@ -133,7 +133,7 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
           )}
         </div>
       </div>
-      <div data-openbitfun-component="cowork-example-cards" data-openbitfun-part="grid" className="openbitfun-cowork-example-cards__grid">
+      <div data-bitfun-component="cowork-example-cards" data-bitfun-part="grid" className="bitfun-cowork-example-cards__grid">
         {cards}
       </div>
     </div>

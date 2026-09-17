@@ -1,4 +1,4 @@
-import { OverflowText } from '@openbitfun/ui';
+import { OverflowText } from '@bitfun/ui';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AcpPermissionActions } from '../tool-cards/AcpPermissionActions';
@@ -24,9 +24,9 @@ export const ToolApprovalBar: React.FC<ToolApprovalBarProps> = ({
   }
 
   return (
-    <div data-openbitfun-component="tool-approval-bar" data-openbitfun-part="root" className="tool-approval-bar" role="group" aria-label={t('toolCards.approval.ariaLabel')}>
-      <div data-openbitfun-component="tool-approval-bar" data-openbitfun-part="main" className="tool-approval-bar__main">
-        <OverflowText data-openbitfun-component="tool-approval-bar" data-openbitfun-part="message" className="tool-approval-bar__message">{t('toolCards.approval.waiting')}</OverflowText>
+    <div data-bitfun-component="tool-approval-bar" data-bitfun-part="root" className="tool-approval-bar" role="group" aria-label={t('toolCards.approval.ariaLabel')}>
+      <div data-bitfun-component="tool-approval-bar" data-bitfun-part="main" className="tool-approval-bar__main">
+        <OverflowText data-bitfun-component="tool-approval-bar" data-bitfun-part="message" className="tool-approval-bar__message">{t('toolCards.approval.waiting')}</OverflowText>
         <AcpPermissionActions
           toolItem={toolItem}
           presentation="text"

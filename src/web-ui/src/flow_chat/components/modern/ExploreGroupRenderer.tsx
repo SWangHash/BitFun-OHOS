@@ -4,7 +4,7 @@
  * Renders merged explore-only rounds as a collapsible region.
  */
 
-import { Icon } from '@openbitfun/ui';
+import { Icon } from '@bitfun/ui';
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 
 import { useTranslation } from 'react-i18next';
@@ -218,7 +218,7 @@ export const ExploreGroupRenderer: React.FC<ExploreGroupRendererProps> = React.m
     scrollState.atBottom ? 'explore-region--at-bottom' : null,
   ].filter(Boolean).join(' ');
   return (
-    <div data-openbitfun-component="explore-group" data-openbitfun-part="root" data-openbitfun-state={isExpanded ? 'expanded' : undefined}
+    <div data-bitfun-component="explore-group" data-bitfun-part="root" data-bitfun-state={isExpanded ? 'expanded' : undefined}
       ref={cardRootRef}
       data-testid="chat-explore-group"
       data-tool-card-id={groupId}
@@ -231,8 +231,8 @@ export const ExploreGroupRenderer: React.FC<ExploreGroupRendererProps> = React.m
     >
       {allowManualToggle && (
         <div
-          data-openbitfun-component="explore-group"
-          data-openbitfun-part="header"
+          data-bitfun-component="explore-group"
+          data-bitfun-part="header"
           className="explore-region__header"
           onClick={handleToggle}
           data-testid="chat-explore-group-toggle"
@@ -244,21 +244,21 @@ export const ExploreGroupRenderer: React.FC<ExploreGroupRendererProps> = React.m
             <Icon name="chevron-right" size="sm" className="explore-region__leading-icon--collapsed-hover" />
             <Icon name="chevron-down" size="sm" className="explore-region__leading-icon--expanded" />
           </span>
-          <span data-openbitfun-component="explore-group" data-openbitfun-part="summary" className="explore-region__summary">{displaySummary}</span>
+          <span data-bitfun-component="explore-group" data-bitfun-part="summary" className="explore-region__summary">{displaySummary}</span>
         </div>
       )}
       <SmoothHeightCollapse
         isOpen={isExpanded}
-        data-openbitfun-component="explore-group"
-        data-openbitfun-part="contentWrapper"
+        data-bitfun-component="explore-group"
+        data-bitfun-part="contentWrapper"
         className="explore-region__content-wrapper"
         innerClassName="explore-region__content-inner"
         durationMs={FLOWCHAT_COLLAPSE_DURATION_MS}
       >
         <div
           ref={containerRef}
-          data-openbitfun-component="explore-group"
-          data-openbitfun-part="content"
+          data-bitfun-component="explore-group"
+          data-bitfun-part="content"
           className="explore-region__content"
           onScroll={handleContentScroll}
           data-testid="chat-explore-group-content"
@@ -339,7 +339,7 @@ const ExploreItemRenderer = React.memo<ExploreItemRendererProps>(({ item, turnId
     
     case 'tool':
       return (
-        <div data-openbitfun-component="explore-group" data-openbitfun-part="item" className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool">
+        <div data-bitfun-component="explore-group" data-bitfun-part="item" className="flowchat-flow-item" data-flow-item-id={item.id} data-flow-item-type="tool">
           <FlowToolCard
             toolItem={item as FlowToolItem}
             isLastItem={isLastItem}

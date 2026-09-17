@@ -158,8 +158,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'none') {
     return (
-      <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="root" data-openbitfun-layout="none" ref={containerRef} className="canvas-editor-area">
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="primary" className="canvas-editor-area__primary">
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="none" ref={containerRef} className="canvas-editor-area">
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary">
           {renderEditorGroup('primary', primaryGroup)}
         </div>
       </div>
@@ -168,8 +168,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'horizontal') {
     return (
-      <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="root" data-openbitfun-layout="horizontal" ref={containerRef} className="canvas-editor-area is-split is-horizontal">
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="primary" className="canvas-editor-area__primary" style={{ width: `${splitRatio * 100}%` }}>
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="horizontal" ref={containerRef} className="canvas-editor-area is-split is-horizontal">
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ width: `${splitRatio * 100}%` }}>
           {renderEditorGroup('primary', primaryGroup)}
         </div>
         <SplitHandle
@@ -178,7 +178,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           onRatioChange={setSplitRatio}
           containerRef={containerRef}
         />
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="secondary" className="canvas-editor-area__secondary" style={{ width: `${(1 - splitRatio) * 100}%` }}>
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="secondary" className="canvas-editor-area__secondary" style={{ width: `${(1 - splitRatio) * 100}%` }}>
           {renderEditorGroup('secondary', secondaryGroup)}
         </div>
       </div>
@@ -187,8 +187,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'vertical') {
     return (
-      <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="root" data-openbitfun-layout="vertical" ref={containerRef} className="canvas-editor-area is-split is-vertical">
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="primary" className="canvas-editor-area__primary" style={{ height: `${splitRatio * 100}%` }}>
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="vertical" ref={containerRef} className="canvas-editor-area is-split is-vertical">
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ height: `${splitRatio * 100}%` }}>
           {renderEditorGroup('primary', primaryGroup)}
         </div>
         <SplitHandle
@@ -197,7 +197,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           onRatioChange={setSplitRatio}
           containerRef={containerRef}
         />
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="secondary" className="canvas-editor-area__secondary" style={{ height: `${(1 - splitRatio) * 100}%` }}>
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="secondary" className="canvas-editor-area__secondary" style={{ height: `${(1 - splitRatio) * 100}%` }}>
           {renderEditorGroup('secondary', secondaryGroup)}
         </div>
       </div>
@@ -206,9 +206,9 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'grid') {
     return (
-      <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="root" data-openbitfun-layout="grid" ref={containerRef} className="canvas-editor-area is-grid">
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="topRow" ref={topRowRef} className="canvas-editor-area__top-row" style={{ flex: `0 0 calc(${splitRatio * 100}% - 2px)` }}>
-          <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="primary" className="canvas-editor-area__primary" style={{ flex: `0 0 calc(${splitRatio2 * 100}% - 2px)` }}>
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="grid" ref={containerRef} className="canvas-editor-area is-grid">
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="topRow" ref={topRowRef} className="canvas-editor-area__top-row" style={{ flex: `0 0 calc(${splitRatio * 100}% - 2px)` }}>
+          <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ flex: `0 0 calc(${splitRatio2 * 100}% - 2px)` }}>
             {renderEditorGroup('primary', primaryGroup)}
           </div>
           <SplitHandle
@@ -217,7 +217,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             onRatioChange={setSplitRatio2}
             containerRef={topRowRef}
           />
-          <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="secondary" className="canvas-editor-area__secondary" style={{ flex: 1, minWidth: 0 }}>
+          <div data-bitfun-component="canvas-editor-area" data-bitfun-part="secondary" className="canvas-editor-area__secondary" style={{ flex: 1, minWidth: 0 }}>
             {renderEditorGroup('secondary', secondaryGroup)}
           </div>
         </div>
@@ -227,7 +227,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           onRatioChange={setSplitRatio}
           containerRef={containerRef}
         />
-        <div data-openbitfun-component="canvas-editor-area" data-openbitfun-part="tertiary" className="canvas-editor-area__tertiary" style={{ flex: 1, minHeight: 0 }}>
+        <div data-bitfun-component="canvas-editor-area" data-bitfun-part="tertiary" className="canvas-editor-area__tertiary" style={{ flex: 1, minHeight: 0 }}>
           {renderEditorGroup('tertiary', tertiaryGroup)}
         </div>
       </div>

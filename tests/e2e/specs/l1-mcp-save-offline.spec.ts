@@ -27,7 +27,7 @@ describe('L1 MCP save while the endpoint is unavailable', () => {
   let initializeDelayMs = 0;
 
   before(async () => {
-    if (process.env.OPENBITFUN_E2E_STORAGE_GUARD !== '1') {
+    if (process.env.BITFUN_E2E_STORAGE_GUARD !== '1') {
       throw new Error('Run this spec with isolated E2E user/home roots and the storage guard');
     }
     mkdirSync(screenshots, { recursive: true });
@@ -92,7 +92,7 @@ describe('L1 MCP save while the endpoint is unavailable', () => {
     offlineSnapshot = await invoke<Snapshot>('load_mcp_json_config');
     expect(JSON.parse(offlineSnapshot.jsonConfig)).toEqual(JSON.parse(config));
     expect(offlineSnapshot.fingerprint).not.toBe(original.fingerprint);
-    const appConfigPath = path.join(process.env.OPENBITFUN_E2E_USER_ROOT!, 'config', 'app.json');
+    const appConfigPath = path.join(process.env.BITFUN_E2E_USER_ROOT!, 'config', 'app.json');
     await browser.waitUntil(() => {
       const disk = JSON.parse(readFileSync(appConfigPath, 'utf8'));
       return JSON.stringify(disk.mcp_servers) === JSON.stringify(JSON.parse(offlineSnapshot.jsonConfig));

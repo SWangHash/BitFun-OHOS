@@ -11,13 +11,13 @@ describe('MiniApp market submission defaults', () => {
       '1.0.0',
     );
 
-    expect(draft.minOpenBitFunVersion).toBe('1.0.0');
+    expect(draft.minBitFunVersion).toBe('1.0.0');
   });
 
   it('preserves a minimum version chosen by the user', () => {
     const draft = {
       ...createEmptyMarketSubmissionDraft(),
-      minOpenBitFunVersion: '1.1.0',
+      minBitFunVersion: '1.1.0',
     };
 
     expect(applyCurrentClientVersionDefault(draft, '1.2.0')).toBe(draft);

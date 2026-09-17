@@ -224,8 +224,8 @@ mod tests {
     #[test]
     fn worktree_defaults_include_managed_cleanup_policy() {
         let defaults = WorktreeSettings::default();
-        assert_eq!(defaults.root_path, "~/.openbitfun/worktrees");
-        assert_eq!(defaults.branch_prefix, "openbitfun/");
+        assert_eq!(defaults.root_path, "~/.bitfun/worktrees");
+        assert_eq!(defaults.branch_prefix, "bitfun/");
         assert!(!defaults.copy_local_changes);
         assert!(defaults.auto_delete_enabled);
         assert_eq!(defaults.auto_delete_limit, 15);

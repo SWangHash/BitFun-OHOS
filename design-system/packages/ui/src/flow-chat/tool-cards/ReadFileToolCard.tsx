@@ -34,7 +34,7 @@ export function ReadFileToolCard({
       {...props}
       aria-label={accessibleLabel}
       className={className}
-      data-openbitfun-tool-card="read-file"
+      data-bitfun-tool-card="read-file"
       header={(
         <AmbientToolCardHeader
           action={action}

@@ -1,8 +1,8 @@
 //! Desktop-owned embedded relay host for LAN Remote Connect modes.
 
 use log::{info, warn};
-use openbitfun_core::service::remote_connect::embedded_relay_host::EmbeddedRelayHost;
-use openbitfun_relay_service::{build_relay_router, MemoryAssetStore};
+use bitfun_core::service::remote_connect::embedded_relay_host::EmbeddedRelayHost;
+use bitfun_relay_service::{build_relay_router, MemoryAssetStore};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -88,13 +88,13 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
         // using exactly the same database schema and router as the official host.
         #[cfg(not(test))]
         let database_path = {
-            let root = std::env::var_os("OPENBITFUN_HOME")
-                .or_else(|| std::env::var_os("OPENBITFUN_E2E_HOME"))
+            let root = std::env::var_os("BITFUN_HOME")
+                .or_else(|| std::env::var_os("BITFUN_E2E_HOME"))
                 .map(std::path::PathBuf::from)
                 .filter(|path| !path.as_os_str().is_empty())
                 .or_else(|| {
                     dirs::home_dir().map(|home| {
-                        home.join(openbitfun_core_types::product_identity::hidden_data_directory())
+                        home.join(bitfun_core_types::product_identity::hidden_data_directory())
                     })
                 })
                 .ok_or_else(|| {
@@ -106,7 +106,7 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
         };
         #[cfg(test)]
         let database_path = ":memory:".to_string();
-        let database = Arc::new(openbitfun_relay_service::db::connect(&database_path).await?);
+        let database = Arc::new(bitfun_relay_service::db::connect(&database_path).await?);
         let asset_store = Arc::new(MemoryAssetStore::new());
         let start_time = std::time::Instant::now();
 
@@ -123,7 +123,7 @@ impl EmbeddedRelayHost for DesktopEmbeddedRelayHost {
             app = app.fallback_service(static_app);
         }
         app = app.layer(axum::middleware::from_fn(
-            openbitfun_relay_service::relay_security_headers,
+            bitfun_relay_service::relay_security_headers,
         ));
 
         info!("Embedded relay started on 0.0.0.0:{port}");
@@ -308,7 +308,7 @@ mod tests {
     #[tokio::test]
     async fn static_cache_headers_and_listener_lifecycle_are_preserved() {
         let static_dir = std::env::temp_dir().join(format!(
-            "openbitfun-embedded-relay-host-{}",
+            "bitfun-embedded-relay-host-{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(static_dir.join("assets"))

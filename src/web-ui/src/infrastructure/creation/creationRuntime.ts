@@ -22,8 +22,8 @@ export async function activateCreationRuntime<Api>({
   let disposed = false;
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
-  stylesheet.href = new URL('/openbitfun-creation.css', window.location.href).href;
-  stylesheet.dataset.openbitfunCreation = 'stylesheet';
+  stylesheet.href = new URL('/bitfun-creation.css', window.location.href).href;
+  stylesheet.dataset.bitfunCreation = 'stylesheet';
   const styleOrder = new MutationObserver(() => {
     if (!disposed && stylesheet.isConnected && document.head.lastElementChild !== stylesheet) {
       document.head.append(stylesheet);
@@ -59,7 +59,7 @@ export async function activateCreationRuntime<Api>({
     });
     signal.throwIfAborted();
     styleOrder.observe(document.head, { childList: true });
-    const module = await loadModule(new URL('/openbitfun-creation.js', window.location.href).href);
+    const module = await loadModule(new URL('/bitfun-creation.js', window.location.href).href);
     signal.throwIfAborted();
     if (module.default !== undefined && typeof module.default !== 'function') {
       throw new Error('UI customization must export a default activation function');

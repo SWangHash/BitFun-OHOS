@@ -42,31 +42,31 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
     }, [indeterminate]);
 
     const containerClass = [
-      'openbitfun-checkbox',
-      `openbitfun-checkbox--${size}`,
-      error && 'openbitfun-checkbox--error',
-      disabled && 'openbitfun-checkbox--disabled',
+      'bitfun-checkbox',
+      `bitfun-checkbox--${size}`,
+      error && 'bitfun-checkbox--error',
+      disabled && 'bitfun-checkbox--disabled',
       className
     ].filter(Boolean).join(' ');
 
     return (
-      <label className={containerClass} data-openbitfun-component="checkbox" data-openbitfun-part="root" data-openbitfun-size={size} data-openbitfun-state={[indeterminate && 'indeterminate', disabled && 'disabled', error && 'error'].filter(Boolean).join(' ') || undefined}>
-        <div className="openbitfun-checkbox__wrapper" data-openbitfun-component="checkbox" data-openbitfun-part="wrapper">
+      <label className={containerClass} data-bitfun-component="checkbox" data-bitfun-part="root" data-bitfun-size={size} data-bitfun-state={[indeterminate && 'indeterminate', disabled && 'disabled', error && 'error'].filter(Boolean).join(' ') || undefined}>
+        <div className="bitfun-checkbox__wrapper" data-bitfun-component="checkbox" data-bitfun-part="wrapper">
           <input
             {...props}
             ref={checkboxRef}
             type="checkbox"
-            className="openbitfun-checkbox__input"
+            className="bitfun-checkbox__input"
             disabled={disabled}
             {...props}
-            data-openbitfun-component="checkbox"
-            data-openbitfun-part="input"
+            data-bitfun-component="checkbox"
+            data-bitfun-part="input"
           />
-          <span className="openbitfun-checkbox__box" data-openbitfun-component="checkbox" data-openbitfun-part="box">
+          <span className="bitfun-checkbox__box" data-bitfun-component="checkbox" data-bitfun-part="box">
             <svg
-              className="openbitfun-checkbox__icon"
-              data-openbitfun-component="checkbox"
-              data-openbitfun-part="icon"
+              className="bitfun-checkbox__icon"
+              data-bitfun-component="checkbox"
+              data-bitfun-part="icon"
               viewBox="0 0 16 16"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -87,9 +87,9 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           </span>
         </div>
         {(label || description || children) && (
-          <div className="openbitfun-checkbox__content" data-openbitfun-component="checkbox" data-openbitfun-part="content">
-            {label && <span className="openbitfun-checkbox__label" data-openbitfun-component="checkbox" data-openbitfun-part="label">{label}</span>}
-            {description && <span className="openbitfun-checkbox__description" data-openbitfun-component="checkbox" data-openbitfun-part="description">{description}</span>}
+          <div className="bitfun-checkbox__content" data-bitfun-component="checkbox" data-bitfun-part="content">
+            {label && <span className="bitfun-checkbox__label" data-bitfun-component="checkbox" data-bitfun-part="label">{label}</span>}
+            {description && <span className="bitfun-checkbox__description" data-bitfun-component="checkbox" data-bitfun-part="description">{description}</span>}
             {children}
           </div>
         )}

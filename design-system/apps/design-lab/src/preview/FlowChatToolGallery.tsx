@@ -3,8 +3,8 @@ import {
   Eye,
 } from "lucide-react";
 import { useState } from "react";
-import { TabGroup } from "@openbitfun/ui";
-import { AgentWaitToolCard, SkillToolCard, TerminalControlToolCard, TodoToolCard } from "@openbitfun/ui/flow-chat";
+import { TabGroup } from "@bitfun/ui";
+import { AgentWaitToolCard, SkillToolCard, TerminalControlToolCard, TodoToolCard } from "@bitfun/ui/flow-chat";
 import { useI18n } from "../i18n";
 import { getComponentDescription } from "../i18n/componentMetadata";
 import {
@@ -36,7 +36,7 @@ function ToolSequencePreview() {
   const [status, setStatus] = useState<"running" | "completed" | "error">("running");
   const [expanded, setExpanded] = useState(false);
   const completed = status === "completed";
-  return <section className="flow-chat-tool-sequence" data-openbitfun-pattern="tool-sequence">
+  return <section className="flow-chat-tool-sequence" data-bitfun-pattern="tool-sequence">
     <TabGroup
       size="sm"
       value={status}

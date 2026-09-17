@@ -8,7 +8,7 @@ import {
   NumberInput,
   Switch,
 } from '@/component-library';
-import { Select, type SelectOption } from '@openbitfun/ui';
+import { Select, type SelectOption } from '@bitfun/ui';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';

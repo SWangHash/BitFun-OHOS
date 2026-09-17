@@ -1,7 +1,7 @@
 //! Stable on-disk envelope for in-flight Session runtime events.
 
-use crate::storage_error::{StorageError as OpenBitFunError, StorageResult as OpenBitFunResult};
-use openbitfun_events::AgenticEvent;
+use crate::storage_error::{StorageError as BitFunError, StorageResult as BitFunResult};
+use bitfun_events::AgenticEvent;
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -28,9 +28,9 @@ pub struct RuntimeEventLogSummary {
 pub fn validate_runtime_event_log(
     path: &Path,
     expected_session_id: &str,
-) -> OpenBitFunResult<RuntimeEventLogSummary> {
+) -> BitFunResult<RuntimeEventLogSummary> {
     let file = std::fs::File::open(path).map_err(|error| {
-        OpenBitFunError::io(format!(
+        BitFunError::io(format!(
             "Failed to open runtime event log {}: {error}",
             path.display()
         ))
@@ -40,7 +40,7 @@ pub fn validate_runtime_event_log(
     let mut turn_ids = BTreeSet::new();
     for (line_index, line) in BufReader::new(file).lines().enumerate() {
         let line = line.map_err(|error| {
-            OpenBitFunError::io(format!(
+            BitFunError::io(format!(
                 "Failed to read runtime event log {} at line {}: {error}",
                 path.display(),
                 line_index + 1
@@ -54,7 +54,7 @@ pub fn validate_runtime_event_log(
         };
         if let Some(session_id) = record.event.session_id() {
             if session_id != expected_session_id {
-                return Err(OpenBitFunError::validation(format!(
+                return Err(BitFunError::validation(format!(
                     "Runtime event log {} contains a different Session id",
                     path.display()
                 )));
@@ -75,7 +75,7 @@ pub fn validate_runtime_event_log(
         event_count = event_count.saturating_add(1);
     }
     let stream_id = stream_id.ok_or_else(|| {
-        OpenBitFunError::validation(format!(
+        BitFunError::validation(format!(
             "Runtime event log {} contains no events",
             path.display()
         ))
@@ -95,12 +95,12 @@ mod tests {
 
     #[test]
     fn imported_log_keeps_the_runtime_readers_torn_tail_semantics() {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&root).unwrap();
         let temp = tempfile::Builder::new()
-            .prefix("openbitfun-runtime-event-")
+            .prefix("bitfun-runtime-event-")
             .tempdir_in(root)
             .unwrap();
         let path = temp.path().join("session-1.jsonl");

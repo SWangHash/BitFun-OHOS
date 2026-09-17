@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 
-use openbitfun_core::service::remote_connect::DeviceIdentity;
+use bitfun_core::service::remote_connect::DeviceIdentity;
 
 use crate::{runtime, BootstrapProfile};
 
@@ -20,7 +20,7 @@ use super::pid;
 pub(crate) async fn run_daemon() -> Result<()> {
     if pid::is_daemon_running() {
         return Err(anyhow!(
-            "another openbitfun daemon is already running (see `openbitfun daemon status`)"
+            "another bitfun daemon is already running (see `bitfun daemon status`)"
         ));
     }
 
@@ -37,7 +37,7 @@ pub(crate) async fn run_daemon() -> Result<()> {
     let account = runtime.account_runtime();
     let Some(user_id) = account.try_restore_session().await else {
         return Err(anyhow!(
-            "not logged in; run `openbitfun`, log in with `/login`, then start the daemon again"
+            "not logged in; run `bitfun`, log in with `/login`, then start the daemon again"
         ));
     };
     tracing::info!("Daemon restored account session for user {user_id}");
@@ -51,7 +51,7 @@ pub(crate) async fn run_daemon() -> Result<()> {
     // attached controllers see fresh config without reconnecting.
 
     pid::write_pid_file()?;
-    tracing::info!("openbitfun daemon running (pid {})", std::process::id());
+    tracing::info!("bitfun daemon running (pid {})", std::process::id());
 
     let mut expired_check = tokio::time::interval(Duration::from_secs(5));
     expired_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -75,7 +75,7 @@ pub(crate) async fn run_daemon() -> Result<()> {
     runtime.account_routing().stop_device_routing().await;
     pid::remove_pid_file();
     crate::shutdown_mcp_servers().await;
-    tracing::info!("openbitfun daemon stopped");
+    tracing::info!("bitfun daemon stopped");
     Ok(())
 }
 

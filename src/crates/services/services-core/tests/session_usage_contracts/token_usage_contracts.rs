@@ -1,5 +1,5 @@
 use chrono::Utc;
-use openbitfun_services_core::token_usage::{
+use bitfun_services_core::token_usage::{
     ModelTokenStats, SessionTokenStats, TimeRange, TokenUsageQuery, TokenUsageRecord,
 };
 

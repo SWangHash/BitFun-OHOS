@@ -13,7 +13,7 @@ import {
   DialogHeading,
   DialogTitle,
   Disclosure,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
@@ -401,12 +401,12 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
     >
       <div
         className="dispatch-install-dialog"
-        data-openbitfun-component="dispatch-install-dialog"
-        data-openbitfun-part="root"
+        data-bitfun-component="dispatch-install-dialog"
+        data-bitfun-part="root"
       >
         <DialogHeader
-          data-openbitfun-component="dispatch-install-dialog"
-          data-openbitfun-part="header"
+          data-bitfun-component="dispatch-install-dialog"
+          data-bitfun-part="header"
         >
           <DialogHeading>
             <DialogTitle id={DIALOG_TITLE_ID}>
@@ -419,8 +419,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
 
         <DialogBody
           className="dispatch-install-dialog__body"
-          data-openbitfun-component="dispatch-install-dialog"
-          data-openbitfun-part="body"
+          data-bitfun-component="dispatch-install-dialog"
+          data-bitfun-part="body"
         >
           {error ? (
             <Alert tone="error" message={error} closable onClose={() => setError(null)} />
@@ -624,8 +624,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
 
         <div
           className="dispatch-install-dialog__actions"
-          data-openbitfun-component="dispatch-install-dialog"
-          data-openbitfun-part="actions"
+          data-bitfun-component="dispatch-install-dialog"
+          data-bitfun-part="actions"
         >
           <DialogFooter>
           <Button

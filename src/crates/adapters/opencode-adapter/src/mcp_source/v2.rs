@@ -57,7 +57,7 @@ fn validate_timeout(value: &Value) -> Result<(), String> {
 
 pub(super) fn materialize(
     context: &ExternalSourceContext,
-    revision_key: &openbitfun_product_domains::external_sources::ExternalMcpRevisionKey,
+    revision_key: &bitfun_product_domains::external_sources::ExternalMcpRevisionKey,
     source: SourceKey,
     provenance: Vec<SourceKey>,
     name: String,

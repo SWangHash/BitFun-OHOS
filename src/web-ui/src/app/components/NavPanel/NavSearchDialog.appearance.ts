@@ -9,6 +9,6 @@ export const navSearchDialogAppearanceDescriptor: AppearanceSurfaceDescriptor = 
     { id: 'card' }, { id: 'inputRow' }, { id: 'empty' },
   ],
   states: [
-    { id: 'active', selector: { kind: 'self', suffix: '[data-openbitfun-state~="active"]' } },
+    { id: 'active', selector: { kind: 'self', suffix: '[data-bitfun-state~="active"]' } },
   ],
 };

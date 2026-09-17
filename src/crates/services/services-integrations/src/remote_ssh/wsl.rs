@@ -3,7 +3,7 @@
 
 use super::types::{ServerInfo, WslDistributions, WslWorkspaceConfig};
 use anyhow::{anyhow, Context};
-use openbitfun_services_core::process_manager;
+use bitfun_services_core::process_manager;
 use std::process::{Output, Stdio};
 use std::time::Duration;
 
@@ -24,7 +24,7 @@ pub(crate) fn validate(config: &WslWorkspaceConfig) -> anyhow::Result<()> {
 
 pub(crate) fn ensure_supported() -> anyhow::Result<()> {
     if !cfg!(windows) {
-        anyhow::bail!("Native WSL workspaces require a Windows OpenBitFun host");
+        anyhow::bail!("Native WSL workspaces require a Windows BitFun host");
     }
     Ok(())
 }
@@ -252,7 +252,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Windows OpenBitFun host"));
+            .contains("Windows BitFun host"));
     }
     #[test]
     fn wsl_rejects_windows_and_relative_workspace_paths() {
@@ -309,7 +309,7 @@ mod tests {
             .error
             .as_ref()
             .unwrap()
-            .contains("Windows OpenBitFun host"));
+            .contains("Windows BitFun host"));
         assert_eq!(manager.get_saved_connections().await.len(), 1);
         assert!(!manager.is_connected(&config.id).await);
         // Terminal transport selection must restore the saved target before
@@ -318,10 +318,10 @@ mod tests {
             .local_process_exec_spec(&config.id, "pwd", true)
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("Windows OpenBitFun host"));
+        assert!(error.to_string().contains("Windows BitFun host"));
     }
 
-    /// Opt-in real Windows/WSL transport check. Set OPENBITFUN_TEST_WSL_DISTRO
+    /// Opt-in real Windows/WSL transport check. Set BITFUN_TEST_WSL_DISTRO
     /// to an initialized distribution and run this test with --ignored.
     #[tokio::test]
     #[ignore = "requires Windows and an initialized WSL distribution"]
@@ -329,7 +329,7 @@ mod tests {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         ensure_supported().unwrap();
         let distribution =
-            std::env::var("OPENBITFUN_TEST_WSL_DISTRO").expect("Set OPENBITFUN_TEST_WSL_DISTRO");
+            std::env::var("BITFUN_TEST_WSL_DISTRO").expect("Set BITFUN_TEST_WSL_DISTRO");
         let root = tempfile::tempdir().unwrap();
         let manager = super::super::SSHConnectionManager::new(root.path().into());
         let mut config = workspace_config();
@@ -338,7 +338,7 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.server_info.unwrap().os_type, "Linux");
         manager.save_connection(&config).await.unwrap();
-        let remote_path = format!("/tmp/openbitfun-wsl-{}", uuid::Uuid::new_v4());
+        let remote_path = format!("/tmp/bitfun-wsl-{}", uuid::Uuid::new_v4());
         let bytes = b"binary\0payload\n\xff\xfe";
         manager
             .container_write_file(&config.id, &remote_path, bytes)

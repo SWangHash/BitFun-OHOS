@@ -1,7 +1,7 @@
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::{Context, Result};
-use openbitfun_product_domains::feedback::FeedbackMessage;
+use bitfun_product_domains::feedback::FeedbackMessage;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -138,12 +138,12 @@ fn set_owner_only(_path: &Path) {}
 #[cfg(test)]
 mod tests {
     use super::{MessageCache, MessageCacheData};
-    use openbitfun_product_domains::feedback::{FeedbackMessage, FeedbackSender};
+    use bitfun_product_domains::feedback::{FeedbackMessage, FeedbackSender};
 
     #[tokio::test]
     async fn encrypts_message_content_and_rejects_corruption() {
         let directory = std::env::temp_dir().join(format!(
-            "openbitfun-feedback-message-cache-{}-{}",
+            "bitfun-feedback-message-cache-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));

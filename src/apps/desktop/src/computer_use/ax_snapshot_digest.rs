@@ -1,5 +1,5 @@
 //! Canonical AX observation digest shared by the native host adapters.
-use openbitfun_core::agentic::tools::computer_use_host::AxNode;
+use bitfun_core::agentic::tools::computer_use_host::AxNode;
 use sha1::{Digest, Sha1};
 
 /// Hash the complete observed payload, including enabled/focus/selection and

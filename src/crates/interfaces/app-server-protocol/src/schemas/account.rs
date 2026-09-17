@@ -4,7 +4,7 @@
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use serde::{Deserialize, Serialize};
 
-pub use openbitfun_product_domains::account::{AccountDevice, AccountInfo};
+pub use bitfun_product_domains::account::{AccountDevice, AccountInfo};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "rpc", derive(JsonRpcRequest))]
@@ -44,7 +44,7 @@ pub struct AccountGitHubStartRequest {}
 #[cfg_attr(feature = "rpc", derive(JsonRpcResponse))]
 pub struct AccountGitHubStartResponse {
     #[serde(flatten)]
-    pub authorization: openbitfun_product_domains::account::GitHubAuthStart,
+    pub authorization: bitfun_product_domains::account::GitHubAuthStart,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

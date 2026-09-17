@@ -10,7 +10,7 @@ export default function ReleaseLetterMascot() {
           <feGaussianBlur data-mascot="blur" stdDeviation="3.33" />
         </filter>
       </defs>
-      <ellipse data-mascot="shadow" cx="53" cy="134.8" rx="36.04" ry="3" fill="var(--openbitfun-color-content-on-light)" opacity=".2" filter={`url(#${shadowId})`} />
+      <ellipse data-mascot="shadow" cx="53" cy="134.8" rx="36.04" ry="3" fill="var(--bitfun-color-content-on-light)" opacity=".2" filter={`url(#${shadowId})`} />
       <g data-mascot="lift">
         <g data-mascot="body">
           <g data-mascot="deform">

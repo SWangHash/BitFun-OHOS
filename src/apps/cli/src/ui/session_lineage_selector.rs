@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crossterm::event::KeyEvent;
-use openbitfun_agent_runtime::sdk::{
+use bitfun_agent_runtime::sdk::{
     AgentSessionLifecycleStatus, AgentSessionLineageEntry, AgentSessionLineageSnapshot,
 };
 use ratatui::{layout::Rect, Frame};

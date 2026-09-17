@@ -1,4 +1,4 @@
-use openbitfun_core::util::JS_THREADSAFE_FUNCTION;
+use bitfun_core::util::JS_THREADSAFE_FUNCTION;
 use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 
 #[tauri::command]

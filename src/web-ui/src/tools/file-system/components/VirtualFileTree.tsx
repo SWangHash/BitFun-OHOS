@@ -45,7 +45,7 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
   }), [node]);
 
   return (
-    <div className="openbitfun-file-explorer__node">
+    <div className="bitfun-file-explorer__node">
       <FileTreeItem
         node={nodeForIcon}
         level={node.depth}
@@ -127,8 +127,8 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
 
   if (flatNodes.length === 0) {
     return (
-      <div className={`openbitfun-file-explorer__tree openbitfun-file-explorer__tree--empty ${className}`}>
-        <div className="openbitfun-file-explorer__empty-message">
+      <div className={`bitfun-file-explorer__tree bitfun-file-explorer__tree--empty ${className}`}>
+        <div className="bitfun-file-explorer__empty-message">
           <p>{t('fileTree.empty')}</p>
         </div>
       </div>
@@ -137,7 +137,7 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
 
   return (
     <div 
-      className={`openbitfun-file-explorer__tree openbitfun-file-explorer__tree--virtual ${className}`}
+      className={`bitfun-file-explorer__tree bitfun-file-explorer__tree--virtual ${className}`}
       style={{ height }}
       tabIndex={0}
     >

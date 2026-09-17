@@ -13,10 +13,10 @@ use sqlx::Row;
 use url::Url;
 use uuid::Uuid;
 
-const WEB_SESSION_COOKIE: &str = "openbitfun_market_session";
-const CSRF_COOKIE: &str = "openbitfun_market_csrf";
-const SKIN_SESSION_COOKIE: &str = "openbitfun_skin_session";
-const SKIN_CSRF_COOKIE: &str = "openbitfun_skin_csrf";
+const WEB_SESSION_COOKIE: &str = "bitfun_market_session";
+const CSRF_COOKIE: &str = "bitfun_market_csrf";
+const SKIN_SESSION_COOKIE: &str = "bitfun_skin_session";
+const SKIN_CSRF_COOKIE: &str = "bitfun_skin_csrf";
 const MINIAPP_COOKIE_PATH: &str = "/miniapp";
 const SKIN_COOKIE_PATH: &str = "/skin";
 const OAUTH_FLOW_MINUTES: i64 = 10;
@@ -153,9 +153,9 @@ pub(super) struct OAuthFlowRecord {
 
 impl AuthService {
     pub(crate) fn new(config: MarketConfig, db: Database) -> MarketResult<Self> {
-        openbitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+        bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
         let client = reqwest::Client::builder()
-            .user_agent("OpenBitFun-MiniApp-Market/1")
+            .user_agent("BitFun-MiniApp-Market/1")
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(std::time::Duration::from_secs(10))
             .timeout(std::time::Duration::from_secs(20))
@@ -295,13 +295,13 @@ impl AuthService {
             let ticket = self
                 .create_login_flow(&mut transaction, Some(&transaction_id), "/miniapp/")
                 .await?;
-            format!("https://auth.openbitfun.com/sign-in#ticket={ticket}")
+            format!("https://auth.bitfun.com/sign-in#ticket={ticket}")
         } else {
             self.create_oauth_flow_in_transaction(
                 &mut transaction,
                 "desktop",
                 Some(&transaction_id),
-                "https://auth.openbitfun.com/complete",
+                "https://auth.bitfun.com/complete",
             )
             .await?
         };
@@ -835,7 +835,7 @@ pub(super) fn safe_return_to(value: &str) -> String {
     {
         return FALLBACK.to_string();
     }
-    let Ok(base) = Url::parse("https://market.openbitfun.com/") else {
+    let Ok(base) = Url::parse("https://market.bitfun.com/") else {
         return FALLBACK.to_string();
     };
     let Ok(target) = base.join(value) else {
@@ -890,7 +890,7 @@ mod tests {
     fn test_config(root: &Path) -> MarketConfig {
         MarketConfig {
             bind: "127.0.0.1:0".parse().unwrap(),
-            public_base_url: "https://market.openbitfun.com/miniapp".to_string(),
+            public_base_url: "https://market.bitfun.com/miniapp".to_string(),
             database_path: root.join("market.sqlite"),
             artifact_dir: root.join("artifacts"),
             web_dir: root.join("web"),
@@ -913,10 +913,10 @@ mod tests {
         let mut config = test_config(temporary.path());
         assert_eq!(
             config.github_callback_url(),
-            "https://market.openbitfun.com/miniapp/api/v1/auth/github/callback"
+            "https://market.bitfun.com/miniapp/api/v1/auth/github/callback"
         );
         config.github_callback_url =
-            Some("https://auth.openbitfun.com/api/v1/auth/github/callback".to_string());
+            Some("https://auth.bitfun.com/api/v1/auth/github/callback".to_string());
         let service = AuthService::new(config, database).unwrap();
         for authorization_url in [
             service.start_web_oauth("/miniapp/").await.unwrap(),
@@ -932,7 +932,7 @@ mod tests {
                     .find(|(key, _)| key == "redirect_uri")
                     .unwrap()
                     .1,
-                "https://auth.openbitfun.com/api/v1/auth/github/callback"
+                "https://auth.bitfun.com/api/v1/auth/github/callback"
             );
         }
         assert!(service
@@ -1070,7 +1070,7 @@ mod tests {
         let mut request_headers = HeaderMap::new();
         request_headers.insert(
             header::COOKIE,
-            format!("openbitfun_market_session={session_token}")
+            format!("bitfun_market_session={session_token}")
                 .parse()
                 .unwrap(),
         );
@@ -1172,7 +1172,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::COOKIE,
-            HeaderValue::from_static("openbitfun_market_csrf=csrf-value"),
+            HeaderValue::from_static("bitfun_market_csrf=csrf-value"),
         );
         headers.insert("x-csrf-token", HeaderValue::from_static("csrf-value"));
         service.require_csrf(&headers, &auth).unwrap();
@@ -1198,17 +1198,17 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(cookies.len(), 4);
         assert!(cookies.iter().any(|cookie| {
-            cookie.starts_with("openbitfun_market_session=session; Path=/miniapp;")
+            cookie.starts_with("bitfun_market_session=session; Path=/miniapp;")
         }));
         assert!(cookies.iter().any(|cookie| {
-            cookie.starts_with("openbitfun_market_csrf=csrf-value; Path=/miniapp;")
+            cookie.starts_with("bitfun_market_csrf=csrf-value; Path=/miniapp;")
         }));
         assert!(cookies
             .iter()
-            .any(|cookie| { cookie.starts_with("openbitfun_skin_session=session; Path=/skin;") }));
+            .any(|cookie| { cookie.starts_with("bitfun_skin_session=session; Path=/skin;") }));
         assert!(cookies
             .iter()
-            .any(|cookie| { cookie.starts_with("openbitfun_skin_csrf=csrf-value; Path=/skin;") }));
+            .any(|cookie| { cookie.starts_with("bitfun_skin_csrf=csrf-value; Path=/skin;") }));
         assert!(cookies.iter().all(|cookie| cookie.contains("SameSite=Lax")));
         assert!(cookies.iter().all(|cookie| cookie.contains("Secure")));
         assert!(cookies.iter().all(|cookie| !cookie.contains("Domain=")));

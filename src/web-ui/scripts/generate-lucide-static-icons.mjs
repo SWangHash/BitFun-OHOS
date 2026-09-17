@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ChevronDown, Copy, Minus, Search, Square, X } from 'lucide-react';
-import { themes } from '@openbitfun/theme-openbitfun';
+import { themes } from '@bitfun/theme-bitfun';
 
 // Pre-React chrome and native form decorations cannot mount React components.
 // Generate their SVG from the same installed Lucide version as the application.

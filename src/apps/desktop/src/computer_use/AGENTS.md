@@ -54,7 +54,7 @@ algorithms or native-host mocks. Cargo dependencies must already be cached
 
 ```bash
 node scripts/test-computer-use-context.mjs
-cargo test -p openbitfun-desktop --lib context_integrity_tests
+cargo test -p bitfun-desktop --lib context_integrity_tests
 ```
 
 Native black-box fixtures use only a dedicated test window / rendered image:
@@ -87,8 +87,8 @@ Observation invariants:
   when text rendering is disabled; focused controls survive budget selection.
 
 ```bash
-cargo check -p openbitfun-desktop
-cargo test -p openbitfun-desktop
+cargo check -p bitfun-desktop
+cargo test -p bitfun-desktop
 ```
 
 Windows-only paths (`windows_wgc_capture`, UIA) compile on CI (`windows-latest`).

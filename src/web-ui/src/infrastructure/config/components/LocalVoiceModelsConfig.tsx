@@ -11,7 +11,7 @@ import { OverflowText,
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, ShieldCheck } from 'lucide-react';
@@ -307,8 +307,8 @@ const LocalVoiceModelsConfig: React.FC<LocalVoiceModelsConfigProps> = ({
     content = (
       <div
         className="voice-input-config__model-list"
-        data-openbitfun-component="voice-input-config"
-        data-openbitfun-part="modelList"
+        data-bitfun-component="voice-input-config"
+        data-bitfun-part="modelList"
       >
         {models.map(model => {
           const isUsable = model.state === 'installed';
@@ -328,8 +328,8 @@ const LocalVoiceModelsConfig: React.FC<LocalVoiceModelsConfigProps> = ({
           return (
             <div
               className={`voice-input-config__model-card${isSelected ? ' voice-input-config__model-card--selected' : ''}`}
-              data-openbitfun-component="voice-input-config"
-              data-openbitfun-part="modelCard"
+              data-bitfun-component="voice-input-config"
+              data-bitfun-part="modelCard"
               key={model.modelId}
             >
               <div className="voice-input-config__model-copy">
@@ -363,8 +363,8 @@ const LocalVoiceModelsConfig: React.FC<LocalVoiceModelsConfigProps> = ({
 
               <div
                 className="voice-input-config__model-actions"
-                data-openbitfun-component="voice-input-config"
-                data-openbitfun-part="modelActions"
+                data-bitfun-component="voice-input-config"
+                data-bitfun-part="modelActions"
               >
                 {isUsable && !isSelected ? (
                   <Button
@@ -408,8 +408,8 @@ const LocalVoiceModelsConfig: React.FC<LocalVoiceModelsConfigProps> = ({
                     <IconButton
                       aria-label={t('model.more')}
                       size="sm"
-                      data-openbitfun-component="voice-input-config"
-                      data-openbitfun-part="modelMore"
+                      data-bitfun-component="voice-input-config"
+                      data-bitfun-part="modelMore"
                       onClick={event => openMaintenanceMenu(event, model)}
                       icon={<Icon name="more" size="sm" />}
                     />
@@ -440,8 +440,8 @@ const LocalVoiceModelsConfig: React.FC<LocalVoiceModelsConfigProps> = ({
         <div className="voice-input-config__model-dialog-content">
       <div
         className="voice-input-config__model-dialog"
-        data-openbitfun-component="voice-input-config"
-        data-openbitfun-part="modelDialog"
+        data-bitfun-component="voice-input-config"
+        data-bitfun-part="modelDialog"
       >
         <div className="voice-input-config__model-dialog-intro">
           <span>{t('localModels.description')}</span>

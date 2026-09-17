@@ -2,7 +2,7 @@
   &__header-actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
 
     > :first-child {
       width: min(260px, 28vw);
@@ -17,7 +17,7 @@
     max-width: 100%;
     overflow-x: auto;
 
-    > [data-openbitfun-part='segment'] {
+    > [data-bitfun-part='segment'] {
       flex: 0 0 auto;
     }
   }
@@ -25,7 +25,7 @@
   &__load-more {
     display: flex;
     justify-content: center;
-    padding-top: var(--openbitfun-space-4);
+    padding-top: var(--bitfun-space-4);
   }
 
   &__card-grid {
@@ -44,19 +44,19 @@
   min-width: 0;
   cursor: pointer;
   transition:
-    transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    background var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:hover {
     transform: translateY(-2px);
-    border-color: var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-action-quiet-hover);
+    border-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-quiet-hover);
   }
 
   &:has(&__trigger:focus-visible) {
-    outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-    outline-offset: var(--openbitfun-focus-offset);
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
   }
 
   &__trigger {
@@ -79,8 +79,8 @@
     place-items: center;
     aspect-ratio: 16 / 9;
     overflow: hidden;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-    background: var(--openbitfun-color-surface-tertiary);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
+    background: var(--bitfun-color-surface-tertiary);
 
     img {
       width: 100%;
@@ -94,22 +94,22 @@
     place-items: center;
     width: 100%;
     height: 100%;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__body {
     display: grid;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
 
     strong {
       overflow: hidden;
-      color: var(--openbitfun-color-content-primary);
-      font-family: var(--openbitfun-type-heading-card-font-family);
-      font-size: var(--openbitfun-type-heading-card-font-size);
-      font-weight: var(--openbitfun-type-heading-card-font-weight);
-      line-height: var(--openbitfun-type-heading-card-line-height);
-      letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+      color: var(--bitfun-color-content-primary);
+      font-family: var(--bitfun-type-heading-card-font-family);
+      font-size: var(--bitfun-type-heading-card-font-size);
+      font-weight: var(--bitfun-type-heading-card-font-weight);
+      line-height: var(--bitfun-type-heading-card-line-height);
+      letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
       white-space: nowrap;
     }
 
@@ -118,12 +118,12 @@
       min-height: 2.9em;
       margin: 0;
       overflow: hidden;
-      color: var(--openbitfun-color-content-secondary);
-      font-family: var(--openbitfun-type-support-font-family);
-      font-size: var(--openbitfun-type-support-font-size);
-      font-weight: var(--openbitfun-type-support-font-weight);
-      line-height: var(--openbitfun-type-support-line-height);
-      letter-spacing: var(--openbitfun-type-support-letter-spacing);
+      color: var(--bitfun-color-content-secondary);
+      font-family: var(--bitfun-type-support-font-family);
+      font-size: var(--bitfun-type-support-font-size);
+      font-weight: var(--bitfun-type-support-font-weight);
+      line-height: var(--bitfun-type-support-line-height);
+      letter-spacing: var(--bitfun-type-support-letter-spacing);
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
     }
@@ -133,12 +133,12 @@
   &__stats {
     display: flex;
     align-items: center;
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
   }
 
   &__eyebrow {
@@ -146,24 +146,24 @@
   }
 
   &__stats {
-    gap: var(--openbitfun-space-3);
-    padding-top: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-3);
+    padding-top: var(--bitfun-space-1);
 
     span {
       display: inline-flex;
       align-items: center;
-      gap: var(--openbitfun-space-1);
+      gap: var(--bitfun-space-1);
     }
   }
 }
 
 .miniapp-market-detail {
   display: grid;
-  gap: var(--openbitfun-space-4);
+  gap: var(--bitfun-space-4);
 
   section {
     display: grid;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
 
     h4,
     p,
@@ -173,22 +173,22 @@
 
     // Same scale as the submission workspace: 13px/600 titles over 13px body.
     h4 {
-      color: var(--openbitfun-color-content-primary);
-      font-family: var(--openbitfun-type-heading-card-font-family);
-      font-size: var(--openbitfun-type-heading-card-font-size);
-      font-weight: var(--openbitfun-type-heading-card-font-weight);
-      line-height: var(--openbitfun-type-heading-card-line-height);
-      letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+      color: var(--bitfun-color-content-primary);
+      font-family: var(--bitfun-type-heading-card-font-family);
+      font-size: var(--bitfun-type-heading-card-font-size);
+      font-weight: var(--bitfun-type-heading-card-font-weight);
+      line-height: var(--bitfun-type-heading-card-line-height);
+      letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
     }
 
     p,
     li {
-      color: var(--openbitfun-color-content-secondary);
-      font-family: var(--openbitfun-type-body-sm-font-family);
-      font-size: var(--openbitfun-type-body-sm-font-size);
-      font-weight: var(--openbitfun-type-body-sm-font-weight);
-      line-height: var(--openbitfun-type-body-sm-line-height);
-      letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+      color: var(--bitfun-color-content-secondary);
+      font-family: var(--bitfun-type-body-sm-font-family);
+      font-size: var(--bitfun-type-body-sm-font-size);
+      font-weight: var(--bitfun-type-body-sm-font-weight);
+      line-height: var(--bitfun-type-body-sm-line-height);
+      letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
     }
   }
 
@@ -196,26 +196,26 @@
   &__installed-state {
     display: inline-flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
-    color: var(--openbitfun-color-status-success-content);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-status-success-content);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   }
 
   &__screenshots {
     display: flex;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     overflow-x: auto;
     scroll-snap-type: x mandatory;
 
     img {
       width: min(360px, 80%);
       flex: 0 0 auto;
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      border-radius: var(--openbitfun-radius-lg);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      border-radius: var(--bitfun-radius-lg);
       scroll-snap-align: start;
     }
   }
@@ -223,62 +223,62 @@
   &__warning {
     display: flex;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
-    padding: var(--openbitfun-space-3);
-    border: 1px solid var(--openbitfun-color-status-warning-border);
-    border-radius: var(--openbitfun-radius-lg);
-    background: var(--openbitfun-color-status-warning-surface);
-    color: var(--openbitfun-color-status-warning-content);
-    font-family: var(--openbitfun-type-body-sm-font-family);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    line-height: var(--openbitfun-type-body-sm-line-height);
-    letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3);
+    border: 1px solid var(--bitfun-color-status-warning-border);
+    border-radius: var(--bitfun-radius-lg);
+    background: var(--bitfun-color-status-warning-surface);
+    color: var(--bitfun-color-status-warning-content);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
   }
 
   &__rating {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
 
     &-action {
-      color: var(--openbitfun-color-status-warning-content);
+      color: var(--bitfun-color-status-warning-content);
     }
 
     span {
-      margin-left: var(--openbitfun-space-2);
-      color: var(--openbitfun-color-content-muted);
-      font-family: var(--openbitfun-type-meta-font-family);
-      font-size: var(--openbitfun-type-meta-font-size);
-      font-weight: var(--openbitfun-type-meta-font-weight);
-      line-height: var(--openbitfun-type-meta-line-height);
-      letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+      margin-left: var(--bitfun-space-2);
+      color: var(--bitfun-color-content-muted);
+      font-family: var(--bitfun-type-meta-font-family);
+      font-size: var(--bitfun-type-meta-font-size);
+      font-weight: var(--bitfun-type-meta-font-weight);
+      line-height: var(--bitfun-type-meta-line-height);
+      letter-spacing: var(--bitfun-type-meta-letter-spacing);
     }
   }
 
   &__releases {
     display: grid;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
 
     > div {
       display: grid;
       grid-template-columns: 72px 1fr auto;
       align-items: center;
-      padding: var(--openbitfun-space-2) var(--openbitfun-space-3);
-      border: 1px solid var(--openbitfun-color-border-subtle);
-      border-radius: var(--openbitfun-radius-base);
-      color: var(--openbitfun-color-content-secondary);
-      font-family: var(--openbitfun-type-body-sm-font-family);
-      font-size: var(--openbitfun-type-body-sm-font-size);
-      font-weight: var(--openbitfun-type-body-sm-font-weight);
-      line-height: var(--openbitfun-type-body-sm-line-height);
-      letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+      padding: var(--bitfun-space-2) var(--bitfun-space-3);
+      border: 1px solid var(--bitfun-color-border-subtle);
+      border-radius: var(--bitfun-radius-base);
+      color: var(--bitfun-color-content-secondary);
+      font-family: var(--bitfun-type-body-sm-font-family);
+      font-size: var(--bitfun-type-body-sm-font-size);
+      font-weight: var(--bitfun-type-body-sm-font-weight);
+      line-height: var(--bitfun-type-body-sm-line-height);
+      letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
     }
   }
 
   &__releases-toggle {
-    margin-top: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-muted);
+    margin-top: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-muted);
   }
 }
 

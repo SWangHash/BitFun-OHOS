@@ -15,10 +15,10 @@ export const Preview: React.FC<PreviewProps> = ({ value, basePath }) => {
   const frontmatter = splitMarkdownFrontmatter(value);
 
   return (
-    <div className="m-editor-preview" data-openbitfun-component="editor-tool" data-openbitfun-part="meditorPreview">
+    <div className="m-editor-preview" data-bitfun-component="editor-tool" data-bitfun-part="meditorPreview">
       <div className="m-editor-preview-content">
         {frontmatter && (
-          <section className="m-editor-preview-frontmatter" data-openbitfun-component="editor-tool" data-openbitfun-part="meditorFrontmatter">
+          <section className="m-editor-preview-frontmatter" data-bitfun-component="editor-tool" data-bitfun-part="meditorFrontmatter">
             <header className="m-editor-preview-frontmatter__header">
               <span className="m-editor-preview-frontmatter__label">
                 {t('editor.meditor.frontmatter.label')}

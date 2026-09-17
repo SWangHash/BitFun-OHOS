@@ -3,31 +3,31 @@
 /* Base floating input styles */
 .floating-input-base {
   position: fixed;
-  bottom: var(--openbitfun-space-5);
+  bottom: var(--bitfun-space-5);
   left: 50%;
   transform: translateX(-50%);
   width: 400px; /* Width when unfocused */
-  max-width: calc(100vw - calc(var(--openbitfun-space-5) * 2));
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 70%, transparent);
+  max-width: calc(100vw - calc(var(--bitfun-space-5) * 2));
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 70%, transparent);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  border-radius: calc(var(--openbitfun-radius-lg) * 2); /* Pill shape */
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-hover) 15%, transparent);
+  border-radius: calc(var(--bitfun-radius-lg) * 2); /* Pill shape */
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 15%, transparent);
   box-shadow: 
-    var(--openbitfun-shadow-xl),
-    0 4px 15px color-mix(in srgb, var(--openbitfun-color-accent-hover) 10%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-on-dark) 8%, transparent);
-  padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
+    var(--bitfun-shadow-xl),
+    0 4px 15px color-mix(in srgb, var(--bitfun-color-accent-hover) 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-on-dark) 8%, transparent);
+  padding: var(--bitfun-space-3) var(--bitfun-space-4);
   z-index: 100;
   transition:
-    background-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    border-color var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    border-radius var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    box-shadow var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    opacity var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    padding var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    transform var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard),
-    width var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-standard);
+    background-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    border-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    border-radius var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    box-shadow var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    opacity var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    padding var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    transform var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+    width var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   opacity: 0.6; /* Overall opacity when inactive */
   display: flex;
   align-items: center;
@@ -37,11 +37,11 @@
 /* Hover effect for floating input */
 .floating-input-base:hover {
   opacity: 0.8;
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 25%, transparent);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 25%, transparent);
   box-shadow: 
-    0 12px 40px color-mix(in srgb, var(--openbitfun-color-content-on-light) 40%, transparent),
-    0 6px 20px color-mix(in srgb, var(--openbitfun-color-accent-hover) 15%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-on-dark) 12%, transparent);
+    0 12px 40px color-mix(in srgb, var(--bitfun-color-content-on-light) 40%, transparent),
+    0 6px 20px color-mix(in srgb, var(--bitfun-color-accent-hover) 15%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-on-dark) 12%, transparent);
   transform: translateX(-50%) translateY(-1px);
 }
 
@@ -49,14 +49,14 @@
 .floating-input-base:focus-within {
   opacity: 1;
   width: 800px; /* Expanded width when active */
-  padding: var(--openbitfun-space-4) var(--openbitfun-space-5);
-  border-radius: var(--openbitfun-radius-lg);
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 50%, transparent);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 98%, transparent);
+  padding: var(--bitfun-space-4) var(--bitfun-space-5);
+  border-radius: var(--bitfun-radius-lg);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 50%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 98%, transparent);
   box-shadow: 
-    0 20px 60px color-mix(in srgb, var(--openbitfun-color-content-on-light) 60%, transparent),
-    0 10px 40px color-mix(in srgb, var(--openbitfun-color-accent-hover) 25%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-on-dark) 20%, transparent);
+    0 20px 60px color-mix(in srgb, var(--bitfun-color-content-on-light) 60%, transparent),
+    0 10px 40px color-mix(in srgb, var(--bitfun-color-accent-hover) 25%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-on-dark) 20%, transparent);
   transform: translateX(-50%) translateY(-4px);
 }
 
@@ -65,10 +65,10 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--openbitfun-color-content-primary);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  line-height: var(--openbitfun-type-body-sm-line-height);
+  color: var(--bitfun-color-content-primary);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  line-height: var(--bitfun-type-body-sm-line-height);
   resize: none;
   outline: none;
   min-height: 24px;
@@ -76,7 +76,7 @@
 }
 
 .floating-input-base .floating-input-field::placeholder {
-  color: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 50%, transparent);
+  color: color-mix(in srgb, var(--bitfun-color-content-on-dark) 50%, transparent);
   font-style: italic;
 }
 
@@ -84,37 +84,37 @@
 .floating-input-base .floating-input-button {
   background: none;
   border: none;
-  color: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 70%, transparent);
+  color: color-mix(in srgb, var(--bitfun-color-content-on-dark) 70%, transparent);
   cursor: pointer;
-  padding: var(--openbitfun-space-2);
-  border-radius: var(--openbitfun-radius-sm);
+  padding: var(--bitfun-space-2);
+  border-radius: var(--bitfun-radius-sm);
   transition:
-    background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: var(--openbitfun-space-2);
+  margin-left: var(--bitfun-space-2);
 }
 
 .floating-input-base .floating-input-button:hover:not(:disabled) {
-  color: var(--openbitfun-color-accent-default);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-hover) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-hover) 10%, transparent);
 }
 
 .floating-input-base .floating-input-button:disabled {
-  opacity: var(--openbitfun-opacity-disabled);
+  opacity: var(--bitfun-opacity-disabled);
   cursor: default;
 }
 
 /* Inner container styles when active */
 .floating-input-base:focus-within .floating-input-wrapper {
-  background: color-mix(in srgb, var(--openbitfun-color-content-on-light) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-hover) 30%, transparent);
-  border-radius: var(--openbitfun-radius-md);
-  padding: var(--openbitfun-space-2);
+  background: color-mix(in srgb, var(--bitfun-color-content-on-light) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 30%, transparent);
+  border-radius: var(--bitfun-radius-md);
+  padding: var(--bitfun-space-2);
 }
 
 /* Message container needs bottom space to avoid overlap */
@@ -127,14 +127,14 @@
   .floating-input-base {
     width: calc(50vw);
     bottom: 15px;
-    padding: var(--openbitfun-space-1) var(--openbitfun-space-3);
+    padding: var(--bitfun-space-1) var(--bitfun-space-3);
     min-width: 300px;
     max-width: calc(100vw - 30px);
   }
   
   .floating-input-base:focus-within {
     width: calc(100vw - 20px);
-    padding: var(--openbitfun-space-3) var(--openbitfun-space-4);
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
   }
   
   .has-floating-input {
@@ -142,17 +142,17 @@
   }
 }
 
-:root[data-openbitfun-appearance-mode='dark'] .floating-input-base {
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 65%, transparent);
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 12%, transparent);
+:root[data-bitfun-appearance-mode='dark'] .floating-input-base {
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 65%, transparent);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 12%, transparent);
 }
 
-:root[data-openbitfun-appearance-mode='dark'] .floating-input-base:hover {
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 75%, transparent);
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 20%, transparent);
+:root[data-bitfun-appearance-mode='dark'] .floating-input-base:hover {
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 75%, transparent);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 20%, transparent);
 }
 
-:root[data-openbitfun-appearance-mode='dark'] .floating-input-base:focus-within {
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 99%, transparent);
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-hover) 45%, transparent);
+:root[data-bitfun-appearance-mode='dark'] .floating-input-base:focus-within {
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 99%, transparent);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-hover) 45%, transparent);
 }

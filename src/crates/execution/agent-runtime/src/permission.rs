@@ -1,8 +1,8 @@
 //! Provider-neutral permission planning, pending requests, and reply coordination.
 
 use dashmap::DashMap;
-use openbitfun_agent_tools::PermissionIntent;
-use openbitfun_runtime_ports::{
+use bitfun_agent_tools::PermissionIntent;
+use bitfun_runtime_ports::{
     wildcard_matches, ClockPort, PermissionAuditEvent, PermissionAuditRecord,
     PermissionAuditStorePort, PermissionEffect, PermissionEvaluator, PermissionGrant,
     PermissionGrantStorePort, PermissionReply, PermissionReplySource, PermissionReplyStorePort,
@@ -293,7 +293,7 @@ impl PermissionRequestManager {
 
     pub async fn remove_project_grant(
         &self,
-        key: openbitfun_runtime_ports::PermissionGrantKey,
+        key: bitfun_runtime_ports::PermissionGrantKey,
     ) -> Result<bool, PermissionRequestManagerError> {
         let Some(grant_store) = &self.grant_store else {
             return Ok(false);
@@ -320,7 +320,7 @@ impl PermissionRequestManager {
     pub async fn list_project_permission_audit(
         &self,
         project_id: &str,
-    ) -> Result<Vec<openbitfun_runtime_ports::PermissionAuditRecord>, PermissionRequestManagerError>
+    ) -> Result<Vec<bitfun_runtime_ports::PermissionAuditRecord>, PermissionRequestManagerError>
     {
         self.audit_store
             .list_project_permission_audit(project_id)
@@ -587,7 +587,7 @@ impl PermissionRequestManager {
             })?;
         if matches!(reply, PermissionReply::OnceWithInput { .. })
             && (request.source.kind
-                != openbitfun_runtime_ports::PermissionRequestSourceKind::ToolCall
+                != bitfun_runtime_ports::PermissionRequestSourceKind::ToolCall
                 || request.tool_call_id.is_none())
         {
             return Err(PermissionRequestManagerError::InvalidReply(
@@ -779,7 +779,7 @@ fn audit_id(request_id: &str, event: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_runtime_ports::{
+    use bitfun_runtime_ports::{
         PermissionAuditStorePort, PermissionReplyStorePort, PortResult, RuntimeServiceCapability,
         RuntimeServicePort,
     };
@@ -859,8 +859,8 @@ mod tests {
             action: "edit".to_string(),
             resources: vec!["src/main.rs".to_string()],
             save_resources: vec!["src/main.rs".to_string()],
-            source: openbitfun_runtime_ports::PermissionRequestSource {
-                kind: openbitfun_runtime_ports::PermissionRequestSourceKind::ToolCall,
+            source: bitfun_runtime_ports::PermissionRequestSource {
+                kind: bitfun_runtime_ports::PermissionRequestSourceKind::ToolCall,
                 identity: "write_file".to_string(),
             },
             delegation: None,

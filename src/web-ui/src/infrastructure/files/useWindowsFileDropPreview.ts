@@ -92,7 +92,7 @@ export function useWindowsFileDropPreview(options: Options): void {
       try {
         // Use the native window event channel, never the peer runtime's transport.
         const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<PreviewEvent>('openbitfun://file-drop-preview', ({ payload }) => {
+        unlisten = await listen<PreviewEvent>('bitfun://file-drop-preview', ({ payload }) => {
           if (disposed || payload.targetId !== targetId) return;
           if (payload.kind === 'unavailable') {
             if (!requested && generation === null) return;

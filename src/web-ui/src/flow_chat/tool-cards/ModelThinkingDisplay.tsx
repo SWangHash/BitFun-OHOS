@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { OverflowText, Icon } from '@openbitfun/ui';
+import { OverflowText, Icon } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import type { FlowThinkingItem } from '../types/flow-chat';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -381,10 +381,10 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
       data-expanded={isExpanded ? 'true' : 'false'}
       data-reasoning-kind={thinkingItem.reasoningKind ?? 'reasoning'}
       className={wrapperClassName}
-     data-openbitfun-component="model-thinking-display" data-openbitfun-part="root" data-openbitfun-context={displayContext} data-openbitfun-state={[isExpanded && 'expanded', isVisuallyStreaming && 'streaming'].filter(Boolean).join(' ')}>
+     data-bitfun-component="model-thinking-display" data-bitfun-part="root" data-bitfun-context={displayContext} data-bitfun-state={[isExpanded && 'expanded', isVisuallyStreaming && 'streaming'].filter(Boolean).join(' ')}>
       <div data-overflow-trigger
-        data-openbitfun-component="model-thinking-display"
-        data-openbitfun-part="header"
+        data-bitfun-component="model-thinking-display"
+        data-bitfun-part="header"
         data-testid="chat-thinking-toggle"
         className="thinking-collapsed-header"
         onMouseDown={handleMouseDown}
@@ -394,16 +394,16 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
         <span
           aria-hidden="true"
           className="thinking-leading-icon"
-          data-openbitfun-component="model-thinking-display"
-          data-openbitfun-part="leadingIcon"
+          data-bitfun-component="model-thinking-display"
+          data-bitfun-part="leadingIcon"
         >
           <Icon name="thinking" size="sm" className="thinking-leading-icon__default" />
           <Icon name="chevron-right" size="sm" className="thinking-leading-icon__collapsed-hover" />
           <Icon name="chevron-down" size="sm" className="thinking-leading-icon__expanded" />
         </span>
         <OverflowText
-          data-openbitfun-component="model-thinking-display"
-          data-openbitfun-part="label"
+          data-bitfun-component="model-thinking-display"
+          data-bitfun-part="label"
           className="thinking-label"
           title={isSummary && !isExpanded ? headerLabel : undefined}
         >
@@ -416,14 +416,14 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
           'thinking-expand-container',
           isExpanded ? 'thinking-expand-container--open' : '',
         ].filter(Boolean).join(' ')}
-        data-openbitfun-component="model-thinking-display"
-        data-openbitfun-part="expandContainer"
+        data-bitfun-component="model-thinking-display"
+        data-bitfun-part="expandContainer"
       >
-        <div className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`} data-openbitfun-component="model-thinking-display" data-openbitfun-part="contentWrapper">
+        <div className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`} data-bitfun-component="model-thinking-display" data-bitfun-part="contentWrapper">
           <div
             ref={contentRef}
-            data-openbitfun-component="model-thinking-display"
-            data-openbitfun-part="content"
+            data-bitfun-component="model-thinking-display"
+            data-bitfun-part="content"
             data-testid="chat-thinking-content"
             data-status={status}
             data-streaming={isActive ? 'true' : 'false'}

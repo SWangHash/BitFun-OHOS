@@ -4,7 +4,7 @@ export const virtualItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'virtual-item',
   parts: [{ id: 'root' }, { id: 'imageAnalyzing' }, { id: 'placeholder' }, { id: 'searchLine' }],
   states: [
-    { id: 'searchMatch', selector: { kind: 'self', suffix: '[data-openbitfun-state~="searchMatch"]' } },
-    { id: 'searchCurrent', selector: { kind: 'self', suffix: '[data-openbitfun-state~="searchCurrent"]' } },
+    { id: 'searchMatch', selector: { kind: 'self', suffix: '[data-bitfun-state~="searchMatch"]' } },
+    { id: 'searchCurrent', selector: { kind: 'self', suffix: '[data-bitfun-state~="searchCurrent"]' } },
   ],
 };

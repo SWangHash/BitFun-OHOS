@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .leading,
   .trailing {
@@ -12,14 +12,14 @@
     inline-size: 100%;
     min-block-size: 48px;
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     background: transparent;
     pointer-events: none;
   }
 
   .leading,
   .trailing {
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     pointer-events: auto;
   }
 
@@ -33,6 +33,6 @@
   }
 
   @media (max-width: 359px) {
-    .root { gap: var(--openbitfun-space-2); }
+    .root { gap: var(--bitfun-space-2); }
   }
 }

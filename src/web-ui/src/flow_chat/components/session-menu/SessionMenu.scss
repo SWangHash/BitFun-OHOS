@@ -4,12 +4,12 @@
  */
 $session-menu-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
-.openbitfun-session-menu {
+.bitfun-session-menu {
   position: relative;
   pointer-events: auto;
 }
 
-.openbitfun-session-menu__trigger {
+.bitfun-session-menu__trigger {
   flex-shrink: 0;
   width: 22px;
   height: 22px;
@@ -18,8 +18,8 @@ $session-menu-timing: cubic-bezier(0.4, 0, 0.2, 1);
   justify-content: center;
   border: none;
   background: transparent;
-  color: var(--openbitfun-color-content-muted);
-  border-radius: var(--openbitfun-radius-sm);
+  color: var(--bitfun-color-content-muted);
+  border-radius: var(--bitfun-radius-sm);
   cursor: pointer;
   transition:
     background-color 160ms ease,
@@ -27,59 +27,59 @@ $session-menu-timing: cubic-bezier(0.4, 0, 0.2, 1);
     opacity 160ms ease;
 
   &:hover:not(:disabled) {
-    background: var(--openbitfun-color-action-secondary-hover);
-    color: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-action-secondary-hover);
+    color: var(--bitfun-color-accent-default);
   }
 
   &:disabled {
     cursor: not-allowed;
-    opacity: var(--openbitfun-opacity-disabled);
+    opacity: var(--bitfun-opacity-disabled);
     transform: none;
   }
 
   &--open {
-    background: var(--openbitfun-color-action-neutral-surface);
-    color: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-action-neutral-surface);
+    color: var(--bitfun-color-accent-default);
   }
 }
 
-.openbitfun-session-menu__dropdown {
+.bitfun-session-menu__dropdown {
   --session-menu-entry-y: -4px;
-  --openbitfun-overlay-menu-inline-size: min(220px, calc(100vw - 16px));
-  --openbitfun-overlay-menu-max-block-size: min(360px, calc(100vh - 16px));
+  --bitfun-overlay-menu-inline-size: min(220px, calc(100vw - 16px));
+  --bitfun-overlay-menu-max-block-size: min(360px, calc(100vh - 16px));
   position: fixed;
-  z-index: var(--openbitfun-layer-popover);
+  z-index: var(--bitfun-layer-popover);
   animation: session-menu-appear 0.2s $session-menu-timing;
   transform-origin: top left;
 
-  &[data-openbitfun-placement='top'] {
+  &[data-bitfun-placement='top'] {
     --session-menu-entry-y: 4px;
     transform-origin: bottom left;
   }
 
 }
 
-.openbitfun-session-menu__actions {
+.bitfun-session-menu__actions {
   flex: 0 0 auto;
 }
 
-.openbitfun-session-menu__scroll {
+.bitfun-session-menu__scroll {
   min-height: 0;
 }
 
-.openbitfun-session-menu__item {
+.bitfun-session-menu__item {
   &--new {
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
 
-    &:hover .openbitfun-session-menu__item-icon {
-      background: var(--openbitfun-color-action-secondary-pressed);
-      color: var(--openbitfun-color-accent-default);
+    &:hover .bitfun-session-menu__item-icon {
+      background: var(--bitfun-color-action-secondary-pressed);
+      color: var(--bitfun-color-accent-default);
     }
   }
 }
 
 /* Round plus badge on the "new session" rows, matching the sidebar header. */
-.openbitfun-session-menu__item-icon {
+.bitfun-session-menu__item-icon {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
@@ -87,19 +87,19 @@ $session-menu-timing: cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--openbitfun-color-action-secondary-hover);
-  color: var(--openbitfun-color-accent-default);
+  background: var(--bitfun-color-action-secondary-hover);
+  color: var(--bitfun-color-accent-default);
   transition: background 0.1s ease, color 0.1s ease;
 }
 
-.openbitfun-session-menu__item-label {
+.bitfun-session-menu__item-label {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   white-space: nowrap;
 }
 
-.openbitfun-session-menu__divider {
+.bitfun-session-menu__divider {
   margin: 4px 8px;
 }
 

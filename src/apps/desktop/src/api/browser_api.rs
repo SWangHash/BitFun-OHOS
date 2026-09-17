@@ -15,13 +15,13 @@
 //! `emit_browser_page_load` `#[napi]` function (mirrors the desktop
 //! `.on_page_load` handler in `lib.rs`).
 
-use openbitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
+use bitfun_core::agentic::tools::browser_control::BuiltInBrowserTarget;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
-const VIDEO_DECODER_MODE_ENV: &str = "OPENBITFUN_BROWSER_VIDEO_DECODER_MODE";
+const VIDEO_DECODER_MODE_ENV: &str = "BITFUN_BROWSER_VIDEO_DECODER_MODE";
 
 fn video_decoder_compatibility_script() -> String {
     let mode =
@@ -34,10 +34,10 @@ fn video_decoder_compatibility_script() -> String {
     let script = format!(
         r#"
 const isWebView2 = Boolean(window.chrome && window.chrome.webview);
-const isOpenBitFunDocument = location.protocol === 'tauri:'
+const isBitFunDocument = location.protocol === 'tauri:'
   || location.hostname === 'tauri.localhost'
   || (location.hostname === 'localhost' && location.port === '1422');
-if (isWebView2 && !isOpenBitFunDocument) {{
+if (isWebView2 && !isBitFunDocument) {{
   const decoderMode = {mode_json};
   if (decoderMode && typeof VideoDecoder === 'function') {{
     const originalConfigure = VideoDecoder.prototype.configure;
@@ -287,7 +287,7 @@ fn validate_webview_bounds(x: f64, y: f64, width: f64, height: f64) -> Result<()
 
 #[cfg(target_env = "ohos")]
 async fn ohos_browser_call(name: &str, json_arg: &str) -> Result<String, String> {
-    use openbitfun_core::util::JS_THREADSAFE_FUNCTION;
+    use bitfun_core::util::JS_THREADSAFE_FUNCTION;
     let function = {
         let lock = JS_THREADSAFE_FUNCTION.read();
         lock.get(name).cloned()
@@ -571,7 +571,7 @@ pub async fn browser_webview_capture_preview(
     #[cfg(not(target_env = "ohos"))]
     {
         let webview = find_browser_webview(&app, &request.label)?;
-        let png = match openbitfun_webdriver::platform::take_screenshot(webview, 1000).await {
+        let png = match bitfun_webdriver::platform::take_screenshot(&webview, 1000).await {
             Ok(png) => png,
             Err(error) if error.error == "unsupported operation" => {
                 return Ok(WebviewPreviewResponse::Unsupported {

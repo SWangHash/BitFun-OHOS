@@ -1,10 +1,10 @@
-use openbitfun_claude_code_adapter::{
+use bitfun_claude_code_adapter::{
     ClaudeCodeSubagentProvider, ClaudeCodeSubagentProviderOptions,
 };
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_sources::{
     ExecutionDomainId, ExternalSourceContext, ExternalSourceScope,
 };
-use openbitfun_product_domains::external_subagents::{
+use bitfun_product_domains::external_subagents::{
     ExternalSubagentCompatibilityState, ExternalSubagentDiscoveryInput, ExternalSubagentMode,
     ExternalSubagentModelProfileRequest, ExternalSubagentModelRequest,
     ExternalSubagentSourceProvider, ExternalSubagentToolCapability,
@@ -55,8 +55,8 @@ impl Fixture {
 
     fn discover(
         &self,
-        suppressed_sources: BTreeSet<openbitfun_product_domains::external_sources::SourceKey>,
-    ) -> openbitfun_product_domains::external_subagents::ExternalSubagentProviderSnapshot {
+        suppressed_sources: BTreeSet<bitfun_product_domains::external_sources::SourceKey>,
+    ) -> bitfun_product_domains::external_subagents::ExternalSubagentProviderSnapshot {
         self.provider()
             .discover(&ExternalSubagentDiscoveryInput {
                 context: self.context(),

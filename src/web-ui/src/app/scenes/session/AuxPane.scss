@@ -2,10 +2,10 @@
  * AuxPane styles — AI Agent scene right pane (ContentCanvas).
  * Renamed from panels/ContentPanel.scss.
  */
-.openbitfun-aux-pane {
+.bitfun-aux-pane {
   display: flex;
   flex-direction: column;
-  background: var(--openbitfun-color-surface-workbench);
+  background: var(--bitfun-color-surface-workbench);
   width: 100%;
   height: 100%;
   flex: 1 1 auto;
@@ -18,13 +18,13 @@
     min-width: 0;
     min-height: 0;
     overflow: auto;
-    padding: var(--openbitfun-space-6);
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-body-sm-font-family);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    line-height: var(--openbitfun-type-body-sm-line-height);
-    letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+    padding: var(--bitfun-space-6);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
     text-align: center;
   }
 
@@ -32,7 +32,7 @@
     height: 100%;
     width: 100%;
     flex: 1 1 auto;
-    background: var(--openbitfun-color-surface-workbench);
+    background: var(--bitfun-color-surface-workbench);
     min-width: 0;
     overflow: hidden;
     border: none !important;
@@ -58,7 +58,7 @@
 }
 
 @media (max-width: 768px) {
-  .openbitfun-aux-pane {
+  .bitfun-aux-pane {
     min-width: 50px;
   }
 }

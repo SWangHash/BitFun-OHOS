@@ -3,8 +3,8 @@
   min-width: 0;
   max-width: 320px;
   margin: 0 12px;
-  color: var(--openbitfun-color-content-secondary);
-  font-size: var(--openbitfun-type-label-sm-font-size);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
 
   &__content {
     display: flex;
@@ -22,7 +22,7 @@
 
     svg {
       flex-shrink: 0;
-      color: var(--openbitfun-color-status-warning-emphasis);
+      color: var(--bitfun-color-status-warning-emphasis);
     }
   }
 
@@ -30,6 +30,6 @@
     display: block;
     overflow-wrap: anywhere;
     padding-bottom: 8px;
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
 }

@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
-import { MobileBanner, MobileButton, MobileScrim, MobileStatus } from '@openbitfun/ui/mobile';
+import { MobileBanner, MobileButton, MobileScrim, MobileStatus } from '@bitfun/ui/mobile';
 import PairingPage, { type BrowserAccountBinding } from './pages/PairingPage';
 import WorkspacePage from './pages/WorkspacePage';
 import DeviceToolsPage from './pages/DeviceToolsPage';

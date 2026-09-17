@@ -27,7 +27,7 @@ export const flexiblePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'unknown' },
   ],
   states: [
-    { id: 'needsFix', selector: { kind: 'self', suffix: '[data-openbitfun-state~="needsFix"]' } },
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
+    { id: 'needsFix', selector: { kind: 'self', suffix: '[data-bitfun-state~="needsFix"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
   ],
 };

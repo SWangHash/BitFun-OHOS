@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
@@ -253,21 +253,21 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
           <div className="workspace-related-paths-dialog__modal">
         <div
           className="workspace-related-paths-dialog"
-          data-openbitfun-component="workspace-related-paths-dialog"
-          data-openbitfun-part="root"
+          data-bitfun-component="workspace-related-paths-dialog"
+          data-bitfun-part="root"
         >
-          <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="intro" className="workspace-related-paths-dialog__intro">
+          <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="intro" className="workspace-related-paths-dialog__intro">
             <div className="workspace-related-paths-dialog__intro-icon">
               <Icon name="link" size="lg" />
             </div>
-            <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="introCopy" className="workspace-related-paths-dialog__intro-copy">
+            <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="introCopy" className="workspace-related-paths-dialog__intro-copy">
               <div className="workspace-related-paths-dialog__intro-title">
                 {t('nav.workspaces.relatedPaths.dialog.heading')}
               </div>
               <div className="workspace-related-paths-dialog__intro-text">
                 {t('nav.workspaces.relatedPaths.dialog.description')}
               </div>
-              <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="scope" className="workspace-related-paths-dialog__scope">
+              <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="scope" className="workspace-related-paths-dialog__scope">
                 {scopeDescription}
               </div>
             </div>
@@ -283,14 +283,14 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
           </div>
 
           {drafts.length === 0 ? (
-            <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="empty" className="workspace-related-paths-dialog__empty">
+            <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="empty" className="workspace-related-paths-dialog__empty">
               {t('nav.workspaces.relatedPaths.dialog.empty')}
             </div>
           ) : (
-            <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="list" className="workspace-related-paths-dialog__list">
+            <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="list" className="workspace-related-paths-dialog__list">
               {drafts.map((draft, index) => (
-                <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="card" key={draft.id} className="workspace-related-paths-dialog__card">
-                  <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="cardHeader" className="workspace-related-paths-dialog__card-header">
+                <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="card" key={draft.id} className="workspace-related-paths-dialog__card">
+                  <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="cardHeader" className="workspace-related-paths-dialog__card-header">
                     <span className="workspace-related-paths-dialog__card-index">
                       {t('nav.workspaces.relatedPaths.dialog.itemLabel', { index: index + 1 })}
                     </span>
@@ -304,7 +304,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                     </button>
                   </div>
 
-                  <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="pathRow" className="workspace-related-paths-dialog__path-row">
+                  <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="pathRow" className="workspace-related-paths-dialog__path-row">
                     <Input
                       className="workspace-related-paths-dialog__path-input"
                       value={draft.path}
@@ -331,8 +331,8 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                   </div>
 
                   <div
-                    data-openbitfun-component="workspace-related-paths-dialog"
-                    data-openbitfun-part="description"
+                    data-bitfun-component="workspace-related-paths-dialog"
+                    data-bitfun-part="description"
                     className="workspace-related-paths-dialog__description"
                   >
                     <Textarea
@@ -422,12 +422,12 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
           ) : null}
 
           {error ? (
-            <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="error" className="workspace-related-paths-dialog__error" role="alert">
+            <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="error" className="workspace-related-paths-dialog__error" role="alert">
               {error}
             </div>
           ) : null}
 
-          <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="footer" className="workspace-related-paths-dialog__footer">
+          <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="footer" className="workspace-related-paths-dialog__footer">
             <Button
               type="button"
               variant="outline"
@@ -439,7 +439,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
               {t('nav.workspaces.relatedPaths.dialog.add')}
             </Button>
 
-            <div data-openbitfun-component="workspace-related-paths-dialog" data-openbitfun-part="footerActions" className="workspace-related-paths-dialog__footer-actions">
+            <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="footerActions" className="workspace-related-paths-dialog__footer-actions">
               <Button
                 type="button"
                 variant="fill"

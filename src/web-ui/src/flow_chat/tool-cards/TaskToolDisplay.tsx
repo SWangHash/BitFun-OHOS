@@ -21,7 +21,7 @@ import {
   AmbientToolCard,
   AmbientToolCardHeader,
   ToolCardStatusSlot,
-} from '@openbitfun/ui/flow-chat';
+} from '@bitfun/ui/flow-chat';
 import { taskCollapseStateManager } from '../store/TaskCollapseStateManager';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
@@ -755,10 +755,10 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     }
 
     return (
-      <div className="task-expanded-content" data-openbitfun-component="task-tool-display" data-openbitfun-part="expanded" data-openbitfun-state="expanded">
+      <div className="task-expanded-content" data-bitfun-component="task-tool-display" data-bitfun-part="expanded" data-bitfun-state="expanded">
         {interruptionNote && (
           <>
-            <div className="task-interruption-note" role="note" data-openbitfun-component="task-tool-display" data-openbitfun-part="interruption">
+            <div className="task-interruption-note" role="note" data-bitfun-component="task-tool-display" data-bitfun-part="interruption">
               <AlertTriangle size={14} strokeWidth={2} aria-hidden />
               <span>{interruptionNote}</span>
             </div>
@@ -768,7 +768,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
           </>
         )}
         {rc ? (
-          <div className="task-reviewer-context" data-openbitfun-component="task-tool-display" data-openbitfun-part="reviewer">
+          <div className="task-reviewer-context" data-bitfun-component="task-tool-display" data-bitfun-part="reviewer">
             <div className="task-reviewer-context__role" style={{ color: rc.accentColor }}>
               {tAgents(`reviewTeams.members.${rc.definitionKey}.role`, {
                 defaultValue: rc.roleName,
@@ -779,7 +779,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
                 defaultValue: rc.description,
               })}
             </div>
-            <ul className="task-reviewer-context__responsibilities" data-openbitfun-component="task-tool-display" data-openbitfun-part="responsibilities">
+            <ul className="task-reviewer-context__responsibilities" data-bitfun-component="task-tool-display" data-bitfun-part="responsibilities">
               {rc.responsibilities.map((resp, idx) => (
                 <li key={idx}>
                   {tAgents(`reviewTeams.members.${rc.definitionKey}.responsibilities.${idx}`, {
@@ -795,8 +795,8 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
             className={`thinking-content-wrapper task-prompt-wrapper${promptScrollState.hasScroll ? ' has-scroll' : ''}${
               promptScrollState.atTop ? ' at-top' : ''
             }${promptScrollState.atBottom ? ' at-bottom' : ''}`}
-            data-openbitfun-component="task-tool-display"
-            data-openbitfun-part="prompt"
+            data-bitfun-component="task-tool-display"
+            data-bitfun-part="prompt"
           >
             <div
               ref={promptContentRef}
@@ -819,8 +819,8 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   if (isCancelAction) {
     const cancelSessionId = linkedSubagentSessionId || 'Not provided';
     return (
-      <div data-openbitfun-component="task-tool-display" data-openbitfun-part="root">
-        <div data-openbitfun-component="task-tool-display" data-openbitfun-part="cancel">
+      <div data-bitfun-component="task-tool-display" data-bitfun-part="root">
+        <div data-bitfun-component="task-tool-display" data-bitfun-part="cancel">
           <AmbientToolCard
             status={status}
             isExpanded={false}
@@ -857,9 +857,9 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
 
   return (
     <div
-      data-openbitfun-component="task-tool-display"
-      data-openbitfun-part="root"
-      data-openbitfun-state={[isFailed && 'failed', displayIsExpanded && 'expanded'].filter(Boolean).join(' ') || undefined}
+      data-bitfun-component="task-tool-display"
+      data-bitfun-part="root"
+      data-bitfun-state={[isFailed && 'failed', displayIsExpanded && 'expanded'].filter(Boolean).join(' ') || undefined}
       ref={cardRootRef}
       data-tool-card-id={toolId ?? ''}
     >

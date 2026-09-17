@@ -8,7 +8,7 @@ use super::types::{
 use crate::infrastructure::PathManager;
 use crate::service::config::types::AIModelConfig;
 use anyhow::Result;
-use openbitfun_services_core::token_usage::{
+use bitfun_services_core::token_usage::{
     TokenUsageStatisticsRequest, UsageGranularity, UsageStatistics, UsageStatisticsFilter,
 };
 use std::collections::{HashMap, HashSet};
@@ -18,14 +18,14 @@ use std::sync::Arc;
 const TOKEN_USAGE_DIR: &str = "token_usage";
 
 pub struct TokenUsageService {
-    inner: openbitfun_services_core::token_usage::TokenUsageService,
+    inner: bitfun_services_core::token_usage::TokenUsageService,
 }
 
 impl TokenUsageService {
     /// Query a target's existing usage ledger without runtime initialization.
     pub fn for_queries(path_manager: &PathManager) -> Self {
         Self {
-            inner: openbitfun_services_core::token_usage::TokenUsageService::for_queries(
+            inner: bitfun_services_core::token_usage::TokenUsageService::for_queries(
                 path_manager.user_data_dir().join(TOKEN_USAGE_DIR),
             ),
         }
@@ -36,7 +36,7 @@ impl TokenUsageService {
     }
 
     pub async fn new_in_base_dir(base_dir: PathBuf) -> Result<Self> {
-        let inner = openbitfun_services_core::token_usage::TokenUsageService::new(base_dir)
+        let inner = bitfun_services_core::token_usage::TokenUsageService::new(base_dir)
             .await
             .map_err(anyhow::Error::msg)?;
         Ok(Self { inner })
@@ -159,7 +159,7 @@ impl TokenUsageService {
         }
 
         Ok(
-            openbitfun_services_core::token_usage::aggregate_statistics_with_time_zone(
+            bitfun_services_core::token_usage::aggregate_statistics_with_time_zone(
                 &records,
                 granularity,
                 time_zone.as_deref(),
@@ -168,7 +168,7 @@ impl TokenUsageService {
         )
     }
 
-    /// Resolve a surface request and aggregate this OpenBitFun host's persisted
+    /// Resolve a surface request and aggregate this BitFun host's persisted
     /// usage. The request is intentionally workspace-agnostic: Peer transport
     /// selects the host, while SSH workspace routing does not change it.
     pub async fn get_statistics_for_request(

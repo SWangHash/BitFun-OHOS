@@ -9,7 +9,7 @@ import {
   DialogHeading,
   DialogTitle,
   Input,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import './InputDialog.scss';
 
@@ -101,12 +101,12 @@ export function InputDialog({
         </DialogHeading>
         <DialogClose />
       </DialogHeader>
-      <DialogBody data-openbitfun-component="input-dialog" data-openbitfun-part="body">
+      <DialogBody data-bitfun-component="input-dialog" data-bitfun-part="body">
         {description ? (
           <p
             className="input-dialog__description"
-            data-openbitfun-component="input-dialog"
-            data-openbitfun-part="description"
+            data-bitfun-component="input-dialog"
+            data-bitfun-part="description"
           >
             {description}
           </p>
@@ -126,8 +126,8 @@ export function InputDialog({
         {error ? (
           <span
             className="input-dialog__error"
-            data-openbitfun-component="input-dialog"
-            data-openbitfun-part="error"
+            data-bitfun-component="input-dialog"
+            data-bitfun-part="error"
             id="input-dialog-error"
             role="alert"
           >
@@ -135,7 +135,7 @@ export function InputDialog({
           </span>
         ) : null}
       </DialogBody>
-      <DialogFooter data-openbitfun-component="input-dialog" data-openbitfun-part="actions">
+      <DialogFooter data-bitfun-component="input-dialog" data-bitfun-part="actions">
         <Button onClick={onClose} size="sm" variant="fill">
           {cancelText ?? t('dialog.confirm.cancel')}
         </Button>

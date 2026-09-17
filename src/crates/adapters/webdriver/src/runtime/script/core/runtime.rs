@@ -2,10 +2,10 @@ pub(super) fn script() -> &'static str {
     r####"
     const ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf";
     const SHADOW_KEY = "shadow-6066-11e4-a52e-4f735466cecf";
-    const EVENT_NAME = "openbitfun_webdriver_result";
-    const STORE_KEY = "__openbitfunWdElements";
-    const LOG_KEY = "__openbitfunWdLogs";
-    const consolePatchedKey = "__openbitfunWdConsolePatched";
+    const EVENT_NAME = "bitfun_webdriver_result";
+    const STORE_KEY = "__bitfunWdElements";
+    const LOG_KEY = "__bitfunWdLogs";
+    const consolePatchedKey = "__bitfunWdConsolePatched";
     let currentFrameContext = [];
 
     const ensureLogs = () => {
@@ -37,8 +37,8 @@ pub(super) fn script() -> &'static str {
     const getFrameContext = () => currentFrameContext;
 
     const ensureRuntimeState = () => {
-      if (!window.__openbitfunWdRuntimeState) {
-        window.__openbitfunWdRuntimeState = {
+      if (!window.__bitfunWdRuntimeState) {
+        window.__bitfunWdRuntimeState = {
           pointer: {
             x: 0,
             y: 0,
@@ -56,7 +56,7 @@ pub(super) fn script() -> &'static str {
           }
         };
       }
-      return window.__openbitfunWdRuntimeState;
+      return window.__bitfunWdRuntimeState;
     };
 
     const patchConsole = () => {
@@ -86,8 +86,8 @@ pub(super) fn script() -> &'static str {
     };
 
     const ensureAlertState = (targetWindow = window) => {
-      if (!targetWindow.__openbitfunWdAlertState) {
-        targetWindow.__openbitfunWdAlertState = {
+      if (!targetWindow.__bitfunWdAlertState) {
+        targetWindow.__bitfunWdAlertState = {
           open: false,
           type: null,
           text: "",
@@ -95,11 +95,11 @@ pub(super) fn script() -> &'static str {
           promptText: null
         };
       }
-      return targetWindow.__openbitfunWdAlertState;
+      return targetWindow.__bitfunWdAlertState;
     };
 
     const patchDialogs = (targetWindow = window) => {
-      const patchedKey = "__openbitfunWdDialogsPatched";
+      const patchedKey = "__bitfunWdDialogsPatched";
       if (targetWindow[patchedKey]) {
         return;
       }

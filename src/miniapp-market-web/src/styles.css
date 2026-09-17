@@ -36,17 +36,17 @@ body {
   min-width: 300px;
   min-height: 100dvh;
   margin: 0;
-  background-color: var(--openbitfun-color-surface-canvas);
+  background-color: var(--bitfun-color-surface-canvas);
   background-image:
     radial-gradient(
       circle at 76% 0%,
-      color-mix(in srgb, var(--openbitfun-color-accent-default) 6%, transparent),
+      color-mix(in srgb, var(--bitfun-color-accent-default) 6%, transparent),
       transparent 34rem
     ),
-    linear-gradient(color-mix(in srgb, var(--openbitfun-color-content-primary) 3%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--openbitfun-color-content-primary) 3%, transparent) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--bitfun-color-content-primary) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--bitfun-color-content-primary) 3%, transparent) 1px, transparent 1px);
   background-size: auto, 44px 44px, 44px 44px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 14px;
   line-height: 1.55;
 }
@@ -76,7 +76,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--openbitfun-color-accent-default);
+  outline: 2px solid var(--bitfun-color-accent-default);
   outline-offset: 2px;
 }
 
@@ -91,8 +91,8 @@ textarea:focus-visible {
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-canvas) 80%, transparent);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  background: color-mix(in srgb, var(--bitfun-color-surface-canvas) 80%, transparent);
   backdrop-filter: blur(16px) saturate(130%);
   -webkit-backdrop-filter: blur(16px) saturate(130%);
 }
@@ -125,11 +125,11 @@ textarea:focus-visible {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-content-primary);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-content-primary);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .brand-mark svg {
@@ -145,7 +145,7 @@ textarea:focus-visible {
 }
 
 .brand-copy strong {
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 13px;
   font-weight: 650;
   letter-spacing: -0.012em;
@@ -153,7 +153,7 @@ textarea:focus-visible {
 }
 
 .brand-copy > span {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10.5px;
   line-height: 1.2;
 }
@@ -178,7 +178,7 @@ textarea:focus-visible {
   min-height: 29px;
   padding-inline: 10px;
   border-radius: var(--radius-sm);
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 12.5px;
   transition:
     background 160ms ease,
@@ -186,13 +186,13 @@ textarea:focus-visible {
 }
 
 .topbar nav button:hover {
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .topbar nav button.active {
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
   font-weight: 600;
 }
 
@@ -218,10 +218,10 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  color: var(--openbitfun-color-content-muted);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  color: var(--bitfun-color-content-muted);
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -231,9 +231,9 @@ textarea:focus-visible {
 
 .header-control:hover,
 .header-control[aria-expanded='true'] {
-  border-color: var(--openbitfun-color-border-default);
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-content-primary);
+  border-color: var(--bitfun-color-border-default);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-content-primary);
 }
 
 .header-control:active {
@@ -246,14 +246,14 @@ textarea:focus-visible {
 }
 
 .language-trigger .control-label {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
 }
 
 .language-caret {
-  color: var(--openbitfun-color-content-disabled);
+  color: var(--bitfun-color-content-disabled);
   transition: transform 160ms ease;
 }
 
@@ -286,17 +286,17 @@ textarea:focus-visible {
   z-index: 60;
   display: grid;
   gap: 2px;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: var(--radius-md);
-  background: var(--openbitfun-color-surface-panel);
-  box-shadow: var(--openbitfun-shadow-menu);
+  background: var(--bitfun-color-surface-panel);
+  box-shadow: var(--bitfun-shadow-menu);
   transform-origin: top right;
   animation: language-menu-in 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .language-menu-label {
   padding: 6px 9px 5px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -313,33 +313,33 @@ textarea:focus-visible {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 13px;
   text-align: left;
 }
 
 .language-menu button:hover {
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .language-menu button.selected {
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
   font-weight: 600;
 }
 
 .profile {
   min-width: 0;
   gap: 8px;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 12px;
 }
 
 .profile img {
   width: 24px;
   height: 24px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-pill);
 }
 
@@ -356,7 +356,7 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 .icon-button svg {
@@ -366,8 +366,8 @@ textarea:focus-visible {
 
 .icon-button:hover,
 .text-action:hover {
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
 }
 
 main {
@@ -404,7 +404,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.006em;
@@ -420,7 +420,7 @@ main {
 .hero h1 {
   max-width: 520px;
   margin: 14px 0 12px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: clamp(31px, 3.5vw, 45px);
   font-weight: 660;
   line-height: 1.1;
@@ -432,7 +432,7 @@ main {
 .hero-copy > p {
   max-width: 500px;
   margin: 0;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 14.5px;
   line-height: 1.62;
   text-wrap: pretty;
@@ -442,10 +442,10 @@ main {
   min-width: 0;
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: var(--radius-xl);
-  background: var(--openbitfun-color-surface-canvas);
-  box-shadow: var(--openbitfun-shadow-lg);
+  background: var(--bitfun-color-surface-canvas);
+  box-shadow: var(--bitfun-shadow-lg);
   animation: rise-in 540ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -453,7 +453,7 @@ main {
   content: "";
   position: absolute;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-content-on-dark) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-content-on-dark) 10%, transparent);
   border-radius: inherit;
   pointer-events: none;
 }
@@ -469,8 +469,8 @@ main {
 .trust-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--openbitfun-color-border-subtle);
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+  border-top: 1px solid var(--bitfun-color-border-subtle);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .trust-row > div {
@@ -480,102 +480,102 @@ main {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 12.5px;
   text-align: center;
 }
 
 .trust-row > div + div {
-  border-left: 1px solid var(--openbitfun-color-border-subtle);
+  border-left: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .trust-row svg {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 /* A .bfminiapp package only runs inside the desktop client, so the catalog and
    every listing carry the same visible route to the official download page. */
-.get-openbitfun {
+.get-bitfun {
   max-width: 100%;
   margin-top: 22px;
   padding: 13px 15px;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
   text-decoration: none;
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
 }
 
-.get-openbitfun-listing {
+.get-bitfun-listing {
   margin-top: 16px;
 }
 
-.get-openbitfun:hover {
-  border-color: var(--openbitfun-color-accent-default);
-  box-shadow: var(--openbitfun-shadow-sm);
+.get-bitfun:hover {
+  border-color: var(--bitfun-color-accent-default);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
-.get-openbitfun-icon {
+.get-bitfun-icon {
   width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-accent-default);
-  color: var(--openbitfun-color-content-inverse);
+  background: var(--bitfun-color-accent-default);
+  color: var(--bitfun-color-content-inverse);
 }
 
-.get-openbitfun-icon svg {
+.get-bitfun-icon svg {
   width: 17px;
   height: 17px;
 }
 
-.get-openbitfun-copy {
+.get-bitfun-copy {
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-.get-openbitfun-copy strong {
-  color: var(--openbitfun-color-content-primary);
+.get-bitfun-copy strong {
+  color: var(--bitfun-color-content-primary);
   font-size: 13px;
   font-weight: 640;
 }
 
-.get-openbitfun-copy > span {
-  color: var(--openbitfun-color-content-secondary);
+.get-bitfun-copy > span {
+  color: var(--bitfun-color-content-secondary);
   font-size: 12px;
   line-height: 1.5;
   text-wrap: pretty;
 }
 
-.get-openbitfun-action {
+.get-bitfun-action {
   width: fit-content;
   margin-top: 2px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
   font-size: 12.5px;
   font-weight: 620;
   white-space: nowrap;
 }
 
-.get-openbitfun-action svg {
+.get-bitfun-action svg {
   width: 14px;
   height: 14px;
   transition: transform 150ms ease;
 }
 
-.get-openbitfun:hover .get-openbitfun-action svg {
+.get-bitfun:hover .get-bitfun-action svg {
   transform: translateX(2px);
 }
 
@@ -593,7 +593,7 @@ main {
 
 .catalog-heading h2 {
   margin: 0;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: clamp(20px, 2vw, 25px);
   font-weight: 660;
   letter-spacing: -0.022em;
@@ -602,14 +602,14 @@ main {
 .catalog-heading p {
   max-width: 500px;
   margin: 5px 0 0;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 12.5px;
   line-height: 1.58;
 }
 
 .result-count {
   flex: 0 0 auto;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
@@ -625,10 +625,10 @@ main {
   min-height: 36px;
   display: flex;
   align-items: center;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  box-shadow: var(--bitfun-shadow-sm);
   font-size: 13px;
 }
 
@@ -642,13 +642,13 @@ main {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 .search-field:focus-within,
 .sort-field:focus-within {
-  border-color: var(--openbitfun-color-accent-default);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
+  border-color: var(--bitfun-color-accent-default);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
 }
 
 .search-field input {
@@ -657,14 +657,14 @@ main {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .search-field input::placeholder,
 .review-actions input::placeholder,
 .field input::placeholder,
 .field textarea::placeholder {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   opacity: 1;
 }
 
@@ -679,7 +679,7 @@ main {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 13px;
   cursor: pointer;
 }
@@ -700,7 +700,7 @@ main {
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   cursor: pointer;
   transition:
@@ -711,15 +711,15 @@ main {
 }
 
 .category-tabs button:hover {
-  border-color: var(--openbitfun-color-border-default);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  color: var(--openbitfun-color-content-primary);
+  border-color: var(--bitfun-color-border-default);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  color: var(--bitfun-color-content-primary);
 }
 
 .category-tabs button.active {
-  border-color: var(--openbitfun-color-accent-default);
-  background: var(--openbitfun-color-accent-default);
-  color: var(--openbitfun-color-content-inverse);
+  border-color: var(--bitfun-color-accent-default);
+  background: var(--bitfun-color-accent-default);
+  color: var(--bitfun-color-content-inverse);
 }
 
 .category-tabs svg {
@@ -745,13 +745,13 @@ main {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-lg);
-  background: var(--openbitfun-color-surface-panel);
+  background: var(--bitfun-color-surface-panel);
   color: inherit;
   text-decoration: none;
   text-align: left;
-  box-shadow: var(--openbitfun-shadow-sm);
+  box-shadow: var(--bitfun-shadow-sm);
   cursor: pointer;
   transition:
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -762,11 +762,11 @@ main {
 
 .app-card:hover {
   transform: translateY(-2px);
-  border-color: var(--openbitfun-color-border-default);
-  box-shadow: var(--openbitfun-shadow-menu);
+  border-color: var(--bitfun-color-border-default);
+  box-shadow: var(--bitfun-shadow-menu);
 }
 
-/* 16:9 matches the MiniApp market card inside the OpenBitFun desktop client, so a
+/* 16:9 matches the MiniApp market card inside the BitFun desktop client, so a
    publisher's screenshot is cropped identically in both surfaces. */
 .card-visual {
   aspect-ratio: 16 / 9;
@@ -774,9 +774,9 @@ main {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-  background-color: var(--openbitfun-color-surface-tertiary);
-  background-image: radial-gradient(circle at 68% 22%, color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent), transparent 55%);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  background-color: var(--bitfun-color-surface-tertiary);
+  background-image: radial-gradient(circle at 68% 22%, color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent), transparent 55%);
 }
 
 .card-visual img {
@@ -796,11 +796,11 @@ main {
   height: 52px;
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
   border-radius: var(--radius-md);
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-accent-default);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-accent-default);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .app-icon-large svg {
@@ -822,7 +822,7 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10px;
 }
 
@@ -832,10 +832,10 @@ main {
   padding-inline: 7px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.008em;
@@ -856,10 +856,10 @@ main {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-secondary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-secondary);
 }
 
 .app-icon svg {
@@ -876,7 +876,7 @@ main {
 .submission-row h2 {
   margin: 0;
   overflow: hidden;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 14px;
   font-weight: 640;
   letter-spacing: -0.012em;
@@ -888,7 +888,7 @@ main {
 .owner,
 .submission-row p {
   margin: 2px 0 0;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10.5px;
 }
 
@@ -896,7 +896,7 @@ main {
   margin: 10px 0 13px;
   overflow: hidden;
   display: -webkit-box;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 12.5px;
   line-height: 1.52;
   -webkit-box-orient: vertical;
@@ -909,8 +909,8 @@ main {
   display: flex;
   align-items: center;
   gap: 11px;
-  border-top: 1px solid var(--openbitfun-color-border-subtle);
-  color: var(--openbitfun-color-content-muted);
+  border-top: 1px solid var(--bitfun-color-border-subtle);
+  color: var(--bitfun-color-content-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -927,23 +927,23 @@ main {
 }
 
 .card-meta .ph-fill {
-  color: var(--openbitfun-color-status-warning-content);
+  color: var(--bitfun-color-status-warning-content);
 }
 
 .card-favorites.active svg {
-  color: var(--openbitfun-color-status-danger-content);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .card-meta small {
-  color: var(--openbitfun-color-content-disabled);
+  color: var(--bitfun-color-content-disabled);
   font-size: 10px;
 }
 
 .card-version {
   padding: 1px 5px;
   border-radius: 4px;
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-muted);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -951,7 +951,7 @@ main {
 
 .card-arrow {
   margin-left: auto;
-  color: var(--openbitfun-color-content-disabled);
+  color: var(--bitfun-color-content-disabled);
   transition:
     color 150ms ease,
     transform 150ms ease;
@@ -959,7 +959,7 @@ main {
 
 .app-card:hover .card-arrow {
   transform: translateX(2px);
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 .app-card-skeleton {
@@ -969,8 +969,8 @@ main {
 
 .app-card-skeleton:hover {
   transform: none;
-  border-color: var(--openbitfun-color-border-subtle);
-  box-shadow: var(--openbitfun-shadow-sm);
+  border-color: var(--bitfun-color-border-subtle);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .skeleton-block,
@@ -978,9 +978,9 @@ main {
   background:
     linear-gradient(
       105deg,
-      var(--openbitfun-color-surface-tertiary) 8%,
-      var(--openbitfun-color-action-neutral-surface-hover) 18%,
-      var(--openbitfun-color-surface-tertiary) 33%
+      var(--bitfun-color-surface-tertiary) 8%,
+      var(--bitfun-color-action-neutral-surface-hover) 18%,
+      var(--bitfun-color-surface-tertiary) 33%
     );
   background-size: 220% 100%;
   animation: shimmer 1.35s linear infinite;
@@ -989,7 +989,7 @@ main {
 .skeleton-visual {
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .skeleton-line {
@@ -1034,10 +1034,10 @@ main {
   place-items: center;
   align-content: center;
   gap: 12px;
-  border: 1px dashed var(--openbitfun-color-border-default);
+  border: 1px dashed var(--bitfun-color-border-default);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent) 72%, transparent);
-  color: var(--openbitfun-color-content-secondary);
+  background: color-mix(in srgb, color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent) 72%, transparent);
+  color: var(--bitfun-color-content-secondary);
   text-align: center;
 }
 
@@ -1050,7 +1050,7 @@ main {
 
 .empty-state-hint {
   max-width: 460px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   line-height: 1.6;
 }
@@ -1060,9 +1060,9 @@ main {
 .loading-mark {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
 }
 
 .empty-state-icon {
@@ -1088,16 +1088,16 @@ main {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid var(--openbitfun-color-action-primary-background);
+  border: 1px solid var(--bitfun-color-action-primary-background);
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-action-primary-background);
-  color: var(--openbitfun-color-action-primary-content);
+  background: var(--bitfun-color-action-primary-background);
+  color: var(--bitfun-color-action-primary-content);
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: var(--openbitfun-shadow-sm);
+  box-shadow: var(--bitfun-shadow-sm);
   cursor: pointer;
   transition:
     transform 150ms ease,
@@ -1120,8 +1120,8 @@ main {
 }
 
 .button:hover:not(:disabled):not(.disabled) {
-  background: var(--openbitfun-color-action-primary-hover);
-  box-shadow: var(--openbitfun-shadow-menu);
+  background: var(--bitfun-color-action-primary-hover);
+  box-shadow: var(--bitfun-shadow-menu);
 }
 
 .button-small {
@@ -1132,35 +1132,35 @@ main {
 
 .button-secondary,
 .button-ghost {
-  border-color: var(--openbitfun-color-border-default);
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-content-primary);
+  border-color: var(--bitfun-color-border-default);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-content-primary);
   box-shadow: none;
 }
 
 .button-secondary:hover:not(:disabled),
 .button-ghost:hover:not(:disabled) {
-  border-color: var(--openbitfun-color-border-strong);
-  background: var(--openbitfun-color-action-neutral-surface-hover);
+  border-color: var(--bitfun-color-border-strong);
+  background: var(--bitfun-color-action-neutral-surface-hover);
   box-shadow: none;
 }
 
 .button-secondary.active,
 .button-ghost.active {
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
 }
 
 .button-danger {
-  border-color: var(--openbitfun-color-status-danger-content);
-  background: var(--openbitfun-color-status-danger-content);
-  color: var(--openbitfun-color-content-on-dark);
+  border-color: var(--bitfun-color-status-danger-content);
+  background: var(--bitfun-color-status-danger-content);
+  color: var(--bitfun-color-content-on-dark);
 }
 
 .button-danger:hover:not(:disabled) {
-  border-color: var(--openbitfun-color-status-danger-content);
-  background: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 88%, var(--openbitfun-color-content-primary));
+  border-color: var(--bitfun-color-status-danger-content);
+  background: color-mix(in srgb, var(--bitfun-color-status-danger-content) 88%, var(--bitfun-color-content-primary));
 }
 
 .button.disabled,
@@ -1187,7 +1187,7 @@ main {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   cursor: pointer;
 }
@@ -1198,8 +1198,8 @@ main {
 }
 
 .back-link:hover {
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .detail-hero {
@@ -1219,7 +1219,7 @@ main {
 
 .detail-title-row h1 {
   margin: 0;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: clamp(25px, 3vw, 34px);
   font-weight: 660;
   line-height: 1.14;
@@ -1231,7 +1231,7 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
 }
 
@@ -1240,7 +1240,7 @@ main {
 .review-list small span + span::before {
   content: "/";
   margin-right: 7px;
-  color: var(--openbitfun-color-content-disabled);
+  color: var(--bitfun-color-content-disabled);
 }
 
 .detail-icon {
@@ -1249,11 +1249,11 @@ main {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .detail-icon svg {
@@ -1264,7 +1264,7 @@ main {
 .detail-description {
   max-width: 560px;
   margin: 0;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 14px;
   line-height: 1.68;
   text-wrap: pretty;
@@ -1293,7 +1293,7 @@ main {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: var(--openbitfun-color-content-disabled);
+  color: var(--bitfun-color-content-disabled);
   cursor: pointer;
 }
 
@@ -1303,35 +1303,35 @@ main {
 }
 
 .rating-control button:hover {
-  background: var(--openbitfun-color-status-warning-surface);
-  color: var(--openbitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-warning-surface);
+  color: var(--bitfun-color-status-warning-content);
 }
 
 .rating-control button.selected {
-  color: var(--openbitfun-color-status-warning-content);
+  color: var(--bitfun-color-status-warning-content);
 }
 
 .rating-control span {
   margin-left: 7px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
 
 /* Matches .card-visual and the desktop client, so the same screenshot is
-   framed identically in the grid, on the detail page and inside OpenBitFun. */
+   framed identically in the grid, on the detail page and inside BitFun. */
 .detail-gallery {
   min-width: 0;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   display: grid;
   place-items: center;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: var(--radius-lg);
-  background-color: var(--openbitfun-color-surface-tertiary);
-  background-image: radial-gradient(circle at 68% 22%, color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent), transparent 55%);
-  color: var(--openbitfun-color-accent-default);
-  box-shadow: var(--openbitfun-shadow-menu);
+  background-color: var(--bitfun-color-surface-tertiary);
+  background-image: radial-gradient(circle at 68% 22%, color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent), transparent 55%);
+  color: var(--bitfun-color-accent-default);
+  box-shadow: var(--bitfun-shadow-menu);
 }
 
 .detail-gallery-track {
@@ -1368,7 +1368,7 @@ main {
 .detail-columns h2,
 .release-section h2 {
   margin: 0 0 12px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 16px;
   font-weight: 650;
   letter-spacing: -0.015em;
@@ -1393,10 +1393,10 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  color: var(--openbitfun-color-content-secondary);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  color: var(--bitfun-color-content-secondary);
   font-size: 11.5px;
   line-height: 1.5;
 }
@@ -1408,8 +1408,8 @@ main {
   display: grid;
   place-items: center;
   border-radius: 5px;
-  background: var(--openbitfun-color-status-success-surface);
-  color: var(--openbitfun-color-status-success-content);
+  background: var(--bitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
 }
 
 .permission-list li > span svg {
@@ -1418,12 +1418,12 @@ main {
 }
 
 .permission-list .node-denied > span {
-  background: var(--openbitfun-color-status-danger-surface);
-  color: var(--openbitfun-color-status-danger-content);
+  background: var(--bitfun-color-status-danger-surface);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .prose {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 13px;
   line-height: 1.72;
   white-space: pre-wrap;
@@ -1434,10 +1434,10 @@ main {
   padding: 16px;
   display: grid;
   gap: 0;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .fact {
@@ -1445,7 +1445,7 @@ main {
   padding: 9px 0;
   display: grid;
   gap: 4px;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .fact:first-child {
@@ -1458,14 +1458,14 @@ main {
 }
 
 .fact span {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10px;
   letter-spacing: 0.012em;
 }
 
 .fact strong {
   overflow-wrap: anywhere;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1477,7 +1477,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
   font-size: 11.5px;
   text-decoration: none;
 }
@@ -1496,7 +1496,7 @@ main {
 .release-section {
   margin-top: 52px;
   padding-top: 28px;
-  border-top: 1px solid var(--openbitfun-color-border-subtle);
+  border-top: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .release-row {
@@ -1506,13 +1506,13 @@ main {
   grid-template-columns: 56px 118px 100px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-  color: var(--openbitfun-color-content-secondary);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  color: var(--bitfun-color-content-secondary);
   font-size: 11.5px;
 }
 
 .release-row strong {
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .release-row.yanked {
@@ -1522,7 +1522,7 @@ main {
 
 .hash {
   overflow: hidden;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   text-overflow: ellipsis;
@@ -1537,7 +1537,7 @@ main {
 .page-intro h1,
 .auth-gate h1 {
   margin: 10px 0 8px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: clamp(22px, 2.6vw, 30px);
   font-weight: 660;
   line-height: 1.16;
@@ -1546,7 +1546,7 @@ main {
 
 .page-intro p,
 .auth-gate p {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 13.5px;
   line-height: 1.62;
 }
@@ -1564,15 +1564,15 @@ main {
   min-width: 0;
   margin: 0;
   padding: 17px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .submission-form legend {
   padding: 0 7px;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 12px;
   font-weight: 650;
 }
@@ -1592,29 +1592,29 @@ main {
 }
 
 .field > span {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 10.5px;
   font-weight: 600;
 }
 
 .field-hint {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11px;
   line-height: 1.45;
 }
 
-.field :is([data-openbitfun-component="input"], input[type="file"]),
+.field :is([data-bitfun-component="input"], input[type="file"]),
 .field select,
 .field textarea,
-.review-actions [data-openbitfun-component="input"],
-.moderation-panel [data-openbitfun-component="input"] {
+.review-actions [data-bitfun-component="input"],
+.moderation-panel [data-bitfun-component="input"] {
   width: 100%;
   min-height: 34px;
   padding: 7px 9px;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-content-primary);
   font-size: 13px;
   outline: 0;
 }
@@ -1626,32 +1626,32 @@ main {
 .field input[type="file"] {
   min-height: 44px;
   padding: 7px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 .field input[type="file"]::file-selector-button {
   min-height: 28px;
   margin-right: 9px;
   padding-inline: 10px;
-  border: 1px solid var(--openbitfun-color-border-default);
+  border: 1px solid var(--bitfun-color-border-default);
   border-radius: 5px;
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
   cursor: pointer;
 }
 
-.field [data-openbitfun-component="input"]:focus-within,
+.field [data-bitfun-component="input"]:focus-within,
 .field select:focus,
 .field textarea:focus,
-.review-actions [data-openbitfun-component="input"]:focus-within,
-.moderation-panel [data-openbitfun-component="input"]:focus-within {
-  border-color: var(--openbitfun-color-accent-default);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
+.review-actions [data-bitfun-component="input"]:focus-within,
+.moderation-panel [data-bitfun-component="input"]:focus-within {
+  border-color: var(--bitfun-color-accent-default);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
 }
 
-.field [data-openbitfun-component="input"]:has(input[readonly]) {
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-muted);
+.field [data-bitfun-component="input"]:has(input[readonly]) {
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-muted);
 }
 
 .safety-note {
@@ -1659,10 +1659,10 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  border: 1px solid color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
   font-size: 11.5px;
 }
 
@@ -1678,7 +1678,7 @@ main {
 }
 
 .safety-note span {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   line-height: 1.5;
 }
 
@@ -1710,15 +1710,15 @@ main {
 }
 
 .notice.error {
-  border: 1px solid var(--openbitfun-color-status-danger-border);
-  background: var(--openbitfun-color-status-danger-surface);
-  color: var(--openbitfun-color-status-danger-content);
+  border: 1px solid var(--bitfun-color-status-danger-border);
+  background: var(--bitfun-color-status-danger-surface);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .notice.success {
-  border: 1px solid var(--openbitfun-color-status-success-border);
-  background: var(--openbitfun-color-status-success-surface);
-  color: var(--openbitfun-color-status-success-content);
+  border: 1px solid var(--bitfun-color-status-success-border);
+  background: var(--bitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
 }
 
 .auth-gate {
@@ -1743,9 +1743,9 @@ main {
 }
 
 .gate-icon.success {
-  border-color: var(--openbitfun-color-status-success-border);
-  background: var(--openbitfun-color-status-success-surface);
-  color: var(--openbitfun-color-status-success-content);
+  border-color: var(--bitfun-color-status-success-border);
+  background: var(--bitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
 }
 
 .submission-list {
@@ -1760,9 +1760,9 @@ main {
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 11px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
 }
 
 .submission-meta {
@@ -1772,7 +1772,7 @@ main {
 }
 
 .submission-row .rejection {
-  color: var(--openbitfun-color-status-danger-content);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .status-badge {
@@ -1781,22 +1781,22 @@ main {
   display: inline-flex;
   align-items: center;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
-  color: var(--openbitfun-color-accent-default);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+  color: var(--bitfun-color-accent-default);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .status-badge.approved {
-  background: var(--openbitfun-color-status-success-surface);
-  color: var(--openbitfun-color-status-success-content);
+  background: var(--bitfun-color-status-success-surface);
+  color: var(--bitfun-color-status-success-content);
 }
 
 .status-badge.rejected,
 .status-badge.withdrawn {
-  background: var(--openbitfun-color-status-danger-surface);
-  color: var(--openbitfun-color-status-danger-content);
+  background: var(--bitfun-color-status-danger-surface);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .admin-page {
@@ -1808,16 +1808,16 @@ main {
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
-  background: var(--openbitfun-color-surface-panel);
-  box-shadow: var(--openbitfun-shadow-sm);
+  background: var(--bitfun-color-surface-panel);
+  box-shadow: var(--bitfun-shadow-sm);
 }
 
 .review-list {
   padding: 8px;
-  border-right: 1px solid var(--openbitfun-color-border-subtle);
-  background: var(--openbitfun-color-surface-tertiary);
+  border-right: 1px solid var(--bitfun-color-border-subtle);
+  background: var(--bitfun-color-surface-tertiary);
 }
 
 .review-list > button {
@@ -1831,18 +1831,18 @@ main {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   text-align: left;
   cursor: pointer;
 }
 
 .review-list > button:hover {
-  background: color-mix(in srgb, var(--openbitfun-color-surface-raised) 88%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 88%, transparent);
 }
 
 .review-list > button.selected {
-  border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 28%, transparent);
-  background: color-mix(in srgb, var(--openbitfun-color-accent-default) 10%, transparent);
+  border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 28%, transparent);
+  background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
 }
 
 .review-list strong {
@@ -1858,12 +1858,12 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10px;
 }
 
 .review-list .review-submission-meta {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
 }
 
 .review-detail {
@@ -1877,7 +1877,7 @@ main {
   place-items: center;
   align-content: center;
   gap: 10px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 12.5px;
   text-align: center;
 }
@@ -1885,7 +1885,7 @@ main {
 .review-placeholder svg {
   width: 28px;
   height: 28px;
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 .review-summary {
@@ -1894,7 +1894,7 @@ main {
 
 .review-summary h2 {
   margin: 0;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.015em;
@@ -1902,7 +1902,7 @@ main {
 
 .review-summary p {
   margin: 4px 0 0;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 11.5px;
   line-height: 1.6;
 }
@@ -1916,7 +1916,7 @@ main {
 
 .review-evidence-grid .fact {
   padding: 11px;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-sm);
 }
 
@@ -1931,9 +1931,9 @@ main {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
-  background: var(--openbitfun-color-surface-tertiary);
+  background: var(--bitfun-color-surface-tertiary);
 }
 
 .review-screenshots img {
@@ -1941,7 +1941,7 @@ main {
   aspect-ratio: 16 / 9;
   display: block;
   object-fit: contain;
-  background: var(--openbitfun-color-surface-canvas);
+  background: var(--bitfun-color-surface-canvas);
 }
 
 .review-screenshots figcaption {
@@ -1949,7 +1949,7 @@ main {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 7px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 9px;
 }
 
@@ -1964,11 +1964,11 @@ main {
   display: grid;
   gap: 5px;
   border-radius: var(--radius-sm);
-  background: var(--openbitfun-color-surface-tertiary);
+  background: var(--bitfun-color-surface-tertiary);
 }
 
 .hash-block span {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10px;
 }
 
@@ -1979,23 +1979,23 @@ main {
 
 .source-browser {
   overflow: hidden;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: var(--radius-md);
 }
 
 .source-tabs {
   display: flex;
   overflow-x: auto;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-  background: var(--openbitfun-color-surface-tertiary);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  background: var(--bitfun-color-surface-tertiary);
 }
 
 .source-mode {
   padding: 7px;
   display: flex;
   gap: 5px;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-  background: var(--openbitfun-color-surface-panel);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  background: var(--bitfun-color-surface-panel);
 }
 
 .source-mode button,
@@ -2009,30 +2009,30 @@ main {
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11px;
 }
 
 .source-mode button.active {
-  border-color: var(--openbitfun-color-border-default);
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  border-color: var(--bitfun-color-border-default);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .source-tabs button {
   min-height: 34px;
   padding-inline: 10px;
   border: 0;
-  border-right: 1px solid var(--openbitfun-color-border-subtle);
+  border-right: 1px solid var(--bitfun-color-border-subtle);
   background: transparent;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 10px;
   white-space: nowrap;
 }
 
 .source-tabs button.active {
-  background: var(--openbitfun-color-surface-panel);
-  color: var(--openbitfun-color-accent-default);
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-accent-default);
 }
 
 .source-browser pre {
@@ -2040,15 +2040,15 @@ main {
   margin: 0;
   padding: 16px;
   overflow: auto;
-  background: var(--openbitfun-color-content-on-light);
-  color: var(--openbitfun-color-content-on-dark);
+  background: var(--bitfun-color-content-on-light);
+  color: var(--bitfun-color-content-on-dark);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   line-height: 1.6;
 }
 
 .source-browser pre.diff-view {
-  color: var(--openbitfun-color-content-on-dark);
+  color: var(--bitfun-color-content-on-dark);
 }
 
 .moderation-panel {
@@ -2057,9 +2057,9 @@ main {
   display: flex;
   align-items: end;
   gap: 10px;
-  border: 1px solid var(--openbitfun-color-status-danger-border);
+  border: 1px solid var(--bitfun-color-status-danger-border);
   border-radius: var(--radius-md);
-  background: var(--openbitfun-color-status-danger-surface);
+  background: var(--bitfun-color-status-danger-surface);
 }
 
 .moderation-panel label {
@@ -2067,12 +2067,12 @@ main {
   flex: 1;
   display: grid;
   gap: 6px;
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-size: 11px;
 }
 
 .danger-action {
-  color: var(--openbitfun-color-status-danger-content);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .review-actions {
@@ -2095,7 +2095,7 @@ main {
   place-items: center;
   align-content: center;
   gap: 10px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
 }
 
@@ -2112,7 +2112,7 @@ main {
 }
 
 .muted {
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 }
 
 footer {
@@ -2123,8 +2123,8 @@ footer {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 20px;
-  border-top: 1px solid var(--openbitfun-color-border-subtle);
-  color: var(--openbitfun-color-content-muted);
+  border-top: 1px solid var(--bitfun-color-border-subtle);
+  color: var(--bitfun-color-content-muted);
   font-size: 10.5px;
 }
 
@@ -2136,7 +2136,7 @@ footer a {
 }
 
 .footer-brand {
-  color: var(--openbitfun-color-content-secondary);
+  color: var(--bitfun-color-content-secondary);
   font-weight: 600;
 }
 
@@ -2152,7 +2152,7 @@ footer a {
 }
 
 footer a:hover {
-  color: var(--openbitfun-color-accent-default);
+  color: var(--bitfun-color-accent-default);
 }
 
 .sr-only {
@@ -2246,7 +2246,7 @@ footer a:hover {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 6px;
     border-right: 0;
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 }
 
@@ -2312,7 +2312,7 @@ footer a:hover {
   }
 
   .trust-row > div + div {
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
     border-left: 0;
   }
 
@@ -2530,7 +2530,7 @@ footer a:hover {
 @media (prefers-reduced-transparency: reduce) {
   .topbar,
   .surface {
-    background: var(--openbitfun-color-surface-panel);
+    background: var(--bitfun-color-surface-panel);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -2552,40 +2552,40 @@ footer a:hover {
 
 
 /* The identity window is a focused task surface, independent of the market grid. */
-.account-auth-page { min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: var(--openbitfun-color-surface-canvas); }
+.account-auth-page { min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: var(--bitfun-color-surface-canvas); }
 .account-auth-shell { width: min(100%, 440px); min-width: 0; }
 .account-auth-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
 .account-auth-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; }
 .account-auth-brand img { display: block; border-radius: 9px; }
-.account-auth-language { position: relative; display: flex; align-items: center; gap: 6px; color: var(--openbitfun-color-content-secondary); }
-.account-auth-language select { appearance: none; min-height: 44px; max-width: 112px; padding: 8px 20px 8px 0; border: 0; border-radius: 6px; background: var(--openbitfun-color-surface-canvas); color: inherit; font-size: 13px; cursor: pointer; }
+.account-auth-language { position: relative; display: flex; align-items: center; gap: 6px; color: var(--bitfun-color-content-secondary); }
+.account-auth-language select { appearance: none; min-height: 44px; max-width: 112px; padding: 8px 20px 8px 0; border: 0; border-radius: 6px; background: var(--bitfun-color-surface-canvas); color: inherit; font-size: 13px; cursor: pointer; }
 .account-auth-language > svg:last-child { position: absolute; right: 0; pointer-events: none; }
-.account-sign-in { padding: 28px; border: 1px solid var(--openbitfun-color-border-subtle); border-radius: 16px; background: var(--openbitfun-color-surface-panel); }
-.account-auth-symbol { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 20px; border: 1px solid var(--openbitfun-color-border-subtle); border-radius: 12px; background: var(--openbitfun-color-surface-tertiary); color: var(--openbitfun-color-content-secondary); }
+.account-sign-in { padding: 28px; border: 1px solid var(--bitfun-color-border-subtle); border-radius: 16px; background: var(--bitfun-color-surface-panel); }
+.account-auth-symbol { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 20px; border: 1px solid var(--bitfun-color-border-subtle); border-radius: 12px; background: var(--bitfun-color-surface-tertiary); color: var(--bitfun-color-content-secondary); }
 .account-sign-in h1 { margin: 0; font-size: 26px; line-height: 1.3; letter-spacing: -.02em; }
-.account-auth-intro { margin: 12px 0 28px; color: var(--openbitfun-color-content-secondary); line-height: 1.7; }
+.account-auth-intro { margin: 12px 0 28px; color: var(--bitfun-color-content-secondary); line-height: 1.7; }
 .account-sign-in form { display: grid; gap: 10px; }
 .account-sign-in label { font-weight: 500; }
-.account-auth-field { display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--openbitfun-color-border-strong); border-radius: 9px; background: var(--openbitfun-color-surface-canvas); color: var(--openbitfun-color-content-muted); }
-.account-auth-field:focus-within { outline: 2px solid var(--openbitfun-color-accent-default); outline-offset: 2px; }
+.account-auth-field { display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--bitfun-color-border-strong); border-radius: 9px; background: var(--bitfun-color-surface-canvas); color: var(--bitfun-color-content-muted); }
+.account-auth-field:focus-within { outline: 2px solid var(--bitfun-color-accent-default); outline-offset: 2px; }
 .account-auth-field svg { flex-shrink: 0; }
-.account-auth-field input { min-width: 0; width: 100%; min-height: 48px; padding: 10px 0; border: 0; background: transparent; color: var(--openbitfun-color-content-primary); font-size: 16px; outline: none; }
-.account-auth-field input:disabled { color: var(--openbitfun-color-content-muted); }
+.account-auth-field input { min-width: 0; width: 100%; min-height: 48px; padding: 10px 0; border: 0; background: transparent; color: var(--bitfun-color-content-primary); font-size: 16px; outline: none; }
+.account-auth-field input:disabled { color: var(--bitfun-color-content-muted); }
 .account-auth-code { letter-spacing: .35em; font-variant-numeric: tabular-nums; }
-.account-auth-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--openbitfun-color-border-strong); border-radius: 9px; background: var(--openbitfun-color-surface-tertiary); color: var(--openbitfun-color-content-primary); font-weight: 600; cursor: pointer; }
-.account-auth-button--primary { margin-top: 8px; background: var(--openbitfun-color-content-primary); color: var(--openbitfun-color-surface-canvas); border-color: transparent; }
+.account-auth-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--bitfun-color-border-strong); border-radius: 9px; background: var(--bitfun-color-surface-tertiary); color: var(--bitfun-color-content-primary); font-weight: 600; cursor: pointer; }
+.account-auth-button--primary { margin-top: 8px; background: var(--bitfun-color-content-primary); color: var(--bitfun-color-surface-canvas); border-color: transparent; }
 @media (hover: hover) and (pointer: fine) {
   .account-auth-button:hover:not(:disabled) { filter: brightness(.92); }
 }
 .account-auth-button:disabled { opacity: .5; cursor: wait; }
-.account-auth-divider { display: flex; align-items: center; gap: 14px; margin: 22px 0; color: var(--openbitfun-color-content-muted); font-size: 12px; }
-.account-auth-divider::before, .account-auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--openbitfun-color-border-subtle); }
+.account-auth-divider { display: flex; align-items: center; gap: 14px; margin: 22px 0; color: var(--bitfun-color-content-muted); font-size: 12px; }
+.account-auth-divider::before, .account-auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--bitfun-color-border-subtle); }
 .account-auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
-.account-auth-links button { min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--openbitfun-color-content-secondary); cursor: pointer; font-size: 13px; }
-.account-auth-links button:disabled { color: var(--openbitfun-color-content-muted); cursor: default; }
-.account-auth-notice { margin: 4px 0; color: var(--openbitfun-color-content-secondary); font-size: 13px; }
-.account-auth-error { margin: 16px 0 0; color: var(--openbitfun-color-status-danger-content); }
-.account-auth-footer { display: flex; align-items: flex-start; justify-content: center; gap: 7px; margin: 20px 0 0; color: var(--openbitfun-color-content-muted); font-size: 12px; }
+.account-auth-links button { min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--bitfun-color-content-secondary); cursor: pointer; font-size: 13px; }
+.account-auth-links button:disabled { color: var(--bitfun-color-content-muted); cursor: default; }
+.account-auth-notice { margin: 4px 0; color: var(--bitfun-color-content-secondary); font-size: 13px; }
+.account-auth-error { margin: 16px 0 0; color: var(--bitfun-color-status-danger-content); }
+.account-auth-footer { display: flex; align-items: flex-start; justify-content: center; gap: 7px; margin: 20px 0 0; color: var(--bitfun-color-content-muted); font-size: 12px; }
 .account-auth-footer svg { flex-shrink: 0; margin-top: 1px; }
 @media (max-width: 380px) {
   .account-auth-page { padding: 24px 16px; }
@@ -2602,19 +2602,19 @@ footer a:hover {
   width: 24px;
   height: 24px;
   overflow: hidden;
-  border: 1px solid var(--openbitfun-color-border-subtle);
+  border: 1px solid var(--bitfun-color-border-subtle);
   border-radius: 50%;
-  background: var(--openbitfun-color-surface-tertiary);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-primary);
   font-weight: 600;
 }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; border: 0; }
 
-.market-input[data-openbitfun-component='input'] {
+.market-input[data-bitfun-component='input'] {
   block-size: auto;
   min-width: 0;
 }
-.market-input[data-openbitfun-component='input'] > input {
+.market-input[data-bitfun-component='input'] > input {
   outline: 0;
   font: inherit;
   letter-spacing: inherit;
@@ -2629,7 +2629,7 @@ footer a:hover {
 }
 
 /* Textarea owns a wrapper; keep the native editor filling its form column. */
-.market-textarea[data-openbitfun-component="textarea"] {
+.market-textarea[data-bitfun-component="textarea"] {
   display: flex;
   width: 100%;
   min-width: 0;
@@ -2640,7 +2640,7 @@ footer a:hover {
 }
 
 /* Keep each surface's control geometry while using shared button semantics. */
-:where([data-openbitfun-component="button"]) {
+:where([data-bitfun-component="button"]) {
   display: inline-block;
   block-size: auto;
   padding: 0;
@@ -2650,26 +2650,26 @@ footer a:hover {
   letter-spacing: inherit;
   white-space: normal;
 }
-:where([data-openbitfun-component="icon-button"]) {
+:where([data-bitfun-component="icon-button"]) {
   inline-size: auto;
   block-size: auto;
 }
-[data-openbitfun-component="button"]::before,
-[data-openbitfun-component="icon-button"]::before {
+[data-bitfun-component="button"]::before,
+[data-bitfun-component="icon-button"]::before {
   content: none;
 }
 /* Rich labels (previews, review cards, icon + text) retain the root layout. */
-[data-openbitfun-component="button"] > [data-openbitfun-part="content"],
-[data-openbitfun-component="button"] > [data-openbitfun-part="content"] > [data-openbitfun-part="label"] {
+[data-bitfun-component="button"] > [data-bitfun-part="content"],
+[data-bitfun-component="button"] > [data-bitfun-part="content"] > [data-bitfun-part="label"] {
   display: contents;
   white-space: inherit;
 }
-[data-openbitfun-component="icon-button"] > [data-openbitfun-part="icon"] {
+[data-bitfun-component="icon-button"] > [data-bitfun-part="icon"] {
   position: static;
   inline-size: auto;
   block-size: auto;
 }
-[data-openbitfun-component="icon-button"] > [data-openbitfun-part="icon"] > svg {
+[data-bitfun-component="icon-button"] > [data-bitfun-part="icon"] > svg {
   inline-size: 18px;
   block-size: 18px;
 }

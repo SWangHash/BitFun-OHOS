@@ -29,8 +29,8 @@ export async function readPublicCssVariableContract({
   ]);
   const definitions = new Set();
   const references = new Map();
-  const definitionPattern = /(--openbitfun-[a-z0-9-]+)\s*:/gi;
-  const referencePattern = /var\(\s*(--openbitfun-[a-z0-9-]+)/gi;
+  const definitionPattern = /(--bitfun-[a-z0-9-]+)\s*:/gi;
+  const referencePattern = /var\(\s*(--bitfun-[a-z0-9-]+)/gi;
 
   for (const source of [systemCss, themeCss]) {
     for (const match of source.matchAll(definitionPattern)) {

@@ -382,7 +382,7 @@
     "keepEditing": "Keep editing",
     "errors": {
       "invalidConfig": "The saved group data could not be read. It has been kept unchanged.",
-      "unsupportedVersion": "These groups use a newer format. Update OpenBitFun to edit them.",
+      "unsupportedVersion": "These groups use a newer format. Update BitFun to edit them.",
       "nameRequired": "Enter a group name.",
       "nameDuplicate": "A group with this name already exists.",
       "conflict": "This group changed elsewhere. Close the editor and refresh before editing it again.",

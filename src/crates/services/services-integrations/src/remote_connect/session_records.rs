@@ -2,7 +2,7 @@
 //! Parent headers make a latest-page record independently interpretable, while
 //! large text/tool bodies occur only on their own stable item record.
 use anyhow::Result;
-use openbitfun_services_core::session::DialogTurnData;
+use bitfun_services_core::session::DialogTurnData;
 use serde_json::{json, Value};
 
 /// Transcript facts and interaction controls have different persistence roles.

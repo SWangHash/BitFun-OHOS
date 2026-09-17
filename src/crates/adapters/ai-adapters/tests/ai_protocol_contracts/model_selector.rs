@@ -1,4 +1,4 @@
-use openbitfun_ai_adapters::{
+use bitfun_ai_adapters::{
     classify_model_selector, resolve_cache_model_selector, resolve_required_model_selector,
     ModelSelectorError, ModelSelectorKind,
 };

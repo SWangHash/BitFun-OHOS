@@ -1,4 +1,4 @@
-Analyze this OpenBitFun usage data and identify where friction occurs. Use second person ("you").
+Analyze this BitFun usage data and identify where friction occurs. Use second person ("you").
 
 Write a brief **intro** (1 sentence summarizing the overall friction situation).
 

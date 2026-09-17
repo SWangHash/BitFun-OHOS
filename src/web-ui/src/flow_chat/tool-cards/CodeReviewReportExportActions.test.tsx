@@ -30,7 +30,7 @@ vi.mock('lucide-react', () => ({
   ),
 }));
 
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@bitfun/ui', () => ({
   Button: ({
     children,
     leadingIcon,

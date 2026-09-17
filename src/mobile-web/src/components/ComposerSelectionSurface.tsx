@@ -1,6 +1,6 @@
 import { X as LucideX } from 'lucide-react';
 import React from 'react';
-import { MobileIconButton, MobileSheet } from '@openbitfun/ui/mobile';
+import { MobileIconButton, MobileSheet } from '@bitfun/ui/mobile';
 import { useWideLayout } from '../hooks/useWideLayout';
 import { useI18n } from '../i18n';
 import ComposerAnchoredMenu from './ComposerAnchoredMenu';

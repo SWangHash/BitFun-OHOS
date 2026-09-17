@@ -41,15 +41,15 @@ export const Tag: React.FC<TagProps> = ({
     .join(' ');
 
   return (
-    <span className={classNames} title={title} style={style} data-openbitfun-component="tag" data-openbitfun-part="root" data-openbitfun-variant={color} data-openbitfun-size={size} data-openbitfun-state={rounded ? 'rounded' : undefined}>
-      <span className="tag__content" data-openbitfun-component="tag" data-openbitfun-part="content">{children}</span>
+    <span className={classNames} title={title} style={style} data-bitfun-component="tag" data-bitfun-part="root" data-bitfun-variant={color} data-bitfun-size={size} data-bitfun-state={rounded ? 'rounded' : undefined}>
+      <span className="tag__content" data-bitfun-component="tag" data-bitfun-part="content">{children}</span>
       {closable && (
         <button
           type="button"
           className="tag__close"
           onClick={onClose}
           aria-label={closeAriaLabel}
-         data-openbitfun-component="tag" data-openbitfun-part="close">
+         data-bitfun-component="tag" data-bitfun-part="close">
           ×
         </button>
       )}

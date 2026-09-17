@@ -1,12 +1,12 @@
-# OpenBitFun 产品控制平面
+# BitFun 产品控制平面
 
-本文定义用户手动操作、Agent 自行控制、全局搜索和 OpenBitFun Playbook 之间的
+本文定义用户手动操作、Agent 自行控制、全局搜索和 BitFun Playbook 之间的
 一致性边界。它只描述稳定所有权与运行约束；具体页面文案和能力清单由生成的
 `ResolvedProductCapabilityGraph` 承载。
 
 ## 1. 不变量
 
-OpenBitFun 对一项用户可见功能或设置只允许一个业务 owner。该 owner 提供类型化
+BitFun 对一项用户可见功能或设置只允许一个业务 owner。该 owner 提供类型化
 Query/Command，持有校验、状态写入、运行时副作用、回读和错误语义。不同入口只做
 参数与展示适配：
 
@@ -18,7 +18,7 @@ owner Query / Command
         |
         +-- ResolvedProductCapabilityGraph
                 +-- global search
-                +-- OpenBitFunControl discovery
+                +-- BitFunControl discovery
                 +-- Playbook
 ```
 
@@ -58,7 +58,7 @@ overlay 不得重新声明 handler、配置路径或由真实 registry 提供的
 - `PresentationTarget`：设置页、子视图、场景、产品动作或事件入口；
 - `ResolvedProductCapabilityGraph`：供发现与静态投影使用的版本化解析图。
 
-`OpenBitFunControl` 使用 `list/search/get/open/configure/execute` 的当前 wire shape。完整能力
+`BitFunControl` 使用 `list/search/get/open/configure/execute` 的当前 wire shape。完整能力
 不会进入 system prompt；模型先发现或搜索，再按 `get` 返回的精确 schema 调用。已经退休的
 产品控制 ID 在正常运行时直接拒绝，不提供旧名称 alias；未来如需导入旧数据，由独立迁移边界完成。
 
@@ -90,7 +90,7 @@ Product Control Registry 是闭集路由，不是第二个业务 owner，也不�
 
 每个用户条目必须具有机器可检查的控制分类：
 
-- `direct`：OpenBitFunControl 可直接调用 Query/Command；
+- `direct`：BitFunControl 可直接调用 Query/Command；
 - `delegate`：专用 Agent 工具是该能力的现有执行 adapter，且最终调用同一 owner；
 - `open`：必须由用户完成外部登录、secret 录入、视觉选择或无法结构化的实时交互；
 - `unsupported`：当前交付形态明确不支持，并提供恢复建议。
@@ -101,8 +101,8 @@ Product Control Registry 是闭集路由，不是第二个业务 owner，也不�
 
 ## 6. 远程与版本兼容
 
-产品设置默认在持有 OpenBitFun 产品状态的 host 执行，不随 Remote Workspace 路径迁移。
-Peer Device Mode 将命令代理到 peer host；Remote Control 使用目标 OpenBitFun host；Detached
+产品设置默认在持有 BitFun 产品状态的 host 执行，不随 Remote Workspace 路径迁移。
+Peer Device Mode 将命令代理到 peer host；Remote Control 使用目标 BitFun host；Detached
 Dispatch 只允许目标 CLI profile 明确支持的 headless 命令。每种 delivery profile 在
 解析图中给出 availability，缺少能力时返回 typed unsupported。
 
@@ -140,7 +140,7 @@ CI 必须结构性证明以下闭包，而不是依赖人工更新数量基线�
 
 ## 8. 创造模式的运行时扩展
 
-创造模式使用两类边界。已有产品能力仍由 `OpenBitFunControl` 的闭集 owner 图控制；
+创造模式使用两类边界。已有产品能力仍由 `BitFunControl` 的闭集 owner 图控制；
 用户新建的命令由 `infrastructure/creation/creationCapabilities.ts` 中的激活期注册表持有。
 后者不向 ProductControl 注入任意 RPC，也不修改全局 Agent 工具表。Agent 使用
 `FrontendWorkbench inspect/invoke` 发现和调用当前自定义模块的命令；调用经过原有工具

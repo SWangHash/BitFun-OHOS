@@ -1,19 +1,19 @@
 use agent_client_protocol::{Builder, Error, HandleDispatchFrom};
-use openbitfun_app_server_protocol::app::{
+use bitfun_app_server_protocol::app::{
     CapabilityAvailability, CapabilityDescriptor, HealthRequest, HealthResponse, HealthStatus,
     InitializeRequest, InitializeResponse, ServerInfo, TransportLimits,
 };
-use openbitfun_app_server_protocol::error::{AppServerErrorData, AppServerErrorKind};
-use openbitfun_app_server_protocol::event::{SyncEventsRequest, SyncEventsResponse};
-use openbitfun_app_server_protocol::{MIN_PROTOCOL_VERSION, PROTOCOL_VERSION};
-use openbitfun_product_domains::product_search::PRODUCT_SEARCH_CAPABILITY_ID;
+use bitfun_app_server_protocol::error::{AppServerErrorData, AppServerErrorKind};
+use bitfun_app_server_protocol::event::{SyncEventsRequest, SyncEventsResponse};
+use bitfun_app_server_protocol::{MIN_PROTOCOL_VERSION, PROTOCOL_VERSION};
+use bitfun_product_domains::product_search::PRODUCT_SEARCH_CAPABILITY_ID;
 
 use crate::management::EXTERNAL_SOURCES_CAPABILITY;
 use crate::role::{AppClient, AppServer};
 use crate::server::host_policy::{AppServerHostLimits, AppServerHostPolicy};
 
 pub(in crate::server) fn builder(
-    runtime: std::sync::Arc<crate::agent::OpenBitFunAppRuntime>,
+    runtime: std::sync::Arc<crate::agent::BitFunAppRuntime>,
     event_state: std::sync::Arc<crate::server::ConnectionEventState>,
     management: Option<std::sync::Arc<crate::management::AppManagementService>>,
     host_policy: Option<std::sync::Arc<AppServerHostPolicy>>,
@@ -50,7 +50,7 @@ pub(in crate::server) fn builder(
                 }
                 responder.respond_with_result(Ok(InitializeResponse::new(
                     ServerInfo {
-                        name: "openbitfun-app-server".to_string(),
+                        name: "bitfun-app-server".to_string(),
                         version: env!("CARGO_PKG_VERSION").to_string(),
                     },
                     capabilities.clone(),

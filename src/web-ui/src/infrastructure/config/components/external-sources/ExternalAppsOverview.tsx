@@ -1,4 +1,4 @@
-import { OverflowText, Switch, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Switch, Tooltip } from '@bitfun/ui';
 import React from 'react';
 import { CircleAlert } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -33,28 +33,28 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
   onOpenPolicy,
 }) => (
   <ConfigPageSection
-    className="openbitfun-external-sources-config__apps"
+    className="bitfun-external-sources-config__apps"
     title={t('applications.title')}
   >
-    <div className="openbitfun-external-sources-config__app-list">
+    <div className="bitfun-external-sources-config__app-list">
       {applications.map((application) => (
         <div
           key={application.ecosystemId}
-          className="openbitfun-external-sources-config__app-row"
-          data-openbitfun-product-component="external-sources-config"
-          data-openbitfun-product-part="application"
-          data-openbitfun-ecosystem={application.ecosystemId}
+          className="bitfun-external-sources-config__app-row"
+          data-bitfun-product-component="external-sources-config"
+          data-bitfun-product-part="application"
+          data-bitfun-ecosystem={application.ecosystemId}
         >
-          <OverflowText className="openbitfun-external-sources-config__app-name">
+          <OverflowText className="bitfun-external-sources-config__app-name">
             {application.displayName}
           </OverflowText>
           {application.attentionCount > 0 ? (
             <Tooltip content={t('applications.attentionRequired')} placement="top">
               <button
                 type="button"
-                className="openbitfun-external-sources-config__app-attention"
-                data-openbitfun-product-component="external-sources-config"
-                data-openbitfun-product-part="appAttention"
+                className="bitfun-external-sources-config__app-attention"
+                data-bitfun-product-component="external-sources-config"
+                data-bitfun-product-part="appAttention"
                 aria-label={t('applications.openAdvanced', {
                   name: application.displayName,
                 })}
@@ -65,9 +65,9 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
             </Tooltip>
           ) : null}
           <div
-            className="openbitfun-external-sources-config__app-toggle"
-            data-openbitfun-product-component="external-sources-config"
-            data-openbitfun-product-part="applicationToggle"
+            className="bitfun-external-sources-config__app-toggle"
+            data-bitfun-product-component="external-sources-config"
+            data-bitfun-product-part="applicationToggle"
             title={!policiesEnabled ? t('applications.enableInAdvanced') : undefined}
             role={!policiesEnabled ? 'button' : undefined}
             tabIndex={!policiesEnabled ? 0 : undefined}
@@ -94,7 +94,7 @@ export const ExternalAppsOverview: React.FC<ExternalAppsOverviewProps> = ({
         </div>
       ))}
       {applications.length === 0 ? (
-        <div className="openbitfun-external-sources-config__app-empty">
+        <div className="bitfun-external-sources-config__app-empty">
           {t('applications.empty')}
         </div>
       ) : null}

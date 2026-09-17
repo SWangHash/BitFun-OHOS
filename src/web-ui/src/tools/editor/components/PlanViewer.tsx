@@ -1,13 +1,13 @@
 /** Optimized viewer/editor for `.plan.md` files (frontmatter + markdown body). */
 
-import { OverflowText, Button, Icon, IconButton, Input, Tooltip } from '@openbitfun/ui';
+import { OverflowText, Button, Icon, IconButton, Input, Tooltip } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Loader2, AlertCircle, FileText } from 'lucide-react';
 import yaml from 'yaml';
 import { MEditor } from '../meditor';
 import type { EditorInstance } from '../meditor';
 import { createLogger } from '@/shared/utils/logger';
-import { LoadingState } from '@openbitfun/ui';
+import { LoadingState } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
@@ -554,9 +554,9 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     return (
       <div
         className={panelClassName}
-        data-openbitfun-component="plan-viewer"
-        data-openbitfun-part="editorPanel"
-        data-openbitfun-state={isInline && isTodosExpanded ? 'expanded' : undefined}
+        data-bitfun-component="plan-viewer"
+        data-bitfun-part="editorPanel"
+        data-bitfun-state={isInline && isTodosExpanded ? 'expanded' : undefined}
       >
         <div className={toolbarClassName}>
           {isYamlEditingInPanel ? (
@@ -625,7 +625,7 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
         </div>
 
         {isYamlEditingInPanel ? (
-          <div className="yaml-editor-section" data-openbitfun-component="plan-viewer" data-openbitfun-part="editor">
+          <div className="yaml-editor-section" data-bitfun-component="plan-viewer" data-bitfun-part="editor">
             <div className="yaml-editor-content">
               <MEditor
                 ref={yamlEditorRef}
@@ -643,13 +643,13 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
             </div>
           </div>
         ) : (
-          <div className="todos-list" data-openbitfun-component="plan-viewer" data-openbitfun-part="todos">
+          <div className="todos-list" data-bitfun-component="plan-viewer" data-bitfun-part="todos">
             {panelTodos.map((todo, index) => (
               <div
                 key={todo.id || index}
                 className={`todo-item status-${todo.status || 'pending'}`}
-                data-openbitfun-component="plan-viewer"
-                data-openbitfun-part="todo"
+                data-bitfun-component="plan-viewer"
+                data-bitfun-part="todo"
               >
                 {getTodoIcon(todo.status)}
                 {isPanelEditing ? (
@@ -771,7 +771,7 @@ Read the plan file before making changes and treat it as the source of truth. Do
   // Render loading state
   if (loading) {
     return (
-      <div className="openbitfun-plan-viewer openbitfun-plan-viewer--loading" data-openbitfun-component="plan-viewer" data-openbitfun-part="loading" data-openbitfun-state="loading">
+      <div className="bitfun-plan-viewer bitfun-plan-viewer--loading" data-bitfun-component="plan-viewer" data-bitfun-part="loading" data-bitfun-state="loading">
         <LoadingState size="md">{t('editor.planViewer.loadingPlan')}</LoadingState>
       </div>
     );
@@ -780,7 +780,7 @@ Read the plan file before making changes and treat it as the source of truth. Do
   // Render error state
   if (error) {
     return (
-      <div className="openbitfun-plan-viewer openbitfun-plan-viewer--error" data-openbitfun-component="plan-viewer" data-openbitfun-part="error" data-openbitfun-state="error">
+      <div className="bitfun-plan-viewer bitfun-plan-viewer--error" data-bitfun-component="plan-viewer" data-bitfun-part="error" data-bitfun-state="error">
         <div className="error-content">
           <AlertCircle className="error-icon" />
           <p>{error}</p>
@@ -794,22 +794,22 @@ Read the plan file before making changes and treat it as the source of truth. Do
 
   return (
     <div
-      className="openbitfun-plan-viewer"
-      data-openbitfun-component="plan-viewer"
-      data-openbitfun-part="root"
-      data-openbitfun-state={hasTodos && isTodosExpanded ? 'expanded' : undefined}
+      className="bitfun-plan-viewer"
+      data-bitfun-component="plan-viewer"
+      data-bitfun-part="root"
+      data-bitfun-state={hasTodos && isTodosExpanded ? 'expanded' : undefined}
     >
       <div data-overflow-trigger
         className={`plan-viewer-header ${hasTodos ? 'plan-viewer-header--collapsible' : ''}`}
-        data-openbitfun-component="plan-viewer"
-        data-openbitfun-part="header"
+        data-bitfun-component="plan-viewer"
+        data-bitfun-part="header"
         onClick={() => {
           if (hasTodos && !isEditingYaml) {
             setIsTodosExpanded(!isTodosExpanded);
           }
         }}
       >
-        <div className="header-left" data-openbitfun-component="plan-viewer" data-openbitfun-part="headerMain">
+        <div className="header-left" data-bitfun-component="plan-viewer" data-bitfun-part="headerMain">
           {hasTodos && (
             <span
               className={`header-expand-indicator ${isTodosExpanded ? 'header-expand-indicator--expanded' : ''} ${isEditingYaml ? 'header-expand-indicator--disabled' : ''}`}
@@ -821,7 +821,7 @@ Read the plan file before making changes and treat it as the source of truth. Do
           <OverflowText className="file-name">{displayFileName}</OverflowText>
           {hasUnsavedChanges && <span className="unsaved-indicator">{t('editor.planViewer.unsaved')}</span>}
         </div>
-        <div className="header-right" onClick={(e) => e.stopPropagation()} data-openbitfun-component="plan-viewer" data-openbitfun-part="headerActions">
+        <div className="header-right" onClick={(e) => e.stopPropagation()} data-bitfun-component="plan-viewer" data-bitfun-part="headerActions">
           {hasTodos && (
             <>
               <span className="todos-count">{t('editor.planViewer.remainingTodos', { count: remainingTodos })}</span>
@@ -853,8 +853,8 @@ Read the plan file before making changes and treat it as the source of truth. Do
 
       {hasTodos && (yamlEditorPlacement === 'inline' || isTodosExpanded) && renderSharedTodoPanel('inline')}
 
-      <div className="plan-viewer-content" data-openbitfun-component="plan-viewer" data-openbitfun-part="content">
-        <div className="plan-markdown" data-openbitfun-component="plan-viewer" data-openbitfun-part="markdown">
+      <div className="plan-viewer-content" data-bitfun-component="plan-viewer" data-bitfun-part="content">
+        <div className="plan-markdown" data-bitfun-component="plan-viewer" data-bitfun-part="markdown">
           <MEditor
             ref={editorRef}
             value={planContent}

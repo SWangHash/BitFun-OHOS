@@ -42,16 +42,16 @@ describe('AgentCompanionDesktopPet styles', () => {
     const output = extractBlock(stylesheet, '&__bubble-output');
     const composerInput = extractBlock(stylesheet, '&__bubble-composer-input');
 
-    expect(bubble).toContain('background-color: var(--openbitfun-color-surface-raised);');
-    expect(bubble).toContain('color: var(--openbitfun-color-content-primary);');
-    expect(status).toContain('color: var(--openbitfun-color-content-secondary);');
-    expect(output).toContain('color: var(--openbitfun-color-content-secondary);');
-    expect(composerInput).toContain('background: var(--openbitfun-color-field-background);');
-    expect(composerInput).toContain('color: var(--openbitfun-color-content-primary);');
-    expect(stylesheet).toContain('background: var(--openbitfun-color-surface-raised);');
+    expect(bubble).toContain('background-color: var(--bitfun-color-surface-raised);');
+    expect(bubble).toContain('color: var(--bitfun-color-content-primary);');
+    expect(status).toContain('color: var(--bitfun-color-content-secondary);');
+    expect(output).toContain('color: var(--bitfun-color-content-secondary);');
+    expect(composerInput).toContain('background: var(--bitfun-color-field-background);');
+    expect(composerInput).toContain('color: var(--bitfun-color-content-primary);');
+    expect(stylesheet).toContain('background: var(--bitfun-color-surface-raised);');
 
-    expect(stylesheet).not.toContain('--openbitfun-color-content-on-light');
-    expect(stylesheet).not.toContain('--openbitfun-color-content-on-dark');
+    expect(stylesheet).not.toContain('--bitfun-color-content-on-light');
+    expect(stylesheet).not.toContain('--bitfun-color-content-on-dark');
     expect(stylesheet).not.toMatch(
       /&__bubble--(?:attention|waiting|completed|error|interrupted)\s+&__bubble-status/,
     );
@@ -61,10 +61,10 @@ describe('AgentCompanionDesktopPet styles', () => {
     const stylesheet = readStylesheet();
 
     for (const [selector, surfaceToken] of [
-      ['&__bubble--attention', '--openbitfun-color-status-warning-surface'],
-      ['&__bubble--waiting', '--openbitfun-color-status-warning-surface'],
-      ['&__bubble--completed', '--openbitfun-color-status-success-surface'],
-      ['&__bubble--error,\n  &__bubble--interrupted', '--openbitfun-color-status-danger-surface'],
+      ['&__bubble--attention', '--bitfun-color-status-warning-surface'],
+      ['&__bubble--waiting', '--bitfun-color-status-warning-surface'],
+      ['&__bubble--completed', '--bitfun-color-status-success-surface'],
+      ['&__bubble--error,\n  &__bubble--interrupted', '--bitfun-color-status-danger-surface'],
     ] as const) {
       const state = extractBlock(stylesheet, selector);
       expect(state).toContain('background-image: linear-gradient(');
@@ -80,16 +80,16 @@ describe('AgentCompanionDesktopPet styles', () => {
     const overlay = extractBlock(stylesheet, '&__overlay');
     const menuItem = extractBlock(stylesheet, '&__menu-item');
     const hover = extractBlock(actionItemStyles,
-      '.root:not([data-disabled="true"]):hover,\n  .root:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="hover"])');
+      '.root:not([data-disabled="true"]):hover,\n  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="hover"])');
     const pressed = extractBlock(actionItemStyles,
-      '.root:not([data-disabled="true"]):has(.trigger:active),\n  .root:not([data-disabled="true"]):has(.trigger[data-openbitfun-preview-state="active"])');
+      '.root:not([data-disabled="true"]):has(.trigger:active),\n  .root:not([data-disabled="true"]):has(.trigger[data-bitfun-preview-state="active"])');
 
-    expect(source).toContain('import { OverflowText, Menu, MenuItem, ScrollArea } from \'@openbitfun/ui\'');
+    expect(source).toContain('import { OverflowText, Menu, MenuItem, ScrollArea } from \'@bitfun/ui\'');
     expect(source).not.toContain('triggerClassName');
     expect(overlay).not.toMatch(/\b(?:color|background|border|box-shadow|backdrop-filter)\s*:/);
     expect(menuItem).toBe('');
-    expect(actionItemStyles).toContain('color: var(--openbitfun-color-action-neutral-content);');
-    expect(hover).toContain('background: var(--openbitfun-color-action-neutral-surface-hover);');
-    expect(pressed).toContain('background: var(--openbitfun-color-action-neutral-surface-hover);');
+    expect(actionItemStyles).toContain('color: var(--bitfun-color-action-neutral-content);');
+    expect(hover).toContain('background: var(--bitfun-color-action-neutral-surface-hover);');
+    expect(pressed).toContain('background: var(--bitfun-color-action-neutral-surface-hover);');
   });
 });

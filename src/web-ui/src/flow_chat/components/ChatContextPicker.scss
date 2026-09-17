@@ -24,28 +24,28 @@
     // constraint when the overlay is placed by the viewport anchor hook.
     bottom: auto;
     left: auto;
-    z-index: var(--openbitfun-layer-popover);
+    z-index: var(--bitfun-layer-popover);
     width: min(300px, calc(100vw - 16px));
     min-width: min(220px, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
-    color: var(--openbitfun-color-content-primary);
-    font-family:var(--openbitfun-type-body-sm-font-family);
+    color: var(--bitfun-color-content-primary);
+    font-family:var(--bitfun-type-body-sm-font-family);
   }
   
   &__header {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-control-flow-chat-inline-gap);
-    padding: var(--openbitfun-control-flow-chat-inline-gap) var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-support-font-size);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
-    letter-spacing: var(--openbitfun-type-modifier-tracking-wide-letter-spacing);
+    gap: var(--bitfun-control-flow-chat-inline-gap);
+    padding: var(--bitfun-control-flow-chat-inline-gap) var(--bitfun-control-flow-chat-card-expanded-padding-inline);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
     
     svg,
-    [data-openbitfun-component='icon'] {
+    [data-bitfun-component='icon'] {
       opacity: 0.6;
     }
   }
@@ -59,7 +59,7 @@
     display: block;
     overflow: hidden;
     white-space: nowrap;
-    color: var(--openbitfun-color-content-secondary);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__directory-path--file {
@@ -95,10 +95,10 @@
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: var(--openbitfun-control-flow-chat-inline-gap);
-    padding: var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-flow-support-font-size);
+    gap: var(--bitfun-control-flow-chat-inline-gap);
+    padding: var(--bitfun-control-flow-chat-card-expanded-padding-inline);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-flow-support-font-size);
     
     span {
       opacity: 0.7;
@@ -107,7 +107,7 @@
   
   &__spinner {
     animation: chat-context-picker-spin 1s linear infinite;
-    color: var(--openbitfun-color-accent-default);
+    color: var(--bitfun-color-accent-default);
     
     @keyframes chat-context-picker-spin {
       from { transform: rotate(0deg); }
@@ -118,7 +118,7 @@
   &__list {
     flex: 1;
     min-height: 0;
-    padding: var(--openbitfun-overlay-menu-surface-padding);
+    padding: var(--bitfun-overlay-menu-surface-padding);
   }
 
   &--skills {
@@ -128,13 +128,13 @@
     max-width: calc(100vw - 16px);
   }
 
-  &__skill-option > [data-openbitfun-part='content'] {
+  &__skill-option > [data-bitfun-part='content'] {
     flex: 0 1 auto;
     min-inline-size: 0;
     max-inline-size: 60%;
   }
 
-  &__skill-option > [data-openbitfun-part='metadata'] {
+  &__skill-option > [data-bitfun-part='metadata'] {
     // Let every description reach the same trailing edge after its skill name.
     flex: 1 1 0;
     min-inline-size: 0;
@@ -148,11 +148,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--openbitfun-control-flow-chat-control-gap);
-    padding: var(--openbitfun-control-flow-chat-inline-gap) var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
-    border-top: 1px solid var(--openbitfun-color-border-subtle);
-    font-size: var(--openbitfun-type-flow-micro-font-size);
-    color: var(--openbitfun-color-content-muted);
+    gap: var(--bitfun-control-flow-chat-control-gap);
+    padding: var(--bitfun-control-flow-chat-inline-gap) var(--bitfun-control-flow-chat-card-expanded-padding-inline);
+    border-top: 1px solid var(--bitfun-color-border-subtle);
+    font-size: var(--bitfun-type-flow-micro-font-size);
+    color: var(--bitfun-color-content-muted);
     
     > span {
       display: flex;
@@ -161,15 +161,15 @@
     }
   }
 
-  :root[data-openbitfun-appearance-mode="light"] &,
+  :root[data-bitfun-appearance-mode="light"] &,
   .light & {
     // Keep the lighter edge treatment without overriding the shared frosted
     // floating-surface background and filter.
-    border-color: var(--openbitfun-color-border-subtle);
+    border-color: var(--bitfun-color-border-subtle);
     box-shadow:
-      0 4px 18px color-mix(in srgb, var(--openbitfun-color-content-muted) 4%, transparent),
-      0 1px 3px color-mix(in srgb, var(--openbitfun-color-content-muted) 4%, transparent),
-      inset 0 1px 0 color-mix(in srgb, var(--openbitfun-color-content-on-dark) 95%, transparent);
+      0 4px 18px color-mix(in srgb, var(--bitfun-color-content-muted) 4%, transparent),
+      0 1px 3px color-mix(in srgb, var(--bitfun-color-content-muted) 4%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--bitfun-color-content-on-dark) 95%, transparent);
   }
 }
 
@@ -184,7 +184,7 @@
   max-height: 160px;
   overflow: auto;
   overflow-wrap: anywhere;
-  font-size: var(--openbitfun-type-flow-support-font-size);
+  font-size: var(--bitfun-type-flow-support-font-size);
 
   summary { cursor: pointer; }
 }

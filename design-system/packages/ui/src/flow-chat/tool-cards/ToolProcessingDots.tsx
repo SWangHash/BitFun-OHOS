@@ -16,8 +16,8 @@ export function ToolProcessingDots({
     <span
       aria-hidden="true"
       className={classNames(styles.root, className)}
-      data-openbitfun-component="flow-chat-tool-card"
-      data-openbitfun-part="processing"
+      data-bitfun-component="flow-chat-tool-card"
+      data-bitfun-part="processing"
       data-size={size}
       role="presentation"
     >

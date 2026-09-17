@@ -44,7 +44,7 @@ export function readCachedGitHubProfile(userId: string, text: string): GitHubAcc
   } catch (_err) { return undefined; }
 }
 
-/** Works for already-signed-in controllers without sending any OpenBitFun token to GitHub. */
+/** Works for already-signed-in controllers without sending any BitFun token to GitHub. */
 export class GitHubAccountProfileClient implements GitHubProfileLoader {
   async load(userId: string): Promise<GitHubAccountProfile> {
     if (!/^[1-9][0-9]*$/.test(userId)) throw new Error('Invalid GitHub account ID.');
@@ -52,7 +52,7 @@ export class GitHubAccountProfileClient implements GitHubProfileLoader {
     try {
       const response = await request.request(`https://api.github.com/user/${userId}`, {
         method: http.RequestMethod.GET,
-        header: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'OpenBitFun-Mobile' },
+        header: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'BitFun-Mobile' },
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: 5000, readTimeout: 5000
       });

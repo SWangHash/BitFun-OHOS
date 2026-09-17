@@ -1,6 +1,6 @@
 use crate::TransportAdapter;
 use async_trait::async_trait;
-use openbitfun_events::EventEmitter;
+use bitfun_events::EventEmitter;
 /// TransportEmitter - EventEmitter implementation based on TransportAdapter
 ///
 /// This is the bridge connecting core layer and transport layer

@@ -1,9 +1,9 @@
 //! Native Skill copy provenance and publication, owned alongside registry filesystem IO.
 use super::*;
-use openbitfun_agent_runtime::skills::SkillImportOrigin;
+use bitfun_agent_runtime::skills::SkillImportOrigin;
 use sha2::{Digest, Sha256};
 
-pub const IMPORT_MARKER: &str = ".openbitfun-import.json";
+pub const IMPORT_MARKER: &str = ".bitfun-import.json";
 
 pub fn parse_import_origin(content: &str) -> Result<SkillImportOrigin, String> {
     let origin: SkillImportOrigin =
@@ -41,7 +41,7 @@ pub async fn read_import_origin(path: &Path) -> Result<Option<SkillImportOrigin>
 /// Remove only the reviewed native copy; serialize with publication of new copies.
 pub async fn remove_imported_copy(path: &Path, expected_import_id: &str) -> Result<(), String> {
     let root = path.parent().ok_or("Invalid Skill target")?;
-    let _lock = openbitfun_services_core::json_store::JsonFileStore
+    let _lock = bitfun_services_core::json_store::JsonFileStore
         .acquire_cross_process_lock(&root.join(".skill-import-lock"))
         .await
         .map_err(|error| error.to_string())?;
@@ -185,7 +185,7 @@ pub fn package_fingerprint(root: &Path) -> Result<String, String> {
 /// Read only the files that will be copied, including the normalized flat Pi entry.
 /// Display metadata and the digest come from the same entry bytes.
 pub async fn preview_import(source: SkillInfo) -> Result<SkillImportPreview, String> {
-    if source.is_builtin || source.source_id == OPENBITFUN_SKILL_SOURCE_ID {
+    if source.is_builtin || source.source_id == BITFUN_SKILL_SOURCE_ID {
         return Err("Expected an external Skill source".into());
     }
     tokio::task::spawn_blocking(move || {
@@ -282,13 +282,13 @@ pub async fn import_copy_as_reviewed(
             );
         }
     }
-    if source.is_builtin || source.source_id == OPENBITFUN_SKILL_SOURCE_ID {
+    if source.is_builtin || source.source_id == BITFUN_SKILL_SOURCE_ID {
         return Err("Expected an external Skill source".into());
     }
     fs::create_dir_all(&target_root)
         .await
         .map_err(|error| error.to_string())?;
-    let _lock = openbitfun_services_core::json_store::JsonFileStore
+    let _lock = bitfun_services_core::json_store::JsonFileStore
         .acquire_cross_process_lock(&target_root.join(".skill-import-lock"))
         .await
         .map_err(|error| error.to_string())?;
@@ -580,14 +580,14 @@ mod tests {
         let origin = import_copy(source.clone(), target.clone()).await.unwrap();
         let native = SkillRegistry::scan_skills_in_dir(&root(
             target.clone(),
-            "openbitfun",
-            OPENBITFUN_USER_SKILL_SLOT,
+            "bitfun",
+            BITFUN_USER_SKILL_SLOT,
             0,
         ))
         .await
         .candidates
         .remove(0);
-        assert_eq!(native.info.source_id, "openbitfun");
+        assert_eq!(native.info.source_id, "bitfun");
         assert_eq!(native.info.import_origin.as_ref().unwrap(), &origin);
         assert_eq!(native.info.argument_hint.as_deref(), Some("target"));
         let content = SkillRegistry::read_local_skill_markdown(&native.info)
@@ -615,7 +615,7 @@ mod tests {
         external.push(native);
         let selected = resolve_visible_skills(external);
         assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].source_id, "openbitfun");
+        assert_eq!(selected[0].source_id, "bitfun");
         fs::write(target.join("demo/scripts/tool.py"), "user edit")
             .await
             .unwrap();
@@ -750,8 +750,8 @@ mod tests {
         .unwrap();
         let candidates = SkillRegistry::scan_skills_in_dir(&root(
             target.clone(),
-            "openbitfun",
-            OPENBITFUN_USER_SKILL_SLOT,
+            "bitfun",
+            BITFUN_USER_SKILL_SLOT,
             0,
         ))
         .await

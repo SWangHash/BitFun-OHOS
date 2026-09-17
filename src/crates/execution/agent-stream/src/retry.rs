@@ -1,6 +1,6 @@
 //! Shared retry policy for one immutable model request. Input recovery starts a new budget.
 
-use openbitfun_core_types::errors::{AiProviderError, ErrorCategory};
+use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
 
 pub const MAX_MODEL_ATTEMPTS: usize = 10;
 

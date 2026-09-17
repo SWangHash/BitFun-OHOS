@@ -1,6 +1,6 @@
 //! Rebuildable SQLite FTS index for presentation-safe persisted session facts.
 
-use openbitfun_product_domains::product_search::{
+use bitfun_product_domains::product_search::{
     SessionContentSearchResponse, SessionSearchHit, SessionSearchHitKind, SessionSearchMatchField,
     SessionSearchSessionDocument, SessionSearchTurnDocument,
 };

@@ -2,36 +2,36 @@
  * Cowork example cards styles
  */
 
-.openbitfun-cowork-example-cards {
-  border: 1px solid var(--openbitfun-color-border-default);
-  border-radius: calc(var(--openbitfun-control-flow-chat-card-radius) + 2px);
-  padding: var(--openbitfun-control-flow-chat-card-expanded-padding-inline);
-  margin-bottom: var(--openbitfun-control-flow-chat-card-gap);
+.bitfun-cowork-example-cards {
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: calc(var(--bitfun-control-flow-chat-card-radius) + 2px);
+  padding: var(--bitfun-control-flow-chat-card-expanded-padding-inline);
+  margin-bottom: var(--bitfun-control-flow-chat-card-gap);
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--openbitfun-control-flow-chat-control-gap);
-    margin-bottom: var(--openbitfun-control-flow-chat-card-gap);
+    gap: var(--bitfun-control-flow-chat-control-gap);
+    margin-bottom: var(--bitfun-control-flow-chat-card-gap);
   }
 
   &__title {
-    font-size: var(--openbitfun-type-flow-control-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__header-actions {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-control-flow-chat-inline-gap);
+    gap: var(--bitfun-control-flow-chat-inline-gap);
   }
 
   &__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--openbitfun-control-flow-chat-control-gap);
+    gap: var(--bitfun-control-flow-chat-control-gap);
   }
 
   &__card {
@@ -40,7 +40,7 @@
 }
 
 @media (max-width: 720px) {
-  .openbitfun-cowork-example-cards {
+  .bitfun-cowork-example-cards {
     &__grid {
       grid-template-columns: 1fr;
     }

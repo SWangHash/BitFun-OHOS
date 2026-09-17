@@ -3,7 +3,7 @@ import {
   OverflowText, Button, Combobox, Dialog, DialogBody, DialogClose, DialogFooter,
   DialogHeader, DialogHeaderActions, DialogHeading, DialogTitle, Field,
   FormSection, Icon, IconButton, SearchField, Select, StatusPill, TabGroup, Toolbar, Tooltip,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { RotateCcw } from 'lucide-react';
@@ -773,10 +773,10 @@ const AgentsHomeView: React.FC = () => {
 
   return (
     <GalleryLayout
-      className="openbitfun-agents-scene"
+      className="bitfun-agents-scene"
       data-testid="agent-skill-panel"
-      data-openbitfun-scene="agents"
-      data-openbitfun-part="root"
+      data-bitfun-scene="agents"
+      data-bitfun-part="root"
     >
       <GalleryPageHeader
         title={t('page.title')}
@@ -794,7 +794,7 @@ const AgentsHomeView: React.FC = () => {
         )}
       />
 
-      <div className="gallery-zones" data-openbitfun-scene="agents" data-openbitfun-part="zones" data-testid="agent-list">
+      <div className="gallery-zones" data-bitfun-scene="agents" data-bitfun-part="zones" data-testid="agent-list">
         <AgentHarnessOverview agents={allAgents.filter(agent => agent.agentKind === 'harness')} onOpenDetails={openAgentDetails} />
 
         <GalleryZone
@@ -803,9 +803,9 @@ const AgentsHomeView: React.FC = () => {
           title={t('agentsZone.title')}
           titleAdornment={!loading ? <StatusPill tone="neutral">{catalogAgents.length}</StatusPill> : null}
         >
-          <div className="openbitfun-agents-scene__catalog-toolbar" data-openbitfun-scene="agents" data-openbitfun-part="filters">
+          <div className="bitfun-agents-scene__catalog-toolbar" data-bitfun-scene="agents" data-bitfun-part="filters">
             <SearchField
-              className="openbitfun-agents-scene__search"
+              className="bitfun-agents-scene__search"
               value={searchQuery}
               onValueChange={setSearchQuery}
               leadingIcon={<Icon name="search" size="sm" aria-hidden />}
@@ -816,16 +816,16 @@ const AgentsHomeView: React.FC = () => {
               onClear={searchQuery ? () => setSearchQuery('') : undefined}
               data-testid="agents-search"
             />
-            <div className="openbitfun-agents-scene__agent-filters">
+            <div className="bitfun-agents-scene__agent-filters">
               <div
-                className="openbitfun-agents-scene__agent-filter-group"
+                className="bitfun-agents-scene__agent-filter-group"
                 data-testid="agents-source-filter"
               >
-                <span className="openbitfun-agents-scene__agent-filter-label">
+                <span className="bitfun-agents-scene__agent-filter-label">
                   {t('filters.source')}
                 </span>
                 <Select
-                  className="openbitfun-agents-scene__agent-filter-select"
+                  className="bitfun-agents-scene__agent-filter-select"
                   size="sm"
                   value={agentFilterLevel}
                   options={sourceFilterOptions}
@@ -836,14 +836,14 @@ const AgentsHomeView: React.FC = () => {
                 />
               </div>
               <div
-                className="openbitfun-agents-scene__agent-filter-group"
+                className="bitfun-agents-scene__agent-filter-group"
                 data-testid="agents-kind-filter"
               >
-                <span className="openbitfun-agents-scene__agent-filter-label">
+                <span className="bitfun-agents-scene__agent-filter-label">
                   {t('filters.kind')}
                 </span>
                 <Select
-                  className="openbitfun-agents-scene__agent-filter-select"
+                  className="bitfun-agents-scene__agent-filter-select"
                   size="sm"
                   value={agentFilterType}
                   options={typeFilterOptions}
@@ -869,8 +869,8 @@ const AgentsHomeView: React.FC = () => {
           {!loading && catalogAgents.length > 0 ? (
             <GalleryGrid
               minCardWidth={300}
-              data-openbitfun-scene="agents"
-              data-openbitfun-part="catalogGrid"
+              data-bitfun-scene="agents"
+              data-bitfun-part="catalogGrid"
             >
               {catalogAgents.map((agent) => {
                 const commonCardProps = {
@@ -1091,8 +1091,8 @@ const AgentsHomeView: React.FC = () => {
                       description={t('agentsOverview.sharedProfileDescription', {
                         modes: selectedAgentProfileMemberNames.join(', '),
                       })}
-                      data-openbitfun-scene="agents"
-                      data-openbitfun-part="detailSection"
+                      data-bitfun-scene="agents"
+                      data-bitfun-part="detailSection"
                     >
                       <span className="agent-detail-dialog__note">
                         {selectedAgentModeProfile?.profileLabel ?? t('agentsOverview.sharedProfileDefaultLabel')}
@@ -1321,7 +1321,7 @@ const AgentsScene: React.FC = () => {
 
   if (page === 'createAgent') {
     return (
-      <div className="openbitfun-agents-scene openbitfun-agents-scene--page" data-openbitfun-scene="agents" data-openbitfun-part="root">
+      <div className="bitfun-agents-scene bitfun-agents-scene--page" data-bitfun-scene="agents" data-bitfun-part="root">
         <CreateAgentPage />
       </div>
     );

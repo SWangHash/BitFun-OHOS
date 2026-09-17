@@ -14,12 +14,12 @@ export const inputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [
     {
       id: 'variant',
-      attribute: 'data-openbitfun-variant',
+      attribute: 'data-bitfun-variant',
       values: ['default', 'filled', 'outlined'],
     },
     {
       id: 'size',
-      attribute: 'data-openbitfun-size',
+      attribute: 'data-bitfun-size',
       values: ['small', 'medium', 'large'],
     },
   ],
@@ -27,7 +27,7 @@ export const inputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'hover', selector: { kind: 'self', suffix: ':hover' } },
     { id: 'focusWithin', selector: { kind: 'self', suffix: ':focus-within' } },
     { id: 'focusVisible', selector: { kind: 'self', suffix: ':focus-visible' } },
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
   ],
 };

@@ -20,11 +20,11 @@ use crate::infrastructure::subscription_auth::{
 use crate::service::config::types::SubscriptionProvider;
 use crate::service::config::types::{model_runtime_binding_fingerprint, AuthConfig};
 use crate::service::config::{get_global_config_service, ConfigService};
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::AIConfig;
 use anyhow::{anyhow, Result};
 use log::{debug, info, warn};
-use openbitfun_ai_adapters::resolve_required_model_selector;
+use bitfun_ai_adapters::resolve_required_model_selector;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -35,7 +35,7 @@ pub struct AIClientFactory {
 
 struct CachedAIClient {
     configuration_fingerprint: String,
-    default_reasoning_preset: Option<openbitfun_core_types::ReasoningPresetDescriptor>,
+    default_reasoning_preset: Option<bitfun_core_types::ReasoningPresetDescriptor>,
     client: Arc<AIClient>,
     /// Unix seconds when the resolved subscription credential expires.
     #[cfg(feature = "subscription-auth")]
@@ -386,7 +386,7 @@ static GLOBAL_AI_CLIENT_FACTORY: OnceLock<Arc<tokio::sync::RwLock<Option<Arc<AIC
 
 impl AIClientFactory {
     /// Initialize the global AIClientFactory singleton
-    pub async fn initialize_global() -> OpenBitFunResult<()> {
+    pub async fn initialize_global() -> BitFunResult<()> {
         if Self::is_global_initialized() {
             return Ok(());
         }
@@ -394,14 +394,14 @@ impl AIClientFactory {
         info!("Initializing global AIClientFactory...");
 
         let config_service = get_global_config_service().await.map_err(|e| {
-            OpenBitFunError::service(format!("Failed to get global config service: {}", e))
+            BitFunError::service(format!("Failed to get global config service: {}", e))
         })?;
 
         let factory = Arc::new(AIClientFactory::new(config_service));
         let wrapper = Arc::new(tokio::sync::RwLock::new(Some(factory)));
 
         GLOBAL_AI_CLIENT_FACTORY.set(wrapper).map_err(|_| {
-            OpenBitFunError::service("Failed to initialize global AIClientFactory".to_string())
+            BitFunError::service("Failed to initialize global AIClientFactory".to_string())
         })?;
 
         info!("Global AIClientFactory initialized");
@@ -409,9 +409,9 @@ impl AIClientFactory {
     }
 
     /// Get the global AIClientFactory instance
-    pub async fn get_global() -> OpenBitFunResult<Arc<AIClientFactory>> {
+    pub async fn get_global() -> BitFunResult<Arc<AIClientFactory>> {
         let wrapper = GLOBAL_AI_CLIENT_FACTORY.get().ok_or_else(|| {
-            OpenBitFunError::service(
+            BitFunError::service(
                 "Global AIClientFactory not initialized. Call initialize_global() first."
                     .to_string(),
             )
@@ -420,7 +420,7 @@ impl AIClientFactory {
         let guard = wrapper.read().await;
         guard
             .as_ref()
-            .ok_or_else(|| OpenBitFunError::service("Global AIClientFactory is None".to_string()))
+            .ok_or_else(|| BitFunError::service("Global AIClientFactory is None".to_string()))
             .map(Arc::clone)
     }
 
@@ -429,9 +429,9 @@ impl AIClientFactory {
     }
 
     /// Update the global AIClientFactory instance (used for config reload)
-    pub async fn update_global(new_factory: Arc<AIClientFactory>) -> OpenBitFunResult<()> {
+    pub async fn update_global(new_factory: Arc<AIClientFactory>) -> BitFunResult<()> {
         let wrapper = GLOBAL_AI_CLIENT_FACTORY.get().ok_or_else(|| {
-            OpenBitFunError::service("Global AIClientFactory not initialized".to_string())
+            BitFunError::service("Global AIClientFactory not initialized".to_string())
         })?;
 
         {
@@ -444,11 +444,11 @@ impl AIClientFactory {
     }
 }
 
-pub async fn get_global_ai_client_factory() -> OpenBitFunResult<Arc<AIClientFactory>> {
+pub async fn get_global_ai_client_factory() -> BitFunResult<Arc<AIClientFactory>> {
     AIClientFactory::get_global().await
 }
 
-pub async fn initialize_global_ai_client_factory() -> OpenBitFunResult<()> {
+pub async fn initialize_global_ai_client_factory() -> BitFunResult<()> {
     AIClientFactory::initialize_global().await
 }
 
@@ -506,7 +506,7 @@ pub async fn apply_subscription_auth(
 async fn apply_configured_auth(
     auth: &AuthConfig,
     ai_config: &mut AIConfig,
-    proxy_config: Option<openbitfun_core_types::ProxyConfig>,
+    proxy_config: Option<bitfun_core_types::ProxyConfig>,
     skip_ssl_verify: bool,
 ) -> Result<Option<i64>> {
     let options = SubscriptionHttpOptions::new(proxy_config, skip_ssl_verify);
@@ -517,7 +517,7 @@ async fn apply_configured_auth(
 async fn apply_configured_auth(
     auth: &AuthConfig,
     ai_config: &mut AIConfig,
-    _proxy_config: Option<openbitfun_core_types::ProxyConfig>,
+    _proxy_config: Option<bitfun_core_types::ProxyConfig>,
     _skip_ssl_verify: bool,
 ) -> Result<Option<i64>> {
     apply_subscription_auth(auth, ai_config).await
@@ -603,7 +603,7 @@ mod tests {
     };
     use crate::service::config::{ConfigManagerSettings, ConfigService};
     use crate::util::types::AIConfig;
-    use openbitfun_ai_adapters::{
+    use bitfun_ai_adapters::{
         classify_model_selector, resolve_required_model_selector, ModelSelectorKind,
     };
 

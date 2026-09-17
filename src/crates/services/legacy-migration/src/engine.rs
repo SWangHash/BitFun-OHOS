@@ -3,7 +3,7 @@ use crate::{
     LegacyMigrationError, LegacyMigrationResult, MigrationLayout, MigrationLock, MigrationRoots,
     ProbeLimits,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     FindingSeverity, LegacySourceDescriptor, MigrationConflict, MigrationDiagnostic,
     MigrationDomainId, MigrationDomainResult, MigrationDomainState, MigrationJournalEvent,
     MigrationPhase, MigrationPlan, MigrationPlanStep, MigrationProgressEvent, MigrationRunReport,
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainScan {
-    pub finding: openbitfun_product_domains::legacy_migration::ScanFinding,
+    pub finding: bitfun_product_domains::legacy_migration::ScanFinding,
     pub conflicts: Vec<MigrationConflict>,
     pub target_schema: Option<String>,
     pub dependencies: Vec<MigrationDomainId>,
@@ -164,7 +164,7 @@ impl MigrationEngine {
                     return Err(LegacyMigrationError::Cancelled)
                 }
                 Err(error) => DomainScan {
-                    finding: openbitfun_product_domains::legacy_migration::ScanFinding {
+                    finding: bitfun_product_domains::legacy_migration::ScanFinding {
                         domain,
                         code: "domain_scan_skipped".to_string(),
                         severity: FindingSeverity::Warning,
@@ -859,7 +859,7 @@ pub fn compute_plan_hash(plan: &MigrationPlan) -> LegacyMigrationResult<String> 
         source_fingerprint: &'a str,
         selection: &'a MigrationSelection,
         steps: &'a [MigrationPlanStep],
-        findings: &'a [openbitfun_product_domains::legacy_migration::ScanFinding],
+        findings: &'a [bitfun_product_domains::legacy_migration::ScanFinding],
         conflicts: &'a [MigrationConflict],
         estimated_write_bytes: u64,
     }

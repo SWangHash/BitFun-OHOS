@@ -1,8 +1,8 @@
 #[cfg(target_env = "ohos")]
 use async_trait::async_trait;
-use openbitfun_core::util::JS_THREADSAFE_FUNCTION;
+use bitfun_core::util::JS_THREADSAFE_FUNCTION;
 #[cfg(target_env = "ohos")]
-use openbitfun_services_integrations::browser_control::{
+use bitfun_services_integrations::browser_control::{
     ArkWebBrowserHostPort, HaitaiBrowserLaunchPort, HaitaiBrowserLaunchRequest,
 };
 use log::{error, info};

@@ -20,30 +20,30 @@ use crate::external_sources::{
     LocalConfiguredSkillRootContribution,
 };
 use crate::infrastructure::get_path_manager_arc;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use futures::{stream, StreamExt};
 use log::{debug, error, warn};
 #[cfg(feature = "external-sources")]
-use openbitfun_agent_runtime::skills::normalize_local_skill_dir_name;
-use openbitfun_agent_runtime::skills::{
+use bitfun_agent_runtime::skills::normalize_local_skill_dir_name;
+use bitfun_agent_runtime::skills::{
     annotate_shadowed_skills, build_mode_skill_infos, filter_candidates_for_mode,
     filter_implicitly_invocable_skills, filter_user_invocable_skills, is_skill_globally_enabled,
     normalize_skill_keys, resolve_default_hidden_builtin_for_explicit_invocation,
     resolve_user_config_skill_root, resolve_visible_skills, sort_skill_candidates_by_dir,
-    sort_skills, ExplicitSkillInvocationResolution, SkillCandidate, OPENBITFUN_SKILL_SOURCE_ID,
-    OPENBITFUN_SKILL_SOURCE_LABEL, OPENBITFUN_SYSTEM_SKILL_DIR, OPENBITFUN_SYSTEM_SKILL_SLOT,
-    OPENBITFUN_USER_SKILL_SLOT, PROJECT_SKILL_KEY_PREFIX, PROJECT_SKILL_ROOTS,
+    sort_skills, ExplicitSkillInvocationResolution, SkillCandidate, BITFUN_SKILL_SOURCE_ID,
+    BITFUN_SKILL_SOURCE_LABEL, BITFUN_SYSTEM_SKILL_DIR, BITFUN_SYSTEM_SKILL_SLOT,
+    BITFUN_USER_SKILL_SLOT, PROJECT_SKILL_KEY_PREFIX, PROJECT_SKILL_ROOTS,
     USER_CONFIG_SKILL_ROOTS, USER_HOME_SKILL_ROOTS, USER_SKILL_KEY_PREFIX,
 };
-use openbitfun_services_core::bounded_fs::is_symlink_or_reparse;
+use bitfun_services_core::bounded_fs::is_symlink_or_reparse;
 #[cfg(feature = "external-sources")]
-use openbitfun_services_core::bounded_fs::{
+use bitfun_services_core::bounded_fs::{
     collect_bounded_regular_files, BoundedDirectoryWalkLimits,
 };
 #[cfg(feature = "external-sources")]
-use openbitfun_services_core::bounded_fs::{read_bounded_text, BoundedTextRead};
+use bitfun_services_core::bounded_fs::{read_bounded_text, BoundedTextRead};
 #[cfg(feature = "external-sources")]
-use openbitfun_services_core::workspace_text::read_workspace_relative_text_bounded;
+use bitfun_services_core::workspace_text::read_workspace_relative_text_bounded;
 #[cfg(feature = "external-sources")]
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -642,7 +642,7 @@ impl SkillRegistry {
         location: SkillLocation,
         with_content: bool,
         source_slot: &str,
-    ) -> Result<SkillData, openbitfun_agent_runtime::skills::SkillParseError> {
+    ) -> Result<SkillData, bitfun_agent_runtime::skills::SkillParseError> {
         SkillData::from_markdown_for_source_slot(path, content, location, with_content, source_slot)
     }
 
@@ -735,7 +735,7 @@ impl SkillRegistry {
         .await
         {
             Ok(file) => file.content,
-            Err(openbitfun_services_core::workspace_text::WorkspaceTextReadError::NotFound) => {
+            Err(bitfun_services_core::workspace_text::WorkspaceTextReadError::NotFound) => {
                 return
             }
             Err(error) => {
@@ -757,12 +757,12 @@ impl SkillRegistry {
         }
     }
 
-    async fn read_local_skill_markdown(info: &SkillInfo) -> OpenBitFunResult<String> {
+    async fn read_local_skill_markdown(info: &SkillInfo) -> BitFunResult<String> {
         #[cfg(feature = "external-sources")]
         if is_configured_opencode_source_slot(&info.source_slot) {
             let skill_dir =
                 validate_configured_opencode_skill_root(Path::new(&info.path), &info.source_slot)
-                    .map_err(OpenBitFunError::tool)?;
+                    .map_err(BitFunError::tool)?;
             return read_workspace_relative_text_bounded(
                 &skill_dir,
                 "SKILL.md",
@@ -771,7 +771,7 @@ impl SkillRegistry {
             .await
             .map(|file| file.content)
             .map_err(|error| {
-                OpenBitFunError::tool(format!(
+                BitFunError::tool(format!(
                     "Failed to read configured OpenCode skill file: {error}"
                 ))
             });
@@ -781,7 +781,7 @@ impl SkillRegistry {
             PathBuf::from(&info.path).join(info.entry_file.as_deref().unwrap_or("SKILL.md"));
         fs::read_to_string(&skill_md_path)
             .await
-            .map_err(|error| OpenBitFunError::tool(format!("Failed to read skill file: {}", error)))
+            .map_err(|error| BitFunError::tool(format!("Failed to read skill file: {}", error)))
     }
 
     async fn apply_remote_openai_policy(
@@ -845,14 +845,14 @@ impl SkillRegistry {
     }
 
     fn user_skill_root_path(
-        spec: &openbitfun_agent_runtime::skills::SkillRootSpec,
+        spec: &bitfun_agent_runtime::skills::SkillRootSpec,
         home: &Path,
     ) -> PathBuf {
         Self::user_skill_root_path_with_environment(spec, home, |name| std::env::var(name).ok())
     }
 
     fn user_skill_root_path_with_environment(
-        spec: &openbitfun_agent_runtime::skills::SkillRootSpec,
+        spec: &bitfun_agent_runtime::skills::SkillRootSpec,
         home: &Path,
         environment: impl Fn(&str) -> Option<String>,
     ) -> PathBuf {
@@ -931,9 +931,9 @@ impl SkillRegistry {
             SkillRootEntry {
                 path: path_manager.user_skills_dir(),
                 level: SkillLocation::User,
-                slot: OPENBITFUN_USER_SKILL_SLOT,
-                source_id: OPENBITFUN_SKILL_SOURCE_ID,
-                source_label: OPENBITFUN_SKILL_SOURCE_LABEL,
+                slot: BITFUN_USER_SKILL_SLOT,
+                source_id: BITFUN_SKILL_SOURCE_ID,
+                source_label: BITFUN_SKILL_SOURCE_LABEL,
                 priority: 0,
                 is_builtin: false,
             },
@@ -944,9 +944,9 @@ impl SkillRegistry {
         entries.push(SkillRootEntry {
             path: builtin_skills,
             level: SkillLocation::User,
-            slot: OPENBITFUN_SYSTEM_SKILL_SLOT,
-            source_id: OPENBITFUN_SKILL_SOURCE_ID,
-            source_label: OPENBITFUN_SKILL_SOURCE_LABEL,
+            slot: BITFUN_SYSTEM_SKILL_SLOT,
+            source_id: BITFUN_SKILL_SOURCE_ID,
+            source_label: BITFUN_SKILL_SOURCE_LABEL,
             priority,
             is_builtin: true,
         });
@@ -1250,8 +1250,8 @@ impl SkillRegistry {
             .filter(|root| {
                 matches!(
                     root.scope,
-                    openbitfun_product_domains::external_sources::ExternalSourceScope::Project
-                        | openbitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal
+                    bitfun_product_domains::external_sources::ExternalSourceScope::Project
+                        | bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal
                 )
             })
             .count();
@@ -1259,7 +1259,7 @@ impl SkillRegistry {
             .iter()
             .filter(|root| {
                 root.scope
-                    == openbitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal
+                    == bitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal
             })
             .count();
         let mut project_root_index = 0usize;
@@ -1378,11 +1378,11 @@ impl SkillRegistry {
                     }
                 };
                 let location = match root.scope {
-                    openbitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal => {
+                    bitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal => {
                         SkillLocation::User
                     }
-                    openbitfun_product_domains::external_sources::ExternalSourceScope::Project
-                    | openbitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal => {
+                    bitfun_product_domains::external_sources::ExternalSourceScope::Project
+                    | bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal => {
                         SkillLocation::Project
                     }
                     _ => continue,
@@ -1440,11 +1440,11 @@ impl SkillRegistry {
                 ));
             }
             match root.scope {
-                openbitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal => {
+                bitfun_product_domains::external_sources::ExternalSourceScope::UserGlobal => {
                     user_root_index = user_root_index.saturating_add(1);
                 }
-                openbitfun_product_domains::external_sources::ExternalSourceScope::Project
-                | openbitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal => {
+                bitfun_product_domains::external_sources::ExternalSourceScope::Project
+                | bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal => {
                     project_root_index = project_root_index.saturating_add(1);
                 }
                 _ => {}
@@ -1511,7 +1511,7 @@ impl SkillRegistry {
             .map(|root| LocalConfiguredSkillRootContribution {
                 path: root.path,
                 scope:
-                    openbitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal,
+                    bitfun_product_domains::external_sources::ExternalSourceScope::WorkspaceLocal,
                 precedence: root.precedence,
             })
             .collect::<Vec<_>>();
@@ -1588,17 +1588,17 @@ impl SkillRegistry {
         skill_name: &str,
         candidates: Vec<SkillCandidate>,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillInfo> {
+    ) -> BitFunResult<SkillInfo> {
         match resolve_default_hidden_builtin_for_explicit_invocation(
             skill_name, candidates, agent_type,
         ) {
             ExplicitSkillInvocationResolution::Found(info) => Ok(info),
-            ExplicitSkillInvocationResolution::NotFound => Err(OpenBitFunError::tool(format!(
+            ExplicitSkillInvocationResolution::NotFound => Err(BitFunError::tool(format!(
                 "Skill '{}' not found",
                 skill_name
             ))),
             ExplicitSkillInvocationResolution::DisabledForMode { mode_id } => {
-                Err(OpenBitFunError::tool(format!(
+                Err(BitFunError::tool(format!(
                     "Skill '{}' is disabled for mode '{}'. Enable it in mode skill settings or switch to a mode where it is enabled.",
                     skill_name, mode_id
                 )))
@@ -1611,7 +1611,7 @@ impl SkillRegistry {
         skill_name: &str,
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillInfo> {
+    ) -> BitFunResult<SkillInfo> {
         let candidates = self
             .scan_skill_candidates_for_workspace(workspace_root)
             .await;
@@ -1640,7 +1640,7 @@ impl SkillRegistry {
         fs: &dyn WorkspaceFileSystem,
         remote_root: &str,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillInfo> {
+    ) -> BitFunResult<SkillInfo> {
         let candidates = self
             .scan_skill_candidates_for_remote_workspace(fs, remote_root)
             .await;
@@ -1923,7 +1923,7 @@ impl SkillRegistry {
         skill_name: &str,
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillData> {
+    ) -> BitFunResult<SkillData> {
         let info = self
             .find_skill_info_for_explicit_invocation_workspace(
                 skill_name,
@@ -1941,7 +1941,7 @@ impl SkillRegistry {
             true,
             info.parser_source_slot(),
         )
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+        .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.path = info.path;
         data.entry_file = info.entry_file;
         data.key = info.key;
@@ -1957,7 +1957,7 @@ impl SkillRegistry {
         skill_key: &str,
         workspace_root: Option<&Path>,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillData> {
+    ) -> BitFunResult<SkillData> {
         let candidates = self
             .scan_skill_candidates_for_workspace(workspace_root)
             .await;
@@ -1969,7 +1969,7 @@ impl SkillRegistry {
             .map(|candidate| candidate.info)
             .find(|skill| skill.key == skill_key)
             .ok_or_else(|| {
-                OpenBitFunError::tool(format!(
+                BitFunError::tool(format!(
                     "Skill key '{}' was not found or is disabled for this mode",
                     skill_key
                 ))
@@ -1984,7 +1984,7 @@ impl SkillRegistry {
             true,
             info.parser_source_slot(),
         )
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+        .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.path = info.path;
         data.entry_file = info.entry_file;
         data.key = info.key;
@@ -2001,7 +2001,7 @@ impl SkillRegistry {
         fs: &dyn WorkspaceFileSystem,
         remote_root: &str,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillData> {
+    ) -> BitFunResult<SkillData> {
         let info = self
             .find_skill_info_for_explicit_invocation_remote_workspace(
                 skill_name,
@@ -2019,7 +2019,7 @@ impl SkillRegistry {
             true,
             info.parser_source_slot(),
         )
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+        .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.path = info.path;
         data.entry_file = info.entry_file;
         data.key = info.key;
@@ -2036,7 +2036,7 @@ impl SkillRegistry {
         fs: &dyn WorkspaceFileSystem,
         remote_root: &str,
         agent_type: Option<&str>,
-    ) -> OpenBitFunResult<SkillData> {
+    ) -> BitFunResult<SkillData> {
         let candidates = self
             .scan_skill_candidates_for_remote_workspace(fs, remote_root)
             .await;
@@ -2048,7 +2048,7 @@ impl SkillRegistry {
             .map(|candidate| candidate.info)
             .find(|skill| skill.key == skill_key)
             .ok_or_else(|| {
-                OpenBitFunError::tool(format!(
+                BitFunError::tool(format!(
                     "Skill key '{}' was not found or is disabled for this mode",
                     skill_key
                 ))
@@ -2062,7 +2062,7 @@ impl SkillRegistry {
             true,
             info.parser_source_slot(),
         )
-        .map_err(|error| OpenBitFunError::tool(error.to_string()))?;
+        .map_err(|error| BitFunError::tool(error.to_string()))?;
         data.path = info.path;
         data.entry_file = info.entry_file;
         data.key = info.key;
@@ -2121,7 +2121,7 @@ impl SkillRegistry {
     async fn read_skill_md_for_remote_merge(
         info: &SkillInfo,
         remote_fs: &dyn WorkspaceFileSystem,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         match info.level {
             SkillLocation::User => Self::read_local_skill_markdown(info).await,
             SkillLocation::Project => {
@@ -2134,7 +2134,7 @@ impl SkillRegistry {
                     .read_file_text(&skill_md_path)
                     .await
                     .map_err(|error| {
-                        OpenBitFunError::tool(format!("Failed to read skill file: {}", error))
+                        BitFunError::tool(format!("Failed to read skill file: {}", error))
                     })
             }
         }
@@ -2145,8 +2145,8 @@ impl SkillRegistry {
 mod opencode_configured_skill_tests {
     use super::{SkillRegistry, SkillRootEntry};
     use crate::external_sources::LocalConfiguredSkillRootContribution;
-    use openbitfun_agent_runtime::skills::{resolve_visible_skills, SkillLocation};
-    use openbitfun_product_domains::external_sources::ExternalSourceScope;
+    use bitfun_agent_runtime::skills::{resolve_visible_skills, SkillLocation};
+    use bitfun_product_domains::external_sources::ExternalSourceScope;
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -2260,16 +2260,16 @@ mod opencode_configured_skill_tests {
         let temp = tempfile::tempdir().unwrap();
         let project = temp.path().join("project");
         write(
-            project.join(".openbitfun/skills/review/SKILL.md"),
+            project.join(".bitfun/skills/review/SKILL.md"),
             &skill("review"),
         );
         write(project.join("custom/review/SKILL.md"), &skill("review"));
         let standard = SkillRegistry::scan_skills_in_dir(&SkillRootEntry {
-            path: project.join(".openbitfun/skills"),
+            path: project.join(".bitfun/skills"),
             level: SkillLocation::Project,
-            slot: "openbitfun",
-            source_id: "openbitfun",
-            source_label: "OpenBitFun",
+            slot: "bitfun",
+            source_id: "bitfun",
+            source_label: "BitFun",
             priority: 0,
             is_builtin: false,
         })
@@ -2287,7 +2287,7 @@ mod opencode_configured_skill_tests {
         ));
 
         assert_eq!(resolved.len(), 1);
-        assert!(resolved[0].path.contains(".openbitfun"));
+        assert!(resolved[0].path.contains(".bitfun"));
     }
 
     #[tokio::test]
@@ -2551,7 +2551,7 @@ mod remote_scan_tests {
         }
         async fn is_dir(&self, path: &str) -> anyhow::Result<bool> {
             self.round_trip().await;
-            Ok(path.contains("/.openbitfun/")
+            Ok(path.contains("/.bitfun/")
                 || path.contains("/.codex/")
                 || (self.installation_lock.is_some() && path.contains("/.agents/")))
         }
@@ -2661,7 +2661,7 @@ mod remote_scan_tests {
         // The same project catalog on disk must retain the remote scan's source
         // precedence and invocation policy, without involving user-global skills.
         let local_root = tempfile::tempdir().unwrap();
-        for parent in [".openbitfun", ".codex"] {
+        for parent in [".bitfun", ".codex"] {
             for index in 0..13 {
                 let name = format!("skill-{index:02}");
                 let dir = local_root.path().join(parent).join("skills").join(&name);
@@ -2691,7 +2691,7 @@ mod remote_scan_tests {
             start.elapsed(),
             local.len()
         );
-        let catalog = |candidates: Vec<openbitfun_agent_runtime::skills::SkillCandidate>| {
+        let catalog = |candidates: Vec<bitfun_agent_runtime::skills::SkillCandidate>| {
             candidates
                 .into_iter()
                 .map(|candidate| {

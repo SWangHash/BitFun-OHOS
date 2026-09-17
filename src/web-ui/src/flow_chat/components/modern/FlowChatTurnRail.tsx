@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@openbitfun/ui';
+import { Tooltip } from '@bitfun/ui';
 import type { TurnRailCapsulePreview } from '@/shared/types/session-history';
 import { MessageReferenceCapsule } from './MessageReferenceCapsule';
 import { observeElementResize } from '@/shared/utils/sharedResizeObserver';
@@ -247,8 +247,8 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
     <nav
       ref={railRef}
       className="flowchat-turn-rail"
-      data-openbitfun-component="flow-chat-turn-rail"
-      data-openbitfun-part="root"
+      data-bitfun-component="flow-chat-turn-rail"
+      data-bitfun-part="root"
       aria-label={navigationLabel}
       data-testid="flowchat-turn-rail"
       data-rendered-start-ordinal={renderedRange.startOrdinal}
@@ -259,8 +259,8 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
       <div
         ref={listRef}
         className="flowchat-turn-rail__list"
-        data-openbitfun-component="flow-chat-turn-rail"
-        data-openbitfun-part="list"
+        data-bitfun-component="flow-chat-turn-rail"
+        data-bitfun-part="list"
         onScroll={handleScroll}
       >
         <div
@@ -289,10 +289,10 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
                 trigger="hover-focus"
                 className="flowchat-turn-rail__tooltip"
                 content={(
-                  <span className="flowchat-turn-rail__tooltip-content" data-openbitfun-component="flow-chat-turn-rail" data-openbitfun-part="tooltipContent">
-                    <span className="flowchat-turn-rail__tooltip-turn" data-openbitfun-component="flow-chat-turn-rail" data-openbitfun-part="tooltipTurn">{turnLabel}</span>
+                  <span className="flowchat-turn-rail__tooltip-content" data-bitfun-component="flow-chat-turn-rail" data-bitfun-part="tooltipContent">
+                    <span className="flowchat-turn-rail__tooltip-turn" data-bitfun-component="flow-chat-turn-rail" data-bitfun-part="tooltipTurn">{turnLabel}</span>
                     {capsulePreview ? (
-                      <span className="flowchat-turn-rail__tooltip-message" data-openbitfun-component="flow-chat-turn-rail" data-openbitfun-part="tooltipMessage">
+                      <span className="flowchat-turn-rail__tooltip-message" data-bitfun-component="flow-chat-turn-rail" data-bitfun-part="tooltipMessage">
                         {capsulePreview.segments.map((segment, index) => segment.kind === 'text' ? (
                           <React.Fragment key={`text-${index}`}>{segment.text}</React.Fragment>
                         ) : segment.kind === 'inlineToken' ? (
@@ -311,7 +311,7 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
                         ))}
                       </span>
                     ) : content !== null ? (
-                      <span className="flowchat-turn-rail__tooltip-message" data-openbitfun-component="flow-chat-turn-rail" data-openbitfun-part="tooltipMessage">{content}</span>
+                      <span className="flowchat-turn-rail__tooltip-message" data-bitfun-component="flow-chat-turn-rail" data-bitfun-part="tooltipMessage">{content}</span>
                     ) : null}
                   </span>
                 )}
@@ -326,9 +326,9 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
                   }}
                   type="button"
                   className={`flowchat-turn-rail__item${isVisible ? ' flowchat-turn-rail__item--visible' : ''}`}
-                  data-openbitfun-component="flow-chat-turn-rail"
-                  data-openbitfun-part="item"
-                  data-openbitfun-state={[isCurrent && 'current', isVisible && 'visible'].filter(Boolean).join(' ')}
+                  data-bitfun-component="flow-chat-turn-rail"
+                  data-bitfun-part="item"
+                  data-bitfun-state={[isCurrent && 'current', isVisible && 'visible'].filter(Boolean).join(' ')}
                   style={{
                     top: `${FLOWCHAT_TURN_RAIL_VERTICAL_PADDING_PX + turn.ordinal * FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX}px`,
                   }}
@@ -352,7 +352,7 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
                   onPointerCancel={() => setHoverOrdinal(null)}
                   onKeyDown={(event) => handleKeyDown(event, turnArrayIndex)}
                 >
-                  <span className="flowchat-turn-rail__bar" data-openbitfun-component="flow-chat-turn-rail" data-openbitfun-part="bar" aria-hidden="true" />
+                  <span className="flowchat-turn-rail__bar" data-bitfun-component="flow-chat-turn-rail" data-bitfun-part="bar" aria-hidden="true" />
                 </button>
               </Tooltip>
             );

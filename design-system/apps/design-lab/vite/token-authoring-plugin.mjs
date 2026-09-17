@@ -5,46 +5,46 @@ import { promisify } from "node:util";
 import {
   collectTokenDefinitions,
   mergeTokenDocuments,
-} from "@openbitfun/token-engine";
+} from "@bitfun/token-engine";
 
 const execFileAsync = promisify(execFile);
-const ENDPOINT = "/__openbitfun-design-lab/token-source";
+const ENDPOINT = "/__bitfun-design-lab/token-source";
 const MAX_BODY_BYTES = 128 * 1024;
 
 const targetDefinitions = {
   "system:comfortable": {
     allowedSources: ["system"],
-    packageName: "@openbitfun/design-tokens",
+    packageName: "@bitfun/design-tokens",
     targetSource: "system",
   },
   "system:compact": {
     allowedSources: ["system", "compact"],
-    packageName: "@openbitfun/design-tokens",
+    packageName: "@bitfun/design-tokens",
     targetSource: "compact",
   },
   "system:touch": {
     allowedSources: ["system", "touch"],
-    packageName: "@openbitfun/design-tokens",
+    packageName: "@bitfun/design-tokens",
     targetSource: "touch",
   },
   "theme:light": {
     allowedSources: ["reference", "light"],
-    packageName: "@openbitfun/theme-openbitfun",
+    packageName: "@bitfun/theme-bitfun",
     targetSource: "light",
   },
   "theme:dark": {
     allowedSources: ["reference", "dark"],
-    packageName: "@openbitfun/theme-openbitfun",
+    packageName: "@bitfun/theme-bitfun",
     targetSource: "dark",
   },
   "theme:highContrastLight": {
     allowedSources: ["reference", "light", "highContrastLight"],
-    packageName: "@openbitfun/theme-openbitfun",
+    packageName: "@bitfun/theme-bitfun",
     targetSource: "highContrastLight",
   },
   "theme:highContrastDark": {
     allowedSources: ["reference", "dark", "highContrastDark"],
-    packageName: "@openbitfun/theme-openbitfun",
+    packageName: "@bitfun/theme-bitfun",
     targetSource: "highContrastDark",
   },
 };
@@ -141,7 +141,7 @@ function sourcePaths(designSystemDirectory) {
   const themeDirectory = path.join(
     designSystemDirectory,
     "packages",
-    "theme-openbitfun",
+    "theme-bitfun",
     "src",
   );
   return {
@@ -303,7 +303,7 @@ export function createTokenAuthoringPlugin({ designSystemDirectory }) {
   let writeQueue = Promise.resolve();
 
   return {
-    name: "openbitfun-token-authoring",
+    name: "bitfun-token-authoring",
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");

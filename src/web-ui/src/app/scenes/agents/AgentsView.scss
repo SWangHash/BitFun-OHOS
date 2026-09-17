@@ -15,19 +15,19 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  animation: tv-page-reveal 0.32s var(--openbitfun-motion-easing-decelerate) both;
+  animation: tv-page-reveal 0.32s var(--bitfun-motion-easing-decelerate) both;
 
   // ── Editor bar (back button) ─────────────────────────────────────────────
   &__editor-bar {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    padding: var(--openbitfun-space-3) clamp(16px, 2.2vw, 28px);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    padding: var(--bitfun-space-3) clamp(16px, 2.2vw, 28px);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
     background: linear-gradient(
       to bottom,
-      var(--openbitfun-color-surface-scene) 0%,
-      var(--openbitfun-color-surface-subtle) 100%
+      var(--bitfun-color-surface-scene) 0%,
+      var(--bitfun-color-surface-subtle) 100%
     );
   }
 
@@ -45,21 +45,21 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border-right: 1px solid var(--openbitfun-color-border-subtle);
-    background: color-mix(in srgb, var(--openbitfun-color-content-on-dark) 4%, transparent);
+    border-right: 1px solid var(--bitfun-color-border-subtle);
+    background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 4%, transparent);
 
     @media (max-width: 960px) { width: 260px; min-width: 220px; }
   }
 
   &__panel-label {
     flex-shrink: 0;
-    padding: 10px var(--openbitfun-space-4);
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-muted);
+    padding: 10px var(--bitfun-space-4);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-muted);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
-    border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+    letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
   }
 
   &__composer {
@@ -74,8 +74,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 56px var(--openbitfun-space-10) var(--openbitfun-space-12);
-  gap: var(--openbitfun-space-6);
+  padding: 56px var(--bitfun-space-10) var(--bitfun-space-12);
+  gap: var(--bitfun-space-6);
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
@@ -84,7 +84,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     text-align: center;
     max-width: 400px;
   }
@@ -95,34 +95,34 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-lg);
-    color: var(--openbitfun-color-content-muted);
-    background: var(--openbitfun-color-surface-subtle);
-    margin-bottom: var(--openbitfun-space-2);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-lg);
+    color: var(--bitfun-color-content-muted);
+    background: var(--bitfun-color-surface-subtle);
+    margin-bottom: var(--bitfun-space-2);
   }
 
   &__title {
     margin: 0;
-    font-size: var(--openbitfun-type-flow-section-title-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
-    letter-spacing: var(--openbitfun-type-heading-dialog-letter-spacing);
+    font-size: var(--bitfun-type-flow-section-title-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
+    letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
   }
 
   &__sub {
     margin: 0;
-    font-size: var(--openbitfun-type-label-md-font-size);
-    color: var(--openbitfun-color-content-muted);
-    line-height: var(--openbitfun-type-modifier-leading-spacious-line-height);
+    font-size: var(--bitfun-type-label-md-font-size);
+    color: var(--bitfun-color-content-muted);
+    line-height: var(--bitfun-type-modifier-leading-spacious-line-height);
   }
 
   &__section-label {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-muted);
     text-transform: uppercase;
-    letter-spacing: var(--openbitfun-type-modifier-tracking-widest-letter-spacing);
+    letter-spacing: var(--bitfun-type-modifier-tracking-widest-letter-spacing);
     align-self: flex-start;
     width: 100%;
     max-width: 520px;
@@ -139,23 +139,23 @@
   &__tpl {
     display: flex;
     align-items: center;
-    gap: var(--openbitfun-space-4);
-    padding: 13px var(--openbitfun-space-4);
+    gap: var(--bitfun-space-4);
+    padding: 13px var(--bitfun-space-4);
     background: transparent;
-    border: 1px solid var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-base);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-base);
     cursor: pointer;
     transition:
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
     text-align: left;
-    font-family: var(--openbitfun-type-body-sm-font-family);
+    font-family: var(--bitfun-type-body-sm-font-family);
 
     &:hover {
-      background: var(--openbitfun-color-surface-subtle);
-      border-color: var(--openbitfun-color-field-border-hover);
+      background: var(--bitfun-color-surface-subtle);
+      border-color: var(--bitfun-color-field-border-hover);
     }
   }
 
@@ -167,7 +167,7 @@
     align-items: center;
     justify-content: center;
     border: 1px solid;
-    border-radius: var(--openbitfun-radius-sm);
+    border-radius: var(--bitfun-radius-sm);
   }
 
   &__tpl-body {
@@ -179,57 +179,57 @@
   }
 
   &__tpl-name {
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-selected-font-weight);
-    color: var(--openbitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
   }
 
   &__tpl-desc {
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     overflow: hidden;
   }
 
   &__tpl-cnt {
     flex-shrink: 0;
-    font-size: var(--openbitfun-type-label-sm-font-size);
-    color: var(--openbitfun-color-content-disabled);
-    background: var(--openbitfun-color-action-neutral-surface-hover);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-disabled);
+    background: var(--bitfun-color-action-neutral-surface-hover);
     padding: 2px 7px;
     border-radius: 2px;
   }
 
   &__tpl-arrow {
     flex-shrink: 0;
-    color: var(--openbitfun-color-content-disabled);
-    transition: transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard), color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    color: var(--bitfun-color-content-disabled);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     .tv-onboard__tpl:hover & {
       transform: translateX(2px);
-      color: var(--openbitfun-color-content-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
   &__blank {
-    margin-top: var(--openbitfun-space-2);
+    margin-top: var(--bitfun-space-2);
     background: transparent;
-    border: 1px dashed var(--openbitfun-color-border-subtle);
-    border-radius: var(--openbitfun-radius-sm);
-    padding: 7px var(--openbitfun-space-6);
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-label-sm-font-size);
+    border: 1px dashed var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-sm);
+    padding: 7px var(--bitfun-space-6);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
     cursor: pointer;
     transition:
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
-    font-family: var(--openbitfun-type-body-sm-font-family);
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    font-family: var(--bitfun-type-body-sm-font-family);
 
     &:hover {
-      color: var(--openbitfun-color-content-secondary);
-      border-color: var(--openbitfun-color-field-border-hover);
+      color: var(--bitfun-color-content-secondary);
+      border-color: var(--bitfun-color-field-border-hover);
     }
   }
 }

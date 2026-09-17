@@ -184,16 +184,16 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
       <div
         {...props}
         className={classNames(styles.root, styles.statusOnly, className)}
-        data-openbitfun-component="ask-user"
-        data-openbitfun-part="root"
-        data-openbitfun-state={state}
+        data-bitfun-component="ask-user"
+        data-bitfun-part="root"
+        data-bitfun-state={state}
         ref={ref}
         role={state === "error" ? "alert" : "status"}
       >
-        <span className={styles.statusIcon} data-openbitfun-part="status-icon">
+        <span className={styles.statusIcon} data-bitfun-part="status-icon">
           <StatusIcon state={state} />
         </span>
-        <span className={styles.statusText} data-openbitfun-part="status-label">
+        <span className={styles.statusText} data-bitfun-part="status-label">
           {statusLabel}
         </span>
       </div>
@@ -212,11 +212,11 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
     <div
       {...props}
       className={classNames(styles.root, className)}
-      data-openbitfun-component="ask-user"
-      data-openbitfun-expanded={resolvedExpanded ? "true" : "false"}
-      data-openbitfun-has-summary={hasSummary ? "true" : "false"}
-      data-openbitfun-part="root"
-      data-openbitfun-state={state}
+      data-bitfun-component="ask-user"
+      data-bitfun-expanded={resolvedExpanded ? "true" : "false"}
+      data-bitfun-has-summary={hasSummary ? "true" : "false"}
+      data-bitfun-part="root"
+      data-bitfun-state={state}
       data-disabled={disabled ? "true" : "false"}
       ref={ref}
     >
@@ -225,46 +225,46 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
           aria-controls={detailsId}
           aria-expanded={resolvedExpanded}
           className={styles.summaryButton}
-          data-openbitfun-part="summary"
+          data-bitfun-part="summary"
           onClick={() => setExpanded(!resolvedExpanded)}
           type="button"
         >
           <span className={styles.summaryLeading}>
-            <span className={styles.summaryIcon} data-openbitfun-part="summary-icon">
+            <span className={styles.summaryIcon} data-bitfun-part="summary-icon">
               <CircleCheck aria-hidden="true" />
             </span>
             <span className={styles.summaryCopy}>
-              <span className={styles.summaryLabel} data-openbitfun-part="summary-label">
+              <span className={styles.summaryLabel} data-bitfun-part="summary-label">
                 {summaryLabel}
               </span>
               {summaryDetail !== undefined && summaryDetail !== null && (
                 <>
                   <span aria-hidden="true" className={styles.summaryArrow}>→</span>
-                  <OverflowText className={styles.summaryDetail} data-openbitfun-part="summary-detail">
+                  <OverflowText className={styles.summaryDetail} data-bitfun-part="summary-detail">
                     {summaryDetail}
                   </OverflowText>
                 </>
               )}
             </span>
           </span>
-          <span className={styles.summaryAction} data-openbitfun-part="summary-action">
+          <span className={styles.summaryAction} data-bitfun-part="summary-action">
             {resolvedExpanded
               ? <ChevronUp aria-hidden="true" />
               : <ChevronDown aria-hidden="true" />}
           </span>
         </button>
       ) : header !== undefined && header !== null ? (
-        <div className={styles.header} data-openbitfun-part="header">{header}</div>
+        <div className={styles.header} data-bitfun-part="header">{header}</div>
       ) : null}
 
       <div
         aria-hidden={hasSummary && !resolvedExpanded ? true : undefined}
         className={styles.details}
-        data-openbitfun-part="details"
+        data-bitfun-part="details"
         id={detailsId}
       >
         <div className={styles.detailsInner}>
-          <div className={styles.body} data-openbitfun-part="body">
+          <div className={styles.body} data-bitfun-part="body">
             {questions.map((question, questionIndex) => {
               const multiple = question.selectionMode === "multiple";
               const selectedValues = answers[question.id] ?? [];
@@ -276,14 +276,14 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
               return (
                 <fieldset
                   className={styles.question}
-                  data-openbitfun-part="question"
+                  data-bitfun-part="question"
                   disabled={interactionDisabled}
                   key={question.id}
                 >
-                  <legend className={styles.prompt} data-openbitfun-part="prompt">
+                  <legend className={styles.prompt} data-bitfun-part="prompt">
                     {question.prompt}
                   </legend>
-                  <div className={styles.options} data-openbitfun-part="options">
+                  <div className={styles.options} data-bitfun-part="options">
                     {question.options.map((option, optionIndex) => {
                       const optionId = `${instanceId}-${questionIndex}-${optionIndex}`;
                       const selected = selectedValues.includes(option.value);
@@ -291,7 +291,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                       return (
                         <div
                           className={styles.option}
-                          data-openbitfun-part="option"
+                          data-bitfun-part="option"
                           data-selected={selected ? "true" : "false"}
                           key={option.value}
                         >
@@ -310,17 +310,17 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                             value={option.value}
                           />
                           <label className={styles.optionSelector} htmlFor={optionId}>
-                            <span className={styles.controlIcon} data-openbitfun-part="control">
+                            <span className={styles.controlIcon} data-bitfun-part="control">
                               <OptionControl checked={selected} multiple={multiple} />
                             </span>
                             <span className={styles.optionContent}>
-                              <span className={styles.optionLabel} data-openbitfun-part="label">
+                              <span className={styles.optionLabel} data-bitfun-part="label">
                                 {option.label}
                               </span>
                               {option.description !== undefined && option.description !== null && (
                                 <OverflowText
                                   className={styles.optionDescription}
-                                  data-openbitfun-part="description"
+                                  data-bitfun-part="description"
                                   title={descriptionTitle(option.description)}
                                 >
                                   {option.description}
@@ -342,7 +342,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                       return (
                         <div
                           className={styles.option}
-                          data-openbitfun-part="option"
+                          data-bitfun-part="option"
                           data-custom="true"
                           data-selected={customSelected ? "true" : "false"}
                         >
@@ -361,11 +361,11 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                             value={customOption.value}
                           />
                           <label className={styles.optionSelector} htmlFor={optionId}>
-                            <span className={styles.controlIcon} data-openbitfun-part="control">
+                            <span className={styles.controlIcon} data-bitfun-part="control">
                               <OptionControl checked={customSelected} multiple={multiple} />
                             </span>
                             <span className={styles.optionContent}>
-                              <span className={styles.optionLabel} data-openbitfun-part="label">
+                              <span className={styles.optionLabel} data-bitfun-part="label">
                                 {customOption.label}
                               </span>
                               {!customSelected
@@ -373,7 +373,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                                 && customOption.description !== null && (
                                   <OverflowText
                                     className={styles.optionDescription}
-                                    data-openbitfun-part="description"
+                                    data-bitfun-part="description"
                                     title={descriptionTitle(customOption.description)}
                                   >
                                     {customOption.description}
@@ -382,7 +382,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                             </span>
                           </label>
                           {customSelected && (
-                            <span className={styles.customInput} data-openbitfun-part="custom-input">
+                            <span className={styles.customInput} data-bitfun-part="custom-input">
                               <Input
                                 aria-label={inputLabel}
                                 autoFocus
@@ -428,13 +428,13 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
           {showFeedback && (
             <div
               className={styles.feedback}
-              data-openbitfun-part="feedback"
+              data-bitfun-part="feedback"
               role={state === "error" ? "alert" : "status"}
             >
-              <span className={styles.statusIcon} data-openbitfun-part="status-icon">
+              <span className={styles.statusIcon} data-bitfun-part="status-icon">
                 <StatusIcon state={state} />
               </span>
-              <span className={styles.statusText} data-openbitfun-part="status-label">
+              <span className={styles.statusText} data-bitfun-part="status-label">
                 {statusLabel}
               </span>
             </div>
@@ -443,9 +443,9 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
       </div>
 
       {showFooter && (
-        <div className={styles.footer} data-openbitfun-part="footer">
+        <div className={styles.footer} data-bitfun-part="footer">
           {submitLabel !== undefined && submitLabel !== null && (
-            <span className={styles.submit} data-openbitfun-part="submit">
+            <span className={styles.submit} data-bitfun-part="submit">
               <Button
                 disabled={interactionDisabled || submitDisabled}
                 leadingIcon={<ArrowUp aria-hidden="true" />}
@@ -462,11 +462,11 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
             </span>
           )}
           {statusLabel !== undefined && statusLabel !== null && (
-            <span className={styles.status} data-openbitfun-part="status">
-              <span className={styles.statusIcon} data-openbitfun-part="status-icon">
+            <span className={styles.status} data-bitfun-part="status">
+              <span className={styles.statusIcon} data-bitfun-part="status-icon">
                 <StatusIcon state={state} />
               </span>
-              <span className={styles.statusText} data-openbitfun-part="status-label">
+              <span className={styles.statusText} data-bitfun-part="status-label">
                 {statusLabel}
               </span>
             </span>

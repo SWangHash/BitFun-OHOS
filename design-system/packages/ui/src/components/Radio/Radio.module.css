@@ -1,12 +1,12 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     --_radio-size: 16px;
 
     display: inline-flex;
     min-inline-size: 0;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
-    color: var(--openbitfun-color-content-primary);
+    gap: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-primary);
     cursor: pointer;
   }
 
@@ -39,30 +39,30 @@
     inline-size: 100%;
     block-size: 100%;
     place-items: center;
-    border: var(--openbitfun-border-width-default) solid var(--openbitfun-color-field-border);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
     border-radius: 50%;
-    background: var(--openbitfun-color-field-background);
+    background: var(--bitfun-color-field-background);
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .dot {
     inline-size: 50%;
     block-size: 50%;
     border-radius: 50%;
-    background: var(--openbitfun-color-content-inverse);
+    background: var(--bitfun-color-content-inverse);
     opacity: 0;
     transform: scale(0.5);
     transition:
-      opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .input:checked + .circle {
-    border-color: var(--openbitfun-color-accent-default);
-    background: var(--openbitfun-color-accent-default);
+    border-color: var(--bitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
   }
 
   .input:checked + .circle .dot {
@@ -71,22 +71,22 @@
   }
 
   .input:hover:not(:disabled) + .circle {
-    border-color: var(--openbitfun-color-field-border-hover);
-    background-color: var(--openbitfun-color-field-background-hover);
+    border-color: var(--bitfun-color-field-border-hover);
+    background-color: var(--bitfun-color-field-background-hover);
   }
 
   .input:focus-visible + .circle {
-    border-color: var(--openbitfun-color-field-border-focus);
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    border-color: var(--bitfun-color-field-border-focus);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-invalid="true"] .circle {
-    border-color: var(--openbitfun-color-status-danger-border);
+    border-color: var(--bitfun-color-status-danger-border);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
-    opacity: var(--openbitfun-opacity-disabled);
+    color: var(--bitfun-color-content-disabled);
+    opacity: var(--bitfun-opacity-disabled);
     cursor: not-allowed;
   }
 
@@ -94,24 +94,24 @@
     display: inline-flex;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   .label {
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   }
 
   .description {
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-support-font-family);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -122,6 +122,6 @@
   @media (forced-colors: active) {
     .circle { border-color: ButtonText; }
     .input:checked + .circle { border-color: Highlight; background: Highlight; }
-    .input:focus-visible + .circle { box-shadow: 0 0 0 var(--openbitfun-focus-width) Highlight; }
+    .input:focus-visible + .circle { box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight; }
   }
 }

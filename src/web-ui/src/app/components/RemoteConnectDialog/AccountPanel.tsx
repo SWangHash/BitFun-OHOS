@@ -1,6 +1,6 @@
 /** Account login and authenticated device connections. */
 
-import { OverflowText, Alert, Avatar, Button, Icon, IconButton, ScrollArea, StatusPill } from '@openbitfun/ui';
+import { OverflowText, Alert, Avatar, Button, Icon, IconButton, ScrollArea, StatusPill } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
@@ -572,27 +572,27 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
 
   return (
     <>
-      <div data-openbitfun-component="remote-account-panel" data-openbitfun-part="root" data-openbitfun-view={view} className="account-panel">
+      <div data-bitfun-component="remote-account-panel" data-bitfun-part="root" data-bitfun-view={view} className="account-panel">
         {error && (
-          <div className="account-panel__error-banner" data-openbitfun-component="remote-account-panel" data-openbitfun-part="error">
+          <div className="account-panel__error-banner" data-bitfun-component="remote-account-panel" data-bitfun-part="error">
             <Alert tone="error" message={error} closable onClose={() => setError(null)} />
           </div>
         )}
 
         {loading && view === 'devices' && (
-          <div className="account-panel__loading-overlay" data-openbitfun-component="remote-account-panel" data-openbitfun-part="loading">
+          <div className="account-panel__loading-overlay" data-bitfun-component="remote-account-panel" data-bitfun-part="loading">
             <Icon name="refresh" size="lg" className="spinning" style={{ width: 20, height: 20 }} />
             <span>{t('accountLogin.processing')}</span>
           </div>
         )}
 
         {view === 'login' && (
-          <ScrollArea className="account-panel__scroll" data-openbitfun-component="remote-account-panel" data-openbitfun-part="scroll">
-            <div className="account-panel__login-card" data-openbitfun-component="remote-account-panel" data-openbitfun-part="form">
+          <ScrollArea className="account-panel__scroll" data-bitfun-component="remote-account-panel" data-bitfun-part="scroll">
+            <div className="account-panel__login-card" data-bitfun-component="remote-account-panel" data-bitfun-part="form">
               <span className="account-panel__login-icon" aria-hidden="true"><Icon name="user" size="lg" /></span>
               <p className="account-panel__value-prop">{t('accountLogin.loginValueProp')}</p>
               <p className="account-panel__security-note">{t('accountLogin.securityNote')}</p>
-              <div className="account-panel__actions" data-openbitfun-component="remote-account-panel" data-openbitfun-part="actions">
+              <div className="account-panel__actions" data-bitfun-component="remote-account-panel" data-bitfun-part="actions">
                 <Button variant="primary" size="sm" leadingIcon={<LogIn />} onClick={handleLogin} loading={loading && identity.status !== 'authorizing'}>
                   {identity.status === 'authorizing' ? t('accountLogin.reopen') : loading ? t('accountLogin.processing') : t('accountLogin.login')}
                 </Button>
@@ -602,7 +602,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
         )}
 
         {view === 'devices' && (
-          <ScrollArea className="account-panel__scroll" data-openbitfun-component="remote-account-panel" data-openbitfun-part="scroll">
+          <ScrollArea className="account-panel__scroll" data-bitfun-component="remote-account-panel" data-bitfun-part="scroll">
             <div className="account-panel__identity-line">
               <Avatar key={username} size="md" src={identity.me?.user.avatarUrl} alt={username} aria-label={username}>
                 {username.trim().charAt(0).toUpperCase() || <Icon name="user" />}
@@ -624,14 +624,14 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
             </div>
             <div className="account-panel__devices-card">
               {relayError && (
-                <div className="account-panel__error-banner" data-openbitfun-component="remote-account-panel" data-openbitfun-part="error">
+                <div className="account-panel__error-banner" data-bitfun-component="remote-account-panel" data-bitfun-part="error">
                   <Alert
                     tone="error"
                     message={relayError}
                   />
                 </div>
               )}
-              <div className="account-panel__device-list" data-openbitfun-component="remote-account-panel" data-openbitfun-part="deviceList">
+              <div className="account-panel__device-list" data-bitfun-component="remote-account-panel" data-bitfun-part="deviceList">
                 {!relayError && devicesReady && devices.length === 0 && (
                   <div className="account-panel__empty">{t('accountLogin.noDevices')}</div>
                 )}
@@ -654,8 +654,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                   const displayName = d.device_name || t('accountLogin.unknownDevice');
                   const DeviceEntry = isSelectable ? 'button' : 'div';
                   return (
-                  <div data-openbitfun-component="remote-account-panel" data-openbitfun-part="deviceCard" key={d.device_id}
-                    data-openbitfun-state={[
+                  <div data-bitfun-component="remote-account-panel" data-bitfun-part="deviceCard" key={d.device_id}
+                    data-bitfun-state={[
                       !d.online && 'offline',
                       isLocal && 'current',
                     ].filter(Boolean).join(' ') || undefined}

@@ -1,4 +1,4 @@
-pub use openbitfun_core_types::{
+pub use bitfun_core_types::{
     AIConfig, ModelRequestContext, ProxyConfig, ReasoningPresetAction, ReasoningPresetDescriptor,
 };
 
@@ -116,8 +116,8 @@ mod tests {
     #[test]
     fn resolves_gemini_request_url_bare_host() {
         assert_eq!(
-            resolve_request_url("https://api.openbitfun.com", "gemini", "gemini-2.5-pro"),
-            "https://api.openbitfun.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
+            resolve_request_url("https://api.bitfun.com", "gemini", "gemini-2.5-pro"),
+            "https://api.bitfun.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse"
         );
     }
 

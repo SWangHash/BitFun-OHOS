@@ -17,5 +17,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# OpenBitFun snapshot data - auto managed
-.openbitfun/
+# BitFun snapshot data - auto managed
+.bitfun/

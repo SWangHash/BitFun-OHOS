@@ -11,7 +11,7 @@ pub(crate) const DEFAULT_INDEX_DISK_BUDGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// maintenance silently stops finding the indexes it is meant to reclaim.
 pub(crate) fn storage_root(repo_root: &Path) -> PathBuf {
     repo_root
-        .join(openbitfun_services_core::product_identity::hidden_data_directory())
+        .join(bitfun_services_core::product_identity::hidden_data_directory())
         .join("search")
         .join("flashgrep-index")
 }
@@ -179,7 +179,7 @@ mod tests {
 
     fn make_index(root: &Path, bytes: usize) {
         let index = root
-            .join(openbitfun_services_core::product_identity::hidden_data_directory())
+            .join(bitfun_services_core::product_identity::hidden_data_directory())
             .join("search")
             .join("flashgrep-index");
         fs::create_dir_all(&index).expect("index directory should be created");

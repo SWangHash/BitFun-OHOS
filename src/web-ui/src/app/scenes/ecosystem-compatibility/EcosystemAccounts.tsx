@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Alert, Button, Card, CardHeader, Icon, IconButton, LoadingState, OverflowText, StatusPill } from '@openbitfun/ui';
+import { Alert, Button, Card, CardHeader, Icon, IconButton, LoadingState, OverflowText, StatusPill } from '@bitfun/ui';
 import { CircleUserRound } from 'lucide-react';
 import { aiApi, type SubscriptionAccount } from '@/infrastructure/api/service-api/AIApi';
 import { useI18n } from '@/infrastructure/i18n';

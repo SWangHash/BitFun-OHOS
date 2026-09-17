@@ -115,9 +115,9 @@ static LOCAL_ONLY_COMMANDS: &[&str] = &[
     // ProductControl presentation readiness and transaction acknowledgements
     // belong to this window. The product command itself is intentionally not
     // local-only: `product_control_invoke` follows the selected peer data plane.
-    "mark_openbitfun_control_surface_ready",
-    "mark_openbitfun_control_surface_unready",
-    "report_openbitfun_control_result",
+    "mark_bitfun_control_surface_ready",
+    "mark_bitfun_control_surface_unready",
+    "report_bitfun_control_result",
     // Detached dispatch uses controller-owned SSH credentials and observers.
     "dispatch_list_targets",
     "dispatch_probe_target",
@@ -343,12 +343,12 @@ pub fn disconnect_controllers() -> Vec<String> {
     state.permission_request_ids.drain().collect()
 }
 
-pub fn track_permission_event(event: &openbitfun_agent_runtime::sdk::PermissionRequestEvent) -> bool {
+pub fn track_permission_event(event: &bitfun_agent_runtime::sdk::PermissionRequestEvent) -> bool {
     let Ok(mut state) = peer_control_state().lock() else {
         return false;
     };
     match event {
-        openbitfun_agent_runtime::sdk::PermissionRequestEvent::Asked { request } => {
+        bitfun_agent_runtime::sdk::PermissionRequestEvent::Asked { request } => {
             if !state.controllers.is_empty() {
                 state
                     .permission_request_ids
@@ -358,8 +358,8 @@ pub fn track_permission_event(event: &openbitfun_agent_runtime::sdk::PermissionR
                 false
             }
         }
-        openbitfun_agent_runtime::sdk::PermissionRequestEvent::Replied { request_id, .. }
-        | openbitfun_agent_runtime::sdk::PermissionRequestEvent::Cancelled { request_id, .. } => {
+        bitfun_agent_runtime::sdk::PermissionRequestEvent::Replied { request_id, .. }
+        | bitfun_agent_runtime::sdk::PermissionRequestEvent::Cancelled { request_id, .. } => {
             let was_tracked = state.permission_request_ids.remove(request_id);
             was_tracked && !state.controllers.is_empty()
         }
@@ -380,7 +380,7 @@ pub async fn fail_closed_permission_requests(
     if request_ids.is_empty() {
         return Ok(());
     }
-    let manager = openbitfun_core::product_runtime::core_permission_request_manager()?;
+    let manager = bitfun_core::product_runtime::core_permission_request_manager()?;
     let mut failures = Vec::new();
     for request_id in request_ids {
         if let Err(error) = manager
@@ -497,7 +497,7 @@ pub async fn dispatch(command: &str, args: Value) -> HostInvokeBridgeResult {
             ok: false,
             value: None,
             error: Some(format!(
-                "command '{command}' is unsupported because the OpenBitFun LSP runtime has been retired"
+                "command '{command}' is unsupported because the BitFun LSP runtime has been retired"
             )),
         };
     }
@@ -522,7 +522,7 @@ pub async fn dispatch(command: &str, args: Value) -> HostInvokeBridgeResult {
         }
     };
 
-    use openbitfun_core_types::agent_identity_wire::{
+    use bitfun_core_types::agent_identity_wire::{
         translate_agent_identity_command, translate_agent_identity_response, AgentIdentityDialect,
     };
     let args =
@@ -760,9 +760,9 @@ mod tests {
     #[test]
     fn product_control_presentation_callbacks_stay_with_the_controller_window() {
         for command in [
-            "mark_openbitfun_control_surface_ready",
-            "mark_openbitfun_control_surface_unready",
-            "report_openbitfun_control_result",
+            "mark_bitfun_control_surface_ready",
+            "mark_bitfun_control_surface_unready",
+            "report_bitfun_control_result",
         ] {
             assert!(is_local_only_command(command), "{command}");
         }
@@ -786,7 +786,7 @@ mod tests {
         assert_eq!(
             result.error.as_deref(),
             Some(
-                "command 'lsp_open_workspace' is unsupported because the OpenBitFun LSP runtime has been retired"
+                "command 'lsp_open_workspace' is unsupported because the BitFun LSP runtime has been retired"
             )
         );
     }

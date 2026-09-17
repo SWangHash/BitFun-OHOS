@@ -322,12 +322,12 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
     const startIndex = globalIndex;
     globalIndex += items.length;
     return (
-      <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="group" className="bitfun-nav-search-dialog__group" key={groupLabel}>
-        <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="groupLabel" className="bitfun-nav-search-dialog__group-label">{groupLabel}</div>
+      <div data-bitfun-component="nav-search-dialog" data-bitfun-part="group" className="bitfun-nav-search-dialog__group" key={groupLabel}>
+        <div data-bitfun-component="nav-search-dialog" data-bitfun-part="groupLabel" className="bitfun-nav-search-dialog__group-label">{groupLabel}</div>
         {items.map((item, i) => {
           const idx = startIndex + i;
           return (
-            <button data-openbitfun-component="nav-search-dialog" data-openbitfun-part="item" data-openbitfun-state={idx === activeIndex ? 'active' : undefined}
+            <button data-bitfun-component="nav-search-dialog" data-bitfun-part="item" data-bitfun-state={idx === activeIndex ? 'active' : undefined}
               key={item.id}
               data-testid={`nav-search-result-${item.id}`}
               type="button"
@@ -335,11 +335,11 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
               onMouseEnter={() => setActiveIndex(idx)}
               onClick={() => void handleSelect(item)}
             >
-              <span data-openbitfun-component="nav-search-dialog" data-openbitfun-part="itemIcon" className="bitfun-nav-search-dialog__item-icon">{icon(item)}</span>
-              <span data-openbitfun-component="nav-search-dialog" data-openbitfun-part="itemContent" className="bitfun-nav-search-dialog__item-content">
-                <span data-openbitfun-component="nav-search-dialog" data-openbitfun-part="itemLabel" className="bitfun-nav-search-dialog__item-label">{item.label}</span>
+              <span data-bitfun-component="nav-search-dialog" data-bitfun-part="itemIcon" className="bitfun-nav-search-dialog__item-icon">{icon(item)}</span>
+              <span data-bitfun-component="nav-search-dialog" data-bitfun-part="itemContent" className="bitfun-nav-search-dialog__item-content">
+                <span data-bitfun-component="nav-search-dialog" data-bitfun-part="itemLabel" className="bitfun-nav-search-dialog__item-label">{item.label}</span>
                 {item.sublabel && (
-                  <span data-openbitfun-component="nav-search-dialog" data-openbitfun-part="itemSublabel" className="bitfun-nav-search-dialog__item-sublabel">{item.sublabel}</span>
+                  <span data-bitfun-component="nav-search-dialog" data-bitfun-part="itemSublabel" className="bitfun-nav-search-dialog__item-sublabel">{item.sublabel}</span>
                 )}
               </span>
             </button>
@@ -350,12 +350,12 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
   };
 
   const dialog = (
-    <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="root" className="bitfun-nav-search-dialog__overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="card" className="bitfun-nav-search-dialog__card" ref={cardRef}>
-        <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="inputRow" className="bitfun-nav-search-dialog__input-row">
+    <div data-bitfun-component="nav-search-dialog" data-bitfun-part="root" className="bitfun-nav-search-dialog__overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div data-bitfun-component="nav-search-dialog" data-bitfun-part="card" className="bitfun-nav-search-dialog__card" ref={cardRef}>
+        <div data-bitfun-component="nav-search-dialog" data-bitfun-part="inputRow" className="bitfun-nav-search-dialog__input-row">
           <Search
-            data-openbitfun-component="nav-search-dialog"
-            data-openbitfun-part="search"
+            data-bitfun-component="nav-search-dialog"
+            data-bitfun-part="search"
             data-testid="nav-search-input"
             ref={inputRef}
             className="bitfun-nav-search-dialog__search"
@@ -369,17 +369,17 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
             autoFocus
           />
         </div>
-        <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="results" className="bitfun-nav-search-dialog__results" ref={listRef}>
+        <div data-bitfun-component="nav-search-dialog" data-bitfun-part="results" className="bitfun-nav-search-dialog__results" ref={listRef}>
           {results.length === 0 && !showDefaultSessionColumn ? (
-            <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="empty" className="bitfun-nav-search-dialog__empty">{t('nav.search.empty')}</div>
+            <div data-bitfun-component="nav-search-dialog" data-bitfun-part="empty" className="bitfun-nav-search-dialog__empty">{t('nav.search.empty')}</div>
           ) : (
             <>
               {renderGroup(t('nav.search.groupWorkspaces'), workspaceItems, () => <FolderOpen size={14} />)}
               {renderGroup(t('nav.search.groupAssistants'), assistantItems, () => <User size={14} />)}
               {showDefaultSessionColumn ? (
-                <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="group" className="bitfun-nav-search-dialog__group" key="nav-search-sessions-default">
-                  <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="groupLabel" className="bitfun-nav-search-dialog__group-label">{t('nav.search.groupSessions')}</div>
-                  <div data-openbitfun-component="nav-search-dialog" data-openbitfun-part="sessionHint" className="bitfun-nav-search-dialog__session-hint" role="status">
+                <div data-bitfun-component="nav-search-dialog" data-bitfun-part="group" className="bitfun-nav-search-dialog__group" key="nav-search-sessions-default">
+                  <div data-bitfun-component="nav-search-dialog" data-bitfun-part="groupLabel" className="bitfun-nav-search-dialog__group-label">{t('nav.search.groupSessions')}</div>
+                  <div data-bitfun-component="nav-search-dialog" data-bitfun-part="sessionHint" className="bitfun-nav-search-dialog__session-hint" role="status">
                     {t('nav.search.sessionSearchHintDefault')}
                   </div>
                 </div>

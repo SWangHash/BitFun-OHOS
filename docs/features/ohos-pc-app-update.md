@@ -1,7 +1,7 @@
 # 鸿蒙 PC 应用更新（HarmonyOS PC App Update）能力需求文档
 
 > 状态：需求 / 提案
-> 仓库：OpenBitFun-OHOS
+> 仓库：BitFun-OHOS
 > 相关架构入口：
 > - [`docs/architecture/platform-portability-design.md`](../architecture/platform-portability-design.md)（鸿蒙 PC 平台移植目标）
 > - [`docs/architecture/product-architecture.md`](../architecture/product-architecture.md)（分层与平台适配边界）
@@ -29,10 +29,10 @@
 
 ### 背景与动机
 <!-- 请描述你为什么需要这个功能，解决了什么痛点 -->
-- OpenBitFun 已有跨平台桌面（Tauri）、CLI（Linux self_update）、移动 / 平板鸿蒙 HAP（`src/apps/ohos`）等形态；鸿蒙 PC（HarmonyOS NEXT PC）是仓库明确的平台移植目标，但应用更新闭环尚未建立。
+- BitFun 已有跨平台桌面（Tauri）、CLI（Linux self_update）、移动 / 平板鸿蒙 HAP（`src/apps/ohos`）等形态；鸿蒙 PC（HarmonyOS NEXT PC）是仓库明确的平台移植目标，但应用更新闭环尚未建立。
 - 鸿蒙 PC 上应用更新缺少完整流程：桌面侧已有 `check_app_update_ohos` 桥接，但仅把检查委托给 ArkTS 层，缺少统一的"检查 → 下载 → 校验 → 安装 → 重启 → 恢复"闭环。
-- 现有 CLI `self_update.rs` 已是成熟模式（发布清单、GitHub + OpenBitFun 镜像源、基于吞吐量的源选择、SHA256 + 签名 URL、分块下载进度、stall 检测与 fail-over、重启），鸿蒙 PC 自托管通道应复用其策略与常量，而非在鸿蒙侧重造一遍。
-- 缺少分发渠道策略：华为应用市场（AppGallery）系统更新 vs 自托管发布通道（GitHub release + OpenBitFun 镜像），二者适用条件与体验不同，需明确何时用哪个。
+- 现有 CLI `self_update.rs` 已是成熟模式（发布清单、GitHub + BitFun 镜像源、基于吞吐量的源选择、SHA256 + 签名 URL、分块下载进度、stall 检测与 fail-over、重启），鸿蒙 PC 自托管通道应复用其策略与常量，而非在鸿蒙侧重造一遍。
+- 缺少分发渠道策略：华为应用市场（AppGallery）系统更新 vs 自托管发布通道（GitHub release + BitFun 镜像），二者适用条件与体验不同，需明确何时用哪个。
 - 缺少签名校验与完整性保护：鸿蒙 PC 安装包若不校验来源与签名，存在被替换安装包的风险。
 - 远程工作场景：远程控制下鸿蒙 PC 的更新应以受控端为准，控制端不得越权触发安装。
 
@@ -41,7 +41,7 @@
 - **检查更新**：应用启动后台静默检查，或由"检查更新"入口手动触发，查询发布清单获取最新版本信息；启动路径检查须有预算上限（不阻塞首屏），超时按"无更新"降级而非报错。
 - **多分发渠道策略**：
   - 若已通过华为应用市场分发，优先走应用市场系统更新，复用系统更新体验与签名链；
-  - 自托管通道（GitHub release + OpenBitFun 镜像）作为补充 / 未上架场景，复用 CLI `self_update` 的清单格式、镜像源选择与吞吐量探测。
+  - 自托管通道（GitHub release + BitFun 镜像）作为补充 / 未上架场景，复用 CLI `self_update` 的清单格式、镜像源选择与吞吐量探测。
 - **版本清单与完整性**：清单带 `schema_version`、版本号、平台条目、资产（`filename` / `url` / `sha256_url` / `sig_url`）；下载后校验 SHA256，有签名则校验签名；签名缺失按策略降级或 fail-closed 拒绝。
 - **下载与进度**：分块下载、按时间间隔上报进度（避免静默卡死）、断点续传、内存上限（防止恶意 / 错误源 OOM）、stall 检测与死链 fail-over 到镜像源。
 - **安装与重启**：鸿蒙 PC 通过系统安装能力安装 HAP / 安装包；安装完成后提示重启或按用户选择重启；尽量保留会话 / 设置状态以在重启后恢复。
@@ -56,7 +56,7 @@
 2. 用户点"检查更新"手动触发，看到新版本说明、大小与来源；确认后下载并显示实时进度。
 3. 下载完成自动校验 SHA256 与签名；校验失败时明确报错，旧版本保持可用，不安装被替换的包。
 4. 校验通过后通过系统安装能力安装，完成后提示重启；重启后会话 / 设置可恢复。
-5. 多源（GitHub + OpenBitFun 镜像）按吞吐量自动选择，慢链 / 死链 fail-over 到镜像，避免单点失败。
+5. 多源（GitHub + BitFun 镜像）按吞吐量自动选择，慢链 / 死链 fail-over 到镜像，避免单点失败。
 6. 远程控制下，鸿蒙 PC 更新以受控端为准，控制端不越权触发安装；受控端不可更新时给出清晰提示。
 
 ### 设计草案 / 参考示例

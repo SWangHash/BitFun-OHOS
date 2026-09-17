@@ -1,5 +1,5 @@
 use crate::{LegacyMigrationError, LegacyMigrationResult};
-use openbitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
+use bitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -47,18 +47,18 @@ impl MigrationRoots {
         let legacy_home_root = env_path("BITFUN_HOME")
             .or_else(|| env_path("BITFUN_E2E_HOME"))
             .unwrap_or_else(|| home.join(LEGACY_HIDDEN_DATA_DIRECTORY));
-        let target_user_root = env_path("OPENBITFUN_USER_ROOT")
-            .or_else(|| env_path("OPENBITFUN_E2E_USER_ROOT"))
+        let target_user_root = env_path("BITFUN_USER_ROOT")
+            .or_else(|| env_path("BITFUN_E2E_USER_ROOT"))
             .unwrap_or_else(|| config_root.join(data_namespace()));
-        let target_home_root = env_path("OPENBITFUN_HOME")
-            .or_else(|| env_path("OPENBITFUN_E2E_HOME"))
+        let target_home_root = env_path("BITFUN_HOME")
+            .or_else(|| env_path("BITFUN_E2E_HOME"))
             .unwrap_or_else(|| home.join(hidden_data_directory()));
 
         let legacy_skills_root = platform_skills_root(&data_root, &local_data_root, "BitFun");
         let target_skills_root =
             platform_skills_root(&data_root, &local_data_root, data_namespace());
         let legacy_ssh_root = local_data_root.join("BitFun").join("ssh");
-        let target_ssh_root = local_data_root.join("OpenBitFun").join("ssh");
+        let target_ssh_root = local_data_root.join("BitFun").join("ssh");
 
         let roots = Self {
             legacy_user_root,
@@ -77,7 +77,7 @@ impl MigrationRoots {
         self.target_user_root
             .join("data")
             .join("migrations")
-            .join("bitfun-to-openbitfun")
+            .join("bitfun-to-bitfun")
     }
 
     pub fn validate_distinct(&self) -> LegacyMigrationResult<()> {

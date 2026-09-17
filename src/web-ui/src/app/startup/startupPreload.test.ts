@@ -39,9 +39,9 @@ describe('startup preload shell', () => {
       beforeParse(window) {
         Object.defineProperty(window.navigator, 'language', { value: system });
         Object.assign(window, {
-          __OPENBITFUN_BOOTSTRAP_LOCALE__: saved,
+          __BITFUN_BOOTSTRAP_LOCALE__: saved,
           // Older hosts may still inject their own copy; the surface owns it now.
-          __OPENBITFUN_BOOTSTRAP_MESSAGES__: { loadingApp: 'Legacy startup copy' },
+          __BITFUN_BOOTSTRAP_MESSAGES__: { loadingApp: 'Legacy startup copy' },
         });
       },
     });
@@ -65,8 +65,8 @@ describe('startup preload shell', () => {
       beforeParse(window) {
         Object.defineProperty(window.navigator, 'platform', { value: 'Win32' });
         Object.assign(window, {
-          __OPENBITFUN_BOOTSTRAP_LOCALE__: 'zh-CN',
-          __OPENBITFUN_SHOW_STARTUP_WINDOW_CONTROLS__: true,
+          __BITFUN_BOOTSTRAP_LOCALE__: 'zh-CN',
+          __BITFUN_SHOW_STARTUP_WINDOW_CONTROLS__: true,
           __TAURI_INTERNALS__: { invoke },
         });
       },
@@ -75,14 +75,14 @@ describe('startup preload shell', () => {
     const hint = dom.window.document.querySelector('.splash-screen__message');
     expect(dom.window.document.documentElement.lang).toBe('zh-CN');
     expect(dom.window.document.getElementById('root')?.childElementCount).toBe(0);
-    expect(dom.window.document.getElementById('openbitfun-startup-overlay')).not.toBeNull();
-    expect(hint?.textContent).toBe('正在启动 OpenBitFun...');
+    expect(dom.window.document.getElementById('bitfun-startup-overlay')).not.toBeNull();
+    expect(hint?.textContent).toBe('正在启动 BitFun...');
 
     const controls = dom.window.document.querySelector<HTMLElement>('[data-startup-window-controls]');
     expect(controls?.hidden).toBe(false);
     expect(controls?.classList.contains('window-controls')).toBe(true);
     expect(controls?.classList.contains('window-controls--windows')).toBe(true);
-    expect(controls?.getAttribute('data-openbitfun-component')).toBe('window-controls');
+    expect(controls?.getAttribute('data-bitfun-component')).toBe('window-controls');
     expect(dom.window.document.querySelector('.splash-screen')?.hasAttribute('aria-hidden')).toBe(false);
     await Promise.resolve();
 
@@ -95,7 +95,7 @@ describe('startup preload shell', () => {
     const visibleMaximizeGlyph = () => Array.from(maximizeButton?.querySelectorAll('svg') ?? [])
       .find(glyph => glyph.style.display !== 'none')
       ?.getAttribute('class');
-    expect(controls?.getAttribute('data-openbitfun-state')).toBe('maximized');
+    expect(controls?.getAttribute('data-bitfun-state')).toBe('maximized');
     expect(maximizeButton?.getAttribute('aria-label')).toBe('还原');
     expect(visibleMaximizeGlyph()).toContain('lucide-copy');
 
@@ -108,7 +108,7 @@ describe('startup preload shell', () => {
 
     maximizeButton?.click();
     await Promise.resolve();
-    expect(controls?.hasAttribute('data-openbitfun-state')).toBe(false);
+    expect(controls?.hasAttribute('data-bitfun-state')).toBe(false);
     expect(maximizeButton?.getAttribute('aria-label')).toBe('最大化');
     expect(visibleMaximizeGlyph()).toContain('lucide-square');
 
@@ -125,8 +125,8 @@ describe('startup preload shell', () => {
 
     const html = readIndexHtml();
     expect(html).toContain('href="/src/app/components/WindowControls/WindowControls.scss"');
-    expect(html).toContain('.window-controls.openbitfun-startup-window-controls');
-    expect(html).not.toContain('openbitfun-startup-window-controls__btn');
+    expect(html).toContain('.window-controls.bitfun-startup-window-controls');
+    expect(html).not.toContain('bitfun-startup-window-controls__btn');
     expect(readWindowControlsSource()).not.toContain("import './WindowControls.scss'");
     dom.window.close();
   });
@@ -146,7 +146,7 @@ describe('startup preload shell', () => {
     await Promise.resolve();
     expect(hint?.textContent).toBe(readLoadingMessage('zh-CN'));
 
-    dom.window.dispatchEvent(new dom.window.Event('openbitfun:startup-overlay-hidden'));
+    dom.window.dispatchEvent(new dom.window.Event('bitfun:startup-overlay-hidden'));
     dom.window.document.documentElement.lang = 'en-US';
     await Promise.resolve();
     expect(hint?.textContent).toBe(readLoadingMessage('zh-CN'));
@@ -156,21 +156,21 @@ describe('startup preload shell', () => {
   it('shows the independent pet preload for the companion window', () => {
     const html = readIndexHtml();
     const dom = new JSDOM(html, {
-      url: 'http://localhost:1422/?openbitfunWindow=agent-companion',
+      url: 'http://localhost:1422/?bitfunWindow=agent-companion',
       runScripts: 'dangerously',
       beforeParse(window) {
         Object.assign(window, {
-          __OPENBITFUN_BOOTSTRAP_LOCALE__: 'en-US',
+          __BITFUN_BOOTSTRAP_LOCALE__: 'en-US',
         });
       },
     });
 
-    expect(dom.window.document.body.classList.contains('openbitfun-pet-preload-body')).toBe(true);
-    expect(dom.window.document.getElementById('openbitfun-startup-overlay')).toBeNull();
-    expect(dom.window.document.querySelector('.openbitfun-pet-preload__sprite')).not.toBeNull();
+    expect(dom.window.document.body.classList.contains('bitfun-pet-preload-body')).toBe(true);
+    expect(dom.window.document.getElementById('bitfun-startup-overlay')).toBeNull();
+    expect(dom.window.document.querySelector('.bitfun-pet-preload__sprite')).not.toBeNull();
     expect(dom.window.document.querySelector('.splash-screen__logo')).toBeNull();
-    expect(dom.window.document.querySelector('.openbitfun-sr-only')?.textContent).toBe('Loading companion...');
-    const spriteCss = html.match(/\.openbitfun-pet-preload__sprite \{(?<css>[\s\S]*?)\n      \}/)?.groups?.css;
+    expect(dom.window.document.querySelector('.bitfun-sr-only')?.textContent).toBe('Loading companion...');
+    const spriteCss = html.match(/\.bitfun-pet-preload__sprite \{(?<css>[\s\S]*?)\n      \}/)?.groups?.css;
     expect(spriteCss).toBeDefined();
     expect(spriteCss).not.toContain('background:');
     expect(spriteCss).not.toContain('border:');

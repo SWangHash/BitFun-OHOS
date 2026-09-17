@@ -114,7 +114,7 @@ describe('required field design-system integration', () => {
       'infrastructure/config/components/ConfigForm.scss',
     ]) {
       expect(readFileSync(path.join(sourceRoot, file), 'utf8')).toContain(
-        'var(--openbitfun-color-content-required-indicator)',
+        'var(--bitfun-color-content-required-indicator)',
       );
     }
   });

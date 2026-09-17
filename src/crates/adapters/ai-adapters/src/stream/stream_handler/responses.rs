@@ -8,9 +8,9 @@ use crate::stream::types::unified::UnifiedResponse;
 use anyhow::{anyhow, Result};
 use eventsource_stream::Eventsource;
 use log::{debug, error, trace};
-use openbitfun_agent_stream::ToolCallCompletion;
-use openbitfun_core_types::errors::AiProviderError;
-use openbitfun_core_types::ReasoningContentKind;
+use bitfun_agent_stream::ToolCallCompletion;
+use bitfun_core_types::errors::AiProviderError;
+use bitfun_core_types::ReasoningContentKind;
 use reqwest::Response;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -54,7 +54,7 @@ fn completed_replay_capture(
     response: Option<&Value>,
     done_items: &BTreeMap<usize, Value>,
     done_items_complete: bool,
-) -> Option<openbitfun_agent_stream::ModelResponseReplayCapture> {
+) -> Option<bitfun_agent_stream::ModelResponseReplayCapture> {
     let terminal_output = response
         .and_then(|response| response.get("output"))
         .and_then(Value::as_array)
@@ -923,8 +923,8 @@ mod tests {
         handle_function_call_output_item_done, responses_completed_tool_call_completion,
         separate_reasoning_summary_part, InProgressToolCall, StreamTimeoutController,
     };
-    use openbitfun_agent_stream::ToolCallCompletion;
-    use openbitfun_core_types::errors::ErrorCategory;
+    use bitfun_agent_stream::ToolCallCompletion;
+    use bitfun_core_types::errors::ErrorCategory;
     use serde_json::json;
     use std::collections::{BTreeMap, HashMap};
     use tokio::sync::mpsc;
@@ -1144,7 +1144,7 @@ mod tests {
         assert_eq!(capture.items.len(), 2);
         assert!(matches!(
             &capture.items[0],
-            openbitfun_core_types::ModelResponseReplayItem::OpaqueReasoning { opaque_state, .. }
+            bitfun_core_types::ModelResponseReplayItem::OpaqueReasoning { opaque_state, .. }
                 if opaque_state == "final"
         ));
     }
@@ -1188,7 +1188,7 @@ mod tests {
             .expect("equivalent done-item fallback");
         assert!(matches!(
             &capture.items[0],
-            openbitfun_core_types::ModelResponseReplayItem::OpaqueReasoning { opaque_state, .. }
+            bitfun_core_types::ModelResponseReplayItem::OpaqueReasoning { opaque_state, .. }
                 if opaque_state == "opaque"
         ));
     }

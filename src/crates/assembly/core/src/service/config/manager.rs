@@ -7,14 +7,14 @@ use super::providers::ConfigProviderRegistry;
 use super::types::*;
 use crate::infrastructure::{try_get_path_manager_arc, PathManager};
 use crate::util::errors::*;
-use log::{debug, info, warn};
-use openbitfun_core_types::{
+use bitfun_core_types::{
     installer_config_handoff::{
         InstallerConfigHandoff, InstallerModelHandoff, INSTALLER_CONFIG_HANDOFF_FILE_NAME,
     },
     product_identity,
 };
-use openbitfun_services_core::json_store::JsonFileStore;
+use bitfun_services_core::json_store::JsonFileStore;
+use log::{debug, info, warn};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -22,27 +22,24 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 
-fn invalid_config_error(context: &str, result: &ConfigValidationResult) -> OpenBitFunError {
+fn invalid_config_error(context: &str, result: &ConfigValidationResult) -> BitFunError {
     let messages = result
         .errors
         .iter()
         .map(|error| format!("{}: {}", error.path, error.message))
         .collect::<Vec<_>>()
         .join(", ");
-    OpenBitFunError::validation(format!("{context}: {messages}"))
+    BitFunError::validation(format!("{context}: {messages}"))
 }
 
-pub(crate) fn validate_openbitfun_product_identity(
-    value: &str,
-    context: &str,
-) -> OpenBitFunResult<()> {
-    openbitfun_config_contracts::validate_openbitfun_product_identity(value, context)
-        .map_err(OpenBitFunError::validation)
+pub(crate) fn validate_bitfun_product_identity(value: &str, context: &str) -> BitFunResult<()> {
+    bitfun_config_contracts::validate_bitfun_product_identity(value, context)
+        .map_err(BitFunError::validation)
 }
 
-pub(crate) fn validate_current_config_value(value: &Value, context: &str) -> OpenBitFunResult<()> {
-    openbitfun_config_contracts::validate_current_config_value(value, context)
-        .map_err(OpenBitFunError::validation)
+pub(crate) fn validate_current_config_value(value: &Value, context: &str) -> BitFunResult<()> {
+    bitfun_config_contracts::validate_current_config_value(value, context)
+        .map_err(BitFunError::validation)
 }
 
 const INSTALLER_MODEL_ID: &str = "installer:default";
@@ -70,21 +67,21 @@ fn model_from_installer_handoff(model: InstallerModelHandoff) -> AIModelConfig {
     }
 }
 
-fn reject_protected_metadata_path(path: &str) -> OpenBitFunResult<()> {
+fn reject_protected_metadata_path(path: &str) -> BitFunResult<()> {
     if matches!(
         path,
         "product_id" | "schema_version" | "version" | "last_modified"
     ) {
-        return Err(OpenBitFunError::validation(format!(
-            "Configuration metadata '{path}' is managed by OpenBitFun and cannot be changed directly"
+        return Err(BitFunError::validation(format!(
+            "Configuration metadata '{path}' is managed by BitFun and cannot be changed directly"
         )));
     }
     Ok(())
 }
 
-fn config_value_for_persistence(config: &GlobalConfig) -> OpenBitFunResult<Value> {
+fn config_value_for_persistence(config: &GlobalConfig) -> BitFunResult<Value> {
     let mut value = serde_json::to_value(config)
-        .map_err(|e| OpenBitFunError::config(format!("Failed to serialize config: {}", e)))?;
+        .map_err(|e| BitFunError::config(format!("Failed to serialize config: {}", e)))?;
     prune_default_ai_tool_argument_json_repair(&mut value);
     prune_default_ai_max_rounds(&mut value);
     prune_default_memories_config(&mut value)?;
@@ -114,7 +111,7 @@ fn prune_default_ai_max_rounds(config_value: &mut Value) {
     }
 }
 
-fn prune_default_memories_config(config_value: &mut Value) -> OpenBitFunResult<()> {
+fn prune_default_memories_config(config_value: &mut Value) -> BitFunResult<()> {
     let Some(config_object) = config_value.as_object_mut() else {
         return Ok(());
     };
@@ -123,7 +120,7 @@ fn prune_default_memories_config(config_value: &mut Value) -> OpenBitFunResult<(
     };
 
     let default_memories = serde_json::to_value(MemoriesConfig::default()).map_err(|e| {
-        OpenBitFunError::config(format!(
+        BitFunError::config(format!(
             "Failed to serialize default memories config: {}",
             e
         ))
@@ -144,7 +141,7 @@ fn prune_default_memories_config(config_value: &mut Value) -> OpenBitFunResult<(
     Ok(())
 }
 
-fn prune_default_web_search_config(config_value: &mut Value) -> OpenBitFunResult<()> {
+fn prune_default_web_search_config(config_value: &mut Value) -> BitFunResult<()> {
     let Some(ai_config) = config_value.get_mut("ai").and_then(Value::as_object_mut) else {
         return Ok(());
     };
@@ -156,7 +153,7 @@ fn prune_default_web_search_config(config_value: &mut Value) -> OpenBitFunResult
     };
 
     let defaults = serde_json::to_value(WebSearchConfig::default()).map_err(|e| {
-        OpenBitFunError::config(format!(
+        BitFunError::config(format!(
             "Failed to serialize default WebSearch config: {}",
             e
         ))
@@ -225,7 +222,7 @@ impl Default for ConfigManagerSettings {
 
 impl ConfigManager {
     /// Creates a new unified configuration manager.
-    pub async fn new(settings: ConfigManagerSettings) -> OpenBitFunResult<Self> {
+    pub async fn new(settings: ConfigManagerSettings) -> BitFunResult<Self> {
         let path_manager = match settings.path_manager {
             Some(path_manager) => path_manager,
             None => try_get_path_manager_arc()?,
@@ -252,7 +249,7 @@ impl ConfigManager {
         manager.load_or_create_config().await?;
         #[cfg(feature = "ai-adapter-runtime")]
         {
-            openbitfun_ai_adapters::diagnostics::set_include_sensitive_diagnostics(
+            bitfun_ai_adapters::diagnostics::set_include_sensitive_diagnostics(
                 manager.config.app.logging.include_sensitive_diagnostics,
             );
         }
@@ -268,7 +265,7 @@ impl ConfigManager {
 
     /// Reloads from the same storage root while the service holds its write
     /// lock, so a concurrent save cannot be replaced by an older disk read.
-    pub(crate) async fn reload(&mut self) -> OpenBitFunResult<()> {
+    pub(crate) async fn reload(&mut self) -> BitFunResult<()> {
         let settings = ConfigManagerSettings {
             path_manager: Some(self.path_manager.clone()),
             auto_save: true,
@@ -279,7 +276,7 @@ impl ConfigManager {
     }
 
     /// Loads or creates the configuration file.
-    async fn load_or_create_config(&mut self) -> OpenBitFunResult<()> {
+    async fn load_or_create_config(&mut self) -> BitFunResult<()> {
         if self.config_file.exists() {
             self.load_existing_config().await?;
         } else {
@@ -294,7 +291,7 @@ impl ConfigManager {
     }
 
     /// Creates the first config file using the already initialized defaults.
-    async fn create_default_config(&mut self) -> OpenBitFunResult<()> {
+    async fn create_default_config(&mut self) -> BitFunResult<()> {
         self.config.product_id = product_identity::product_id().to_string();
         self.config.schema_version = CURRENT_CONFIG_SCHEMA_VERSION;
         self.config.version = env!("CARGO_PKG_VERSION").to_string();
@@ -304,7 +301,7 @@ impl ConfigManager {
         Ok(())
     }
 
-    async fn consume_installer_config_handoff(&mut self) -> OpenBitFunResult<()> {
+    async fn consume_installer_config_handoff(&mut self) -> BitFunResult<()> {
         let handoff_file = self.config_dir.join(INSTALLER_CONFIG_HANDOFF_FILE_NAME);
         if !handoff_file.exists() {
             return Ok(());
@@ -314,11 +311,11 @@ impl ConfigManager {
         let _cross_process_lock = store
             .acquire_cross_process_lock(&handoff_file)
             .await
-            .map_err(|error| OpenBitFunError::config(error.to_string()))?;
+            .map_err(|error| BitFunError::config(error.to_string()))?;
         let Some(handoff) = store
             .read_optional::<InstallerConfigHandoff>(&handoff_file)
             .await
-            .map_err(|error| OpenBitFunError::config(error.to_string()))?
+            .map_err(|error| BitFunError::config(error.to_string()))?
         else {
             return Ok(());
         };
@@ -376,15 +373,17 @@ impl ConfigManager {
         Ok(())
     }
 
-    /// Loads an existing OpenBitFun config, with a narrow repair for the sparse
-    /// document written by released standalone installers.
-    async fn load_existing_config(&mut self) -> OpenBitFunResult<()> {
+    /// Loads an existing BitFun config, with narrow repairs for the sparse
+    /// document written by released standalone installers and for the
+    /// pre-identity document written before the config identity envelope
+    /// (product_id/schema_version/version/last_modified) was introduced.
+    async fn load_existing_config(&mut self) -> BitFunResult<()> {
         let content = fs::read_to_string(&self.config_file)
             .await
-            .map_err(|e| OpenBitFunError::config(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Failed to read config file: {}", e)))?;
 
         let config_value: Value = serde_json::from_str(&content).map_err(|error| {
-            OpenBitFunError::config(format!("Failed to parse config file as JSON: {error}"))
+            BitFunError::config(format!("Failed to parse config file as JSON: {error}"))
         })?;
         if let Err(contract_error) =
             validate_current_config_value(&config_value, "Configuration file")
@@ -396,14 +395,21 @@ impl ConfigManager {
                 self.config = config;
                 return Ok(());
             }
+            if let Some(config) = self
+                .try_repair_pre_identity_config(&content, &config_value)
+                .await?
+            {
+                self.config = config;
+                return Ok(());
+            }
             return Err(contract_error);
         }
 
         let mut config: GlobalConfig = serde_json::from_value(config_value).map_err(|error| {
-            OpenBitFunError::config(format!("Failed to deserialize config file: {error}"))
+            BitFunError::config(format!("Failed to deserialize config file: {error}"))
         })?;
         let mut diagnostics =
-            openbitfun_config_contracts::normalization::recover_persisted_config(&mut config);
+            bitfun_config_contracts::normalization::recover_persisted_config(&mut config);
         let validation_result = self
             .validate_recovered_config(&mut config, &mut diagnostics)
             .await?;
@@ -416,7 +422,7 @@ impl ConfigManager {
 
         self.config = config;
         self.load_diagnostics = diagnostics;
-        debug!("Loaded OpenBitFun config from file without rewriting it");
+        debug!("Loaded BitFun config from file without rewriting it");
         Ok(())
     }
 
@@ -428,7 +434,7 @@ impl ConfigManager {
         &self,
         config: &mut GlobalConfig,
         diagnostics: &mut Vec<super::types::ConfigDiagnostic>,
-    ) -> OpenBitFunResult<super::types::ConfigValidationResult> {
+    ) -> BitFunResult<super::types::ConfigValidationResult> {
         loop {
             let result = self.providers.validate_config(config).await?;
             let mut recovered = false;
@@ -470,7 +476,7 @@ impl ConfigManager {
         &mut self,
         content: &str,
         config_value: &Value,
-    ) -> OpenBitFunResult<Option<GlobalConfig>> {
+    ) -> BitFunResult<Option<GlobalConfig>> {
         let Some(root) = config_value.as_object() else {
             return Ok(None);
         };
@@ -522,19 +528,97 @@ impl ConfigManager {
         Ok(Some(config))
     }
 
+    /// Repair a configuration written before the identity envelope existed:
+    /// those files carry valid BitFun settings but no product_id,
+    /// schema_version, version, or last_modified. Stamp only the absent
+    /// identity fields with current values, then re-run the full contract
+    /// validation so retired-product files (wrong product_id, retired
+    /// fields, stale schema) still require the explicit data migration tool.
+    async fn try_repair_pre_identity_config(
+        &mut self,
+        content: &str,
+        config_value: &Value,
+    ) -> BitFunResult<Option<GlobalConfig>> {
+        let Some(root) = config_value.as_object() else {
+            return Ok(None);
+        };
+        if root.contains_key("product_id") {
+            // A present product_id that fails validation identifies a
+            // retired-product file; stamping must never override it.
+            return Ok(None);
+        }
+        let mut stamped = config_value.clone();
+        let stamped_root = stamped.as_object_mut().expect("root was a JSON object");
+        stamped_root
+            .entry("schema_version".to_string())
+            .or_insert_with(|| Value::from(u64::from(CURRENT_CONFIG_SCHEMA_VERSION)));
+        stamped_root
+            .entry("version".to_string())
+            .or_insert_with(|| Value::from(env!("CARGO_PKG_VERSION")));
+        stamped_root
+            .entry("last_modified".to_string())
+            .or_insert_with(|| Value::from(chrono::Utc::now().timestamp_millis()));
+        stamped_root
+            .entry("product_id".to_string())
+            .or_insert_with(|| Value::from(product_identity::product_id()));
+
+        if let Err(error) = validate_current_config_value(&stamped, "Configuration file") {
+            debug!(
+                "Pre-identity configuration still fails validation after stamping: {}",
+                error
+            );
+            return Ok(None);
+        }
+
+        let mut config: GlobalConfig = match serde_json::from_value(stamped) {
+            Ok(config) => config,
+            Err(error) => {
+                debug!("Pre-identity configuration does not deserialize: {}", error);
+                return Ok(None);
+            }
+        };
+        let mut diagnostics =
+            bitfun_config_contracts::normalization::recover_persisted_config(&mut config);
+        diagnostics.push(super::types::ConfigDiagnostic {
+            path: self.config_file.display().to_string(),
+            message: "Configuration file was written before the product identity envelope existed; missing product_id, schema_version, version and last_modified were stamped with current values".to_string(),
+            code: "CONFIG_IDENTITY_ENVELOPE_STAMPED".to_string(),
+            severity: super::types::ConfigDiagnosticSeverity::Warning,
+            recoverability: super::types::ConfigDiagnosticRecoverability::DefaultsUsed,
+        });
+        let validation_result = self
+            .validate_recovered_config(&mut config, &mut diagnostics)
+            .await?;
+        if !validation_result.valid {
+            return Ok(None);
+        }
+
+        let backup = self
+            .backup_raw_config(content, "pre-identity-config-repair")
+            .await?;
+        self.persist_config(&config).await?;
+        self.load_diagnostics = diagnostics;
+        info!(
+            "Stamped identity envelope onto pre-identity configuration: config={}, backup={}",
+            self.config_file.display(),
+            backup.display()
+        );
+        Ok(Some(config))
+    }
+
     /// Saves the configuration file.
-    async fn save_config(&self) -> OpenBitFunResult<()> {
+    async fn save_config(&self) -> BitFunResult<()> {
         self.persist_config(&self.config).await
     }
 
-    async fn persist_config(&self, config: &GlobalConfig) -> OpenBitFunResult<()> {
+    async fn persist_config(&self, config: &GlobalConfig) -> BitFunResult<()> {
         let content = serde_json::to_string_pretty(&config_value_for_persistence(config)?)
-            .map_err(|e| OpenBitFunError::config(format!("Config serialization failed: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Config serialization failed: {}", e)))?;
 
         if let Some(parent) = self.config_file.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent).await.map_err(|e| {
-                    OpenBitFunError::config(format!(
+                    BitFunError::config(format!(
                         "Failed to create config directory {:?}: {}",
                         parent, e
                     ))
@@ -546,7 +630,7 @@ impl ConfigManager {
             .write_text_atomic_strict(&self.config_file, &content)
             .await
             .map_err(|e| {
-                OpenBitFunError::config(format!(
+                BitFunError::config(format!(
                     "Failed to atomically write config file {:?}: {}",
                     self.config_file, e
                 ))
@@ -554,19 +638,19 @@ impl ConfigManager {
         Ok(())
     }
 
-    async fn backup_raw_config(&self, content: &str, reason: &str) -> OpenBitFunResult<PathBuf> {
+    async fn backup_raw_config(&self, content: &str, reason: &str) -> BitFunResult<PathBuf> {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S_%3f");
         let backup_dir = self.config_dir.join("backups");
-        fs::create_dir_all(&backup_dir).await.map_err(|e| {
-            OpenBitFunError::config(format!("Failed to create backup directory: {e}"))
-        })?;
+        fs::create_dir_all(&backup_dir)
+            .await
+            .map_err(|e| BitFunError::config(format!("Failed to create backup directory: {e}")))?;
         let backup_file = backup_dir.join(format!(
             "app_{reason}_{timestamp}_{}.json",
             uuid::Uuid::new_v4().simple()
         ));
         fs::write(&backup_file, content)
             .await
-            .map_err(|e| OpenBitFunError::config(format!("Failed to write config backup: {e}")))?;
+            .map_err(|e| BitFunError::config(format!("Failed to write config backup: {e}")))?;
         self.prune_backups(&backup_dir).await?;
         info!(
             "Created config backup: reason={}, path={}",
@@ -576,18 +660,18 @@ impl ConfigManager {
         Ok(backup_file)
     }
 
-    async fn prune_backups(&self, backup_dir: &std::path::Path) -> OpenBitFunResult<()> {
+    async fn prune_backups(&self, backup_dir: &std::path::Path) -> BitFunResult<()> {
         if self.backup_count == 0 {
             return Ok(());
         }
-        let mut entries = fs::read_dir(backup_dir).await.map_err(|e| {
-            OpenBitFunError::config(format!("Failed to read backup directory: {e}"))
-        })?;
+        let mut entries = fs::read_dir(backup_dir)
+            .await
+            .map_err(|e| BitFunError::config(format!("Failed to read backup directory: {e}")))?;
         let mut files = Vec::new();
         while let Some(entry) = entries
             .next_entry()
             .await
-            .map_err(|e| OpenBitFunError::config(format!("Failed to enumerate backups: {e}")))?
+            .map_err(|e| BitFunError::config(format!("Failed to enumerate backups: {e}")))?
         {
             let is_repair_backup = entry
                 .file_name()
@@ -599,7 +683,7 @@ impl ConfigManager {
             let metadata = entry
                 .metadata()
                 .await
-                .map_err(|e| OpenBitFunError::config(format!("Failed to inspect backup: {e}")))?;
+                .map_err(|e| BitFunError::config(format!("Failed to inspect backup: {e}")))?;
             if metadata.is_file() {
                 files.push((metadata.modified().ok(), entry.path()));
             }
@@ -619,13 +703,13 @@ impl ConfigManager {
     }
 
     /// Gets a configuration value (supports dot-paths).
-    pub fn get<T>(&self, path: &str) -> OpenBitFunResult<T>
+    pub fn get<T>(&self, path: &str) -> BitFunResult<T>
     where
         T: serde::de::DeserializeOwned,
     {
         let value = self.get_value_by_path(path)?;
         serde_json::from_value(value).map_err(|e| {
-            OpenBitFunError::config(format!(
+            BitFunError::config(format!(
                 "Failed to deserialize config value at '{}': {}",
                 path, e
             ))
@@ -633,13 +717,12 @@ impl ConfigManager {
     }
 
     /// Sets a configuration value (supports dot-paths).
-    pub async fn set<T>(&mut self, path: &str, value: T) -> OpenBitFunResult<()>
+    pub async fn set<T>(&mut self, path: &str, value: T) -> BitFunResult<()>
     where
         T: serde::Serialize,
     {
-        let json_value = serde_json::to_value(value).map_err(|e| {
-            OpenBitFunError::config(format!("Failed to serialize config value: {}", e))
-        })?;
+        let json_value = serde_json::to_value(value)
+            .map_err(|e| BitFunError::config(format!("Failed to serialize config value: {}", e)))?;
 
         reject_protected_metadata_path(path)?;
         let mut config = self.config_with_value(path, json_value)?;
@@ -668,7 +751,7 @@ impl ConfigManager {
     }
 
     /// Resets configuration (supports dot-paths).
-    pub async fn reset(&mut self, path: Option<&str>) -> OpenBitFunResult<()> {
+    pub async fn reset(&mut self, path: Option<&str>) -> BitFunResult<()> {
         let config = if let Some(path) = path {
             reject_protected_metadata_path(path)?;
             let default_config = self.providers.get_default_config();
@@ -695,7 +778,7 @@ impl ConfigManager {
         &mut self,
         mut config: GlobalConfig,
         path: Option<&str>,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         config.product_id = product_identity::product_id().to_string();
         config.schema_version = CURRENT_CONFIG_SCHEMA_VERSION;
         config.version = env!("CARGO_PKG_VERSION").to_string();
@@ -729,22 +812,21 @@ impl ConfigManager {
     }
 
     /// Validates configuration.
-    pub async fn validate_config(&self) -> OpenBitFunResult<ConfigValidationResult> {
+    pub async fn validate_config(&self) -> BitFunResult<ConfigValidationResult> {
         self.providers.validate_config(&self.config).await
     }
 
     /// Exports configuration.
-    pub fn export_config(&self) -> OpenBitFunResult<serde_json::Value> {
+    pub fn export_config(&self) -> BitFunResult<serde_json::Value> {
         serde_json::to_value(&self.config)
-            .map_err(|e| OpenBitFunError::config(format!("Failed to export config: {}", e)))
+            .map_err(|e| BitFunError::config(format!("Failed to export config: {}", e)))
     }
 
     /// Imports configuration.
-    pub async fn import_config(&mut self, config_data: serde_json::Value) -> OpenBitFunResult<()> {
+    pub async fn import_config(&mut self, config_data: serde_json::Value) -> BitFunResult<()> {
         validate_current_config_value(&config_data, "Imported configuration")?;
-        let imported_config: GlobalConfig = serde_json::from_value(config_data).map_err(|e| {
-            OpenBitFunError::config(format!("Failed to parse imported config: {}", e))
-        })?;
+        let imported_config: GlobalConfig = serde_json::from_value(config_data)
+            .map_err(|e| BitFunError::config(format!("Failed to parse imported config: {}", e)))?;
 
         let validation_result = self.providers.validate_config(&imported_config).await?;
         if !validation_result.valid {
@@ -757,7 +839,7 @@ impl ConfigManager {
         // Imports replace the whole document. Keep the exact previous file
         // recoverable before a cloud apply or an explicit backup restore.
         let previous_content = fs::read_to_string(&self.config_file).await.map_err(|e| {
-            OpenBitFunError::config(format!("Failed to read config before import backup: {e}"))
+            BitFunError::config(format!("Failed to read config before import backup: {e}"))
         })?;
         self.backup_raw_config(&previous_content, "pre-import")
             .await?;
@@ -770,13 +852,13 @@ impl ConfigManager {
     }
 
     /// Creates a configuration backup.
-    pub async fn create_backup(&self) -> OpenBitFunResult<PathBuf> {
+    pub async fn create_backup(&self) -> BitFunResult<PathBuf> {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let backup_dir = self.config_dir.join("backups");
 
         if !backup_dir.exists() {
             fs::create_dir_all(&backup_dir).await.map_err(|e| {
-                OpenBitFunError::config(format!("Failed to create backup directory: {}", e))
+                BitFunError::config(format!("Failed to create backup directory: {}", e))
             })?;
         }
 
@@ -787,12 +869,12 @@ impl ConfigManager {
         ));
 
         let content = serde_json::to_string_pretty(&config_value_for_persistence(&self.config)?)
-            .map_err(|e| OpenBitFunError::config(format!("Failed to serialize backup: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Failed to serialize backup: {}", e)))?;
 
         JsonFileStore
             .write_text_atomic_create_new(&backup_file, &content)
             .await
-            .map_err(|e| OpenBitFunError::config(format!("Failed to write backup: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Failed to write backup: {}", e)))?;
 
         info!("Created config backup: {:?}", backup_file);
         Ok(backup_file)
@@ -815,7 +897,7 @@ impl ConfigManager {
     }
 
     /// Gets a configuration value by dot-path.
-    fn get_value_by_path(&self, path: &str) -> OpenBitFunResult<serde_json::Value> {
+    fn get_value_by_path(&self, path: &str) -> BitFunResult<serde_json::Value> {
         self.get_value_by_path_from_config(&self.config, path)
     }
 
@@ -824,9 +906,9 @@ impl ConfigManager {
         &self,
         config: &GlobalConfig,
         path: &str,
-    ) -> OpenBitFunResult<serde_json::Value> {
+    ) -> BitFunResult<serde_json::Value> {
         let config_value = serde_json::to_value(config)
-            .map_err(|e| OpenBitFunError::config(format!("Failed to serialize config: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Failed to serialize config: {}", e)))?;
 
         if path.is_empty() {
             return Ok(config_value);
@@ -837,7 +919,7 @@ impl ConfigManager {
 
         for key in keys {
             current = current.get(key).ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Config path '{}' not found", path))
+                BitFunError::NotFound(format!("Config path '{}' not found", path))
             })?;
         }
 
@@ -849,46 +931,44 @@ impl ConfigManager {
         &self,
         path: &str,
         value: serde_json::Value,
-    ) -> OpenBitFunResult<GlobalConfig> {
+    ) -> BitFunResult<GlobalConfig> {
         if path.is_empty() {
-            return serde_json::from_value(value).map_err(|e| {
-                OpenBitFunError::config(format!("Failed to deserialize config: {}", e))
-            });
+            return serde_json::from_value(value)
+                .map_err(|e| BitFunError::config(format!("Failed to deserialize config: {}", e)));
         }
 
         let mut config_value = serde_json::to_value(&self.config)
-            .map_err(|e| OpenBitFunError::config(format!("Failed to serialize config: {}", e)))?;
+            .map_err(|e| BitFunError::config(format!("Failed to serialize config: {}", e)))?;
 
         let keys: Vec<&str> = path.split('.').filter(|k| !k.is_empty()).collect();
         if keys.is_empty() {
-            return serde_json::from_value(value).map_err(|e| {
-                OpenBitFunError::config(format!("Failed to deserialize config: {}", e))
-            });
+            return serde_json::from_value(value)
+                .map_err(|e| BitFunError::config(format!("Failed to deserialize config: {}", e)));
         }
 
         let last_key = keys.last().ok_or_else(|| {
-            OpenBitFunError::config(format!("Config path '{}' does not contain any keys", path))
+            BitFunError::config(format!("Config path '{}' does not contain any keys", path))
         })?;
         let parent_keys = &keys[..keys.len() - 1];
 
         let mut current = &mut config_value;
         for key in parent_keys {
             current = current.get_mut(key).ok_or_else(|| {
-                OpenBitFunError::NotFound(format!("Config path '{}' not found", path))
+                BitFunError::NotFound(format!("Config path '{}' not found", path))
             })?;
         }
 
         if let Some(obj) = current.as_object_mut() {
             obj.insert(last_key.to_string(), value);
         } else {
-            return Err(OpenBitFunError::config(format!(
+            return Err(BitFunError::config(format!(
                 "Cannot set value at path '{}': parent is not an object",
                 path
             )));
         }
 
         serde_json::from_value(config_value).map_err(|e| {
-            OpenBitFunError::config(format!("Failed to deserialize updated config: {}", e))
+            BitFunError::config(format!("Failed to deserialize updated config: {}", e))
         })
     }
 
@@ -897,7 +977,7 @@ impl ConfigManager {
         &self,
         path: &str,
         old_config: &GlobalConfig,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.check_and_broadcast_app_change(path).await;
         self.check_and_broadcast_log_level_change(old_config).await;
         self.check_and_broadcast_sensitive_diagnostics_change(old_config)
@@ -946,7 +1026,7 @@ impl ConfigManager {
 
             #[cfg(feature = "ai-adapter-runtime")]
             {
-                openbitfun_ai_adapters::diagnostics::set_include_sensitive_diagnostics(new_include);
+                bitfun_ai_adapters::diagnostics::set_include_sensitive_diagnostics(new_include);
             }
 
             use super::global::{ConfigUpdateEvent, GlobalConfigManager};
@@ -978,9 +1058,11 @@ mod tests {
     };
     use crate::infrastructure::PathManager;
     use crate::service::config::types::GlobalConfig;
-    use openbitfun_core_types::installer_config_handoff::{
+    use bitfun_core_types::installer_config_handoff::{
         InstallerConfigHandoff, InstallerModelHandoff, INSTALLER_CONFIG_HANDOFF_FILE_NAME,
     };
+    use bitfun_core_types::product_identity;
+    use serde_json::Value;
     use std::sync::Arc;
 
     fn manager_settings(path_manager: Arc<PathManager>) -> ConfigManagerSettings {
@@ -994,7 +1076,7 @@ mod tests {
     fn complete_installer_handoff() -> InstallerConfigHandoff {
         InstallerConfigHandoff {
             language: Some("en-US".to_string()),
-            appearance_selection: Some("openbitfun-light".to_string()),
+            appearance_selection: Some("bitfun-light".to_string()),
             model: Some(InstallerModelHandoff {
                 name: "Installer model".to_string(),
                 provider: "openai".to_string(),
@@ -1012,7 +1094,7 @@ mod tests {
     }
 
     #[test]
-    fn current_config_contract_requires_openbitfun_identity_and_format() {
+    fn current_config_contract_requires_bitfun_identity_and_format() {
         let current = serde_json::to_value(GlobalConfig::default()).unwrap();
         validate_current_config_value(&current, "test config").unwrap();
 
@@ -1069,7 +1151,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(manager.config.app.language, "en-US");
-            assert_eq!(manager.config.appearance.selection, "openbitfun-light");
+            assert_eq!(manager.config.appearance.selection, "bitfun-light");
             assert_eq!(
                 manager
                     .config
@@ -1141,7 +1223,7 @@ mod tests {
         path_manager.initialize_user_directories().await.unwrap();
         let original = r#"{
   "app": { "language": "en-US" },
-  "themes": { "current": "openbitfun-midnight" }
+  "themes": { "current": "bitfun-midnight" }
 }"#;
         tokio::fs::write(path_manager.app_config_file(), original)
             .await
@@ -1151,7 +1233,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(manager.config.app.language, "en-US");
-        assert_eq!(manager.config.appearance.selection, "openbitfun-midnight");
+        assert_eq!(manager.config.appearance.selection, "bitfun-midnight");
         assert_eq!(
             manager.config.schema_version,
             super::CURRENT_CONFIG_SCHEMA_VERSION
@@ -1162,6 +1244,94 @@ mod tests {
             .unwrap();
         let backup = backups.next_entry().await.unwrap().unwrap().path();
         assert_eq!(tokio::fs::read_to_string(backup).await.unwrap(), original);
+    }
+
+    #[tokio::test]
+    async fn pre_identity_config_is_backed_up_and_stamped() {
+        let temp = tempfile::tempdir().unwrap();
+        let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+            temp.path().join("pre-identity"),
+        ));
+        path_manager.initialize_user_directories().await.unwrap();
+        let mut pre_identity = serde_json::to_value(GlobalConfig::default()).unwrap();
+        {
+            let root = pre_identity.as_object_mut().unwrap();
+            for field in ["product_id", "schema_version", "version", "last_modified"] {
+                root.remove(field);
+            }
+            root["app"]["language"] = serde_json::json!("zh-CN");
+            root["appearance"]["selection"] = serde_json::json!("bitfun-midnight");
+        }
+        let original = serde_json::to_string_pretty(&pre_identity).unwrap();
+        tokio::fs::write(path_manager.app_config_file(), &original)
+            .await
+            .unwrap();
+
+        let manager = ConfigManager::new(manager_settings(path_manager.clone()))
+            .await
+            .unwrap();
+        assert_eq!(manager.config.app.language, "zh-CN");
+        assert_eq!(manager.config.appearance.selection, "bitfun-midnight");
+        assert_eq!(
+            manager.config.product_id,
+            product_identity::product_id().to_string()
+        );
+        assert_eq!(
+            manager.config.schema_version,
+            super::CURRENT_CONFIG_SCHEMA_VERSION
+        );
+        assert!(manager
+            .load_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "CONFIG_IDENTITY_ENVELOPE_STAMPED"));
+
+        let mut backups = tokio::fs::read_dir(path_manager.user_config_dir().join("backups"))
+            .await
+            .unwrap();
+        let backup = backups.next_entry().await.unwrap().unwrap().path();
+        assert_eq!(tokio::fs::read_to_string(backup).await.unwrap(), original);
+
+        let persisted: Value = serde_json::from_str(
+            &tokio::fs::read_to_string(path_manager.app_config_file())
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            persisted["product_id"],
+            serde_json::json!(product_identity::product_id())
+        );
+    }
+
+    #[tokio::test]
+    async fn retired_product_id_still_requires_the_migration_tool() {
+        let temp = tempfile::tempdir().unwrap();
+        let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+            temp.path().join("retired-product"),
+        ));
+        path_manager.initialize_user_directories().await.unwrap();
+        let retired = r#"{
+  "product_id": "retired-product",
+  "schema_version": 1,
+  "version": "1.0.0",
+  "last_modified": "2026-01-01T00:00:00Z",
+  "app": { "language": "zh-CN" }
+}"#;
+        tokio::fs::write(path_manager.app_config_file(), retired)
+            .await
+            .unwrap();
+
+        let error = match ConfigManager::new(manager_settings(path_manager.clone())).await {
+            Err(error) => error,
+            Ok(_) => panic!("retired-product config must not load"),
+        };
+        assert!(error.to_string().contains("product_id"));
+        assert_eq!(
+            tokio::fs::read_to_string(path_manager.app_config_file())
+                .await
+                .unwrap(),
+            retired
+        );
     }
 
     #[test]
@@ -1260,7 +1430,7 @@ mod tests {
     fn persistence_keeps_only_non_default_web_search_fields_and_unknown_extensions() {
         let mut config = GlobalConfig::default();
         let web_search = &mut config.ai.web_search;
-        web_search.provider = "openbitfun_search_http".to_string();
+        web_search.provider = "bitfun_search_http".to_string();
         web_search
             .unknown
             .insert("selectionRevision".to_string(), serde_json::json!(7));
@@ -1268,7 +1438,7 @@ mod tests {
             "future_search".to_string(),
             serde_json::json!({ "endpoint": "https://future.example/search" }),
         );
-        let http = &mut web_search.providers.openbitfun_search_http;
+        let http = &mut web_search.providers.bitfun_search_http;
         http.endpoint = "https://search.example.com/search".to_string();
         http.auth.mode = "header".to_string();
         http.auth.header_name = "X-Search-Key".to_string();
@@ -1281,9 +1451,9 @@ mod tests {
         assert_eq!(
             value["ai"].get("web_search"),
             Some(&serde_json::json!({
-                "provider": "openbitfun_search_http",
+                "provider": "bitfun_search_http",
                 "providers": {
-                    "openbitfun_search_http": {
+                    "bitfun_search_http": {
                         "endpoint": "https://search.example.com/search",
                         "auth": {
                             "mode": "header",

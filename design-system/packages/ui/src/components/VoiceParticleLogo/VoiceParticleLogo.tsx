@@ -22,7 +22,7 @@ export function VoiceParticleLogo({ readAudio, active = true, className, ...prop
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const colors = getComputedStyle(canvas);
     let foreground = colors.color;
-    let background = colors.getPropertyValue("--openbitfun-color-content-on-light").trim();
+    let background = colors.getPropertyValue("--bitfun-color-content-on-light").trim();
     const renderer = createVoiceParticleRenderer(
       canvas,
       foreground,
@@ -70,7 +70,7 @@ export function VoiceParticleLogo({ readAudio, active = true, className, ...prop
     const theme = new MutationObserver(() => {
       const current = getComputedStyle(canvas);
       const nextForeground = current.color;
-      const nextBackground = current.getPropertyValue("--openbitfun-color-content-on-light").trim();
+      const nextBackground = current.getPropertyValue("--bitfun-color-content-on-light").trim();
       if (foreground === nextForeground && background === nextBackground) return;
       foreground = nextForeground;
       background = nextBackground;
@@ -101,5 +101,5 @@ export function VoiceParticleLogo({ readAudio, active = true, className, ...prop
   }, [active]);
 
   return <canvas {...props} ref={canvasRef} className={classNames(styles.root, className)}
-    data-openbitfun-component="voice-particle-logo" data-openbitfun-part="root" aria-hidden="true" />;
+    data-bitfun-component="voice-particle-logo" data-bitfun-part="root" aria-hidden="true" />;
 }

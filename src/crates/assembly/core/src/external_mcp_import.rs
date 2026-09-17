@@ -1,7 +1,7 @@
 //! Thin orchestration for explicitly copying external MCP declarations into
 //! the existing native user configuration owner.
 
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_sources::{
     EcosystemId, ExternalMcpImportApplyOutcomeV1, ExternalMcpImportApplyRequestV1,
     ExternalMcpImportApplyResultV1, ExternalMcpImportDispositionV1, ExternalMcpImportPlanItemV1,
     ExternalMcpImportPlanV1, ExternalMcpImportedItemV1, ExternalMcpServerDefinition,
@@ -9,7 +9,7 @@ use openbitfun_product_domains::external_sources::{
     PreparedExternalMcpImportServer, PreparedExternalMcpImportTransport,
     EXTERNAL_MCP_IMPORT_SCHEMA_V1,
 };
-use openbitfun_services_integrations::mcp::config::{
+use bitfun_services_integrations::mcp::config::{
     MCPImportError, MCPImportServer, MCPImportTransport, MCPUserImportSnapshot,
 };
 use sha2::{Digest, Sha256};
@@ -219,7 +219,7 @@ fn selected_imports(
                 .working_directory
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned()),
-            timeouts: openbitfun_services_integrations::mcp::MCPServerTimeouts {
+            timeouts: bitfun_services_integrations::mcp::MCPServerTimeouts {
                 startup_ms: prepared.timeouts.startup_ms,
                 catalog_ms: prepared.timeouts.catalog_ms,
                 execution_ms: prepared.timeouts.execution_ms,
@@ -515,7 +515,7 @@ fn operation_error(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openbitfun_product_domains::external_sources::{
+    use bitfun_product_domains::external_sources::{
         ExternalMcpStaticStatus, ExternalMcpTransportKind, SourceKey, SourceQualifiedMcpServerId,
     };
 
@@ -627,7 +627,7 @@ mod tests {
             schema_version: EXTERNAL_MCP_IMPORT_SCHEMA_V1,
             plan_fingerprint: plan.public.plan_fingerprint.clone(),
             selections: vec![
-                openbitfun_product_domains::external_sources::ExternalMcpImportSelectionV1 {
+                bitfun_product_domains::external_sources::ExternalMcpImportSelectionV1 {
                     candidate_id: plan.public.items[0].candidate_id.clone(),
                     requested_native_id: None,
                 },

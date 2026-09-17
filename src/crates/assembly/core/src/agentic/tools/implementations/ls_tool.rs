@@ -5,8 +5,8 @@
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
-use crate::agentic::tools::workspace_paths::is_openbitfun_tool_uri;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::agentic::tools::workspace_paths::is_bitfun_tool_uri;
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Local};
 use serde_json::{json, Value};
@@ -55,11 +55,11 @@ impl Tool for LSTool {
         "LS"
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Recursively lists files and directories in a given path.
 
 Usage:
-- The path parameter must be relative to the current workspace, an absolute path inside the current workspace, or an exact `openbitfun://...` URI returned by another tool
+- The path parameter must be relative to the current workspace, an absolute path inside the current workspace, or an exact `bitfun://...` URI returned by another tool
 - Do not list host roots such as `/`, `/Users`, `/home`, or placeholder paths such as `/workspace`
 - Hidden files (files starting with '.') are automatically excluded
 - Results are sorted by modification time (newest first)"#
@@ -76,7 +76,7 @@ Usage:
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Directory to list. Use a workspace-relative path, an absolute path inside the current workspace, or an exact openbitfun:// URI returned by another tool."
+                    "description": "Directory to list. Use a workspace-relative path, an absolute path inside the current workspace, or an exact bitfun:// URI returned by another tool."
                 },
                 "limit": {
                     "type": "integer",
@@ -131,11 +131,11 @@ Usage:
                     };
                 }
                 None => {
-                    if is_openbitfun_tool_uri(path) {
+                    if is_bitfun_tool_uri(path) {
                         return ValidationResult {
                             result: false,
                             message: Some(
-                                "Tool context is required to resolve OpenBitFun URIs".to_string(),
+                                "Tool context is required to resolve BitFun URIs".to_string(),
                             ),
                             error_code: Some(400),
                             meta: None,
@@ -193,7 +193,7 @@ Usage:
                 };
                 if !matches!(
                     validation,
-                    Ok(Some(openbitfun_runtime_ports::WorkspacePathKind::Directory))
+                    Ok(Some(bitfun_runtime_ports::WorkspacePathKind::Directory))
                 ) {
                     return ValidationResult {
                         result: false,
@@ -244,20 +244,20 @@ Usage:
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         let path = input
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| OpenBitFunError::tool("path is required".to_string()))?;
+            .ok_or_else(|| BitFunError::tool("path is required".to_string()))?;
 
-        let limit = self.parse_limit(input).map_err(OpenBitFunError::tool)?;
+        let limit = self.parse_limit(input).map_err(BitFunError::tool)?;
 
         let resolved = context.resolve_tool_path(path)?;
 
         let fs = context.file_system_for_path(&resolved)?;
         let listing = list_workspace_directory(fs.as_ref(), &resolved.resolved_path, limit)
             .await
-            .map_err(OpenBitFunError::tool)?;
+            .map_err(BitFunError::tool)?;
         let entries_json = listing
             .entries
             .iter()
@@ -304,7 +304,7 @@ Usage:
 mod tests {
     use super::*;
     use crate::agentic::WorkspaceBinding;
-    use openbitfun_runtime_ports::{
+    use bitfun_runtime_ports::{
         ToolRuntimeHandles, WorkspaceCommandOptions, WorkspaceCommandResult, WorkspaceDirEntry,
         WorkspaceFileSystem, WorkspacePathKind, WorkspaceServices, WorkspaceShell,
     };
@@ -455,7 +455,7 @@ mod tests {
                 "/remote/workspace".to_string()
             } else {
                 std::env::temp_dir()
-                    .join("openbitfun-ls-fixture")
+                    .join("bitfun-ls-fixture")
                     .to_string_lossy()
                     .into_owned()
             };

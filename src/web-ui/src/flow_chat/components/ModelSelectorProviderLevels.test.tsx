@@ -46,8 +46,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Switch: () => null,
 }));
@@ -156,7 +156,7 @@ describe('ModelSelector provider levels', () => {
   );
 
   const sharedSubmenuItems = () => nativeSubmenu()?.querySelector<HTMLElement>(
-    '[data-openbitfun-part="section-items"]',
+    '[data-bitfun-part="section-items"]',
   ) ?? null;
 
   const renderSelector = async (
@@ -320,7 +320,7 @@ describe('ModelSelector provider levels', () => {
     expect(options.map(option => option.dataset.presetId))
       .toEqual(['auto', 'off', 'on', 'low', 'medium', 'high']);
     expect(options.every(option => (
-      option.querySelector('.openbitfun-model-selector__option-desc') === null
+      option.querySelector('.bitfun-model-selector__option-desc') === null
     ))).toBe(true);
     expect(options.every(option => option.querySelector('svg') === null)).toBe(true);
     expect(options.find(option => option.dataset.presetId === 'high')?.getAttribute('aria-checked'))

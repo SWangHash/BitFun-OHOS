@@ -1,11 +1,11 @@
 import type { ConnectionResult, RemoteConnectionMethod, RemoteConnectStatus } from '../api/service-api/RemoteConnectAPI';
 
-export type RemoteNetworkMethod = 'lan' | 'openbitfun_server';
-export const OFFICIAL_RELAY_URL = 'https://remote.openbitfun.com/v/1.0.1';
+export type RemoteNetworkMethod = 'lan' | 'bitfun_server';
+export const OFFICIAL_RELAY_URL = 'https://remote.bitfun.com/v/1.0.1';
 
 export function remoteNetworkMethod(method: RemoteConnectionMethod | null | undefined): RemoteNetworkMethod | null {
   if (typeof method === 'object' && method !== null && 'lan' in method) return 'lan';
-  return method === 'openbitfun_server' ? 'openbitfun_server' : null;
+  return method === 'bitfun_server' ? 'bitfun_server' : null;
 }
 
 export function normalizeRelayUrl(value: string | null | undefined): string | null {
@@ -38,7 +38,7 @@ export function selectRemoteNetworkConnection(status: RemoteConnectStatus | null
   const relayUrl = normalizeRelayUrl(status?.relay_url);
   const connected = status?.relay_connected === true && relayUrl !== null;
   const method = remoteNetworkMethod(status?.active_method)
-    ?? (relayUrl ? relayUrl === OFFICIAL_RELAY_URL ? 'openbitfun_server' : 'lan' : null);
+    ?? (relayUrl ? relayUrl === OFFICIAL_RELAY_URL ? 'bitfun_server' : 'lan' : null);
   return {
     connected,
     method,

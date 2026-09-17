@@ -31,11 +31,11 @@ test("Menu composes grouped items, heading actions, and separators with native r
     ),
   );
 
-  assert.match(markup, /data-openbitfun-component="menu"/);
+  assert.match(markup, /data-bitfun-component="menu"/);
   assert.match(markup, /role="menu"/);
-  assert.match(markup, /data-openbitfun-scrollbar-visibility="always"/);
+  assert.match(markup, /data-bitfun-scrollbar-visibility="always"/);
   assert.match(markup, /aria-labelledby="[^"]+"[^>]+role="group"/);
-  assert.match(markup, /data-openbitfun-part="heading-actions"/);
+  assert.match(markup, /data-bitfun-part="heading-actions"/);
   assert.match(markup, /aria-label="Add session"/);
   assert.equal((markup.match(/role="menuitem"/g) ?? []).length, 3);
   assert.match(markup, /aria-checked="true"[^>]+role="menuitemcheckbox"/);
@@ -48,7 +48,7 @@ test("Menu owns roving focus and standard single-level navigation keys", async (
     "utf8",
   );
 
-  assert.match(source, /querySelectorAll<HTMLButtonElement>\("\[data-openbitfun-menu-item\]"\)/);
+  assert.match(source, /querySelectorAll<HTMLButtonElement>\("\[data-bitfun-menu-item\]"\)/);
   assert.match(source, /case "ArrowDown"/);
   assert.match(source, /case "ArrowUp"/);
   assert.match(source, /case "Home"/);
@@ -72,14 +72,14 @@ test("Menu styling uses only public surface, geometry, action, and scrollbar tok
     "utf8",
   );
 
-  assert.match(styles, /--openbitfun-overlay-menu-inline-size/);
-  assert.match(styles, /--openbitfun-overlay-menu-item-height/);
+  assert.match(styles, /--bitfun-overlay-menu-inline-size/);
+  assert.match(styles, /--bitfun-overlay-menu-item-height/);
   assert.match(styles, /\.list\s*\{[^}]*gap: 0/);
   assert.match(styles, /\.items\s*\{[^}]*gap: 0/);
-  assert.match(styles, /\.separator\s*\{[^}]*margin-block: var\(--openbitfun-overlay-menu-section-gap\)/);
-  assert.match(styles, /--openbitfun-color-surface-panel/);
-  assert.match(styles, /--openbitfun-shadow-menu/);
-  assert.match(styles, /--openbitfun-overlay-menu-scrollbar-gap/);
+  assert.match(styles, /\.separator\s*\{[^}]*margin-block: var\(--bitfun-overlay-menu-section-gap\)/);
+  assert.match(styles, /--bitfun-color-surface-panel/);
+  assert.match(styles, /--bitfun-shadow-menu/);
+  assert.match(styles, /--bitfun-overlay-menu-scrollbar-gap/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
 
@@ -88,21 +88,21 @@ test("Menu keeps focus rings inside items without adding a permanent gutter", as
   const scrollStyles = await readFile(new URL("../src/components/ScrollArea/ScrollArea.module.css", import.meta.url), "utf8");
   const itemStyles = await readFile(new URL("../src/components/ActionItem/ActionItem.module.css", import.meta.url), "utf8");
   assert.match(styles, /\.list\s*\{[^}]*padding:\s*0/);
-  assert.match(itemStyles, /\.root:has\(\.trigger:focus-visible\)\s*\{[^}]*box-shadow:\s*0 0 0 var\(--openbitfun-focus-width\)/);
-  assert.match(styles, /\.item:has\(> \[data-openbitfun-part="trigger"\]:focus-visible\)\s*\{[^}]*box-shadow:\s*inset 0 0 0 var\(--openbitfun-focus-width\)/);
+  assert.match(itemStyles, /\.root:has\(\.trigger:focus-visible\)\s*\{[^}]*box-shadow:\s*0 0 0 var\(--bitfun-focus-width\)/);
+  assert.match(styles, /\.item:has\(> \[data-bitfun-part="trigger"\]:focus-visible\)\s*\{[^}]*box-shadow:\s*inset 0 0 0 var\(--bitfun-focus-width\)/);
   // Keep clipping and scrolling; the item owns its focus indicator.
-  assert.match(scrollStyles, /data-openbitfun-orientation="vertical"\]\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto/);
+  assert.match(scrollStyles, /data-bitfun-orientation="vertical"\]\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto/);
   assert.doesNotMatch(styles, /overflow[^:]*:\s*visible/);
 });
 
 test("Menu keeps equal item insets while its scrollbar stays on the surface edge", async () => {
   const styles = await readFile(new URL("../src/components/Menu/Menu.module.css", import.meta.url), "utf8");
 
-  assert.match(styles, /\.root\s*\{[^}]*padding-inline:\s*var\(--openbitfun-overlay-menu-surface-padding\) 0/);
-  assert.match(styles, /\.viewport\s*\{[^}]*padding-inline-end:\s*var\(--openbitfun-overlay-menu-scrollbar-gap\);[^}]*scrollbar-gutter:\s*auto/);
+  assert.match(styles, /\.root\s*\{[^}]*padding-inline:\s*var\(--bitfun-overlay-menu-surface-padding\) 0/);
+  assert.match(styles, /\.viewport\s*\{[^}]*padding-inline-end:\s*var\(--bitfun-overlay-menu-scrollbar-gap\);[^}]*scrollbar-gutter:\s*auto/);
   assert.match(
     styles,
-    /\.list\s*\{[^}]*padding-inline-end:\s*calc\(\s*var\(--openbitfun-overlay-menu-surface-padding\)\s*- var\(--openbitfun-overlay-menu-scrollbar-gap\)\s*\)/,
+    /\.list\s*\{[^}]*padding-inline-end:\s*calc\(\s*var\(--bitfun-overlay-menu-surface-padding\)\s*- var\(--bitfun-overlay-menu-scrollbar-gap\)\s*\)/,
   );
   assert.doesNotMatch(styles, /scrollbar-gutter:\s*stable/);
 });

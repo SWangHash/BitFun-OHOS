@@ -36,8 +36,8 @@ vi.mock('./SessionTitleConfig', () => ({ default: () => null }));
 vi.mock('./DefaultHarnessConfig', () => ({ default: () => <div>default-harness-config</div> }));
 vi.mock('./ReviewCapacitySection', () => ({ default: () => null }));
 vi.mock('./ToolJsonRepairSection', () => ({ default: () => null }));
-vi.mock('@openbitfun/ui', async (original) => ({
-  ...await original<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async (original) => ({
+  ...await original<typeof import('@bitfun/ui')>(),
   Select: ({ value, options, disabled }: { value: string; options: Array<{ value: string; label: string }>; disabled: boolean }) => (
     <select value={value} disabled={disabled} onChange={() => {}}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
   ),
@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('Tool execution concurrency settings', () => {
-  const concurrencyInput = (label: string) => Array.from(container.querySelectorAll('[data-openbitfun-part="row"]'))
+  const concurrencyInput = (label: string) => Array.from(container.querySelectorAll('[data-bitfun-part="row"]'))
     .find(row => row.textContent?.includes(label))!.querySelector('input')!;
 
   async function editAndBlur(input: HTMLInputElement, value: string) {
@@ -122,7 +122,7 @@ describe('Browser and desktop control settings', () => {
     await render();
     expect(container.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
     const connect = button('browserControl.connect');
-    expect(connect.closest('[data-openbitfun-part="row"]')?.textContent).toContain('browserControl.status');
+    expect(connect.closest('[data-bitfun-part="row"]')?.textContent).toContain('browserControl.status');
     expect(container.textContent).toContain('browserControl.readyNotConnected');
     expect(Array.from(container.querySelectorAll('button')).filter(el => el.textContent === 'browserControl.connect')).toHaveLength(1);
     await act(async () => connect.click());
@@ -152,7 +152,7 @@ describe('Browser and desktop control settings', () => {
     await render();
     mocks.invoke.mockRejectedValue(new Error('Host is offline'));
     await act(async () => button('browserControl.refreshStatus').click());
-    const connectionRow = button('browserControl.disconnect').closest('[data-openbitfun-part="row"]');
+    const connectionRow = button('browserControl.disconnect').closest('[data-bitfun-part="row"]');
     expect(connectionRow?.textContent).toContain('browserControl.statusUnavailable');
     expect(connectionRow?.textContent).not.toContain('browserControl.connected');
     expect(button('browserControl.disconnect').disabled).toBe(true);

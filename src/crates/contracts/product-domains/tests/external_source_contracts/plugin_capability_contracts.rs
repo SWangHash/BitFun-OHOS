@@ -1,4 +1,4 @@
-use openbitfun_product_domains::plugin_capabilities::{
+use bitfun_product_domains::plugin_capabilities::{
     PluginCapabilityProjection, PluginContributorIdentity, PluginToolRef,
 };
 

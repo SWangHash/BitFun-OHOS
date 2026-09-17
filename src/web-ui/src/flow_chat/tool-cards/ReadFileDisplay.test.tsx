@@ -168,7 +168,7 @@ describe('ReadFileDisplay', () => {
       );
     });
 
-    const card = container.querySelector<HTMLElement>('[data-openbitfun-tool-card="read-file"]');
+    const card = container.querySelector<HTMLElement>('[data-bitfun-tool-card="read-file"]');
     expect(card?.getAttribute('role')).toBe('button');
     expect(card?.tabIndex).toBe(0);
 

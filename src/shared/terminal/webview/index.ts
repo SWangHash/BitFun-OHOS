@@ -5,9 +5,9 @@ import '@xterm/xterm/css/xterm.css';
 type Event = {type:'ready'|'resync'} | {type:'input';data:string} | {type:'resize';cols:number;rows:number};
 type Frame = {epoch:string;revision:number;reset:boolean;data:string;theme?:{background:string;foreground:string;cursor?:string}};
 declare global { interface Window {
-  OpenBitFunTerminalHost?:{postMessage:(message:string)=>void};
-  webkit?:{messageHandlers?:{openbitfunTerminal?:{postMessage:(event:Event)=>void}}};
-  OpenBitFunTerminal:{connect:()=>void;accept:(frame:Frame)=>void};
+  BitFunTerminalHost?:{postMessage:(message:string)=>void};
+  webkit?:{messageHandlers?:{bitfunTerminal?:{postMessage:(event:Event)=>void}}};
+  BitFunTerminal:{connect:()=>void;accept:(frame:Frame)=>void};
 } }
 const terminal = new Terminal({cursorBlink:true,scrollback:5000,convertEol:false,fontSize:14});
 const fit = new FitAddon();terminal.loadAddon(fit);terminal.open(document.getElementById('terminal')!);
@@ -20,13 +20,13 @@ function drain(){
   terminal.write(frame.data,()=>{writing=false;drain();});
 }
 function send(event:Event) {
-  if(window.OpenBitFunTerminalHost)window.OpenBitFunTerminalHost.postMessage(JSON.stringify(event));
-  else window.webkit?.messageHandlers?.openbitfunTerminal?.postMessage(event);
+  if(window.BitFunTerminalHost)window.BitFunTerminalHost.postMessage(JSON.stringify(event));
+  else window.webkit?.messageHandlers?.bitfunTerminal?.postMessage(event);
 }
 terminal.onData(data=>send({type:'input',data}));
 terminal.onResize(({cols,rows})=>send({type:'resize',cols,rows}));
 new ResizeObserver(()=>fit.fit()).observe(document.getElementById('terminal')!);
-window.OpenBitFunTerminal={
+window.BitFunTerminal={
   connect(){fit.fit();send({type:'ready'});send({type:'resize',cols:terminal.cols,rows:terminal.rows});},
   accept(frame){
     if(typeof frame.epoch!=='string'||!Number.isSafeInteger(frame.revision)||typeof frame.data!=='string')return;
@@ -36,4 +36,4 @@ window.OpenBitFunTerminal={
     pending.push(frame);revision=frame.revision;drain();
   },
 };
-window.OpenBitFunTerminal.connect();
+window.BitFunTerminal.connect();

@@ -1,4 +1,4 @@
-import { Button, Input, Select, type SelectOption, StatusPill, type StatusPillTone, Switch } from '@openbitfun/ui';
+import { Button, Input, Select, type SelectOption, StatusPill, type StatusPillTone, Switch } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { CloudOff, HardDrive } from 'lucide-react';
@@ -276,7 +276,7 @@ const VoiceInputConfig: React.FC = () => {
           setVoiceCallDraft(saved);
           setVoiceCallSaveError(null);
         }
-        window.dispatchEvent(new CustomEvent('openbitfun:realtime-voice-config-changed', {
+        window.dispatchEvent(new CustomEvent('bitfun:realtime-voice-config-changed', {
           detail: saved,
         }));
       } catch (error) {
@@ -316,7 +316,7 @@ const VoiceInputConfig: React.FC = () => {
 
   if (!speechRuntimeSupported) {
     return (
-      <ConfigPageLayout className="voice-input-config" data-openbitfun-component="voice-input-config" data-openbitfun-part="root">
+      <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
         <ConfigPageContent>
           <ConfigMessage message={{ type: 'info', text: t('messages.unsupported') }} />
@@ -327,7 +327,7 @@ const VoiceInputConfig: React.FC = () => {
 
   if (modelsLoading || settingsLoading) {
     return (
-      <ConfigPageLayout className="voice-input-config" data-openbitfun-component="voice-input-config" data-openbitfun-part="root">
+      <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
         <ConfigPageContent>
           <ConfigLoadingState label={t('loading')} />
@@ -338,7 +338,7 @@ const VoiceInputConfig: React.FC = () => {
 
   if (settingsError || !settings || !voiceInput) {
     return (
-      <ConfigPageLayout className="voice-input-config" data-openbitfun-component="voice-input-config" data-openbitfun-part="root">
+      <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
         <ConfigPageContent>
           <ConfigRetryState
@@ -386,7 +386,7 @@ const VoiceInputConfig: React.FC = () => {
       : <HardDrive size={18} />;
 
   return (
-    <ConfigPageLayout className="voice-input-config" data-openbitfun-component="voice-input-config" data-openbitfun-part="root">
+    <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
       <ConfigPageContent className="voice-input-config__content">
         <ConfigPageSection
@@ -417,9 +417,9 @@ const VoiceInputConfig: React.FC = () => {
                 <div className="voice-input-config__status-panel">
                   <div
                     className={`voice-input-config__status-card voice-input-config__status-card--${status}`}
-                    data-openbitfun-component="voice-input-config"
-                    data-openbitfun-part="statusCard"
-                    data-openbitfun-status={status}
+                    data-bitfun-component="voice-input-config"
+                    data-bitfun-part="statusCard"
+                    data-bitfun-status={status}
                   >
                     {statusIcon ? (
                       <div className="voice-input-config__status-icon" aria-hidden="true">{statusIcon}</div>
@@ -470,8 +470,8 @@ const VoiceInputConfig: React.FC = () => {
                     </div>
                     <div
                       className="voice-input-config__status-actions"
-                      data-openbitfun-component="voice-input-config"
-                      data-openbitfun-part="statusActions"
+                      data-bitfun-component="voice-input-config"
+                      data-bitfun-part="statusActions"
                     >
                       {status === 'unavailable' ? (
                         <Button

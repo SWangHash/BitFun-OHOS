@@ -1,4 +1,4 @@
-import { OverflowText } from '@openbitfun/ui';
+import { OverflowText } from '@bitfun/ui';
  
 
 import React from 'react';
@@ -107,33 +107,33 @@ export class CodeSnippetCardRenderer implements ContextCardRenderer<'code-snippe
       : context.selectedText.split('\n').slice(0, 3).join('\n');
     
     return (
-      <div className={`openbitfun-context-card openbitfun-context-card--code-snippet ${compact ? 'openbitfun-context-card--compact' : ''}`}>
-        <div className="openbitfun-context-card__icon">
+      <div className={`bitfun-context-card bitfun-context-card--code-snippet ${compact ? 'bitfun-context-card--compact' : ''}`}>
+        <div className="bitfun-context-card__icon">
           <Code size={compact ? 16 : 20} />
         </div>
         
-        <div className="openbitfun-context-card__content">
-          <div className="openbitfun-context-card__title">
+        <div className="bitfun-context-card__content">
+          <div className="bitfun-context-card__title">
             <OverflowText>{context.fileName}</OverflowText>
-            <span className="openbitfun-context-card__badge">
+            <span className="bitfun-context-card__badge">
               L{context.startLine}-{context.endLine}
             </span>
           </div>
           
           {!compact && (
             <>
-              <div className="openbitfun-context-card__subtitle"><OverflowText behavior="marquee">
+              <div className="bitfun-context-card__subtitle"><OverflowText behavior="marquee">
                 {lineCount} {lineCount === 1 ? 'line' : 'lines'}
                 {context.language && (
-                  <span className="openbitfun-context-card__meta">
+                  <span className="bitfun-context-card__meta">
                     {' • '}{context.language}
                   </span>
                 )}
               </OverflowText></div>
               
               {showPreview && (
-                <div className="openbitfun-context-card__preview">
-                  <code className="openbitfun-context-card__code">
+                <div className="bitfun-context-card__preview">
+                  <code className="bitfun-context-card__code">
                     {previewText}
                   </code>
                 </div>
@@ -143,9 +143,9 @@ export class CodeSnippetCardRenderer implements ContextCardRenderer<'code-snippe
         </div>
         
         {interactive && (
-          <div className="openbitfun-context-card__actions">
+          <div className="bitfun-context-card__actions">
             <button 
-              className="openbitfun-context-card__action-btn"
+              className="bitfun-context-card__action-btn"
               title={i18nService.t('components:contextSystem.contextCard.viewFullCode')}
             >
               <Code size={14} />

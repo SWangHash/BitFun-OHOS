@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const dir = await mkdtemp(join(tmpdir(), 'openbitfun-computer-context-'));
+const dir = await mkdtemp(join(tmpdir(), 'bitfun-computer-context-'));
 const source = (path) => JSON.stringify(resolve(root, path));
 try {
   await writeFile(join(dir, 'Cargo.toml'), `[package]
@@ -25,7 +25,7 @@ sha1 = "0.10"
   // The compatibility path re-exports the actual production DTOs. There are
   // no replacement algorithms, fake screenshots, or native-host stubs here.
   await writeFile(join(dir, 'lib.rs'), `#![allow(dead_code)]
-extern crate self as openbitfun_core;
+extern crate self as bitfun_core;
 #[path = ${source('src/crates/execution/tool-contracts/src/computer_use.rs')}]
 pub mod computer_use_contract;
 pub mod agentic { pub mod tools { pub mod computer_use_host {

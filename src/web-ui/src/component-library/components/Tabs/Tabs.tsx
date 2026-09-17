@@ -55,7 +55,7 @@ export const TabPane: React.FC<TabPaneProps> = ({ children, className = '' }) =>
   const context = useContext(TabsContext);
   if (!context) return null;
 
-  return <div className={`openbitfun-tab-pane ${className}`} data-openbitfun-component="tabs" data-openbitfun-part="pane">{children}</div>;
+  return <div className={`bitfun-tab-pane ${className}`} data-bitfun-component="tabs" data-bitfun-part="pane">{children}</div>;
 };
 
 TabPane.displayName = 'TabPane';
@@ -162,10 +162,10 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   const containerClass = [
-    'openbitfun-tabs',
-    `openbitfun-tabs--${type}`,
-    `openbitfun-tabs--${size}`,
-    stretch && 'openbitfun-tabs--stretch',
+    'bitfun-tabs',
+    `bitfun-tabs--${type}`,
+    `bitfun-tabs--${size}`,
+    stretch && 'bitfun-tabs--stretch',
     className
   ].filter(Boolean).join(' ');
 
@@ -188,21 +188,21 @@ export const Tabs: React.FC<TabsProps> = ({
 
   return (
     <TabsContext.Provider value={contextValue}>
-      <div className={containerClass} style={style} data-openbitfun-component="tabs" data-openbitfun-part="root" data-openbitfun-variant={type} data-openbitfun-size={size} data-openbitfun-state={stretch ? 'stretch' : undefined}>
-        <div className="openbitfun-tabs__nav" data-openbitfun-component="tabs" data-openbitfun-part="nav">
-          <div className="openbitfun-tabs__nav-list" role="tablist" data-openbitfun-component="tabs" data-openbitfun-part="navList">
+      <div className={containerClass} style={style} data-bitfun-component="tabs" data-bitfun-part="root" data-bitfun-variant={type} data-bitfun-size={size} data-bitfun-state={stretch ? 'stretch' : undefined}>
+        <div className="bitfun-tabs__nav" data-bitfun-component="tabs" data-bitfun-part="nav">
+          <div className="bitfun-tabs__nav-list" role="tablist" data-bitfun-component="tabs" data-bitfun-part="navList">
             {tabs.map((tab, index) => (
               <div
                 key={tab.key}
                 className={[
-                  'openbitfun-tabs__tab',
-                  activeKey === tab.key && 'openbitfun-tabs__tab--active',
-                  tab.disabled && 'openbitfun-tabs__tab--disabled',
+                  'bitfun-tabs__tab',
+                  activeKey === tab.key && 'bitfun-tabs__tab--active',
+                  tab.disabled && 'bitfun-tabs__tab--disabled',
                 ].filter(Boolean).join(' ')}
-               data-openbitfun-component="tabs" data-openbitfun-part="tab" data-openbitfun-state={[activeKey === tab.key && 'active', tab.disabled && 'disabled'].filter(Boolean).join(' ') || undefined}>
+               data-bitfun-component="tabs" data-bitfun-part="tab" data-bitfun-state={[activeKey === tab.key && 'active', tab.disabled && 'disabled'].filter(Boolean).join(' ') || undefined}>
                 <button
                   id={getTabId(tab.key)}
-                  className="openbitfun-tabs__tab-button"
+                  className="bitfun-tabs__tab-button"
                   type="button"
                   onClick={() => handleTabClick(tab.key, tab.disabled)}
                   onKeyDown={(event) => handleTabKeyDown(event, index)}
@@ -213,17 +213,17 @@ export const Tabs: React.FC<TabsProps> = ({
                   aria-controls={getPanelId(tab.key)}
                   disabled={tab.disabled}
                 >
-                  {tab.icon && <span className="openbitfun-tabs__tab-icon" data-openbitfun-component="tabs" data-openbitfun-part="icon">{tab.icon}</span>}
-                  <span className="openbitfun-tabs__tab-label" data-openbitfun-component="tabs" data-openbitfun-part="label">{tab.label}</span>
+                  {tab.icon && <span className="bitfun-tabs__tab-icon" data-bitfun-component="tabs" data-bitfun-part="icon">{tab.icon}</span>}
+                  <span className="bitfun-tabs__tab-label" data-bitfun-component="tabs" data-bitfun-part="label">{tab.label}</span>
                 </button>
                 {tab.closable && (
                   <button
-                    className="openbitfun-tabs__tab-close"
+                    className="bitfun-tabs__tab-close"
                     type="button"
                     onClick={(e) => handleTabClose(e, tab.key)}
                     aria-label={tab.closeAriaLabel}
-                    data-openbitfun-component="tabs"
-                    data-openbitfun-part="close"
+                    data-bitfun-component="tabs"
+                    data-bitfun-part="close"
                   >
                     ×
                   </button>
@@ -231,19 +231,19 @@ export const Tabs: React.FC<TabsProps> = ({
               </div>
             ))}
           </div>
-          {type === 'line' && <div className="openbitfun-tabs__ink-bar" data-openbitfun-component="tabs" data-openbitfun-part="inkBar" />}
+          {type === 'line' && <div className="bitfun-tabs__ink-bar" data-bitfun-component="tabs" data-bitfun-part="inkBar" />}
         </div>
         <ViewTransitionBoundary
           viewKey={activeKey || '__empty-tab__'}
           animate={shouldAnimatePanel}
           id={getPanelId(activeKey)}
-          className="openbitfun-tabs__content"
-          viewClassName="openbitfun-tabs__content-view"
+          className="bitfun-tabs__content"
+          viewClassName="bitfun-tabs__content-view"
           role="tabpanel"
           aria-labelledby={getTabId(activeKey)}
           tabIndex={0}
-          data-openbitfun-component="tabs"
-          data-openbitfun-part="content"
+          data-bitfun-component="tabs"
+          data-bitfun-part="content"
         >
           {panes[activeKey]}
         </ViewTransitionBoundary>

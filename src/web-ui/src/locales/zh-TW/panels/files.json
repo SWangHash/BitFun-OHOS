@@ -100,9 +100,9 @@
     "selectWorkspace": "選擇工作區後將顯示檔案樹"
   },
   "errors": {
-    "fileTreePermissionDenied": "OpenBitFun 沒有存取此資料夾的權限。",
+    "fileTreePermissionDenied": "BitFun 沒有存取此資料夾的權限。",
     "fileTreeLoadFailed": "載入檔案樹失敗：{{message}}",
-    "directoryPermissionDenied": "OpenBitFun 沒有存取此資料夾的權限。",
+    "directoryPermissionDenied": "BitFun 沒有存取此資料夾的權限。",
     "directoryLoadFailed": "載入資料夾失敗：{{message}}"
   },
   "dialog": {

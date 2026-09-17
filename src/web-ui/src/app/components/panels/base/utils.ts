@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Icon, type IconName, type IconSize } from '@openbitfun/ui';
+import { Icon, type IconName, type IconSize } from '@bitfun/ui';
 import { 
   Code, 
   FileText, 
@@ -267,9 +267,9 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
     supportsDownload: false,
     showHeader: false
   },
-  'openbitfun-canvas': {
-    type: 'openbitfun-canvas',
-    displayName: 'OpenBitFun Canvas',
+  'bitfun-canvas': {
+    type: 'bitfun-canvas',
+    displayName: 'BitFun Canvas',
     icon: Network,
     supportsCopy: false,
     supportsDownload: false,

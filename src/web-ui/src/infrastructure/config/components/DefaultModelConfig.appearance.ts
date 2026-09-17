@@ -6,7 +6,7 @@ export const defaultModelConfigAppearanceDescriptor: AppearanceSurfaceDescriptor
     { id: 'primaryModel' }, { id: 'lightweightModel' }, { id: 'embeddingModel' },
   ],
   states: [
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
-    { id: 'empty', selector: { kind: 'self', suffix: '[data-openbitfun-state~="empty"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
+    { id: 'empty', selector: { kind: 'self', suffix: '[data-bitfun-state~="empty"]' } },
   ],
 };

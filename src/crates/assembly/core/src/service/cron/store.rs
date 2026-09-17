@@ -3,7 +3,7 @@
 use super::types::{CronJob, CronJobsFile, CRON_JOBS_VERSION};
 use crate::infrastructure::storage::{PersistenceService, StorageOptions};
 use crate::infrastructure::PathManager;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
@@ -14,7 +14,7 @@ pub(super) struct CronJobStore {
 }
 
 impl CronJobStore {
-    pub(super) async fn new(path_manager: Arc<PathManager>) -> OpenBitFunResult<Self> {
+    pub(super) async fn new(path_manager: Arc<PathManager>) -> BitFunResult<Self> {
         let cron_dir = path_manager.user_cron_dir();
         path_manager.ensure_dir(&cron_dir).await?;
 
@@ -30,7 +30,7 @@ impl CronJobStore {
         self.path_manager.cron_jobs_file()
     }
 
-    pub(super) async fn load(&self) -> OpenBitFunResult<CronJobsFile> {
+    pub(super) async fn load(&self) -> BitFunResult<CronJobsFile> {
         let jobs_file_path = self.jobs_file_path();
         if !jobs_file_path.exists() {
             return Ok(CronJobsFile::default());
@@ -38,12 +38,12 @@ impl CronJobStore {
 
         let content = fs::read_to_string(&jobs_file_path)
             .await
-            .map_err(|error| OpenBitFunError::service(format!("Failed to read file: {}", error)))?;
+            .map_err(|error| BitFunError::service(format!("Failed to read file: {}", error)))?;
 
         parse_jobs_file_content(&content, &jobs_file_path)
     }
 
-    pub(super) async fn save_jobs(&self, jobs: Vec<CronJob>) -> OpenBitFunResult<()> {
+    pub(super) async fn save_jobs(&self, jobs: Vec<CronJob>) -> BitFunResult<()> {
         let mut jobs = jobs;
         jobs.sort_by(|left, right| {
             left.created_at_ms
@@ -62,15 +62,15 @@ impl CronJobStore {
     }
 }
 
-fn unsupported_jobs_file(jobs_file_path: &Path, detail: impl AsRef<str>) -> OpenBitFunError {
-    OpenBitFunError::config(format!(
+fn unsupported_jobs_file(jobs_file_path: &Path, detail: impl AsRef<str>) -> BitFunError {
+    BitFunError::config(format!(
         "Unsupported cron jobs persistence format in {}: {}. The file was left unchanged; explicit data migration is required",
         jobs_file_path.display(),
         detail.as_ref()
     ))
 }
 
-fn parse_jobs_file_content(content: &str, jobs_file_path: &Path) -> OpenBitFunResult<CronJobsFile> {
+fn parse_jobs_file_content(content: &str, jobs_file_path: &Path) -> BitFunResult<CronJobsFile> {
     let value: serde_json::Value = serde_json::from_str(content)
         .map_err(|error| unsupported_jobs_file(jobs_file_path, error.to_string()))?;
 

@@ -36,7 +36,7 @@ describe('shared confirmation action roles', () => {
     });
     const buttons = document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] footer button');
     expect([...buttons].map(button => button.textContent)).toEqual(['Cancel', 'Always allow', 'Allow once']);
-    expect([...buttons].map(button => button.getAttribute('data-openbitfun-variant'))).toEqual(['fill', 'outline', 'primary']);
+    expect([...buttons].map(button => button.getAttribute('data-bitfun-variant'))).toEqual(['fill', 'outline', 'primary']);
     act(() => buttons[['cancel', 'secondary', 'confirm'].indexOf(choice)].click());
     await expect(result).resolves.toBe(choice);
   });
@@ -46,8 +46,8 @@ describe('shared confirmation action roles', () => {
     act(() => {
       result = confirmDialogChoice({ title: 'Delete?', confirmDanger: true, confirmText: 'Delete' });
     });
-    const button = document.querySelector<HTMLButtonElement>('[role="alertdialog"] footer button[data-openbitfun-variant="primary"]')!;
-    expect(button.getAttribute('data-openbitfun-tone')).toBe('danger');
+    const button = document.querySelector<HTMLButtonElement>('[role="alertdialog"] footer button[data-bitfun-variant="primary"]')!;
+    expect(button.getAttribute('data-bitfun-tone')).toBe('danger');
     act(() => button.click());
     await expect(result).resolves.toBe('confirm');
   });

@@ -2,8 +2,8 @@
    Explicit native families render both Latin and CJK without bundling fonts or
    changing the isolated frame's sandbox. Keep this adaptation in the iOS host. */
 :root {
-  --openbitfun-font-sans: 'Helvetica Neue', 'PingFang SC', 'Apple Symbols', 'Apple Color Emoji', sans-serif;
-  --openbitfun-font-mono: Menlo, 'PingFang SC', 'Apple Symbols', 'Apple Color Emoji', monospace;
+  --bitfun-font-sans: 'Helvetica Neue', 'PingFang SC', 'Apple Symbols', 'Apple Color Emoji', sans-serif;
+  --bitfun-font-mono: Menlo, 'PingFang SC', 'Apple Symbols', 'Apple Color Emoji', monospace;
   --d-serif: Georgia, 'PingFang SC', 'Apple Symbols', 'Apple Color Emoji', serif;
 }
 /* Decorative glyph layers need a symbol face before WebKit's generic fallback. */

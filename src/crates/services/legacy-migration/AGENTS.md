@@ -19,12 +19,12 @@ names with the system `ps`, preserving full bundle paths and excluding arguments
 Focused verification:
 
 ```bash
-cargo test -p openbitfun-legacy-migration --lib
-cargo test -p openbitfun-legacy-migration --test migration_engine_contracts
+cargo test -p bitfun-legacy-migration --lib
+cargo test -p bitfun-legacy-migration --test migration_engine_contracts
 ```
 
 For process inventory, writer classification, and handoff changes, use
-`cargo test -p openbitfun-legacy-migration --lib handoff::tests`.
+`cargo test -p bitfun-legacy-migration --lib handoff::tests`.
 The macOS inventory test exercises the real host process list and must run on
 macOS; parser and classification fixtures run on all test platforms. These local
 checks do not establish remote-workspace, remote-control, peer, or dispatch behavior.

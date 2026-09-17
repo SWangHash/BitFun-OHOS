@@ -2,12 +2,12 @@
 
 Scope: this guide applies to `src/crates/contracts/core-types`.
 
-`openbitfun-core-types` owns low-level shared DTOs and error/session/surface
+`bitfun-core-types` owns low-level shared DTOs and error/session/surface
 contracts. Keep it dependency-light and stable for cross-crate reuse.
 
 ## Guardrails
 
-- Do not depend on `openbitfun-core`, runtime owner crates, service crates,
+- Do not depend on `bitfun-core`, runtime owner crates, service crates,
   transport adapters, app crates, Tauri, AI providers, Git, MCP, terminal, or
   tool-runtime implementations.
 - Keep additions limited to portable data shapes, serialization contracts, and
@@ -23,7 +23,7 @@ contracts. Keep it dependency-light and stable for cross-crate reuse.
 ## Verification
 
 ```bash
-cargo test -p openbitfun-core-types
+cargo test -p bitfun-core-types
 node scripts/check-core-boundaries.mjs
 ```
 

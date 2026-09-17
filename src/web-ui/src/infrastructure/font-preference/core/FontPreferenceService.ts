@@ -110,7 +110,7 @@ export class FontPreferenceService {
     // Runtime preferences override only the canonical foundation. Semantic
     // typography roles keep following it through generated CSS references.
     (Object.entries(tokens) as [string, string][]).forEach(([key, value]) => {
-      root.style.setProperty(`--openbitfun-font-size-${key}`, value);
+      root.style.setProperty(`--bitfun-font-size-${key}`, value);
     });
 
     log.debug('Font preference applied', { level: pref.uiSize.level });

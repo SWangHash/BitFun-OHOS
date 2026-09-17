@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root,
   .trigger,
   .body,
@@ -20,10 +20,10 @@
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
   }
 
   .root[data-has-detail="true"] {
@@ -71,7 +71,7 @@
   }
 
   .leading > :where(svg, img),
-  .leading > [data-openbitfun-component="icon"] {
+  .leading > [data-bitfun-component="icon"] {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -82,7 +82,7 @@
     flex: 1 1 auto;
     align-items: center;
     min-inline-size: 0;
-    gap: var(--openbitfun-control-activity-item-content-gap);
+    gap: var(--bitfun-control-activity-item-content-gap);
     white-space: nowrap;
   }
 
@@ -97,8 +97,8 @@
 
   .label {
     flex: 0 1 auto;
-    color: var(--openbitfun-color-content-primary);
-    font-weight: var(--openbitfun-type-label-sm-font-weight);
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
   }
 
   .description {
@@ -106,84 +106,84 @@
   }
 
   .root[data-appearance="inline"] {
-    gap: var(--openbitfun-control-activity-item-inline-gap);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    gap: var(--bitfun-control-activity-item-inline-gap);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   .root[data-appearance="inline"] .trigger,
   .root[data-appearance="inline"] .body {
-    gap: var(--openbitfun-control-activity-item-inline-gap);
+    gap: var(--bitfun-control-activity-item-inline-gap);
   }
 
   .root[data-appearance="inline"] .leading {
-    inline-size: var(--openbitfun-control-activity-item-inline-icon-size);
-    block-size: var(--openbitfun-control-activity-item-inline-icon-size);
+    inline-size: var(--bitfun-control-activity-item-inline-icon-size);
+    block-size: var(--bitfun-control-activity-item-inline-icon-size);
   }
 
   .root[data-appearance="surface"] {
     inline-size: 100%;
-    min-block-size: var(--openbitfun-control-activity-item-surface-height);
-    gap: var(--openbitfun-control-activity-item-surface-gap);
-    padding-block: var(--openbitfun-control-activity-item-surface-padding-block);
-    padding-inline-start: var(--openbitfun-control-activity-item-surface-padding-inline-start);
-    padding-inline-end: var(--openbitfun-control-activity-item-surface-padding-inline-end);
+    min-block-size: var(--bitfun-control-activity-item-surface-height);
+    gap: var(--bitfun-control-activity-item-surface-gap);
+    padding-block: var(--bitfun-control-activity-item-surface-padding-block);
+    padding-inline-start: var(--bitfun-control-activity-item-surface-padding-inline-start);
+    padding-inline-end: var(--bitfun-control-activity-item-surface-padding-inline-end);
     /* A centered stroke preserves the 9 + 22 + 9 row geometry. */
-    outline: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
-    outline-offset: calc(-0.5 * var(--openbitfun-border-width-default));
-    border-radius: var(--openbitfun-control-activity-item-surface-radius);
-    background: var(--openbitfun-color-surface-raised);
-    font-family: var(--openbitfun-type-label-md-font-family);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    font-weight: var(--openbitfun-type-label-md-font-weight);
-    line-height: var(--openbitfun-type-label-md-line-height);
-    letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+    outline: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    outline-offset: calc(-0.5 * var(--bitfun-border-width-default));
+    border-radius: var(--bitfun-control-activity-item-surface-radius);
+    background: var(--bitfun-color-surface-raised);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      outline-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      outline-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .root[data-appearance="surface"] .trigger,
   .root[data-appearance="surface"] .body {
-    gap: var(--openbitfun-control-activity-item-surface-gap);
+    gap: var(--bitfun-control-activity-item-surface-gap);
   }
 
   .root[data-appearance="surface"] .leading {
-    inline-size: var(--openbitfun-control-activity-item-surface-icon-size);
-    block-size: var(--openbitfun-control-activity-item-surface-icon-size);
+    inline-size: var(--bitfun-control-activity-item-surface-icon-size);
+    block-size: var(--bitfun-control-activity-item-surface-icon-size);
   }
 
-  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:hover, [data-openbitfun-preview-state="hover"]) {
-    outline-color: var(--openbitfun-color-border-default);
-    background: var(--openbitfun-color-action-neutral-surface-hover);
+  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:hover, [data-bitfun-preview-state="hover"]) {
+    outline-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
-  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:active, [data-openbitfun-preview-state="active"]) {
-    background: var(--openbitfun-color-action-neutral-surface-pressed);
+  .root[data-appearance="surface"]:not([data-disabled="true"]):is(:active, [data-bitfun-preview-state="active"]) {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
   }
 
   .root:has(.trigger:focus-visible) {
-    box-shadow: 0 0 0 var(--openbitfun-focus-width) var(--openbitfun-color-focus-ring);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
   }
 
   .root[data-disabled="true"] {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
     cursor: not-allowed;
-    opacity: var(--openbitfun-opacity-disabled);
+    opacity: var(--bitfun-opacity-disabled);
   }
 
   .root[data-disabled="true"] .label {
-    color: var(--openbitfun-color-content-disabled);
+    color: var(--bitfun-color-content-disabled);
   }
 
   .metadata {
-    padding-inline: var(--openbitfun-space-1);
+    padding-inline: var(--bitfun-space-1);
   }
 
   .divider {
-    inline-size: var(--openbitfun-border-width-default);
-    block-size: var(--openbitfun-control-activity-item-divider-block-size);
-    background: var(--openbitfun-color-border-subtle);
+    inline-size: var(--bitfun-border-width-default);
+    block-size: var(--bitfun-control-activity-item-divider-block-size);
+    background: var(--bitfun-color-border-subtle);
   }
 
   .actions {
@@ -198,28 +198,28 @@
   }
 
   .root[data-appearance="surface"] .detail {
-    padding-block-start: var(--openbitfun-space-1);
-    border-block-start: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
+    padding-block-start: var(--bitfun-space-1);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
   }
 
   .changeCount {
-    gap: var(--openbitfun-control-change-count-gap);
-    padding-block: var(--openbitfun-control-change-count-padding-block);
-    padding-inline: var(--openbitfun-control-change-count-padding-inline);
-    border-radius: var(--openbitfun-control-change-count-radius);
-    font-family: var(--openbitfun-type-meta-font-family);
-    font-size: var(--openbitfun-type-meta-font-size);
-    font-weight: var(--openbitfun-type-meta-font-weight);
-    line-height: var(--openbitfun-type-meta-line-height);
-    letter-spacing: var(--openbitfun-type-meta-letter-spacing);
+    gap: var(--bitfun-control-change-count-gap);
+    padding-block: var(--bitfun-control-change-count-padding-block);
+    padding-inline: var(--bitfun-control-change-count-padding-inline);
+    border-radius: var(--bitfun-control-change-count-radius);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
   }
 
   .additions {
-    color: var(--openbitfun-color-code-change-added);
+    color: var(--bitfun-color-code-change-added);
   }
 
   .deletions {
-    color: var(--openbitfun-color-code-change-removed);
+    color: var(--bitfun-color-code-change-removed);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -234,7 +234,7 @@
     }
 
     .root:has(.trigger:focus-visible) {
-      box-shadow: 0 0 0 var(--openbitfun-focus-width) Highlight;
+      box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
     }
 
     .divider {

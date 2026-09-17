@@ -2,7 +2,7 @@
  * GitScene styles.
  */
 
-.openbitfun-git-scene {
+.bitfun-git-scene {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -11,7 +11,7 @@
 
   &--not-repository,
   &--loading {
-    .openbitfun-git-scene__content {
+    .bitfun-git-scene__content {
       display: flex;
       flex-direction: column;
       flex: 1;
@@ -38,11 +38,11 @@
   &__init-line {
     width: 40px;
     height: 1px;
-    background: var(--openbitfun-color-border-subtle);
+    background: var(--bitfun-color-border-subtle);
 
     &--dashed {
       border: none;
-      background: repeating-linear-gradient(90deg, var(--openbitfun-color-border-subtle) 0, var(--openbitfun-color-border-subtle) 4px, transparent 4px, transparent 8px);
+      background: repeating-linear-gradient(90deg, var(--bitfun-color-border-subtle) 0, var(--bitfun-color-border-subtle) 4px, transparent 4px, transparent 8px);
     }
   }
 
@@ -50,7 +50,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--openbitfun-color-content-muted);
+    background: var(--bitfun-color-content-muted);
 
     &--muted {
       opacity: 0.5;
@@ -67,7 +67,7 @@
   }
 
   &__init-icon {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__init-text {
@@ -75,20 +75,20 @@
 
     h3 {
       margin: 0 0 4px;
-      font-size: var(--openbitfun-type-body-md-font-size);
-      font-weight: var(--openbitfun-type-label-selected-font-weight);
-      color: var(--openbitfun-color-content-primary);
+      font-size: var(--bitfun-type-body-md-font-size);
+      font-weight: var(--bitfun-type-label-selected-font-weight);
+      color: var(--bitfun-color-content-primary);
     }
     p {
       margin: 0;
-      font-size: var(--openbitfun-type-label-sm-font-size);
-      color: var(--openbitfun-color-content-secondary);
+      font-size: var(--bitfun-type-label-sm-font-size);
+      color: var(--bitfun-color-content-secondary);
     }
   }
 
   &__init-hint {
-    font-size: var(--openbitfun-type-meta-font-size);
-    color: var(--openbitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
   }
 
   &__loading-actions {
@@ -105,7 +105,7 @@
   }
 
   &__loading-hint {
-    font-size: var(--openbitfun-type-micro-font-size);
+    font-size: var(--bitfun-type-micro-font-size);
     margin: 0;
     opacity: 0.6;
   }

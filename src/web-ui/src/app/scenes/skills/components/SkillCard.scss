@@ -7,15 +7,15 @@
     isolation: isolate;
     block-size: 100%;
     min-block-size: 176px;
-    border-color: var(--openbitfun-color-border-subtle);
+    border-color: var(--bitfun-color-border-subtle);
     transition:
-      background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-      border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:has(> .skill-card__open):hover,
     &:focus-within {
-      background: var(--openbitfun-color-action-neutral-surface-hover);
-      border-color: var(--openbitfun-color-border-default);
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      border-color: var(--bitfun-color-border-default);
     }
   }
 
@@ -32,8 +32,8 @@
     cursor: pointer;
 
     &:focus-visible {
-      outline: var(--openbitfun-focus-width) solid var(--openbitfun-color-focus-ring);
-      outline-offset: calc(-1 * var(--openbitfun-focus-width));
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: calc(-1 * var(--bitfun-focus-width));
     }
   }
 
@@ -41,9 +41,9 @@
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    inline-size: var(--openbitfun-control-height-sm);
-    block-size: var(--openbitfun-control-height-sm);
-    color: var(--openbitfun-color-content-secondary);
+    inline-size: var(--bitfun-control-height-sm);
+    block-size: var(--bitfun-control-height-sm);
+    color: var(--bitfun-color-content-secondary);
   }
 
   &__icon {
@@ -55,7 +55,7 @@
     flex-shrink: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     min-width: 0;
   }
 
@@ -67,7 +67,7 @@
 
   &__title-row {
     align-items: center;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   &__name {
@@ -77,9 +77,9 @@
   &__source {
     display: flex;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
-    line-height: var(--openbitfun-type-meta-line-height);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    line-height: var(--bitfun-type-meta-line-height);
   }
 
   &__desc {
@@ -95,8 +95,8 @@
     display: inline-flex;
     align-items: center;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-muted);
-    font-size: var(--openbitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
     font-variant-numeric: tabular-nums;
   }
 
@@ -106,7 +106,7 @@
     display: flex;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     min-width: 0;
     margin-inline-start: auto;
   }

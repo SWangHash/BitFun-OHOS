@@ -1,4 +1,4 @@
-import { Button, ScrollArea } from '@openbitfun/ui';
+import { Button, ScrollArea } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -115,14 +115,14 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
 
   return (
     <div
-      className="openbitfun-reasoning-config-panel"
-      data-openbitfun-component="reasoning-config-panel"
-      data-openbitfun-part="root"
+      className="bitfun-reasoning-config-panel"
+      data-bitfun-component="reasoning-config-panel"
+      data-bitfun-part="root"
     >
       <ScrollArea
-        className="openbitfun-reasoning-config-panel__body"
-        data-openbitfun-component="reasoning-config-panel"
-        data-openbitfun-part="body"
+        className="bitfun-reasoning-config-panel__body"
+        data-bitfun-component="reasoning-config-panel"
+        data-bitfun-part="body"
       >
         <ReasoningPresetEditor
           value={draft}
@@ -134,15 +134,15 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
         />
       </ScrollArea>
       <div
-        className="openbitfun-reasoning-config-panel__footer"
-        data-openbitfun-component="reasoning-config-panel"
-        data-openbitfun-part="footer"
+        className="bitfun-reasoning-config-panel__footer"
+        data-bitfun-component="reasoning-config-panel"
+        data-bitfun-part="footer"
       >
         {invalid && (
           <div
-            className="openbitfun-reasoning-config-panel__error"
-            data-openbitfun-component="reasoning-config-panel"
-            data-openbitfun-part="error"
+            className="bitfun-reasoning-config-panel__error"
+            data-bitfun-component="reasoning-config-panel"
+            data-bitfun-part="error"
             role="alert"
           >
             <AlertTriangle size={14} aria-hidden="true" />
@@ -150,9 +150,9 @@ export const ReasoningConfigPanel: React.FC<ReasoningConfigPanelProps> = ({
           </div>
         )}
         <div
-          className="openbitfun-reasoning-config-panel__actions"
-          data-openbitfun-component="reasoning-config-panel"
-          data-openbitfun-part="actions"
+          className="bitfun-reasoning-config-panel__actions"
+          data-bitfun-component="reasoning-config-panel"
+          data-bitfun-part="actions"
         >
           <Button variant="fill" onClick={onCancel}>
             {t('actions.cancel')}

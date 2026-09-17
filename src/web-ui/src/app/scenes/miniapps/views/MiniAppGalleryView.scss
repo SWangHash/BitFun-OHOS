@@ -10,9 +10,9 @@
     display: inline-block;
     width: 8px;
     height: 8px;
-    margin-inline-end: var(--openbitfun-space-2);
-    border-radius: var(--openbitfun-radius-pill);
-    background: var(--openbitfun-color-status-success-content);
+    margin-inline-end: var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-status-success-content);
   }
 
   &__import-anchor {
@@ -28,14 +28,14 @@
     width: 100%;
     height: 193px;
     min-height: 193px;
-    border-radius: var(--openbitfun-radius-xl);
+    border-radius: var(--bitfun-radius-xl);
   }
 
   &__categories {
     max-width: 500px;
     overflow-x: auto;
 
-    > [data-openbitfun-part='segment'] {
+    > [data-bitfun-part='segment'] {
       flex: 0 0 auto;
     }
   }

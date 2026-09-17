@@ -18,7 +18,7 @@ beforeEach(() => vi.stubGlobal('localStorage', new JSDOM('', { url: 'https://cre
 afterEach(() => { setPeerDeviceModeActiveFlag(false); document.body.innerHTML = ''; vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 it('delivers a correlated Agent request to a registered command and updates the mounted UI through state events', async () => {
-  document.body.innerHTML = '<div data-openbitfun-creation-slot="sidebar-footer"></div>';
+  document.body.innerHTML = '<div data-bitfun-creation-slot="sidebar-footer"></div>';
   const creation = createCreationUiApi(new AbortController().signal);
   const root = creation.api.mount('sidebar-footer');
   creation.api.events.on('state.changed', () => { root.textContent = String(creation.api.state.get('counter.value')); });
@@ -33,7 +33,7 @@ it('delivers a correlated Agent request to a registered command and updates the 
   const [event, handler] = vi.mocked(api.listen).mock.calls[0];
   expect(event).toBe(CREATION_REQUEST_EVENT);
   handler({ requestId: 'invoke-1', action: 'invoke', commandId: 'counter.set', arguments: { value: 12 } });
-  await vi.waitFor(() => expect(api.invoke).toHaveBeenCalledWith('report_openbitfun_control_result', { request: { requestId: 'invoke-1', success: true, result: 12 } }));
+  await vi.waitFor(() => expect(api.invoke).toHaveBeenCalledWith('report_bitfun_control_result', { request: { requestId: 'invoke-1', success: true, result: 12 } }));
   expect(root.textContent).toBe('12');
   setPeerDeviceModeActiveFlag(true);
   await expect(executeCreationRequest({ requestId: 'peer', action: 'inspect' })).rejects.toThrow('local Desktop');

@@ -1,7 +1,7 @@
 {
-  "name": "@openbitfun/design-tokens",
+  "name": "@bitfun/design-tokens",
   "version": "0.1.0",
-  "description": "Framework-neutral design token contract and system scales for OpenBitFun UI packages",
+  "description": "Framework-neutral design token contract and system scales for BitFun UI packages",
   "license": "MIT",
   "type": "module",
   "files": [
@@ -30,7 +30,7 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
-    "@openbitfun/token-engine": "workspace:*"
+    "@bitfun/token-engine": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

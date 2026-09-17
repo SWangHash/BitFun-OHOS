@@ -1,7 +1,7 @@
 //! Product domain owner crate.
 //!
 //! Product subdomains live here when they can be compiled without depending on
-//! the full OpenBitFun core runtime assembly.
+//! the full BitFun core runtime assembly.
 
 pub mod account;
 pub mod agent_catalog;

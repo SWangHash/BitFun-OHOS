@@ -137,7 +137,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'usage.help.legacyModel': 'Older sessions did not store per-round model names.',
         'usage.help.inferredModel': 'Inferred from the session model setting.',
         'usage.help.filesUnavailable': 'No file snapshot or file-edit tool record was found for this session.',
-        'usage.help.filesNoRecordedChanges': 'OpenBitFun did not detect file changes in this session. This is expected when the agent did not edit files.',
+        'usage.help.filesNoRecordedChanges': 'BitFun did not detect file changes in this session. This is expected when the agent did not edit files.',
         'usage.help.filesRemoteUnavailable': 'No remote snapshot summary was found for this session. File rows can still appear from recognized file-edit tool records.',
         'usage.help.filesNotTracked': 'No local snapshot or identifiable file-edit tool record was found for this session.',
         'usage.help.fileDiffUnavailable': 'Diff links require a snapshot-backed file row and a visible file path.',
@@ -229,8 +229,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   IconButton: React.forwardRef<
     HTMLButtonElement,
     React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode; variant?: string; size?: string }
@@ -269,7 +269,7 @@ vi.mock('@/infrastructure/markdown', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="markdown">{content}</div>,
 }));
 
-vi.mock('@openbitfun/ui/flow-chat', () => ({
+vi.mock('@bitfun/ui/flow-chat', () => ({
   ToolProcessingDots: ({ className }: { className?: string }) => <span className={className}>...</span>,
 }));
 
@@ -367,7 +367,7 @@ function usageReport(overrides: Partial<SessionUsageReport> = {}): SessionUsageR
     generatedAt: Date.UTC(2026, 4, 10, 8, 0),
     workspace: {
       kind: 'local',
-      pathLabel: 'D:/workspace/openbitfun',
+      pathLabel: 'D:/workspace/bitfun',
     },
     scope: {
       kind: 'entire_session',
@@ -557,8 +557,8 @@ describe('Session usage report UI components', () => {
 
     const openButton = container.querySelector('button[aria-label="Open details"]');
     expect(openButton?.textContent).toBe('Details');
-    expect(openButton?.getAttribute('data-openbitfun-component')).toBe('button');
-    expect(openButton?.getAttribute('data-openbitfun-variant')).toBe('outline');
+    expect(openButton?.getAttribute('data-bitfun-component')).toBe('button');
+    expect(openButton?.getAttribute('data-bitfun-variant')).toBe('outline');
     expect(container.querySelector('.session-usage-report-card__action-group')).toBeNull();
     act(() => {
       openButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -850,7 +850,7 @@ describe('Session usage report UI components', () => {
     const report = usageReport({
       workspace: {
         kind: 'local',
-        pathLabel: 'D:/workspace/openbitfun',
+        pathLabel: 'D:/workspace/bitfun',
       },
       files: {
         scope: 'snapshot_summary',
@@ -873,12 +873,12 @@ describe('Session usage report UI components', () => {
 
     render(
       <>
-        <SessionUsageReportCard report={report} markdown="## Session Usage: D:/workspace/openbitfun/src/private/secret.ts" />
+        <SessionUsageReportCard report={report} markdown="## Session Usage: D:/workspace/bitfun/src/private/secret.ts" />
         <SessionUsagePanel
           report={report}
-          markdown="## Session Usage: D:/workspace/openbitfun/src/private/secret.ts"
+          markdown="## Session Usage: D:/workspace/bitfun/src/private/secret.ts"
           sessionId="session-1"
-          workspacePath="D:/workspace/openbitfun"
+          workspacePath="D:/workspace/bitfun"
           initialTab="files"
         />
       </>
@@ -893,7 +893,7 @@ describe('Session usage report UI components', () => {
     expect(redactionInputs.every(input => input.closest('label')?.getAttribute('data-appearance') === 'native')).toBe(true);
     expect(container.textContent).toContain('[redacted path]');
     expect(container.textContent).toContain('secret.ts');
-    expect(container.textContent).not.toContain('D:/workspace/openbitfun');
+    expect(container.textContent).not.toContain('D:/workspace/bitfun');
     expect(container.textContent).not.toContain('src/private/secret.ts');
     expect(container.querySelector('[data-tooltip="[redacted path]/secret.ts"]')).not.toBeNull();
 
@@ -913,10 +913,10 @@ describe('Session usage report UI components', () => {
       `input[aria-label="Redact paths"]`
     ));
     expect(updatedInputs.every(input => input.checked)).toBe(false);
-    expect(container.textContent).toContain('D:/workspace/openbitfun');
+    expect(container.textContent).toContain('D:/workspace/bitfun');
     expect(container.querySelector('[data-tooltip="src/private/secret.ts"]')).not.toBeNull();
     await act(async () => copy?.click());
-    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('## Session Usage: D:/workspace/openbitfun/src/private/secret.ts');
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('## Session Usage: D:/workspace/bitfun/src/private/secret.ts');
     act(() => updatedInputs[1]?.labels?.[0].click());
     expect(updatedInputs.every(input => input.checked)).toBe(true);
     expect(preferenceWrite).toHaveBeenCalledTimes(2);
@@ -1135,7 +1135,7 @@ describe('Session usage report UI components', () => {
 
   it('preserves initial-tab updates and saved appearance selectors on the native tabs', () => {
     const legacyPackage: AppearancePackage = {
-      schema: 'openbitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
       id: 'test.usage-tabs', name: 'Usage tabs', version: '1.0.0', mode: 'dark',
       components: { 'session-usage-panel': { parts: { tab: { contexts: [{
         when: { facets: { tab: 'models' }, states: ['active'] },
@@ -1147,8 +1147,8 @@ describe('Session usage report UI components', () => {
     const registry = new AppearanceRegistry().registerComponent(sessionUsagePanelAppearanceDescriptor);
     const snapshot = new AppearanceCompiler(registry).compile(restored, 1);
     expect(JSON.stringify(restored)).toBe(serialized);
-    document.documentElement.setAttribute('data-openbitfun-appearance', snapshot.id);
-    document.documentElement.setAttribute('data-openbitfun-appearance-revision', String(snapshot.revision));
+    document.documentElement.setAttribute('data-bitfun-appearance', snapshot.id);
+    document.documentElement.setAttribute('data-bitfun-appearance-revision', String(snapshot.revision));
     const style = document.createElement('style');
     style.textContent = snapshot.cssText;
     document.head.appendChild(style);
@@ -1160,8 +1160,8 @@ describe('Session usage report UI components', () => {
     const report = usageReport();
     render(<SessionUsagePanel report={report} initialTab="models" />);
     const modelsTab = container.querySelector('#session-usage-tab-models');
-    expect(container.querySelector('[role="tablist"]')?.getAttribute('data-openbitfun-component')).toBe('tab-group');
-    expect(modelsTab?.getAttribute('data-openbitfun-part')).toBe('tab');
+    expect(container.querySelector('[role="tablist"]')?.getAttribute('data-bitfun-component')).toBe('tab-group');
+    expect(modelsTab?.getAttribute('data-bitfun-part')).toBe('tab');
     expect(document.querySelector(rule!.selectorText)).toBe(modelsTab);
     render(<SessionUsagePanel report={report} initialTab="files" />);
     expect(document.querySelector(rule!.selectorText)).toBeNull();
@@ -1447,7 +1447,7 @@ describe('Session usage report UI components', () => {
         report={report}
         markdown="## Session Usage"
         sessionId="session-1"
-        workspacePath="D:/workspace/openbitfun"
+        workspacePath="D:/workspace/bitfun"
       />
     );
 
@@ -1509,7 +1509,7 @@ describe('Session usage report UI components', () => {
         report={report}
         markdown="## Session Usage"
         sessionId="session-1"
-        workspacePath="D:/workspace/openbitfun"
+        workspacePath="D:/workspace/bitfun"
       />
     );
 
@@ -1533,7 +1533,7 @@ describe('Session usage report UI components', () => {
 
   it('opens snapshot-backed file diffs from the detail panel', async () => {
     snapshotApiMocks.getOperationDiff.mockResolvedValue({
-      filePath: 'D:/workspace/openbitfun/src/main.rs',
+      filePath: 'D:/workspace/bitfun/src/main.rs',
       originalContent: 'before',
       modifiedContent: 'after',
       anchorLine: 42,
@@ -1563,7 +1563,7 @@ describe('Session usage report UI components', () => {
         report={report}
         markdown="## Session Usage"
         sessionId="session-1"
-        workspacePath="D:/workspace/openbitfun"
+        workspacePath="D:/workspace/bitfun"
       />
     );
 
@@ -1582,18 +1582,18 @@ describe('Session usage report UI components', () => {
 
     expect(snapshotApiMocks.getOperationDiff).toHaveBeenCalledWith(
       'session-1',
-      'D:/workspace/openbitfun/src/main.rs',
+      'D:/workspace/bitfun/src/main.rs',
       'operation-1',
-      'D:/workspace/openbitfun',
+      'D:/workspace/bitfun',
     );
     expect(tabUtilsMocks.createDiffEditorTab).toHaveBeenCalledWith(
-      'D:/workspace/openbitfun/src/main.rs',
+      'D:/workspace/bitfun/src/main.rs',
       'main.rs',
       'before',
       'after',
       true,
       'agent',
-      'D:/workspace/openbitfun',
+      'D:/workspace/bitfun',
       42,
       undefined,
       {
@@ -1837,10 +1837,10 @@ describe('Session usage report i18n and theme guards', () => {
       .map(stylePath => fs.readFileSync(path.resolve(stylePath), 'utf8'))
       .join('\n');
 
-    expect(styleText).toContain('var(--openbitfun-color-content-primary)');
+    expect(styleText).toContain('var(--bitfun-color-content-primary)');
     expect(styleText).toContain('width: auto;');
     expect(styleText).toContain('margin: 0.12rem 3rem');
-    expect(styleText).toContain('border: 1px solid color-mix(in srgb, var(--openbitfun-color-border-default)');
+    expect(styleText).toContain('border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default)');
     expect(styleText).toContain('grid-template-columns: repeat(3, minmax(116px, 1fr));');
     expect(styleText).toContain('width: clamp(180px, 26vw, 280px);');
     expect(styleText).toContain('max-width: 280px;');

@@ -6,6 +6,6 @@ export const editorConfigAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'root' }, { id: 'content' },
   ],
   states: [
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
   ],
 };

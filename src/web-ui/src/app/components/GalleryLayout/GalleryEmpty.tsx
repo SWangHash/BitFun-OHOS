@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon, type IconSource } from '@openbitfun/ui';
+import { Icon, type IconSource } from '@bitfun/ui';
 
 interface GalleryEmptyProps extends React.HTMLAttributes<HTMLDivElement> {
   icon: IconSource;

@@ -5,7 +5,7 @@ use super::coordination_store::{
 use super::coordinator::{SubagentResult, SubagentResultStatus};
 use crate::agentic::session::SessionManager;
 use crate::service::session::TurnStatus;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use dashmap::DashMap;
 use log::warn;
 use std::collections::HashSet;
@@ -106,7 +106,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn register(
         &self,
         registration: BackgroundTaskRegistration,
-    ) -> OpenBitFunResult<RegisteredBackgroundTask> {
+    ) -> BitFunResult<RegisteredBackgroundTask> {
         let registered = self
             .coordination_store
             .register_background_task(registration)
@@ -118,7 +118,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn complete(
         &self,
         task_pk: i64,
-        result: Result<&SubagentResult, &OpenBitFunError>,
+        result: Result<&SubagentResult, &BitFunError>,
     ) {
         let live_result = match result {
             Ok(result) => LiveBackgroundResult {
@@ -130,7 +130,7 @@ impl BackgroundSubagentOutcomeStore {
                 error: result.reason.clone(),
             },
             Err(error) => LiveBackgroundResult {
-                status: if matches!(error, OpenBitFunError::Cancelled(_)) {
+                status: if matches!(error, BitFunError::Cancelled(_)) {
                     BackgroundTaskStatus::Cancelled
                 } else {
                     BackgroundTaskStatus::Failed
@@ -196,7 +196,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         task_pk: i64,
         release_agent_reservation: bool,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.live_results.remove(&task_pk);
         let released_agent_reservation = self
             .coordination_store
@@ -215,7 +215,7 @@ impl BackgroundSubagentOutcomeStore {
         delivered_parent_dialog_turn_id: &str,
         cancellation_token: Option<&CancellationToken>,
         round_injection_preemption_token: Option<&CancellationToken>,
-    ) -> OpenBitFunResult<BackgroundSubagentWaitResult> {
+    ) -> BitFunResult<BackgroundSubagentWaitResult> {
         self.reconcile_stale_running_tasks(parent_session_id)
             .await?;
         let selected = self
@@ -238,7 +238,7 @@ impl BackgroundSubagentOutcomeStore {
 
         loop {
             if cancellation_token.is_some_and(CancellationToken::is_cancelled) {
-                return Err(OpenBitFunError::cancelled(
+                return Err(BitFunError::cancelled(
                     "AgentWait was cancelled".to_string(),
                 ));
             }
@@ -327,7 +327,7 @@ impl BackgroundSubagentOutcomeStore {
                         None => std::future::pending::<()>().await,
                     }
                 } => {
-                    return Err(OpenBitFunError::cancelled("AgentWait was cancelled".to_string()));
+                    return Err(BitFunError::cancelled("AgentWait was cancelled".to_string()));
                 }
                 _ = async {
                     match round_injection_preemption_token {
@@ -341,7 +341,7 @@ impl BackgroundSubagentOutcomeStore {
         }
     }
 
-    async fn collect_available(&self, task_pks: &[i64]) -> OpenBitFunResult<AvailableOutcomes> {
+    async fn collect_available(&self, task_pks: &[i64]) -> BitFunResult<AvailableOutcomes> {
         let records = self
             .coordination_store
             .records_by_task_pks(task_pks)
@@ -368,7 +368,7 @@ impl BackgroundSubagentOutcomeStore {
         delivered_parent_dialog_turn_id: &str,
         status: BackgroundSubagentWaitStatus,
         available: AvailableOutcomes,
-    ) -> OpenBitFunResult<Option<BackgroundSubagentWaitResult>> {
+    ) -> BitFunResult<Option<BackgroundSubagentWaitResult>> {
         let task_pks = available
             .outcomes
             .iter()
@@ -398,7 +398,7 @@ impl BackgroundSubagentOutcomeStore {
     async fn outcome_from_record(
         &self,
         record: &BackgroundTaskRecord,
-    ) -> OpenBitFunResult<BackgroundSubagentOutcome> {
+    ) -> BitFunResult<BackgroundSubagentOutcome> {
         if let Some(live) = self.live_results.get(&record.task_pk) {
             return Ok(BackgroundSubagentOutcome {
                 task_pk: record.task_pk,
@@ -431,7 +431,7 @@ impl BackgroundSubagentOutcomeStore {
     async fn load_persisted_result_text(
         &self,
         record: &BackgroundTaskRecord,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         let turn = self
             .session_manager
             .load_related_dialog_turn(
@@ -441,7 +441,7 @@ impl BackgroundSubagentOutcomeStore {
             )
             .await?
             .ok_or_else(|| {
-                OpenBitFunError::tool(format!(
+                BitFunError::tool(format!(
                     "Persisted subagent result is unavailable for {}",
                     record.bg_task_id
                 ))
@@ -455,7 +455,7 @@ impl BackgroundSubagentOutcomeStore {
             .map(|item| item.content.clone()))
     }
 
-    async fn reconcile_stale_running_tasks(&self, parent_session_id: &str) -> OpenBitFunResult<()> {
+    async fn reconcile_stale_running_tasks(&self, parent_session_id: &str) -> BitFunResult<()> {
         let stale = self
             .coordination_store
             .stale_running_tasks(parent_session_id)
@@ -503,7 +503,7 @@ impl BackgroundSubagentOutcomeStore {
         parent_session_id: &str,
         child_session_id: &str,
         requested_agent_id: Option<&str>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.coordination_store
             .agent_id_for_session_with_requested_id(
                 parent_session_id,
@@ -517,7 +517,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         parent_session_id: &str,
         child_session_id: &str,
-    ) -> OpenBitFunResult<Option<String>> {
+    ) -> BitFunResult<Option<String>> {
         self.coordination_store
             .existing_agent_id_for_session(parent_session_id, child_session_id)
             .await
@@ -527,7 +527,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         parent_session_id: &str,
         agent_id: &str,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.coordination_store
             .resolve_agent_id(parent_session_id, agent_id)
             .await
@@ -536,7 +536,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn direct_child_agents(
         &self,
         parent_session_id: &str,
-    ) -> OpenBitFunResult<Vec<DirectChildAgentRecord>> {
+    ) -> BitFunResult<Vec<DirectChildAgentRecord>> {
         self.reconcile_stale_running_tasks(parent_session_id)
             .await?;
         self.coordination_store
@@ -548,7 +548,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         parent_session_id: &str,
         agent_id: &str,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         self.coordination_store
             .resolve_direct_child_agent_id(parent_session_id, agent_id)
             .await
@@ -561,7 +561,7 @@ impl BackgroundSubagentOutcomeStore {
         parent_agent_type: &str,
         child_agent_type: &str,
         child_depth: u8,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.coordination_store
             .reserve_swarm_child(
                 parent_session_id,
@@ -576,7 +576,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn rollback_swarm_child(
         &self,
         child_session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.coordination_store
             .rollback_swarm_child(child_session_id)
             .await
@@ -585,7 +585,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn swarm_depth_for_session(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<Option<u8>> {
+    ) -> BitFunResult<Option<u8>> {
         self.coordination_store
             .swarm_depth_for_session(session_id)
             .await
@@ -594,7 +594,7 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn swarm_descendant_session_ids(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<Vec<String>> {
+    ) -> BitFunResult<Vec<String>> {
         self.coordination_store
             .swarm_descendant_session_ids(session_id)
             .await
@@ -603,13 +603,13 @@ impl BackgroundSubagentOutcomeStore {
     pub(crate) async fn swarm_subtree_session_ids_postorder(
         &self,
         session_id: &str,
-    ) -> OpenBitFunResult<Vec<String>> {
+    ) -> BitFunResult<Vec<String>> {
         self.coordination_store
             .swarm_subtree_session_ids_postorder(session_id)
             .await
     }
 
-    pub(crate) async fn delete_session_references(&self, session_id: &str) -> OpenBitFunResult<()> {
+    pub(crate) async fn delete_session_references(&self, session_id: &str) -> BitFunResult<()> {
         let deleted_task_pks = self
             .coordination_store
             .delete_session_references(session_id)
@@ -625,7 +625,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         parent_session_id: &str,
         parent_dialog_turn_ids: &[String],
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         let deleted_task_pks = self
             .coordination_store
             .rollback_parent_turns(parent_session_id, parent_dialog_turn_ids)
@@ -641,7 +641,7 @@ impl BackgroundSubagentOutcomeStore {
         &self,
         source_parent_session_id: &str,
         target_parent_session_id: &str,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.coordination_store
             .initialize_fork(source_parent_session_id, target_parent_session_id)
             .await

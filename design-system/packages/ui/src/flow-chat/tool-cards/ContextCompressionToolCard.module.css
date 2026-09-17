@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .root {
     min-inline-size: 0;
   }
@@ -8,21 +8,21 @@
     display: block;
     overflow: hidden;
     min-inline-size: 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-body-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
     white-space: nowrap;
   }
 
   .processing {
-    color: var(--openbitfun-color-content-muted);
+    color: var(--bitfun-color-content-muted);
     font-style: italic;
   }
 
   .error {
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    line-height: var(--openbitfun-type-body-md-line-height);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-md-line-height);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
 }

@@ -1,10 +1,10 @@
 use crate::session_state::SessionState;
-pub use openbitfun_core_types::SessionKind;
-pub use openbitfun_core_types::{
+pub use bitfun_core_types::SessionKind;
+pub use bitfun_core_types::{
     SessionAgentRouteOwner, SessionContinuationPolicy, SessionExecutionTarget,
     SessionModelBindingPolicy,
 };
-pub use openbitfun_runtime_ports::PermissionMode;
+pub use bitfun_runtime_ports::PermissionMode;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ pub struct Session {
     /// This is the mode the next dialog turn should run with by default. It is
     /// not required to match either the last surviving history turn or the last
     /// message submission accepted by the scheduler.
-    #[serde(deserialize_with = "openbitfun_core_types::agent_identity::deserialize_agent_id")]
+    #[serde(deserialize_with = "bitfun_core_types::agent_identity::deserialize_agent_id")]
     pub agent_type: String,
     /// Cached mode of the last surviving user dialog turn in history.
     ///
@@ -30,7 +30,7 @@ pub struct Session {
     /// after rollbacks or turn truncation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_user_dialog_agent_type: Option<String>,
     /// Mode of the most recent user submission accepted by the scheduler.
@@ -40,7 +40,7 @@ pub struct Session {
     /// the next accepted submission.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_submitted_agent_type: Option<String>,
     #[serde(
@@ -98,7 +98,7 @@ impl CompressionState {
 impl Session {
     pub fn new(session_name: String, agent_type: String, config: SessionConfig) -> Self {
         let agent_type =
-            openbitfun_core_types::agent_identity::canonical_agent_id(&agent_type).to_owned();
+            bitfun_core_types::agent_identity::canonical_agent_id(&agent_type).to_owned();
         let now = SystemTime::now();
         Self {
             session_id: Uuid::new_v4().to_string(),
@@ -126,7 +126,7 @@ impl Session {
         config: SessionConfig,
     ) -> Self {
         let agent_type =
-            openbitfun_core_types::agent_identity::canonical_agent_id(&agent_type).to_owned();
+            bitfun_core_types::agent_identity::canonical_agent_id(&agent_type).to_owned();
         let now = SystemTime::now();
         Self {
             session_id,
@@ -160,7 +160,7 @@ impl Session {
     }
 }
 
-impl From<Session> for openbitfun_runtime_ports::AgentSessionCreateResult {
+impl From<Session> for bitfun_runtime_ports::AgentSessionCreateResult {
     fn from(session: Session) -> Self {
         let mut result = Self::new(session.session_id, session.session_name, session.agent_type);
         result.model_id = session.config.model_id;
@@ -213,7 +213,7 @@ pub struct SessionConfig {
     /// `workspace_path` on different hosts (e.g. two `/` roots).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_connection_id: Option<String>,
-    /// SSH config `host` for locating `~/.openbitfun/remote_ssh/{host}/.../sessions` when disconnected.
+    /// SSH config `host` for locating `~/.bitfun/remote_ssh/{host}/.../sessions` when disconnected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_ssh_host: Option<String>,
     /// Model config ID used by this session (for token usage tracking)
@@ -231,7 +231,7 @@ pub struct SessionConfig {
     /// persisted session state. See `deserialize_optional_permission_mode`.
     #[serde(
         default,
-        deserialize_with = "openbitfun_runtime_ports::deserialize_optional_permission_mode",
+        deserialize_with = "bitfun_runtime_ports::deserialize_optional_permission_mode",
         skip_serializing_if = "Option::is_none"
     )]
     pub permission_mode: Option<PermissionMode>,
@@ -319,7 +319,7 @@ pub struct SessionSummary {
     pub session_id: String,
     pub session_name: String,
     /// Current/default mode selection for the session.
-    #[serde(deserialize_with = "openbitfun_core_types::agent_identity::deserialize_agent_id")]
+    #[serde(deserialize_with = "bitfun_core_types::agent_identity::deserialize_agent_id")]
     pub agent_type: String,
     /// Runtime-owned model selector currently bound to the session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -331,13 +331,13 @@ pub struct SessionSummary {
     /// Mode of the last surviving user dialog turn in the session history.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_user_dialog_agent_type: Option<String>,
     /// Mode of the most recent user submission accepted by the scheduler.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_submitted_agent_type: Option<String>,
     #[serde(
@@ -368,7 +368,7 @@ pub struct PersistedSessionStateFile {
     /// on persisted dialog turns via `DialogTurnData.agent_type`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_user_dialog_agent_type: Option<String>,
     /// Session-level prompt-cache guard state. This records the most recent user
@@ -376,7 +376,7 @@ pub struct PersistedSessionStateFile {
     /// history rollback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(
-        deserialize_with = "openbitfun_core_types::agent_identity::deserialize_optional_agent_id"
+        deserialize_with = "bitfun_core_types::agent_identity::deserialize_optional_agent_id"
     )]
     pub last_submitted_agent_type: Option<String>,
     pub compression_state: CompressionState,
@@ -474,10 +474,10 @@ mod tests {
             Some("root-session")
         );
     }
-    use openbitfun_core_types::{
+    use bitfun_core_types::{
         SessionExecutionTarget, SessionExecutionTargetKind, WorktreeLifecycle,
     };
-    use openbitfun_runtime_ports::AgentSessionCreateResult;
+    use bitfun_runtime_ports::AgentSessionCreateResult;
     use serde_json::json;
 
     #[test]
@@ -592,7 +592,7 @@ mod tests {
             root_path: "/worktrees/session_1".to_string(),
             base_ref: Some("main".to_string()),
             base_commit: Some("0123456789abcdef".to_string()),
-            branch: Some("openbitfun/session_1".to_string()),
+            branch: Some("bitfun/session_1".to_string()),
             lifecycle: Some(WorktreeLifecycle::Managed),
         };
         let session = Session::new_with_id(

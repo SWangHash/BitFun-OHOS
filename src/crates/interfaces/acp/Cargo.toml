@@ -1,52 +1,52 @@
 [package]
-name = "openbitfun-acp"
+name = "bitfun-acp"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "OpenBitFun Agent Client Protocol surface"
+description = "BitFun Agent Client Protocol surface"
 
 [features]
 default = ["client", "server"]
 client = [
-    "openbitfun-agent-tools/acp-bridge",
+    "bitfun-agent-tools/acp-bridge",
     "dep:futures",
     "dep:serde",
     "dep:dirs",
     "dep:semver",
     "dep:tar",
-    "dep:openbitfun-core",
-    "openbitfun-core/agent-runtime",
-    "openbitfun-core/ssh-remote",
+    "dep:bitfun-core",
+    "bitfun-core/agent-runtime",
+    "bitfun-core/ssh-remote",
 ]
 server = [
-    "dep:openbitfun-agent-tools",
-    "dep:openbitfun-agent-runtime",
-    "openbitfun-agent-runtime/agent-runtime",
-    "dep:openbitfun-core-types",
-    "dep:openbitfun-core",
+    "dep:bitfun-agent-tools",
+    "dep:bitfun-agent-runtime",
+    "bitfun-agent-runtime/agent-runtime",
+    "dep:bitfun-core-types",
+    "dep:bitfun-core",
     "dep:sha2",
-    "openbitfun-core/agent-runtime",
-    "openbitfun-core/document-read",
-    "openbitfun-core/subscription-auth",
-    "openbitfun-core/external-sources",
-    "openbitfun-core/tools-basic",
-    "openbitfun-core/tools-git",
-    "openbitfun-core/tools-mcp",
-    "openbitfun-core/tools-browser-web",
-    "openbitfun-core/tools-computer-use",
-    "openbitfun-core/tools-image-analysis",
-    "openbitfun-core/tools-agent-control",
+    "bitfun-core/agent-runtime",
+    "bitfun-core/document-read",
+    "bitfun-core/subscription-auth",
+    "bitfun-core/external-sources",
+    "bitfun-core/tools-basic",
+    "bitfun-core/tools-git",
+    "bitfun-core/tools-mcp",
+    "bitfun-core/tools-browser-web",
+    "bitfun-core/tools-computer-use",
+    "bitfun-core/tools-image-analysis",
+    "bitfun-core/tools-agent-control",
 ]
 
 [lib]
-name = "openbitfun_acp"
+name = "bitfun_acp"
 
 [dependencies]
-openbitfun-core = { path = "../../assembly/core", optional = true }
-openbitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
-openbitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
-openbitfun-events = { path = "../../contracts/events" }
-openbitfun-core-types = { path = "../../contracts/core-types", optional = true }
+bitfun-core = { path = "../../assembly/core", optional = true }
+bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
+bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
+bitfun-events = { path = "../../contracts/events" }
+bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 
 agent-client-protocol = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-std", "io-util", "macros", "process", "rt", "sync", "time"] }

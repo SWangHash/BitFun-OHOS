@@ -11,17 +11,17 @@ use crate::miniapp::types::{
     MiniApp, MiniAppAiContext, MiniAppMeta, MiniAppPermissions, MiniAppSource,
 };
 use crate::product_domain_runtime::CoreProductDomainRuntime;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use chrono::Utc;
-use openbitfun_product_domains::miniapp::customization::{
+use bitfun_product_domains::miniapp::customization::{
     MiniAppCustomizationBaseline, MiniAppCustomizationMetadata, MiniAppPermissionDiff,
 };
-use openbitfun_product_domains::miniapp::draft::MiniAppDraft;
-use openbitfun_product_domains::miniapp::lifecycle::{
+use bitfun_product_domains::miniapp::draft::MiniAppDraft;
+use bitfun_product_domains::miniapp::lifecycle::{
     build_worker_revision, MiniAppCreateInput, MiniAppUpdatePatch,
 };
-use openbitfun_product_domains::miniapp::market::{InstalledMarketOrigin, MarketPackageMeta};
-use openbitfun_product_domains::miniapp::ports::{
+use bitfun_product_domains::miniapp::market::{InstalledMarketOrigin, MarketPackageMeta};
+use bitfun_product_domains::miniapp::ports::{
     MiniAppCompilePort, MiniAppImportFromPathRequest, MiniAppPortError, MiniAppPortErrorKind,
     MiniAppPortFuture, MiniAppRuntimeFacade,
 };
@@ -76,7 +76,7 @@ impl MiniAppManager {
         permissions: &MiniAppPermissions,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let app_data_dir = self.path_manager.miniapp_dir(app_id);
         let request = MiniAppCompileRequest::from_paths(
             app_id,
@@ -94,7 +94,7 @@ impl MiniAppManager {
         permissions: &MiniAppPermissions,
         theme: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let app_data_dir = self.path_manager.miniapp_dir(app_id);
         let request =
             MiniAppCompileRequest::from_paths(app_id, &app_data_dir, workspace_root, theme);
@@ -109,7 +109,7 @@ impl MiniAppManager {
         permissions: &MiniAppPermissions,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         let request = MiniAppCompileRequest::from_paths(
             app_id,
             app_data_dir,
@@ -127,13 +127,13 @@ impl MiniAppManager {
             .is_some_and(|meta| {
                 matches!(
                     meta.runtime_profile,
-                    openbitfun_product_domains::miniapp::types::MiniAppRuntimeProfile::MarketStrict
+                    bitfun_product_domains::miniapp::types::MiniAppRuntimeProfile::MarketStrict
                 )
             })
     }
 
     /// List all MiniApp metadata.
-    pub async fn list(&self) -> OpenBitFunResult<Vec<MiniAppMeta>> {
+    pub async fn list(&self) -> BitFunResult<Vec<MiniAppMeta>> {
         self.runtime_facade()
             .list_metadata()
             .await
@@ -141,7 +141,7 @@ impl MiniAppManager {
     }
 
     /// Get full MiniApp by id.
-    pub async fn get(&self, app_id: &str) -> OpenBitFunResult<MiniApp> {
+    pub async fn get(&self, app_id: &str) -> BitFunResult<MiniApp> {
         self.runtime_facade()
             .load_app_ensuring_runtime_state(app_id.to_string())
             .await
@@ -152,7 +152,7 @@ impl MiniAppManager {
     ///
     /// Agent-side finalization uses this raw baseline before source files are
     /// synchronized, so legacy/runtime repair cannot hide a direct file edit.
-    pub async fn get_meta(&self, app_id: &str) -> OpenBitFunResult<MiniAppMeta> {
+    pub async fn get_meta(&self, app_id: &str) -> BitFunResult<MiniAppMeta> {
         self.storage.load_meta(app_id).await
     }
 
@@ -169,7 +169,7 @@ impl MiniAppManager {
         permissions: MiniAppPermissions,
         ai_context: Option<MiniAppAiContext>,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp_millis();
 
@@ -210,7 +210,7 @@ impl MiniAppManager {
         permissions: Option<MiniAppPermissions>,
         ai_context: Option<MiniAppAiContext>,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let previous_app = self.storage.load(app_id).await?;
         let patch = MiniAppUpdatePatch {
             name,
@@ -253,7 +253,7 @@ impl MiniAppManager {
     }
 
     /// Delete MiniApp and its directory.
-    pub async fn delete(&self, app_id: &str) -> OpenBitFunResult<()> {
+    pub async fn delete(&self, app_id: &str) -> BitFunResult<()> {
         self.granted_paths.write().await.remove(app_id);
         self.storage.delete(app_id).await
     }
@@ -325,7 +325,7 @@ impl MiniAppManager {
         &self,
         app_id: &str,
         key: &str,
-    ) -> OpenBitFunResult<serde_json::Value> {
+    ) -> BitFunResult<serde_json::Value> {
         let storage = self.storage.load_app_storage(app_id).await?;
         Ok(storage.get(key).cloned().unwrap_or(serde_json::Value::Null))
     }
@@ -336,7 +336,7 @@ impl MiniAppManager {
         app_id: &str,
         key: &str,
         value: serde_json::Value,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.storage.save_app_storage(app_id, key, value).await
     }
 
@@ -345,7 +345,7 @@ impl MiniAppManager {
         app_id: &str,
         draft_id: &str,
         key: &str,
-    ) -> OpenBitFunResult<serde_json::Value> {
+    ) -> BitFunResult<serde_json::Value> {
         let storage = self.storage.load_draft_storage(app_id, draft_id).await?;
         Ok(storage.get(key).cloned().unwrap_or(serde_json::Value::Null))
     }
@@ -356,7 +356,7 @@ impl MiniAppManager {
         draft_id: &str,
         key: &str,
         value: serde_json::Value,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.storage
             .save_draft_storage(app_id, draft_id, key, value)
             .await
@@ -367,7 +367,7 @@ impl MiniAppManager {
         app_id: &str,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniAppDraft> {
+    ) -> BitFunResult<MiniAppDraft> {
         let app = self.get(app_id).await?;
         let now = Utc::now().timestamp_millis();
         let draft_id = Uuid::new_v4().to_string();
@@ -397,7 +397,7 @@ impl MiniAppManager {
             .map_err(map_miniapp_port_error)
     }
 
-    pub async fn get_draft(&self, app_id: &str, draft_id: &str) -> OpenBitFunResult<MiniAppDraft> {
+    pub async fn get_draft(&self, app_id: &str, draft_id: &str) -> BitFunResult<MiniAppDraft> {
         self.runtime_facade()
             .get_draft(
                 app_id.to_string(),
@@ -414,7 +414,7 @@ impl MiniAppManager {
         draft_id: &str,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniAppDraft> {
+    ) -> BitFunResult<MiniAppDraft> {
         let draft = self.get_draft(app_id, draft_id).await?;
         let now = Utc::now().timestamp_millis();
         let compiled_html = self.compile_source_with_app_data_dir(
@@ -438,7 +438,7 @@ impl MiniAppManager {
         permissions: MiniAppPermissions,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniAppDraft> {
+    ) -> BitFunResult<MiniAppDraft> {
         let draft = self.get_draft(app_id, draft_id).await?;
         let now = Utc::now().timestamp_millis();
         let compiled_html = self.compile_source_with_app_data_dir(
@@ -459,7 +459,7 @@ impl MiniAppManager {
         &self,
         app_id: &str,
         draft_id: &str,
-    ) -> OpenBitFunResult<MiniAppPermissionDiff> {
+    ) -> BitFunResult<MiniAppPermissionDiff> {
         self.runtime_facade()
             .permission_diff_for_draft(app_id.to_string(), draft_id.to_string())
             .await
@@ -472,7 +472,7 @@ impl MiniAppManager {
         draft_id: &str,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let current = self.get(app_id).await?;
         let draft_app = self.storage.load_draft_app(app_id, draft_id).await?;
         let now = Utc::now().timestamp_millis();
@@ -496,25 +496,25 @@ impl MiniAppManager {
             .map_err(map_miniapp_port_error)
     }
 
-    pub async fn discard_draft(&self, app_id: &str, draft_id: &str) -> OpenBitFunResult<()> {
+    pub async fn discard_draft(&self, app_id: &str, draft_id: &str) -> BitFunResult<()> {
         self.runtime_facade()
             .discard_draft(app_id.to_string(), draft_id.to_string())
             .await
             .map_err(map_miniapp_port_error)
     }
 
-    pub async fn mark_stale_drafts_for_cleanup(&self) -> OpenBitFunResult<Vec<PathBuf>> {
+    pub async fn mark_stale_drafts_for_cleanup(&self) -> BitFunResult<Vec<PathBuf>> {
         self.storage.mark_stale_drafts_for_cleanup().await
     }
 
-    pub async fn cleanup_marked_drafts(&self, targets: Vec<PathBuf>) -> OpenBitFunResult<()> {
+    pub async fn cleanup_marked_drafts(&self, targets: Vec<PathBuf>) -> BitFunResult<()> {
         self.storage.cleanup_marked_drafts(targets).await
     }
 
     pub async fn load_customization_metadata(
         &self,
         app_id: &str,
-    ) -> OpenBitFunResult<Option<MiniAppCustomizationMetadata>> {
+    ) -> BitFunResult<Option<MiniAppCustomizationMetadata>> {
         self.storage.load_customization_metadata(app_id).await
     }
 
@@ -522,7 +522,7 @@ impl MiniAppManager {
         &self,
         app_id: &str,
         metadata: &MiniAppCustomizationMetadata,
-    ) -> OpenBitFunResult<()> {
+    ) -> BitFunResult<()> {
         self.storage
             .save_customization_metadata(app_id, metadata)
             .await
@@ -559,7 +559,7 @@ impl MiniAppManager {
         builtin_version: u32,
         source_hash: &str,
         detected_at: i64,
-    ) -> OpenBitFunResult<bool> {
+    ) -> BitFunResult<bool> {
         self.runtime_facade()
             .mark_builtin_update_available(
                 app_id.to_string(),
@@ -577,7 +577,7 @@ impl MiniAppManager {
         builtin_version: u32,
         source_hash: &str,
         declined_at: i64,
-    ) -> OpenBitFunResult<Option<MiniAppCustomizationMetadata>> {
+    ) -> BitFunResult<Option<MiniAppCustomizationMetadata>> {
         self.runtime_facade()
             .decline_builtin_update(
                 app_id.to_string(),
@@ -589,14 +589,14 @@ impl MiniAppManager {
             .map_err(map_miniapp_port_error)
     }
 
-    pub async fn mark_deps_installed(&self, app_id: &str) -> OpenBitFunResult<MiniApp> {
+    pub async fn mark_deps_installed(&self, app_id: &str) -> BitFunResult<MiniApp> {
         self.runtime_facade()
             .mark_deps_installed(app_id.to_string())
             .await
             .map_err(map_miniapp_port_error)
     }
 
-    pub async fn clear_worker_restart_required(&self, app_id: &str) -> OpenBitFunResult<MiniApp> {
+    pub async fn clear_worker_restart_required(&self, app_id: &str) -> BitFunResult<MiniApp> {
         self.runtime_facade()
             .clear_worker_restart_required(app_id.to_string())
             .await
@@ -604,12 +604,12 @@ impl MiniAppManager {
     }
 
     /// List version numbers for an app.
-    pub async fn list_versions(&self, app_id: &str) -> OpenBitFunResult<Vec<u32>> {
+    pub async fn list_versions(&self, app_id: &str) -> BitFunResult<Vec<u32>> {
         self.storage.list_versions(app_id).await
     }
 
     /// Rollback app to a previous version (loads version snapshot, saves as current).
-    pub async fn rollback(&self, app_id: &str, version: u32) -> OpenBitFunResult<MiniApp> {
+    pub async fn rollback(&self, app_id: &str, version: u32) -> BitFunResult<MiniApp> {
         let now = Utc::now().timestamp_millis();
         self.runtime_facade()
             .rollback(app_id.to_string(), version, now)
@@ -623,7 +623,7 @@ impl MiniAppManager {
         app_id: &str,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let app = self.storage.load(app_id).await?;
         let compiled_html = self.compile_source(
             app_id,
@@ -643,7 +643,7 @@ impl MiniAppManager {
         app_id: &str,
         appearance_mode: &str,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let previous_app = self.storage.load(app_id).await?;
         let source = self.storage.load_source_only(app_id).await?;
         let compiled_html = self.compile_source(
@@ -670,7 +670,7 @@ impl MiniAppManager {
         &self,
         source_path: PathBuf,
         workspace_root: Option<&Path>,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let id = Uuid::new_v4().to_string();
         let imported_at = Utc::now().timestamp_millis();
         self.runtime_facade()
@@ -698,7 +698,7 @@ impl MiniAppManager {
         package_meta: MarketPackageMeta,
         source: MiniAppSource,
         origin: InstalledMarketOrigin,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp_millis();
         let compiled_html =
@@ -717,7 +717,7 @@ impl MiniAppManager {
         &self,
         package_meta: MarketPackageMeta,
         source: MiniAppSource,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp_millis();
         let compiled_html =
@@ -737,7 +737,7 @@ impl MiniAppManager {
         package_meta: MarketPackageMeta,
         source: MiniAppSource,
         origin: InstalledMarketOrigin,
-    ) -> OpenBitFunResult<MiniApp> {
+    ) -> BitFunResult<MiniApp> {
         let previous = self.storage.load(app_id).await?;
         let now = Utc::now().timestamp_millis();
         let compiled_html =
@@ -766,47 +766,47 @@ impl MiniAppCompilePort for MiniAppManager {
                 &appearance_mode,
                 workspace_root.as_deref(),
             )
-            .map_err(map_openbitfun_error_to_miniapp_port_error)
+            .map_err(map_bitfun_error_to_miniapp_port_error)
         })
     }
 }
 
-fn map_openbitfun_error_to_miniapp_port_error(error: OpenBitFunError) -> MiniAppPortError {
+fn map_bitfun_error_to_miniapp_port_error(error: BitFunError) -> MiniAppPortError {
     let kind = match &error {
-        OpenBitFunError::NotFound(_) => MiniAppPortErrorKind::NotFound,
-        OpenBitFunError::Validation(_) => MiniAppPortErrorKind::InvalidInput,
-        OpenBitFunError::Deserialization(_) | OpenBitFunError::Serialization(_) => {
+        BitFunError::NotFound(_) => MiniAppPortErrorKind::NotFound,
+        BitFunError::Validation(_) => MiniAppPortErrorKind::InvalidInput,
+        BitFunError::Deserialization(_) | BitFunError::Serialization(_) => {
             MiniAppPortErrorKind::Deserialization
         }
-        OpenBitFunError::Io(io_error)
+        BitFunError::Io(io_error)
             if io_error.kind() == std::io::ErrorKind::PermissionDenied =>
         {
             MiniAppPortErrorKind::PermissionDenied
         }
-        OpenBitFunError::Io(_) => MiniAppPortErrorKind::Io,
-        OpenBitFunError::ProcessError(_) => MiniAppPortErrorKind::RuntimeUnavailable,
+        BitFunError::Io(_) => MiniAppPortErrorKind::Io,
+        BitFunError::ProcessError(_) => MiniAppPortErrorKind::RuntimeUnavailable,
         _ => MiniAppPortErrorKind::Backend,
     };
     MiniAppPortError::new(kind, error.to_string())
 }
 
-fn map_miniapp_port_error(error: MiniAppPortError) -> OpenBitFunError {
-    let message = strip_openbitfun_error_prefix(error.message);
+fn map_miniapp_port_error(error: MiniAppPortError) -> BitFunError {
+    let message = strip_bitfun_error_prefix(error.message);
     match error.kind {
-        MiniAppPortErrorKind::NotFound => OpenBitFunError::NotFound(message),
-        MiniAppPortErrorKind::InvalidInput => OpenBitFunError::validation(message),
-        MiniAppPortErrorKind::Deserialization => OpenBitFunError::parse(message),
-        MiniAppPortErrorKind::PermissionDenied => OpenBitFunError::Io(std::io::Error::new(
+        MiniAppPortErrorKind::NotFound => BitFunError::NotFound(message),
+        MiniAppPortErrorKind::InvalidInput => BitFunError::validation(message),
+        MiniAppPortErrorKind::Deserialization => BitFunError::parse(message),
+        MiniAppPortErrorKind::PermissionDenied => BitFunError::Io(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             message,
         )),
-        MiniAppPortErrorKind::RuntimeUnavailable => OpenBitFunError::ProcessError(message),
-        MiniAppPortErrorKind::Io => OpenBitFunError::io(message),
-        MiniAppPortErrorKind::Backend => OpenBitFunError::service(message),
+        MiniAppPortErrorKind::RuntimeUnavailable => BitFunError::ProcessError(message),
+        MiniAppPortErrorKind::Io => BitFunError::io(message),
+        MiniAppPortErrorKind::Backend => BitFunError::service(message),
     }
 }
 
-fn strip_openbitfun_error_prefix(message: String) -> String {
+fn strip_bitfun_error_prefix(message: String) -> String {
     const PREFIXES: &[&str] = &[
         "Not found: ",
         "Validation error: ",
@@ -830,7 +830,7 @@ mod tests {
     use crate::miniapp::types::{
         FsPermissions, MiniAppMeta, MiniAppPermissions, MiniAppSource, NpmDep,
     };
-    use openbitfun_product_domains::miniapp::storage::{
+    use bitfun_product_domains::miniapp::storage::{
         COMPILED_HTML, DRAFT_JSON, ESM_DEPS_JSON, INDEX_HTML, META_JSON, PACKAGE_JSON, SOURCE_DIR,
         STORAGE_JSON, STYLE_CSS, UI_JS, WORKER_JS,
     };
@@ -856,7 +856,7 @@ mod tests {
 
     fn test_manager() -> TestMiniAppManager {
         let root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-manager-draft-{}",
+            "bitfun-miniapp-manager-draft-{}",
             uuid::Uuid::new_v4()
         ));
         let path_manager =
@@ -921,7 +921,7 @@ mod tests {
             "IO error: access denied",
         ));
         match permission_denied {
-            OpenBitFunError::Io(error) => {
+            BitFunError::Io(error) => {
                 assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
                 assert_eq!(error.to_string(), "access denied");
             }
@@ -1043,7 +1043,7 @@ mod tests {
     async fn import_from_path_preserves_fallback_files_recompile_and_runtime_state() {
         let manager = test_manager();
         let import_root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-import-source-{}",
+            "bitfun-miniapp-import-source-{}",
             uuid::Uuid::new_v4()
         ));
         write_import_source(&import_root).await;
@@ -1096,7 +1096,7 @@ mod tests {
     async fn import_from_path_preserves_invalid_meta_error_shape() {
         let manager = test_manager();
         let import_root = std::env::temp_dir().join(format!(
-            "openbitfun-miniapp-invalid-import-source-{}",
+            "bitfun-miniapp-invalid-import-source-{}",
             uuid::Uuid::new_v4()
         ));
         tokio::fs::create_dir_all(&import_root).await.unwrap();
@@ -1114,7 +1114,7 @@ mod tests {
         let error = manager.import_from_path(import_root.clone(), None).await;
 
         match error {
-            Err(OpenBitFunError::Deserialization(message)) => {
+            Err(BitFunError::Deserialization(message)) => {
                 assert!(message.starts_with("Invalid meta.json:"));
             }
             other => panic!("expected invalid meta deserialization error, got {other:?}"),

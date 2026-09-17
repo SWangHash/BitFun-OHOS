@@ -1,4 +1,4 @@
-use openbitfun_agent_runtime::user_questions::{
+use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_for_acp_transport, ask_user_question_available_in_context,
     build_answered_user_question_result, build_cancelled_user_question_result,
     validate_ask_user_question_input, AskUserQuestionInput, Question, QuestionOption,
@@ -268,7 +268,7 @@ fn ask_user_question_template_id_round_trips_and_takes_precedence() {
 
 #[test]
 fn ask_user_question_template_registry_serves_qt_migration_paths() {
-    use openbitfun_agent_runtime::question_templates::{
+    use bitfun_agent_runtime::question_templates::{
         resolve_question_template, QT_MIGRATION_PATHS_TEMPLATE_ID,
     };
 
@@ -296,10 +296,10 @@ fn ask_user_question_template_registry_serves_qt_migration_paths() {
 
 #[test]
 fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
-    use openbitfun_agent_runtime::question_templates::{
+    use bitfun_agent_runtime::question_templates::{
         resolve_question_template_full, QT_MIGRATION_PATHS_TEMPLATE_ID,
     };
-    use openbitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
+    use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
 
     let resolved = resolve_question_template_full(
         QT_MIGRATION_PATHS_TEMPLATE_ID,
@@ -349,7 +349,7 @@ fn timeout_is_distinct_from_answer_or_cancellation() {
         timeout_seconds: 30,
     };
     let result =
-        openbitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
+        bitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
     assert_eq!(
         result.data,
         serde_json::json!({ "questions_count": 1, "status": "timeout" })

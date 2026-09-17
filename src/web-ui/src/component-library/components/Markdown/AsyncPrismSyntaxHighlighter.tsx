@@ -39,8 +39,8 @@ const AppearanceCodePre = React.forwardRef<HTMLPreElement, React.HTMLAttributes<
     <pre
       {...props}
       ref={ref}
-      data-openbitfun-component="markdown"
-      data-openbitfun-part="codePre"
+      data-bitfun-component="markdown"
+      data-bitfun-part="codePre"
     />
   ),
 );
@@ -175,14 +175,14 @@ export const AsyncPrismSyntaxHighlighter: React.FC<AsyncPrismSyntaxHighlighterPr
         <pre
           className={`language-${language} code-block-fallback`}
           style={customStyle}
-          data-openbitfun-component="markdown"
-          data-openbitfun-part="codePre"
+          data-bitfun-component="markdown"
+          data-bitfun-part="codePre"
         >
           <code
             {...codeTagProps}
             style={codeTagProps?.style}
-            data-openbitfun-component="markdown"
-            data-openbitfun-part="codeContent"
+            data-bitfun-component="markdown"
+            data-bitfun-part="codeContent"
           >
             {children}
           </code>
@@ -202,8 +202,8 @@ export const AsyncPrismSyntaxHighlighter: React.FC<AsyncPrismSyntaxHighlighterPr
         PreTag={AppearanceCodePre}
         codeTagProps={{
           ...codeTagProps,
-          'data-openbitfun-component': 'markdown',
-          'data-openbitfun-part': 'codeContent',
+          'data-bitfun-component': 'markdown',
+          'data-bitfun-part': 'codeContent',
         }}
         lineNumberStyle={lineNumberStyle}
       >

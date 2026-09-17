@@ -9,7 +9,7 @@
 /// - Ctrl+A toggles the Advanced Settings section which includes:
 ///   Skip SSL Verify, Custom Headers (JSON), Custom Headers Mode, Custom Request Body (JSON)
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use openbitfun_core_types::model::{ModelEditProjection, ModelMutation, SecretUpdate};
+use bitfun_core_types::model::{ModelEditProjection, ModelMutation, SecretUpdate};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -18,7 +18,7 @@ use ratatui::{
     Frame,
 };
 
-use openbitfun_core_types::ReasoningConfig;
+use bitfun_core_types::ReasoningConfig;
 
 use crate::ui::theme::{StyleKind, Theme};
 
@@ -1272,7 +1272,7 @@ fn char_to_byte(s: &str, char_idx: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::reasoning_after_preset_selection;
-    use openbitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
+    use bitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
 
     #[test]
     fn unchanged_toggle_preserves_custom_reasoning_config() {

@@ -19,7 +19,7 @@ const log = createLogger('AnnouncementProvider');
 const DEBUG_CARD_IDS = ['release_letter_1_0_0'];
 
 const ENV_PREVIEW_CARD_ID = import.meta.env.DEV
-  ? import.meta.env.VITE_OPENBITFUN_ANNOUNCEMENT_PREVIEW_ID?.trim()
+  ? import.meta.env.VITE_BITFUN_ANNOUNCEMENT_PREVIEW_ID?.trim()
   : undefined;
 
 /**

@@ -1,11 +1,11 @@
-use openbitfun_legacy_migration::{
+use bitfun_legacy_migration::{
     atomic_write_json, blocking_writer_processes, export_failure_diagnostics, list_tasks,
     load_task, probe_legacy_source, save_task, CancellationToken, LegacyMigrationError,
     LegacyMigrationResult, MigrationEngine, MigrationLayout, MigrationRoots, NoCrashInjection,
     ProbeLimits, SavedMigrationTask, WriterProcess,
 };
-use openbitfun_legacy_migration_adapters::adapters_for_groups;
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_legacy_migration_adapters::adapters_for_groups;
+use bitfun_product_domains::legacy_migration::{
     FindingSeverity, LegacySourceDescriptor, MigrationPhase, MigrationPlan, MigrationProgressEvent,
     MigrationRunReport, MigrationRunStatus, MigrationSelection, ScanFinding,
 };
@@ -61,7 +61,7 @@ impl CommandError {
             ),
             LegacyMigrationError::SourceEqualsTarget(_) => Self::new(
                 "source_equals_target",
-                "The legacy and OpenBitFun data locations are not safely separated.",
+                "The legacy and BitFun data locations are not safely separated.",
                 false,
             ),
             LegacyMigrationError::UnsupportedSource(_) => Self::new(
@@ -106,13 +106,13 @@ impl CommandError {
             ),
             LegacyMigrationError::ProcessInspection(_) => Self::new(
                 "process_inspection_failed",
-                "OpenBitFun could not verify that all data-writing processes have stopped.",
+                "BitFun could not verify that all data-writing processes have stopped.",
                 true,
             ),
             LegacyMigrationError::UntrustedExecutable(_)
             | LegacyMigrationError::TrustedInstallationUnavailable(_) => Self::new(
                 "trusted_installation_unavailable",
-                "The signed OpenBitFun installation could not be verified.",
+                "The signed BitFun installation could not be verified.",
                 true,
             ),
             LegacyMigrationError::InjectedCrash(_) => Self::new(
@@ -167,7 +167,7 @@ pub(crate) struct MigratorView {
     pub findings: Vec<ScanFinding>,
     pub plan: Option<MigrationPlan>,
     pub report: Option<MigrationRunReport>,
-    pub workspace_counts: Option<openbitfun_legacy_migration_adapters::WorkspaceReportCounts>,
+    pub workspace_counts: Option<bitfun_legacy_migration_adapters::WorkspaceReportCounts>,
     pub progress: Option<MigrationProgressEvent>,
     pub blockers: Vec<WriterProcess>,
     pub status: MigrationRunStatus,
@@ -338,7 +338,7 @@ impl MigratorCoordinator {
         let path = export_failure_diagnostics(&layout, &report).map_err(|_| {
             CommandError::new(
                 "diagnostics_export_failed",
-                "OpenBitFun could not write the sanitized migration diagnostics file.",
+                "BitFun could not write the sanitized migration diagnostics file.",
                 true,
             )
         })?;
@@ -773,7 +773,7 @@ fn migration_engine(
     selection: &MigrationSelection,
 ) -> LegacyMigrationResult<MigrationEngine> {
     crate::locations::validate(&roots)?;
-    openbitfun_legacy_migration_adapters::validate_target(&roots)?;
+    bitfun_legacy_migration_adapters::validate_target(&roots)?;
     MigrationEngine::new(roots, adapters_for_groups(selection))
 }
 
@@ -796,7 +796,7 @@ fn snapshot(session: &MigratorSession) -> MigratorView {
     let plan = session.plan.as_ref().map(redact_plan_for_ui);
     let report = session.report.as_ref().map(redact_report_for_ui);
     let workspace_counts = session.report.as_ref().and_then(|report| {
-        openbitfun_legacy_migration_adapters::workspace_report_counts(&session.roots, report).ok()
+        bitfun_legacy_migration_adapters::workspace_report_counts(&session.roots, report).ok()
     });
     MigratorView {
         tool_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -846,7 +846,7 @@ fn redact_plan_for_ui(plan: &MigrationPlan) -> MigrationPlan {
         .collect();
     for conflict in &mut redacted.conflicts {
         conflict.source_summary = "Legacy item".to_string();
-        conflict.target_summary = "Existing OpenBitFun item".to_string();
+        conflict.target_summary = "Existing BitFun item".to_string();
     }
     redacted
 }
@@ -957,7 +957,7 @@ mod tests {
         assert!(!roots.target_user_root.exists());
         let target = roots.target_user_root.join("config/app.json");
         for value in [
-            serde_json::json!({"product_id":"openbitfun", "schema_version":999, "version":"9.0.0"}),
+            serde_json::json!({"product_id":"bitfun", "schema_version":999, "version":"9.0.0"}),
             serde_json::json!({"product_id":"other-product", "schema_version":1, "version":"1.0.0"}),
             serde_json::json!({"version":"0.2.19"}),
         ] {
@@ -990,11 +990,11 @@ mod tests {
     fn report_failure_errors_use_sanitized_domain_diagnostics() {
         let report = MigrationRunReport {
             diagnostics: vec![
-                openbitfun_product_domains::legacy_migration::MigrationDiagnostic {
+                bitfun_product_domains::legacy_migration::MigrationDiagnostic {
                     code: "domain_io_permission_denied".to_string(),
                     severity: FindingSeverity::Blocking,
                     domain: Some(
-                        openbitfun_product_domains::legacy_migration::MigrationDomainId::WorkspaceSessions,
+                        bitfun_product_domains::legacy_migration::MigrationDomainId::WorkspaceSessions,
                     ),
                     relative_path: Some("C:/Users/private/session-state.json".to_string()),
                     message: "A migration-owned file or directory denied access.".to_string(),

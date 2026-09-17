@@ -2,7 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 
 export const contextMenuAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'context-menu',
-  componentAttribute: 'data-openbitfun-product-component',
+  componentAttribute: 'data-bitfun-product-component',
   parts: [
     { id: 'root' },
     { id: 'item' },
@@ -14,7 +14,7 @@ export const contextMenuAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'submenu' },
   ],
   states: [
-    { id: 'disabled', selector: { kind: 'self', suffix: '[data-openbitfun-state~="disabled"]' } },
-    { id: 'submenuActive', selector: { kind: 'self', suffix: '[data-openbitfun-state~="submenu-active"]' } },
+    { id: 'disabled', selector: { kind: 'self', suffix: '[data-bitfun-state~="disabled"]' } },
+    { id: 'submenuActive', selector: { kind: 'self', suffix: '[data-bitfun-state~="submenu-active"]' } },
   ],
 };

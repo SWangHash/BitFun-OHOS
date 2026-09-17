@@ -1,4 +1,4 @@
-import { OverflowText, Button, Icon, Input, Select, type SelectOption } from '@openbitfun/ui';
+import { OverflowText, Button, Icon, Input, Select, type SelectOption } from '@bitfun/ui';
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CircleStop, FileClock, HardDrive, Lock, PanelsTopLeft, Rocket, Save, Users, type LucideIcon } from 'lucide-react';
 import { RetainedMountBoundary } from '@/shared/presence';
@@ -688,10 +688,10 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
   );
 
   return (
-    <GalleryLayout className="pages-scene" data-testid="pages-scene" data-openbitfun-scene="pages" data-openbitfun-part="root">
+    <GalleryLayout className="pages-scene" data-testid="pages-scene" data-bitfun-scene="pages" data-bitfun-part="root">
       <GalleryPageHeader
-        data-openbitfun-scene="pages"
-        data-openbitfun-part="header"
+        data-bitfun-scene="pages"
+        data-bitfun-part="header"
         title={t('title')}
         subtitle={t('subtitle')}
         actions={refreshButton}
@@ -711,9 +711,9 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
         ) : null}
       />
 
-      <div className="pages-scene__content" data-openbitfun-scene="pages" data-openbitfun-part="content">
+      <div className="pages-scene__content" data-bitfun-scene="pages" data-bitfun-part="content">
         {loadError && pages.length > 0 && (
-          <div className="pages-scene__refresh-error" role="alert" data-testid="pages-refresh-error" data-openbitfun-scene="pages" data-openbitfun-part="error">
+          <div className="pages-scene__refresh-error" role="alert" data-testid="pages-refresh-error" data-bitfun-scene="pages" data-bitfun-part="error">
             <span>{t('loadFailed')}</span>
             <small><OverflowText>{loadError}</OverflowText></small>
             <Button variant="outline" size="sm" onClick={() => void loadPages()}>
@@ -725,8 +725,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
         {loading && pages.length === 0 ? (
           <div
             className="pages-scene__grid"
-            data-openbitfun-scene="pages"
-            data-openbitfun-part="loading"
+            data-bitfun-scene="pages"
+            data-bitfun-part="loading"
             data-testid="pages-loading"
             role="status"
             aria-busy="true"
@@ -749,8 +749,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           </div>
         ) : loginRequired ? (
           <GalleryEmpty
-            data-openbitfun-scene="pages"
-            data-openbitfun-part="empty"
+            data-bitfun-scene="pages"
+            data-bitfun-part="empty"
             icon={{ glyph: PanelsTopLeft }}
             message={<>{t('signInRequired')}<small>{t('signInHint')}</small></>}
             action={(
@@ -762,8 +762,8 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           />
         ) : loadError && pages.length === 0 ? (
           <GalleryEmpty
-            data-openbitfun-scene="pages"
-            data-openbitfun-part="error"
+            data-bitfun-scene="pages"
+            data-bitfun-part="error"
             icon={{ glyph: PanelsTopLeft }}
             message={<>{t('loadFailed')}<small>{loadError}</small></>}
             isError
@@ -772,14 +772,14 @@ const PagesScene: React.FC<PagesSceneProps> = ({ isActive = true }) => {
           />
         ) : pages.length === 0 ? (
           <GalleryEmpty
-            data-openbitfun-scene="pages"
-            data-openbitfun-part="empty"
+            data-bitfun-scene="pages"
+            data-bitfun-part="empty"
             icon={{ glyph: PanelsTopLeft }}
             message={<>{t('empty')}<small>{t('emptyHint')}</small></>}
             testId="pages-empty"
           />
         ) : (
-          <div className="pages-scene__grid" role="list" data-openbitfun-scene="pages" data-openbitfun-part="list">
+          <div className="pages-scene__grid" role="list" data-bitfun-scene="pages" data-bitfun-part="list">
             {pages.map((page) => {
               const versions = versionsBySlug[page.slug] ?? [];
               const expanded = expandedSlugs.has(page.slug);

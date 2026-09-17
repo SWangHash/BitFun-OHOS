@@ -6,44 +6,44 @@
   min-height: 193px;
   box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: var(--openbitfun-layout-field-group-radius);
-  background-color: var(--openbitfun-color-surface-tertiary);
+  border-radius: var(--bitfun-layout-field-group-radius);
+  background-color: var(--bitfun-color-surface-tertiary);
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  animation: miniapp-card-in 0.22s var(--openbitfun-motion-easing-decelerate) both;
+  animation: miniapp-card-in 0.22s var(--bitfun-motion-easing-decelerate) both;
   @include surface-stagger.animation-delay(35ms);
   transition:
-    transform var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    background-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    border-color var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard),
-    box-shadow var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+    transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:hover {
-    background-color: var(--openbitfun-color-surface-subtle);
-    border-color: var(--openbitfun-color-border-default);
+    background-color: var(--bitfun-color-surface-subtle);
+    border-color: var(--bitfun-color-border-default);
   }
 
   &:active {
     transform: translateY(0);
-    transition-duration: var(--openbitfun-motion-duration-instant);
+    transition-duration: var(--bitfun-motion-duration-instant);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--openbitfun-color-accent-default);
+    outline: 2px solid var(--bitfun-color-accent-default);
     outline-offset: 2px;
   }
 
   &--customizing {
-    border-color: color-mix(in srgb, var(--openbitfun-color-accent-default) 42%, var(--openbitfun-color-border-subtle));
+    border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 42%, var(--bitfun-color-border-subtle));
   }
 
   &__main {
     display: flex;
     flex-direction: column;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     min-height: 193px;
-    padding: var(--openbitfun-space-4);
+    padding: var(--bitfun-space-4);
     box-sizing: border-box;
   }
 
@@ -59,13 +59,13 @@
 
   &__header {
     justify-content: space-between;
-    gap: var(--openbitfun-space-3);
+    gap: var(--bitfun-space-3);
     min-height: 40px;
   }
 
   &__header-actions {
     align-self: flex-start;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__icon-area,
@@ -80,29 +80,29 @@
 
   &__icon {
     overflow: hidden;
-    color: var(--openbitfun-color-content-primary);
-    animation: miniapp-icon-pop 0.5s var(--openbitfun-motion-easing-decelerate) both;
+    color: var(--bitfun-color-content-primary);
+    animation: miniapp-icon-pop 0.5s var(--bitfun-motion-easing-decelerate) both;
     @include surface-stagger.animation-delay(35ms, 60ms);
-    transition: transform var(--openbitfun-motion-duration-base) var(--openbitfun-motion-easing-decelerate);
+    transition: transform var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-decelerate);
   }
 
   &__status-dots {
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__run-dot,
   &__customize-dot {
     width: 7px;
     height: 7px;
-    border-radius: var(--openbitfun-radius-pill);
+    border-radius: var(--bitfun-radius-pill);
   }
 
   &__run-dot {
-    background: var(--openbitfun-color-status-success-content);
+    background: var(--bitfun-color-status-success-content);
   }
 
   &__customize-dot {
-    background: var(--openbitfun-color-accent-default);
+    background: var(--bitfun-color-accent-default);
   }
 
   &__content,
@@ -113,7 +113,7 @@
   }
 
   &__content {
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
   }
 
   &__title-group {
@@ -125,12 +125,12 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-heading-card-font-family);
-    font-size: var(--openbitfun-type-heading-card-font-size);
-    font-weight: var(--openbitfun-type-heading-card-font-weight);
-    line-height: var(--openbitfun-type-heading-card-line-height);
-    letter-spacing: var(--openbitfun-type-heading-card-letter-spacing);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-card-font-family);
+    font-size: var(--bitfun-type-heading-card-font-size);
+    font-weight: var(--bitfun-type-heading-card-font-weight);
+    line-height: var(--bitfun-type-heading-card-line-height);
+    letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
     white-space: nowrap;
   }
 
@@ -142,18 +142,18 @@
   &__desc-inner {
     display: -webkit-box;
     overflow: hidden;
-    color: var(--openbitfun-color-content-secondary);
-    font-family: var(--openbitfun-type-support-font-family);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
 
   &__footer {
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
     width: 100%;
     margin-top: auto;
     min-width: 0;
@@ -161,7 +161,7 @@
 
   &__tags {
     flex: 1 1 auto;
-    gap: var(--openbitfun-space-1);
+    gap: var(--bitfun-space-1);
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -173,17 +173,17 @@
     min-width: 0;
     max-width: 14ch;
     min-height: 21px;
-    padding: 2px var(--openbitfun-space-2);
+    padding: 2px var(--bitfun-space-2);
     box-sizing: border-box;
     overflow: hidden;
-    border-radius: var(--openbitfun-radius-xs);
-    background: var(--openbitfun-color-surface-subtle);
-    color: var(--openbitfun-color-content-secondary);
-    font-family: var(--openbitfun-type-support-font-family);
-    font-size: var(--openbitfun-type-support-font-size);
-    font-weight: var(--openbitfun-type-support-font-weight);
-    line-height: var(--openbitfun-type-support-line-height);
-    letter-spacing: var(--openbitfun-type-support-letter-spacing);
+    border-radius: var(--bitfun-radius-xs);
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
     white-space: nowrap;
   }
 
@@ -222,7 +222,7 @@
 
 @media (max-width: 480px) {
   .miniapp-card__main {
-    padding: var(--openbitfun-space-3);
+    padding: var(--bitfun-space-3);
   }
 }
 

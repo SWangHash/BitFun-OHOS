@@ -43,9 +43,9 @@ export function ContextCompressionToolCard({
     <div
       {...props}
       className={classNames(styles.root, className)}
-      data-openbitfun-component="context-compression-tool-card"
-      data-openbitfun-part="root"
-      data-openbitfun-status={status}
+      data-bitfun-component="context-compression-tool-card"
+      data-bitfun-part="root"
+      data-bitfun-status={status}
     >
       <ProminentToolCard
         errorContent={error ? <div className={styles.error}>{error}</div> : undefined}
@@ -55,7 +55,7 @@ export function ContextCompressionToolCard({
             content={content !== undefined && content !== null ? (
               <OverflowText
                 className={summary !== undefined && summary !== null ? styles.summary : styles.processing}
-                data-openbitfun-part={summary !== undefined && summary !== null ? "summary" : "processing"}
+                data-bitfun-part={summary !== undefined && summary !== null ? "summary" : "processing"}
                 title={typeof summary === "string" ? summary : undefined}
               >
                 {content}

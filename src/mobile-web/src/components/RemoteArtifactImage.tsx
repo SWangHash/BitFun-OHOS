@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { MobileButton } from '@openbitfun/ui/mobile';
+import { MobileButton } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 
 export type ReadArtifactImage = (path: string, refresh?: boolean) => Promise<string>;

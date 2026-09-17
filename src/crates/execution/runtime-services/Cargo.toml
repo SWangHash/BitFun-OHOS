@@ -1,12 +1,12 @@
 [package]
-name = "openbitfun-runtime-services"
+name = "bitfun-runtime-services"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Typed runtime service assembly for OpenBitFun runtimes"
+description = "Typed runtime service assembly for BitFun runtimes"
 
 [lib]
-name = "openbitfun_runtime_services"
+name = "bitfun_runtime_services"
 crate-type = ["rlib"]
 
 [features]
@@ -14,8 +14,8 @@ default = []
 test-support = []
 
 [dependencies]
-openbitfun-events = { path = "../../contracts/events" }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["git-port", "remote-exec-port", "remote-workspace-ports", "runtime-event-port", "terminal-port", "workspace-ports"] }
+bitfun-events = { path = "../../contracts/events" }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["git-port", "remote-exec-port", "remote-workspace-ports", "runtime-event-port", "terminal-port", "workspace-ports"] }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 log = { workspace = true }

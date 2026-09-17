@@ -9,7 +9,7 @@ use reqwest::RequestBuilder;
 /// Internal execution identity for best-effort reasoning controls offered when
 /// neither models.dev nor a model-specific adapter projection has a preset.
 /// The field is host-only and is never serialized to Web or remote clients.
-pub(crate) const GENERIC_REASONING_PROVIDER_ID: &str = "openbitfun-generic";
+pub(crate) const GENERIC_REASONING_PROVIDER_ID: &str = "bitfun-generic";
 
 pub(crate) fn is_generic_reasoning_preset(preset: &ReasoningPresetDescriptor) -> bool {
     preset.execution_provider.as_deref() == Some(GENERIC_REASONING_PROVIDER_ID)
@@ -28,7 +28,7 @@ pub(crate) fn normalize_generic_reasoning_effort(value: &str) -> Option<&'static
 #[cfg(feature = "subscription-auth")]
 pub(crate) fn product_user_agent() -> String {
     format!(
-        "OpenBitFun/{} ({}; {})",
+        "BitFun/{} ({}; {})",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH
@@ -108,7 +108,7 @@ pub(crate) fn prepare_request_context(
     let hasher = HASHER.get_or_init(RandomState::new);
     let mut context = context.unwrap_or_default();
     context.prompt_cache_route_key = Some(format!(
-        "openbitfun-call-{:016x}{:016x}",
+        "bitfun-call-{:016x}{:016x}",
         hasher.hash_one((nonce, 0_u8)),
         hasher.hash_one((nonce, 1_u8)),
     ));

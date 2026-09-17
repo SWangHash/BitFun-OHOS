@@ -32,13 +32,13 @@ pub(super) fn resolve_editor_command() -> Result<EditorCommand, EditorConfigErro
         .is_some_and(|value| !value.trim().is_empty())
     {
         return resolve_editor_command_from(visual.as_deref(), None, |program| {
-            let result = openbitfun_services_core::system::check_command(program);
+            let result = bitfun_services_core::system::check_command(program);
             result.path.map(PathBuf::from)
         });
     }
     let editor = read_editor_variable("EDITOR")?;
     resolve_editor_command_from(visual.as_deref(), editor.as_deref(), |program| {
-        let result = openbitfun_services_core::system::check_command(program);
+        let result = bitfun_services_core::system::check_command(program);
         result.path.map(PathBuf::from)
     })
 }
@@ -152,7 +152,7 @@ pub(super) fn run_external_editor(
 ) -> Result<ExternalEditResult, EditorRunError> {
     let temp_prefix = format!(
         "{}-editor-",
-        openbitfun_core_types::product_identity::data_namespace()
+        bitfun_core_types::product_identity::data_namespace()
     );
     let mut temp_file = tempfile::Builder::new()
         .prefix(&temp_prefix)
@@ -214,7 +214,7 @@ fn editor_process(
     command: &EditorCommand,
     path: &std::path::Path,
 ) -> Result<Command, EditorRunError> {
-    let mut process = openbitfun_core::util::process_manager::create_command(&command.program);
+    let mut process = bitfun_core::util::process_manager::create_command(&command.program);
     process.args(&command.args).arg(path);
     Ok(process)
 }
@@ -241,7 +241,7 @@ fn editor_process(
         }
         values.push(quote_windows_batch_value(path.as_os_str())?);
         let command_line = values.join(" ");
-        let mut process = openbitfun_core::util::process_manager::create_command("cmd.exe");
+        let mut process = bitfun_core::util::process_manager::create_command("cmd.exe");
         process.args(["/d", "/v:off", "/s", "/c"]);
         // cmd.exe requires an extra outer quote pair when the command itself
         // begins with a quoted executable path. raw_arg is intentional here:
@@ -249,7 +249,7 @@ fn editor_process(
         process.raw_arg(format!("\"{command_line}\""));
         Ok(process)
     } else {
-        let mut process = openbitfun_core::util::process_manager::create_command(&command.program);
+        let mut process = bitfun_core::util::process_manager::create_command(&command.program);
         process.args(&command.args).arg(path);
         Ok(process)
     }

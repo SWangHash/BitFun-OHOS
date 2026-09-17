@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 // This marker is injected only into the client's in-memory incoming queue.
 // It is never sent to the agent and does not extend the ACP wire contract.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonRpcNotification)]
-#[notification(method = "_openbitfun/client_transport_closed")]
+#[notification(method = "_bitfun/client_transport_closed")]
 pub(super) struct AcpTransportClosed {
     error: Error,
 }
@@ -70,7 +70,7 @@ impl<R: Role, T: ConnectTo<R>> ConnectTo<R> for AcpTransport<T> {
             // including a prompt response immediately followed by EOF.
             let marker = serde_json::from_value(serde_json::json!({
                 "jsonrpc": "2.0",
-                "method": "_openbitfun/client_transport_closed",
+                "method": "_bitfun/client_transport_closed",
                 "params": AcpTransportClosed { error },
             }))
             .map_err(Error::into_internal_error)?;

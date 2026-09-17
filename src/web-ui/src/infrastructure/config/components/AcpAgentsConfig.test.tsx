@@ -33,8 +33,8 @@ vi.mock('@/infrastructure/i18n', () => ({
   }),
 }));
 
-vi.mock('@openbitfun/ui', async importOriginal => ({
-  ...await importOriginal<typeof import('@openbitfun/ui')>(),
+vi.mock('@bitfun/ui', async importOriginal => ({
+  ...await importOriginal<typeof import('@bitfun/ui')>(),
   ConfirmDialog: ({
     cancelText,
     confirmText,
@@ -241,7 +241,7 @@ async function openView(container: HTMLElement, label: string): Promise<void> {
 
 async function selectPermission(container: HTMLElement, value: string): Promise<void> {
   const trigger = container.querySelector<HTMLButtonElement>(
-    '[data-openbitfun-part="confirmation"] button[role="combobox"]',
+    '[data-bitfun-part="confirmation"] button[role="combobox"]',
   );
   expect(trigger).not.toBeNull();
   await act(async () => trigger!.click());
@@ -287,7 +287,7 @@ describe('AcpAgentsConfig', () => {
     listSavedConnectionsMock.mockResolvedValue([]);
     probeClientRequirementsMock.mockResolvedValue([]);
     saveJsonConfigMock.mockImplementation(async () => {
-      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     });
     installClientCliMock.mockResolvedValue(undefined);
     predownloadClientAdapterMock.mockResolvedValue(undefined);
@@ -418,11 +418,11 @@ describe('AcpAgentsConfig', () => {
     loadJsonConfigMock.mockResolvedValue(JSON.stringify(wrapped ? { acpClients } : acpClients));
     saveJsonConfigMock.mockImplementation(async (rawConfig: string) => {
       loadJsonConfigMock.mockResolvedValue(rawConfig);
-      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     });
 
     await act(async () => root.render(<AcpAgentsConfig />));
-    expect(container.querySelector('[data-openbitfun-part="confirmation"]')?.textContent)
+    expect(container.querySelector('[data-bitfun-part="confirmation"]')?.textContent)
       .toContain('permissionMode.ask');
     expect(container.querySelector('[role="alert"]')?.textContent)
       .toContain('permissionMode.legacyRejectWarning');
@@ -448,7 +448,7 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).not.toContain('permissionMode.saveAndApply');
 
     await act(async () => {
-      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     });
     expect(container.textContent).not.toContain('permissionMode.legacyRejectWarning');
     expect(saveJsonConfigMock).toHaveBeenCalledTimes(1);
@@ -516,17 +516,17 @@ describe('AcpAgentsConfig', () => {
     });
 
     const row = Array.from(
-      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
-    ).find(candidate => candidate.querySelector('.openbitfun-acp-agents__registry-name')
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(candidate => candidate.querySelector('.bitfun-acp-agents__registry-name')
       ?.textContent === 'opencode');
     expect(row).toBeTruthy();
 
     const status = row?.querySelector(
-      '[data-openbitfun-component="status-pill"][data-openbitfun-state="not_installed"]',
+      '[data-bitfun-component="status-pill"][data-bitfun-state="not_installed"]',
     );
 
-    expect(row?.querySelector('[data-openbitfun-part="capabilities"]')).toBeNull();
-    expect(row?.querySelectorAll('[data-openbitfun-component="status-pill"]')).toHaveLength(1);
+    expect(row?.querySelector('[data-bitfun-part="capabilities"]')).toBeNull();
+    expect(row?.querySelectorAll('[data-bitfun-component="status-pill"]')).toHaveLength(1);
     expect(status?.getAttribute('data-tone')).toBe('neutral');
   });
 
@@ -700,12 +700,12 @@ describe('AcpAgentsConfig', () => {
     });
 
     const opencodeRow = Array.from(
-      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
-    ).find(row => row.querySelector('.openbitfun-acp-agents__registry-name')
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
       ?.textContent === 'opencode');
     expect(opencodeRow).toBeTruthy();
-    expect(opencodeRow!.querySelector('[data-openbitfun-state="disabled"]')).not.toBeNull();
-    expect(opencodeRow!.querySelector('[data-openbitfun-state="invalid"]')).toBeNull();
+    expect(opencodeRow!.querySelector('[data-bitfun-state="disabled"]')).not.toBeNull();
+    expect(opencodeRow!.querySelector('[data-bitfun-state="invalid"]')).toBeNull();
     expect(opencodeRow!.textContent).toContain('registry.disabled');
     expect(opencodeRow!.textContent).not.toContain('actions.viewError');
   });
@@ -772,14 +772,14 @@ describe('AcpAgentsConfig', () => {
 
     expect(listSavedConnectionsMock).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain('Huawei Server');
-    expect(JSON.parse(localStorage.getItem('openbitfun:settings:acp-agents:hidden-remote-connections:v1') || '[]'))
+    expect(JSON.parse(localStorage.getItem('bitfun:settings:acp-agents:hidden-remote-connections:v1') || '[]'))
       .toEqual(['huawei-server']);
     expect(container.textContent).toContain('remote.showHiddenConnections');
   });
 
   it('restores a hidden remote server from the hidden list', async () => {
     localStorage.setItem(
-      'openbitfun:settings:acp-agents:hidden-remote-connections:v1',
+      'bitfun:settings:acp-agents:hidden-remote-connections:v1',
       JSON.stringify(['huawei-server'])
     );
     listSavedConnectionsMock.mockResolvedValue([{
@@ -820,14 +820,14 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
     });
 
-    expect(localStorage.getItem('openbitfun:settings:acp-agents:hidden-remote-connections:v1'))
+    expect(localStorage.getItem('bitfun:settings:acp-agents:hidden-remote-connections:v1'))
       .toBe('[]');
     expect(container.textContent).toContain('Huawei Server');
   });
 
   it('does not probe hidden remote servers until they are restored', async () => {
     localStorage.setItem(
-      'openbitfun:settings:acp-agents:hidden-remote-connections:v1',
+      'bitfun:settings:acp-agents:hidden-remote-connections:v1',
       JSON.stringify(['huawei-server'])
     );
     listSavedConnectionsMock.mockResolvedValue([{
@@ -935,7 +935,7 @@ describe('AcpAgentsConfig', () => {
     ];
     probeClientRequirementsMock.mockResolvedValue(healthyProbes);
     saveJsonConfigMock.mockImplementation(async () => {
-      window.dispatchEvent(new Event('openbitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
       loadJsonConfigMock.mockResolvedValue(JSON.stringify({
         acpClients: {
           opencode: {
@@ -1056,8 +1056,8 @@ describe('AcpAgentsConfig', () => {
     });
 
     expect(container.textContent).toContain('DeepSeek Harness');
-    // Unlike omp, the harness is a plain npm global, so OpenBitFun installs it.
-    // The bridge is not a separate adapter — it ships inside OpenBitFun.
+    // Unlike omp, the harness is a plain npm global, so BitFun installs it.
+    // The bridge is not a separate adapter — it ships inside BitFun.
     expect(container.textContent).not.toContain('registry.adapterMissing');
 
     const installButtons = Array.from(container.querySelectorAll('button'))
@@ -1082,7 +1082,7 @@ describe('AcpAgentsConfig', () => {
     );
   });
 
-  it('adds DeepSeek Harness as a launch of the profile OpenBitFun materializes', async () => {
+  it('adds DeepSeek Harness as a launch of the profile BitFun materializes', async () => {
     probeClientRequirementsMock.mockResolvedValue([
       {
         id: 'dsh',
@@ -1104,8 +1104,8 @@ describe('AcpAgentsConfig', () => {
     // and the preset list happen to produce, so "the last add button" belongs
     // to some other agent as often as not.
     const harnessRow = Array.from(
-      container.querySelectorAll('.openbitfun-acp-agents__registry-row'),
-    ).find(row => row.querySelector('.openbitfun-acp-agents__registry-name')
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
       ?.textContent === 'DeepSeek Harness');
     expect(harnessRow).toBeTruthy();
 
@@ -1120,10 +1120,10 @@ describe('AcpAgentsConfig', () => {
       await Promise.resolve();
     });
 
-    // The command has to name the profile OpenBitFun materializes; a bare `dsh`
+    // The command has to name the profile BitFun materializes; a bare `dsh`
     // would drop the user into the harness's own default composition, which
     // does not speak ACP at all.
-    expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('openbitfun-acp'));
+    expect(saveJsonConfigMock).toHaveBeenCalledWith(expect.stringContaining('bitfun-acp'));
   });
 
   it('does not downgrade enabled agents on transient probe timeouts during refresh', async () => {

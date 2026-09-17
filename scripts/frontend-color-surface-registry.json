@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "description": "Authoritative registry for every OpenBitFun frontend color surface, its canonical token owner, narrowly scoped specialized palette owners, and non-product artifacts excluded from ordinary UI governance.",
+  "description": "Authoritative registry for every BitFun frontend color surface, its canonical token owner, narrowly scoped specialized palette owners, and non-product artifacts excluded from ordinary UI governance.",
   "contracts": {
     "webSystem": "design-system/packages/design-tokens/src/system.tokens.json",
-    "webTheme": "design-system/packages/theme-openbitfun/src/light.tokens.json",
+    "webTheme": "design-system/packages/theme-bitfun/src/light.tokens.json",
     "miniappAppearance": "src/shared/miniapp-appearance/contract.json",
     "nativeMobile": "src/apps/mobile/design-system/tokens/mobile-tokens.json"
   },
@@ -19,17 +19,17 @@
       "id": "design-system-token-owner",
       "label": "Design system token authoring",
       "kind": "contract-owner",
-      "owner": "@openbitfun/design-tokens and @openbitfun/theme-openbitfun",
+      "owner": "@bitfun/design-tokens and @bitfun/theme-bitfun",
       "roots": [
         "design-system/packages/design-tokens/src",
-        "design-system/packages/theme-openbitfun/src"
+        "design-system/packages/theme-bitfun/src"
       ]
     },
     {
       "id": "web-ui",
       "label": "Web UI",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun plus Web UI Appearance theme-tokens",
+      "owner": "@bitfun/theme-bitfun plus Web UI Appearance theme-tokens",
       "root": "src/web-ui",
       "audit": {
         "engine": "theme",
@@ -40,19 +40,19 @@
       "id": "design-system-ui",
       "label": "Public design-system UI package",
       "kind": "canonical-web",
-      "owner": "@openbitfun/ui consuming peer-owned canonical tokens",
+      "owner": "@bitfun/ui consuming peer-owned canonical tokens",
       "root": "design-system/packages/ui",
       "audit": {
         "engine": "theme",
         "baseline": "scripts/theme-color-governance-baseline.design-system-ui.json",
-        "packageContracts": ["@openbitfun/design-tokens", "@openbitfun/theme-openbitfun"]
+        "packageContracts": ["@bitfun/design-tokens", "@bitfun/theme-bitfun"]
       }
     },
     {
       "id": "design-lab",
       "label": "Design Lab",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun",
+      "owner": "@bitfun/theme-bitfun",
       "root": "design-system/apps/design-lab",
       "audit": {
         "engine": "theme",
@@ -63,7 +63,7 @@
       "id": "miniapp-market",
       "label": "Mini App Market",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun",
+      "owner": "@bitfun/theme-bitfun",
       "root": "src/miniapp-market-web",
       "audit": {
         "engine": "theme",
@@ -74,7 +74,7 @@
       "id": "skin-market",
       "label": "Skin Market",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun",
+      "owner": "@bitfun/theme-bitfun",
       "root": "src/skin-market-web",
       "audit": {
         "engine": "theme",
@@ -85,7 +85,7 @@
       "id": "website",
       "label": "Public website",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun",
+      "owner": "@bitfun/theme-bitfun",
       "root": "website",
       "audit": {
         "engine": "theme",
@@ -96,7 +96,7 @@
       "id": "mobile-web",
       "label": "Mobile Web and Remote Control",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun",
+      "owner": "@bitfun/theme-bitfun",
       "root": "src/mobile-web",
       "audit": {
         "engine": "theme",
@@ -105,10 +105,10 @@
     },
     {
       "id": "installer",
-      "label": "OpenBitFun Installer",
+      "label": "BitFun Installer",
       "kind": "canonical-web",
-      "owner": "@openbitfun/theme-openbitfun with the installer preset owner",
-      "root": "OpenBitFun-Installer",
+      "owner": "@bitfun/theme-bitfun with the installer preset owner",
+      "root": "BitFun-Installer",
       "audit": {
         "engine": "theme",
         "baseline": "scripts/theme-color-governance-baseline.installer.json"
@@ -118,12 +118,12 @@
       "id": "data-migrator",
       "label": "Offline Data Migrator",
       "kind": "canonical-web",
-      "owner": "@openbitfun/design-tokens and @openbitfun/theme-openbitfun public CSS exports",
+      "owner": "@bitfun/design-tokens and @bitfun/theme-bitfun public CSS exports",
       "root": "src/apps/data-migrator/ui",
       "audit": {
         "engine": "theme",
         "policy": "canonical-ui-zero",
-        "packageContracts": ["@openbitfun/design-tokens", "@openbitfun/theme-openbitfun"],
+        "packageContracts": ["@bitfun/design-tokens", "@bitfun/theme-bitfun"],
         "excludePaths": ["generated"]
       }
     },
@@ -131,12 +131,12 @@
       "id": "desktop-bootstrap",
       "label": "Desktop pre-JavaScript bootstrap pages",
       "kind": "canonical-web",
-      "owner": "generated @openbitfun/theme-openbitfun bootstrap projection",
+      "owner": "generated @bitfun/theme-bitfun bootstrap projection",
       "root": "src/apps/desktop/bootstrap-ui",
       "audit": {
         "engine": "theme",
         "policy": "canonical-ui-zero",
-        "packageContracts": ["@openbitfun/design-tokens", "@openbitfun/theme-openbitfun"]
+        "packageContracts": ["@bitfun/design-tokens", "@bitfun/theme-bitfun"]
       }
     },
     {
@@ -148,7 +148,7 @@
       "audit": {
         "engine": "theme",
         "policy": "canonical-ui-zero",
-        "packageContracts": ["@openbitfun/design-tokens", "@openbitfun/theme-openbitfun"],
+        "packageContracts": ["@bitfun/design-tokens", "@bitfun/theme-bitfun"],
         "excludePaths": ["generated"]
       }
     },
@@ -174,8 +174,8 @@
         "platform": "android",
         "extensions": [".kt"],
         "excludePaths": [
-          "com/openbitfun/mobile/app/ui/theme/generated",
-          "com/openbitfun/mobile/app/ui/preview/generated"
+          "com/bitfun/mobile/app/ui/theme/generated",
+          "com/bitfun/mobile/app/ui/preview/generated"
         ]
       }
     },
@@ -184,7 +184,7 @@
       "label": "Native iOS",
       "kind": "native-mobile",
       "owner": "src/apps/mobile/design-system/tokens/mobile-tokens.json",
-      "root": "src/apps/mobile/ios/OpenBitFun",
+      "root": "src/apps/mobile/ios/BitFun",
       "audit": {
         "engine": "native",
         "platform": "ios",
@@ -409,7 +409,7 @@
       "path": "src/web-ui/public/monaco-editor",
       "kind": "generated-third-party",
       "owner": "Monaco package copy step",
-      "reason": "Vendored editor output is verified by the Monaco asset check and is not OpenBitFun application UI source."
+      "reason": "Vendored editor output is verified by the Monaco asset check and is not BitFun application UI source."
     },
     {
       "id": "relay-static",
@@ -450,7 +450,7 @@
       "id": "ppt-generated-bundle",
       "path": "src/crates/contracts/product-domains/src/miniapp/builtin/assets/ppt-live/dist",
       "kind": "generated-output",
-      "owner": "PPT Live build-openbitfun.mjs",
+      "owner": "PPT Live build-bitfun.mjs",
       "reason": "Bundled JavaScript is generated from the registered PPT source owner."
     },
     {
@@ -462,7 +462,7 @@
     },
     {
       "id": "ios-template-icons",
-      "path": "src/apps/mobile/ios/OpenBitFun/Resources.xcassets",
+      "path": "src/apps/mobile/ios/BitFun/Resources.xcassets",
       "kind": "native-template-asset",
       "owner": "iOS asset catalog",
       "reason": "Template images and app metadata are tinted or consumed by the platform asset layer."

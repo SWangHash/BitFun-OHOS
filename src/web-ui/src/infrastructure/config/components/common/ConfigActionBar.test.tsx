@@ -35,11 +35,11 @@ describe('ConfigActionBar', () => {
       />,
     ));
 
-    expect(container.querySelector('[data-openbitfun-part="fieldStatus"]')?.textContent).toBe('changeStatus.unsaved');
+    expect(container.querySelector('[data-bitfun-part="fieldStatus"]')?.textContent).toBe('changeStatus.unsaved');
     const buttons = container.querySelectorAll('button');
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].getAttribute('data-openbitfun-variant')).toBe('fill');
-    expect(buttons[1].getAttribute('data-openbitfun-variant')).toBe('primary');
+    expect(buttons[0].getAttribute('data-bitfun-variant')).toBe('fill');
+    expect(buttons[1].getAttribute('data-bitfun-variant')).toBe('primary');
     act(() => (buttons[0] as HTMLButtonElement).click());
     act(() => (buttons[1] as HTMLButtonElement).click());
     expect(onDiscard).toHaveBeenCalledOnce();
@@ -59,7 +59,7 @@ describe('ConfigActionBar', () => {
     const buttons = container.querySelectorAll<HTMLButtonElement>('button');
     expect(buttons[0].disabled).toBe(true);
     expect(buttons[1].disabled).toBe(true);
-    expect(buttons[1].getAttribute('data-openbitfun-variant')).toBe('primary');
+    expect(buttons[1].getAttribute('data-bitfun-variant')).toBe('primary');
     expect(buttons[1].getAttribute('aria-busy')).toBe('true');
   });
 
@@ -72,7 +72,7 @@ describe('ConfigActionBar', () => {
       />,
     ));
 
-    expect(container.querySelector('[data-openbitfun-part="actionBar"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="actionBar"]')).toBeNull();
   });
 
   it('keeps an explicit saved message visible when a page provides one', () => {
@@ -85,7 +85,7 @@ describe('ConfigActionBar', () => {
       />,
     ));
 
-    expect(container.querySelector('[data-openbitfun-part="actionBar"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="actionBar"]')).not.toBeNull();
     expect(container.textContent).toContain('Saved just now');
     expect(container.querySelectorAll('button')).toHaveLength(0);
   });

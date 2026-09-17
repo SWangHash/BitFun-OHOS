@@ -1,7 +1,7 @@
 /**
- * OpenBitFun API unified exports.
+ * BitFun API unified exports.
  *
- * Follows the OpenBitFun Tauri command conventions.
+ * Follows the BitFun Tauri command conventions.
  */
 
 export * from './service-api/types';

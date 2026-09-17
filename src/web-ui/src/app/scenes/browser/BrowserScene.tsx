@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { OverflowText, Icon, IconButton, Input } from '@openbitfun/ui';
+import { OverflowText, Icon, IconButton, Input } from '@bitfun/ui';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
@@ -9,7 +9,7 @@ import { BrowserPreview } from './BrowserPreview';
 import './BrowserScene.scss';
 
 const log = createLogger('BrowserScene');
-const DEFAULT_URL = 'https://www.openbitfun.work';
+const DEFAULT_URL = 'https://www.bitfun.work';
 
 const BrowserScene: React.FC = () => {
   const { t } = useTranslation('common');
@@ -31,16 +31,16 @@ const BrowserScene: React.FC = () => {
     <div
       className="browser-scene"
       data-testid="browser-panel"
-      data-openbitfun-scene="browser"
-      data-openbitfun-part="root"
-      data-openbitfun-state={browser.isLoading ? 'loading' : undefined}
+      data-bitfun-scene="browser"
+      data-bitfun-part="root"
+      data-bitfun-state={browser.isLoading ? 'loading' : undefined}
     >
       <form
         className="browser-scene__toolbar"
         onSubmit={handleSubmit}
         data-testid="browser-panel-title"
-        data-openbitfun-scene="browser"
-        data-openbitfun-part="toolbar"
+        data-bitfun-scene="browser"
+        data-bitfun-part="toolbar"
       >
         <IconButton
           type="button"
@@ -84,13 +84,13 @@ const BrowserScene: React.FC = () => {
       </form>
 
       {browser.error ? (
-        <div className="browser-scene__error" data-testid="browser-error-message" data-openbitfun-scene="browser" data-openbitfun-part="error">
+        <div className="browser-scene__error" data-testid="browser-error-message" data-bitfun-scene="browser" data-bitfun-part="error">
           <AlertTriangle size={16} />
           <span>{browser.error}</span>
         </div>
       ) : null}
 
-      <div className="browser-scene__content" data-testid="browser-page-frame" data-openbitfun-scene="browser" data-openbitfun-part="content">
+      <div className="browser-scene__content" data-testid="browser-page-frame" data-bitfun-scene="browser" data-bitfun-part="content">
         {!browser.isTauri ? (
           <iframe
             className="browser-scene__iframe"

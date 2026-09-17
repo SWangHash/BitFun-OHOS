@@ -36,18 +36,18 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-busy={loading || undefined}
       aria-label={ariaLabel}
       className={classNames(styles.button, className)}
-      data-openbitfun-component="icon-button"
-      data-openbitfun-shape={shape}
-      data-openbitfun-tone={tone}
-      data-openbitfun-variant={variant}
+      data-bitfun-component="icon-button"
+      data-bitfun-shape={shape}
+      data-bitfun-tone={tone}
+      data-bitfun-variant={variant}
       data-loading={loading ? "true" : "false"}
       data-size={size}
       disabled={disabled || loading}
       ref={ref}
       type={type}
     >
-      <span aria-hidden="true" className={styles.progress} data-openbitfun-part="progress" />
-      <span aria-hidden="true" className={styles.icon} data-openbitfun-part="icon">{icon}</span>
+      <span aria-hidden="true" className={styles.progress} data-bitfun-part="progress" />
+      <span aria-hidden="true" className={styles.icon} data-bitfun-part="icon">{icon}</span>
     </button>
   );
 });

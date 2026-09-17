@@ -454,9 +454,9 @@ export const Modal: React.FC<ModalProps> = ({
         .join(' ')}
       onClick={closeOnOverlayClick ? handleOverlayClick : undefined}
       onMouseDown={handleOverlayMouseDown}
-      data-openbitfun-component="modal"
-      data-openbitfun-part="overlay"
-      data-openbitfun-placement={placement}
+      data-bitfun-component="modal"
+      data-bitfun-part="overlay"
+      data-bitfun-placement={placement}
     >
       <div
         ref={modalRef}
@@ -484,11 +484,11 @@ export const Modal: React.FC<ModalProps> = ({
         onMouseDown={handleMouseDown}
         style={appliedStyle}
         data-testid={testId}
-        data-openbitfun-component="modal"
-        data-openbitfun-part="dialog"
-        data-openbitfun-size={size}
-        data-openbitfun-placement={placement}
-        data-openbitfun-state={dialogAppearanceState || undefined}
+        data-bitfun-component="modal"
+        data-bitfun-part="dialog"
+        data-bitfun-size={size}
+        data-bitfun-placement={placement}
+        data-bitfun-state={dialogAppearanceState || undefined}
       >
         {(title || showCloseButton) && (
           <div
@@ -498,8 +498,8 @@ export const Modal: React.FC<ModalProps> = ({
             ]
               .filter(Boolean)
               .join(' ')}
-            data-openbitfun-component="modal"
-            data-openbitfun-part="headerShell"
+            data-bitfun-component="modal"
+            data-bitfun-part="headerShell"
           >
             {(title || (draggable && showCloseButton)) && (
               <div
@@ -511,14 +511,14 @@ export const Modal: React.FC<ModalProps> = ({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                data-openbitfun-component="modal"
-                data-openbitfun-part="header"
-                data-openbitfun-state={draggable ? 'draggable' : undefined}
+                data-bitfun-component="modal"
+                data-bitfun-part="header"
+                data-bitfun-state={draggable ? 'draggable' : undefined}
               >
                 {title && (
-                  <div className="modal__title-group" data-openbitfun-component="modal" data-openbitfun-part="titleGroup">
-                    <h2 id={generatedTitleId} className="modal__title" data-testid={titleTestId} data-openbitfun-component="modal" data-openbitfun-part="title">{title}</h2>
-                    {titleExtra && <span className="modal__title-extra" data-openbitfun-component="modal" data-openbitfun-part="titleExtra">{titleExtra}</span>}
+                  <div className="modal__title-group" data-bitfun-component="modal" data-bitfun-part="titleGroup">
+                    <h2 id={generatedTitleId} className="modal__title" data-testid={titleTestId} data-bitfun-component="modal" data-bitfun-part="title">{title}</h2>
+                    {titleExtra && <span className="modal__title-extra" data-bitfun-component="modal" data-bitfun-part="titleExtra">{titleExtra}</span>}
                   </div>
                 )}
               </div>
@@ -530,8 +530,8 @@ export const Modal: React.FC<ModalProps> = ({
                 aria-label={t('modal.close')}
                 type="button"
                 data-testid={closeButtonTestId}
-                data-openbitfun-component="modal"
-                data-openbitfun-part="close"
+                data-bitfun-component="modal"
+                data-bitfun-part="close"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -550,9 +550,9 @@ export const Modal: React.FC<ModalProps> = ({
           ]
             .filter(Boolean)
             .join(' ')}
-          data-openbitfun-component="modal"
-          data-openbitfun-part="content"
-          data-openbitfun-state={contentInset ? 'contentInset' : undefined}
+          data-bitfun-component="modal"
+          data-bitfun-part="content"
+          data-bitfun-state={contentInset ? 'contentInset' : undefined}
         >
           {children}
         </div>
@@ -564,10 +564,10 @@ export const Modal: React.FC<ModalProps> = ({
                 key={direction}
                 className={`modal__resize-handle modal__resize-handle--${direction}`}
                 onMouseDown={(e) => handleResizeStart(e, direction)}
-                data-openbitfun-component="modal"
-                data-openbitfun-part="resizeHandle"
-                data-openbitfun-resize-direction={direction}
-                data-openbitfun-state={isResizing ? 'resizing' : 'resizable'}
+                data-bitfun-component="modal"
+                data-bitfun-part="resizeHandle"
+                data-bitfun-resize-direction={direction}
+                data-bitfun-state={isResizing ? 'resizing' : 'resizable'}
               />
             ))}
           </>

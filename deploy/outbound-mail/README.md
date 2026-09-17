@@ -1,6 +1,6 @@
 # 自建发信服务维护手册
 
-OpenBitFun 的验证码邮件可以通过同机 Postfix 直接投递给收件方 MX，
+BitFun 的验证码邮件可以通过同机 Postfix 直接投递给收件方 MX，
 OpenDKIM 为邮件签名。不需要部署 IMAP、POP3、用户邮箱或公网收信入口。
 认证服务负责生成验证码及本地化邮件模板；Postfix 负责签名接入、队列和投递。
 
@@ -11,7 +11,7 @@ auth → 私有 SMTP → Postfix → 收件方 MX:25
 ```
 
 本手册描述可复用的维护规则。生产实例的具体 IP、路径、已部署版本和回滚文件见
-服务器 `/etc/openbitfun-mail/README.md`。不要将 SMTP 密码、DKIM 私钥、验证码、
+服务器 `/etc/bitfun-mail/README.md`。不要将 SMTP 密码、DKIM 私钥、验证码、
 认证令牌或生产 env 文件复制到仓库。
 
 ## 网络与发信身份
@@ -20,7 +20,7 @@ auth → 私有 SMTP → Postfix → 收件方 MX:25
 - 认证容器使用同机专用 Docker 网桥的宿主机地址；只授权该容器的确切 IP。
 - Postfix 仅监听 loopback 和该网桥，不监听公网网卡，不发布公网 Docker SMTP 端口。
 - 出站 TCP 25 必须能连接收件方 MX。WAF 处理入站 HTTP(S)，不代理出站 SMTP。
-- 允许整个自有域名的发件人，例如 `hello@openbitfun.com`、`support@openbitfun.com`。
+- 允许整个自有域名的发件人，例如 `hello@bitfun.com`、`support@bitfun.com`。
   新增同域发件地址无需创建本地邮箱。回复能否被接收，仍取决于已有收信服务。
 - `mynetworks` 限制调用方，发件地址规则限制可使用的域名；不能仅靠发件域名防止开放中继。
 
@@ -37,9 +37,9 @@ auth → 私有 SMTP → Postfix → 收件方 MX:25
 SMTP_SECURITY=local
 SMTP_HOST=172.19.0.1
 SMTP_PORT=25
-SMTP_USERNAME=hello@openbitfun.com
+SMTP_USERNAME=hello@bitfun.com
 SMTP_PASSWORD=
-SMTP_FROM_NAME=OpenBitFun
+SMTP_FROM_NAME=BitFun
 ```
 
 示例 IP 必须替换成该实例的实际网桥地址。`SMTP_USERNAME` 在此模式中是发件地址，
@@ -62,8 +62,8 @@ Ubuntu 可安装 `postfix opendkim opendkim-tools`。安装时先选择仅本地
 `/etc/postfix/main.cf` 的关键项目：
 
 ```ini
-myhostname = outbound.openbitfun.com
-myorigin = openbitfun.com
+myhostname = outbound.bitfun.com
+myorigin = bitfun.com
 mydestination =
 relayhost =
 default_transport = smtp
@@ -87,7 +87,7 @@ disable_vrfy_command = yes
 `/etc/postfix/allowed_sender_domains` 使用精确的域名匹配：
 
 ```text
-/^[^@[:space:]]+@openbitfun[.]com$/ OK
+/^[^@[:space:]]+@bitfun[.]com$/ OK
 ```
 
 这是 `regexp:` 映射，修改后不运行 `postmap` 生成 hash 数据库，检查配置并 reload 即可。
@@ -112,7 +112,7 @@ OversignHeaders From
 ```
 
 `PidFile` 必须与发行版 systemd 单元一致，否则可能出现进程已运行但服务一直停留在
-`activating`。签名表用 `*@openbitfun.com` 匹配整个域名。KeyTable 指向相应 selector
+`activating`。签名表用 `*@bitfun.com` 匹配整个域名。KeyTable 指向相应 selector
 及私钥；InternalHosts 只列 loopback 和确切的认证容器地址。
 
 私钥由 `opendkim-genkey -b 2048` 在服务器上生成，目录仅允许维护者/签名服务访问，
@@ -125,7 +125,7 @@ OversignHeaders From
 | 记录 | 作用 |
 | --- | --- |
 | `outbound` A | 指向实际出站公网 IP，不接入 WAF |
-| 该公网 IP 的 PTR | 在云厂商反向解析中指向 `outbound.openbitfun.com` |
+| 该公网 IP 的 PTR | 在云厂商反向解析中指向 `outbound.bitfun.com` |
 | 根域 TXT SPF | 在原有 SPF 中添加 `ip4:新IP`；保留仍在使用的发信商授权，不能新增第二条 SPF |
 | `selector._domainkey` TXT | 对应 OpenDKIM selector 的完整公钥 |
 | `_dmarc` TXT | 初始使用 `v=DMARC1; p=none`；验证全部合法发信源后再考虑更严格策略 |

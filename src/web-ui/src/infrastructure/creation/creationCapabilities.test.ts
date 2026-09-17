@@ -41,7 +41,7 @@ describe('Creation capabilities', () => {
   });
 
   it('keeps unreadable state and rejects implicit repair while allowing explicit deletion', async () => {
-    const key = 'openbitfun.creation.state.v1:counter.value';
+    const key = 'bitfun.creation.state.v1:counter.value';
     const current = runtime();
     localStorage.setItem(key, '{broken');
     await expect(current.state.set('counter.value', 5)).rejects.toThrow('preserved');

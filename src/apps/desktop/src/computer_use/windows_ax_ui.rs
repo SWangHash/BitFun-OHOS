@@ -12,7 +12,7 @@
 //!     SelectionItem / ExpandCollapse / Value / RangeValue / Text / Scroll).
 //!   * Transient `E_FAIL` provider errors retried (3 attempts, 40ms backoff).
 //!
-//! Unlike the cua daemon, OpenBitFun is a Tauri GUI app, so COM is initialized with
+//! Unlike the cua daemon, BitFun is a Tauri GUI app, so COM is initialized with
 //! `COINIT_APARTMENTTHREADED` (correct for the main thread). VARIANT-based
 //! property reads are deliberately avoided: they require the
 //! `Win32_System_Ole` + `Win32_System_Variant` features which the desktop
@@ -27,11 +27,11 @@
 
 use super::ax_snapshot_digest::compute_digest;
 use crate::computer_use::ui_locate_common;
-use openbitfun_core::agentic::tools::computer_use_host::{
+use bitfun_core::agentic::tools::computer_use_host::{
     AppInfo, AppStateSnapshot, AxNode, OcrAccessibilityHit, UiElementLocateQuery,
     UiElementLocateResult,
 };
-use openbitfun_core::util::errors::{OpenBitFunError, OpenBitFunResult};
+use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use windows::core::Interface;
 use windows::Win32::Foundation::POINT;
 use windows::Win32::System::Com::{
@@ -89,7 +89,7 @@ pub(super) struct UiaNode {
 }
 
 impl UiaNode {
-    /// Convert to OpenBitFun's [`AxNode`] for `get_app_state` integration.
+    /// Convert to BitFun's [`AxNode`] for `get_app_state` integration.
     ///
     /// `idx` / `parent_idx` are supplied by the caller because `AxNode` uses a
     /// dense `u32` index over the *rendered* tree (including content-only
@@ -140,11 +140,11 @@ fn localized_control_type_string(elem: &IUIAutomationElement) -> String {
 /// read, so the walk itself issues zero cross-process RPCs.
 unsafe fn build_cache_request(
     automation: &IUIAutomation,
-) -> OpenBitFunResult<IUIAutomationCacheRequest> {
+) -> BitFunResult<IUIAutomationCacheRequest> {
     // SAFETY: `automation` is a live UI Automation COM interface and all ids
     // supplied below are documented properties, patterns, scopes, or filters.
     let cache_req = unsafe { automation.CreateCacheRequest() }
-        .map_err(|e| OpenBitFunError::tool(format!("UI Automation CreateCacheRequest: {}.", e)))?;
+        .map_err(|e| BitFunError::tool(format!("UI Automation CreateCacheRequest: {}.", e)))?;
 
     // Properties to pre-fetch (typed cached accessors read these).
     for prop in [
@@ -192,7 +192,7 @@ unsafe fn build_cache_request(
 pub(crate) unsafe fn build_updated_cache_with_retry(
     uncached: &IUIAutomationElement,
     cache_req: &IUIAutomationCacheRequest,
-) -> OpenBitFunResult<IUIAutomationElement> {
+) -> BitFunResult<IUIAutomationElement> {
     let mut attempt = 0u32;
     loop {
         // SAFETY: both COM interfaces are live for the call and `cache_req`
@@ -202,7 +202,7 @@ pub(crate) unsafe fn build_updated_cache_with_retry(
             Err(e) => {
                 attempt += 1;
                 if attempt >= BUILD_CACHE_MAX_ATTEMPTS {
-                    return Err(OpenBitFunError::tool(format!(
+                    return Err(BitFunError::tool(format!(
                         "UI Automation BuildUpdatedCache failed after {} attempts: {}.",
                         attempt, e
                     )));
@@ -425,14 +425,14 @@ unsafe fn walk_tree_full(
     hwnd: windows::Win32::Foundation::HWND,
     max_elements: usize,
     max_depth: usize,
-) -> OpenBitFunResult<(String, Vec<UiaNode>)> {
+) -> BitFunResult<(String, Vec<UiaNode>)> {
     // SAFETY: initializes COM for the current thread and creates the documented
     // in-process UI Automation class; failures are handled below.
     let _ = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
 
     let automation: IUIAutomation =
         unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.map_err(|e| {
-            OpenBitFunError::tool(format!(
+            BitFunError::tool(format!(
                 "UI Automation (CoCreateInstance CUIAutomation): {}.",
                 e
             ))
@@ -443,7 +443,7 @@ unsafe fn walk_tree_full(
     // SAFETY: `hwnd` is the caller-provided target handle. UIA reports an
     // error for an invalid or stale handle, which is propagated here.
     let uncached = unsafe { automation.ElementFromHandle(hwnd) }.map_err(|e| {
-        OpenBitFunError::tool(format!("UI Automation ElementFromHandle failed: {}.", e))
+        BitFunError::tool(format!("UI Automation ElementFromHandle failed: {}.", e))
     })?;
 
     let root_elem = unsafe { build_updated_cache_with_retry(&uncached, &cache_req) }?;
@@ -516,7 +516,7 @@ unsafe fn walk_cached_bounded(
 
         // Read the bounding rect for content-only nodes too, so text/role
         // locate-by-filter can still resolve a click center (cua only reads it
-        // for actionable nodes; OpenBitFun's `locate_ui_element_center` needs it).
+        // for actionable nodes; BitFun's `locate_ui_element_center` needs it).
         let (center_x, center_y, rect) = read_cached_bounding_rect_full(element);
 
         let node = if is_actionable {
@@ -660,9 +660,9 @@ fn center_result_from_node(
     node: &UiaNode,
     matched_node_idx: Option<u32>,
     matched_via: &str,
-) -> OpenBitFunResult<UiElementLocateResult> {
+) -> BitFunResult<UiElementLocateResult> {
     let (l, t, r, b) = node.rect.ok_or_else(|| {
-        OpenBitFunError::tool(format!(
+        BitFunError::tool(format!(
             "Matched UI element \"{}\" has no usable bounding rectangle.",
             node.name.as_deref().unwrap_or(node.control_type.as_str())
         ))
@@ -699,7 +699,7 @@ fn center_result_from_node(
 /// Windows-only-`text_contains`/`title_contains`+`role_substring`).
 pub(super) fn locate_ui_element_center(
     query: &UiElementLocateQuery,
-) -> OpenBitFunResult<UiElementLocateResult> {
+) -> BitFunResult<UiElementLocateResult> {
     ui_locate_common::validate_query(query)?;
 
     let max_depth = query.max_depth.unwrap_or(48).clamp(1, 200) as usize;
@@ -707,7 +707,7 @@ pub(super) fn locate_ui_element_center(
 
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.is_invalid() {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "No foreground window (GetForegroundWindow returned null).".to_string(),
         ));
     }
@@ -719,7 +719,7 @@ pub(super) fn locate_ui_element_center(
         if let Some(node) = nodes.iter().find(|n| n.element_index == Some(idx as usize)) {
             return center_result_from_node(node, Some(idx), "node_idx");
         }
-        return Err(OpenBitFunError::tool(format!(
+        return Err(BitFunError::tool(format!(
             "[AX_IDX_NOT_FOUND] No UI element with node_idx={} in the foreground window tree \
              ({} nodes walked).",
             idx,
@@ -756,14 +756,14 @@ pub(super) fn locate_ui_element_center(
     }
 
     if total_matches == 0 {
-        Err(OpenBitFunError::tool(
+        Err(BitFunError::tool(
             "No UI element matched in the foreground window for this query. Refine filters or \
              use ComputerUse screenshot. Locate uses the same UI Automation permission as \
              mouse/keyboard automation."
                 .to_string(),
         ))
     } else {
-        Err(OpenBitFunError::tool(format!(
+        Err(BitFunError::tool(format!(
             "UI element matched filters but had no usable bounding rectangle ({} match(es): {}).",
             total_matches,
             other_matches.join(" | ")
@@ -781,13 +781,13 @@ pub(super) fn locate_ui_element_center(
 pub(super) fn accessibility_hit_at_global_point(
     gx: f64,
     gy: f64,
-) -> OpenBitFunResult<Option<OcrAccessibilityHit>> {
+) -> BitFunResult<Option<OcrAccessibilityHit>> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
     let automation: IUIAutomation = unsafe {
         CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).map_err(|e| {
-            OpenBitFunError::tool(format!("UI Automation (CoCreateInstance): {}.", e))
+            BitFunError::tool(format!("UI Automation (CoCreateInstance): {}.", e))
         })?
     };
     let pt = POINT {
@@ -855,9 +855,9 @@ pub(super) fn get_app_state_snapshot_for_window(
     hwnd: windows::Win32::Foundation::HWND,
     max_depth: u32,
     focus_window_only: bool,
-) -> OpenBitFunResult<AppStateSnapshot> {
+) -> BitFunResult<AppStateSnapshot> {
     if hwnd.is_invalid() {
-        return Err(OpenBitFunError::tool(
+        return Err(BitFunError::tool(
             "No target window (invalid HWND).".to_string(),
         ));
     }

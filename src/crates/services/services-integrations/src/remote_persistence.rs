@@ -288,7 +288,7 @@ fn derive_legacy_v2_key(
 }
 
 fn derive_current_key(binding: &MachineBinding, local_secret: &[u8; 32]) -> [u8; 32] {
-    let product_id = openbitfun_services_core::product_identity::product_id();
+    let product_id = bitfun_services_core::product_identity::product_id();
     derive_machine_domain_key(
         binding,
         format!("{product_id}::session_store::v1|").as_bytes(),
@@ -1248,7 +1248,7 @@ mod tests {
     }
 
     fn test_tempdir(label: &str) -> tempfile::TempDir {
-        let root = std::env::var_os("OPENBITFUN_TEST_TMPDIR")
+        let root = std::env::var_os("BITFUN_TEST_TMPDIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         std::fs::create_dir_all(&root).expect("test temporary root");
@@ -1282,7 +1282,7 @@ mod device_secret_tests {
             key,
             load_or_create_device_secret(
                 dir.path(),
-                "https://remote.openbitfun.com/v/1.0.1",
+                "https://remote.bitfun.com/v/1.0.1",
                 "1",
                 "device"
             )

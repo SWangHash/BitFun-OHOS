@@ -528,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn ppt_live_bundle_uses_openbitfun_host_capabilities() {
+    fn ppt_live_bundle_uses_bitfun_host_capabilities() {
         let app = BUILTIN_APPS
             .iter()
             .find(|app| app.id == "builtin-ppt-live")
@@ -558,11 +558,11 @@ mod tests {
         // the whole deck end to end. Prompt construction is isolated from the
         // host adapter so its generated-file contract can be tested directly.
         let adapter_source =
-            include_str!("builtin/assets/ppt-live/src/openbitfun-backend-adapter.js");
+            include_str!("builtin/assets/ppt-live/src/bitfun-backend-adapter.js");
         let prompt_source = include_str!("builtin/assets/ppt-live/src/agent-prompt.js");
         assert!(adapter_source.contains("sessionId: options.sessionId"));
         assert!(adapter_source.contains("buildAgentPrompt"));
-        assert!(prompt_source.contains("user::openbitfun-system::ppt-design"));
+        assert!(prompt_source.contains("user::bitfun-system::ppt-design"));
         assert!(prompt_source.contains("export function buildAgentPrompt"));
         assert!(!adapter_source.contains("app.ai"));
         assert!(!adapter_source.contains("installFallbackBackend"));
@@ -606,9 +606,9 @@ mod tests {
             .is_some_and(|scopes| scopes.iter().any(|scope| scope == "{appdata}")));
         assert!(!app.ui_js.contains("Sparo"));
         assert!(include_str!("builtin/assets/ppt-live/ui.js")
-            .contains("installOpenBitFunBackendAdapter"));
+            .contains("installBitFunBackendAdapter"));
         // The single cowork agent turn loads the stable ppt-design skill key.
-        assert!(prompt_source.contains("user::openbitfun-system::ppt-design"));
+        assert!(prompt_source.contains("user::bitfun-system::ppt-design"));
         let ppt_live_source = include_str!("builtin/assets/ppt-live/ui.js");
         // PPT Live registers bounded content into the host's standard floating
         // ChatInput. It must not request a private composer layout or panel.
@@ -630,6 +630,6 @@ mod tests {
         assert!(app.html.contains("exportPptx"));
         assert!(!app.html.contains("src=\"./ui.js\""));
         assert!(!app.html.contains("href=\"./style.css\""));
-        assert!(app.css.contains("--openbitfun-bg"));
+        assert!(app.css.contains("--bitfun-bg"));
     }
 }

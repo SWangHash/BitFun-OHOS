@@ -161,14 +161,14 @@ describe('ExternalSourcesAPI', () => {
     });
 
     await externalSourcesAPI.getWorkspaceReferences(
-      'D:/workspace/project/.openbitfun/worktrees/task',
+      'D:/workspace/project/.bitfun/worktrees/task',
       'workspace-1',
       true,
     );
 
     expect(invokeMock).toHaveBeenCalledWith('get_workspace_reference_snapshot', {
       request: {
-        workspacePath: 'D:/workspace/project/.openbitfun/worktrees/task',
+        workspacePath: 'D:/workspace/project/.bitfun/worktrees/task',
         workspaceId: 'workspace-1',
         forceRefresh: true,
       },
@@ -256,7 +256,7 @@ describe('ExternalSourcesAPI', () => {
       'behavior-v1',
       [{
         commandName: 'review',
-        candidateId: 'openbitfun.desktop:action:review',
+        candidateId: 'bitfun.desktop:action:review',
         behaviorVersion: 'action:review:v1',
       }],
       {
@@ -286,7 +286,7 @@ describe('ExternalSourcesAPI', () => {
         arguments: 'focus on auth',
         nativeCommands: [{
           commandName: 'review',
-          candidateId: 'openbitfun.desktop:action:review',
+          candidateId: 'bitfun.desktop:action:review',
           behaviorVersion: 'action:review:v1',
         }],
         candidateId: 'claude-code.commands:project:review',
@@ -329,7 +329,7 @@ describe('ExternalSourcesAPI', () => {
     invokeMock.mockResolvedValueOnce({ preferenceRevision: 3, conflicts: [] });
     const nativeCommands = [{
       commandName: 'review',
-      candidateId: 'openbitfun.desktop:action:review',
+      candidateId: 'bitfun.desktop:action:review',
       behaviorVersion: 'action:review:v1',
     }];
 
@@ -350,14 +350,14 @@ describe('ExternalSourcesAPI', () => {
     invokeMock.mockResolvedValueOnce({ preferenceRevision: 4, conflicts: [] });
     const nativeCommands = [{
       commandName: 'review',
-      candidateId: 'openbitfun.desktop:action:review',
+      candidateId: 'bitfun.desktop:action:review',
       behaviorVersion: 'action:review:v1',
     }];
 
     await externalSourcesAPI.setNativePromptCommandConflictChoice(
       'D:/workspace/project',
       nativeCommands,
-      'openbitfun.desktop:action:review',
+      'bitfun.desktop:action:review',
       3,
     );
 
@@ -367,7 +367,7 @@ describe('ExternalSourcesAPI', () => {
         request: {
           workspacePath: 'D:/workspace/project',
           nativeCommands,
-          selectedCandidateId: 'openbitfun.desktop:action:review',
+          selectedCandidateId: 'bitfun.desktop:action:review',
           expectedPreferenceRevision: 3,
         },
       },

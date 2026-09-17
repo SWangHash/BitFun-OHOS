@@ -1,4 +1,4 @@
-use openbitfun_product_domains::external_sources::{
+use bitfun_product_domains::external_sources::{
     EcosystemId, ExternalSourceAssetKind, ExternalSourceCatalogEntry, ExternalSourceContext,
     ExternalSourceDiagnostic, ExternalSourceDiagnosticSeverity, ExternalSourceLifecycleState,
     ExternalSourceProviderError, ExternalToolDefinition, ExternalToolProviderIdentity,

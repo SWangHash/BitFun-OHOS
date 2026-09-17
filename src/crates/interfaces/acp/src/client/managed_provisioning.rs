@@ -7,8 +7,8 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use openbitfun_core::infrastructure::PathManager;
-use openbitfun_core::util::errors::{BitFunError, BitFunResult};
+use bitfun_core::infrastructure::PathManager;
+use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use serde::{Deserialize, Serialize};
 
 use super::builtin_clients::{
@@ -316,7 +316,7 @@ async fn run_brew_install(
     formula: &str,
     cancelled: &Arc<AtomicBool>,
 ) -> BitFunResult<()> {
-    let mut command = openbitfun_core::util::process_manager::create_tokio_command(&plan.brew_path);
+    let mut command = bitfun_core::util::process_manager::create_tokio_command(&plan.brew_path);
     command
         .arg("install")
         .arg(formula)
@@ -417,7 +417,7 @@ async fn run_harmonybrew_npm_install(
         package.clone(),
     ];
     prepare_node_command(path_manager, Path::new(HARMONYBREW_NODE), &mut args).await?;
-    let mut command = openbitfun_core::util::process_manager::create_tokio_command(HARMONYBREW_NODE);
+    let mut command = bitfun_core::util::process_manager::create_tokio_command(HARMONYBREW_NODE);
     command
         .args(&args)
         .current_dir(HARMONYOS_USER_HOME)
@@ -551,7 +551,7 @@ async fn probe_node_script_with_environment(
         return item;
     }
 
-    let mut command = openbitfun_core::util::process_manager::create_tokio_command(HARMONYBREW_NODE);
+    let mut command = bitfun_core::util::process_manager::create_tokio_command(HARMONYBREW_NODE);
     command
         .args(&args)
         .current_dir(working_directory)

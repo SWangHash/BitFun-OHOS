@@ -1,7 +1,7 @@
-//! Independent stdio Server Host behind the `openbitfun server` command.
+//! Independent stdio Server Host behind the `bitfun server` command.
 //!
 //! This module is the only assembly point in the CLI that may import the App
-//! Server implementation (`openbitfun_app_server`). `openbitfun server` is not a TUI,
+//! Server implementation (`bitfun_app_server`). `bitfun server` is not a TUI,
 //! controller, or headless-CLI feature: it is a separate Host surface that
 //! reuses the reviewed CLI product assembly, selected with
 //! `DeliveryProfile::Cli` because the CLI assembly is the reviewed kernel
@@ -33,13 +33,13 @@ use anyhow::{Context as _, Result};
 use futures_util::io::AsyncRead;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use openbitfun_app_server::{
+use bitfun_app_server::{
     AppManagementService, AppServerDisconnect, AppServerHostLimits, AppServerHostPolicy,
-    OpenBitFunAppRuntime, OpenBitFunAppServer,
+    BitFunAppRuntime, BitFunAppServer,
 };
 
 /// Host identity injected into the connection policy.
-const SERVER_HOST_IDENTITY: &str = "openbitfun-cli-server-host";
+const SERVER_HOST_IDENTITY: &str = "bitfun-cli-server-host";
 
 /// Explicit method allowlist for the stdio Host.
 ///
@@ -263,14 +263,14 @@ pub(crate) async fn serve() -> Result<()> {
     let workspace_root = std::env::current_dir().context("Failed to resolve server workspace")?;
 
     crate::agent::agentic_system::select_agentic_system_profile(
-        openbitfun_core::product_assembly::DeliveryProfile::Cli,
+        bitfun_core::product_assembly::DeliveryProfile::Cli,
     )?;
-    openbitfun_core::service::config::initialize_global_config()
+    bitfun_core::service::config::initialize_global_config()
         .await
         .context("Failed to initialize global config service")?;
     tracing::info!("Global config service initialized");
 
-    use openbitfun_core::infrastructure::ai::AIClientFactory;
+    use bitfun_core::infrastructure::ai::AIClientFactory;
     AIClientFactory::initialize_global()
         .await
         .context("Failed to initialize global AIClientFactory")?;
@@ -278,11 +278,11 @@ pub(crate) async fn serve() -> Result<()> {
 
     crate::initialize_terminal_service().await;
 
-    let path_manager = openbitfun_core::infrastructure::try_get_path_manager_arc()
+    let path_manager = bitfun_core::infrastructure::try_get_path_manager_arc()
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let deployment = openbitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded;
+    let deployment = bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded;
     let runtime_ownership =
-        openbitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
+        bitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
             path_manager.as_ref(),
             "server",
             &workspace_root,
@@ -291,7 +291,7 @@ pub(crate) async fn serve() -> Result<()> {
         .map_err(|error| anyhow::anyhow!(error.startup_message(deployment, "server")))?;
 
     let agentic_system = crate::agent::agentic_system::init_agentic_system(
-        openbitfun_core::product_assembly::DeliveryProfile::Cli,
+        bitfun_core::product_assembly::DeliveryProfile::Cli,
         std::sync::Arc::new(runtime_ownership),
     )
     .await
@@ -302,7 +302,7 @@ pub(crate) async fn serve() -> Result<()> {
     let (agent_runtime, event_source, compatibility) = context.parts();
     let disconnect_runtime = agent_runtime.clone();
     let compatibility = std::sync::Arc::new(compatibility);
-    let app_runtime = OpenBitFunAppRuntime::new(agent_runtime, event_source)
+    let app_runtime = BitFunAppRuntime::new(agent_runtime, event_source)
         .with_context_reload(compatibility.clone())
         .with_product_search(compatibility);
     let management = std::sync::Arc::new(
@@ -320,7 +320,7 @@ pub(crate) async fn serve() -> Result<()> {
     .map_err(anyhow::Error::new)
     .context("Failed to build the server Host policy")?;
     let disconnect = std::sync::Arc::new(AppServerDisconnect::default());
-    let server = OpenBitFunAppServer::new(app_runtime)
+    let server = BitFunAppServer::new(app_runtime)
         .with_management(management)
         .with_host_limits(limits)
         .with_host_policy(policy.clone())
@@ -336,7 +336,7 @@ pub(crate) async fn serve() -> Result<()> {
     );
 
     let served = server
-        .serve(openbitfun_app_server::protocol::ByteStreams::new(
+        .serve(bitfun_app_server::protocol::ByteStreams::new(
             stdout, stdin,
         ))
         .await;
@@ -359,10 +359,10 @@ pub(crate) async fn serve() -> Result<()> {
 /// Cancel every in-flight turn in the Host workspace after the connection
 /// ends, so a client that disconnected mid-turn cannot leave work running.
 async fn cancel_active_turns(
-    runtime: &openbitfun_agent_runtime::sdk::AgentRuntime,
+    runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
     workspace_root: &std::path::Path,
 ) {
-    use openbitfun_agent_runtime::sdk::{AgentSessionListRequest, AgentTurnCancellationRequest};
+    use bitfun_agent_runtime::sdk::{AgentSessionListRequest, AgentTurnCancellationRequest};
     let request = AgentSessionListRequest {
         workspace_path: workspace_root.to_string_lossy().into_owned(),
         remote_connection_id: None,

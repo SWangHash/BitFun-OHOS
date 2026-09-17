@@ -1,4 +1,4 @@
-# OpenBitFun Desktop
+# BitFun Desktop
 
 For development commands, see [AGENTS.md](AGENTS.md) and the repository
 [contribution guide](../../../CONTRIBUTING.md).
@@ -21,16 +21,16 @@ remote host's tray or execution state.
 ## Application updates
 
 Choose **Background download** in the new-version dialog to download and verify
-an update while continuing to use OpenBitFun. Downloading does not install the
+an update while continuing to use BitFun. Downloading does not install the
 update or restart the application.
 
-When the download finishes, OpenBitFun offers **Install and restart** or
-**Later**. Installation restarts OpenBitFun on this device and interrupts its
+When the download finishes, BitFun offers **Install and restart** or
+**Later**. Installation restarts BitFun on this device and interrupts its
 active sessions. Choosing Later, or closing the dialog, keeps the downloaded
 update. Open **About → Install and restart** whenever you are ready; the same
 confirmation appears before installation.
 
-Downloaded updates remain available after closing and reopening OpenBitFun.
+Downloaded updates remain available after closing and reopening BitFun.
 After reopening, the current updater requires access to the update server to
 restore installer metadata, but does not download the package again. If this
 step or installation fails, the pending update remains available to retry.
@@ -66,7 +66,7 @@ Linux service.
 ## Remote SSH file handle errors
 
 If writing files and browsing directories both start failing with
-`Limit exceeded: handle limit reached`, update OpenBitFun to a build containing
+`Limit exceeded: handle limit reached`, update BitFun to a build containing
 the SFTP handle-lifecycle fix. Earlier builds can exhaust a client-side counter
 even when the server has already closed the files. Save ongoing work before
 manually disconnecting and reconnecting the remote workspace as a temporary
@@ -75,9 +75,9 @@ recovery; reconnecting can interrupt its terminals and commands.
 This message alone does not establish a server configuration problem. Raising
 server limits only delays a leaked-counter failure. Running `ulimit` in a new
 SSH shell does not change the limits of the already-running SFTP subsystem.
-OpenBitFun does not modify the remote user's shell startup files, SSH daemon
+BitFun does not modify the remote user's shell startup files, SSH daemon
 configuration, or OS limits automatically. If the problem persists after the
-fix, capture the OpenBitFun version and logs plus the server's SFTP implementation
+fix, capture the BitFun version and logs plus the server's SFTP implementation
 and advertised limits so genuine concurrent-handle or server resource exhaustion
 can be distinguished from a client lifecycle problem.
 
@@ -93,10 +93,10 @@ Explicit `SHERPA_ONNX_LIB_DIR` and `SHERPA_ONNX_ARCHIVE_DIR` overrides are prese
 When another worktree uses the default ports, start a separate dev server:
 
 ```sh
-OPENBITFUN_DEV_PORT=1432 pnpm run desktop:dev
+BITFUN_DEV_PORT=1432 pnpm run desktop:dev
 ```
 
-HMR uses port 1431 in this example; `OPENBITFUN_DEV_HMR_PORT` can override it.
+HMR uses port 1431 in this example; `BITFUN_DEV_HMR_PORT` can override it.
 The launcher supplies the same HTTP URL to Tauri that Vite listens on, and both
 the main window and companion window read that configured URL.
 
@@ -148,7 +148,7 @@ Focused checks:
 
 ```sh
 pnpm run check:github-config
-node --test scripts/desktop-tauri-build.test.mjs OpenBitFun-Installer/scripts/build-installer.test.cjs
+node --test scripts/desktop-tauri-build.test.mjs BitFun-Installer/scripts/build-installer.test.cjs
 pwsh -NoProfile -File scripts/ci/sign-windows.test.ps1
 ```
 

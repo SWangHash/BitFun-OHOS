@@ -36,14 +36,14 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
-} from "@openbitfun/ui";
+} from "@bitfun/ui";
 import { useI18n } from "../i18n";
 
 export function FileActivityPattern() {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState<string | null>(null);
   const files = ["README.md", "src/features/workspace/remote/connection-profile-with-a-long-name.ts", "packages/ui/src/components/ActivityItem/ActivityItem.module.css"];
-  return <Card appearance="subtle" padding="md" data-openbitfun-pattern="file-activity">
+  return <Card appearance="subtle" padding="md" data-bitfun-pattern="file-activity">
     <FormSection title="ActivityItem">
       {files.map((path, index) => <ActivityItem
         key={path}
@@ -63,7 +63,7 @@ export function FileActivityPattern() {
 export function IndicatorsPattern() {
   const { t } = useI18n();
   const [enabled, setEnabled] = useState(false);
-  return <Toolbar bordered={false} leadingOverflow="scroll" data-openbitfun-pattern="inline-indicators" leading={<>
+  return <Toolbar bordered={false} leadingOverflow="scroll" data-bitfun-pattern="inline-indicators" leading={<>
     <ToolbarGroup><NumberBadge value={0} /><NumberBadge value={18} /><NumberBadge value="1234" /></ToolbarGroup>
     <ToolbarGroup><KeyHint icon="Ctrl">K</KeyHint><KeyHint icon={<Icon name="command-mac" />}>K</KeyHint></ToolbarGroup>
     <ToolbarGroup><StatusPill emphasis leading={<Icon name="unselected" />}>Ask</StatusPill><StatusPill tone="success">{t("patterns.device.online")}</StatusPill></ToolbarGroup>
@@ -73,7 +73,7 @@ export function IndicatorsPattern() {
 
 export function FormTypographyPattern() {
   const { t } = useI18n();
-  return <Card appearance="subtle" padding="md" data-openbitfun-pattern="form-typography">
+  return <Card appearance="subtle" padding="md" data-bitfun-pattern="form-typography">
     <FormSection title={t("patterns.settings.title")} description={t("patterns.settings.description")}>
       <FieldGroup>
         <FieldRow>
@@ -83,7 +83,7 @@ export function FormTypographyPattern() {
         </FieldRow>
         <FieldRow>
           <Field label={t("patterns.provider.headers")} description={t("components.preview.fieldDescription")} orientation="vertical" controlWidth="fill">
-            <Input defaultValue="X-OpenBitFun-Workspace-Display-Name-With-A-Long-Value" />
+            <Input defaultValue="X-BitFun-Workspace-Display-Name-With-A-Long-Value" />
           </Field>
         </FieldRow>
       </FieldGroup>
@@ -101,7 +101,7 @@ export function ProviderConfigurationPattern() {
     <Button variant="primary" onClick={() => { setSaved(true); setOpen(false); }}>{t("components.preview.modalSave")}</Button>
   </>;
 
-  return <div className="pattern-provider" data-openbitfun-pattern="provider-configuration">
+  return <div className="pattern-provider" data-bitfun-pattern="provider-configuration">
     <div className="pattern-demo-actions">
       <Button size="sm" onClick={() => setOpen(true)}>{t("components.preview.modalInteractionDemo")}</Button>
     </div>
@@ -142,7 +142,7 @@ export function WorkspaceConfigurationPattern() {
   const [parent, setParent] = useState("/workspaces");
   const [savedPath, setSavedPath] = useState("");
   const fullPath = name.trim() ? `${parent}/${name.trim()}` : "";
-  return <div data-openbitfun-pattern="workspace-configuration">
+  return <div data-bitfun-pattern="workspace-configuration">
     <Button size="sm" onClick={() => setOpen(true)}>{t("patterns.actions.newProject")}</Button>
     <Dialog open={open} onOpenChange={() => setOpen(false)} size="sm">
       <DialogHeader>
@@ -216,7 +216,7 @@ function ProviderFields() {
       </Disclosure>
     </Card>)}
     <Disclosure summary={t("patterns.provider.advanced")}>
-      <Field label={t("patterns.provider.headers")} controlWidth="fill"><Textarea defaultValue={'{\n  "X-Client": "OpenBitFun"\n}'} rows={3} /></Field>
+      <Field label={t("patterns.provider.headers")} controlWidth="fill"><Textarea defaultValue={'{\n  "X-Client": "BitFun"\n}'} rows={3} /></Field>
     </Disclosure>
   </div>;
 }
@@ -229,7 +229,7 @@ export function SceneToolbarPattern() {
   const [details, setDetails] = useState(false);
   const nextTab = useRef(1);
   const close = (value: string) => { const next = tabs.filter(tab => tab !== value); setTabs(next); if (active === value) setActive(next[0] ?? ""); };
-  return <Card appearance="raised" data-openbitfun-pattern="scene-toolbar" className="pattern-scene-toolbar">
+  return <Card appearance="raised" data-bitfun-pattern="scene-toolbar" className="pattern-scene-toolbar">
     <Toolbar leadingOverflow="scroll" leading={<TabGroup size="sm" aria-label={t("patterns.toolbar.tabs")} value={active} onValueChange={setActive} items={tabs.map(value => ({ value, label: value, id: `pattern-tab-${value}`, panelId: `pattern-panel-${value}`, icon: value === "README.md" ? undefined : <Icon name="files" />, endAction: <IconButton aria-label={`${t("components.preview.close")}: ${value}`} icon={<Icon name="xmark" />} variant="quiet" size="xs" onClick={() => close(value)} /> }))} />}
       trailing={<ToolbarGroup>
         <ChangeCount additions={12} deletions={3} />
@@ -254,7 +254,7 @@ export function NestedMenuPattern() {
   const [lastAction, setLastAction] = useState("");
   const [pinned, setPinned] = useState(false);
   const [scrolling, setScrolling] = useState(false);
-  return <Card appearance="subtle" padding="md" gap="md" data-openbitfun-pattern="nested-menu" onContextMenu={event => { event.preventDefault(); setPosition({ x: event.clientX, y: event.clientY }); setOpen(true); }}>
+  return <Card appearance="subtle" padding="md" gap="md" data-bitfun-pattern="nested-menu" onContextMenu={event => { event.preventDefault(); setPosition({ x: event.clientX, y: event.clientY }); setOpen(true); }}>
     <PageHeader level={3} size="sm" title={t("patterns.menu.title")} description={t("patterns.menu.hint")} />
     <Button ref={anchorRef} aria-haspopup="menu" aria-expanded={open} leadingIcon={<Icon name="more" />} onClick={() => { setPosition(undefined); setOpen(!open); }}>{t("patterns.menu.open")}</Button>
     <Field label={t("detail.option.scrolling")} orientation="horizontal">

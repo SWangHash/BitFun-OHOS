@@ -33,7 +33,7 @@ pub(super) async fn register(
     if !socket.connected() {
         return false;
     }
-    let name = row.device_name.as_deref().unwrap_or("OpenBitFun");
+    let name = row.device_name.as_deref().unwrap_or("BitFun");
     state.device_manager.register_pending(
         &identity.account,
         &identity.device,

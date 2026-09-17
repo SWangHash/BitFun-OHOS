@@ -7,21 +7,21 @@
   @include overlay-layout.anchored-picker-inline-size;
 
   position: fixed;
-  z-index: var(--openbitfun-layer-popover);
+  z-index: var(--bitfun-layer-popover);
   box-sizing: border-box;
   overflow: hidden;
-  color: var(--openbitfun-color-content-primary);
-  font-family: var(--openbitfun-type-label-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  font-weight: var(--openbitfun-type-label-md-font-weight);
-  line-height: var(--openbitfun-type-label-md-line-height);
-  letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   user-select: none;
 }
 
 .branch-quick-switch__search {
   padding: 8px;
-  border-bottom: 1px solid var(--openbitfun-color-border-subtle);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
 }
 
 .branch-quick-switch__input-field {
@@ -33,14 +33,14 @@
   // so the popover neither grows nor shifts after opening.
   block-size: clamp(0px, calc(100vh - 96px), 280px);
   padding: calc(
-    var(--openbitfun-overlay-menu-surface-padding)
-    + var(--openbitfun-focus-width)
+    var(--bitfun-overlay-menu-surface-padding)
+    + var(--bitfun-focus-width)
   );
 }
 
-.branch-quick-switch__list [data-openbitfun-part='list'] {
+.branch-quick-switch__list [data-bitfun-part='list'] {
   min-block-size: 100%;
-  gap: calc(var(--openbitfun-space-1) / 2);
+  gap: calc(var(--bitfun-space-1) / 2);
 }
 
 .branch-quick-switch__loading,
@@ -51,19 +51,19 @@
   flex: 1 1 auto;
   gap: 8px;
   padding: 20px;
-  color: var(--openbitfun-color-content-muted);
-  font-family: var(--openbitfun-type-label-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
-  font-weight: var(--openbitfun-type-label-md-font-weight);
-  line-height: var(--openbitfun-type-label-md-line-height);
-  letter-spacing: var(--openbitfun-type-label-md-letter-spacing);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
   text-align: center;
 }
 
 .branch-quick-switch__item {
-  min-height: var(--openbitfun-control-height-sm);
+  min-height: var(--bitfun-control-height-sm);
 
-  &[data-openbitfun-state='current'] {
+  &[data-bitfun-state='current'] {
     cursor: default;
   }
 }
@@ -102,15 +102,15 @@
   align-items: baseline;
   gap: 10px;
   min-width: 0;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .branch-switch-conflict-dialog__file-path {
   min-width: 0;
   overflow: hidden;
   flex: 1 1 auto;
-  font-family:var(--openbitfun-type-code-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
+  font-family:var(--bitfun-type-code-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
   white-space: nowrap;
 }
 
@@ -118,20 +118,20 @@
   display: inline-flex;
   flex: 0 0 auto;
   gap: 7px;
-  font-family:var(--openbitfun-type-code-md-font-family);
-  font-size: var(--openbitfun-type-label-md-font-size);
+  font-family:var(--bitfun-type-code-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
 }
 
 .branch-switch-conflict-dialog__additions {
-  color: var(--openbitfun-color-code-change-added);
+  color: var(--bitfun-color-code-change-added);
 }
 
 .branch-switch-conflict-dialog__deletions {
-  color: var(--openbitfun-color-code-change-removed);
+  color: var(--bitfun-color-code-change-removed);
 }
 
 .branch-switch-commit-dialog__error {
-  color: var(--openbitfun-color-status-danger-content);
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .branch-switch-commit-dialog {
@@ -146,9 +146,9 @@
 
   p {
     margin: 0;
-    color: var(--openbitfun-color-content-secondary);
-    font-size: var(--openbitfun-type-label-md-font-size);
-    line-height: var(--openbitfun-type-body-sm-line-height);
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   > .branch-switch-commit-dialog__input {
@@ -156,7 +156,7 @@
   }
 
   .branch-switch-commit-dialog__error {
-    color: var(--openbitfun-color-status-danger-content);
+    color: var(--bitfun-color-status-danger-content);
   }
 }
 

@@ -26,7 +26,7 @@ import {
   SegmentedControl,
   Stack,
   Tooltip,
-} from '@openbitfun/ui';
+} from '@bitfun/ui';
 import { ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -216,10 +216,10 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
 
   return (
     <div
-      data-openbitfun-component="permission-request-panel"
-      data-openbitfun-part="root"
-      data-openbitfun-state={[responding && 'responding', error && 'error'].filter(Boolean).join(' ')}
-      className="openbitfun-chat-input-approval"
+      data-bitfun-component="permission-request-panel"
+      data-bitfun-part="root"
+      data-bitfun-state={[responding && 'responding', error && 'error'].filter(Boolean).join(' ')}
+      className="bitfun-chat-input-approval"
       role="group"
       aria-label={t('permission.title')}
       aria-busy={responding || undefined}
@@ -230,22 +230,22 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
         appearance="raised"
         padding="sm"
         gap="sm"
-        className="openbitfun-chat-input-approval__surface"
+        className="bitfun-chat-input-approval__surface"
       >
         <div
-          data-openbitfun-component="permission-request-panel"
-          data-openbitfun-part="request"
+          data-bitfun-component="permission-request-panel"
+          data-bitfun-part="request"
         >
           <CardHeader
             align="center"
             leading={<Icon glyph={ShieldAlert} size="sm" tone="warning" />}
             title={
               <Stack direction="horizontal" align="center" gap="2">
-                <span className="openbitfun-chat-input-approval__title">
+                <span className="bitfun-chat-input-approval__title">
                   {permissionActionLabel(request.action, t)}
                 </span>
                 {ownerLabel ? (
-                  <OverflowText className="openbitfun-chat-input-approval__owner">
+                  <OverflowText className="bitfun-chat-input-approval__owner">
                     {ownerLabel}
                   </OverflowText>
                 ) : null}
@@ -265,7 +265,7 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
 
         <Card appearance="neutral" padding="sm" radius="sm">
           <Stack direction="horizontal" align="center" gap="2">
-            <ScrollArea className="openbitfun-chat-input-approval__resource" tabIndex={0}>
+            <ScrollArea className="bitfun-chat-input-approval__resource" tabIndex={0}>
               <CopyableTextPreview as="code" multiline text={resourceSummary} emptyText="" />
             </ScrollArea>
             {resourceSummary.trim() ? (
@@ -292,18 +292,18 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
         {/* Keep the risk visible while a failed response is retried. */}
         {risk ? (
           <div
-            data-openbitfun-component="permission-request-panel"
-            data-openbitfun-part="risk"
-            className="openbitfun-chat-input-approval__note"
+            data-bitfun-component="permission-request-panel"
+            data-bitfun-part="risk"
+            className="bitfun-chat-input-approval__note"
           >
             <Alert tone="warning" message={risk} />
           </div>
         ) : null}
         {error ? (
           <div
-            data-openbitfun-component="permission-request-panel"
-            data-openbitfun-part="error"
-            className="openbitfun-chat-input-approval__note"
+            data-bitfun-component="permission-request-panel"
+            data-bitfun-part="error"
+            className="bitfun-chat-input-approval__note"
           >
             <Alert tone="error" message={t('permission.responseFailed')} />
           </div>
@@ -312,23 +312,23 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
         {isExactCommandGrant && !answersAll ? (
           <p
             id={grantDescriptionId}
-            data-openbitfun-component="permission-request-panel"
-            data-openbitfun-part="grantScope"
-            className="openbitfun-chat-input-approval__grant-note"
+            data-bitfun-component="permission-request-panel"
+            data-bitfun-part="grantScope"
+            className="bitfun-chat-input-approval__grant-note"
           >
             {t('permission.allowAlwaysCommandDescription')}
           </p>
         ) : null}
 
         <div
-          data-openbitfun-component="permission-request-panel"
-          data-openbitfun-part="actions"
+          data-bitfun-component="permission-request-panel"
+          data-bitfun-part="actions"
         >
-          <CardFooter align="between" className="openbitfun-chat-input-approval__actions">
+          <CardFooter align="between" className="bitfun-chat-input-approval__actions">
             {canAnswerAll ? (
               <div
-                data-openbitfun-component="permission-request-panel"
-                data-openbitfun-part="scope"
+                data-bitfun-component="permission-request-panel"
+                data-bitfun-part="scope"
               >
                 <SegmentedControl
                   aria-label={t('permission.scopeLabel')}
@@ -346,7 +346,7 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
               </div>
             ) : null}
 
-            <div className="openbitfun-chat-input-approval__buttons">
+            <div className="bitfun-chat-input-approval__buttons">
               {/* Rejecting is the safe answer, so it leads. */}
               <Button
                 variant="fill"

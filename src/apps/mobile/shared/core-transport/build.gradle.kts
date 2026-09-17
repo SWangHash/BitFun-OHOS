@@ -10,7 +10,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "com.openbitfun.mobile.core.transport"
+        namespace = "com.bitfun.mobile.core.transport"
         compileSdk = libs.versions.androidCompileSdk.get().toInt()
         minSdk = libs.versions.androidMinSdk.get().toInt()
         withHostTest {}
@@ -75,7 +75,7 @@ kotlin {
 // needs no node process.
 tasks.withType<Test>().configureEach {
     systemProperty(
-        "openbitfun.pairingUrl",
-        providers.gradleProperty("openbitfun.pairingUrl").getOrElse(""),
+        "bitfun.pairingUrl",
+        providers.gradleProperty("bitfun.pairingUrl").getOrElse(""),
     )
 }

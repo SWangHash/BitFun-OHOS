@@ -7,5 +7,5 @@ export const snapshotFullscreenDiffViewerAppearanceDescriptor: AppearanceSurface
     { id: 'currentFile' }, { id: 'fileInfo' }, { id: 'fileActions' },
     { id: 'content' }, { id: 'loading' },
   ],
-  states: [{ id: 'active', selector: { kind: 'self', suffix: '[data-openbitfun-state~="active"]' } }],
+  states: [{ id: 'active', selector: { kind: 'self', suffix: '[data-bitfun-state~="active"]' } }],
 };

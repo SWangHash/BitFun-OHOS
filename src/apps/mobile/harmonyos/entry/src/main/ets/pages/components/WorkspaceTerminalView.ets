@@ -59,7 +59,7 @@ export struct WorkspaceTerminalView {
         const frame: TerminalFrame = { epoch: epoch, revision: ++this.revision, reset: reset,
           data: reset ? output : output.slice(this.sentOutput.length),
           theme: { background: this.color($r('app.color.page_bg').id), foreground: foreground, cursor: foreground } };
-        await this.controller.runJavaScript(`window.OpenBitFunTerminal.accept(${JSON.stringify(frame)})`);
+        await this.controller.runJavaScript(`window.BitFunTerminal.accept(${JSON.stringify(frame)})`);
         this.sentEpoch = epoch; this.sentOutput = output;
       }
     } catch (_error) { this.reset = true; this.dirty = true; }
@@ -70,9 +70,9 @@ export struct WorkspaceTerminalView {
     Web({ src: $rawfile('terminal/index.html'), controller: this.controller })
       .javaScriptAccess(true).domStorageAccess(false).fileAccess(false)
       .darkMode(WebDarkMode.Auto).forceDarkAccess(false)
-      .javaScriptProxy({ object: this.bridge, name: 'OpenBitFunTerminalHost', methodList: ['postMessage'], controller: this.controller })
+      .javaScriptProxy({ object: this.bridge, name: 'BitFunTerminalHost', methodList: ['postMessage'], controller: this.controller })
       .onControllerAttached(() => { this.active = true; })
-      .onPageEnd(() => { void this.controller.runJavaScript('window.OpenBitFunTerminal.connect()').catch((error: Error) => this.onIntent({ type: 'terminal-renderer-error', text: error.message })); })
+      .onPageEnd(() => { void this.controller.runJavaScript('window.BitFunTerminal.connect()').catch((error: Error) => this.onIntent({ type: 'terminal-renderer-error', text: error.message })); })
       .onErrorReceive((event: OnErrorReceiveEvent) => this.onIntent({ type: 'terminal-renderer-error', text: event.error.getErrorInfo() }))
       .onOverrideUrlLoading((request: WebResourceRequest): boolean => !request.getRequestUrl().startsWith('resource://rawfile/terminal/'))
       .width('100%').height('100%')

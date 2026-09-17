@@ -1,17 +1,17 @@
 [package]
-name = "openbitfun-legacy-migration-adapters"
+name = "bitfun-legacy-migration-adapters"
 version.workspace = true
 edition.workspace = true
 description = "Offline BitFun data conversion and current storage owner adapters"
 
 [dependencies]
-openbitfun-config-contracts = { path = "../../contracts/config-contracts" }
-openbitfun-legacy-migration = { path = "../legacy-migration" }
-openbitfun-core-types = { path = "../../contracts/core-types" }
-openbitfun-product-domains = { path = "../../contracts/product-domains", features = ["legacy-migration", "miniapp"] }
-openbitfun-services-core = { path = "../services-core", features = ["local-storage", "memory-store", "workspace-persistence", "coordination-store", "session-event-format"] }
-openbitfun-services-integrations = { path = "../services-integrations", features = ["miniapp-storage", "remote-persistence"] }
-openbitfun-agent-runtime = { path = "../../execution/agent-runtime", features = ["definition-contracts"] }
+bitfun-config-contracts = { path = "../../contracts/config-contracts" }
+bitfun-legacy-migration = { path = "../legacy-migration" }
+bitfun-core-types = { path = "../../contracts/core-types" }
+bitfun-product-domains = { path = "../../contracts/product-domains", features = ["legacy-migration", "miniapp"] }
+bitfun-services-core = { path = "../services-core", features = ["local-storage", "memory-store", "workspace-persistence", "coordination-store", "session-event-format"] }
+bitfun-services-integrations = { path = "../services-integrations", features = ["miniapp-storage", "remote-persistence"] }
+bitfun-agent-runtime = { path = "../../execution/agent-runtime", features = ["definition-contracts"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

@@ -1,10 +1,10 @@
 use crate::error::{MarketError, MarketResult};
 use image::GenericImageView;
-use openbitfun_product_domains::miniapp::market::{
+use bitfun_product_domains::miniapp::market::{
     MarketPackageMeta, MARKET_MAX_PACKAGE_BYTES, MARKET_MAX_SCREENSHOT_BYTES,
     MARKET_MAX_UNCOMPRESSED_BYTES,
 };
-use openbitfun_product_domains::product_release::OPENBITFUN_INITIAL_RELEASE_VERSION;
+use bitfun_product_domains::product_release::BITFUN_INITIAL_RELEASE_VERSION;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
@@ -328,7 +328,7 @@ fn validate_package_meta(meta: &MarketPackageMeta) -> MarketResult<()> {
             "MiniApp descriptions must contain between 1 and 500 characters.",
         ));
     }
-    if !openbitfun_product_domains::miniapp::market::validate_market_category(&meta.category) {
+    if !bitfun_product_domains::miniapp::market::validate_market_category(&meta.category) {
         return Err(MarketError::bad_request(
             "invalid_category",
             "The MiniApp category is not supported.",
@@ -409,17 +409,17 @@ fn is_forbidden_interpreter(command: &str) -> bool {
     )
 }
 
-pub fn validate_min_openbitfun_version(value: &str) -> MarketResult<()> {
+pub fn validate_min_bitfun_version(value: &str) -> MarketResult<()> {
     let version = semver::Version::parse(value).map_err(|_| {
         MarketError::bad_request(
-            "invalid_min_openbitfun_version",
-            "minOpenBitFunVersion must use semantic version syntax, for example 1.0.0.",
+            "invalid_min_bitfun_version",
+            "minBitFunVersion must use semantic version syntax, for example 1.0.0.",
         )
     })?;
-    if version < OPENBITFUN_INITIAL_RELEASE_VERSION {
+    if version < BITFUN_INITIAL_RELEASE_VERSION {
         return Err(MarketError::bad_request(
-            "invalid_min_openbitfun_version",
-            "minOpenBitFunVersion must be 1.0.0 or newer.",
+            "invalid_min_bitfun_version",
+            "minBitFunVersion must be 1.0.0 or newer.",
         ));
     }
     Ok(())
@@ -432,9 +432,9 @@ mod tests {
     use zip::write::SimpleFileOptions;
 
     #[test]
-    fn minimum_openbitfun_version_starts_at_initial_release() {
-        assert!(validate_min_openbitfun_version("1.0.0").is_ok());
-        assert!(validate_min_openbitfun_version("1.2.0").is_ok());
+    fn minimum_bitfun_version_starts_at_initial_release() {
+        assert!(validate_min_bitfun_version("1.0.0").is_ok());
+        assert!(validate_min_bitfun_version("1.2.0").is_ok());
 
         let pre_release_identity = [0, 9, 0]
             .into_iter()
@@ -442,16 +442,16 @@ mod tests {
             .collect::<Vec<_>>()
             .join(".");
         assert_eq!(
-            validate_min_openbitfun_version(&pre_release_identity)
+            validate_min_bitfun_version(&pre_release_identity)
                 .expect_err("pre-1.0 product versions must be rejected")
                 .code,
-            "invalid_min_openbitfun_version"
+            "invalid_min_bitfun_version"
         );
         assert_eq!(
-            validate_min_openbitfun_version("1.0.0-rc.1")
+            validate_min_bitfun_version("1.0.0-rc.1")
                 .expect_err("pre-release versions before 1.0.0 must be rejected")
                 .code,
-            "invalid_min_openbitfun_version"
+            "invalid_min_bitfun_version"
         );
     }
 

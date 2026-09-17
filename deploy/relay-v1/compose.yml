@@ -1,14 +1,14 @@
-name: openbitfun-relay-v1.0.1
+name: bitfun-relay-v1.0.1
 services:
   relay-v1:
-    image: openbitfun-relay-v1.0.1:${RELAY_GIT_COMMIT:?Set the verified source commit}
+    image: bitfun-relay-v1.0.1:${RELAY_GIT_COMMIT:?Set the verified source commit}
     build:
       context: ../..
       dockerfile: src/apps/relay-server/Dockerfile
       args:
         RELAY_GIT_COMMIT: ${RELAY_GIT_COMMIT:?Set the verified source commit}
         CARGO_BUILD_JOBS: "4"
-    container_name: openbitfun-relay-v1.0.1
+    container_name: bitfun-relay-v1.0.1
     network_mode: host
     user: "10001:10001"
     read_only: true
@@ -32,14 +32,14 @@ services:
       RELAY_DB_PATH: /app/data/relay.db
       RELAY_ROOM_WEB_DIR: /app/room-web
       RELAY_ASSET_STORE_MAX_BYTES: "1073741824"
-      RELAY_CORS_ALLOW_ORIGINS: https://remote.openbitfun.com,https://auth.openbitfun.com
-      RELAY_PAGE_PUBLIC_BASE_URL: https://remote.openbitfun.com/v/1.0.1
-      RELAY_PAGE_AUTH_BASE_URL: https://auth.openbitfun.com/v/1.0.1
+      RELAY_CORS_ALLOW_ORIGINS: https://remote.bitfun.com,https://auth.bitfun.com
+      RELAY_PAGE_PUBLIC_BASE_URL: https://remote.bitfun.com/v/1.0.1
+      RELAY_PAGE_AUTH_BASE_URL: https://auth.bitfun.com/v/1.0.1
       RUST_LOG: info
     volumes:
-      - /srv/openbitfun-relay-v1.0.1/data:/app/data
-      - /srv/openbitfun-relay-v1.0.1/assets:/app/room-web
-      - /srv/openbitfun-relay-v1.0.1/static:/app/static:ro
+      - /srv/bitfun-relay-v1.0.1/data:/app/data
+      - /srv/bitfun-relay-v1.0.1/assets:/app/room-web
+      - /srv/bitfun-relay-v1.0.1/static:/app/static:ro
     logging:
       driver: json-file
       options:

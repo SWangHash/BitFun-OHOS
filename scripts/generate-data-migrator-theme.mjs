@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const OUTPUT = join(ROOT, 'src/apps/data-migrator/ui/generated/design-system.css');
-const themeRequire = createRequire(join(ROOT, 'design-system/packages/theme-openbitfun/package.json'));
+const themeRequire = createRequire(join(ROOT, 'design-system/packages/theme-bitfun/package.json'));
 
 function bundleStylesheet(file, ancestors = new Set()) {
   if (ancestors.has(file)) throw new Error(`Circular design-system stylesheet import: ${file}`);
@@ -23,8 +23,8 @@ export async function generateDataMigratorTheme({ check = false } = {}) {
   // Build the owning packages before reading their exports; an older dist must
   // never make a source change appear current in the generated-output check.
   await import('../design-system/packages/design-tokens/scripts/build.mjs');
-  await import('../design-system/packages/theme-openbitfun/scripts/build.mjs');
-  const css = bundleStylesheet(themeRequire.resolve('@openbitfun/theme-openbitfun/default.css'));
+  await import('../design-system/packages/theme-bitfun/scripts/build.mjs');
+  const css = bundleStylesheet(themeRequire.resolve('@bitfun/theme-bitfun/default.css'));
   if (/@import\b|url\(/i.test(css)) {
     throw new Error('Data Migrator design-system CSS must have no external asset dependencies.');
   }

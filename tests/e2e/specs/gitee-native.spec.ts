@@ -10,11 +10,11 @@ interface Pull { number: number; state: string; draft?: boolean }
 interface Page { items: Pull[]; total: number }
 interface Statistics { files: number; additions: number; deletions: number }
 type TraceWindow = Window & {
-  __OPENBITFUN_STARTUP_TRACE__: { snapshot: () => {
+  __BITFUN_STARTUP_TRACE__: { snapshot: () => {
     api: { byCommand: Array<{ command: string; count: number; failureCount: number }> };
   } };
 };
-const root = process.env.OPENBITFUN_GITEE_E2E_ROOT!;
+const root = process.env.BITFUN_GITEE_E2E_ROOT!;
 const workspace = join(root, 'sa-token');
 const evidence: object[] = [];
 const expected = new Map<string, Page>();
@@ -86,13 +86,13 @@ class NativeGiteePage {
   get previous() { return $('[data-testid="review-platform-previous-page"]'); }
   get pagination() { return $('[data-testid="review-platform-pagination"]'); }
   async snapshotRequests() {
-    return browser.execute(() => (window as TraceWindow).__OPENBITFUN_STARTUP_TRACE__.snapshot().api.byCommand
+    return browser.execute(() => (window as TraceWindow).__BITFUN_STARTUP_TRACE__.snapshot().api.byCommand
       .find(item => item.command === 'review_platform_get_workspace_snapshot'));
   }
   async ready() {
     await this.filter('all').waitForDisplayed({ timeout: 45000 });
     await $('[data-testid="review-platform-list-loading"]').waitForExist({ reverse: true, timeout: 45000 });
-    const error = $('[data-openbitfun-component="review-platform"][data-openbitfun-part="errorState"]');
+    const error = $('[data-bitfun-component="review-platform"][data-bitfun-part="errorState"]');
     expect(await error.isExisting()).toBe(false);
   }
   async select(state: State) {
@@ -123,7 +123,7 @@ class NativeGiteePage {
   async assertInitialStatistics() {
     const second = (await this.rows)[1];
     expect(Number(await second.getAttribute('data-pr-number'))).toBe(expected.get('merged:1')!.items[1].number);
-    await expect(second).not.toHaveAttribute('data-openbitfun-state', 'selected');
+    await expect(second).not.toHaveAttribute('data-bitfun-state', 'selected');
     const values = [`${expectedStatistics.files} files`, `+${expectedStatistics.additions}`, `-${expectedStatistics.deletions}`];
     const actual: string[] = [];
     for (const [index, field] of ['files', 'additions', 'deletions'].entries()) {
@@ -163,7 +163,7 @@ describe('Gitee repository filters in the native desktop', () => {
   });
 
   after(async () => {
-    const transportSummary = await browser.execute(() => (window as TraceWindow).__OPENBITFUN_STARTUP_TRACE__.snapshot().api.byCommand
+    const transportSummary = await browser.execute(() => (window as TraceWindow).__BITFUN_STARTUP_TRACE__.snapshot().api.byCommand
       .filter(item => item.command.startsWith('review_platform_')));
     await writeFile(join(root, 'result.json'), JSON.stringify({ repository: 'dromara/sa-token', evidence, transportSummary }, null, 2));
     console.log(`Gitee E2E evidence: ${root}`);
@@ -210,12 +210,12 @@ describe('Gitee repository filters in the native desktop', () => {
     await page.assertInitialStatistics();
     await page.capture('merged-statistics-before-selection');
     await second.click();
-    await expect(second).toHaveAttribute('data-openbitfun-state', 'selected');
-    await $('[data-openbitfun-component="review-platform"][data-openbitfun-part="loadingState"]')
+    await expect(second).toHaveAttribute('data-bitfun-state', 'selected');
+    await $('[data-bitfun-component="review-platform"][data-bitfun-part="loadingState"]')
       .waitForExist({ reverse: true, timeout: 45000 });
     expect(await $('.review-platform__detail-error').isExisting()).toBe(false);
     await expect($('[data-testid="review-platform-detail-state"]')).toHaveText('Merged');
-    await expect($('[data-openbitfun-part="detailMeta"]')).toHaveText(
+    await expect($('[data-bitfun-part="detailMeta"]')).toHaveText(
       expect.stringContaining(`#${expected.get('merged:1')!.items[1].number}`));
     // Let the earlier real All refresh finish, then check that it did not replace Merged.
     await browser.waitUntil(async () => (await page.snapshotRequests())!.count > beforeRefresh.count, { timeout: 45000 });
@@ -223,7 +223,7 @@ describe('Gitee repository filters in the native desktop', () => {
     await page.assertPage('merged');
     const actualStatistics: Record<string, string[]> = {};
     for (const prefix of ['pr', 'detail']) {
-      const owner = prefix === 'pr' ? second : $('[data-openbitfun-component="review-platform"]');
+      const owner = prefix === 'pr' ? second : $('[data-bitfun-component="review-platform"]');
       const values = [`${expectedStatistics.files} files`, `+${expectedStatistics.additions}`, `-${expectedStatistics.deletions}`];
       actualStatistics[prefix] = [];
       for (const [index, field] of ['files', 'additions', 'deletions'].entries()) {

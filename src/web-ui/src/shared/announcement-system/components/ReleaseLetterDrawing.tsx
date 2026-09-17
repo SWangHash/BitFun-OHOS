@@ -11,18 +11,18 @@ export default function ReleaseLetterDrawing() {
     </clipPath>
 
     <linearGradient id={`${id}-startup-ceramic`} data-drawing="startup-ceramic" x1="0" y1="0" x2=".65" y2="1">
-    <stop offset="0" stopColor="color-mix(in srgb, var(--openbitfun-color-surface-panel) 85%, var(--openbitfun-color-content-muted))"/>
-    <stop offset=".52" stopColor="color-mix(in srgb, var(--openbitfun-color-surface-panel) 75%, var(--openbitfun-color-content-muted))"/>
-    <stop offset="1" stopColor="color-mix(in srgb, var(--openbitfun-color-surface-panel) 60%, var(--openbitfun-color-content-muted))"/>
+    <stop offset="0" stopColor="color-mix(in srgb, var(--bitfun-color-surface-panel) 85%, var(--bitfun-color-content-muted))"/>
+    <stop offset=".52" stopColor="color-mix(in srgb, var(--bitfun-color-surface-panel) 75%, var(--bitfun-color-content-muted))"/>
+    <stop offset="1" stopColor="color-mix(in srgb, var(--bitfun-color-surface-panel) 60%, var(--bitfun-color-content-muted))"/>
     </linearGradient>
     <radialGradient id={`${id}-startup-diffuse-light`} data-drawing="startup-diffuse-light" gradientUnits="userSpaceOnUse" cx="154" cy="108" r="370">
-    <stop offset="0" stopColor="var(--openbitfun-color-content-on-dark)" stopOpacity=".58"/>
-    <stop offset=".55" stopColor="var(--openbitfun-color-content-on-dark)" stopOpacity=".16"/>
-    <stop offset="1" stopColor="var(--openbitfun-color-content-on-dark)" stopOpacity="0"/>
+    <stop offset="0" stopColor="var(--bitfun-color-content-on-dark)" stopOpacity=".58"/>
+    <stop offset=".55" stopColor="var(--bitfun-color-content-on-dark)" stopOpacity=".16"/>
+    <stop offset="1" stopColor="var(--bitfun-color-content-on-dark)" stopOpacity="0"/>
     </radialGradient>
     <linearGradient id={`${id}-startup-ceramic-edge`} data-drawing="startup-ceramic-edge" x1="0" y1="0" x2=".4" y2="1">
-    <stop offset="0" stopColor="var(--openbitfun-color-content-on-dark)" stopOpacity=".72"/>
-    <stop offset="1" stopColor="var(--openbitfun-color-content-muted)" stopOpacity=".35"/>
+    <stop offset="0" stopColor="var(--bitfun-color-content-on-dark)" stopOpacity=".72"/>
+    <stop offset="1" stopColor="var(--bitfun-color-content-muted)" stopOpacity=".35"/>
     </linearGradient>
     </defs>
     <g id={`${id}-guideField`} data-drawing="guideField">
@@ -59,13 +59,13 @@ export default function ReleaseLetterDrawing() {
     <g id={`${id}-filletGuides`} data-drawing="filletGuides"></g>
     <g id={`${id}-anchorNodes`} data-drawing="anchorNodes"></g>
     <g id={`${id}-formOutline`} data-drawing="formOutline" opacity="0">
-    <path id={`${id}-outlineEdge`} data-drawing="outlineEdge" fill="none" stroke="var(--openbitfun-color-content-secondary)" strokeWidth="1.25" pathLength="1" fillRule="evenodd"/>
+    <path id={`${id}-outlineEdge`} data-drawing="outlineEdge" fill="none" stroke="var(--bitfun-color-content-secondary)" strokeWidth="1.25" pathLength="1" fillRule="evenodd"/>
     </g>
     <g id={`${id}-material`} data-drawing="material" opacity="0">
     <g clip-path={`url(#${id}-startupRingClip)`}>
     <rect id={`${id}-materialFill`} data-drawing="materialFill" width="512" height="512" fill={`url(#${id}-startup-ceramic)`}/>
     <rect width="512" height="512" fill={`url(#${id}-startup-diffuse-light)`} opacity=".45"/>
-    <rect id={`${id}-paperSurface`} data-drawing="paperSurface" width="512" height="512" fill="var(--openbitfun-color-surface-workbench)" opacity="0"/>
+    <rect id={`${id}-paperSurface`} data-drawing="paperSurface" width="512" height="512" fill="var(--bitfun-color-surface-workbench)" opacity="0"/>
     </g>
     <path id={`${id}-materialRim`} data-drawing="materialRim" fill="none" stroke={`url(#${id}-startup-ceramic-edge)`} strokeWidth=".85" fillRule="evenodd"/>
     </g>

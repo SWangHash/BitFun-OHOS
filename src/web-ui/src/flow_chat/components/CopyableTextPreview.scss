@@ -1,13 +1,13 @@
 .copyable-text-preview {
   flex: 1;
   min-width: 0;
-  font-family:var(--openbitfun-type-code-md-font-family);
+  font-family:var(--bitfun-type-code-md-font-family);
   overflow: hidden;
   white-space: nowrap;
 }
 
 .copyable-text-preview.copyable-text-preview--theme-font {
-  font-family:var(--openbitfun-type-body-sm-font-family);
+  font-family:var(--bitfun-type-body-sm-font-family);
 }
 
 .copyable-text-preview--multiline {
@@ -17,7 +17,7 @@
   border-radius: 0;
   background: none;
   font-size: inherit;
-  font-weight: var(--openbitfun-type-body-sm-font-weight);
+  font-weight: var(--bitfun-type-body-sm-font-weight);
   line-height: inherit;
   overflow: visible;
   white-space: pre-wrap;
@@ -25,14 +25,14 @@
 }
 
 .copyable-text-preview--compact {
-  font-size: var(--openbitfun-type-flow-support-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
-  font-weight: var(--openbitfun-type-body-sm-font-weight);
-  color: var(--openbitfun-color-content-muted);
+  font-size: var(--bitfun-type-flow-support-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
+  font-weight: var(--bitfun-type-body-sm-font-weight);
+  color: var(--bitfun-color-content-muted);
 }
 
 .copyable-text-preview__empty {
-  color: color-mix(in srgb, var(--openbitfun-color-status-danger-content) 72%, var(--openbitfun-color-content-on-dark));
+  color: color-mix(in srgb, var(--bitfun-color-status-danger-content) 72%, var(--bitfun-color-content-on-dark));
   font-style: italic;
 }
 
@@ -40,10 +40,10 @@
   max-width: 100%;
   display: flex;
   align-items: flex-start;
-  gap: var(--openbitfun-space-2);
-  font-family:var(--openbitfun-type-body-sm-font-family);
-  font-size: var(--openbitfun-type-flow-control-font-size);
-  line-height: var(--openbitfun-type-flow-support-line-height);
+  gap: var(--bitfun-space-2);
+  font-family:var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-flow-control-font-size);
+  line-height: var(--bitfun-type-flow-support-line-height);
 }
 
 .copyable-text-preview-tooltip-content__text {
@@ -54,7 +54,7 @@
 }
 
 .copyable-text-preview-tooltip {
-  .openbitfun-tooltip__content {
+  .bitfun-tooltip__content {
     max-width: min(960px, calc(100vw - 32px));
   }
 }
@@ -62,7 +62,7 @@
 .copyable-text-preview-tooltip__copy {
   flex: none;
   margin-top: 1px;
-  color: var(--openbitfun-color-content-muted);
+  color: var(--bitfun-color-content-muted);
 
   &.icon-btn--xs {
     width: 18px;
@@ -76,6 +76,6 @@
   }
 
   &.copied {
-    color: var(--openbitfun-color-status-success-content);
+    color: var(--bitfun-color-status-success-content);
   }
 }

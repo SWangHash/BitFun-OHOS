@@ -4,7 +4,7 @@ use crate::{
     atomic_write_json, compute_plan_hash, LegacyMigrationError, LegacyMigrationResult,
     MigrationLayout, MigrationRoots,
 };
-use openbitfun_product_domains::legacy_migration::{
+use bitfun_product_domains::legacy_migration::{
     MigrationPlan, MigrationRunReport, MigrationRunStatus, CURRENT_MIGRATION_FORMAT_VERSION,
 };
 use serde::Serialize;

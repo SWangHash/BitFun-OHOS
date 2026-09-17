@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MobileStatus } from '@openbitfun/ui/mobile';
+import { MobileStatus } from '@bitfun/ui/mobile';
 import PairingForm from '../components/PairingForm';
 import { accountDeviceIdFromHash, currentRelayUrl } from '../services/pairingLink';
 import { useI18n } from '../i18n';
@@ -171,8 +171,8 @@ const PairingPageContent: React.FC<PairingPageProps> = ({ onPaired }) => {
 
   return <div className="pairing-page"><div className="pairing-page__shell">
     <div className="pairing-page__brand">
-      <img src={`${import.meta.env.BASE_URL}brand/openbitfun-app-icon.png`} alt="" width="40" height="40" />
-      <span>OpenBitFun</span>
+      <img src={`${import.meta.env.BASE_URL}brand/bitfun-app-icon.png`} alt="" width="40" height="40" />
+      <span>BitFun</span>
     </div>
     <section className="pairing-page__panel">
       {restoring ? <MobileStatus loading title={t('pairing.restoringAccount')} />

@@ -7,7 +7,7 @@
   --mobile-viewport-height: 100dvh;
   --mobile-viewport-top: 0px;
   --mobile-viewport-bottom: 0px;
-  --openbitfun-type-support-font-size: var(--openbitfun-type-flow-support-font-size);
+  --bitfun-type-support-font-size: var(--bitfun-type-flow-support-font-size);
   --size-radius-sm: 6px;
   --size-radius-base: 8px;
   --size-radius-lg: 12px;
@@ -41,11 +41,11 @@ html, body, #root {
 }
 
 body {
-  font-family: var(--openbitfun-type-body-md-font-family);
-  font-size: var(--openbitfun-type-body-md-font-size);
-  line-height: var(--openbitfun-type-body-md-line-height);
-  color: var(--openbitfun-color-content-primary);
-  background: var(--openbitfun-color-surface-canvas);
+  font-family: var(--bitfun-type-body-md-font-family);
+  font-size: var(--bitfun-type-body-md-font-size);
+  line-height: var(--bitfun-type-body-md-line-height);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -54,8 +54,8 @@ body {
   height: 100%;
   height: 100dvh;
   width: 100%;
-  background: var(--openbitfun-color-surface-canvas);
-  color: var(--openbitfun-color-content-primary);
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -73,11 +73,11 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--openbitfun-color-scrollbar-thumb);
+  background: var(--bitfun-color-scrollbar-thumb);
   border-radius: var(--size-radius-full);
 
   &:hover {
-    background: var(--openbitfun-color-scrollbar-thumb-hover);
+    background: var(--bitfun-color-scrollbar-thumb-hover);
   }
 }
 
@@ -126,7 +126,7 @@ body {
 .nav-page {
   position: absolute;
   inset: 0;
-  background: var(--openbitfun-color-surface-canvas);
+  background: var(--bitfun-color-surface-canvas);
   z-index: 1;
 }
 
@@ -181,8 +181,8 @@ body {
 .spinner {
   width: 28px;
   height: 28px;
-  border: 2.5px solid var(--openbitfun-color-border-subtle);
-  border-top-color: var(--openbitfun-color-accent-default);
+  border: 2.5px solid var(--bitfun-color-border-subtle);
+  border-top-color: var(--bitfun-color-accent-default);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -222,10 +222,10 @@ html.theme-switching {
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--openbitfun-color-status-warning-emphasis);
-  color: var(--openbitfun-color-content-on-light);
-  font-size: var(--openbitfun-type-body-md-font-size);
-  font-weight: var(--openbitfun-type-label-lg-font-weight);
+  background: var(--bitfun-color-status-warning-emphasis);
+  color: var(--bitfun-color-content-on-light);
+  font-size: var(--bitfun-type-body-md-font-size);
+  font-weight: var(--bitfun-type-label-lg-font-weight);
   animation: slideDown var(--motion-fast) var(--easing-standard);
 
   button {
@@ -255,7 +255,7 @@ html.theme-switching {
 }
 
 // Portaled sheets follow the same visible area as the conversation composer.
-[data-openbitfun-component='mobile-sheet'][data-openbitfun-part='overlay'] {
+[data-bitfun-component='mobile-sheet'][data-bitfun-part='overlay'] {
   inset-block-start: var(--mobile-viewport-top);
   inset-block-end: var(--mobile-viewport-bottom);
 }

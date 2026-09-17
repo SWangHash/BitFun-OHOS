@@ -3,7 +3,7 @@ import type { ModeSkillInfo, SkillInfo } from './types';
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
-  isOpenBitFunManagedSkill,
+  isBitFunManagedSkill,
   findSkillByKey,
   formatSkillOrigin,
   getModeSkillRuntimeStatus,
@@ -14,14 +14,14 @@ import {
 
 function skill(overrides: Partial<SkillInfo> = {}): SkillInfo {
   return {
-    key: 'project::openbitfun::pdf',
+    key: 'project::bitfun::pdf',
     name: 'pdf',
     description: 'PDF workflow',
-    path: '/workspace/.openbitfun/skills/pdf',
+    path: '/workspace/.bitfun/skills/pdf',
     level: 'project',
-    sourceSlot: 'openbitfun',
-    sourceId: 'openbitfun',
-    sourceLabel: 'OpenBitFun',
+    sourceSlot: 'bitfun',
+    sourceId: 'bitfun',
+    sourceLabel: 'BitFun',
     dirName: 'pdf',
     isBuiltin: false,
     ...overrides,
@@ -42,11 +42,11 @@ function modeSkill(overrides: Partial<ModeSkillInfo> = {}): ModeSkillInfo {
 
 describe('skill source presentation', () => {
   it('keeps legacy native and imported copies while excluding external identities from native management', () => {
-    expect(isOpenBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'openbitfun-user' }))).toBe(true);
-    expect(isOpenBitFunManagedSkill(skill({ installationSource: 'github:example/external-skill' }))).toBe(true);
-    expect(isOpenBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'home.codex' }))).toBe(false);
-    expect(isOpenBitFunManagedSkill(skill({ sourceId: 'claude-code', sourceLabel: 'OpenBitFun' }))).toBe(false);
-    expect(isOpenBitFunManagedSkill(skill({ isBuiltin: true }))).toBe(true);
+    expect(isBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'bitfun-user' }))).toBe(true);
+    expect(isBitFunManagedSkill(skill({ installationSource: 'github:example/external-skill' }))).toBe(true);
+    expect(isBitFunManagedSkill(skill({ sourceId: undefined, sourceSlot: 'home.codex' }))).toBe(false);
+    expect(isBitFunManagedSkill(skill({ sourceId: 'claude-code', sourceLabel: 'BitFun' }))).toBe(false);
+    expect(isBitFunManagedSkill(skill({ isBuiltin: true }))).toBe(true);
   });
 
   it('normalizes legacy discovery slots without using paths or display labels as group identity', () => {
@@ -56,26 +56,26 @@ describe('skill source presentation', () => {
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'home.pi' }))).toBe('pi');
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'home.agents' }))).toBe('agent-skills');
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'config.opencode.custom-root' }))).toBe('opencode');
-    expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'openbitfun-system' }))).toBe('openbitfun');
-    expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: '' }))).toBe('openbitfun');
+    expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'bitfun-system' }))).toBe('bitfun');
+    expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: '' }))).toBe('bitfun');
     expect(getSkillSourceId(skill({ sourceId: 'future-agent', sourceLabel: 'Codex' }))).toBe('future-agent');
   });
 
   it('uses the stable source label and falls back to source identity facts', () => {
-    expect(getSkillSourceLabel(skill())).toBe('OpenBitFun');
+    expect(getSkillSourceLabel(skill())).toBe('BitFun');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: 'codex' }))).toBe('Codex');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: 'deepseek-harness' }))).toBe('DeepSeek Harness');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'home.pi' }))).toBe('PI');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'home.codex' }))).toBe('Codex');
-    expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'openbitfun-system' }))).toBe('OpenBitFun');
+    expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'bitfun-system' }))).toBe('BitFun');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'future' }), '其他来源')).toBe('其他来源');
     expect(getSkillSourceLabelFromIdentity('', '', 'home.codex')).toBe('Codex');
   });
 
-  it('only allows OpenBitFun-owned non-builtin skills to be deleted', () => {
+  it('only allows BitFun-owned non-builtin skills to be deleted', () => {
     expect(canDeleteSkill(skill())).toBe(true);
     expect(canDeleteSkill(skill({ isBuiltin: true }))).toBe(false);
-    expect(canDeleteSkill(skill({ sourceId: 'openbitfun-system', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: 'bitfun-system', isBuiltin: false }))).toBe(true);
     expect(canDeleteSkill(skill({ sourceId: 'opencode' }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'home.codex' }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'future' }))).toBe(false);
@@ -87,13 +87,13 @@ describe('skill source presentation', () => {
       fallbackSourceLabel: '其他来源',
       userLabel: '用户',
       projectLabel: '项目',
-    })).toBe('OpenBitFun · 项目');
+    })).toBe('BitFun · 项目');
 
     expect(formatSkillOrigin(skill(), {
       fallbackSourceLabel: 'Other source',
       userLabel: 'This device · User',
       projectLabel: 'Remote workspace · Project',
-    })).toBe('OpenBitFun · Remote workspace · Project');
+    })).toBe('BitFun · Remote workspace · Project');
   });
 
   it('explains a shadowed skill with the winner source instead of an internal key', () => {
@@ -108,7 +108,7 @@ describe('skill source presentation', () => {
       shadowedByKey: winner.key,
     });
 
-    expect(buildSkillCoverageSourceMap([covered, winner]).get(covered.key)).toBe('OpenBitFun');
+    expect(buildSkillCoverageSourceMap([covered, winner]).get(covered.key)).toBe('BitFun');
     expect(buildSkillCoverageSourceMap([covered]).has(covered.key)).toBe(false);
   });
 
@@ -129,7 +129,7 @@ describe('skill source presentation', () => {
     expect(getModeSkillRuntimeStatus(winner, coverage)).toEqual({ kind: 'selected' });
     expect(getModeSkillRuntimeStatus(covered, coverage)).toEqual({
       kind: 'covered',
-      sourceLabel: 'OpenBitFun',
+      sourceLabel: 'BitFun',
     });
     expect(getModeSkillRuntimeStatus(modeSkill({
       effectiveEnabled: false,

@@ -1,13 +1,13 @@
 [package]
-name = "openbitfun-product-capabilities"
+name = "bitfun-product-capabilities"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "OpenBitFun product capability pack contracts"
+description = "BitFun product capability pack contracts"
 autotests = false
 
 [lib]
-name = "openbitfun_product_capabilities"
+name = "bitfun_product_capabilities"
 crate-type = ["rlib"]
 
 [[test]]
@@ -18,15 +18,15 @@ path = "tests/product_capability_contracts.rs"
 default = []
 
 [dependencies]
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
-openbitfun-runtime-services = { path = "../../execution/runtime-services" }
-openbitfun-tool-packs = { path = "../../execution/tool-provider-groups" }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
+bitfun-runtime-services = { path = "../../execution/runtime-services" }
+bitfun-tool-packs = { path = "../../execution/tool-provider-groups" }
 
 [dev-dependencies]
 async-trait = { workspace = true }
-openbitfun-agent-runtime = { path = "../../execution/agent-runtime", features = ["agent-runtime"] }
-openbitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["agent-api"] }
-openbitfun-runtime-services = { path = "../../execution/runtime-services", features = ["test-support"] }
+bitfun-agent-runtime = { path = "../../execution/agent-runtime", features = ["agent-runtime"] }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["agent-api"] }
+bitfun-runtime-services = { path = "../../execution/runtime-services", features = ["test-support"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

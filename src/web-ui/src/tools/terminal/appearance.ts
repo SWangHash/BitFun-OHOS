@@ -13,9 +13,9 @@ export const terminalToolAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'screen', propertyProfile: 'layout', visualRole: 'content' },
   ],
   states: [
-    { id: 'loading', selector: { kind: 'self', suffix: '[data-openbitfun-state~="loading"]' } },
-    { id: 'error', selector: { kind: 'self', suffix: '[data-openbitfun-state~="error"]' } },
-    { id: 'running', selector: { kind: 'self', suffix: '[data-openbitfun-state~="running"]' } },
-    { id: 'exited', selector: { kind: 'self', suffix: '[data-openbitfun-state~="exited"]' } },
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
+    { id: 'error', selector: { kind: 'self', suffix: '[data-bitfun-state~="error"]' } },
+    { id: 'running', selector: { kind: 'self', suffix: '[data-bitfun-state~="running"]' } },
+    { id: 'exited', selector: { kind: 'self', suffix: '[data-bitfun-state~="exited"]' } },
   ],
 };

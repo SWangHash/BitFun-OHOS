@@ -4,7 +4,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent}body{displ
 const editor=document.getElementById('editor'),gutter=document.getElementById('gutter');
 function lines(){gutter.textContent=Array.from({length:editor.value.split('\n').length},(_,i)=>i+1).join('\n');gutter.scrollTop=editor.scrollTop;}
 editor.addEventListener('scroll',()=>{gutter.scrollTop=editor.scrollTop;});
-editor.addEventListener('input',()=>{lines();window.OpenBitFunEditorHost.postMessage(JSON.stringify({type:'edit',text:editor.value}));});
-window.OpenBitFunEditor={accept(frame){if(editor.value!==frame.content){editor.value=frame.content;lines();}editor.readOnly=!frame.editing;gutter.hidden=!frame.lineNumbers;document.documentElement.style.setProperty('--ink',frame.ink);document.documentElement.style.setProperty('--muted',frame.muted);},connect(){window.OpenBitFunEditorHost.postMessage('{"type":"ready"}');}};
+editor.addEventListener('input',()=>{lines();window.BitFunEditorHost.postMessage(JSON.stringify({type:'edit',text:editor.value}));});
+window.BitFunEditor={accept(frame){if(editor.value!==frame.content){editor.value=frame.content;lines();}editor.readOnly=!frame.editing;gutter.hidden=!frame.lineNumbers;document.documentElement.style.setProperty('--ink',frame.ink);document.documentElement.style.setProperty('--muted',frame.muted);},connect(){window.BitFunEditorHost.postMessage('{"type":"ready"}');}};
 lines();
 </script></body></html>

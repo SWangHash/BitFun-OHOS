@@ -53,8 +53,8 @@ describe('conversation area drops', () => {
     const onAdded = vi.fn(); mount(vi.fn(), false, onAdded);
     const context = { id: 'file-1', type: 'file', path: '/project/notes.txt' };
     mocks.payload = { dataType: 'file', data: context };
-    drag('transcript', 'dragenter', ['application/openbitfun-context']);
-    drag('transcript', 'drop', ['application/openbitfun-context']);
+    drag('transcript', 'dragenter', ['application/bitfun-context']);
+    drag('transcript', 'drop', ['application/bitfun-context']);
     expect(mocks.addContext).toHaveBeenCalledExactlyOnceWith(context);
     expect(onAdded).toHaveBeenCalledExactlyOnceWith(context);
   });

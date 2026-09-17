@@ -1,6 +1,6 @@
 .market-image {
   opacity: 0;
-  transition: opacity var(--openbitfun-motion-duration-fast) var(--openbitfun-motion-easing-standard);
+  transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &[data-loaded] {
     opacity: 1;

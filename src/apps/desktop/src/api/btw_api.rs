@@ -12,10 +12,10 @@ use tauri::State;
 
 use crate::api::app_state::AppState;
 
-use openbitfun_core::agentic::coordination::{
+use bitfun_core::agentic::coordination::{
     ConversationCoordinator, DialogSubmissionPolicy, DialogTriggerSource,
 };
-use openbitfun_core::agentic::image_analysis::ImageContextData;
+use bitfun_core::agentic::image_analysis::ImageContextData;
 
 fn desktop_btw_submission_policy() -> DialogSubmissionPolicy {
     DialogSubmissionPolicy::for_source(DialogTriggerSource::DesktopUi)
@@ -142,7 +142,7 @@ pub async fn btw_ask_stream(
             };
 
             match session.state {
-                openbitfun_core::agentic::core::SessionState::Processing {
+                bitfun_core::agentic::core::SessionState::Processing {
                     current_turn_id,
                     ..
                 } if current_turn_id == turn_id => {

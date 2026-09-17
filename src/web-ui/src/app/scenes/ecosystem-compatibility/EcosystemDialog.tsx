@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Dialog, type DialogProps } from '@openbitfun/ui';
+import { Dialog, type DialogProps } from '@bitfun/ui';
 
 /** Keep the last committed content throughout the design system's exit animation. */
 export function EcosystemDialog({ children, open, ...props }: DialogProps) {

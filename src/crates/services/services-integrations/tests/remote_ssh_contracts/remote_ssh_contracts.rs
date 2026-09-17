@@ -1,4 +1,4 @@
-use openbitfun_services_integrations::remote_ssh::{
+use bitfun_services_integrations::remote_ssh::{
     canonicalize_local_workspace_root, local_workspace_roots_equal,
     local_workspace_stable_storage_id, normalize_local_workspace_root_for_stable_id,
     normalize_remote_workspace_path, remote_root_to_mirror_subpath, remote_workspace_runtime_root,
@@ -182,7 +182,7 @@ fn remote_workspace_path_helpers_preserve_current_identity_contract() {
         "localhost:/Users/p/w"
     );
 
-    let local_id = local_workspace_stable_storage_id("/Users/foo/OpenBitFun");
+    let local_id = local_workspace_stable_storage_id("/Users/foo/BitFun");
     assert_eq!(local_id, "local_20fa48956633477b7a38a742510b63ea");
 
     let remote_id = remote_workspace_stable_id("myhost", "/root/proj");
@@ -194,7 +194,7 @@ fn remote_workspace_path_helpers_preserve_current_identity_contract() {
 
 #[test]
 fn remote_workspace_session_paths_use_supplied_mirror_root() {
-    let mirror_root = std::path::PathBuf::from("/openbitfun/remote_ssh");
+    let mirror_root = std::path::PathBuf::from("/bitfun/remote_ssh");
 
     assert_eq!(
         remote_workspace_runtime_root(&mirror_root, " Example.COM ", "/home/user/repo"),
@@ -223,7 +223,7 @@ fn remote_workspace_session_paths_use_supplied_mirror_root() {
 #[test]
 fn local_workspace_identity_helpers_preserve_canonical_root_contract() {
     let workspace_root = std::env::temp_dir().join(format!(
-        "openbitfun-services-remote-ssh-contract-{}",
+        "bitfun-services-remote-ssh-contract-{}",
         std::process::id()
     ));
     let nested = workspace_root.join("nested");
@@ -252,7 +252,7 @@ fn local_workspace_identity_helpers_preserve_canonical_root_contract() {
 #[test]
 fn workspace_session_identity_preserves_local_and_remote_contracts() {
     let workspace_root = std::env::temp_dir().join(format!(
-        "openbitfun-services-workspace-identity-{}",
+        "bitfun-services-workspace-identity-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(&workspace_root).expect("workspace root should exist");

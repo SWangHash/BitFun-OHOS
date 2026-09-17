@@ -1,5 +1,5 @@
 //! Local user-selected locations, independent of Desktop configuration.
-use openbitfun_legacy_migration::{LegacyMigrationError, LegacyMigrationResult, MigrationRoots};
+use bitfun_legacy_migration::{LegacyMigrationError, LegacyMigrationResult, MigrationRoots};
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn validate(roots: &MigrationRoots) -> LegacyMigrationResult<()> {

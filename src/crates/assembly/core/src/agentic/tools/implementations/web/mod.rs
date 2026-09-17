@@ -16,7 +16,7 @@ mod tests {
     };
     use super::search::{build_web_search_tool_result, WebSearchTool};
     use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
-    use openbitfun_runtime_ports::WebSearchResult;
+    use bitfun_runtime_ports::WebSearchResult;
     use serde_json::json;
     use std::io::ErrorKind;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -47,7 +47,7 @@ mod tests {
             custom_data: std::collections::HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
-            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }
 
@@ -316,7 +316,7 @@ mod tests {
             "exa_mcp_free",
             "exa_search_api",
             "tavily",
-            "openbitfun_search_http",
+            "bitfun_search_http",
         ] {
             assert_eq!(
                 contract_bytes().await,

@@ -1,8 +1,8 @@
-//! Controller-local adapter for the shared OpenBitFun GitHub identity.
-use openbitfun_product_domains::account::{
+//! Controller-local adapter for the shared BitFun GitHub identity.
+use bitfun_product_domains::account::{
     GitHubAuthPollRequest, GitHubAuthPollResponse, GitHubAuthStart,
 };
-use openbitfun_services_integrations::account_identity::{self, AccountIdentityClient, MarketMe};
+use bitfun_services_integrations::account_identity::{self, AccountIdentityClient, MarketMe};
 use tauri::{AppHandle, Emitter};
 
 #[tauri::command]

@@ -1,4 +1,4 @@
-@layer openbitfun.components {
+@layer bitfun.components {
   .section,
   .header,
   .headingRegion,
@@ -16,8 +16,8 @@
     display: flex;
     min-inline-size: 0;
     flex-direction: column;
-    gap: var(--openbitfun-layout-form-section-gap);
-    color: var(--openbitfun-color-content-primary);
+    gap: var(--bitfun-layout-form-section-gap);
+    color: var(--bitfun-color-content-primary);
   }
 
   .header {
@@ -25,7 +25,7 @@
     min-inline-size: 0;
     align-items: flex-start;
     justify-content: space-between;
-    gap: var(--openbitfun-layout-form-section-header-gap);
+    gap: var(--bitfun-layout-form-section-header-gap);
   }
 
   .headingContent {
@@ -34,7 +34,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--openbitfun-layout-form-section-title-description-gap);
+    gap: var(--bitfun-layout-form-section-title-description-gap);
   }
 
   .headingRegion {
@@ -42,33 +42,33 @@
     min-inline-size: 0;
     flex: 1 1 auto;
     align-items: flex-start;
-    gap: var(--openbitfun-space-2);
+    gap: var(--bitfun-space-2);
   }
 
   .leading {
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
-    color: var(--openbitfun-color-content-primary);
+    color: var(--bitfun-color-content-primary);
   }
 
   .title {
     margin: 0;
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-heading-section-font-family);
-    font-size: var(--openbitfun-type-heading-section-font-size);
-    font-weight: var(--openbitfun-type-heading-section-font-weight);
-    line-height: var(--openbitfun-type-heading-section-line-height);
-    letter-spacing: var(--openbitfun-type-heading-section-letter-spacing);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-section-font-family);
+    font-size: var(--bitfun-type-heading-section-font-size);
+    font-weight: var(--bitfun-type-heading-section-font-weight);
+    line-height: var(--bitfun-type-heading-section-line-height);
+    letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
   }
 
   .description {
-    color: var(--openbitfun-color-content-primary);
-    font-family: var(--openbitfun-type-body-sm-font-family);
-    font-size: var(--openbitfun-type-body-sm-font-size);
-    font-weight: var(--openbitfun-type-body-sm-font-weight);
-    line-height: var(--openbitfun-type-form-description-line-height);
-    letter-spacing: var(--openbitfun-type-body-sm-letter-spacing);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-form-description-line-height);
+    letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
   }
 
   .actions {
@@ -82,11 +82,11 @@
     min-inline-size: 0;
     flex-direction: column;
     overflow: clip;
-    border-radius: var(--openbitfun-layout-field-group-radius);
+    border-radius: var(--bitfun-layout-field-group-radius);
   }
 
   .group[data-appearance="subtle"] {
-    background: var(--openbitfun-color-field-group-background);
+    background: var(--bitfun-color-field-group-background);
   }
 
   .group[data-appearance="plain"] {
@@ -108,8 +108,8 @@
   }
 
   .row[data-padding="md"] {
-    padding-block: var(--openbitfun-layout-field-group-row-padding-block);
-    padding-inline: var(--openbitfun-layout-field-group-row-padding-inline);
+    padding-block: var(--bitfun-layout-field-group-row-padding-block);
+    padding-inline: var(--bitfun-layout-field-group-row-padding-inline);
   }
 
   .row > * {
@@ -118,7 +118,7 @@
   }
 
   .group[data-dividers="true"] > .row + .row {
-    border-block-start: var(--openbitfun-border-width-default) solid var(--openbitfun-color-border-subtle);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
   }
 
   @media (forced-colors: active) {

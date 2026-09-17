@@ -126,13 +126,13 @@ export const CompactToolCard: React.FC<CompactToolCardProps> = ({
   }
 
   return (
-    <div data-openbitfun-component="compact-tool-card" data-openbitfun-part="root" data-openbitfun-status={status}
-      data-openbitfun-state={[loadingShimmer && 'loading', clickable && 'clickable', isExpanded && 'expanded'].filter(Boolean).join(' ')}
+    <div data-bitfun-component="compact-tool-card" data-bitfun-part="root" data-bitfun-status={status}
+      data-bitfun-state={[loadingShimmer && 'loading', clickable && 'clickable', isExpanded && 'expanded'].filter(Boolean).join(' ')}
       className={`compact-tool-card-wrapper compact-tool-card-wrapper--dense-command${loadingShimmer ? ' compact-tool-card-wrapper--loading-shimmer' : ''} ${className}`.trim()}
     >
       <div
-        data-openbitfun-component="compact-tool-card"
-        data-openbitfun-part="surface"
+        data-bitfun-component="compact-tool-card"
+        data-bitfun-part="surface"
         className={`compact-tool-card status-${status} ${clickable ? 'clickable' : ''} ${isExpanded ? 'expanded' : ''}`}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -145,7 +145,7 @@ export const CompactToolCard: React.FC<CompactToolCardProps> = ({
       </div>
 
       <SmoothHeightCollapse isOpen={Boolean(isExpanded && expandedContent)} className="compact-tool-card-expanded-collapse">
-        <div data-openbitfun-component="compact-tool-card" data-openbitfun-part="expanded" className="compact-tool-card-expanded">
+        <div data-bitfun-component="compact-tool-card" data-bitfun-part="expanded" className="compact-tool-card-expanded">
           {expandedContent}
         </div>
       </SmoothHeightCollapse>
@@ -207,9 +207,9 @@ export const CompactToolCardHeader: React.FC<CompactToolCardHeaderProps> = ({
           showDivider={showDivider}
         />
       )}
-      {action && <span data-openbitfun-component="compact-tool-card" data-openbitfun-part="action" className="compact-card-action">{action}</span>}
-      {content && <span data-openbitfun-component="compact-tool-card" data-openbitfun-part="content" className="compact-card-content">{content}</span>}
-      {extra && <span data-openbitfun-component="compact-tool-card" data-openbitfun-part="extra" className="compact-card-extra">{extra}</span>}
+      {action && <span data-bitfun-component="compact-tool-card" data-bitfun-part="action" className="compact-card-action">{action}</span>}
+      {content && <span data-bitfun-component="compact-tool-card" data-bitfun-part="content" className="compact-card-content">{content}</span>}
+      {extra && <span data-bitfun-component="compact-tool-card" data-bitfun-part="extra" className="compact-card-extra">{extra}</span>}
       {rightStatusIcon && (
         <ToolCardStatusIcon
           icon={rightStatusIcon}

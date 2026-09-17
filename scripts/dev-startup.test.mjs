@@ -8,12 +8,12 @@ import { prepareSherpaDev } from './prepare-sherpa-dev.mjs';
 
 test('HTTP and HMR ports share one contract and reject conflicting overrides', () => {
   assert.deepEqual(resolveDevServerPorts({}), { port: 1422, hmrPort: 1421 });
-  assert.deepEqual(resolveDevServerPorts({ OPENBITFUN_DEV_PORT: '1432' }), { port: 1432, hmrPort: 1431 });
-  assert.deepEqual(resolveDevServerPorts({ OPENBITFUN_DEV_PORT: '1432', OPENBITFUN_DEV_HMR_PORT: '1440' }), { port: 1432, hmrPort: 1440 });
+  assert.deepEqual(resolveDevServerPorts({ BITFUN_DEV_PORT: '1432' }), { port: 1432, hmrPort: 1431 });
+  assert.deepEqual(resolveDevServerPorts({ BITFUN_DEV_PORT: '1432', BITFUN_DEV_HMR_PORT: '1440' }), { port: 1432, hmrPort: 1440 });
   for (const port of ['abc', '0', '65536', '1.5']) {
-    assert.throws(() => resolveDevServerPorts({ OPENBITFUN_DEV_PORT: port }), /ports/);
+    assert.throws(() => resolveDevServerPorts({ BITFUN_DEV_PORT: port }), /ports/);
   }
-  assert.throws(() => resolveDevServerPorts({ OPENBITFUN_DEV_PORT: '1432', OPENBITFUN_DEV_HMR_PORT: '1432' }), /distinct/);
+  assert.throws(() => resolveDevServerPorts({ BITFUN_DEV_PORT: '1432', BITFUN_DEV_HMR_PORT: '1432' }), /distinct/);
 });
 
 function fixture(t) {

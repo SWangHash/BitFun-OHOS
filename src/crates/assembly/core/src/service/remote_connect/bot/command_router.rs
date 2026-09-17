@@ -24,7 +24,7 @@ use std::sync::{Arc, OnceLock};
 pub use super::locale::{current_bot_language, BotLanguage};
 use super::locale::{fmt_count, strings_for, BotStrings};
 use super::menu::{MenuItem, MenuView};
-pub use openbitfun_services_integrations::remote_connect::bot::{
+pub use bitfun_services_integrations::remote_connect::bot::{
     parse_command, BotAction, BotActionStyle, BotChatState, BotCommand, BotDisplayMode,
     BotInteractionHandler, BotInteractiveRequest, BotMessageSender, BotQuestion, BotQuestionOption,
     BotWorkspaceChoice, BotWorkspaceRef, PendingAction, RemoteBotTarget, RemoteDeviceTarget,
@@ -1069,12 +1069,12 @@ fn show_workspace_choices(
 }
 
 fn local_pro_workspace_choices(
-    workspaces: Vec<openbitfun_runtime_ports::RemoteRecentWorkspaceFacts>,
+    workspaces: Vec<bitfun_runtime_ports::RemoteRecentWorkspaceFacts>,
 ) -> Vec<BotWorkspaceChoice> {
     workspaces
         .into_iter()
         .filter(|workspace| {
-            workspace.kind != openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+            workspace.kind != bitfun_runtime_ports::RemoteWorkspaceKind::Assistant
         })
         .map(|workspace| {
             BotWorkspaceChoice::new(
@@ -1121,7 +1121,7 @@ async fn start_local_switch(
         let options: Vec<_> = workspaces
             .into_iter()
             .filter(|workspace| {
-                workspace.kind == openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+                workspace.kind == bitfun_runtime_ports::RemoteWorkspaceKind::Assistant
             })
             .map(|workspace| (workspace.path, workspace.name))
             .collect();
@@ -1454,7 +1454,7 @@ async fn select_local_assistant(
 ) -> HandleResult {
     let workspaces = remote_opened_workspace_catalog(ws_service).await;
     let Some(workspace) = workspaces.iter().find(|workspace| {
-        workspace.kind == openbitfun_runtime_ports::RemoteWorkspaceKind::Assistant
+        workspace.kind == bitfun_runtime_ports::RemoteWorkspaceKind::Assistant
             && workspace.path == path
     }) else {
         let result = start_local_switch(state, ws_service, s).await;
@@ -1534,14 +1534,14 @@ async fn bot_workspace_remote_identity(workspace_path: &str) -> (Option<String>,
 
 /// Resolves the on-disk sessions directory for a bot workspace ref.
 ///
-/// Remote SSH workspaces store sessions under `~/.openbitfun/remote_ssh/{host}/...`,
+/// Remote SSH workspaces store sessions under `~/.bitfun/remote_ssh/{host}/...`,
 /// not under the remote POSIX path itself. Prefer identity captured at workspace
 /// selection time; fall back to registry lookup only for legacy path-only state.
 async fn resolve_bot_session_storage_path_for_ref(
     workspace: &BotWorkspaceRef,
 ) -> Option<std::path::PathBuf> {
     use crate::agentic::session::CoreSessionStorePort;
-    use openbitfun_runtime_ports::{SessionStoragePathRequest, SessionStorePort};
+    use bitfun_runtime_ports::{SessionStoragePathRequest, SessionStorePort};
 
     let mut remote_connection_id = workspace.remote_connection_id.clone();
     let mut remote_ssh_host = workspace.remote_ssh_host.clone();
@@ -2129,8 +2129,8 @@ async fn create_session(state: &mut BotChatState, agent_type: &str) -> HandleRes
     use crate::agentic::coordination::get_global_coordinator;
     use crate::service::workspace::get_global_workspace_service;
     use crate::service_agent_runtime::CoreServiceAgentRuntime;
-    use openbitfun_runtime_ports::RemoteSessionWorkspaceIdentity;
-    use openbitfun_services_integrations::remote_connect::{
+    use bitfun_runtime_ports::RemoteSessionWorkspaceIdentity;
+    use bitfun_services_integrations::remote_connect::{
         build_remote_session_create_request, RemoteConnectSubmissionSource,
     };
 
@@ -3102,7 +3102,7 @@ pub(crate) async fn execute_forwarded_turn(
     use crate::service::remote_connect::remote_server::{
         get_or_init_global_dispatcher, TrackerEvent,
     };
-    use openbitfun_services_integrations::remote_connect::RemoteConnectSubmissionSource;
+    use bitfun_services_integrations::remote_connect::RemoteConnectSubmissionSource;
 
     let language = current_bot_language().await;
     let s = strings_for(language);
@@ -3261,9 +3261,9 @@ pub(crate) async fn execute_forwarded_turn(
         // have started the next turn and replaced the tracker's text buffer.
         let poll_host =
             crate::service_agent_runtime::CoreServiceAgentRuntime::remote_poll_host(&dispatcher);
-        let poll = openbitfun_services_integrations::remote_connect::handle_remote_poll_command(
+        let poll = bitfun_services_integrations::remote_connect::handle_remote_poll_command(
             &poll_host,
-            &openbitfun_services_integrations::remote_connect::RemoteCommand::PollSession {
+            &bitfun_services_integrations::remote_connect::RemoteCommand::PollSession {
                 session_id: forward.session_id.clone(),
                 since_version: 0,
                 known_msg_count: 0,
@@ -3274,7 +3274,7 @@ pub(crate) async fn execute_forwarded_turn(
         let full_text = serde_json::to_value(poll)
             .ok()
             .and_then(|poll| {
-                openbitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn(
+                bitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn(
                     &poll,
                     &target_turn_id,
                 )
@@ -3316,7 +3316,7 @@ async fn execute_remote_forward(
     fence: &super::BotRuntimeFence,
     epoch: u64,
 ) -> ForwardedTurnResult {
-    use openbitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn;
+    use bitfun_services_integrations::remote_connect::bot::remote_turn::observe_turn;
     let s = strings_for(current_bot_language().await);
     let target = forward.remote_target.as_ref().unwrap();
     let current = || fence.is_lifecycle_current() && fence.identity_epoch() == epoch;
@@ -3543,7 +3543,7 @@ mod parse_command_tests {
 
     #[tokio::test]
     async fn bot_partial_answer_stops_unattended_timeout() {
-        use openbitfun_agent_runtime::user_questions::{
+        use bitfun_agent_runtime::user_questions::{
             get_user_input_manager, PendingUserQuestion,
         };
         let manager = get_user_input_manager();
@@ -3675,7 +3675,7 @@ mod parse_command_tests {
 
     #[test]
     fn remote_picker_accepts_legacy_catalog_after_wire_round_trip() {
-        use openbitfun_services_integrations::remote_connect::RemoteResponse;
+        use bitfun_services_integrations::remote_connect::RemoteResponse;
         let legacy = serde_json::json!({
             "resp": "recent_workspaces",
             "workspaces": [{"path": "/legacy", "name": "Legacy project", "last_opened": ""}]
@@ -4073,7 +4073,7 @@ mod menu_tests {
     #[test]
     fn assistant_mode_body_uses_display_name_not_dir_name() {
         let mut state = BotChatState::new("c".into());
-        state.current_assistant = Some("/tmp/openbitfun_assistants/workspace-abc123".to_string());
+        state.current_assistant = Some("/tmp/bitfun_assistants/workspace-abc123".to_string());
         state.current_assistant_name = Some("默认助理".to_string());
         let s = strings_for(BotLanguage::ZhCN);
         let view = main_menu_view(&state, s);
@@ -4404,7 +4404,7 @@ mod handle_chat_tests {
     }
 
     async fn assert_remote_question_round_trip(supports_interaction: bool) {
-        use openbitfun_services_integrations::remote_connect::{
+        use bitfun_services_integrations::remote_connect::{
             account::AccountSession, device_crypto, encryption,
         };
         use std::sync::{Arc, Mutex};
@@ -4659,7 +4659,7 @@ mod handle_chat_tests {
         state.current_assistant = Some("/tmp/a".into());
         state.current_session_id = Some("s1".into());
         let s = strings_for(BotLanguage::ZhCN);
-        let result = handle_chat(&mut state, "hello openbitfun", vec![], s).await;
+        let result = handle_chat(&mut state, "hello bitfun", vec![], s).await;
 
         assert!(
             result.forward_to_session.is_some(),

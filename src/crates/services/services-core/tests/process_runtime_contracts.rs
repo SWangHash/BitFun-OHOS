@@ -1,10 +1,10 @@
 #![cfg(feature = "process-runtime")]
 
-use openbitfun_services_core::system::check_command;
+use bitfun_services_core::system::check_command;
 
 #[test]
 fn system_check_command_preserves_missing_command_shape() {
-    let result = check_command("__openbitfun_missing_command_for_services_core_test__");
+    let result = check_command("__bitfun_missing_command_for_services_core_test__");
 
     assert!(!result.exists);
     assert_eq!(result.path, None);
@@ -12,10 +12,10 @@ fn system_check_command_preserves_missing_command_shape() {
 
 #[cfg(windows)]
 mod windows_process_cleanup {
-    use openbitfun_services_core::process_manager::{
+    use bitfun_services_core::process_manager::{
         cleanup_all_processes, contain_current_process_tree, create_command,
     };
-    use openbitfun_services_core::process_tree::ProcessTreeChild;
+    use bitfun_services_core::process_tree::ProcessTreeChild;
     use std::path::Path;
     use std::process::Stdio;
     use std::time::{Duration, Instant};
@@ -26,9 +26,9 @@ mod windows_process_cleanup {
     };
 
     const FIXTURE_TEST: &str = "windows_process_cleanup::fixture_process";
-    const FIXTURE_ROLE: &str = "OPENBITFUN_PROCESS_CLEANUP_FIXTURE";
-    const FIXTURE_DIR: &str = "OPENBITFUN_PROCESS_CLEANUP_DIR";
-    const HOST_PID: &str = "OPENBITFUN_PROCESS_CLEANUP_HOST_PID";
+    const FIXTURE_ROLE: &str = "BITFUN_PROCESS_CLEANUP_FIXTURE";
+    const FIXTURE_DIR: &str = "BITFUN_PROCESS_CLEANUP_DIR";
+    const HOST_PID: &str = "BITFUN_PROCESS_CLEANUP_HOST_PID";
 
     #[tokio::test]
     async fn empty_cleanup_returns_and_handoff_survives_host_exit() {

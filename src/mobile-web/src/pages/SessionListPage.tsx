@@ -39,7 +39,7 @@ import {
   MobileSegmentedControl,
   MobileStatus,
   MobileTextField,
-} from '@openbitfun/ui/mobile';
+} from '@bitfun/ui/mobile';
 import LanguageToggleButton from '../components/LanguageToggleButton';
 import SessionOverlays from '../components/SessionOverlays';
 import CompactSettingsSheet from '../components/CompactSettingsSheet';
@@ -57,8 +57,8 @@ import { useMobileStore } from '../services/store';
 import { createRemoteCacheScope, remoteCache } from '../services/RemoteCache';
 import { sessionMatchesWorkspace, workspaceIdentityKey } from '../services/workspaceIdentity';
 import { useTheme } from '../theme';
-import logoMarkDark from '../assets/openbitfun-mark-dark.png';
-import logoMarkLight from '../assets/openbitfun-mark-light.png';
+import logoMarkDark from '../assets/bitfun-mark-dark.png';
+import logoMarkLight from '../assets/bitfun-mark-light.png';
 import {
   isAccountIdentityChangedError,
   type RelayHttpClient,
@@ -1545,7 +1545,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
     return (
       <div className="harmony-sidebar">
         <header className="harmony-sidebar__header">
-          <h1>OpenBitFun</h1>
+          <h1>BitFun</h1>
           <MobileIconButton
             appearance="floating"
             className="harmony-sidebar__round-action"
@@ -1776,9 +1776,9 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
     <div className="session-list">
       <div className="session-list__header">
         <div className="session-list__header-brand">
-          <img src={logoMark} alt="OpenBitFun" className="session-list__logo" />
+          <img src={logoMark} alt="BitFun" className="session-list__logo" />
           <div className="session-list__header-copy">
-            <h1>OpenBitFun</h1>
+            <h1>BitFun</h1>
             {authenticatedUserLabel && (
               <span className="session-list__header-account-name">
                 <span className={`session-list__health-dot session-list__health-dot--${connectionHealth}`} title={(() => { switch (connectionHealth) { case 'connected': return t('sessions.connectionConnected'); case 'checking': return t('sessions.connectionChecking'); case 'unreachable': return t('sessions.connectionUnreachable'); default: return t('sessions.connectionUnpaired'); } })()} />

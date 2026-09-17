@@ -7,16 +7,16 @@
 
 $_nav-width: 300px;
 $_nav-collapsed-width: 76px;
-$_nav-bar-height: var(--openbitfun-layout-toolbar-md-height);
+$_nav-bar-height: var(--bitfun-layout-toolbar-md-height);
 $_resize-target-width: 6px;
 
-.openbitfun-workspace-body {
+.bitfun-workspace-body {
   --nav-width: #{$_nav-width};
 
   @include shell-surfaces.sidebar-background;
 
-  :root[data-openbitfun-native-material='sidebar'] &,
-  .openbitfun-app-layout[data-openbitfun-background-media='video'] & {
+  :root[data-bitfun-native-material='sidebar'] &,
+  .bitfun-app-layout[data-bitfun-background-media='video'] & {
     background: transparent;
   }
 
@@ -29,12 +29,12 @@ $_resize-target-width: 6px;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  color: var(--openbitfun-color-content-primary);
+  color: var(--bitfun-color-content-primary);
   padding: 0;
   gap: 0;
 }
 
-.openbitfun-workspace-body__material {
+.bitfun-workspace-body__material {
   @include shell-surfaces.sidebar-glass;
 
   // A single background continues through the scene's exposed rounded corners.
@@ -45,7 +45,7 @@ $_resize-target-width: 6px;
   pointer-events: none;
 }
 
-.openbitfun-workspace-body__nav-area {
+.bitfun-workspace-body__nav-area {
   position: relative;
   z-index: 3;
   display: flex;
@@ -56,28 +56,28 @@ $_resize-target-width: 6px;
   height: 100%;
   overflow: visible;
 
-  > .openbitfun-nav-bar,
-  > .openbitfun-nav-panel,
-  .openbitfun-nav-panel__brand-header,
-  .openbitfun-nav-panel__sticky-section-header,
-  .openbitfun-nav-panel__content:not(.is-split-open) .openbitfun-nav-panel__layer--scene,
-  .openbitfun-nav-panel [data-openbitfun-component='navigation-panel'] {
+  > .bitfun-nav-bar,
+  > .bitfun-nav-panel,
+  .bitfun-nav-panel__brand-header,
+  .bitfun-nav-panel__sticky-section-header,
+  .bitfun-nav-panel__content:not(.is-split-open) .bitfun-nav-panel__layer--scene,
+  .bitfun-nav-panel [data-bitfun-component='navigation-panel'] {
     background: transparent;
   }
 
   // Settings and other scene navigation share the same material as MainNav.
-  [data-openbitfun-component='search-field'] > [data-openbitfun-component='input'] {
-    @include shell-surfaces.sidebar-overlay(var(--openbitfun-color-field-background));
+  [data-bitfun-component='search-field'] > [data-bitfun-component='input'] {
+    @include shell-surfaces.sidebar-overlay(var(--bitfun-color-field-background));
 
     &:hover,
     &:focus-within {
-      @include shell-surfaces.sidebar-overlay(var(--openbitfun-color-field-background-hover), 28%);
+      @include shell-surfaces.sidebar-overlay(var(--bitfun-color-field-background-hover), 28%);
     }
   }
 
   // Keep the gear on the shared material, including IconButton's ::before
   // surface. Icon color and the keyboard focus ring provide interaction feedback.
-  .openbitfun-nav-panel__footer-btn--icon {
+  .bitfun-nav-panel__footer-btn--icon {
     &,
     &:is(:hover, :active, .is-active, .is-hover-open) {
       background: transparent;
@@ -97,16 +97,16 @@ $_resize-target-width: 6px;
   }
 }
 
-.openbitfun-workspace-body__collapsed-nav {
+.bitfun-workspace-body__collapsed-nav {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: var(--openbitfun-layer-dropdown);
+  z-index: var(--bitfun-layer-dropdown);
   width: $_nav-collapsed-width;
   height: $_nav-bar-height;
 }
 
-.openbitfun-workspace-body__nav-divider {
+.bitfun-workspace-body__nav-divider {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -119,7 +119,7 @@ $_resize-target-width: 6px;
   background: transparent;
 }
 
-.openbitfun-workspace-body__scene-area {
+.bitfun-workspace-body__scene-area {
   position: relative;
   z-index: 1;
   display: flex;
@@ -131,8 +131,8 @@ $_resize-target-width: 6px;
   background: transparent;
 }
 
-.openbitfun-workspace-body__scene-surface {
-  --_scene-surface-radius: var(--openbitfun-layout-split-view-content-panel-radius);
+.bitfun-workspace-body__scene-surface {
+  --_scene-surface-radius: var(--bitfun-layout-split-view-content-panel-radius);
 
   position: relative;
   display: flex;
@@ -141,14 +141,14 @@ $_resize-target-width: 6px;
   gap: 0;
   min-width: 0;
   min-height: 0;
-  padding: 0 var(--openbitfun-space-4);
+  padding: 0 var(--bitfun-space-4);
   overflow: hidden;
   border-radius: var(--_scene-surface-radius) 0 0 var(--_scene-surface-radius);
-  background: var(--openbitfun-color-surface-scene);
-  box-shadow: -4px 0 12px -6px color-mix(in srgb, var(--openbitfun-color-content-muted) 8%, transparent);
+  background: var(--bitfun-color-surface-scene);
+  box-shadow: -4px 0 12px -6px color-mix(in srgb, var(--bitfun-color-content-muted) 8%, transparent);
 
-  :root[data-openbitfun-appearance-mode='dark'] & {
-    box-shadow: -5px 0 16px -7px color-mix(in srgb, var(--openbitfun-color-content-on-light) 30%, transparent);
+  :root[data-bitfun-appearance-mode='dark'] & {
+    box-shadow: -5px 0 16px -7px color-mix(in srgb, var(--bitfun-color-content-on-light) 30%, transparent);
   }
 
   // Resize feedback follows only the rounded boundary shared with navigation.
@@ -158,7 +158,7 @@ $_resize-target-width: 6px;
     content: '';
     position: absolute;
     inset: 0 auto 0 0;
-    z-index: var(--openbitfun-layer-decoration);
+    z-index: var(--bitfun-layer-decoration);
     box-sizing: border-box;
     width: var(--_scene-surface-radius);
     border: 1px solid transparent;
@@ -171,53 +171,53 @@ $_resize-target-width: 6px;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .openbitfun-workspace-body__nav-divider:hover ~ .openbitfun-workspace-body__scene-area {
-    .openbitfun-workspace-body__scene-surface::after {
-      border-color: var(--openbitfun-color-border-subtle);
+  .bitfun-workspace-body__nav-divider:hover ~ .bitfun-workspace-body__scene-area {
+    .bitfun-workspace-body__scene-surface::after {
+      border-color: var(--bitfun-color-border-subtle);
       opacity: 1;
     }
   }
 }
 
-.openbitfun-is-resizing-nav .openbitfun-workspace-body__scene-surface::after {
-  border-color: var(--openbitfun-color-border-default);
+.bitfun-is-resizing-nav .bitfun-workspace-body__scene-surface::after {
+  border-color: var(--bitfun-color-border-default);
   opacity: 1;
 }
 
 // The compact toolbar remains reachable when the navigation panel is hidden.
-.openbitfun-workspace-body__nav-area.is-collapsed + .openbitfun-workspace-body__scene-area {
-  .openbitfun-workspace-body__scene-surface .openbitfun-scene-top-bar {
-    padding-left: calc(#{$_nav-collapsed-width} + var(--openbitfun-space-1));
+.bitfun-workspace-body__nav-area.is-collapsed + .bitfun-workspace-body__scene-area {
+  .bitfun-workspace-body__scene-surface .bitfun-scene-top-bar {
+    padding-left: calc(#{$_nav-collapsed-width} + var(--bitfun-space-1));
   }
 }
 
-.openbitfun-app-layout--macos .openbitfun-workspace-body__collapsed-nav {
+.bitfun-app-layout--macos .bitfun-workspace-body__collapsed-nav {
   left: 72px;
 }
 
-.openbitfun-app-layout--macos .openbitfun-workspace-body__nav-area.is-collapsed + .openbitfun-workspace-body__scene-area {
-  .openbitfun-workspace-body__scene-surface .openbitfun-scene-top-bar {
-    padding-left: calc(#{$_nav-collapsed-width} + var(--openbitfun-space-1) + 72px);
+.bitfun-app-layout--macos .bitfun-workspace-body__nav-area.is-collapsed + .bitfun-workspace-body__scene-area {
+  .bitfun-workspace-body__scene-surface .bitfun-scene-top-bar {
+    padding-left: calc(#{$_nav-collapsed-width} + var(--bitfun-space-1) + 72px);
   }
 }
 
-.openbitfun-workspace-body__nav-area.is-collapsed .openbitfun-nav-bar--macos .openbitfun-nav-bar__logo-menu {
+.bitfun-workspace-body__nav-area.is-collapsed .bitfun-nav-bar--macos .bitfun-nav-bar__logo-menu {
   display: none;
 }
 
-.openbitfun-workspace-body__nav-panel {
+.bitfun-workspace-body__nav-panel {
   width: 100%;
   max-width: 100%;
   min-width: 0;
 }
 
-.openbitfun-is-dragging-nav-collapse,
-.openbitfun-is-dragging-nav-collapse * {
+.bitfun-is-dragging-nav-collapse,
+.bitfun-is-dragging-nav-collapse * {
   cursor: ew-resize !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .openbitfun-workspace-body__scene-surface::after {
+  .bitfun-workspace-body__scene-surface::after {
     transition: none;
   }
 }

@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use openbitfun_runtime_ports::{
+use bitfun_runtime_ports::{
     RuntimeServiceCapability, RuntimeServicePort, SessionStorageKind, SessionStoragePathRequest,
     SessionStoragePathResolution, SessionStorePort, SessionTurnLoadTiming,
     SessionTurnWindowRequest, SessionViewRestoreTiming,
@@ -102,7 +102,7 @@ impl SessionStorePort for ContractSessionStorePort {
     async fn resolve_session_storage_path(
         &self,
         request: SessionStoragePathRequest,
-    ) -> openbitfun_runtime_ports::PortResult<SessionStoragePathResolution> {
+    ) -> bitfun_runtime_ports::PortResult<SessionStoragePathResolution> {
         Ok(SessionStoragePathResolution::new(
             request.workspace_path.clone(),
             request.workspace_path,

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeStatusSlot } from './RuntimeStatusSlot';
 import { useRuntimeStatusStore } from '../../store/runtimeStatusStore';
 
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('@bitfun/ui', () => ({
   Spinner: () => <span data-testid="dot-matrix" />,
   OverflowText: ({ children, behavior: _behavior, marqueeActive: _marqueeActive, ...props }: any) => <span {...props}>{children}</span>,
 }));
@@ -39,7 +39,7 @@ describe('RuntimeStatusSlot', () => {
       root.render(<RuntimeStatusSlot sessionId="session-1" placement="footer" />);
     });
     const slot = container.querySelector<HTMLElement>('.runtime-status-slot');
-    const iconSlot = container.querySelector('[data-openbitfun-part="leadingIcon"]');
+    const iconSlot = container.querySelector('[data-bitfun-part="leadingIcon"]');
     expect(iconSlot?.querySelector('[data-testid="dot-matrix"]')).not.toBeNull();
     expect(slot).not.toBeNull();
     expect(slot?.dataset.runtimeStatusVisible).toBe('false');
@@ -64,13 +64,13 @@ describe('RuntimeStatusSlot', () => {
       });
     });
     expect(slot?.textContent).toContain('Transferring workspace');
-    expect(container.querySelector('[data-openbitfun-part="leadingIcon"]')).toBe(iconSlot);
+    expect(container.querySelector('[data-bitfun-part="leadingIcon"]')).toBe(iconSlot);
 
     act(() => {
       useRuntimeStatusStore.getState().clear({ sessionId: 'session-1' });
     });
     expect(container.querySelector('.runtime-status-slot')).toBe(slot);
     expect(slot?.dataset.runtimeStatusVisible).toBe('false');
-    expect(container.querySelector('[data-openbitfun-part="leadingIcon"]')).toBe(iconSlot);
+    expect(container.querySelector('[data-bitfun-part="leadingIcon"]')).toBe(iconSlot);
   });
 });

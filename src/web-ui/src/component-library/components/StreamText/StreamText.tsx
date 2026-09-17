@@ -148,7 +148,7 @@ const StreamTextComponent: React.FC<StreamTextProps> = ({
 
   const renderText = () => {
     if (!charAnimation) {
-      return <span className={`stream-text__content stream-text__content--${effect}`} data-openbitfun-component="stream-text" data-openbitfun-part="content">{displayedText}</span>;
+      return <span className={`stream-text__content stream-text__content--${effect}`} data-bitfun-component="stream-text" data-bitfun-part="content">{displayedText}</span>;
     }
 
     return displayedText.split('').map((char, index) => {
@@ -159,8 +159,8 @@ const StreamTextComponent: React.FC<StreamTextProps> = ({
         <span
           key={`char-${index}`}
           className={`stream-text__char stream-text__char--${effect} ${isNewChar ? 'stream-text__char--new' : ''}`}
-          data-openbitfun-component="stream-text"
-          data-openbitfun-part="character"
+          data-bitfun-component="stream-text"
+          data-bitfun-part="character"
           style={{
             animationDelay,
             '--char-index': index,
@@ -184,10 +184,10 @@ const StreamTextComponent: React.FC<StreamTextProps> = ({
   };
 
   return (
-    <span className={getContainerClassName()} data-openbitfun-component="stream-text" data-openbitfun-part="root" data-openbitfun-effect={effect} data-openbitfun-color={colorPalette} data-openbitfun-state={[isStreaming && 'streaming', isComplete && 'complete'].filter(Boolean).join(' ') || undefined}>
+    <span className={getContainerClassName()} data-bitfun-component="stream-text" data-bitfun-part="root" data-bitfun-effect={effect} data-bitfun-color={colorPalette} data-bitfun-state={[isStreaming && 'streaming', isComplete && 'complete'].filter(Boolean).join(' ') || undefined}>
       {renderText()}
       {showCursor && !isComplete && (
-        <span className={`stream-cursor stream-cursor--${cursorStyle} ${isStreaming ? 'stream-cursor--active' : ''}`} data-openbitfun-component="stream-text" data-openbitfun-part="cursor" />
+        <span className={`stream-cursor stream-cursor--${cursorStyle} ${isStreaming ? 'stream-cursor--active' : ''}`} data-bitfun-component="stream-text" data-bitfun-part="cursor" />
       )}
     </span>
   );

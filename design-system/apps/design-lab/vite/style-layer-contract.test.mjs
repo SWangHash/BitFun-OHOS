@@ -31,9 +31,9 @@ function findLayerRange(source, name) {
   assert.fail(`Missing closing brace for ${marker}`);
 }
 
-test("Design Lab form resets stay below component styles in openbitfun.reset", async () => {
+test("Design Lab form resets stay below component styles in bitfun.reset", async () => {
   const source = await readFile(stylesSource, "utf8");
-  const resetLayer = findLayerRange(source, "openbitfun.reset");
+  const resetLayer = findLayerRange(source, "bitfun.reset");
   const resetContracts = [
     /button,\s*input,\s*select\s*\{\s*font:\s*inherit;\s*\}/g,
     /button,\s*a,\s*select\s*\{\s*-webkit-tap-highlight-color:\s*transparent;\s*\}/g,

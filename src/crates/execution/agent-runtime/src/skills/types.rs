@@ -144,7 +144,7 @@ impl SkillInfo {
         };
         matches!(
             source,
-            "" | "openbitfun" | "openbitfun-system" | "openbitfun-user"
+            "" | "bitfun" | "bitfun-system" | "bitfun-user"
         )
     }
 

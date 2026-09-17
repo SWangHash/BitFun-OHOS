@@ -34,7 +34,7 @@ export const MobileButton = forwardRef<HTMLButtonElement, MobileButtonProps>(
         aria-busy={loading || undefined}
         className={classNames(styles.root, className)}
         data-appearance={appearance}
-        data-openbitfun-component="mobile-button"
+        data-bitfun-component="mobile-button"
         data-block={block ? "true" : "false"}
         data-loading={loading ? "true" : "false"}
         data-size={size}
@@ -42,13 +42,13 @@ export const MobileButton = forwardRef<HTMLButtonElement, MobileButtonProps>(
         ref={ref}
         type={type}
       >
-        {loading && <span aria-hidden="true" className={styles.spinner} data-openbitfun-part="progress" />}
+        {loading && <span aria-hidden="true" className={styles.spinner} data-bitfun-part="progress" />}
         {!loading && leading !== undefined && leading !== null && (
-          <span className={styles.slot} data-openbitfun-part="leading">{leading}</span>
+          <span className={styles.slot} data-bitfun-part="leading">{leading}</span>
         )}
-        <span className={styles.label} data-openbitfun-part="label">{children}</span>
+        <span className={styles.label} data-bitfun-part="label">{children}</span>
         {!loading && trailing !== undefined && trailing !== null && (
-          <span className={styles.slot} data-openbitfun-part="trailing">{trailing}</span>
+          <span className={styles.slot} data-bitfun-part="trailing">{trailing}</span>
         )}
       </button>
     );

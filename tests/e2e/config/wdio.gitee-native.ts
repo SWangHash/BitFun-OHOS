@@ -8,18 +8,18 @@ import { createEmbeddedConfig } from './embedded-driver';
 process.env.NO_PROXY = [process.env.NO_PROXY, '127.0.0.1', 'localhost', '::1'].filter(Boolean).join(',');
 
 // Keep the isolated profile and evidence for inspection after a live failure.
-const root = process.env.OPENBITFUN_GITEE_E2E_ROOT
-  ?? mkdtempSync(join(tmpdir(), 'openbitfun-gitee-e2e-'));
+const root = process.env.BITFUN_GITEE_E2E_ROOT
+  ?? mkdtempSync(join(tmpdir(), 'bitfun-gitee-e2e-'));
 Object.assign(process.env, {
-  OPENBITFUN_GITEE_E2E_ROOT: root,
-  OPENBITFUN_E2E_STORAGE_ROOT: root,
-  OPENBITFUN_E2E_USER_ROOT: join(root, 'user'),
-  OPENBITFUN_USER_ROOT: join(root, 'user'),
-  OPENBITFUN_E2E_HOME: join(root, 'home'),
-  OPENBITFUN_HOME: join(root, 'home'),
-  OPENBITFUN_E2E_LOG_DIR: join(root, 'logs'),
-  OPENBITFUN_E2E_STORAGE_GUARD: '1',
-  OPENBITFUN_E2E_PACKAGED_FRONTEND: '1',
-  OPENBITFUN_E2E_FRONTEND_DIR: resolve(fileURLToPath(new URL('../../../dist', import.meta.url))),
+  BITFUN_GITEE_E2E_ROOT: root,
+  BITFUN_E2E_STORAGE_ROOT: root,
+  BITFUN_E2E_USER_ROOT: join(root, 'user'),
+  BITFUN_USER_ROOT: join(root, 'user'),
+  BITFUN_E2E_HOME: join(root, 'home'),
+  BITFUN_HOME: join(root, 'home'),
+  BITFUN_E2E_LOG_DIR: join(root, 'logs'),
+  BITFUN_E2E_STORAGE_GUARD: '1',
+  BITFUN_E2E_PACKAGED_FRONTEND: '1',
+  BITFUN_E2E_FRONTEND_DIR: resolve(fileURLToPath(new URL('../../../dist', import.meta.url))),
 });
 export const config = createEmbeddedConfig(['../specs/gitee-native.spec.ts'], 'Gitee native');

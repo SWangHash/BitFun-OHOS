@@ -359,8 +359,8 @@ pub fn extract_output_file_references(text: &str) -> Vec<String> {
         let explicit = [
             "computer://",
             "file:",
-            "openbitfun://runtime/",
-            "openbitfun://current-session/",
+            "bitfun://runtime/",
+            "bitfun://current-session/",
         ]
         .iter()
         .any(|prefix| reference.starts_with(prefix));
@@ -413,7 +413,7 @@ pub fn extract_output_file_references(text: &str) -> Vec<String> {
                         .trim_end_matches(['.', ',', ';', ':', ')', ']', '>', '。', '，']);
                     if reference.starts_with("computer://")
                         || reference.starts_with("file://")
-                        || reference.starts_with("openbitfun://")
+                        || reference.starts_with("bitfun://")
                     {
                         add(reference, false);
                     }
@@ -673,7 +673,7 @@ mod tests {
 
     fn make_temp_workspace() -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
         let base = std::env::temp_dir().join(format!(
-            "openbitfun-remote-connect-test-{}",
+            "bitfun-remote-connect-test-{}",
             uuid::Uuid::new_v4()
         ));
         let workspace = base.join("workspace");
@@ -794,7 +794,7 @@ mod output_reference_tests {
     }
     #[test]
     fn runtime_and_relative_images_are_retained_without_requiring_host_local_files() {
-        assert_eq!(extract_output_file_references("![Result](images/new.png)\n[Report](openbitfun://current-session/artifacts/report.html)"),
-            ["images/new.png", "openbitfun://current-session/artifacts/report.html"]);
+        assert_eq!(extract_output_file_references("![Result](images/new.png)\n[Report](bitfun://current-session/artifacts/report.html)"),
+            ["images/new.png", "bitfun://current-session/artifacts/report.html"]);
     }
 }

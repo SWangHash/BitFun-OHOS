@@ -8,8 +8,8 @@ export const keyboardShortcutsAppearanceDescriptor: AppearanceSurfaceDescriptor 
     { id: 'item' }, { id: 'label' }, { id: 'key' }, { id: 'empty' },
   ],
   states: [
-    { id: 'recording', selector: { kind: 'self', suffix: '[data-openbitfun-state~="recording"]' } },
-    { id: 'conflict', selector: { kind: 'self', suffix: '[data-openbitfun-state~="conflict"]' } },
-    { id: 'modified', selector: { kind: 'self', suffix: '[data-openbitfun-state~="modified"]' } },
+    { id: 'recording', selector: { kind: 'self', suffix: '[data-bitfun-state~="recording"]' } },
+    { id: 'conflict', selector: { kind: 'self', suffix: '[data-bitfun-state~="conflict"]' } },
+    { id: 'modified', selector: { kind: 'self', suffix: '[data-bitfun-state~="modified"]' } },
   ],
 };

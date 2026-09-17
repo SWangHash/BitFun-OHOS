@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { OverflowText, Button, IconButton } from '@openbitfun/ui';
+import { OverflowText, Button, IconButton } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { ClipboardList, Loader2, PlayCircle, XCircle, ChevronsUpDown, ChevronsDownUp, FolderOpen, Save, AlertCircle } from 'lucide-react';
 import type { ToolCardProps } from '../types/flow-chat';
@@ -15,7 +15,7 @@ import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { fileSystemService } from '@/tools/file-system/services/FileSystemService';
 import { planBuildStateService } from '@/shared/services/PlanBuildStateService';
-import { Tooltip, Icon } from '@openbitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -320,7 +320,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
       return;
     }
 
-    const projectPlansDirectory = joinPath(currentWorkspace.rootPath, '.openbitfun/plans');
+    const projectPlansDirectory = joinPath(currentWorkspace.rootPath, '.bitfun/plans');
     const projectPlanPath = joinPath(projectPlansDirectory, basenamePath(planFilePath));
     if (saveSuccessTimerRef.current) {
       clearTimeout(saveSuccessTimerRef.current);
@@ -433,8 +433,8 @@ Read the plan file before making changes and treat it as the source of truth. Do
 
   if (!planData && loadError && status === 'completed') {
     return (
-      <div data-openbitfun-component="create-plan-display" data-openbitfun-part="root" className="create-plan-display status-error">
-        <div className="create-plan-header" data-openbitfun-component="create-plan-display" data-openbitfun-part="header">
+      <div data-bitfun-component="create-plan-display" data-bitfun-part="root" className="create-plan-display status-error">
+        <div className="create-plan-header" data-bitfun-component="create-plan-display" data-bitfun-part="header">
           <button data-overflow-trigger
             type="button"
             className="create-plan-header-main create-plan-header-main--clickable"
@@ -446,13 +446,13 @@ Read the plan file before making changes and treat it as the source of truth. Do
             </div>
           </button>
         </div>
-        <div className="create-plan-content" data-openbitfun-component="create-plan-display" data-openbitfun-part="content">
-          <div className="plan-content-left" data-openbitfun-component="create-plan-display" data-openbitfun-part="overview">
+        <div className="create-plan-content" data-bitfun-component="create-plan-display" data-bitfun-part="content">
+          <div className="plan-content-left" data-bitfun-component="create-plan-display" data-bitfun-part="overview">
             <h3 className="plan-title">{t('toolCards.plan.invalidFormat')}</h3>
             <p className="plan-overview">{t('toolCards.plan.invalidFormatDescription')}</p>
           </div>
         </div>
-        <div className="create-plan-footer" data-openbitfun-component="create-plan-display" data-openbitfun-part="footer">
+        <div className="create-plan-footer" data-bitfun-component="create-plan-display" data-bitfun-part="footer">
           <Button variant="outline" size="sm" type="button" onClick={handleViewPlan}>
             {t('toolCards.plan.viewPlan')}
           </Button>
@@ -466,8 +466,8 @@ Read the plan file before making changes and treat it as the source of truth. Do
 
   if (!planData) {
     return (
-      <div data-openbitfun-component="create-plan-display" data-openbitfun-part="loading" data-openbitfun-state="loading" className={`create-plan-display create-plan-display--loading create-plan-display--loading-shimmer status-${status}`}>
-        <div className="create-plan-header create-plan-header--loading-shimmer" data-openbitfun-component="create-plan-display" data-openbitfun-part="header">
+      <div data-bitfun-component="create-plan-display" data-bitfun-part="loading" data-bitfun-state="loading" className={`create-plan-display create-plan-display--loading create-plan-display--loading-shimmer status-${status}`}>
+        <div className="create-plan-header create-plan-header--loading-shimmer" data-bitfun-component="create-plan-display" data-bitfun-part="header">
           <span>{t('toolCards.plan.loadingPlan')}</span>
         </div>
       </div>
@@ -475,22 +475,22 @@ Read the plan file before making changes and treat it as the source of truth. Do
   }
 
   return (
-    <div data-openbitfun-component="create-plan-display" data-openbitfun-part="root"
+    <div data-bitfun-component="create-plan-display" data-bitfun-part="root"
       ref={cardRootRef}
       data-tool-card-id={toolCardId ?? ''}
       className={`create-plan-display status-${status}${isLoading ? ' create-plan-display--plan-generating' : ''}`}
     >
       <div
         className={`create-plan-header${isLoading ? ' create-plan-header--loading-shimmer' : ''}`}
-        data-openbitfun-component="create-plan-display"
-        data-openbitfun-part="header"
+        data-bitfun-component="create-plan-display"
+        data-bitfun-part="header"
       >
         <Tooltip content={t('toolCards.plan.clickToOpenPlan')}>
           <button data-overflow-trigger
             type="button"
             className="create-plan-header-main create-plan-header-main--clickable"
-            data-openbitfun-component="create-plan-display"
-            data-openbitfun-part="headerMain"
+            data-bitfun-component="create-plan-display"
+            data-bitfun-part="headerMain"
             onClick={handleViewPlan}
           >
             <div className="header-left">
@@ -533,8 +533,8 @@ Read the plan file before making changes and treat it as the source of truth. Do
         </div>
       </div>
 
-      <div className="create-plan-content" data-openbitfun-component="create-plan-display" data-openbitfun-part="content">
-        <div className="plan-content-left" data-openbitfun-component="create-plan-display" data-openbitfun-part="overview">
+      <div className="create-plan-content" data-bitfun-component="create-plan-display" data-bitfun-part="content">
+        <div className="plan-content-left" data-bitfun-component="create-plan-display" data-bitfun-part="overview">
           <h3 className="plan-title">{planData.name}</h3>
           <p className="plan-overview">{planData.overview}</p>
         </div>
@@ -552,14 +552,14 @@ Read the plan file before making changes and treat it as the source of truth. Do
       </div>
 
       {planData.todos && planData.todos.length > 0 && isTodosExpanded && (
-        <div className="create-plan-todos create-plan-todos--expanded" data-openbitfun-component="create-plan-display" data-openbitfun-part="todos" data-openbitfun-state="expanded">
+        <div className="create-plan-todos create-plan-todos--expanded" data-bitfun-component="create-plan-display" data-bitfun-part="todos" data-bitfun-state="expanded">
           <div className="todos-list">
             {todoRenderItems.map(({ todo, key }) => (
               <div
                 key={key}
                 className={`todo-item status-${todo.status || 'pending'}`}
-                data-openbitfun-component="create-plan-display"
-                data-openbitfun-part="todo"
+                data-bitfun-component="create-plan-display"
+                data-bitfun-part="todo"
               >
                 {todo.status === 'completed' && (
                   <Icon name="check-circle" size="xs" className="todo-icon todo-icon--completed" />
@@ -580,7 +580,7 @@ Read the plan file before making changes and treat it as the source of truth. Do
         </div>
       )}
 
-      <div className={`create-plan-footer${isLoading ? ' create-plan-footer--generating-only' : ''}`} data-openbitfun-component="create-plan-display" data-openbitfun-part="footer">
+      <div className={`create-plan-footer${isLoading ? ' create-plan-footer--generating-only' : ''}`} data-bitfun-component="create-plan-display" data-bitfun-part="footer">
         {!isLoading && (
           <Button variant="outline" size="sm" type="button" onClick={handleViewPlan}>
             {t('toolCards.plan.viewPlan')}

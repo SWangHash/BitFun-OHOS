@@ -8,14 +8,14 @@ import { monacoAppearanceAdapter } from '@/infrastructure/appearance/adapters/Mo
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { EditorConfig as EditorConfigType } from '@/infrastructure/config/types';
 import { getMonacoLanguage } from '@/infrastructure/language-detection';
-import { IconButton, OverflowText, LoadingState } from '@openbitfun/ui';
+import { IconButton, OverflowText, LoadingState } from '@bitfun/ui';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
 import { AlertCircle } from 'lucide-react';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
 import './DiffEditor.scss';
-import { Tooltip } from '@openbitfun/ui';
+import { Tooltip } from '@bitfun/ui';
 import {
   DEFAULT_EDITOR_FONT_FAMILY,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -295,7 +295,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
               const elements = container.querySelectorAll(selector);
               elements.forEach((element) => {
                 const htmlElement = element as HTMLElement;
-                htmlElement.style.backgroundColor = 'var(--openbitfun-color-surface-canvas)';
+                htmlElement.style.backgroundColor = 'var(--bitfun-color-surface-canvas)';
               });
             });
             
@@ -499,8 +499,8 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
     if (!enableCustomToolbar) return null;
 
     return (
-      <div className="diff-editor-toolbar" data-openbitfun-component="diff-editor" data-openbitfun-part="toolbar">
-        <div className="diff-editor-toolbar__info" data-openbitfun-component="diff-editor" data-openbitfun-part="toolbarInfo">
+      <div className="diff-editor-toolbar" data-bitfun-component="diff-editor" data-bitfun-part="toolbar">
+        <div className="diff-editor-toolbar__info" data-bitfun-component="diff-editor" data-bitfun-part="toolbarInfo">
           <span className="diff-editor-toolbar__stats">
             {diffStats.additions > 0 && (
               <span className="diff-editor-toolbar__stat diff-editor-toolbar__stat--add">
@@ -521,7 +521,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
           )}
         </div>
         
-        <div className="diff-editor-toolbar__actions" data-openbitfun-component="diff-editor" data-openbitfun-part="toolbarActions">
+        <div className="diff-editor-toolbar__actions" data-bitfun-component="diff-editor" data-bitfun-part="toolbarActions">
           <Tooltip content={t('editor.diffEditor.prevChange')} placement="top">
             <IconButton
               className="diff-editor-toolbar__btn"
@@ -557,10 +557,10 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   };
 
   return (
-    <div className={`diff-editor-container ${className}`} data-openbitfun-component="diff-editor" data-openbitfun-part="root">
+    <div className={`diff-editor-container ${className}`} data-bitfun-component="diff-editor" data-bitfun-part="root">
       {renderToolbar()}
       
-      <div className="diff-editor-wrapper" data-openbitfun-component="diff-editor" data-openbitfun-part="content">
+      <div className="diff-editor-wrapper" data-bitfun-component="diff-editor" data-bitfun-part="content">
         <div 
           ref={containerRef} 
           className="diff-editor-content"
@@ -575,13 +575,13 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
       </div>
 
       {loading && (
-        <div className="diff-editor-loading-overlay" data-openbitfun-component="diff-editor" data-openbitfun-part="loading" data-openbitfun-state="loading">
+        <div className="diff-editor-loading-overlay" data-bitfun-component="diff-editor" data-bitfun-part="loading" data-bitfun-state="loading">
           <LoadingState size="md">{t('editor.diffEditor.loading')}</LoadingState>
         </div>
       )}
 
       {error && (
-        <div className="diff-editor-error" data-openbitfun-component="diff-editor" data-openbitfun-part="error" data-openbitfun-state="error">
+        <div className="diff-editor-error" data-bitfun-component="diff-editor" data-bitfun-part="error" data-bitfun-state="error">
           <AlertCircle size={32} className="diff-editor-error__icon" />
           <p className="diff-editor-error__message">{error}</p>
           {filePath && (

@@ -48,34 +48,34 @@ export function VoiceCallPanel({
 
   return (
     <section {...props} className={classNames(styles.root, className)} aria-label={title}
-      data-openbitfun-component="voice-call-panel" data-openbitfun-part="root" data-openbitfun-phase={phase}>
-      <header className={styles.header} data-openbitfun-part="header">
+      data-bitfun-component="voice-call-panel" data-bitfun-part="root" data-bitfun-phase={phase}>
+      <header className={styles.header} data-bitfun-part="header">
         <Tooltip content={labels.back}>
           <IconButton className={styles.back} shape="circle" aria-label={labels.back}
             onClick={onBack} disabled={phase === "ending"} icon={<ArrowLeft size={20} />} />
         </Tooltip>
-        <h2 className={styles.title} data-openbitfun-part="title"><OverflowText>{title}</OverflowText></h2>
+        <h2 className={styles.title} data-bitfun-part="title"><OverflowText>{title}</OverflowText></h2>
         <Tooltip content={labels.close}>
           <IconButton className={styles.close} shape="circle" aria-label={labels.close}
             onClick={onClose} icon={<X size={20} />} />
         </Tooltip>
       </header>
 
-      <div className={styles.visualizer} data-openbitfun-part="visualizer">
+      <div className={styles.visualizer} data-bitfun-part="visualizer">
         <VoiceParticleLogo readAudio={readAudio} active={phase === "live" || phase === "connecting"} />
       </div>
 
-      <div ref={conversationRef} className={styles.conversation} data-openbitfun-part="conversation"
+      <div ref={conversationRef} className={styles.conversation} data-bitfun-part="conversation"
         aria-live="polite" aria-relevant="additions text" onScroll={() => {
           const element = conversationRef.current;
           if (element) followsLatest.current = element.scrollHeight - element.clientHeight - element.scrollTop < 24;
         }}>
-        {userTranscript && <div className={styles.user} data-openbitfun-part="userTranscript">{userTranscript}</div>}
-        {assistantTranscript && <div className={styles.assistant} data-openbitfun-part="assistantTranscript">{assistantTranscript}</div>}
-        {status && <div className={styles.status} role="status" data-openbitfun-part="status">{status}</div>}
+        {userTranscript && <div className={styles.user} data-bitfun-part="userTranscript">{userTranscript}</div>}
+        {assistantTranscript && <div className={styles.assistant} data-bitfun-part="assistantTranscript">{assistantTranscript}</div>}
+        {status && <div className={styles.status} role="status" data-bitfun-part="status">{status}</div>}
       </div>
 
-      <footer className={styles.controls} data-openbitfun-part="controls">
+      <footer className={styles.controls} data-bitfun-part="controls">
         <Tooltip content={muted ? labels.unmute : labels.mute}>
           <IconButton className={styles.control} shape="circle" aria-label={muted ? labels.unmute : labels.mute}
             aria-pressed={muted} disabled={connecting} onClick={onToggleMute}

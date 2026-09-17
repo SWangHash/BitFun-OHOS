@@ -1,1 +1,1 @@
-pub use openbitfun_services_integrations::mcp::adapter::ResourceAdapter;
+pub use bitfun_services_integrations::mcp::adapter::ResourceAdapter;

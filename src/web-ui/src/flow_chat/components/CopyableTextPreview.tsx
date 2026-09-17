@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { useTranslation } from 'react-i18next';
-import { IconButton, Tooltip, Icon, OverflowText } from '@openbitfun/ui';
+import { IconButton, Tooltip, Icon, OverflowText } from '@bitfun/ui';
 import { useCopyTextAction } from '../hooks/useCopyTextAction';
 import './CopyableTextPreview.scss';
 
@@ -29,7 +29,7 @@ export const CopyableTextPreview = React.forwardRef<HTMLElement, CopyableTextPre
   const { t } = useTranslation('flow-chat');
   const content = text?.trim()
     ? text
-    : <span className="copyable-text-preview__empty" data-openbitfun-component="copyable-text-preview" data-openbitfun-part="empty">{emptyText}</span>;
+    : <span className="copyable-text-preview__empty" data-bitfun-component="copyable-text-preview" data-bitfun-part="empty">{emptyText}</span>;
   const resolvedClassName = `copyable-text-preview${multiline ? ' copyable-text-preview--multiline' : ''}${className ? ` ${className}` : ''}`;
   const preview = multiline ? content : (
     <OverflowText title={tooltipContent ? '' : undefined}>{content}</OverflowText>
@@ -45,11 +45,11 @@ export const CopyableTextPreview = React.forwardRef<HTMLElement, CopyableTextPre
   });
   const copyTooltip = copied ? t('toolCards.common.copied') : t('toolCards.common.copy');
   const node = as === 'code' ? (
-    <code ref={ref} className={resolvedClassName} {...restProps} data-openbitfun-component="copyable-text-preview" data-openbitfun-part="root">
+    <code ref={ref} className={resolvedClassName} {...restProps} data-bitfun-component="copyable-text-preview" data-bitfun-part="root">
       {preview}
     </code>
   ) : (
-    <span ref={ref} className={resolvedClassName} {...restProps} data-openbitfun-component="copyable-text-preview" data-openbitfun-part="root">
+    <span ref={ref} className={resolvedClassName} {...restProps} data-bitfun-component="copyable-text-preview" data-bitfun-part="root">
       {preview}
     </span>
   );
@@ -61,15 +61,15 @@ export const CopyableTextPreview = React.forwardRef<HTMLElement, CopyableTextPre
   return (
     <Tooltip
       content={
-        <div className="copyable-text-preview-tooltip-content" data-openbitfun-component="copyable-text-preview" data-openbitfun-part="tooltipContent">
-          <span className="copyable-text-preview-tooltip-content__text" data-openbitfun-component="copyable-text-preview" data-openbitfun-part="tooltipText">{tooltipContent}</span>
+        <div className="copyable-text-preview-tooltip-content" data-bitfun-component="copyable-text-preview" data-bitfun-part="tooltipContent">
+          <span className="copyable-text-preview-tooltip-content__text" data-bitfun-component="copyable-text-preview" data-bitfun-part="tooltipText">{tooltipContent}</span>
           {copyText && (
             <Tooltip content={copyTooltip}>
               <IconButton
                 className={`copyable-text-preview-tooltip__copy${copied ? ' copied' : ''}`}
-                data-openbitfun-component="copyable-text-preview"
-                data-openbitfun-part="copyAction"
-                data-openbitfun-state={copied ? 'copied' : undefined}
+                data-bitfun-component="copyable-text-preview"
+                data-bitfun-part="copyAction"
+                data-bitfun-state={copied ? 'copied' : undefined}
                 variant="quiet"
                 size="xs"
                 onClick={copy}

@@ -7,7 +7,7 @@ export const shellNavAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'empty' }, { id: 'list' },
   ],
   states: [
-    { id: 'active', selector: { kind: 'self', suffix: '[data-openbitfun-state~="active"]' } },
-    { id: 'selected', selector: { kind: 'self', suffix: '[data-openbitfun-state~="selected"]' } },
+    { id: 'active', selector: { kind: 'self', suffix: '[data-bitfun-state~="active"]' } },
+    { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
   ],
 };

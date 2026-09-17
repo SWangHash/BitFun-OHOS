@@ -6,9 +6,9 @@ use super::{
 };
 use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ValidationResult};
 use crate::agentic::tools::tool_context_runtime::ToolUseContext;
-use crate::util::errors::{OpenBitFunError, OpenBitFunResult};
+use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use openbitfun_agent_tools::{
+use bitfun_agent_tools::{
     build_get_tool_spec_catalog_description, build_get_tool_spec_description,
     GetToolSpecDeferredToolSummary, GetToolSpecExecutionError, GET_TOOL_SPEC_TOOL_NAME,
 };
@@ -45,7 +45,7 @@ impl Tool for GetToolSpecTool {
         GET_TOOL_SPEC_TOOL_NAME
     }
 
-    async fn description(&self) -> OpenBitFunResult<String> {
+    async fn description(&self) -> BitFunResult<String> {
         Ok(build_get_tool_spec_description())
     }
 
@@ -56,7 +56,7 @@ impl Tool for GetToolSpecTool {
     async fn description_with_context(
         &self,
         _context: Option<&ToolUseContext>,
-    ) -> OpenBitFunResult<String> {
+    ) -> BitFunResult<String> {
         Ok(build_get_tool_spec_description())
     }
 
@@ -88,17 +88,17 @@ impl Tool for GetToolSpecTool {
         &self,
         input: &Value,
         context: &ToolUseContext,
-    ) -> OpenBitFunResult<Vec<ToolResult>> {
+    ) -> BitFunResult<Vec<ToolResult>> {
         resolve_product_get_tool_spec_results(input, context, self.name())
             .await
             .map_err(map_get_tool_spec_execution_error)
     }
 }
 
-fn map_get_tool_spec_execution_error(error: GetToolSpecExecutionError) -> OpenBitFunError {
+fn map_get_tool_spec_execution_error(error: GetToolSpecExecutionError) -> BitFunError {
     match error {
-        GetToolSpecExecutionError::MissingToolName => OpenBitFunError::tool(error.to_string()),
-        GetToolSpecExecutionError::Detail(message) => OpenBitFunError::Validation(message),
+        GetToolSpecExecutionError::MissingToolName => BitFunError::tool(error.to_string()),
+        GetToolSpecExecutionError::Detail(message) => BitFunError::Validation(message),
     }
 }
 
@@ -115,7 +115,7 @@ mod tests {
     fn deferred_tools_context_lists_names_without_short_descriptions() {
         let tool_name = format!("CatalogDescriptionTestTool_{}", uuid::Uuid::new_v4());
         let description = GetToolSpecTool::build_deferred_tools_context_section(&[
-            openbitfun_agent_tools::GetToolSpecDeferredToolSummary {
+            bitfun_agent_tools::GetToolSpecDeferredToolSummary {
                 name: tool_name.clone(),
                 short_description: None,
             },
@@ -137,7 +137,7 @@ mod tests {
             session_id: None,
             dialog_turn_id: None,
             workspace: None,
-            loaded_deferred_tool_specs: vec![openbitfun_agent_tools::LoadedDeferredToolSpec {
+            loaded_deferred_tool_specs: vec![bitfun_agent_tools::LoadedDeferredToolSpec {
                 tool_name: "WebFetch".to_string(),
                 catalog_generation,
             }],
@@ -145,7 +145,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
-            runtime_handles: openbitfun_runtime_ports::ToolRuntimeHandles::default(),
+            runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         };
 
         let results = tool

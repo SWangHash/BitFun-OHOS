@@ -34,7 +34,7 @@ describe('PendingQueueModule', () => {
     const sessionId = testSession();
     pendingQueueManager.enqueue({ sessionId, content: 'local draft' });
 
-    const canonicalKey = `openbitfun.flowChat.pendingQueue.v1.${encodeURIComponent(JSON.stringify([
+    const canonicalKey = `bitfun.flowChat.pendingQueue.v1.${encodeURIComponent(JSON.stringify([
       LOCAL_SURFACE_ID,
       sessionId,
     ]))}`;

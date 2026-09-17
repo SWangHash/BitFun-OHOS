@@ -3,7 +3,7 @@ import { FontPreferencePanel } from '@/infrastructure/font-preference';
 import { useMouseGlowPreference } from '@/infrastructure/mouse-glow';
 import { useTranslation } from 'react-i18next';
 import { Switch } from '@/component-library';
-import { Select } from '@openbitfun/ui';
+import { Select } from '@bitfun/ui';
 import {
   SYSTEM_APPEARANCE_ID,
   useAppearance,
@@ -71,13 +71,13 @@ function AppearanceSelectionSection() {
     <div
       className="appearance-settings"
       data-testid="appearance-settings-section"
-      data-openbitfun-component="appearance-config"
-      data-openbitfun-part="settings"
+      data-bitfun-component="appearance-config"
+      data-bitfun-part="settings"
     >
       <div
         className="appearance-settings__content"
-        data-openbitfun-component="appearance-config"
-        data-openbitfun-part="settingsContent"
+        data-bitfun-component="appearance-config"
+        data-bitfun-part="settingsContent"
       >
         <ConfigPageSection title={t('appearance.title')} description={t('appearance.hint')}>
           <ConfigPageRow
@@ -87,8 +87,8 @@ function AppearanceSelectionSection() {
           >
             <div
               className="appearance-settings__language-select"
-              data-openbitfun-component="appearance-config"
-              data-openbitfun-part="language"
+              data-bitfun-component="appearance-config"
+              data-bitfun-part="language"
             >
               <Select
                 size="sm"
@@ -117,13 +117,13 @@ function AppearanceSelectionSection() {
           >
             <div
               className="appearance-settings__palette-picker"
-              data-openbitfun-component="appearance-config"
-              data-openbitfun-part="palettePicker"
+              data-bitfun-component="appearance-config"
+              data-bitfun-part="palettePicker"
             >
               <div
                 className="appearance-settings__palette-select"
-                data-openbitfun-component="appearance-config"
-                data-openbitfun-part="paletteSelect"
+                data-bitfun-component="appearance-config"
+                data-bitfun-part="paletteSelect"
               >
                 <Select
                   size="sm"
@@ -170,15 +170,15 @@ const AppearanceConfig: React.FC = () => {
 
   return (
     <ConfigPageLayout
-      className="openbitfun-appearance-config"
-      data-openbitfun-component="appearance-config"
-      data-openbitfun-part="root"
+      className="bitfun-appearance-config"
+      data-bitfun-component="appearance-config"
+      data-bitfun-part="root"
     >
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
       <ConfigPageContent
-        className="openbitfun-appearance-config__content"
-        data-openbitfun-component="appearance-config"
-        data-openbitfun-part="content"
+        className="bitfun-appearance-config__content"
+        data-bitfun-component="appearance-config"
+        data-bitfun-part="content"
       >
         <ConfigPageSectionStack data-testid="appearance-config">
           <AppearanceSelectionSection />

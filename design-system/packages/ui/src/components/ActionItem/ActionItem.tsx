@@ -62,41 +62,41 @@ export const ActionItem = forwardRef<HTMLButtonElement, ActionItemProps>(functio
   return (
     <span
       className={classNames(styles.root, className)}
-      data-openbitfun-component="action-item"
-      data-openbitfun-tone={tone}
+      data-bitfun-component="action-item"
+      data-bitfun-tone={tone}
       data-disabled={disabled ? "true" : "false"}
     >
       <button data-overflow-trigger
         {...props}
         className={classNames(styles.trigger, triggerClassName)}
-        data-openbitfun-part="trigger"
+        data-bitfun-part="trigger"
         disabled={disabled}
         ref={ref}
         type={type}
       >
         {hasLeadingArea && (
-          <span aria-hidden="true" className={styles.leading} data-openbitfun-part="leading">
+          <span aria-hidden="true" className={styles.leading} data-bitfun-part="leading">
             {leading}
           </span>
         )}
         {labelBehavior === "static" ? (
-          <span className={classNames(styles.label, styles.staticLabel)} data-openbitfun-part="label">{children}</span>
+          <span className={classNames(styles.label, styles.staticLabel)} data-bitfun-part="label">{children}</span>
         ) : (
-          <OverflowText className={styles.label} data-openbitfun-part="label">{children}</OverflowText>
+          <OverflowText className={styles.label} data-bitfun-part="label">{children}</OverflowText>
         )}
         {metadata !== undefined && metadata !== null && (
-          <span className={styles.metadata} data-openbitfun-part="metadata">
+          <span className={styles.metadata} data-bitfun-part="metadata">
             {metadata}
           </span>
         )}
         {shortcut !== undefined && shortcut !== null && (
-          <span aria-hidden="true" className={styles.shortcut} data-openbitfun-part="shortcut">
+          <span aria-hidden="true" className={styles.shortcut} data-bitfun-part="shortcut">
             {shortcut}
           </span>
         )}
       </button>
       {(actions.length > 0 || actionContent != null) && (
-        <span className={styles.actions} data-openbitfun-part="actions">
+        <span className={styles.actions} data-bitfun-part="actions">
           {actionContent}
           {actions.map((action) => (
               <IconButton

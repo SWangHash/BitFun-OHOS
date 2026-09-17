@@ -1,6 +1,6 @@
 import { X as LucideX } from 'lucide-react';
 import React, { useState } from 'react';
-import { MobileButton, MobileIconButton, MobileSheet } from '@openbitfun/ui/mobile';
+import { MobileButton, MobileIconButton, MobileSheet } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { RemoteToolStatus } from '../services/RemoteSessionManager';
 

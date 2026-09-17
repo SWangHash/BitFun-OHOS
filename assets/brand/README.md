@@ -1,6 +1,6 @@
-# OpenBitFun application brand assets
+# BitFun application brand assets
 
-`source/openbitfun-mark.svg` is the transparent vector master for the current
+`source/bitfun-mark.svg` is the transparent vector master for the current
 fine-line Logo used by startup and in-product brand surfaces. Its fifteen rounded
 hexagonal contours match the About dialog's static geometry. Motion and moving
 highlights are intentionally absent from static files. The SVG uses
@@ -8,10 +8,10 @@ highlights are intentionally absent from static files. The SVG uses
 
 The generator also maintains the existing transparent PNG paths:
 
-- `openbitfun-mark-dark.png` is the dark mark for light surfaces.
-- `openbitfun-mark-light.png` is the light mark for dark surfaces.
+- `bitfun-mark-dark.png` is the dark mark for light surfaces.
+- `bitfun-mark-light.png` is the light mark for dark surfaces.
 
-`source/openbitfun-app-mark.png` preserves the originally submitted silver
+`source/bitfun-app-mark.png` preserves the originally submitted silver
 hexagonal application mark. Application, window, taskbar, Dock, tray, browser,
 installer, and mobile launcher icons use this artwork on the black rounded-square
 background with transparent corners. It is intentionally independent from the
@@ -38,14 +38,14 @@ Verify generated dimensions, small-size rim contrast, favicon references, and
 icon containers with `node --test scripts/generate-brand-assets.test.mjs`.
 
 `source/release-letter-mascot.svg` preserves the authored character from
-`openbitfun-letter.html`. Its named body, rigid head/rod, and eye parts are used
+`bitfun-letter.html`. Its named body, rigid head/rod, and eye parts are used
 by the release letter's connected animation rig. The gradients belong to this
 illustration, not to the application theme. Vite bundles this source directly;
 it is independent of the application icon generator and needs no PNG export.
 
 Verification emails use the silver application mark on its black rounded-square
 background, generated at
-`src/miniapp-market-web/public/assets/openbitfun-email-app-icon.png`. The market build
+`src/miniapp-market-web/public/assets/bitfun-email-app-icon.png`. The market build
 publishes this stable anonymous image path for email clients; it contains no
 recipient or verification data and does not require authentication.
 

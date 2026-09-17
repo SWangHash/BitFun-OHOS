@@ -18,5 +18,5 @@ references without recognizing historical selector aliases.
 Focused verification:
 
 ```bash
-cargo test -p openbitfun-config-contracts --lib
+cargo test -p bitfun-config-contracts --lib
 ```

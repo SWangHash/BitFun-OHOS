@@ -12,7 +12,7 @@ import { TabOverflowMenu } from './TabOverflowMenu';
 import type { CanvasTab, EditorGroupId, TabDragPayload } from '../types';
 import { createLogger } from '@/shared/utils/logger';
 import './TabBar.scss';
-import { Icon, IconButton, TabGroup, Toolbar, Tooltip, type TabGroupItem } from '@openbitfun/ui';
+import { Icon, IconButton, TabGroup, Toolbar, Tooltip, type TabGroupItem } from '@bitfun/ui';
 
 const log = createLogger('TabBar');
 const TAB_REORDER_DURATION_MS = 160;
@@ -268,22 +268,22 @@ export const TabBar: React.FC<TabBarProps> = ({
   const tabItems: TabGroupItem[] = visibleTabs.map(tab => ({
     value: tab.id,
     label: (
-      <span data-openbitfun-product-component="canvas-tab" data-openbitfun-product-part="title" className="canvas-tab__title">
+      <span data-bitfun-product-component="canvas-tab" data-bitfun-product-part="title" className="canvas-tab__title">
         {tab.fileDeletedFromDisk ? `${tab.title} - ${t('tabs.fileDeleted')}` : tab.title}
       </span>
     ),
     icon: tab.content.type === 'task-detail'
-      ? <Split data-openbitfun-product-component="canvas-tab" data-openbitfun-product-part="typeIcon" aria-hidden />
+      ? <Split data-bitfun-product-component="canvas-tab" data-bitfun-product-part="typeIcon" aria-hidden />
       : undefined,
     labelSuffix: tab.isDirty ? (
-      <span data-openbitfun-product-component="canvas-tab" data-openbitfun-product-part="dirtyIndicator" className="canvas-tab__dirty-indicator" title={t('tabs.unsaved')}>
+      <span data-bitfun-product-component="canvas-tab" data-bitfun-product-part="dirtyIndicator" className="canvas-tab__dirty-indicator" title={t('tabs.unsaved')}>
         ●
       </span>
     ) : undefined,
     endAction: (
       <IconButton
-        data-openbitfun-product-component="canvas-tab"
-        data-openbitfun-product-part="action"
+        data-bitfun-product-component="canvas-tab"
+        data-bitfun-product-part="action"
         className="canvas-tab__action-btn"
         data-motion="none"
         size="xs"
@@ -301,7 +301,7 @@ export const TabBar: React.FC<TabBarProps> = ({
   }));
 
   return (
-    <Toolbar data-openbitfun-product-component="canvas-tab-bar" data-openbitfun-product-part="root" data-openbitfun-group={groupId} data-openbitfun-state={isActiveGroup ? 'active' : ''}
+    <Toolbar data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="root" data-bitfun-group={groupId} data-bitfun-state={isActiveGroup ? 'active' : ''}
       ref={containerRef}
       className={`canvas-tab-bar ${isActiveGroup ? 'is-active-group' : ''}`}
       size="sm"
@@ -309,9 +309,9 @@ export const TabBar: React.FC<TabBarProps> = ({
         <TabGroup
           ref={tabsListRef}
           className="canvas-tab-bar__tabs"
-          data-openbitfun-product-component="canvas-tab-bar"
-          data-openbitfun-product-part="list"
-          data-openbitfun-group={groupId}
+          data-bitfun-product-component="canvas-tab-bar"
+          data-bitfun-product-part="list"
+          data-bitfun-group={groupId}
           aria-label={t(groupId === 'primary' ? 'canvas.groupPrimaryFull' : groupId === 'secondary' ? 'canvas.groupSecondaryFull' : 'canvas.groupTertiaryFull')}
           size="sm"
           value={activeTabId ?? undefined}
@@ -322,8 +322,8 @@ export const TabBar: React.FC<TabBarProps> = ({
             const tab = visibleTabs[index];
             return (
               <div
-                data-openbitfun-product-component="canvas-tab-bar"
-                data-openbitfun-product-part="tabWrapper"
+                data-bitfun-product-component="canvas-tab-bar"
+                data-bitfun-product-part="tabWrapper"
                 data-tab-id={tab.id}
                 key={item.value}
                 className="canvas-tab-bar__tab-wrapper"
@@ -342,7 +342,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               >
                 {/* Drop indicator */}
                 {dragOverIndex === index && draggingTabId && (
-                  <div data-openbitfun-product-component="canvas-tab-bar" data-openbitfun-product-part="dropIndicator" className="canvas-tab-drop-indicator" />
+                  <div data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="dropIndicator" className="canvas-tab-drop-indicator" />
                 )}
 
                 <Tab
@@ -368,7 +368,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         />
       )}
       trailing={(
-        <div ref={actionsRef} className="canvas-tab-bar__actions" data-openbitfun-product-component="canvas-tab-bar" data-openbitfun-product-part="actions" data-openbitfun-group={groupId}>
+        <div ref={actionsRef} className="canvas-tab-bar__actions" data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="actions" data-bitfun-group={groupId}>
           {/* Overflow menu (all groups; mission control only in primary) */}
           {visibleTabs.length > 0 && (
             <TabOverflowMenu
@@ -385,8 +385,8 @@ export const TabBar: React.FC<TabBarProps> = ({
           {onCloseAllTabs && visibleTabs.length > 0 && (
             <Tooltip content={t('tabs.closeAll')} placement="bottom">
               <IconButton
-                data-openbitfun-product-component="canvas-tab-bar"
-                data-openbitfun-product-part="action"
+                data-bitfun-product-component="canvas-tab-bar"
+                data-bitfun-product-part="action"
                 className="canvas-tab-bar__close-all"
                 size="sm"
                 aria-label={t('tabs.closeAll')}

@@ -27,9 +27,9 @@ export function ToolCardCopyButton({
     <IconButton
       aria-label={resolvedLabel}
       className={className}
-      data-openbitfun-action="copy"
-      data-openbitfun-part="copyButton"
-      data-openbitfun-state={copied ? "copied" : undefined}
+      data-bitfun-action="copy"
+      data-bitfun-part="copyButton"
+      data-bitfun-state={copied ? "copied" : undefined}
       disabled={disabled}
       icon={copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
       onClick={onPress}

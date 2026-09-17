@@ -135,7 +135,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens chat http links in the built-in browser by default', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
 
     await act(async () => {
       root.render(<Markdown content={'[Example](https://example.com/docs)'} />);
@@ -161,7 +161,7 @@ describe('Markdown file links', () => {
   });
 
   it('opens modified chat link clicks in the external browser', async () => {
-    container.className = 'openbitfun-session-scene modern-flowchat-container';
+    container.className = 'bitfun-session-scene modern-flowchat-container';
 
     await act(async () => {
       root.render(<Markdown content={'[Example](https://example.com/docs)'} />);
@@ -376,7 +376,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Missing diagram"]')).toBeNull();
-    const fallback = container.querySelector('[data-openbitfun-part="imageFallback"]');
+    const fallback = container.querySelector('[data-bitfun-part="imageFallback"]');
     expect(fallback?.textContent).toBe('Missing diagram');
 
     await act(async () => {
@@ -390,7 +390,7 @@ describe('Markdown file links', () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')).toBe(fallback);
+    expect(container.querySelector('[data-bitfun-part="imageFallback"]')).toBe(fallback);
     expect(mocks.readFileContent).toHaveBeenCalledTimes(1);
   });
 
@@ -408,7 +408,7 @@ describe('Markdown file links', () => {
     });
 
     expect(container.querySelector('img[alt="Unavailable chart"]')).toBeNull();
-    expect(container.querySelector('[data-openbitfun-part="imageFallback"]')?.textContent)
+    expect(container.querySelector('[data-bitfun-part="imageFallback"]')?.textContent)
       .toBe('Unavailable chart');
   });
 
