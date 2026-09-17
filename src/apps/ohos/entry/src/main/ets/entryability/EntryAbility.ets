@@ -107,6 +107,22 @@ export default class EntryAbility extends RustAbility {
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
+    // Startup splash clone resources: DefaultXComponent mirrors the native
+    // start window (startWindowIcon + startWindowBackground) while the webview
+    // boots, and hides the mirror on the Web component's first contentful
+    // paint. Without it the window shows a blank background between the
+    // system start window and the webview's first frame. The background is
+    // resolved from the same color resource startWindowBackground uses so
+    // light and dark modes both match.
+    AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_icon_light'));
+    try {
+      AppStorage.setOrCreate<ResourceColor>(
+        'bitfunStartupSplashBackground',
+        this.context.resourceManager.getColorSync($r('app.color.start_window_background').id),
+      );
+    } catch (e) {
+      AppStorage.setOrCreate<ResourceColor>('bitfunStartupSplashBackground', '#FFFFFF');
+    }
     this.commonEventListener = new CommonEventListener();
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for

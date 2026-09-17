@@ -14,6 +14,8 @@ export struct DefaultXComponent {
   private rootSlot = new NodeContent();
   private webviewController = new RustWebviewNodeController(this.getUIContext());
   private nativeModule: ESObject;
+  @StorageLink("bitfunStartupSplashIcon") splashIcon: ResourceStr = '';
+  @StorageLink("bitfunStartupSplashBackground") splashBackground: ResourceColor = Color.Transparent;
   private helper: ArkHelper = {
     exit,
     createWebview: (data: NativeWebViewInitData) => {
@@ -68,6 +70,13 @@ export struct DefaultXComponent {
   @StorageProp("loadMode") loadMode: "async" | "sync" = "async";
 
   async aboutToAppear(): Promise<void> {
+    // Safety net: if the webview never reaches a first contentful paint
+    // (navigation failure, blank page), release the startup splash mirror so
+    // the app never gets stuck behind it. The normal path hides the mirror in
+    // WebBuilder's onFirstContentfulPaint, long before this timer fires.
+    setTimeout(() => {
+      AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+    }, 15000);
     // Expose the controller so app-level services (e.g. BrowserWebviewService)
     // can call addWebview/removeWebview directly to create embedded child
     // webviews for the built-in browser scene, bypassing the ArkHelper path.
@@ -87,6 +96,29 @@ export struct DefaultXComponent {
             .width("100%")
         }.width("100%")
       }.height("100%")
+      // Startup splash mirror: renders the same icon and background color as
+      // the native start window (startWindowIcon / startWindowBackground,
+      // seeded into AppStorage by EntryAbility.onCreate) while the webview
+      // boots. DefaultXComponent is the page shown the moment the system
+      // start window disappears, so this layer closes the blank gap until
+      // the Web component's first contentful paint (see DefaultWebview).
+      // Entry-side consumers that embed this component set
+      // `bitfunStartupSplashIcon` in AppStorage; an empty value keeps this
+      // layer inert on other consumers of the vendored module.
+      if (this.splashIcon !== '') {
+        Stack() {
+          // The native start window draws startWindowIcon at its intrinsic
+          // pixel size without density scaling, so use px units here too.
+          Image(this.splashIcon)
+            .objectFit(ImageFit.Contain)
+            .interpolation(ImageInterpolation.Medium)
+            .width('649px')
+            .height('649px')
+        }
+        .width("100%")
+        .height("100%")
+        .backgroundColor(this.splashBackground)
+      }
     };
   }
 }
