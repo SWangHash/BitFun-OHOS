@@ -317,6 +317,20 @@ fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<S
                 .map(|relative| relative.components().count())
                 .unwrap_or(MAX_PROBE_DEPTH + 1);
             found.push((0, depth, path));
+        } else if path.is_dir() {
+            // Prompt-named container (e.g. the parent directory of the Qt
+            // project): descend and offer the project roots actually found
+            // inside. scan_projects keeps the migrated-project exclusions.
+            let mut scanned = Vec::new();
+            scan_projects(&path, 0, &mut scanned);
+            for (sub_depth, project) in scanned {
+                let depth = project
+                    .strip_prefix(workspace)
+                    .map(|relative| relative.components().count())
+                    .unwrap_or(MAX_PROBE_DEPTH + 1)
+                    + sub_depth;
+                found.push((0, depth, project));
+            }
         }
     }
     // The model candidate reflects the project named in the current request and
@@ -463,12 +477,23 @@ fn probe_toolchains(
 
     // Prompt-named candidates rank first: they reflect explicit user intent.
     // The qmake structural check still applies, so invalid paths cannot pass.
+    // A prompt-named SDK root (qmake at `<root>/bin/qmake`) is descended into
+    // so the bin dir actually containing a qmake executable is offered.
     if !model_candidates.is_empty() {
-        let mut model_hits = model_candidates
-            .iter()
-            .filter_map(|candidate| normalize_workspace_candidate(workspace, candidate))
-            .filter_map(|candidate| normalize_toolchain_candidate(&candidate))
-            .collect::<Vec<_>>();
+        let mut model_hits: Vec<PathBuf> = Vec::new();
+        for candidate in model_candidates {
+            let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
+                continue;
+            };
+            if let Some(dir) = normalize_toolchain_candidate(&path) {
+                model_hits.push(dir);
+            } else if path.is_dir() {
+                let mut scanned = Vec::new();
+                scan_workspace_qmake(&path, 0, &mut scanned);
+                scanned.sort_by_key(|path| path_key(path));
+                model_hits.extend(scanned);
+            }
+        }
         model_hits.sort_by_key(|path| path_key(path));
         for dir in model_hits {
             push_unique(&mut out, &mut seen, &dir);
@@ -603,6 +628,23 @@ fn probe_templates(
                 .map(|relative| relative.components().count())
                 .unwrap_or(MAX_PROBE_DEPTH + 1);
             found.push((0, depth, path));
+        } else if path.is_dir() {
+            // Prompt-named parent (e.g. the extract root of a downloaded
+            // template): descend and offer the template dirs actually found
+            // inside, with the same migration-result exclusions as above.
+            let mut scanned = Vec::new();
+            scan_templates(&path, 0, &mut scanned);
+            for (sub_depth, template) in scanned {
+                if is_migration_artifact_location(&template) || is_migration_artifact(&template) {
+                    continue;
+                }
+                let depth = template
+                    .strip_prefix(workspace)
+                    .map(|relative| relative.components().count())
+                    .unwrap_or(MAX_PROBE_DEPTH + 1)
+                    + sub_depth;
+                found.push((0, depth, template));
+            }
         }
     }
     let mut workspace_hits = Vec::new();
@@ -915,13 +957,16 @@ mod tests {
 
         let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
         // 用户显式给出的工作区外输出目录保留（用户意图），workspace 内探测候选优先。
-        assert_eq!(
-            probe.candidates["output_project"],
-            vec![
-                output.to_string_lossy().into_owned(),
-                outside.path().to_string_lossy().into_owned(),
-            ]
-        );
+        // 两个候选同为 prompt-named（rank 0），顺序由 path_key 决定，而两个
+        // tempdir 的目录名是随机的，所以断言集合而非具体顺序。
+        let outputs = &probe.candidates["output_project"];
+        assert_eq!(outputs.len(), 2, "source filtered; output + outside kept");
+        assert!(outputs
+            .iter()
+            .any(|p| path_key(Path::new(p)) == path_key(&output)));
+        assert!(outputs
+            .iter()
+            .any(|p| path_key(Path::new(p)) == path_key(outside.path())));
 
         let invalid_model = candidate_map(
             "output_project",
@@ -1176,6 +1221,87 @@ mod tests {
                 backend_template.to_string_lossy().into_owned(),
             ]
         );
+    }
+
+    #[test]
+    fn prompt_named_source_container_descends_to_project_roots() {
+        // 用户填的是工程的上级目录（.pro 在子目录），且该目录在工作区外：
+        // 必须下钻找到真实工程根作为候选，而不是丢弃。
+        let (_t, root) = tree();
+        let outside = tempfile::tempdir().unwrap();
+        let project = mkdir(&outside.path(), "notepad--");
+        touch(&project, "RealCompare.pro");
+        let model = candidate_map(
+            "source_project",
+            vec![outside.path().to_string_lossy().into_owned()],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            probe.candidates["source_project"],
+            vec![project.to_string_lossy().into_owned()]
+        );
+    }
+
+    #[test]
+    fn prompt_named_toolchain_sdk_root_descends_to_bin() {
+        // 用户填的是 Qt SDK 根目录（qmake 在 <root>/bin/qmake）且在工作区外：
+        // 必须下钻找到实际包含 qmake 的 bin 目录。
+        let (_t, root) = tree();
+        let sdk_tmp = tempfile::tempdir().unwrap();
+        let sdk = mkdir(&sdk_tmp.path(), "Qt5.12.12");
+        let bin = mkdir(&sdk, "bin");
+        touch(&bin, "qmake.exe");
+        let model = candidate_map("toolchain", vec![sdk.to_string_lossy().into_owned()]);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(probe.candidates["toolchain"].len(), 1);
+        assert_eq!(
+            path_key(Path::new(&probe.candidates["toolchain"][0])),
+            path_key(&bin)
+        );
+    }
+
+    #[test]
+    fn prompt_named_template_parent_descends_to_template_dir() {
+        // 用户填的是模板工程的上级目录（如解压根）且在工作区外：必须下钻。
+        let (_t, root) = tree();
+        let tpl_tmp = tempfile::tempdir().unwrap();
+        let tpl = mkdir(&tpl_tmp.path(), "qt5.12");
+        create_template(&tpl);
+        let parent = tpl.parent().unwrap().to_path_buf();
+        let model = candidate_map("template", vec![parent.to_string_lossy().into_owned()]);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(probe.candidates["template"].len(), 1);
+        assert_eq!(
+            path_key(Path::new(&probe.candidates["template"][0])),
+            path_key(&tpl)
+        );
+    }
+
+    #[test]
+    fn prompt_named_nonexistent_paths_stay_filtered() {
+        // 下钻不放松存在性要求：不存在的路径在任何字段都不能成为候选。
+        let (_t, root) = tree();
+        let model = candidate_map(
+            "toolchain",
+            vec![root.join("no-such-sdk").to_string_lossy().into_owned()],
+        );
+        let template_model = candidate_map(
+            "template",
+            vec![root.join("no-such-template").to_string_lossy().into_owned()],
+        );
+        let mut model_map = model;
+        model_map.extend(template_model);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model_map);
+
+        assert!(probe.candidates["toolchain"].is_empty());
+        assert!(probe.candidates["template"].is_empty());
     }
 
     #[test]
