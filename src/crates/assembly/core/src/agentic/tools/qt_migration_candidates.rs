@@ -188,13 +188,20 @@ fn merge_output_candidates(
     let mut ranked: Vec<(u8, String)> = Vec::new();
     // Prompt-named candidates rank first (explicit user intent); the is_dir
     // check still applies so only real directories reach the option list, and
-    // a previous migration result (inside an output container) is excluded —
-    // it is a finished product, not a target for the next migration.
+    // a previous migration result is excluded — it is a finished product, not
+    // a target for the next migration. Location alone is not enough: a
+    // migrated project may sit outside any output container (e.g. next to the
+    // source project), so the migrated-project structure check is applied too.
+    // The check also rejects an official template dir as an output target,
+    // which is equally unintended by the workflow.
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
         };
-        if path.is_dir() && !is_migration_artifact_location(&path) {
+        if path.is_dir()
+            && !is_migration_artifact_location(&path)
+            && !is_inside_migrated_harmony_project(&path)
+        {
             ranked.push((0, path.to_string_lossy().into_owned()));
         }
     }
@@ -580,12 +587,17 @@ fn probe_templates(
 ) -> Vec<String> {
     let mut found: Vec<(u8, usize, PathBuf)> = Vec::new();
     // Prompt-named candidates rank first (explicit user intent); the Qt
-    // template structural check still applies.
+    // template structural check still applies, and a previous migration
+    // result is rejected by location (output container) or by the migration
+    // artifact naming convention (`*-ohos`).
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
         };
-        if is_qt_harmonyos_template(&path) && !is_migration_artifact_location(&path) {
+        if is_qt_harmonyos_template(&path)
+            && !is_migration_artifact_location(&path)
+            && !is_migration_artifact(&path)
+        {
             let depth = path
                 .strip_prefix(workspace)
                 .map(|relative| relative.components().count())
@@ -595,10 +607,11 @@ fn probe_templates(
     }
     let mut workspace_hits = Vec::new();
     scan_templates(workspace, 0, &mut workspace_hits);
-    // 已迁移产物（输出容器内）不是可复用模板：上次迁移的工程结构同样满足
-    // 模板四特征，只有位置能区分两者。
+    // 已迁移产物不是可复用模板：上次迁移的工程结构同样满足模板四特征。
+    // 位置判据（输出容器内）之外补充命名判据：迁移产物工程名规范为
+    // `原工程名-ohos`，而官方模板目录名不带该后缀（如 `qt5.12`）。
     for (depth, path) in workspace_hits {
-        if !is_migration_artifact_location(&path) {
+        if !is_migration_artifact_location(&path) && !is_migration_artifact(&path) {
             found.push((1, depth, path));
         }
     }
@@ -982,6 +995,32 @@ mod tests {
     }
 
     #[test]
+    fn prompt_named_migrated_product_outside_container_is_rejected() {
+        // 上次迁移的产物可能不在任何输出容器内（如源工程旁的 xxx-ohos）。
+        // 结构判据（build-profile + entry + marker）必须把它拒之门外，
+        // 不能只依赖"位于输出容器内"这一位置特征。
+        let (_t, root) = tree();
+        let previous = mkdir(&root, "calculator-ohos");
+        create_template(&previous);
+        touch(&previous, "build-profile.json5");
+        mkdir(&previous, "entry");
+        // 模型把上次迁移产物作为输出候选传入：必须被拒。
+        let model = candidate_map(
+            "output_project",
+            vec![previous.to_string_lossy().into_owned()],
+        );
+        let managed_root = root.join("managed");
+
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &model);
+
+        // 产物被拒后回退到 workspace 根作为兜底输出目标。
+        assert_eq!(
+            probe.candidates["output_project"],
+            vec![root.to_string_lossy().into_owned()]
+        );
+    }
+
+    #[test]
     fn managed_template_survives_migrated_project_exclusion() {
         // 官方模板自身就是完整鸿蒙工程结构（build-profile + entry + marker），
         // 不得被"已迁移工程"排除逻辑误伤；输出容器内的迁移产物则被排除。
@@ -1002,6 +1041,28 @@ mod tests {
         assert!(probe.candidates["template"]
             .iter()
             .all(|p| path_key(Path::new(p)) != path_key(&migrated_tpl_like)));
+    }
+
+    #[test]
+    fn migrated_product_outside_container_is_not_a_template_candidate() {
+        // 上次迁移的产物可能不在任何输出容器内（如源工程旁的 xxx-ohos），
+        // 位置判据拦不住它；命名判据（*-ohos）负责把它挡在模板候选之外。
+        // 同结构、非迁移命名的目录（官方模板放入 workspace 的形态）不受影响。
+        let (_t, root) = tree();
+        let managed_root = root.join("managed");
+        let migrated = mkdir(&root, "calculator-ohos");
+        create_template(&migrated);
+        let official = mkdir(&root, "qt-official-template");
+        create_template(&official);
+
+        let probe = probe_qt_migration_candidates(&root, "", &managed_root, &HashMap::new());
+
+        assert!(probe.candidates["template"]
+            .iter()
+            .any(|p| path_key(Path::new(p)) == path_key(&official)));
+        assert!(probe.candidates["template"]
+            .iter()
+            .all(|p| path_key(Path::new(p)) != path_key(&migrated)));
     }
 
     #[test]
