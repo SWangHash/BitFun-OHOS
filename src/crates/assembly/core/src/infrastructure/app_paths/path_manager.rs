@@ -88,11 +88,27 @@ impl PathManager {
 
     /// Get user config root directory
     ///
+    /// - OHOS: /data/storage/el2/base/files/bitfun/
     /// - Windows: %APPDATA%\bitfun\
     /// - macOS: ~/Library/Application Support/bitfun/
     /// - Linux: ~/.config/bitfun/
     fn get_user_config_root() -> BitFunResult<PathBuf> {
-        Ok(PathBuf::from("/data/storage/el2/base/files/bitfun"))
+        if let Some(path) =
+            Self::env_path("BITFUN_USER_ROOT").or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
+        {
+            return Ok(path);
+        }
+
+        #[cfg(target_env = "ohos")]
+        return Ok(PathBuf::from("/data/storage/el2/base/files/bitfun"));
+
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let config_dir = dirs::config_dir()
+                .ok_or_else(|| BitFunError::config("Failed to get config directory".to_string()))?;
+
+            Ok(config_dir.join("bitfun"))
+        }
     }
 
     fn get_bitfun_home_override() -> Option<PathBuf> {
@@ -971,11 +987,10 @@ mod tests {
         std::env::set_var("BITFUN_E2E_HOME", &home_root);
 
         let pm = PathManager::new().expect("path manager should use env overrides");
-        let sandbox_root = Path::new("/data/storage/el2/base/files/bitfun");
-        assert_eq!(pm.user_root_dir(), sandbox_root);
-        assert_eq!(pm.user_config_dir(), sandbox_root.join("config"));
-        assert_eq!(pm.user_data_dir(), sandbox_root.join("data"));
-        assert_eq!(pm.logs_dir(), sandbox_root.join("config").join("logs"));
+        assert_eq!(pm.user_root_dir(), user_root);
+        assert_eq!(pm.user_config_dir(), user_root.join("config"));
+        assert_eq!(pm.user_data_dir(), user_root.join("data"));
+        assert_eq!(pm.logs_dir(), user_root.join("config").join("logs"));
         assert_eq!(pm.bitfun_home_dir(), home_root);
     }
 
