@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { allocateBrowserWebviewLabel } from './useEmbeddedBrowserWebview';
+import { createBrowserWebviewLabel } from './useEmbeddedBrowserWebview';
 
 function readBrowserPanelSource(): string {
   return readFileSync(fileURLToPath(new URL('./BrowserPanel.tsx', import.meta.url)), 'utf8')
@@ -17,11 +17,11 @@ describe('browser panel visibility contract', () => {
   });
 
   it('allocates unique labels across independent browser panel instances', () => {
-    const first = allocateBrowserWebviewLabel('embedded-browser-panel-view');
-    const second = allocateBrowserWebviewLabel('embedded-browser-panel-view');
+    const first = createBrowserWebviewLabel('embedded-browser-panel-view');
+    const second = createBrowserWebviewLabel('embedded-browser-panel-view');
 
     expect(second).not.toBe(first);
-    expect(first).toMatch(/^embedded-browser-panel-view-\d+$/);
-    expect(second).toMatch(/^embedded-browser-panel-view-\d+$/);
+    expect(first).toMatch(/^embedded-browser-panel-view-[a-z0-9-]+$/);
+    expect(second).toMatch(/^embedded-browser-panel-view-[a-z0-9-]+$/);
   });
 });
