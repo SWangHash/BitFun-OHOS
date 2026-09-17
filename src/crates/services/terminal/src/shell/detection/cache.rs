@@ -79,9 +79,21 @@ pub(super) fn probe_candidate(
                     .retry_after
                     .is_some_and(|retry_after| retry_after > now))
     }) {
+        log::debug!(
+            "======= Shell discovery cache hit: shell_type={}, path={:?}, outcome={:?}",
+            shell_type,
+            executable,
+            entry.outcome
+        );
         return entry.outcome.clone();
     }
 
+    log::debug!(
+        "======= Shell discovery cache miss or stale: shell_type={}, path={:?}, fingerprint={:?}",
+        shell_type,
+        executable,
+        fingerprint
+    );
     let outcome = if fingerprint.is_some() {
         probe()
     } else {
@@ -106,8 +118,19 @@ pub(super) fn invalidate_path(executable: &Path) {
 }
 
 fn file_fingerprint(path: &Path) -> Option<FileFingerprint> {
-    let metadata = path.metadata().ok()?;
+    let metadata = match path.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            log::debug!(
+                "======= Shell discovery metadata failed: path={:?}, error={}",
+                path,
+                error
+            );
+            return None;
+        }
+    };
     if !metadata.is_file() {
+        log::debug!("======= Shell discovery rejected non-file: path={:?}", path);
         return None;
     }
     let modified = metadata

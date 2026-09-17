@@ -1,20 +1,43 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use log::{debug, info, warn};
+
 use super::{ShellCandidate, ShellDetector};
 
 impl ShellDetector {
     pub(super) fn find_all_in_path(executable: &str) -> Vec<PathBuf> {
-        let Ok(path_var) = std::env::var("PATH") else {
-            return Vec::new();
+        let path_var = match std::env::var("PATH") {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(
+                    "======= Shell discovery PATH unavailable: pid={}, executable={}, error={}",
+                    std::process::id(),
+                    executable,
+                    error
+                );
+                return Vec::new();
+            }
         };
+        info!(
+            "======= Shell discovery PATH lookup: pid={}, executable={}, PATH={:?}",
+            std::process::id(),
+            executable,
+            path_var
+        );
         let mut paths = Vec::new();
         let mut seen = HashSet::new();
         for entry in split_path_entries(&path_var) {
             for name in executable_names(executable) {
                 let candidate = entry.join(name);
                 if seen.insert(normalized_path_identity(&candidate)) {
+                    debug!(
+                        "======= Shell discovery PATH candidate: executable={}, path={:?}",
+                        executable, candidate
+                    );
                     paths.push(candidate);
+                } else {
+                    debug!("======= Shell discovery duplicate PATH candidate: executable={}, path={:?}", executable, candidate);
                 }
             }
         }

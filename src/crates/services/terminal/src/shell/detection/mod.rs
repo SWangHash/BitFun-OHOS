@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 use super::ShellType;
@@ -144,6 +145,10 @@ impl ShellDetector {
                     cache::CandidateProbeOutcome::Available(None)
                 }
             });
+        debug!("======= Shell discovery candidate result: pid={}, shell_type={}, path={:?}, source={}, outcome={:?}", std::process::id(), candidate.shell_type, candidate.path, candidate.source.as_str(), outcome);
+        if !matches!(&outcome, cache::CandidateProbeOutcome::Unavailable) {
+            info!("======= Shell discovery accepted: shell_type={}, path={:?}, source={}, outcome={:?}", candidate.shell_type, candidate.path, candidate.source.as_str(), outcome);
+        }
         let version = match outcome {
             cache::CandidateProbeOutcome::Available(version) => version,
             cache::CandidateProbeOutcome::AvailableWithProbeFailure => None,
