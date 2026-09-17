@@ -77,6 +77,7 @@
     }
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [{
       "title": "BitFun",
       "width": 800,

@@ -59,7 +59,9 @@ pub use qr_generator::QrGenerator;
 pub use relay_client::ensure_rustls_crypto_provider;
 pub use relay_client::RelayClient;
 pub use remote_server::RemoteServer;
+#[cfg(target_env = "ohos")]
 use crate::util::JS_THREADSAFE_FUNCTION;
+#[cfg(target_env = "ohos")]
 use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 use anyhow::Result;
 use bitfun_services_integrations::remote_connect::upload_mobile_web_to_relay;
@@ -1029,6 +1031,7 @@ impl RemoteConnectService {
         let qr_svg = QrGenerator::generate_svg_from_url(&qr_url)?;
         let qr_data = QrGenerator::generate_png_base64_from_url(&qr_url)?;
 
+        #[cfg(target_env = "ohos")]
         let _ = send_remote_url(qr_url.clone());
 
         *self.active_method.write().await = Some(method.clone());
@@ -1809,6 +1812,7 @@ impl RemoteConnectService {
 
         self.pairing.write().await.reset().await;
         *self.trusted_mobile_identity.write().await = None;
+        #[cfg(target_env = "ohos")]
         let _ = send_remote_url(String::new());
         info!("Relay connections stopped (bots unaffected)");
     }
@@ -2174,6 +2178,7 @@ impl RemoteConnectService {
     }
 }
 
+#[cfg(target_env = "ohos")]
 fn send_remote_url(args: String) -> Result<String, String> {
     use parking_lot::Mutex;
 
@@ -2205,6 +2210,7 @@ fn send_remote_url(args: String) -> Result<String, String> {
         }
     }
 }
+#[cfg(target_env = "ohos")]
 pub fn send_remote_dialog_status(is_open: bool) -> Result<String, String> {
     use parking_lot::Mutex;
     let args = if is_open {
