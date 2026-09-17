@@ -25,7 +25,6 @@ use openbitfun_product_domains::appearance_market::{
     APPEARANCE_MARKET_MAX_PACKAGE_BYTES, APPEARANCE_MARKET_MAX_PAGE_SIZE,
     APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE,
 };
-use openbitfun_product_domains::product_release::OPENBITFUN_INITIAL_RELEASE_VERSION;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1626,18 +1625,12 @@ fn validate_draft(request: &AppearanceMarketSubmissionDraftRequest) -> SkinMarke
 }
 
 fn validate_min_openbitfun_version(value: &str) -> SkinMarketResult<()> {
-    let version = Version::parse(value).map_err(|_| {
+    Version::parse(value).map_err(|_| {
         SkinMarketError::bad_request(
             "invalid_min_openbitfun_version",
             "minOpenBitFunVersion must use semantic version syntax, for example 1.0.0.",
         )
     })?;
-    if version < OPENBITFUN_INITIAL_RELEASE_VERSION {
-        return Err(SkinMarketError::bad_request(
-            "invalid_min_openbitfun_version",
-            "minOpenBitFunVersion must be 1.0.0 or newer.",
-        ));
-    }
     Ok(())
 }
 
@@ -1646,17 +1639,12 @@ mod minimum_version_tests {
     use super::validate_min_openbitfun_version;
 
     #[test]
-    fn minimum_openbitfun_version_starts_at_initial_release() {
+    fn minimum_openbitfun_version_only_requires_semver_syntax() {
         assert!(validate_min_openbitfun_version("1.0.0").is_ok());
         assert!(validate_min_openbitfun_version("1.2.0").is_ok());
-
-        let pre_release_identity = [0, 9, 0]
-            .into_iter()
-            .map(|part| part.to_string())
-            .collect::<Vec<_>>()
-            .join(".");
-        assert!(validate_min_openbitfun_version(&pre_release_identity).is_err());
-        assert!(validate_min_openbitfun_version("1.0.0-rc.1").is_err());
+        assert!(validate_min_openbitfun_version("0.9.0").is_ok());
+        assert!(validate_min_openbitfun_version("1.0.0-rc.1").is_ok());
+        assert!(validate_min_openbitfun_version("not-a-version").is_err());
     }
 }
 

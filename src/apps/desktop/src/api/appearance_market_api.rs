@@ -14,9 +14,6 @@ use openbitfun_product_domains::appearance_market::{
     AppearanceMarketSubmissionStatus, AppearanceReviewDecision, AppearanceReviewDecisionRequest,
     APPEARANCE_MARKET_MAX_PACKAGE_BYTES,
 };
-use openbitfun_product_domains::product_release::{
-    supports_market_minimum_version, OPENBITFUN_INITIAL_RELEASE_VERSION,
-};
 use openbitfun_services_integrations::appearance_market::{
     resolve_appearance_release_target, submit_appearance_package, suggest_appearance_slug,
     AppearanceMarketBrowseRequest, AppearanceMarketClient, AppearanceReleaseTarget,
@@ -341,14 +338,9 @@ fn find_release(
 fn validate_minimum_openbitfun_version(minimum: &str) -> Result<(), String> {
     let minimum = semver::Version::parse(minimum)
         .map_err(|_| "The release declares an invalid minimum OpenBitFun version.".to_string())?;
-    if minimum < OPENBITFUN_INITIAL_RELEASE_VERSION {
-        return Err(
-            "The release declares a minimum OpenBitFun version earlier than 1.0.0.".to_string(),
-        );
-    }
     let current = semver::Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|_| "The current OpenBitFun version is invalid.".to_string())?;
-    if !supports_market_minimum_version(&current, &minimum) {
+    if current < minimum {
         return Err(format!(
             "This Appearance requires OpenBitFun {minimum} or newer. Current version: {current}."
         ));
@@ -408,18 +400,6 @@ mod tests {
     fn rejects_invalid_slugs_before_network_access() {
         assert!(validate_slug("tokyo-night").is_ok());
         assert!(validate_slug("../secret").is_err());
-    }
-
-    #[test]
-    fn rejects_minimum_versions_before_initial_openbitfun_release() {
-        assert!(validate_minimum_openbitfun_version("1.0.0").is_ok());
-        let pre_release_identity = [0, 9, 0]
-            .into_iter()
-            .map(|part| part.to_string())
-            .collect::<Vec<_>>()
-            .join(".");
-        assert!(validate_minimum_openbitfun_version(&pre_release_identity).is_err());
-        assert!(validate_minimum_openbitfun_version("1.0.0-rc.1").is_err());
     }
 
     #[test]
