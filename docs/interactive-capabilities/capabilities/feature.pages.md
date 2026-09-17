@@ -41,13 +41,13 @@ Save page versions and publish them to public or private URLs while managing tit
 3. 选择页面并确认发布与可见性
    Choose a page and confirm publishing and visibility
 
-入口 / Entry: OpenBitFun 对应场景
+入口 / Entry: BitFun 对应场景
 
 ## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
-| 打开对应界面 / Open the UI | 进入 OpenBitFun 中对应的功能界面。 | Open the matching feature in OpenBitFun. |
+| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |
 
 ## 可配置选项 / Configurable options
 

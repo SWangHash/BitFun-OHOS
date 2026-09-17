@@ -11,9 +11,9 @@ title_en: "Remote Connect & devices"
 
 > 功能 / Feature
 
-从手机、Bot 或另一台 OpenBitFun 设备连接当前主机，远程查看会话、回答权限并继续工作。
+从手机、Bot 或另一台 BitFun 设备连接当前主机，远程查看会话、回答权限并继续工作。
 
-Connect to this host from mobile, a bot, or another OpenBitFun device to inspect sessions, answer permissions, and continue work remotely.
+Connect to this host from mobile, a bot, or another BitFun device to inspect sessions, answer permissions, and continue work remotely.
 
 ## 完整功能清单 / Everything included
 
@@ -29,8 +29,8 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
   - Sign in with GitHub, sign out, and inspect identity status
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出、连接、查看在线状态和删除同账户设备
   - List, connect, inspect online status, and remove same-account devices
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 进入 Peer Device Mode，把另一台 OpenBitFun 设备作为命令与事件数据面
-  - Enter Peer Device Mode and use another OpenBitFun device as the command and event data plane
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面
+  - Enter Peer Device Mode and use another BitFun device as the command and event data plane
 
 ## 怎么用 / How to use it
 
@@ -41,13 +41,13 @@ Connect to this host from mobile, a bot, or another OpenBitFun device to inspect
 3. 按向导连接并确认安全提示
    Follow the connection flow and review its security notice
 
-入口 / Entry: OpenBitFun 内的对应控制界面
+入口 / Entry: BitFun 内的对应控制界面
 
 ## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
-| 打开对应界面 / Open the UI | 进入 OpenBitFun 中对应的功能界面。 | Open the matching feature in OpenBitFun. |
+| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |
 
 ## 可配置选项 / Configurable options
 
