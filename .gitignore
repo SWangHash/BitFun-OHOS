@@ -122,3 +122,6 @@ src/apps/mobile/android/.kotlin/
 # Downloaded Flashgrep release assets (metadata stays tracked).
 /resources/flashgrep/flashgrep-*
 /resources/flashgrep/*.download-*
+
+# Node.js compile cache emitted by WSL runs with a relative NODE_COMPILE_CACHE
+node-compile-cache/

@@ -96,6 +96,21 @@ describe('tray unread projection', () => {
     dispose();
   });
 
+  it('latches a permanent unsupported-platform refusal and stops calling the native tray', async () => {
+    vi.useFakeTimers();
+    source.send.mockRejectedValue(new Error('Do not support the tray unread count on HarmonyOS'));
+    const dispose = installTrayUnreadService();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(source.send).toHaveBeenCalledTimes(1);
+    source.sessions.set('one', session({ hasUnreadCompletion: 'completed' }));
+    source.notify?.();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(source.send).toHaveBeenCalledTimes(1);
+    dispose();
+    expect(source.send).toHaveBeenCalledTimes(1);
+  });
+
   it('does not install native IO on web surfaces', () => {
     source.desktop = false;
     installTrayUnreadService()();

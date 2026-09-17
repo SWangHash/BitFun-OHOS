@@ -6,6 +6,18 @@ import type { Session } from '../types/flow-chat';
 
 const log = createLogger('TrayUnread');
 
+/**
+ * Platforms without a tray (for example HarmonyOS) reject the native command
+ * permanently. Latch that verdict so the service stops retrying after the
+ * first refusal instead of re-issuing the call on every unread-count change.
+ */
+const UNSUPPORTED_TRAY_ERROR = /do not support the tray unread count/i;
+
+function isUnsupportedTrayError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return UNSUPPORTED_TRAY_ERROR.test(message);
+}
+
 export function countUnreadSessions(sessions: Iterable<Session>): number {
   let count = 0;
   for (const session of sessions) {
@@ -20,9 +32,10 @@ export function installTrayUnreadService(): () => void {
   let disposed = false;
   let sent: number | undefined;
   let running = false;
+  let unsupported = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const flush = async () => {
-    if (disposed || running) return;
+    if (disposed || running || unsupported) return;
     running = true;
     try {
       while (!disposed) {
@@ -32,8 +45,14 @@ export function installTrayUnreadService(): () => void {
         sent = count;
       }
     } catch (error) {
-      log.warn('Failed to update tray unread count', { error });
-      if (!disposed) timer = setTimeout(() => { timer = undefined; void flush(); }, 5_000);
+      if (isUnsupportedTrayError(error)) {
+        // Degrade loudly once: log the refusal, then retire the native IO.
+        log.warn('Tray unread count is not supported on this platform; disabling tray updates', { error });
+        unsupported = true;
+      } else {
+        log.warn('Failed to update tray unread count', { error });
+        if (!disposed) timer = setTimeout(() => { timer = undefined; void flush(); }, 5_000);
+      }
     } finally {
       running = false;
     }
