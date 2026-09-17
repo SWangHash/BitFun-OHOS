@@ -18,8 +18,7 @@ import {
   shouldAuditPath,
 } from './product-identity-audit.mjs';
 
-const retiredName = `${'Bit'}${'Fun'}`;
-const retiredLowerName = retiredName.toLowerCase();
+const displayBrand = `${'Bit'}${'Fun'}`;
 const shortPrefix = `${'b'}${'f'}`;
 
 function violationsFor(content, file = 'src/example.ts') {
@@ -43,6 +42,12 @@ test('accepts the canonical product identity in supported casing and contracts',
     'min_openbitfun_version: "1.2.0"',
     'openbitfun-cli-1.0.0-aarch64-unknown-linux-gnu.tar.gz',
     'OpenBitFun_1.0.0_windows-x86_64-setup.exe',
+    displayBrand,
+    'BitFun Remote',
+    'Ask BitFun',
+    'bitfun',
+    'com.bitfun.desktop',
+    'BITFUN_USER_ROOT',
   ].join('\n');
 
   assert.deepEqual(violationsFor(source), []);
@@ -71,113 +76,17 @@ test('rejects non-canonical casing and abbreviated OpenBitFun names', () => {
   );
 });
 
-test('rejects retired names in copy, packages, paths, protocols, and environment variables', () => {
+test('accepts the BitFun display brand in user-facing copy and identifiers', () => {
+  const lowerBrand = displayBrand.toLowerCase();
   const source = [
-    retiredName,
-    retiredLowerName,
-    `@${retiredLowerName}/ui`,
-    `.${retiredLowerName}/config`,
-    `${retiredLowerName}://runtime/`,
-    `com.${retiredLowerName}.desktop`,
-    `${retiredName.toUpperCase()}_USER_ROOT`,
+    displayBrand,
+    `${displayBrand} Remote`,
+    `Ask ${displayBrand}`,
+    `${lowerBrand}/config`,
+    `${lowerBrand}://runtime/`,
   ].join('\n');
 
-  const violations = violationsFor(source);
-  assert.equal(violations.length, 7);
-  assert.ok(violations.every((violation) => violation.rule === 'retired-product-name'));
-});
-
-test('allows only the exact legacy data-directory ignore entry', () => {
-  const legacyDataDirectoryPrefix = `.${retiredLowerName}`;
-  const legacyDataDirectoryIgnore = `${legacyDataDirectoryPrefix}/`;
-
-  assert.deepEqual(
-    auditFile({ file: '.gitignore', content: `${legacyDataDirectoryIgnore}\n` }),
-    [],
-  );
-
-  const violations = auditFile({
-    file: '.gitignore',
-    content: `${legacyDataDirectoryPrefix}-cache/\n  ${legacyDataDirectoryIgnore} # comment\n`,
-  });
-  assert.equal(violations.length, 2);
-  assert.ok(violations.every((violation) => violation.rule === 'retired-product-name'));
-});
-
-test('limits retired identity data to the one-time production migration boundary', () => {
-  for (const file of [
-  ]) {
-    assert.deepEqual(violationsFor(retiredName, file), []);
-  }
-  for (const file of [
-    'src/apps/desktop/src/lib.rs',
-    'src/web-ui/src/locales/en-US/settings.json',
-    'src/shared/interactive-capabilities/catalog.json',
-  ]) {
-    assert.equal(violationsFor(retiredName, file).length, 1);
-  }
-  const retiredField = ['min', 'Bit', 'fun', 'Version'].join('');
-  assert.deepEqual(
-    violationsFor(
-      `RETIRED_VERSION_FIELDS = ("${retiredField}",)`,
-      'deploy/openbitfun-host/migrate-market-data-v1.py',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(`const field = "${retiredField}";`, 'src/example.ts').length,
-    1,
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/services/legacy-migration/src/source.rs',
-    ),
-    [],
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/assembly/core/src/legacy_migration/source.rs',
-    ),
-    [],
-  );
-  assert.deepEqual(
-    violationsFor(
-      `const sourceLabel = "${retiredName}";`,
-      'src/apps/data-migrator/ui/app.js',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(
-      `const SOURCE_PRODUCT: &str = "${retiredLowerName}";`,
-      'src/crates/services/example/src/source.rs',
-    ).length,
-    1,
-  );
-  assert.equal(
-    violationsFor(
-      `const sourceLabel = "${retiredName}";`,
-      'src/apps/desktop/src/example.rs',
-    ).length,
-    1,
-  );
-});
-
-test('allows retired Harmony identifiers only at the upgrade identity boundary', () => {
-  const legacyBundle = `com.${retiredLowerName}.app`;
-  assert.deepEqual(
-    violationsFor(
-      `static readonly APP_BUNDLE: string = '${legacyBundle}';`,
-      'src/apps/mobile/harmonyos/entry/src/main/ets/services/HarmonyUpgradeIdentityContract.ets',
-    ),
-    [],
-  );
-  assert.equal(
-    violationsFor(`const bundle = '${legacyBundle}';`, 'src/apps/mobile/harmonyos/entry/src/main/ets/services/example.ets').length,
-    1,
-  );
+  assert.deepEqual(violationsFor(source), []);
 });
 
 test('rejects retired short CSS, DOM, dataset, layer, and environment prefixes', () => {
@@ -201,39 +110,27 @@ test('rejects retired short CSS, DOM, dataset, layer, and environment prefixes',
   ]);
 });
 
-test('checks a retired identity when it appears in a repository path', () => {
-  const file = `products/${retiredLowerName}/product.jsonc`;
-  const violations = auditFile({ file });
-
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0].location, 'path');
-  assert.equal(violations[0].rule, 'retired-product-name');
-});
-
 test('scans untracked files while ignoring tracked files deleted by a rename', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'openbitfun-identity-audit-'));
-  const retiredDirectory = path.join(root, retiredLowerName);
-  const retiredFile = path.join(retiredDirectory, 'config.json');
+  const brandDirectory = path.join(root, displayBrand.toLowerCase());
+  const brandFile = path.join(brandDirectory, 'config.json');
   const canonicalFile = path.join(root, 'openbitfun', 'config.json');
-  mkdirSync(retiredDirectory, { recursive: true });
+  mkdirSync(brandDirectory, { recursive: true });
   mkdirSync(path.dirname(canonicalFile), { recursive: true });
-  writeFileSync(retiredFile, '{}\n');
+  writeFileSync(brandFile, '{}\n');
   writeFileSync(canonicalFile, '{"product":"OpenBitFun"}\n');
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: root });
   execFileSync('git', ['add', '.'], { cwd: root });
-  rmSync(retiredFile);
+  rmSync(brandFile);
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
   assert.deepEqual(listRepositoryFiles(root), ['openbitfun/config.json']);
   assert.deepEqual(auditRepository(root).violations, []);
 
-  mkdirSync(retiredDirectory, { recursive: true });
-  writeFileSync(retiredFile, '{}\n');
-  const violations = auditRepository(root).violations;
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0].location, 'path');
-  assert.equal(violations[0].rule, 'retired-product-name');
+  mkdirSync(brandDirectory, { recursive: true });
+  writeFileSync(brandFile, '{}\n');
+  assert.deepEqual(auditRepository(root).violations, []);
 });
 
 test('does not confuse unrelated abbreviations, issue ids, or hashes with product identity', () => {

@@ -94,10 +94,10 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
           className={`export-content__logo ${LOGO_PLACEHOLDER_CLASS}`}
           data-openbitfun-product-component="export-image"
           data-openbitfun-product-part="logo"
-          aria-label="OpenBitFun"
+          aria-label="BitFun"
         />
         <div className="export-content__title-group" data-openbitfun-product-component="export-image" data-openbitfun-product-part="title">
-          <div className="export-content__title">OpenBitFun</div>
+          <div className="export-content__title">BitFun</div>
           <div className="export-content__subtitle">{i18nService.t('flow-chat:exportImage.subtitle').replace(/ /g, '\u00A0')}</div>
         </div>
         <div className="export-content__timestamp" data-openbitfun-product-component="export-image" data-openbitfun-product-part="timestamp">
@@ -164,7 +164,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
 
       <div className="export-content__footer" data-openbitfun-product-component="export-image" data-openbitfun-product-part="footer">
         <span>{i18nService.t('flow-chat:exportImage.poweredBy').replace(/ /g, '\u00A0')}</span>
-        <span className="export-content__footer-brand">OpenBitFun</span>
+        <span className="export-content__footer-brand">BitFun</span>
         <span>•</span>
         <span>{i18nService.t('flow-chat:exportImage.aiAssistant').replace(/ /g, '\u00A0')}</span>
       </div>

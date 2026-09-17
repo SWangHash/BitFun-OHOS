@@ -40,7 +40,7 @@ export const openOpenBitFunTokyoNightPalette: AppearancePalette = {
   type: 'dark',
   description:
     'Tokyo Night - deep indigo base with soft blue and magenta accents',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '1.1.0',
 
   colors: {

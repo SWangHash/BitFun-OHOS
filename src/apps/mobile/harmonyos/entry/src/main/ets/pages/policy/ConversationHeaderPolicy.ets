@@ -27,7 +27,7 @@ export class ConversationHeaderPresentation {
  * View supplies i18n for fallbackKey; this policy only decides structure.
  */
 export class ConversationHeaderPolicy {
-  static readonly REMOTE_BRAND: string = 'OpenBitFun';
+  static readonly REMOTE_BRAND: string = 'BitFun';
 
   static present(
     surface: ChatSurface,

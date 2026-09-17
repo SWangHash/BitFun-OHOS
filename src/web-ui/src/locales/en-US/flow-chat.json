@@ -229,7 +229,7 @@
       "legacyModel": "Older sessions did not store per-round model names, so this report cannot identify the exact model.",
       "inferredModel": "Inferred from the session model setting because older turns did not store per-round model names.",
       "filesUnavailable": "No file snapshot or file-edit tool record was found for this session.",
-      "filesNoRecordedChanges": "OpenBitFun did not detect file changes in this session. This is expected when the agent did not edit files.",
+      "filesNoRecordedChanges": "BitFun did not detect file changes in this session. This is expected when the agent did not edit files.",
       "filesRemoteUnavailable": "No remote snapshot summary was found for this session. File rows can still appear from recognized file-edit tool records.",
       "filesNotTracked": "No local snapshot or identifiable file-edit tool record was found for this session.",
       "fileTurnIndexes": "Turn indexes are not recorded when file activity comes from a summary instead of per-turn operation records.",
@@ -457,7 +457,7 @@
     "more": "More Sessions",
     "restoreMain": "Restore Main Window",
     "inUseTitle": "Session open elsewhere",
-    "inUseMessage": "This session is open in another OpenBitFun instance. Close it there, then retry.",
+    "inUseMessage": "This session is open in another BitFun instance. Close it there, then retry.",
     "surfaceSwitchDroppedTitle": "Message not sent",
     "surfaceSwitchDropped": "The device switched before this message was sent, and its queue is full. Send it again.",
     "retry": "Retry"
@@ -692,7 +692,7 @@
       "menuLabel": "Where this task runs",
       "sessionScope": "This task only",
       "localSection": "Local",
-      "localDescription": "Run in this OpenBitFun app",
+      "localDescription": "Run in this BitFun app",
       "sshSection": "SSH",
       "loading": "Loading targets…",
       "noSshTargets": "No saved SSH targets",
@@ -707,8 +707,8 @@
       "createFailed": "Could not create the remote task. Check the target and try again.",
       "remoteTarget": "the remote device",
       "transferInProgress": "Preparing the target and transferring the project…",
-      "cliInstallStarted": "Preparing OpenBitFun {{version}} on the remote device…",
-      "cliInstallSucceeded": "OpenBitFun {{version}} is ready on the remote device.",
+      "cliInstallStarted": "Preparing BitFun {{version}} on the remote device…",
+      "cliInstallSucceeded": "BitFun {{version}} is ready on the remote device.",
       "cliInstallFailed": "Could not prepare the remote environment. Check the SSH connection and try again.",
       "cliInstallInProgress": "Preparing the remote environment…",
       "cliInstallUnknownVersion": "required version",
@@ -726,7 +726,7 @@
         "compactWhileRunning": "Wait for the current remote task to finish before compacting the context.",
         "compactRejected": "The target could not start compaction. Try again shortly.",
         "sessionNotReady": "The remote task is still being prepared. Try sending again shortly.",
-        "submissionUnconfirmed": "OpenBitFun cannot yet confirm whether the target received this task. Check the task status shortly."
+        "submissionUnconfirmed": "BitFun cannot yet confirm whether the target received this task. Check the task status shortly."
       }
     },
     "harness": {
@@ -745,8 +745,8 @@
       "unsupportedProfile": "Unsupported Harness ({{id}})",
       "unsupportedProfileNotice": "This session uses {{id}}, which this version cannot run. Select a supported Harness explicitly.",
       "profileChangeBusy": "Wait for the current turn to finish before changing Harness.",
-      "profileChangeOutcomeUnknown": "OpenBitFun cannot confirm whether the Harness changed. Refresh the session before trying again.",
-      "profileUnavailable": "This Harness is not supported by the current OpenBitFun Host.",
+      "profileChangeOutcomeUnknown": "BitFun cannot confirm whether the Harness changed. Refresh the session before trying again.",
+      "profileUnavailable": "This Harness is not supported by the current BitFun Host.",
       "profileChangeFailed": "Failed to change Harness. Try again.",
       "rememberFailed": "The Harness changed, but this selection could not be remembered. New sessions may continue using the previous default.",
       "otherAgentsTitle": "Agents",
@@ -930,7 +930,7 @@
     "noMatchingCommand": "No matching command",
     "externalCommandContextUnsupported": "Remove composer attachments and references before running this delegated command.",
     "nativeCommandChoiceNotSaved": "This command will run once, but your conflict choice could not be saved.",
-    "nativeCommandReconfirmationRequired": "The external command you previously chose is no longer available. Choose the OpenBitFun command from the slash menu to run it.",
+    "nativeCommandReconfirmationRequired": "The external command you previously chose is no longer available. Choose the BitFun command from the slash menu to run it.",
     "selectHint": "↑↓ Select · Enter Confirm · Esc Cancel",
     "current": "Current",
     "commandStatus": {
@@ -1168,7 +1168,7 @@
     },
     "decisionGate": {
       "title": "Confirm decision items before fixing",
-      "description": "Choose how each selected decision should be handled before OpenBitFun starts editing.",
+      "description": "Choose how each selected decision should be handled before BitFun starts editing.",
       "supplementLabel": "Additional requirements",
       "supplementPlaceholder": "Optional: add constraints, scope limits, or implementation preferences before starting.",
       "missingSelection": "Choose an option for each selected decision item before starting.",
@@ -1244,8 +1244,8 @@
     },
     "resultRecovery": {
       "title": "Strict review needs a report",
-      "missingSubmitCodeReview": "The review finished, but OpenBitFun did not receive a structured result to confirm. Continue preserves completed review work and asks the agent to submit the missing report.",
-      "invalidSubmitCodeReview": "The review returned a result OpenBitFun could not read. Continue preserves completed review work and asks the agent to repair the report.",
+      "missingSubmitCodeReview": "The review finished, but BitFun did not receive a structured result to confirm. Continue preserves completed review work and asks the agent to submit the missing report.",
+      "invalidSubmitCodeReview": "The review returned a result BitFun could not read. Continue preserves completed review work and asks the agent to repair the report.",
       "wrongReviewMode": "The review returned a standard Review result. Continue preserves completed review work and asks the agent to submit the strict review report."
     },
     "capacityQueue": {
@@ -1256,7 +1256,7 @@
       "detail": "Capacity wait does not count against review runtime.",
       "activeReviewerDetail": "Waiting review work starts when active review work frees capacity. Capacity wait does not count against review runtime.",
       "longLaunchBatchWaitDetail": "This review has waited longer than the configured capacity window because earlier review work is still running. You can keep waiting, pause waiting, cancel the waiting review, or open Review settings.",
-      "providerDetail": "OpenBitFun is waiting for temporary model capacity. This wait does not count against review runtime.",
+      "providerDetail": "BitFun is waiting for temporary model capacity. This wait does not count against review runtime.",
       "reason": "Reason: {{reason}}",
       "elapsed": "Waited {{elapsed}}",
       "elapsedWithMax": "Waited {{elapsed}} of {{max}}",
@@ -1270,12 +1270,12 @@
         "temporaryOverload": "temporary overload"
       },
       "reasonDetails": {
-        "providerRateLimit": "The model provider rate-limited this review request. OpenBitFun will retry after capacity opens.",
-        "providerConcurrencyLimit": "The model provider rejected another concurrent review request. OpenBitFun will retry after capacity opens.",
-        "retryAfter": "The model provider asked OpenBitFun to wait before retrying this review request.",
+        "providerRateLimit": "The model provider rate-limited this review request. BitFun will retry after capacity opens.",
+        "providerConcurrencyLimit": "The model provider rejected another concurrent review request. BitFun will retry after capacity opens.",
+        "retryAfter": "The model provider asked BitFun to wait before retrying this review request.",
         "localConcurrencyCap": "The configured strict review capacity is full. Waiting review work will start after active work finishes.",
         "launchBatchBlocked": "Earlier review work is still running. Waiting preserves the planned review order and prevents later work from overtaking it.",
-        "temporaryOverload": "The model provider is temporarily overloaded. OpenBitFun will retry when capacity is available."
+        "temporaryOverload": "The model provider is temporarily overloaded. BitFun will retry when capacity is available."
       },
       "sessionBusy": "Your active session is busy. Pause strict review or continue later.",
       "stopHint": "Use Stop to interrupt this review.",
@@ -1332,7 +1332,7 @@
     "windowTitle": "Review plan",
     "eyebrow": "Review plan",
     "title": "Start this review?",
-    "body": "OpenBitFun reviews this change directly and adds additional checks only when the evidence needs them. Confirm the target, expected time, and read-only boundary before continuing.",
+    "body": "BitFun reviews this change directly and adds additional checks only when the evidence needs them. Confirm the target, expected time, and read-only boundary before continuing.",
     "readonlyLabel": "Read-only",
     "readonly": "The review does not modify files.",
     "sessionConcurrencyTitle": "Active session is busy",
@@ -1547,7 +1547,7 @@
     "dialogNotFound": "Dialog data not found",
     "containerNotFound": "Export container not found",
     "generateFailed": "Failed to generate image",
-    "fileNamePrefix": "OpenBitFun-Chat",
+    "fileNamePrefix": "BitFun-Chat",
     "exportSuccess": "Image exported: {{filePath}}",
     "exportSuccessPrefix": "Image exported: ",
     "exportFailed": "Export failed, please try again",
@@ -1722,7 +1722,7 @@
       "openSourceFailed": "Failed to open the generated UI source editor"
     },
     "generativeWidget": {
-      "exportFileNamePrefix": "OpenBitFun-Widget"
+      "exportFileNamePrefix": "BitFun-Widget"
     },
     "initMiniApp": {
       "title": "Mini App",
@@ -1742,7 +1742,7 @@
       "title": "Deploy Page",
       "deployingShort": "…",
       "untitled": "(unnamed)",
-      "deployFailed": "Could not deploy OpenBitFun Page version",
+      "deployFailed": "Could not deploy BitFun Page version",
       "openFailed": "Could not create a secure link for this Page.",
       "labelSlug": "slug",
       "labelVersion": "version",
@@ -1753,7 +1753,7 @@
       "title": "Publish Page",
       "publishingShort": "…",
       "untitled": "(unnamed)",
-      "publishFailed": "Could not publish OpenBitFun Page",
+      "publishFailed": "Could not publish BitFun Page",
       "openFailed": "Could not create a secure link for this Page.",
       "labelSlug": "slug",
       "labelVersion": "version",
@@ -1897,7 +1897,7 @@
       "submittedWaiting": "Submitted, waiting for processing",
       "submitting": "Submitting...",
       "submitFailed": "Could not submit the answer. Check the connection and try again.",
-      "unsupportedOnPeer": "This device's OpenBitFun version cannot answer the question. Update OpenBitFun on that device.",
+      "unsupportedOnPeer": "This device's BitFun version cannot answer the question. Update BitFun on that device.",
       "waitingAnswer": "Waiting for answer",
       "questionsCount": "{{count}} questions",
       "answerAllBeforeSubmit": "Please answer all questions before submitting",
@@ -1979,7 +1979,7 @@
       "appLabel": "Application",
       "targetLabel": "Target",
       "permissionDenied": "Permission required for desktop control",
-      "permissionDeniedHint": "OpenBitFun needs macOS Accessibility and Screen Recording permissions before it can control other apps. Open System Settings, grant access to OpenBitFun, then retry.",
+      "permissionDeniedHint": "BitFun needs macOS Accessibility and Screen Recording permissions before it can control other apps. Open System Settings, grant access to BitFun, then retry.",
       "openSettings": "Open System Settings",
       "openSettingsFailed": "Could not open System Settings"
     },
@@ -2479,7 +2479,7 @@
         "saveSuccess": "Review report exported.",
         "saveFailed": "Failed to export review report.",
         "saveDialogTitle": "Export review report",
-        "fileNamePrefix": "OpenBitFun-Review",
+        "fileNamePrefix": "BitFun-Review",
         "editorTitle": "Review Report"
       },
       "reviewModes": {

@@ -34,7 +34,7 @@ export const openOpenBitFunMidnightPalette: AppearancePalette = {
   name: 'Midnight',
   type: 'dark',
   description: 'Midnight gray dark appearance - Professional and elegant, inspired by JetBrains IDE',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '1.1.0',
 
 

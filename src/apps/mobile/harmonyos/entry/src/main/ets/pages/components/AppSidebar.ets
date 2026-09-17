@@ -246,7 +246,7 @@ export struct AppSidebar {
   @Builder
   private PrimaryNavigationHeader() {
     Row() {
-      Text('OpenBitFun')
+      Text('BitFun')
         .fontSize(MobileDesignTypography.headlineMedium.size)
         .fontWeight(FontWeight.Medium)
         .fontColor(INK)

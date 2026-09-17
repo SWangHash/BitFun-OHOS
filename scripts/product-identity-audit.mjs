@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Prevent the retired product identity from returning to production sources.
+ * Keep product identity usage canonical.
  *
- * The normal product is OpenBitFun-only. Legacy exceptions are restricted to
- * the exact data-directory ignore entry and the one-time migration documents,
- * migrator app/service boundary, and fixtures used for in-place upgrades.
+ * The product display brand is BitFun (renamed from OpenBitFun). OpenBitFun
+ * remains the canonical form for code identifiers, CSS tokens, data
+ * attributes, and storage keys. This audit rejects non-canonical casings and
+ * abbreviated spellings of OpenBitFun, plus identity-owner and version-label
+ * violations.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -15,28 +17,8 @@ import { fileURLToPath } from 'node:url';
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(scriptPath), '..');
 
-const retiredProductToken = `${'bit'}${'fun'}`;
 const shortPrefix = `${'b'}${'f'}`;
 const productIdentityOwner = 'src/crates/contracts/core-types/src/product_identity.rs';
-const retiredIdentityDataBoundaryFiles = new Set([
-  'OPENBITFUN_LEGACY_DATA_MIGRATION_IMPLEMENTATION_PLAN.md',
-  'OPENBITFUN_LEGACY_DATA_MIGRATION_INVENTORY.md',
-  'deploy/openbitfun-host/README.md',
-  'deploy/openbitfun-host/migrate-market-data-v1.py',
-  'src/apps/relay-server/README.md',
-  // HarmonyOS must keep its published bundle id and encrypted-storage names
-  // for in-place upgrades. Runtime identifiers are centralized in one source;
-  // the manifest and backup policy are the only declarative exceptions.
-  'src/apps/mobile/harmonyos/AppScope/app.json5',
-  'src/apps/mobile/harmonyos/entry/src/main/ets/services/HarmonyUpgradeIdentityContract.ets',
-  'src/apps/mobile/harmonyos/entry/src/main/resources/base/profile/backup_config.json',
-]);
-const retiredIdentityDataBoundaryPrefixes = Object.freeze([
-  'src/apps/data-migrator/',
-  'src/crates/assembly/core/src/legacy_migration/',
-  'src/crates/services/legacy-migration/',
-  'src/crates/services/legacy-migration-adapters/',
-]);
 const noncanonicalIdentityDataBoundaryFiles = new Set([
   'OPENBITFUN_LEGACY_DATA_MIGRATION_INVENTORY.md',
   'deploy/openbitfun-host/migrate-market-data-v1.py',
@@ -54,16 +36,6 @@ const identityRules = Object.freeze([
     id: 'abbreviated-openbitfun-name',
     description: 'abbreviated OpenBitFun product name',
     pattern: /\bopen[\s_-]*bf\b/giu,
-  }),
-  Object.freeze({
-    id: 'retired-product-name',
-    description: 'retired product name',
-    pattern: new RegExp(`(?<!open)${retiredProductToken}`, 'giu'),
-    allowedMatch: ({ location }) => location.file === '.gitignore'
-      && location.location === 'content'
-      && location.lineText?.trim() === `.${retiredProductToken}/`,
-    allowedFiles: retiredIdentityDataBoundaryFiles,
-    allowedFilePrefixes: retiredIdentityDataBoundaryPrefixes,
   }),
   Object.freeze({
     id: 'retired-css-token-prefix',

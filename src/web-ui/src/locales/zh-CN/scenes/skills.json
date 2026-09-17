@@ -382,7 +382,7 @@
     "keepEditing": "继续编辑",
     "errors": {
       "invalidConfig": "无法读取已保存的分组数据，原数据已保留。",
-      "unsupportedVersion": "这些分组使用了更新的格式，请更新 OpenBitFun 后编辑。",
+      "unsupportedVersion": "这些分组使用了更新的格式，请更新 BitFun 后编辑。",
       "nameRequired": "请输入分组名称。",
       "nameDuplicate": "已存在同名分组。",
       "conflict": "此分组已在其他位置修改，请关闭编辑器并刷新后重新编辑。",

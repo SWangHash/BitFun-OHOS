@@ -9,7 +9,7 @@ import {
   TaskCompletionObservation
 } from './TaskCompletionNotificationController';
 
-const BACKGROUND_REASON: string = 'Waiting for an active OpenBitFun task to finish';
+const BACKGROUND_REASON: string = 'Waiting for an active BitFun task to finish';
 
 /** HarmonyOS platform leaf for task-completion notifications. */
 export class HarmonyTaskCompletionNotificationPort implements TaskCompletionNotificationPort {

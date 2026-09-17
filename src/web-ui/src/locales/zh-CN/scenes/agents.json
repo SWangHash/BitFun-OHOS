@@ -39,7 +39,7 @@
       },
       "Creative": {
         "name": "$t(shared:agents.Creative)",
-        "purpose": "OpenBitFun 的定制与创造"
+        "purpose": "BitFun 的定制与创造"
       }
     }
   },
@@ -381,6 +381,6 @@
     "Standard": "通过规划、工具与子智能体协作完成通用任务。",
     "Ultimate": "拆解复杂任务，协调并行子智能体并审查结果。",
     "Minimal": "使用精简执行流程与固定的小型工具集。",
-    "Creative": "创造与定制 OpenBitFun 体验及能力。"
+    "Creative": "创造与定制 BitFun 体验及能力。"
   }
 }

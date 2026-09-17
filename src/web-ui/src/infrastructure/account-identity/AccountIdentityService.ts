@@ -315,7 +315,7 @@ export class AccountIdentityService {
       const me = await this.dependencies.api.me();
       this.ensureCurrentAuth(generation);
       if (!me) {
-        throw new AccountIdentityError('failed', 'OpenBitFun authorized GitHub but returned no account.');
+        throw new AccountIdentityError('failed', 'BitFun authorized GitHub but returned no account.');
       }
       this.invalidateRefresh();
       this.setSnapshot({ resolved: true, status: 'signed-in', me });

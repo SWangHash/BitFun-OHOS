@@ -7,7 +7,7 @@
       "notAbsolute": "The installation path must be an absolute path (for example a folder on a local drive).",
       "filesystemRoot": "Cannot install to a drive root. Choose a folder inside the drive.",
       "pathNotDirectory": "The selected path exists but is not a folder.",
-      "directoryMustBeEmptyOrOpenBitFun": "The installation folder must be empty, or already contain an OpenBitFun installation.",
+      "directoryMustBeEmptyOrOpenBitFun": "The installation folder must be empty, or already contain an BitFun installation.",
       "inspectDirectoryFailed": "Could not read the installation folder. Check permissions and try again.",
       "directoryNotWritable": "The installation folder is not writable. Choose another location or run the installer as administrator (see below).",
       "parentNotWritable": "The parent folder is not writable. System folders such as Program Files often require administrator rights (see below).",
@@ -15,7 +15,7 @@
     }
   },
   "options": {
-    "title": "Install OpenBitFun",
+    "title": "Install BitFun",
     "subtitle": "Review install location and preferences",
     "theme": "Theme",
     "changeLanguage": "Change language",
@@ -28,11 +28,11 @@
     "optionsLabel": "Options",
     "desktopShortcut": "Create desktop shortcut",
     "startMenu": "Add to Start Menu",
-    "launchAfterInstall": "Launch OpenBitFun after setup",
+    "launchAfterInstall": "Launch BitFun after setup",
     "back": "Back",
     "install": "Install",
     "installing": "Preparing…",
-    "existingInstallTitle": "OpenBitFun is installed. You can update or repair it in place.",
+    "existingInstallTitle": "BitFun is installed. You can update or repair it in place.",
     "existingInstallVersion": "Installed version: {{version}}",
     "existingInstallLocation": "Install location: {{path}}",
     "existingInstallBinaryMissing": "The installed app is missing. Reinstall to repair it.",
@@ -54,8 +54,8 @@
     "baseUrlPlaceholder": "e.g., https://open.bigmodel.cn/api/paas/v4/chat/completions",
     "providers": {
       "openbitfun": {
-        "name": "OpenBitFun Service",
-        "description": "OpenBitFun Model Platform",
+        "name": "BitFun Service",
+        "description": "BitFun Model Platform",
         "urlOptions": {
           "default": "Anthropic Format - Default",
           "openai": "OpenAI Compatible Format"
@@ -211,7 +211,7 @@
     "failed": "Installation Failed",
     "confirmContinue": "Continue setup",
     "completed": "Installation complete",
-    "completedDescription": "OpenBitFun is ready. Make it yours with a model and a theme.",
+    "completedDescription": "BitFun is ready. Make it yours with a model and a theme.",
     "description": "Setting up your workspace for what's next.",
     "retry": "Try again"
   },
@@ -233,11 +233,11 @@
   "complete": {
     "finish": "Finish",
     "migrateLegacyData": "Migrate legacy data after installation",
-    "migrateLegacyDataDescription": "Starts the installed Data Migrator. It keeps the old data unchanged, asks you to confirm the scope, and reopens OpenBitFun when migration ends."
+    "migrateLegacyDataDescription": "Starts the installed Data Migrator. It keeps the old data unchanged, asks you to confirm the scope, and reopens BitFun when migration ends."
   },
   "uninstall": {
-    "title": "Uninstall OpenBitFun",
-    "subtitle": "This removes OpenBitFun and related integrations (shortcuts, context menu, PATH).",
+    "title": "Uninstall BitFun",
+    "subtitle": "This removes BitFun and related integrations (shortcuts, context menu, PATH).",
     "installPath": "Install path",
     "pathUnknown": "Install path not detected",
     "confirm": "Start uninstall",

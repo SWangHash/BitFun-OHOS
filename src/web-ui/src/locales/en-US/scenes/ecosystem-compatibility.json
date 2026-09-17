@@ -67,7 +67,7 @@
   },
   "import": {
     "title": "Import and reuse",
-    "description": "See what content from {{name}} works with OpenBitFun. Import available items directly; other items show their current support status.",
+    "description": "See what content from {{name}} works with BitFun. Import available items directly; other items show their current support status.",
     "columns": {
       "item": "Item",
       "type": "Type",
@@ -106,14 +106,14 @@
     "undetectedDescription": "No available content was found",
     "ownerAdaptedDescription": "Open the management page to discover, review and configure {{type}}.",
     "notifications": {
-      "success": "Imported {{name}} into OpenBitFun",
+      "success": "Imported {{name}} into BitFun",
       "stale": "The source changed. Review the latest state and try again.",
       "failed": "Failed to import {{name}}"
     },
     "discoveryUnsupportedDescription": "You can't view {{type}} from {{name}} here yet."
   },
   "run": {
-    "title": "Use in OpenBitFun",
+    "title": "Use in BitFun",
     "description": "Start a dedicated {{name}} session, or set it up as a subagent for the main Agent to call on suitable tasks.",
     "session": {
       "title": "Create standalone session",
@@ -184,7 +184,7 @@
     "reviewedPackage": "Reviewed package: {{count}} files. If the source changes, review it again before importing.",
     "manageCopy": "Manage copy",
     "skillNameConflict": "A Skill with this name already has different content or provenance. Change the import name above and retry; the existing copy will not be overwritten.",
-    "batchUndoWarning": "Remove these {{count}} OpenBitFun copies, including edits made to them. External sources are preserved and can be imported again.",
+    "batchUndoWarning": "Remove these {{count}} BitFun copies, including edits made to them. External sources are preserved and can be imported again.",
     "batchUndoSummary": "{{removed}} removed · {{pending}} runtime updates pending · {{failed}} failed",
     "batchPending": "Pending",
     "batchResultSummary": "Imported {{imported}} · Needs review {{unresolved}} · Skipped {{skipped}}",
@@ -206,17 +206,17 @@
     "validationFailed": "The source Skill could not be validated. Nothing was imported.",
     "previewFailed": "Could not prepare the import preview. Refresh and try again.",
     "importFailed": "Import failed.",
-    "importSuccess": "Imported {{name}}. Its copy is now available in the OpenBitFun management page.",
+    "importSuccess": "Imported {{name}}. Its copy is now available in the BitFun management page.",
     "stale": "The source or destination changed. Review the updated preview and confirm again.",
     "noMatches": "No matching content.",
-    "confirmTitle": "Confirm import into OpenBitFun",
-    "copyWarning": "This creates an independent OpenBitFun copy. The external agent’s files are not changed, and future changes are not synchronized automatically.",
-    "mcpTarget": "Target: OpenBitFun MCP / {{name}}. The copy starts disabled. OpenBitFun manages activation, login, reconnection and tool permissions; external host policies are not copied.",
+    "confirmTitle": "Confirm import into BitFun",
+    "copyWarning": "This creates an independent BitFun copy. The external agent’s files are not changed, and future changes are not synchronized automatically.",
+    "mcpTarget": "Target: BitFun MCP / {{name}}. The copy starts disabled. BitFun manages activation, login, reconnection and tool permissions; external host policies are not copied.",
     "targetScope": "Copy to",
-    "userTarget": "OpenBitFun · user Skills",
-    "projectTarget": "OpenBitFun · current project Skills",
+    "userTarget": "BitFun · user Skills",
+    "projectTarget": "BitFun · current project Skills",
     "targetExists": "A Skill directory with the same name already exists at the target. It will not be overwritten. Choose another scope or resolve the conflict first.",
-    "hookWarning": "Review the exact commands and dependencies below. Imported Hooks run under OpenBitFun’s Hook settings and may execute when their events occur.",
+    "hookWarning": "Review the exact commands and dependencies below. Imported Hooks run under BitFun’s Hook settings and may execute when their events occur.",
     "skipped": "Not imported: {{reason}} ({{count}})",
     "cancel": "Cancel",
     "confirm": "Confirm import",
@@ -226,14 +226,14 @@
     "headerNames": "Header names",
     "groupSummary": "{{count}} items found",
     "undo": "Undo import",
-    "undoTitle": "Undo import into OpenBitFun",
-    "undoWarning": "This removes the OpenBitFun copy, including changes made to it after import. The external agent’s original content is preserved and can be imported again.",
+    "undoTitle": "Undo import into BitFun",
+    "undoWarning": "This removes the BitFun copy, including changes made to it after import. The external agent’s original content is preserved and can be imported again.",
     "undoTarget": "Copy to remove: {{target}}",
     "confirmUndo": "Confirm removal",
     "undoSuccess": "Undid the import of {{name}}.",
-    "undoRuntimePending": "Removed the configuration for {{name}}, but its runtime has not updated. Check the OpenBitFun MCP manager.",
+    "undoRuntimePending": "Removed the configuration for {{name}}, but its runtime has not updated. Check the BitFun MCP manager.",
     "undoFailed": "Removal did not complete. The copy or configuration may have changed. Refresh, review, and confirm again.",
-    "undoUnavailable": "This Skill’s imported copy could not be identified. Review and remove it in the OpenBitFun Skill manager.",
+    "undoUnavailable": "This Skill’s imported copy could not be identified. Review and remove it in the BitFun Skill manager.",
     "viewCategory": "View {{type}}",
     "importAll": "Import all",
     "importCategory": "Import all",
@@ -252,7 +252,7 @@
       "stale": "Configuration changed; review again"
     },
     "repairSource": "Repair source label",
-    "nativeUserTarget": "OpenBitFun · User configuration",
+    "nativeUserTarget": "BitFun · User configuration",
     "undoAll": "Undo all",
     "importSelected": "Import selected",
     "undoSelected": "Undo selected",
@@ -298,7 +298,7 @@
     "lastKnownResult": "Showing the last successfully read content.",
     "mcpReviewDescription": "Review the source settings and existing copies before importing.",
     "instructions": {
-      "description": "Instruction sources read by OpenBitFun. Startup documents and matching path rules are applied by the instruction reader; this inventory does not indicate what a particular session has already loaded.",
+      "description": "Instruction sources read by BitFun. Startup documents and matching path rules are applied by the instruction reader; this inventory does not indicate what a particular session has already loaded.",
       "shared": "Shared workspace instructions",
       "scope": "Scope",
       "user": "User configuration",
@@ -312,7 +312,7 @@
       "readOnly": "Read by the instruction reader"
     },
     "accounts": {
-      "description": "View subscription accounts connected in OpenBitFun.",
+      "description": "View subscription accounts connected in BitFun.",
       "providers": {
         "codex": "Codex / ChatGPT",
         "opencode": "OpenCode Console (Zen)"
@@ -328,8 +328,8 @@
         "unavailable": "This host does not offer this account connection",
         "vaultUnavailable": "Credential storage is unavailable",
         "reauthenticationRequired": "Sign in again",
-        "connected": "Connected in OpenBitFun",
-        "notConnected": "Not connected in OpenBitFun"
+        "connected": "Connected in BitFun",
+        "notConnected": "Not connected in BitFun"
       },
       "manage": "Manage account and models",
       "connect": "Sign in through model settings",
@@ -347,10 +347,10 @@
     "pets": {
       "builtinSource": "Codex built-in",
       "customSource": "Codex custom",
-      "description": "Browse built-in and custom Codex pets, then import them to use in OpenBitFun.",
+      "description": "Browse built-in and custom Codex pets, then import them to use in BitFun.",
       "partial": "Some pets could not be read. Check the source diagnostics below.",
       "reviewTitle": "Import pet",
-      "reviewDescription": "Copy the reviewed pet package into OpenBitFun. You can select it after import; your current pet stays selected.",
+      "reviewDescription": "Copy the reviewed pet package into BitFun. You can select it after import; your current pet stays selected.",
       "operationFailed": "The operation did not complete. The source or copy may have changed. Refresh and review again.",
       "use": "Use this pet",
       "states": {

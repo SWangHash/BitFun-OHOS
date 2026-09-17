@@ -205,7 +205,7 @@ export class AppearanceMarketAPI {
       directory: false,
       multiple: false,
       title,
-      filters: [{ name: 'OpenBitFun Appearance', extensions: ['openbitfun-appearance'] }],
+      filters: [{ name: 'BitFun Appearance', extensions: ['openbitfun-appearance'] }],
     });
     return typeof selected === 'string' && selected.length > 0 ? selected : null;
   }

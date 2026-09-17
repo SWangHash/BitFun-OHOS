@@ -7,7 +7,7 @@
       "notAbsolute": "安裝路徑必須是絕對路徑。",
       "filesystemRoot": "不能安裝到磁碟根目錄，請選擇磁碟下的某個資料夾。",
       "pathNotDirectory": "所選路徑已存在但不是資料夾。",
-      "directoryMustBeEmptyOrOpenBitFun": "安裝目錄必須為空，或已包含 OpenBitFun 安裝。",
+      "directoryMustBeEmptyOrOpenBitFun": "安裝目錄必須為空，或已包含 BitFun 安裝。",
       "inspectDirectoryFailed": "無法讀取安裝目錄，請檢查權限後重試。",
       "directoryNotWritable": "安裝目錄不可寫入。請更換路徑，或以管理員身份運行安裝器（見下方說明）。",
       "parentNotWritable": "上級目錄不可寫入。系統目錄（如 Program Files）通常需要管理員權限（見下方說明）。",
@@ -15,7 +15,7 @@
     }
   },
   "options": {
-    "title": "安裝 OpenBitFun",
+    "title": "安裝 BitFun",
     "subtitle": "確認安裝位置與安裝偏好",
     "theme": "主題",
     "changeLanguage": "切換語言",
@@ -28,11 +28,11 @@
     "optionsLabel": "安裝選項",
     "desktopShortcut": "建立桌面快捷方式",
     "startMenu": "新增到開始菜單",
-    "launchAfterInstall": "安裝後啟動 OpenBitFun",
+    "launchAfterInstall": "安裝後啟動 BitFun",
     "back": "返回",
     "install": "安裝",
     "installing": "準備中…",
-    "existingInstallTitle": "已安裝 OpenBitFun，可在原位置更新或修復。",
+    "existingInstallTitle": "已安裝 BitFun，可在原位置更新或修復。",
     "existingInstallVersion": "已安裝版本：{{version}}",
     "existingInstallLocation": "安裝位置：{{path}}",
     "existingInstallBinaryMissing": "偵測到安裝記錄，主程式缺失，可重新安裝修復。",
@@ -54,8 +54,8 @@
     "baseUrlPlaceholder": "範例：https://open.bigmodel.cn/api/paas/v4/chat/completions",
     "providers": {
       "openbitfun": {
-        "name": "OpenBitFun 服務",
-        "description": "OpenBitFun 大模型平臺",
+        "name": "BitFun 服務",
+        "description": "BitFun 大模型平臺",
         "urlOptions": {
           "default": "Anthropic格式-默認",
           "openai": "OpenAI兼容格式"
@@ -211,7 +211,7 @@
     "failed": "安裝失敗",
     "confirmContinue": "繼續完成設定",
     "completed": "安裝完成",
-    "completedDescription": "OpenBitFun 已就緒，繼續選擇模型與外觀。",
+    "completedDescription": "BitFun 已就緒，繼續選擇模型與外觀。",
     "description": "正在為你準備好工作空間。",
     "retry": "重試"
   },
@@ -233,11 +233,11 @@
   "complete": {
     "finish": "完成",
     "migrateLegacyData": "安裝完成後遷移舊 舊版資料",
-    "migrateLegacyDataDescription": "啟動已安裝的 Data Migrator。它會保持舊資料不變，請你確認遷移範圍，並在遷移結束後重新開啟 OpenBitFun。"
+    "migrateLegacyDataDescription": "啟動已安裝的 Data Migrator。它會保持舊資料不變，請你確認遷移範圍，並在遷移結束後重新開啟 BitFun。"
   },
   "uninstall": {
-    "title": "解除安裝 OpenBitFun",
-    "subtitle": "將移除 OpenBitFun 及其集成項（快捷方式、右鍵菜單、PATH）。",
+    "title": "解除安裝 BitFun",
+    "subtitle": "將移除 BitFun 及其集成項（快捷方式、右鍵菜單、PATH）。",
     "installPath": "安裝目錄",
     "pathUnknown": "未檢測到安裝目錄",
     "confirm": "開始解除安裝",

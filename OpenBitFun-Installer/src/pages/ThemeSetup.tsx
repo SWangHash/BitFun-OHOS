@@ -46,7 +46,7 @@ export function ThemeSetup({ options, setOptions, onLaunch, onClose, previewOnly
       }
       onClose();
     } catch (err: unknown) {
-      setFinishError(typeof err === 'string' ? err : (err as Error)?.message || 'Failed to launch OpenBitFun');
+      setFinishError(typeof err === 'string' ? err : (err as Error)?.message || 'Failed to launch BitFun');
     } finally {
       setIsFinishing(false);
     }

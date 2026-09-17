@@ -1495,10 +1495,10 @@ export function buildCapabilityCatalog() {
 }
 
 function destinationText(destination) {
-  if (destination.kind === 'settings') return 'OpenBitFun 设置';
-  if (destination.kind === 'action') return 'OpenBitFun 功能入口';
-  if (destination.kind === 'scene') return 'OpenBitFun 对应场景';
-  return 'OpenBitFun 内的对应控制界面';
+  if (destination.kind === 'settings') return 'BitFun 设置';
+  if (destination.kind === 'action') return 'BitFun 功能入口';
+  if (destination.kind === 'scene') return 'BitFun 对应场景';
+  return 'BitFun 内的对应控制界面';
 }
 
 function schemaLabel(schema) {
@@ -1568,7 +1568,7 @@ function renderCapabilityMarkdown(capability) {
     ? capability.operations.map((operation) =>
       `| ${operation.titleZh} / ${operation.titleEn} | ${operation.descriptionZh} | ${operation.descriptionEn} |`,
     ).join('\n')
-    : '| 打开对应界面 / Open the UI | 进入 OpenBitFun 中对应的功能界面。 | Open the matching feature in OpenBitFun. |';
+    : '| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |';
   const options = capability.options.length
     ? capability.options.map((option) =>
       `| ${option.titleZh} / ${option.titleEn} | ${schemaLabel(option.valueSchema)} | ${option.descriptionZh} | ${option.descriptionEn} |`,
@@ -1630,11 +1630,11 @@ The agent first finds the relevant feature or setting, confirms the target, and 
 
 function renderReadme(catalog, technicalMap) {
   return `${GENERATED_MARKER}
-# OpenBitFun 功能与设置目录 / OpenBitFun Features & Settings
+# BitFun 功能与设置目录 / BitFun Features & Settings
 
-OpenBitFun Playbook 当前包含 **${catalog.counts.features} 个功能**和 **${catalog.counts.settings} 个设置页**，共 **${catalog.counts.userFacing} 个**用户可理解的条目、**${catalog.counts.documentedItems} 项**有源码证据的子能力。每个条目有独立 Markdown，并直接服务于说明书网站、OpenBitFun 全局搜索和 \`OpenBitFunControl\` 智能体工具。
+BitFun Playbook 当前包含 **${catalog.counts.features} 个功能**和 **${catalog.counts.settings} 个设置页**，共 **${catalog.counts.userFacing} 个**用户可理解的条目、**${catalog.counts.documentedItems} 项**有源码证据的子能力。每个条目有独立 Markdown，并直接服务于说明书网站、BitFun 全局搜索和 \`OpenBitFunControl\` 智能体工具。
 
-OpenBitFun Playbook currently contains **${catalog.counts.features} features**, **${catalog.counts.settings} settings pages**, and **${catalog.counts.documentedItems}** source-backed sub-capabilities across **${catalog.counts.userFacing}** user-facing entries. Every entry has its own Markdown page and directly powers the website, in-app global search, and the \`OpenBitFunControl\` agent tool.
+BitFun Playbook currently contains **${catalog.counts.features} features**, **${catalog.counts.settings} settings pages**, and **${catalog.counts.documentedItems}** source-backed sub-capabilities across **${catalog.counts.userFacing}** user-facing entries. Every entry has its own Markdown page and directly powers the website, in-app global search, and the \`OpenBitFunControl\` agent tool.
 
 ## 唯一事实源 / Single source of truth
 

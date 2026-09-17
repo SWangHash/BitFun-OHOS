@@ -35,7 +35,7 @@ export const openOpenBitFunSlatePalette: AppearancePalette = {
   name: 'Slate',
   type: 'dark',
   description: 'Slate gray geometric appearance - Deep immersion, high contrast grayscale aesthetics',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '1.3.0',
 
   layout: {

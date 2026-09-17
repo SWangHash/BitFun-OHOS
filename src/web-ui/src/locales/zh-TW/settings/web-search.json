@@ -11,7 +11,7 @@
     "exaMcpFree": "使用 Exa 提供的免費搜尋服務，無需 API Key 或額外設定。",
     "exaSearchApi": "使用你的 Exa API Key 存取搜尋服務，請在下方填寫並儲存憑據。",
     "tavily": "使用你的 Tavily API Key 存取搜尋服務，請在下方填寫並儲存憑據。",
-    "openbitfunSearchHttp": "連接實作 OpenBitFun 搜尋協定的自建或企業內部服務，請在下方填寫服務位址，並視需要設定驗證。"
+    "openbitfunSearchHttp": "連接實作 BitFun 搜尋協定的自建或企業內部服務，請在下方填寫服務位址，並視需要設定驗證。"
   },
   "auth": {
     "none": "無需驗證",
@@ -23,8 +23,8 @@
       "title": "搜尋服務"
     },
     "http": {
-      "title": "OpenBitFun Search HTTP Protocol v1",
-      "description": "連接實作固定 OpenBitFun 協定的自建或企業內部端點"
+      "title": "BitFun Search HTTP Protocol v1",
+      "description": "連接實作固定 BitFun 協定的自建或企業內部端點"
     },
     "protocol": {
       "title": "協定說明",
@@ -85,12 +85,12 @@
     },
     "error": {
       "title": "錯誤回應",
-      "description": "非 2xx 回應可以傳回以下結構；即使沒有該結構，OpenBitFun 也會依 HTTP 狀態碼識別常見錯誤。",
+      "description": "非 2xx 回應可以傳回以下結構；即使沒有該結構，BitFun 也會依 HTTP 狀態碼識別常見錯誤。",
       "codes": "支援的 code："
     },
     "notes": {
-      "resultHandling": "服務可以傳回少於 maxResults 的結果；OpenBitFun 會驗證、去重並截斷結果，回應根的未知欄位會被忽略。",
-      "transportLimits": "OpenBitFun 不跟隨重新導向，請求逾時為 60 秒，讀取回應的上限為 1 MiB。"
+      "resultHandling": "服務可以傳回少於 maxResults 的結果；BitFun 會驗證、去重並截斷結果，回應根的未知欄位會被忽略。",
+      "transportLimits": "BitFun 不跟隨重新導向，請求逾時為 60 秒，讀取回應的上限為 1 MiB。"
     }
   },
   "actions": {

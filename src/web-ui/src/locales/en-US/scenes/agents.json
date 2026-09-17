@@ -39,7 +39,7 @@
       },
       "Creative": {
         "name": "$t(shared:agents.Creative)",
-        "purpose": "Customize and build on OpenBitFun"
+        "purpose": "Customize and build on BitFun"
       }
     }
   },
@@ -381,6 +381,6 @@
     "Standard": "General task execution with planning, tools, and delegated work.",
     "Ultimate": "Decompose complex tasks, coordinate parallel SubAgents, and review their results.",
     "Minimal": "A compact execution loop with a fixed, small tool set.",
-    "Creative": "Create and customize OpenBitFun experiences and capabilities."
+    "Creative": "Create and customize BitFun experiences and capabilities."
   }
 }

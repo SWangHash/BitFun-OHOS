@@ -382,7 +382,7 @@
     "keepEditing": "繼續編輯",
     "errors": {
       "invalidConfig": "無法讀取已儲存的分組資料，原始資料已保留。",
-      "unsupportedVersion": "這些分組使用了更新的格式，請更新 OpenBitFun 後編輯。",
+      "unsupportedVersion": "這些分組使用了更新的格式，請更新 BitFun 後編輯。",
       "nameRequired": "請輸入分組名稱。",
       "nameDuplicate": "已存在同名分組。",
       "conflict": "此分組已在其他位置修改，請關閉編輯器並重新整理後再次編輯。",

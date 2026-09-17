@@ -23,7 +23,7 @@ export function safeCanvasHtmlFileName(title: string): string {
     .replace(/\s+/g, ' ')
     .slice(0, 96)
     .trim();
-  const safeStem = stem || 'OpenBitFun Canvas';
+  const safeStem = stem || 'BitFun Canvas';
   const stemWithoutHtmlSuffix = safeStem.replace(/\.html?$/i, '');
   return `${stemWithoutHtmlSuffix}.html`;
 }

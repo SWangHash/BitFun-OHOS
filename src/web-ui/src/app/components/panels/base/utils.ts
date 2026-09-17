@@ -269,7 +269,7 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
   },
   'openbitfun-canvas': {
     type: 'openbitfun-canvas',
-    displayName: 'OpenBitFun Canvas',
+    displayName: 'BitFun Canvas',
     icon: Network,
     supportsCopy: false,
     supportsDownload: false,

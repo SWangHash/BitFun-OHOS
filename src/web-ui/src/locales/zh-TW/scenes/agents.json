@@ -39,7 +39,7 @@
       },
       "Creative": {
         "name": "$t(shared:agents.Creative)",
-        "purpose": "OpenBitFun 的定製與創造"
+        "purpose": "BitFun 的定製與創造"
       }
     }
   },
@@ -381,6 +381,6 @@
     "Standard": "透過規劃、工具與子智能體協作完成一般任務。",
     "Ultimate": "拆解複雜任務，協調並行子智能體並審查結果。",
     "Minimal": "使用精簡執行流程與固定的小型工具集。",
-    "Creative": "創造與客製 OpenBitFun 體驗及能力。"
+    "Creative": "創造與客製 BitFun 體驗及能力。"
   }
 }

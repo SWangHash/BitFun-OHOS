@@ -67,7 +67,7 @@
   },
   "import": {
     "title": "导入与复用",
-    "description": "查看 {{name}} 可与 OpenBitFun 配合使用的内容。可导入的内容可以直接添加，其余内容会显示当前支持状态。",
+    "description": "查看 {{name}} 可与 BitFun 配合使用的内容。可导入的内容可以直接添加，其余内容会显示当前支持状态。",
     "columns": {
       "item": "内容",
       "type": "类型",
@@ -106,14 +106,14 @@
     "undetectedDescription": "当前没有发现可用内容",
     "ownerAdaptedDescription": "进入管理页发现、审阅和配置{{type}}。",
     "notifications": {
-      "success": "{{name}} 已导入 OpenBitFun",
+      "success": "{{name}} 已导入 BitFun",
       "stale": "来源内容已更新，请确认最新状态后重试",
       "failed": "导入 {{name}} 失败"
     },
     "discoveryUnsupportedDescription": "暂时还不能在这里查看 {{name}} 的{{type}}。"
   },
   "run": {
-    "title": "在 OpenBitFun 中使用",
+    "title": "在 BitFun 中使用",
     "description": "可用 {{name}} 新建独立会话，也可将它设为子智能体，由主智能体在合适的任务中调用。",
     "session": {
       "title": "创建独立会话",
@@ -184,7 +184,7 @@
     "reviewedPackage": "已核对包内容，共 {{count}} 个文件。来源变化后需要重新预览才能导入。",
     "manageCopy": "管理副本",
     "skillNameConflict": "目标已有同名 Skill，且内容或来源不同。请修改上方的导入名称后重试；已有副本不会被覆盖。",
-    "batchUndoWarning": "将移除以下 {{count}} 个 OpenBitFun 副本，包括对副本所做的修改。外部来源保留，之后可以重新导入。",
+    "batchUndoWarning": "将移除以下 {{count}} 个 BitFun 副本，包括对副本所做的修改。外部来源保留，之后可以重新导入。",
     "batchUndoSummary": "已撤销 {{removed}} 项 · 运行时待同步 {{pending}} 项 · 失败 {{failed}} 项",
     "batchPending": "等待处理",
     "batchResultSummary": "成功 {{imported}} 项 · 待确认 {{unresolved}} 项 · 跳过 {{skipped}} 项",
@@ -196,7 +196,7 @@
     "view": "查看",
     "prepareImport": "导入",
     "reviewRequired": "待审阅",
-    "externalOnly": "外部内容，尚未创建 OpenBitFun 副本。",
+    "externalOnly": "外部内容，尚未创建 BitFun 副本。",
     "importedDescription": "已导入副本，外部来源的后续变化不会自动同步。",
     "previewOnly": "此类内容暂不支持导入，可在此查看已有的来源信息。",
     "unsupportedContext": "当前主机或工作区暂不支持导入，可继续查看来源信息。",
@@ -206,17 +206,17 @@
     "validationFailed": "来源 Skill 校验未通过，未导入任何内容。",
     "previewFailed": "无法准备导入预览，请刷新后重试。",
     "importFailed": "导入失败。",
-    "importSuccess": "已导入 {{name}}，现在可在 OpenBitFun 对应的管理页查看副本。",
+    "importSuccess": "已导入 {{name}}，现在可在 BitFun 对应的管理页查看副本。",
     "stale": "来源或目标已变化，请审阅更新后的预览，再次确认。",
     "noMatches": "没有符合条件的内容。",
-    "confirmTitle": "确认导入 OpenBitFun",
-    "copyWarning": "这将创建独立的 OpenBitFun 副本，不修改外部智能体的文件，后续变化不会自动同步。",
-    "mcpTarget": "目标：OpenBitFun MCP / {{name}}。副本默认禁用，启停、登录、重连和工具权限由 OpenBitFun 管理，不复制外部宿主策略。",
+    "confirmTitle": "确认导入 BitFun",
+    "copyWarning": "这将创建独立的 BitFun 副本，不修改外部智能体的文件，后续变化不会自动同步。",
+    "mcpTarget": "目标：BitFun MCP / {{name}}。副本默认禁用，启停、登录、重连和工具权限由 BitFun 管理，不复制外部宿主策略。",
     "targetScope": "导入到",
-    "userTarget": "OpenBitFun · 用户级 Skill",
-    "projectTarget": "OpenBitFun · 当前项目 Skill",
+    "userTarget": "BitFun · 用户级 Skill",
+    "projectTarget": "BitFun · 当前项目 Skill",
     "targetExists": "目标已有同名 Skill 目录，不会覆盖。请选择其他范围，或先处理冲突。",
-    "hookWarning": "请审阅以下实际命令及依赖。导入后的 Hook 受 OpenBitFun Hook 设置控制，可能在相应事件发生时执行。",
+    "hookWarning": "请审阅以下实际命令及依赖。导入后的 Hook 受 BitFun Hook 设置控制，可能在相应事件发生时执行。",
     "skipped": "不导入：{{reason}}（{{count}} 项）",
     "cancel": "取消",
     "confirm": "确认导入",
@@ -226,14 +226,14 @@
     "headerNames": "请求头名称",
     "groupSummary": "已发现 {{count}} 项",
     "undo": "撤销导入",
-    "undoTitle": "撤销导入 OpenBitFun",
-    "undoWarning": "将移除这个 OpenBitFun 副本，包括导入后对副本所做的修改。外部智能体的原始内容不受影响，之后可以重新导入。",
+    "undoTitle": "撤销导入 BitFun",
+    "undoWarning": "将移除这个 BitFun 副本，包括导入后对副本所做的修改。外部智能体的原始内容不受影响，之后可以重新导入。",
     "undoTarget": "移除的副本：{{target}}",
     "confirmUndo": "确认撤销",
     "undoSuccess": "已撤销 {{name}} 的导入。",
-    "undoRuntimePending": "已移除 {{name}} 的配置，但运行状态尚未更新，请在 OpenBitFun MCP 管理页检查。",
+    "undoRuntimePending": "已移除 {{name}} 的配置，但运行状态尚未更新，请在 BitFun MCP 管理页检查。",
     "undoFailed": "撤销未完成，副本或配置可能已变化。请刷新后重新查看并确认。",
-    "undoUnavailable": "无法确认该 Skill 的导入副本，请在 OpenBitFun Skill 管理页查看并移除。",
+    "undoUnavailable": "无法确认该 Skill 的导入副本，请在 BitFun Skill 管理页查看并移除。",
     "viewCategory": "查看{{type}}",
     "importAll": "一键导入",
     "importCategory": "一键导入",
@@ -252,7 +252,7 @@
       "stale": "配置已变化，请重新确认"
     },
     "repairSource": "补齐来源",
-    "nativeUserTarget": "OpenBitFun · 用户配置",
+    "nativeUserTarget": "BitFun · 用户配置",
     "undoAll": "一键撤销",
     "importSelected": "导入所选",
     "undoSelected": "撤销所选",
@@ -298,7 +298,7 @@
     "lastKnownResult": "显示上次成功读取的内容。",
     "mcpReviewDescription": "导入前会检查来源配置与已有副本。",
     "instructions": {
-      "description": "OpenBitFun 读取的指令来源。启动指令与按路径匹配的规则由现有读取器应用；此列表不表示某个会话已经加载了这些内容。",
+      "description": "BitFun 读取的指令来源。启动指令与按路径匹配的规则由现有读取器应用；此列表不表示某个会话已经加载了这些内容。",
       "shared": "共享项目指令",
       "scope": "作用范围",
       "user": "用户配置",
@@ -312,7 +312,7 @@
       "readOnly": "由指令读取器应用"
     },
     "accounts": {
-      "description": "查看在 OpenBitFun 中接入的订阅账号。",
+      "description": "查看在 BitFun 中接入的订阅账号。",
       "providers": {
         "codex": "Codex / ChatGPT",
         "opencode": "OpenCode Console（Zen）"
@@ -328,8 +328,8 @@
         "unavailable": "当前主机未提供此账号接入方式",
         "vaultUnavailable": "凭据存储暂不可用",
         "reauthenticationRequired": "需要重新登录",
-        "connected": "已接入 OpenBitFun",
-        "notConnected": "尚未接入 OpenBitFun"
+        "connected": "已接入 BitFun",
+        "notConnected": "尚未接入 BitFun"
       },
       "manage": "管理账号与模型",
       "connect": "前往模型设置登录",
@@ -347,10 +347,10 @@
     "pets": {
       "builtinSource": "Codex 内置",
       "customSource": "Codex 自定义",
-      "description": "查看 Codex 内置与自定义宠物，导入后可在 OpenBitFun 中使用。",
+      "description": "查看 Codex 内置与自定义宠物，导入后可在 BitFun 中使用。",
       "partial": "部分宠物无法读取，请检查下方来源诊断。",
       "reviewTitle": "导入宠物",
-      "reviewDescription": "将已预览的宠物包复制到 OpenBitFun。导入后可单独选择使用，当前宠物保持不变。",
+      "reviewDescription": "将已预览的宠物包复制到 BitFun。导入后可单独选择使用，当前宠物保持不变。",
       "operationFailed": "操作未完成，来源或副本可能已变化。请刷新后重新确认。",
       "use": "使用此宠物",
       "states": {

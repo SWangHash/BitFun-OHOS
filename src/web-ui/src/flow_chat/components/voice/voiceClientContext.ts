@@ -175,7 +175,7 @@ export function resolveOpenedVoiceWorkspace(
   if (!workspaceReference?.trim()) {
     const activeWorkspace = workspaceManager.getState().currentWorkspace;
     if (!activeWorkspace) {
-      throw new Error('No OpenBitFun workspace is currently open');
+      throw new Error('No BitFun workspace is currently open');
     }
     if (activeWorkspace.workspaceKind === WorkspaceKind.Assistant) {
       const projectWorkspace = Array.from(

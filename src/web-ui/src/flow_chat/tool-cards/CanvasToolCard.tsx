@@ -72,7 +72,7 @@ function canvasTitle(result: CanvasToolResult | null, fallback: unknown): string
       return fromInput.trim();
     }
   }
-  return 'OpenBitFun Canvas';
+  return 'BitFun Canvas';
 }
 
 const TERMINAL_STATUSES = new Set(['completed', 'error', 'cancelled', 'rejected']);

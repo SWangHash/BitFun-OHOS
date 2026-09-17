@@ -48,12 +48,12 @@ function ReleaseLetterScene({ title, body, titleId, descriptionId, closable }: {
           <div className="release-letter__construction" aria-hidden="true" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterArtwork">
             <div className="release-letter__drawing-box">
               <ReleaseLetterDrawing />
-              <div className="release-letter__intro-wordmark">OpenBitFun</div>
+              <div className="release-letter__intro-wordmark">BitFun</div>
               <div className="release-letter__intro-rule" />
             </div>
           </div>
           <header className="release-letter__header">
-            <div className="release-letter__brand" data-reveal="0">OpenBitFun</div>
+            <div className="release-letter__brand" data-reveal="0">BitFun</div>
           </header>
           <section className="release-letter__copy" data-openbitfun-component="announcement" data-openbitfun-part="releaseLetterCopy">
             <h1 className="release-letter__title" id={titleId} data-reveal="1">{title}</h1>

@@ -65,7 +65,7 @@ function generateVersionInfo(buildEnv) {
   }
   
   const versionInfo = {
-    name: packageJson.name === 'OpenBitFun' ? 'OpenBitFun' : packageJson.name,
+    name: packageJson.name === 'OpenBitFun' ? 'BitFun' : packageJson.name,
     version: packageJson.version,
     buildDate,
     buildTimestamp,

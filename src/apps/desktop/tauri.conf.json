@@ -78,7 +78,7 @@
   },
   "app": {
     "windows": [{
-      "title": "OpenBitFun",
+      "title": "BitFun",
       "width": 800,
       "height": 600
     }],

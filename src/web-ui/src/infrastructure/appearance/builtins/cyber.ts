@@ -34,7 +34,7 @@ export const openOpenBitFunCyberPalette: AppearancePalette = {
   name: 'Cyber',
   type: 'dark',
   description: 'Tech-style appearance - Deep black hole, neon future, ultimate tech aesthetics',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '1.1.0',
 
 

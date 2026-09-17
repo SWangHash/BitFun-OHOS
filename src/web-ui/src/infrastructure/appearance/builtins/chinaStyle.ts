@@ -35,7 +35,7 @@ export const openOpenBitFunChinaStylePalette: AppearancePalette = {
   name: 'Ink Charm',
   type: 'light',
   description: 'Chinese style appearance - Rice paper and ink, blue and vermilion, warm and elegant',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   version: '1.1.0',
 
 

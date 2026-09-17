@@ -2306,7 +2306,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                   </div>
                 </div>
                 <div className="review-platform__fact-row">
-                  <span className="review-platform__fact-label"><Icon name="spark" size="sm" /> OpenBitFun Review</span>
+                  <span className="review-platform__fact-label"><Icon name="spark" size="sm" /> BitFun Review</span>
                   <div className="review-platform__fact-value review-platform__fact-value--review">
                     <OverflowText>{reviewStatusText}</OverflowText>
                     {(latestCurrentReview || latestStaleReview || latestUnknownReview) && (

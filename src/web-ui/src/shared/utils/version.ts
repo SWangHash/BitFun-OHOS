@@ -5,7 +5,7 @@ import { i18nService } from '@/infrastructure/i18n';
 
  
 const DEFAULT_VERSION_INFO: VersionInfo = {
-  name: 'OpenBitFun',
+  name: 'BitFun',
   version: '0.0.0',
   buildDate: new Date(0).toISOString(),
   buildTimestamp: 0,
@@ -101,7 +101,7 @@ export function getAboutInfo(): AboutInfo {
     version: versionInfo,
     license: {
       type: 'MIT',
-      text: 'MIT License - Copyright (c) 2025 OpenBitFun',
+      text: 'MIT License - Copyright (c) 2025 BitFun',
       url: 'https://opensource.org/licenses/MIT'
     },
     links: {

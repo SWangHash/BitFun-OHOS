@@ -55,7 +55,7 @@ function isFileMissingError(error: unknown): boolean {
   return /does not exist|no such file|not found/i.test(message);
 }
 
-const DEFAULT_AGENT_NAME = 'OpenBitFun Agent';
+const DEFAULT_AGENT_NAME = 'BitFun Agent';
 
 type RightPanelView = 'info' | 'personaDoc';
 

@@ -2,10 +2,10 @@
 
 
 export const APP_INFO = {
-  name: 'OpenBitFun',
+  name: 'BitFun',
   version: '1.0.0',
   description: 'AI code analysis and visualization tool',
-  author: 'OpenBitFun Team',
+  author: 'BitFun Team',
   homepage: 'https://openbitfun.dev'
 } as const;
 

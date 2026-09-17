@@ -17,7 +17,7 @@ export default function deviceSmokeTest() {
       const driver = Driver.create();
       await driver.delayMs(800);
 
-      const homeTitle = await driver.findComponent(ON.text('OpenBitFun'));
+      const homeTitle = await driver.findComponent(ON.text('BitFun'));
       expect(homeTitle !== undefined).assertTrue();
 
       await driver.click(130, 180);

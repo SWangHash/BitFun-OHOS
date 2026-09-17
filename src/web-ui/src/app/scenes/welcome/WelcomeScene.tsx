@@ -118,7 +118,7 @@ const WelcomeScene: React.FC = () => {
               aria-hidden="true"
             />
             <span className="welcome-scene__brand-name">
-              OpenBitFun{t('welcomeScene.space.separator')}
+              BitFun{t('welcomeScene.space.separator')}
             </span>
           </h1>
           <h2

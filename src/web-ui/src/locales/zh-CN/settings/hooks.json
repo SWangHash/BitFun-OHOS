@@ -23,10 +23,10 @@
   },
   "locations": {
     "title": "Hook 声明位置",
-    "description": "修改 hooks.json 后立即生效，无需重启 OpenBitFun",
+    "description": "修改 hooks.json 后立即生效，无需重启 BitFun",
     "userFile": {
       "label": "用户 Hook 文件",
-      "description": "OpenBitFun 用户配置目录中的 config/hooks.json"
+      "description": "BitFun 用户配置目录中的 config/hooks.json"
     },
     "projectFile": {
       "label": "项目 Hook 文件",
@@ -77,15 +77,15 @@
     "storeInvalid": "导入 Hook 状态需要修复",
     "reset": "重置托管状态",
     "removeTitle": "移除已导入的 Hooks？",
-    "removeSourceUntouched": "只会移除 OpenBitFun 的托管副本，不会修改 Claude Code 或 Codex 的来源文件。",
+    "removeSourceUntouched": "只会移除 BitFun 的托管副本，不会修改 Claude Code 或 Codex 的来源文件。",
     "removeConfirm": "移除托管副本",
     "resetTitle": "重置无效的导入 Hook 状态？",
-    "resetWarning": "这会移除当前范围内无效的 OpenBitFun 托管索引，不会修改来源应用的文件。",
+    "resetWarning": "这会移除当前范围内无效的 BitFun 托管索引，不会修改来源应用的文件。",
     "resetConfirm": "重置托管状态"
   },
   "compatibility": {
     "title": "Codex 兼容",
-    "description": "OpenBitFun 使用 Codex Hooks 合约，可直接运行兼容的 Hook 脚本",
+    "description": "BitFun 使用 Codex Hooks 合约，可直接运行兼容的 Hook 脚本",
     "reference": {
       "label": "事件与载荷参考",
       "open": "打开文档"

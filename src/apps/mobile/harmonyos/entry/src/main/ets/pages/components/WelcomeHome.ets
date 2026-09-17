@@ -26,9 +26,9 @@ export struct WelcomeHome {
     this.timer = setInterval(() => { this.elapsed = Date.now() - this.started; }, 16);
   }
   private phrases(): string[] {
-    return ['OpenBitFun', RemoteI18n.t('home.welcome_work'), RemoteI18n.t('home.welcome_play'), RemoteI18n.t('home.welcome_yours')];
+    return ['BitFun', RemoteI18n.t('home.welcome_work'), RemoteI18n.t('home.welcome_play'), RemoteI18n.t('home.welcome_yours')];
   }
-  private duration(word: string): number { return 250 + word.length * 185 + (word === 'OpenBitFun' ? 600 : 0) + 1800 + 650; }
+  private duration(word: string): number { return 250 + word.length * 185 + (word === 'BitFun' ? 600 : 0) + 1800 + 650; }
   private phraseIndex(): number {
     const words = this.phrases();
     let total = 0;
@@ -63,7 +63,7 @@ export struct WelcomeHome {
     Scroll() {
       Column() {
         Row() {
-          ForEach('OpenBitFun'.split(''), (letter: string) => { this.Glyph(letter, G.welcomeHeaderWordSize); })
+          ForEach('BitFun'.split(''), (letter: string) => { this.Glyph(letter, G.welcomeHeaderWordSize); })
         }.width('100%').height(G.welcomeHeaderHeight)
           .padding({ left: this.wide() ? 40 : G.welcomeGutter, right: G.welcomeGutter })
         if (this.landscape()) {

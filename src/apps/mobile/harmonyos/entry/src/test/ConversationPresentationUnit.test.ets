@@ -814,7 +814,7 @@ export default function conversationPresentationUnitTest() {
       expect(named.allowRename).assertTrue();
       expect(named.showActions).assertTrue();
       const branded = ConversationHeaderPolicy.present(ChatSurface.Remote, '', '', 'feat/ui', false);
-      expect(branded.subtitle).assertEqual('OpenBitFun · feat/ui');
+      expect(branded.subtitle).assertEqual('BitFun · feat/ui');
     });
 
   });

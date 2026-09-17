@@ -35,7 +35,7 @@ const groups = [
     'zh-TW': ['設定與服務憑據', '匯入設定；無法解密的憑據會標記為需要重新登入。'],
   }],
   ['agents_skills_and_miniapps', {
-    en: ['Agents, Skills, and MiniApps', 'Imports user extensions and saved data from built-in MiniApps. Built-in code is provided by OpenBitFun.'],
+    en: ['Agents, Skills, and MiniApps', 'Imports user extensions and saved data from built-in MiniApps. Built-in code is provided by BitFun.'],
     'zh-CN': ['智能体、Skills 与 MiniApps', '导入用户扩展和内置 MiniApps 的使用数据；内置代码由新版提供。'],
     'zh-TW': ['智能體、Skills 與 MiniApps', '匯入使用者擴充與內建 MiniApps 的使用資料；內建程式碼由新版提供。'],
   }],

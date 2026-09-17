@@ -539,7 +539,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
           call.callId,
           JSON.stringify({
             ok: false,
-            error: 'A OpenBitFun task is already running through the client voice assistant',
+            error: 'A BitFun task is already running through the client voice assistant',
             context: buildVoiceClientContext(
               activeTaskContext(activeTaskRef.current),
               callTargetRef.current,
