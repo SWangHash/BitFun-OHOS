@@ -162,6 +162,14 @@ function WebBuilder(data: WebviewNodeData) {
         ctrl.loadData(data!.html, "text/html", "UTF-8", " ", " ");
       }
     })
+    // Hide the startup splash mirror once the webview has actually painted
+    // content. Firing on the Web component's first contentful paint keeps the
+    // icon visible exactly until the page (which draws its own brand splash on
+    // OpenHarmony hosts) takes over, with no blank frame in between. The
+    // timeout is a safety net for pages that never reach a paint event.
+    .onFirstContentfulPaint(() => {
+      AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+    })
     .onLoadIntercept((event) => {
       if (typeof data?.onNavigationRequest === "function") {
         const url = event.data.getRequestUrl();
