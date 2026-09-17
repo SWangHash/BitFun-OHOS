@@ -398,6 +398,19 @@
           return;
         }
 
+        // OpenHarmony keeps only the native start window: drop the static
+        // in-webview splash so startup hands off straight to the React shell.
+        // The fingerprint mirrors isOpenHarmonyRuntime() in
+        // src/infrastructure/runtime/environment.ts (this script cannot import).
+        var isOhosHost = /(?:openharmony|harmonyos|ohos)/i.test(
+          (navigator.userAgent || '') + ' ' + (navigator.platform || '')
+        );
+        if (isOhosHost) {
+          var ohosOverlay = document.getElementById('bitfun-startup-overlay');
+          if (ohosOverlay) ohosOverlay.remove();
+          return;
+        }
+
         var hint = document.querySelector('.splash-screen__message');
         if (hint) {
           hint.textContent = messages.loadingApp;
