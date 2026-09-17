@@ -943,7 +943,10 @@
       flex-direction: column;
       gap: $size-gap-6;
 
-      /* Modal: same fr ratio on every two-column row (uniform). Controls a bit wider than native wide 2/8. */
+      /* Modal: same fr ratio on every two-column row (uniform). The label
+         column takes a tighter 2/11 share with a max-content floor, so
+         labels like "Provider Name *" stay on one line at any width while
+         keeping the gap to the control small. */
       .bitfun-ai-model-config__edit-section {
         .bitfun-config-page-row--multiline:not(.bitfun-config-page-row--wide) {
           grid-template-columns: 1fr !important;
@@ -956,7 +959,7 @@
 
         .bitfun-config-page-row:not(.bitfun-config-page-row--multiline):not(.bitfun-ai-model-config__toggle-row),
         .bitfun-config-page-row--multiline.bitfun-config-page-row--wide {
-          grid-template-columns: minmax(0, 2fr) minmax(0, 11fr) !important;
+          grid-template-columns: minmax(max-content, 2fr) minmax(0, 9fr) !important;
         }
 
         .bitfun-config-page-row--multiline.bitfun-config-page-row--wide {
@@ -1224,8 +1227,11 @@
         text-overflow: clip;
       }
 
+      /* Tag remove X on the "Select Models" multi-select trigger: muted was
+         near-invisible on the tag chip in dark themes; use the primary text
+         tone so the small glyph stays legible. Scoped to the model picker. */
       .select__tag-remove {
-        color: var(--bf-appearance-token-color-text-muted);
+        color: var(--bf-appearance-token-color-text-primary);
       }
 
       .select__tag-remove:hover {

@@ -81,6 +81,16 @@ $_workbench-gap: 6px;
   }
 }
 
+// While collapsed, the divider stays mounted as a slim drag handle in the
+// gap before the scene's left edge; dragging it right re-expands the panel.
+.bitfun-workspace-body__nav-divider--collapsed {
+  left: $size-gap-2;
+
+  &:hover::after {
+    opacity: 1;
+  }
+}
+
 // Active resizing state — keep line visible while dragging
 .bitfun-is-resizing-nav .bitfun-workspace-body__nav-divider::after {
   content: '';

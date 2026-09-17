@@ -447,7 +447,10 @@ const AIModelConfig: React.FC = () => {
   const [selectedModelDrafts, setSelectedModelDrafts] = useState<SelectedModelDraft[]>([]);
   const [editingProviderModelIds, setEditingProviderModelIds] = useState<Set<string>>(new Set());
   const [manualModelInput, setManualModelInput] = useState('');
-  const [expandedModelCards, setExpandedModelCards] = useState<Set<string>>(new Set());
+  // Explicit expand/collapse overrides per selected-model draft key. Absent
+  // key = default: collapsed, except a single-model list which defaults to
+  // expanded but can still be collapsed (and re-expanded) by the user.
+  const [modelCardExpandOverrides, setModelCardExpandOverrides] = useState<Map<string, boolean>>(new Map());
   const [reasoningPanelDraftKey, setReasoningPanelDraftKey] = useState<string | null>(null);
   const [subscriptionAccounts, setSubscriptionAccounts] = useState<SubscriptionAccount[]>([]);
   const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
@@ -849,20 +852,19 @@ const AIModelConfig: React.FC = () => {
     return undefined;
   };
 
-  const toggleSelectedModelCardExpanded = useCallback((draftKey: string) => {
-    setExpandedModelCards(prev => {
-      const next = new Set(prev);
-      if (next.has(draftKey)) next.delete(draftKey);
-      else next.add(draftKey);
+  const toggleSelectedModelCardExpanded = useCallback((draftKey: string, isExpanded: boolean) => {
+    setModelCardExpandOverrides(prev => {
+      const next = new Map(prev);
+      next.set(draftKey, !isExpanded);
       return next;
     });
   }, []);
 
   const onSelectedModelHeadKeyDown = useCallback(
-    (e: React.KeyboardEvent, draftKey: string) => {
+    (e: React.KeyboardEvent, draftKey: string, isExpanded: boolean) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
-      toggleSelectedModelCardExpanded(draftKey);
+      toggleSelectedModelCardExpanded(draftKey, isExpanded);
     },
     [toggleSelectedModelCardExpanded]
   );
@@ -870,8 +872,8 @@ const AIModelConfig: React.FC = () => {
   const removeSelectedModelDraft = (modelName: string) => {
     const removed = selectedModelDrafts.find(d => d.modelName === modelName);
     if (removed) {
-      setExpandedModelCards(prev => {
-        const next = new Set(prev);
+      setModelCardExpandOverrides(prev => {
+        const next = new Map(prev);
         next.delete(removed.key);
         return next;
       });
@@ -2291,10 +2293,9 @@ const AIModelConfig: React.FC = () => {
           data-selected-count={selectedModelDrafts.length}
         >
           {selectedModelDrafts.map(draft => {
-            const isExpanded = expandedModelCards.has(draft.key) || selectedModelDrafts.length === 1;
+            const isExpanded = modelCardExpandOverrides.get(draft.key) ?? selectedModelDrafts.length === 1;
             const hasUnsavedChanges = modelDraftHasUnsavedChanges(draft, aiModels);
             const categoryLabel = categoryCompactLabels[draft.category] ?? draft.category;
-            const canToggleExpand = selectedModelDrafts.length > 1;
             const modelDisplayName = draft.modelName;
             const reasoningProjection = resolveDraftReasoningProjection(draft);
 
@@ -2310,25 +2311,18 @@ const AIModelConfig: React.FC = () => {
                 data-unsaved={hasUnsavedChanges ? 'true' : 'false'}
               >
                 <div
-                  className={[
-                    'bitfun-ai-model-config__selected-model-head',
-                    canToggleExpand && 'bitfun-ai-model-config__selected-model-head--toggleable',
-                  ].filter(Boolean).join(' ')}
-                  onClick={canToggleExpand ? () => toggleSelectedModelCardExpanded(draft.key) : undefined}
-                  onKeyDown={canToggleExpand ? (e) => onSelectedModelHeadKeyDown(e, draft.key) : undefined}
-                  role={canToggleExpand ? 'button' : undefined}
-                  tabIndex={canToggleExpand ? 0 : undefined}
-                  aria-expanded={canToggleExpand ? isExpanded : undefined}
-                  aria-label={
-                    canToggleExpand
-                      ? t(
-                          isExpanded
-                            ? 'providerSelection.collapseModelSettings'
-                            : 'providerSelection.expandModelSettings',
-                          { name: modelDisplayName }
-                        )
-                      : undefined
-                  }
+                  className="bitfun-ai-model-config__selected-model-head bitfun-ai-model-config__selected-model-head--toggleable"
+                  onClick={() => toggleSelectedModelCardExpanded(draft.key, isExpanded)}
+                  onKeyDown={(e) => onSelectedModelHeadKeyDown(e, draft.key, isExpanded)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-label={t(
+                    isExpanded
+                      ? 'providerSelection.collapseModelSettings'
+                      : 'providerSelection.expandModelSettings',
+                    { name: modelDisplayName }
+                  )}
                 >
                   <div className="bitfun-ai-model-config__selected-model-head-title">
                     <div className="bitfun-ai-model-config__selected-model-head-top">
@@ -2414,6 +2408,7 @@ const AIModelConfig: React.FC = () => {
                         step={1000}
                         size="small"
                         disableWheel
+                        showProgress={false}
                       />
                     </div>
                     <button
