@@ -47,6 +47,27 @@ describe('startup preload shell', () => {
     });
   });
 
+  it('removes the static splash for the OpenHarmony host', () => {
+    const dom = new JSDOM(readIndexHtml(), {
+      url: 'http://localhost:1422/',
+      runScripts: 'dangerously',
+      beforeParse(window) {
+        Object.defineProperty(window, '__BITFUN_BOOTSTRAP_LOCALE__', { value: 'zh-CN' });
+        Object.defineProperty(window.navigator, 'userAgent', {
+          value:
+            'Mozilla/5.0 (Linux; OpenHarmony 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 ArkWeb/4.1.6.1 Mobile',
+          configurable: true,
+        });
+      },
+    });
+
+    expect(dom.window.document.documentElement.lang).toBe('zh-CN');
+    expect(dom.window.document.getElementById('bitfun-startup-overlay')).toBeNull();
+    expect(dom.window.document.querySelector('.splash-screen')).toBeNull();
+    expect(dom.window.document.querySelector('[data-startup-window-controls]')).toBeNull();
+    expect(dom.window.document.getElementById('root')).not.toBeNull();
+  });
+
   it('shows the independent pet preload for the companion window', () => {
     const html = readIndexHtml();
     const dom = new JSDOM(html, {
