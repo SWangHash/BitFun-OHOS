@@ -37,12 +37,11 @@ bitfun-observability = { path = "../../crates/execution/observability" }
 bitfun-observability-otel = { path = "../../crates/services/observability-otel" }
 
 # Tauri
-tauri = { workspace = true }
+# `unstable` enables the child-webview APIs (`Window::add_child`, `Manager::get_window`/`get_webview`) used by embedded browser panels; `tray-icon` is required by the system tray; `macos-private-api` enables `.transparent()` on macOS.
+tauri = { workspace = true, features = ["unstable", "tray-icon", "macos-private-api"] }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-fs = { workspace = true }
 tauri-plugin-log = { workspace = true }
-napi-ohos = { workspace = true }
-napi-derive-ohos = { workspace = true }
 keepawake = { workspace = true }
 # Keep Tauri's transitive time resolution on the known-good release.
 tauri-plugin-global-shortcut = { workspace = true }
@@ -165,6 +164,9 @@ leptess = { workspace = true }
 # Pure-Rust xz decoder: the OpenHarmony NDK ships liblzma.so without lzma.h,
 # so the C-backed xz2/lzma-sys path cannot build on the OHOS target.
 lzma-rs = { workspace = true }
+# ArkTS bridge only links against the OHOS Node-API runtime.
+napi-ohos = { workspace = true }
+napi-derive-ohos = { workspace = true }
 
 [lints]
 workspace = true

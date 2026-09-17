@@ -259,7 +259,7 @@ pub async fn browser_webview_create(
             .get_window("main")
             .ok_or_else(|| "main window not found".to_string())?;
         let mut builder =
-            tauri::webview::WebviewBuilder::new(request.label, tauri::WebviewUrl::External(url))
+            tauri::WebviewBuilder::new(request.label, tauri::WebviewUrl::External(url))
                 .initialization_script(video_decoder_compatibility_script())
                 .transparent(false)
                 .background_color(browser_background_color(request.background_color.as_deref()));

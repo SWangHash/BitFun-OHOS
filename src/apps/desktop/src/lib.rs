@@ -65,10 +65,12 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
 // Re-export API
 pub use api::*;
 
+#[cfg(target_env = "ohos")]
 use crate::ohos::ohos_file_system::{
     open_oh_file_dialog, save_file_to_downloads_ohos, send_system_notification_ohos,
     set_theme_mode, share_file_ohos,
 };
+#[cfg(target_env = "ohos")]
 use crate::ohos::window::{
     center_ohos, close_window, current_monitor_ohos, handle_max_window, handle_min_window,
     handle_restore_window, inner_size_ohos, maximize_ohos, outer_position_ohos, outer_size_ohos,
@@ -2204,33 +2206,60 @@ pub async fn _run() {
             api::announcement_api::trigger_announcement,
             api::announcement_api::get_announcement_tips,
             // ohos adater
+            #[cfg(target_env = "ohos")]
             open_oh_file_dialog,
+            #[cfg(target_env = "ohos")]
             handle_min_window,
+            #[cfg(target_env = "ohos")]
             handle_max_window,
+            #[cfg(target_env = "ohos")]
             handle_restore_window,
+            #[cfg(target_env = "ohos")]
             window_is_maximized,
+            #[cfg(target_env = "ohos")]
             window_is_minimized,
+            #[cfg(target_env = "ohos")]
             window_start_dragging,
+            #[cfg(target_env = "ohos")]
             close_window,
+            #[cfg(target_env = "ohos")]
             set_theme_mode,
+            #[cfg(target_env = "ohos")]
             save_file_to_downloads_ohos,
+            #[cfg(target_env = "ohos")]
             send_system_notification_ohos,
+            #[cfg(target_env = "ohos")]
             share_file_ohos,
             open_external_ohos,
+            #[cfg(target_env = "ohos")]
             set_always_on_top_ohos,
+            #[cfg(target_env = "ohos")]
             set_decorations_ohos,
+            #[cfg(target_env = "ohos")]
             set_skip_taskbar_ohos,
+            #[cfg(target_env = "ohos")]
             set_window_size_ohos,
+            #[cfg(target_env = "ohos")]
             set_window_position_ohos,
+            #[cfg(target_env = "ohos")]
             outer_position_ohos,
+            #[cfg(target_env = "ohos")]
             outer_size_ohos,
+            #[cfg(target_env = "ohos")]
             inner_size_ohos,
+            #[cfg(target_env = "ohos")]
             current_monitor_ohos,
+            #[cfg(target_env = "ohos")]
             unmaximize_ohos,
+            #[cfg(target_env = "ohos")]
             set_min_size_ohos,
+            #[cfg(target_env = "ohos")]
             set_focus_ohos,
+            #[cfg(target_env = "ohos")]
             set_resizable_ohos,
+            #[cfg(target_env = "ohos")]
             maximize_ohos,
+            #[cfg(target_env = "ohos")]
             center_ohos,
 
             // Debug API (no-op stubs in release builds)
