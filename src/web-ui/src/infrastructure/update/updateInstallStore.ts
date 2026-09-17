@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createLogger } from '@/shared/utils/logger';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { systemAPI } from '@/infrastructure/api';
 import { installUpdateWithProgress, type UpdateDownloadProgressPayload } from './installUpdateWithProgress';
 
@@ -32,6 +33,13 @@ export const useUpdateInstallStore = create<UpdateInstallState>((set, get) => ({
 
   initialize: async () => {
     if (get().initialized) return;
+    // Staged in-app updates are a desktop capability only. On OHOS the
+    // AppGallery owns update download and install, and a failed
+    // `get_pending_update` read must never surface as a startup error dialog.
+    if (isOpenHarmonyRuntime()) {
+      set({ initialized: true });
+      return;
+    }
     if (initialization) return initialization;
     initialization = (async () => {
       try {

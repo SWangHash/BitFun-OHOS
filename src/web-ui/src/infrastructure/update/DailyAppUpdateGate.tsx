@@ -44,8 +44,6 @@ export function DailyAppUpdateGate(): ReactElement | null {
     }
     let cancelled = false;
     const runDailyCheck = async () => {
-      await useUpdateInstallStore.getState().initialize();
-      if (cancelled || useUpdateInstallStore.getState().status !== 'idle') return;
       let autoUpdate = true;
       try {
         const v = await configManager.getConfig<boolean>('app.auto_update');
@@ -68,8 +66,11 @@ export function DailyAppUpdateGate(): ReactElement | null {
             if (isOpenHarmonyRuntime()) {
               // OHOS updates are handled by the system AppGallery flow: the
               // check itself shows the system update dialog when an update
-              // exists, and HAP installs happen there. Keep the OpenBitFun
-              // in-app install/progress UI out of the OHOS path entirely.
+              // exists, and HAP installs happen there. Keep the BitFun
+              // in-app install/progress UI out of the OHOS path entirely and
+              // never restore staged desktop updates there: a failed
+              // `get_pending_update` read must not surface as a startup
+              // "update failed" dialog on OHOS.
               const ohosRes = await systemAPI.checkForUpdatesOhos();
               if (cancelled) {
                 return;
@@ -77,6 +78,10 @@ export function DailyAppUpdateGate(): ReactElement | null {
               if (ohosRes.error) {
                 log.warn('OHOS daily update check failed', ohosRes.error);
               }
+              return;
+            }
+            await useUpdateInstallStore.getState().initialize();
+            if (cancelled || useUpdateInstallStore.getState().status !== 'idle') {
               return;
             }
             const res = await systemAPI.checkForUpdates();
@@ -100,7 +105,7 @@ export function DailyAppUpdateGate(): ReactElement | null {
     const cancelStartupSchedule = scheduleAfterStartupSignal(() => {
       void runDailyCheck();
     }, {
-      signalName: 'openbitfun:interactive-shell-ready',
+      signalName: 'bitfun:interactive-shell-ready',
       fallbackTimeoutMs: 10000,
       frameCount: 1,
       onError: error => {
@@ -158,7 +163,7 @@ export function DailyAppUpdateGate(): ReactElement | null {
     notificationService.info(t('update.deferredMessage'));
   }, [deferInstall, t]);
 
-  if (!isTauriRuntime()) {
+  if (!isTauriRuntime() || isOpenHarmonyRuntime()) {
     return null;
   }
 
