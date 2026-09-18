@@ -15,6 +15,11 @@ export struct DefaultXComponent {
   private webviewController = new RustWebviewNodeController(this.getUIContext());
   private nativeModule: ESObject;
   @StorageLink("bitfunStartupSplashIcon") splashIcon: ResourceStr = '';
+  // Start window background resource published by EntryAbility.onCreate.
+  // start_window_background is pinned to #000000 in both base/ and dark/, so
+  // resolving it here always matches the system start window no matter which
+  // color mode this component renders under (an application-level colorMode
+  // override cannot diverge from the AbilityMgr-drawn start window).
   @StorageLink("bitfunStartupSplashBackground") splashBackground: ResourceColor = Color.Transparent;
   // Resolved system color mode published by EntryAbility ('light' | 'dark').
   // With WebDarkMode.Auto the page's prefers-color-scheme follows the system,
@@ -60,12 +65,14 @@ export struct DefaultXComponent {
         init.style!.backgroundColor = Color.Transparent;
       }
       // Match the documented WebDarkMode.Auto pairing: seed the Web
-      // component's background with the system color mode so resize/rotate
-      // gaps and pre-paint frames stay in sync with the page theme instead
-      // of flashing the ArkWeb default white. The startup splash mirror layer
-      // covers the very first frames anyway.
+      // component's background with the start window background so resize
+      // gaps and pre-paint frames stay in sync with the splash mirror instead
+      // of flashing the ArkWeb default white. start_window_background is
+      // pinned to #000000 (see entry color.json), so the constant here is the
+      // same color the mirror and the system start window show. The splash
+      // mirror covers the very first frames anyway.
       if (!init.style?.backgroundColor) {
-        init.style!.backgroundColor = this.systemColorMode === 'dark' ? '#000000' : '#FFFFFF';
+        init.style!.backgroundColor = '#000000';
       }
       const ret = this.webviewController.addWebview(init);
       if (this.mainWebviewController === null) {
@@ -97,8 +104,9 @@ export struct DefaultXComponent {
     // style closure is still live, so re-applying updates the builder node.
     // Embedded browser webviews (BrowserWebviewService) manage their own
     // colors and are intentionally untouched here.
+    const color: ResourceColor = this.systemColorMode === 'dark' ? '#000000' : '#FFFFFF';
     if (this.mainWebviewController !== null && typeof this.mainWebviewController.setBackgroundColor === 'function') {
-      this.mainWebviewController.setBackgroundColor(this.systemColorMode === 'dark' ? '#000000' : '#FFFFFF');
+      this.mainWebviewController.setBackgroundColor(color);
     }
   }
 
@@ -141,8 +149,15 @@ export struct DefaultXComponent {
       // layer inert on other consumers of the vendored module.
       if (this.splashIcon !== '') {
         Stack() {
-          // The native start window draws startWindowIcon at its intrinsic
-          // pixel size without density scaling, so use px units here too.
+          // The native start window (SurfaceDraw::DoDrawImageRect in
+          // window_window_manager) scales the icon by
+          // min(winW/iconW, winH/iconH) and never scales it up (scale >= 1
+          // keeps the intrinsic 649px bitmap), centered on the window. With
+          // the square 649px source icon that is a square of
+          // min(649, winW, winH) physical pixels. Replicate exactly that:
+          // px units (no density scaling) and a window-clamped size, so the
+          // mirror lands pixel-identical on the takeover frame and the icon
+          // does not jump when the system start window disappears.
           // syncLoad keeps the icon in the very first presented frame;
           // async decoding would show a background-only frame right after
           // the system start window goes away.
@@ -150,9 +165,16 @@ export struct DefaultXComponent {
             .objectFit(ImageFit.Contain)
             .interpolation(ImageInterpolation.Medium)
             .syncLoad(true)
-            .width('649px')
-            .height('649px')
+            .width('100%')
+            .height('100%')
+            .constraintSize({
+              minWidth: 0,
+              minHeight: 0,
+              maxWidth: '649px',
+              maxHeight: '649px',
+            })
         }
+        .alignContent(Alignment.Center)
         .width("100%")
         .height("100%")
         .backgroundColor(this.splashBackground)

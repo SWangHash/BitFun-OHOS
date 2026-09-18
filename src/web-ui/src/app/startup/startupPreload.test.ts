@@ -73,7 +73,6 @@ describe('startup preload shell', () => {
     expect(document.querySelector<HTMLImageElement>('.bitfun-preload__logo')?.src).toContain(
       '/bitfun_icon_light.png',
     );
-    expect(document.querySelector('.splash-screen--ohos-brand')).toBeTruthy();
     // The native start window draws the icon at its intrinsic pixel size, so
     // the overlay icon size is 649px / devicePixelRatio (jsdom dpr is 1).
     expect(
@@ -82,6 +81,13 @@ describe('startup preload shell', () => {
     // The overlay announces its own presentation so the OHOS shell releases
     // the native splash mirror exactly on the takeover frame (no white gap).
     expect(readIndexHtml()).toContain('bitfun-startup-overlay-presented');
+    // start_window_background is pinned to #000000 in the OHOS resources, so
+    // the brand splash is a constant black canvas in every color mode (the
+    // webview runs with WebDarkMode.Auto and this layer must not depend on
+    // prefers-color-scheme, which can diverge from an app-level theme).
+    expect(readIndexHtml()).toMatch(
+      /\.splash-screen--ohos-brand \{\s*background: #000000;/,
+    );
     // Window controls stay hidden: the OHOS window host does not implement
     // startup_window_control, and the loading hint stays off for a seamless
     // handoff from the native start window.
