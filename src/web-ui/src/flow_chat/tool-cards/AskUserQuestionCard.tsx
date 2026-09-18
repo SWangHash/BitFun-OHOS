@@ -520,7 +520,15 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       ? Array.isArray(answer) && answer.includes('Other')
       : answer === 'Other';
 
-    const inputName = `question-${questionIndex}`;
+    // Radio names must be unique per card instance. Radios are not inside a
+    // `<form>`, so same-name radios form ONE document-wide mutual-exclusion
+    // group; a second mounted instance (e.g. an expanded completed card being
+    // reviewed while a new card waits for answers) would otherwise steal the
+    // group's checked state, and react-dom's controlled-radio restore would
+    // revert the user's first click. The name never participates in
+    // submission — answers bind through React state and are submitted by
+    // field id / position.
+    const inputName = `${toolId ?? 'ask'}:question-${questionIndex}`;
 
     return (
       <div data-bf-component="ask-user-question-card" data-bf-part="question" key={questionIndex} className="ask-question-item">
