@@ -360,6 +360,113 @@ describe('MouseGlowService', () => {
     stackingHost.remove();
   });
 
+  it('hosts glow inside a positioned overlay-class picker', () => {
+    const picker = document.createElement('div');
+    picker.className = 'bitfun-chat-input__slash-command-picker--overlay';
+    picker.style.position = 'fixed';
+    picker.style.border = '1px solid black';
+    picker.style.borderRadius = '6px';
+    picker.getBoundingClientRect = () => ({
+      bottom: 300,
+      height: 200,
+      left: 120,
+      right: 380,
+      top: 100,
+      width: 260,
+      x: 120,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    const item = document.createElement('div');
+    picker.appendChild(item);
+    document.body.appendChild(picker);
+    service.initialize();
+
+    item.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 180,
+      clientY: 140,
+    }));
+    nextFrame?.(0);
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.parentElement).toBe(picker);
+    expect(overlay?.hasAttribute('data-active')).toBe(true);
+    expect(overlay?.hasAttribute('data-local-position')).toBe(true);
+    expect(overlay?.style.width).toBe('258px');
+    expect(overlay?.style.height).toBe('198px');
+    expect(overlay?.style.transform).toBe('translate3d(0px, 0px, 0)');
+    picker.remove();
+    expect(overlay?.isConnected).toBe(false);
+  });
+
+  it('clips a long surface glow to its scrollport inside a floating layer', () => {
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.style.position = 'fixed';
+    dialog.getBoundingClientRect = () => ({
+      bottom: 440,
+      height: 400,
+      left: 100,
+      right: 600,
+      top: 40,
+      width: 500,
+      x: 100,
+      y: 40,
+      toJSON: () => ({}),
+    });
+    const scrollport = document.createElement('div');
+    scrollport.style.overflowX = 'hidden';
+    scrollport.style.overflowY = 'auto';
+    scrollport.getBoundingClientRect = () => ({
+      bottom: 300,
+      height: 200,
+      left: 110,
+      right: 490,
+      top: 100,
+      width: 380,
+      x: 110,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    const message = document.createElement('article');
+    message.style.border = '1px solid black';
+    message.style.borderRadius = '6px';
+    message.getBoundingClientRect = () => ({
+      bottom: 360,
+      height: 300,
+      left: 120,
+      right: 480,
+      top: 60,
+      width: 360,
+      x: 120,
+      y: 60,
+      toJSON: () => ({}),
+    });
+    const content = document.createElement('span');
+    message.appendChild(content);
+    scrollport.appendChild(message);
+    dialog.appendChild(scrollport);
+    document.body.appendChild(dialog);
+    service.initialize();
+
+    content.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 180,
+      clientY: 150,
+    }));
+    nextFrame?.(0);
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.parentElement).toBe(dialog);
+    expect(overlay?.style.width).toBe('360px');
+    expect(overlay?.style.height).toBe('300px');
+    expect(overlay?.style.transform).toBe('translate3d(20px, 20px, 0)');
+    expect(overlay?.style.clipPath).toBe('inset(40px 0px 60px 0px)');
+    expect(overlay?.style.getPropertyValue('--mouse-glow-local-y')).toBe('90px');
+    dialog.remove();
+  });
+
   it('highlights a nearby single-border divider as a line', () => {
     const divider = document.createElement('section');
     divider.style.display = 'block';
@@ -493,6 +600,40 @@ describe('MouseGlowService', () => {
     expect(overlay?.style.borderRadius).toBe('12px');
     expect(overlay?.hasAttribute('data-active')).toBe(true);
     surface.remove();
+  });
+
+  it('does not invent side borders for a section with only top and bottom rules', () => {
+    const section = document.createElement('section');
+    section.className = 'bitfun-feedback__correlation';
+    section.style.borderTop = '1px solid black';
+    section.style.borderBottom = '1px solid black';
+    section.getBoundingClientRect = () => ({
+      bottom: 180,
+      height: 80,
+      left: 40,
+      right: 360,
+      top: 100,
+      width: 320,
+      x: 40,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    const content = document.createElement('span');
+    section.appendChild(content);
+    document.body.appendChild(section);
+    service.initialize();
+
+    content.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 96,
+      clientY: 120,
+    }));
+    nextFrame?.(0);
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.hasAttribute('data-active')).toBe(false);
+    expect(overlay?.hidden).toBe(true);
+    section.remove();
   });
 
   it('detects semantic borderless cards', () => {

@@ -56,8 +56,7 @@ describe('feedback conversation contract', () => {
 
     expect(source).toContain('!loading && !refreshing && messages.length === 0 && !error');
     expect(source).toContain('if (!manual) setError(null)');
-    expect(source).toContain('loading || loadingEarlier');
-    expect(source).not.toContain('loading || refreshing || loadingEarlier');
+    expect(source).toContain('{loading || loadingEarlier ? (');
   });
 
   it('scrolls to the newest message after both initial load and manual refresh', () => {
@@ -66,11 +65,15 @@ describe('feedback conversation contract', () => {
       source.indexOf('const loadLatest'),
       source.indexOf('const loadEarlier'),
     );
+    const tailScroll = loadLatest.slice(
+      loadLatest.indexOf('// Refresh can append newly arrived messages'),
+      loadLatest.indexOf('} catch'),
+    );
 
     expect(source).toContain('onClick={() => void loadLatest(true)}');
-    expect(loadLatest).toContain('requestAnimationFrame');
-    expect(loadLatest).toContain('container.scrollTop = container.scrollHeight');
-    expect(loadLatest).not.toContain('if (!manual)');
+    expect(tailScroll).toContain('requestAnimationFrame');
+    expect(tailScroll).toContain('container.scrollTop = container.scrollHeight');
+    expect(tailScroll).not.toContain('if (!manual)');
   });
 
   it('gates replies on consent while preserving and Unicode-truncating the draft', () => {
@@ -143,9 +146,29 @@ describe('feedback conversation contract', () => {
 
   it('limits paste and beforeinput before changing the controlled draft', () => {
     const source = readSource('./FeedbackConversationView.tsx');
+    const pasteHandler = source.slice(
+      source.indexOf('const handleDraftPaste'),
+      source.indexOf('const handleDraftBeforeInput'),
+    );
 
     expect(source).toContain('onPaste={handleDraftPaste}');
     expect(source).toContain('onBeforeInput={handleDraftBeforeInput}');
+    expect(pasteHandler).toContain('planFeedbackPaste(');
+    expect(pasteHandler).toContain('if (!plan.acceptedText && insertedText)');
+    expect(pasteHandler).toContain('if (plan.useNativePaste)');
+    expect(pasteHandler.indexOf('if (!plan.acceptedText && insertedText)')).toBeLessThan(
+      pasteHandler.indexOf('if (plan.useNativePaste)'),
+    );
+    expect(pasteHandler.slice(
+      pasteHandler.indexOf('if (!plan.acceptedText && insertedText)'),
+      pasteHandler.indexOf('if (plan.useNativePaste)'),
+    )).toContain('event.preventDefault()');
+    expect(pasteHandler).toContain('textarea.maxLength = plan.nativeMaxLength');
+    expect(pasteHandler).toContain("textarea.removeAttribute('maxlength')");
+    expect(pasteHandler).toContain('nativePasteTruncatedRef.current = plan.acceptedText !== insertedText');
+    expect(pasteHandler).toContain('setDraftTruncated(true)');
+    expect(source).toContain('const nativePasteTruncated = nativePasteTruncatedRef.current');
+    expect(source).toContain('nativePasteTruncated\n      || Array.from');
     expect(source).toContain('textarea.setRangeText(acceptedText, start, end, \'end\')');
     expect(source).toContain('feedbackInsertText(currentValue, start, end, insertedText)');
     expect(source).toContain('start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS');
