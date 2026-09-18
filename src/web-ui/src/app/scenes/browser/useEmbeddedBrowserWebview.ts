@@ -64,10 +64,57 @@ type WebviewBounds = {
   height: number;
 };
 
+/**
+ * Fallback browser webview background colors. Keep in sync with the bootstrap
+ * colors in `src/web-ui/index.html` (`colors.background.primary` per mode).
+ */
+const BROWSER_FALLBACK_BACKGROUND: Record<'light' | 'dark', string> = {
+  dark: '#121214',
+  light: '#f3f3f5',
+};
+
+/**
+ * Normalize a CSS color string to the `#rrggbb` form the desktop
+ * `browser_webview_create/set_background_color` commands require. Returns null
+ * for colors that cannot be represented opaquely (fully transparent, named
+ * colors, non-sRGB color functions).
+ */
+export function normalizeBrowserBackgroundColor(value: string): string | null {
+  const trimmed = value.trim();
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(trimmed);
+  if (hex) {
+    const digits = hex[1];
+    if (digits.length === 3) {
+      return `#${digits[0]}${digits[0]}${digits[1]}${digits[1]}${digits[2]}${digits[2]}`.toLowerCase();
+    }
+    if (digits.length === 6) {
+      return `#${digits.toLowerCase()}`;
+    }
+    if (digits.length === 8) {
+      return `#${digits.slice(0, 6).toLowerCase()}`;
+    }
+    return null;
+  }
+  const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(trimmed);
+  if (rgb) {
+    // A fully transparent page background resolves to the webview's white
+    // canvas, which is exactly the theme mismatch this module must avoid.
+    if (rgb[4] !== undefined && Number(rgb[4]) === 0) {
+      return null;
+    }
+    const channel = (raw: string): string => {
+      const clamped = Math.max(0, Math.min(255, Math.round(Number(raw))));
+      return clamped.toString(16).padStart(2, '0');
+    };
+    return `#${channel(rgb[1])}${channel(rgb[2])}${channel(rgb[3])}`;
+  }
+  return null;
+}
+
 function getBrowserBackgroundColor(): string {
-  const root = document.documentElement;
-  const color = getComputedStyle(root).backgroundColor;
-  return color || (getCurrentAppearanceMode() === 'dark' ? '#1e1e1e' : '#ffffff');
+  const mode = getCurrentAppearanceMode();
+  const color = getComputedStyle(document.documentElement).backgroundColor;
+  return normalizeBrowserBackgroundColor(color) ?? BROWSER_FALLBACK_BACKGROUND[mode];
 }
 
 type BrowserWebviewPageLoadPayload = {
@@ -301,6 +348,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     requestedWebviewLabel,
   } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
+  const isTauriRef = useRef(isTauri);
+  isTauriRef.current = isTauri;
   const startUrl = initialUrl ?? defaultUrl;
   const initialHtmlRef = useRef<string | undefined>(initialHtml);
   const automationBootstrapRef = useRef<string | undefined>(
@@ -563,10 +612,22 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   }, [closeWebview, labelPrefix, log, requestedWebviewLabel, startPageLoadListener, waitForViewportBounds]);
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
+    const syncWebviewTheme = (): void => {
       const label = webviewLabelRef.current;
-      if (label) void injectBrowserPageScripts(label).catch(() => {});
-    });
+      if (!label) return;
+      void injectBrowserPageScripts(label).catch(() => {});
+      // Keep the native WebView default background aligned with the active
+      // appearance. Pages with an explicit background are unaffected; pages
+      // without one would otherwise flash the stale theme color.
+      if (!isTauriRef.current) return;
+      const color = getBrowserBackgroundColor();
+      void import('@tauri-apps/api/core').then(({ invoke }) =>
+        invoke('browser_webview_set_background_color', {
+          request: { label, backgroundColor: color },
+        }),
+      ).catch(() => {});
+    };
+    const observer = new MutationObserver(syncWebviewTheme);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bf-appearance-mode'] });
     return () => observer.disconnect();
   }, []);

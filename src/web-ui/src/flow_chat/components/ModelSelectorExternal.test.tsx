@@ -605,6 +605,68 @@ describe('ModelSelector external transport reuse', () => {
     expect(onSelectReasoningPreset).toHaveBeenCalledWith('high');
   });
 
+  it('closes the model menu when the reasoning picker trigger is pressed', async () => {
+    // The reasoning picker mounts inside the same selector root, so a
+    // root-containment outside-click check used to keep the model menu open
+    // behind it when the user moved on to picking a reasoning effort.
+    const onSelect = vi.fn(async () => undefined);
+    aiApiMocks.getModelCatalog.mockResolvedValueOnce({
+      version: 1,
+      default_models: { primary: 'model-a' },
+      models: [{
+        id: 'model-a',
+        name: 'Synced provider',
+        provider: 'openai',
+        base_url: 'https://example.test/v1',
+        model_name: 'friendly-model-a',
+        enabled: true,
+        capabilities: ['text_chat'],
+        reasoning: {
+          status: 'known',
+          default_preset: 'high',
+          presets: [{
+            id: 'high',
+            label: 'High',
+            order: 10,
+            source: 'models_dev',
+            actions: [{ type: 'effort', value: 'high' }],
+          }],
+        },
+      }],
+    });
+
+    await act(async () => {
+      root.render(
+        <ModelSelector
+          currentMode="agentic"
+          externalSelection={{
+            models: ['model-a'],
+            selectedModelId: 'model-a',
+            providerLabel: 'parallels-ubuntu',
+            includeLocalCatalog: true,
+            onSelect,
+            onSelectReasoningPreset: vi.fn(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="chat-model-selector-btn"]')?.click();
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')
+      ?.getAttribute('data-open')).toBe('true');
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="chat-reasoning-preset-selector-btn"]',
+      )?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')
+      ?.getAttribute('data-open')).toBe('false');
+  });
+
   it('uses an external agent profile model without changing the shared mode default', async () => {
     await act(async () => {
       root.render(
