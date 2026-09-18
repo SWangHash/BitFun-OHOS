@@ -39,7 +39,10 @@ import { isMacOSDesktopRuntime, isOpenHarmonyRuntime } from '@/infrastructure/ru
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { notificationService } from '@/shared/notification-system';
 import { AppearanceBackgroundMediaLayer, appearanceRuntime, useAppearance } from '@/infrastructure/appearance';
-import { confirmCriticalOperationExit } from '@/shared/services/criticalOperationExitGuard';
+import {
+  confirmCriticalOperationExit,
+  setMainWindowCloseRequestInProgress,
+} from '@/shared/services/criticalOperationExitGuard';
 import './AppLayout.scss';
 
 type TransitionDirection = 'entering' | 'returning' | null;
@@ -459,6 +462,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         unlistenFn = await listen('bitfun_main_window_close_requested', async () => {
           if (handlingClose) return;
           handlingClose = true;
+          setMainWindowCloseRequestInProgress(true);
 
           if (isMacOS) {
             // macOS always hides to keep the app alive in the dock.
@@ -466,8 +470,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
               await invoke('hide_main_window_after_close_request');
             } catch (error) {
               log.error('Failed to hide main window after close request', error);
+            } finally {
+              setMainWindowCloseRequestInProgress(false);
+              handlingClose = false;
             }
-            handlingClose = false;
             return;
           }
 
@@ -539,6 +545,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
               }
             } catch { /* ignore */ }
           } finally {
+            setMainWindowCloseRequestInProgress(false);
             handlingClose = false;
           }
         });

@@ -9,6 +9,7 @@ import {
   FeedbackApiError,
   FEEDBACK_CONTENT_MAX_CHARS,
   feedbackInsertText,
+  planFeedbackPaste,
   type FeedbackMessage,
   type FeedbackRecordSummary,
   feedbackContentLength,
@@ -54,6 +55,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const [showConsent, setShowConsent] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const nativePasteTruncatedRef = useRef(false);
   const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const visibleAdminTimesRef = useRef(new Set<string>());
@@ -82,6 +84,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   }, [onInteractionStateChange]);
 
   useEffect(() => {
+    nativePasteTruncatedRef.current = false;
     setDraft('');
     setDraftTruncated(false);
     setReplyError(null);
@@ -323,7 +326,12 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
       return;
     }
     const truncated = truncateFeedbackContent(value);
-    setDraftTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
+    const nativePasteTruncated = nativePasteTruncatedRef.current;
+    nativePasteTruncatedRef.current = false;
+    setDraftTruncated(
+      nativePasteTruncated
+      || Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS,
+    );
     setDraft(truncated);
     setReplyError(null);
   };
@@ -348,17 +356,38 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
 
   const handleDraftPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = event.currentTarget;
-    if (
-      textarea.selectionStart === textarea.selectionEnd
-      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
-    ) {
-      armRejectedInsertionCaret(textarea);
-      // Let the native maxLength gate reject the paste without creating a
-      // JavaScript edit boundary in the browser's undo history.
+    const insertedText = event.clipboardData.getData('text/plain');
+    const plan = planFeedbackPaste(
+      textarea.value,
+      textarea.selectionStart,
+      textarea.selectionEnd,
+      insertedText,
+    );
+    if (!plan.acceptedText && insertedText) {
+      nativePasteTruncatedRef.current = false;
+      setDraftTruncated(true);
+      event.preventDefault();
+      return;
+    }
+    if (plan.useNativePaste) {
+      nativePasteTruncatedRef.current = plan.acceptedText !== insertedText;
+      textarea.maxLength = plan.nativeMaxLength;
+      requestAnimationFrame(() => {
+        if (!textarea.isConnected) {
+          nativePasteTruncatedRef.current = false;
+          return;
+        }
+        if (feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS) {
+          textarea.maxLength = textarea.value.length;
+        } else {
+          textarea.removeAttribute('maxlength');
+        }
+        nativePasteTruncatedRef.current = false;
+      });
       return;
     }
     event.preventDefault();
-    applyFeedbackInsertion(textarea, event.clipboardData.getData('text/plain'));
+    applyFeedbackInsertion(textarea, insertedText);
   };
 
   const handleDraftBeforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {

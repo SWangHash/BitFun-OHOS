@@ -54,9 +54,17 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(dialog).toContain('return;');
   });
 
-  it('counts the privacy checkbox as draft state and freezes close while submitting', () => {
+  it('protects modal draft close without registering ordinary drafts as a host-exit guard', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
     const layout = readSource('../../layout/AppLayout.tsx');
+    const requestClose = dialog.slice(
+      dialog.indexOf('const requestClose'),
+      dialog.indexOf('const handleContentChange'),
+    );
+    const exitGuard = dialog.slice(
+      dialog.indexOf('useEffect(() => {'),
+      dialog.indexOf('if (retryWaitSeconds <= 0)'),
+    );
 
     expect(dialog).toContain('category || content || includeCorrelation || privacyChecked');
     expect(dialog).toContain('if (submitting || replyState.sending) return;');
@@ -64,6 +72,19 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(dialog).toContain('closeOnOverlayClick={!submitting && !replyState.sending}');
     expect(dialog).toContain('registerCriticalOperationExitGuard');
     expect(layout).toContain('await confirmCriticalOperationExit()');
+    expect(layout).toContain('setMainWindowCloseRequestInProgress(true)');
+    expect(layout).toContain('setMainWindowCloseRequestInProgress(false)');
+    expect(requestClose).toContain('if (isMainWindowCloseRequestInProgress()) return;');
+    expect(requestClose.indexOf('isMainWindowCloseRequestInProgress')).toBeLessThan(
+      requestClose.indexOf('setShowDiscardConfirm(true)'),
+    );
+    expect(requestClose).toContain('setShowDiscardConfirm(true)');
+    expect(dialog).toContain('subscribeMainWindowCloseRequest(inProgress => {');
+    expect(dialog).toContain('setShowDiscardConfirm(false)');
+    expect(dialog).toContain('setPendingReplyExit(null)');
+    expect(dialog).toContain("t('feedback.discard.title')");
+    expect(exitGuard).toContain('if (!submitting && !replyState.sending) return;');
+    expect(exitGuard).not.toContain('hasDraft');
   });
 
   it('opens the read-only privacy statement from inline consent copy', () => {
@@ -138,9 +159,29 @@ describe('OpenHarmony feedback submission contract', () => {
 
   it('limits feedback paste before replacing the controlled value', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
+    const pasteHandler = dialog.slice(
+      dialog.indexOf('const handleContentPaste'),
+      dialog.indexOf('const handleContentKeyDown'),
+    );
 
     expect(dialog).toContain('onPaste={handleContentPaste}');
     expect(dialog).toContain('onBeforeInput={handleContentBeforeInput}');
+    expect(pasteHandler).toContain('planFeedbackPaste(');
+    expect(pasteHandler).toContain('if (!plan.acceptedText && insertedText)');
+    expect(pasteHandler).toContain('if (plan.useNativePaste)');
+    expect(pasteHandler.indexOf('if (!plan.acceptedText && insertedText)')).toBeLessThan(
+      pasteHandler.indexOf('if (plan.useNativePaste)'),
+    );
+    expect(pasteHandler.slice(
+      pasteHandler.indexOf('if (!plan.acceptedText && insertedText)'),
+      pasteHandler.indexOf('if (plan.useNativePaste)'),
+    )).toContain('event.preventDefault()');
+    expect(pasteHandler).toContain('textarea.maxLength = plan.nativeMaxLength');
+    expect(pasteHandler).toContain("textarea.removeAttribute('maxlength')");
+    expect(pasteHandler).toContain('nativePasteTruncatedRef.current = plan.acceptedText !== insertedText');
+    expect(pasteHandler).toContain('setWasTruncated(true)');
+    expect(dialog).toContain('const nativePasteTruncated = nativePasteTruncatedRef.current');
+    expect(dialog).toContain('nativePasteTruncated\n      || Array.from');
     expect(dialog).toContain('textarea.setRangeText(acceptedText, start, end, \'end\')');
     expect(dialog).toContain('feedbackInsertText(currentValue, start, end, insertedText)');
     expect(dialog).toContain('start === end && feedbackContentLength(currentValue) >= FEEDBACK_CONTENT_MAX_CHARS');
@@ -149,6 +190,26 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(dialog).toContain('armRejectedInsertionCaret(textarea)');
     expect(dialog).toContain("/^\\s/.test(value) && value.replace(/^\\s+/, '') === content");
     expect(dialog).toContain("document.execCommand('undo')");
+  });
+
+  it('keeps feedback metadata and refresh labels in their own layout space', () => {
+    const styles = readSource('./FeedbackDialog.scss');
+    const contentField = styles.slice(
+      styles.indexOf('.bitfun-feedback__content-field {'),
+      styles.indexOf('.bitfun-feedback__content-meta {'),
+    );
+    const inboxList = styles.slice(
+      styles.indexOf('.bitfun-feedback__inbox-list {'),
+      styles.indexOf('.bitfun-feedback__inbox-header,'),
+    );
+
+    expect(contentField).toContain('.bitfun-textarea__wrapper {');
+    expect(contentField).toContain('flex: 1;');
+    expect(contentField).toContain('min-height: 0;');
+    expect(contentField).not.toContain('.bitfun-textarea__wrapper,');
+    expect(contentField).toContain('white-space: break-spaces;');
+    expect(inboxList).toContain('user-select: none;');
+    expect(styles.match(/white-space: break-spaces;/g)).toHaveLength(2);
   });
 
   it('keeps the dialog below the host window controls at every supported size', () => {
