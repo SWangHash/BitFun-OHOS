@@ -41,6 +41,7 @@ import { sessionWorktreeMaterializationPlan } from '../../utils/sessionWorktree'
 import { cleanupSaveState } from '../../services/flow-chat-manager/PersistenceModule';
 import { cleanupSessionBuffers } from '../../services/flow-chat-manager/TextChunkModule';
 import { applyGeneratingTitlePlaceholder } from '../shared';
+import { inheritReviewPermissionMode } from '../../services/inheritReviewPermissionMode';
 
 const log = createLogger('LocalSessionDriver');
 
@@ -447,6 +448,11 @@ export const localSessionDriver: SessionDriver = {
       surfaceScope.assertCurrent('start ACP dialog turn');
       context.flowChatStore.updateSessionLastSubmittedMode(sessionId, currentAgentType);
     } else {
+      await inheritReviewPermissionMode(
+        updatedSession,
+        context.flowChatStore.getState().sessions,
+        () => surfaceScope.assertCurrent('inherit review session permission mode'),
+      );
       try {
         tracker.hostSubmitStarted = true;
         await agentAPI.startDialogTurn({
@@ -481,6 +487,11 @@ export const localSessionDriver: SessionDriver = {
           surfaceScope.assertCurrent('load backend session retry');
           await retryCreateBackendSession(context, sessionId);
           surfaceScope.assertCurrent('retry backend session creation');
+          await inheritReviewPermissionMode(
+            updatedSession,
+            context.flowChatStore.getState().sessions,
+            () => surfaceScope.assertCurrent('inherit recreated review session permission mode'),
+          );
 
           tracker.hostSubmitStarted = true;
           await agentAPI.startDialogTurn({
