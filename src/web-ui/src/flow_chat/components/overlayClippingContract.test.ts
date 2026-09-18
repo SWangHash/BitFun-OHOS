@@ -66,4 +66,15 @@ describe('chat input slash picker interaction contract', () => {
 
     expect(pickerStyles).not.toContain('backdrop-filter');
   });
+
+  it('hosts mouse glow inside every slash picker just like the mention overlay', () => {
+    expect(source.match(/bitfun-chat-input__slash-command-picker--overlay/g)).toHaveLength(4);
+    expect(readSource('./FileMentionPicker.tsx')).toContain('file-mention-picker--overlay');
+  });
+
+  it('uses managed tooltips that unmount with command rows instead of native title bubbles', () => {
+    expect(source).not.toContain('title={`${commandText}\\n${labelText}`}');
+    expect(source.match(/content=\{`\$\{commandText\} · \$\{labelText\}`\}/g)).toHaveLength(2);
+    expect(source).toContain('<Tooltip content={`${commandText} · ${labelText}`} placement="right">');
+  });
 });
