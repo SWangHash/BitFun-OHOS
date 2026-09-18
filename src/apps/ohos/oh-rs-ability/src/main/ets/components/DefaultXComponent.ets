@@ -110,9 +110,13 @@ export struct DefaultXComponent {
         Stack() {
           // The native start window draws startWindowIcon at its intrinsic
           // pixel size without density scaling, so use px units here too.
+          // syncLoad keeps the icon in the very first presented frame;
+          // async decoding would show a background-only frame right after
+          // the system start window goes away.
           Image(this.splashIcon)
             .objectFit(ImageFit.Contain)
             .interpolation(ImageInterpolation.Medium)
+            .syncLoad(true)
             .width('649px')
             .height('649px')
         }

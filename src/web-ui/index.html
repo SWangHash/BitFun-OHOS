@@ -461,6 +461,31 @@
               ohosIconPx + 'px'
             );
           }
+          // Tell the OHOS shell when the brand overlay has actually been
+          // presented: wait until the icon is decoded, then double
+          // requestAnimationFrame so at least one frame with the overlay has
+          // been committed. The native shell matches this token in its
+          // onConsoleMessage handler and releases the splash mirror exactly
+          // on the takeover frame instead of on a load event (a load event
+          // can fire while the webview still shows no content, which read as
+          // a white flash between the mirror and the overlay).
+          var signalOverlayPresented = function () {
+            var raf = window.requestAnimationFrame;
+            if (typeof raf === 'function') {
+              raf(function () {
+                raf(function () {
+                  console.info('bitfun-startup-overlay-presented');
+                });
+              });
+            } else {
+              console.info('bitfun-startup-overlay-presented');
+            }
+          };
+          if (ohosLogo && typeof ohosLogo.decode === 'function') {
+            ohosLogo.decode().then(signalOverlayPresented, signalOverlayPresented);
+          } else {
+            signalOverlayPresented();
+          }
           return;
         }
 
