@@ -191,6 +191,54 @@ export default class EntryAbility extends RustAbility {
     const feedbackCredentialStore = new FeedbackCredentialStore();
     const secureCredentialStore = new SecureCredentialStore();
     const screenCaptureStore = new ScreenCaptureStore(this.context);
+    // Apply the window chrome synchronously, before the page content and its
+    // startup splash mirror present. The startup mirror must live on a
+    // layout-stable window: hiding the native title buttons and shrinking the
+    // decor height after the first frame resizes the window content area,
+    // which re-lays-out the mirror and reads as a one-frame icon jump. The
+    // window object already exists at this point, so no setTimeout is needed
+    // (the delayed path below stays as an idempotent safety net).
+    try {
+      const mainWin = windowStage.getMainWindowSync();
+      mainWin.setWindowDecorHeight(38);
+      mainWin.setWindowTitleMoveEnabled(false);
+      mainWin.setWindowDecorVisible(false);
+      let scale: number = 1;
+      try {
+        scale = display.getDefaultDisplaySync().densityPixels > 0
+          ? display.getDefaultDisplaySync().densityPixels : 1;
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, 'read densityPixels on startup failed: ' + JSON.stringify(e));
+      }
+      // setWindowLimits expects px (physical pixels). Convert the 800x600
+      // logical minimum, matching the desktop MAIN_WINDOW_MIN_WIDTH/HEIGHT,
+      // using the display density so non-1x scaling keeps the same logical
+      // minimum as Windows/Linux/macOS.
+      mainWin.setWindowLimits({
+        minWidth: Math.round(800 * scale),
+        minHeight: Math.round(600 * scale),
+        maxWidth: -1,
+        maxHeight: -1,
+      }).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'setWindowLimits on startup failed: ' + e.message);
+      });
+      // Launch diagnostics for the start-window handoff: the content rect the
+      // splash mirror inherits, plus any post-launch window resize (a resize
+      // after the first frame re-lays-out the mirror and would read as a
+      // one-frame icon jump).
+      try {
+        const rect = mainWin.getWindowProperties().windowRect;
+        hilog.info(DOMAIN, 'BitFunStartup',
+          'startup window chrome applied, rect=' + rect.width + 'x' + rect.height + ', density=' + scale);
+      } catch (e) {
+        hilog.warn(DOMAIN, 'BitFunStartup', 'read window rect on startup failed: ' + JSON.stringify(e));
+      }
+      mainWin.on('windowSizeChange', (size) => {
+        hilog.info(DOMAIN, 'BitFunStartup', 'windowSizeChange ' + size.width + 'x' + size.height);
+      });
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, 'sync window chrome on startup failed: ' + JSON.stringify(e));
+    }
     windowStage.on('windowStageClose', () => {
       RustModule.notifyMainWindowCloseRequested();
       return true;
@@ -662,15 +710,18 @@ export default class EntryAbility extends RustAbility {
       const req: LabelRequest = JSON.parse(arg);
       return await browserService.getUrl(req);
     });
+    // Idempotent safety net: re-assert the same chrome configuration in case
+    // the synchronous apply above raced with a system-side decoration reset.
+    // The values are identical, so a re-apply is a no-op on screen.
     setTimeout(() => {
       windowStage.getMainWindow((err, data) => {
+        if (err || !data) {
+          hilog.warn(DOMAIN, TAG, 'getMainWindow for chrome re-assert failed: ' + JSON.stringify(err));
+          return;
+        }
         data.setWindowDecorHeight(38);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
-        // setWindowLimits expects px (physical pixels). Convert the 800x600
-        // logical minimum, matching the desktop MAIN_WINDOW_MIN_WIDTH/HEIGHT,
-        // using the display density so non-1x scaling keeps the same logical
-        // minimum as Windows/Linux/macOS.
         let scale: number = 1;
         try {
           scale = display.getDefaultDisplaySync().densityPixels > 0

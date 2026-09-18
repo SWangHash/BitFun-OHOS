@@ -7,8 +7,13 @@ import {
   WebviewStyle,
   WebviewInitData,
 } from "../webview/DefaultWebview";
+import { hilog } from "@kit.PerformanceAnalysisKit";
 
 export const RouteName = "RustAbility";
+
+const SPLASH_LOG_DOMAIN: number = 0x0000;
+const SPLASH_LOG_TAG: string = "BitFunStartup";
+
 @Component
 export struct DefaultXComponent {
   private rootSlot = new NodeContent();
@@ -111,12 +116,17 @@ export struct DefaultXComponent {
   }
 
   async aboutToAppear(): Promise<void> {
+    // Diagnostics: the exact moment the mirror layer becomes visible. With the
+    // EntryAbility release logs this brackets the visible lifetime of the
+    // mirror and helps locate any residual handoff jump on device.
+    hilog.info(SPLASH_LOG_DOMAIN, SPLASH_LOG_TAG, 'splash mirror aboutToAppear');
     // Last-resort safety net: if the webview never reaches a first contentful
     // paint or a page-load end (navigation failure, blank page), release the
     // startup splash mirror so the app never gets stuck behind it. The normal
     // path hides the mirror via WebBuilder's FCP / onPageEnd handlers, long
     // before this timer fires.
     setTimeout(() => {
+      hilog.info(SPLASH_LOG_DOMAIN, SPLASH_LOG_TAG, 'splash mirror released by aboutToAppear fallback');
       AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
     }, 5000);
     // Expose the controller so app-level services (e.g. BrowserWebviewService)

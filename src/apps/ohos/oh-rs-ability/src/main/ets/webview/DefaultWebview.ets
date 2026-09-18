@@ -150,7 +150,7 @@ function WebBuilder(data: WebviewNodeData) {
     // behavior aligned with the other platforms. forceDarkAccess stays off:
     // pages style themselves via their own dark-theme CSS. Live mode changes
     // are still delivered through notifySystemColorMode (see EntryAbility).
-    .darkMode(web_webview.WebDarkMode.Auto)
+    .darkMode(WebDarkMode.Auto)
     .forceDarkAccess(false)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
@@ -184,10 +184,12 @@ function WebBuilder(data: WebviewNodeData) {
     // 3. onPageEnd fallback, delayed so the overlay frame is on screen.
     // Clearing an already-empty value is idempotent.
     .onFirstContentfulPaint(() => {
+      hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by FCP');
       AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
     })
     .onConsole((event) => {
       if (event && event.message && event.message.getMessage() === 'bitfun-startup-overlay-presented') {
+        hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by overlay-presented token');
         AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
         return true;
       }
@@ -213,6 +215,7 @@ function WebBuilder(data: WebviewNodeData) {
       // overlay is presented. The console token above releases at the exact
       // takeover frame; this path only covers pages that never emit it.
       setTimeout(() => {
+        hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by onPageEnd fallback');
         AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
       }, 300);
       if (typeof data?.onPageEnd === "function") {
