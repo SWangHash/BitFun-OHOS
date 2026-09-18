@@ -430,6 +430,15 @@ fn is_inside_migrated_harmony_project(dir: &Path) -> bool {
     })
 }
 
+/// Whether `path` is a previous migration product (or lives inside one):
+/// inside an output container, or itself/above a migrated HarmonyOS project
+/// structure (build-profile + entry + `qEmbeddedUiExtensionHost`). Same
+/// criteria the output-candidate probe uses for exclusion. Used by the
+/// answer-submit validation to reject overwriting previous migration results.
+pub(crate) fn is_migration_output_artifact(path: &Path) -> bool {
+    is_migration_artifact_location(path) || is_inside_migrated_harmony_project(path)
+}
+
 /// A directory name that denotes a migration output project (e.g. `app-ohos`).
 /// Used only to rank source candidates (migration artifacts after originals).
 fn is_migration_artifact(dir: &Path) -> bool {
@@ -1063,6 +1072,29 @@ mod tests {
             probe.candidates["output_project"],
             vec![root.to_string_lossy().into_owned()]
         );
+    }
+
+    #[test]
+    fn migration_output_artifact_criteria_match_probe_exclusion() {
+        // 提交侧校验与输出候选探测使用同一套产物判据：
+        // 容器内路径、真实迁移产物（结构判据）都算产物；
+        // 输出容器本身与普通新建目录不是产物。
+        let (_t, root) = tree();
+        let container = mkdir(&root, "output-project");
+        let product_in_container = mkdir(&container, "calculator-ohos");
+        touch(&product_in_container, "build-profile.json5");
+        mkdir(&product_in_container, "entry");
+        mkdir(&product_in_container, TEMPLATE_MARKER_DIR);
+        let product_outside = mkdir(&root, "notepad-ohos");
+        touch(&product_outside, "build-profile.json5");
+        mkdir(&product_outside, "entry");
+        mkdir(&product_outside, TEMPLATE_MARKER_DIR);
+        let fresh = mkdir(&root, "new-output");
+
+        assert!(is_migration_output_artifact(&product_in_container));
+        assert!(is_migration_output_artifact(&product_outside));
+        assert!(!is_migration_output_artifact(&container));
+        assert!(!is_migration_output_artifact(&fresh));
     }
 
     #[test]
