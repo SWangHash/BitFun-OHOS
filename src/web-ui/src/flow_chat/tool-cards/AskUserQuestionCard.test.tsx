@@ -13,6 +13,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const templates: Record<string, string> = {
         'toolCards.askUser.submitPathNotFound': '{{field}}路径不存在：{{path}}',
+        'toolCards.askUser.submitOutputArtifact':
+          '{{field}}指向历史迁移产物，禁止覆盖：{{path}}。请为本次迁移改用其他输出目录。',
       };
       const template = templates[key] ?? key;
       if (!options) return template;
@@ -295,6 +297,37 @@ describe('AskUserQuestionCard', () => {
     expect(errorText).toContain('路径不存在');
     expect(errorText).toContain('D:/missing');
     expect(errorText).not.toContain('qt_migration_path_not_found');
+    expect(container.querySelector<HTMLInputElement>('input[type="radio"]')?.disabled).toBe(false);
+    expect(submit?.disabled).toBe(false);
+  });
+
+  it('renders the migration-artifact output rejection and keeps the question editable', async () => {
+    vi.mocked(toolAPI.submitUserAnswers).mockRejectedValueOnce(
+      new Error('qt_migration_output_is_artifact: field=output_project; path=D:/out/calculator-ohos'),
+    );
+    const item = questionTool('pending_confirmation');
+
+    await act(async () => {
+      root.render(
+        <AskUserQuestionCard
+          toolItem={item}
+          config={config}
+          isLastItem
+        />,
+      );
+    });
+
+    const submit = container.querySelector<HTMLButtonElement>('.submit-button');
+    await act(async () => {
+      submit?.click();
+    });
+
+    // The rejection must render through i18n (localized template + field
+    // label), not echo the raw backend message.
+    const errorText = container.querySelector('.submission-error-message')?.textContent ?? '';
+    expect(errorText).toContain('禁止覆盖');
+    expect(errorText).toContain('D:/out/calculator-ohos');
+    expect(errorText).not.toContain('qt_migration_output_is_artifact');
     expect(container.querySelector<HTMLInputElement>('input[type="radio"]')?.disabled).toBe(false);
     expect(submit?.disabled).toBe(false);
   });

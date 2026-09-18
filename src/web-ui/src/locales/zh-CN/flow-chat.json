@@ -1789,6 +1789,7 @@
       "submitting": "提交中...",
       "submitFailed": "提交失败，请检查输入后重试",
       "submitPathNotFound": "{{field}}路径不存在：{{path}}",
+      "submitOutputArtifact": "{{field}}指向历史迁移产物，禁止覆盖：{{path}}。请为本次迁移改用其他输出目录。",
       "fieldName": {
         "source_project": "原始工程",
         "output_project": "输出工程",

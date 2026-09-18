@@ -697,6 +697,9 @@ fn qt_migration_bound_inputs_instruction(
             text.push_str(&format!("- {field}：{value}\n"));
         }
     }
+    text.push_str(
+        "\noutput_project 是输出容器：迁移工程目录 `<原始应用名>-ohos` 创建于该容器内。容器内已存在同名历次迁移产物时，禁止覆盖或复用旧目录，必须按 `<app-name>-ohos-2` 序号取最小可用值避让，并在最终响应中告知用户新目录名。\n",
+    );
     if values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE
         || values["template"] == QT_MIGRATION_OFFICIAL_VALUE
     {
