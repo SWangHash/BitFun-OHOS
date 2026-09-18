@@ -541,4 +541,83 @@ describe('AskUserQuestionCard', () => {
     const checked = container.querySelector<HTMLInputElement>('input[type="radio"]:checked');
     expect(checked?.value).toBe('MySQL');
   });
+
+  it('scopes radio names per card instance so a pending option selects on first click', async () => {
+    // 两个问题卡片同时挂载（已完成卡片展开回看 + 新待答卡片）时，radio 的
+    // name 若只按题目序号命名，会在整个文档范围内构成同一互斥组：完成卡片
+    // 的 radio 抢占 checked，待答卡片第一次点击会被 react-dom 的受控恢复
+    // 逻辑弹回（表现为"要点两次才选中"）。name 必须带卡片实例前缀。
+    const completedItem = questionTool('completed');
+    completedItem.toolCall.input.questions = [{
+      header: 'Database',
+      question: 'Which database?',
+      multiSelect: false,
+      options: [{ label: 'PostgreSQL' }, { label: 'MySQL' }],
+    }];
+    completedItem.toolResult = {
+      success: true,
+      result: {
+        questions: [{ question: 'Which database?', header: 'Database' }],
+        answers: { 0: 'PostgreSQL' },
+        status: 'answered',
+      },
+    } as FlowToolItem['toolResult'];
+
+    const pendingItem = questionTool('pending_confirmation');
+    pendingItem.id = 'question-tool-2';
+    pendingItem.toolCall = {
+      ...pendingItem.toolCall,
+      id: 'question-call-2',
+      input: {
+        questions: [{
+          header: 'Database',
+          question: 'Which database?',
+          multiSelect: false,
+          options: [{ label: 'PostgreSQL' }, { label: 'MySQL' }],
+        }],
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        <>
+          <AskUserQuestionCard toolItem={completedItem} config={config} isLastItem={false} />
+          <AskUserQuestionCard toolItem={pendingItem} config={config} isLastItem />
+        </>,
+      );
+    });
+
+    // Radio names are instance-scoped: no name is shared across the two cards.
+    // (The completed card starts collapsed; its radios mount on expand. Each
+    // card's question also renders an "Other" radio, hence 3 per card.)
+    await act(async () => {
+      container.querySelector<HTMLElement>('.completed-summary')?.click();
+    });
+    const names = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="radio"]'))
+      .map(input => input.name);
+    // 同题选项共享 name 是 radio 组的正确设计；唯一性要求是卡片实例之间
+    // 不共享（name 带卡片 toolId 前缀），跨实例互斥因此消失。
+    expect(names.length).toBe(6);
+    expect(names.every(name => name.startsWith('question-tool-1:') || name.startsWith('question-tool-2:'))).toBe(true);
+    const tool1Names = names.filter(name => name.startsWith('question-tool-1:'));
+    const tool2Names = names.filter(name => name.startsWith('question-tool-2:'));
+    expect(tool1Names.length).toBe(3);
+    expect(tool2Names.length).toBe(3);
+
+    // First click on the pending card's second option must select it.
+    const pendingOptionB = document.querySelector<HTMLInputElement>(
+      'input[name="question-tool-2:question-0"][value="MySQL"]',
+    );
+    expect(pendingOptionB).not.toBeNull();
+    await act(async () => {
+      pendingOptionB?.click();
+    });
+    expect(pendingOptionB?.checked).toBe(true);
+
+    // The completed card's own selection is untouched (no cross-instance steal).
+    const completedChecked = document.querySelector<HTMLInputElement>(
+      'input[name="question-tool-1:question-0"]:checked',
+    );
+    expect(completedChecked?.value).toBe('PostgreSQL');
+  });
 });
