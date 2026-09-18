@@ -141,6 +141,17 @@ function WebBuilder(data: WebviewNodeData) {
       y: data.style?.y || 0,
     })
     .backgroundColor(data?.style?.backgroundColor)
+    // Follow the system color mode so `prefers-color-scheme` inside the page
+    // resolves correctly. ArkWeb defaults to WebDarkMode.Off, which pins every
+    // page to light mode no matter what the system uses: the pre-React
+    // background and the startup brand splash (both keyed on
+    // prefers-color-scheme) would stay white on dark systems. Desktop webviews
+    // (WebView2/WKWebView) follow the system by default, so Auto keeps OHOS
+    // behavior aligned with the other platforms. forceDarkAccess stays off:
+    // pages style themselves via their own dark-theme CSS. Live mode changes
+    // are still delivered through notifySystemColorMode (see EntryAbility).
+    .darkMode(web_webview.WebDarkMode.Auto)
+    .forceDarkAccess(false)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
     .mediaPlayGestureAccess(

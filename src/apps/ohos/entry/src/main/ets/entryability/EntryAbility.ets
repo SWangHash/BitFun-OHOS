@@ -109,20 +109,22 @@ export default class EntryAbility extends RustAbility {
     super.onCreate(want, launchParam);
     // Startup splash clone resources: DefaultXComponent mirrors the native
     // start window (startWindowIcon + startWindowBackground) while the webview
-    // boots, and hides the mirror on the Web component's first contentful
-    // paint. Without it the window shows a blank background between the
-    // system start window and the webview's first frame. The background is
-    // resolved from the same color resource startWindowBackground uses so
-    // light and dark modes both match.
+    // boots, and hides the mirror when the page reports its takeover frame.
+    // Without it the window shows a blank background between the system start
+    // window and the webview's first frame. The mirror layer takes the color
+    // resource itself, not a pre-resolved value: the color resource system
+    // picks base (#FFFFFF) vs dark (#000000) per the active color mode at
+    // render time, and $r references stay valid if the mode flips early.
     AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_icon_light'));
-    try {
-      AppStorage.setOrCreate<ResourceColor>(
-        'bitfunStartupSplashBackground',
-        this.context.resourceManager.getColorSync($r('app.color.start_window_background').id),
-      );
-    } catch (e) {
-      AppStorage.setOrCreate<ResourceColor>('bitfunStartupSplashBackground', '#FFFFFF');
-    }
+    AppStorage.setOrCreate<ResourceColor>(
+      'bitfunStartupSplashBackground',
+      $r('app.color.start_window_background'),
+    );
+    // Publish the resolved system color mode for ArkUI components. The webview
+    // runs with WebDarkMode.Auto (prefers-color-scheme works), but its
+    // backgroundColor attribute does not follow the system by itself (default
+    // white), so DefaultXComponent syncs it from this value.
+    AppStorage.setOrCreate<string>('bitfunSystemColorMode', this.readSystemColorMode());
     this.commonEventListener = new CommonEventListener();
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
@@ -144,6 +146,9 @@ export default class EntryAbility extends RustAbility {
   onConfigurationUpdate(newConfig: Configuration): void {
     const mode = this.colorModeToString(newConfig?.colorMode);
     if (mode.length > 0) {
+      // ArkUI consumers (splash mirror, webview background sync) re-resolve
+      // from AppStorage; the web-ui listens to the Rust-side notification.
+      AppStorage.setOrCreate<string>('bitfunSystemColorMode', mode);
       try {
         RustModule.notifySystemColorMode(mode);
         hilog.info(DOMAIN, 'vnext', 'onConfigurationUpdate: system color mode -> ' + mode);
