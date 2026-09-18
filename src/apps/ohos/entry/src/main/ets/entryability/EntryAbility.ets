@@ -111,10 +111,14 @@ export default class EntryAbility extends RustAbility {
     // start window (startWindowIcon + startWindowBackground) while the webview
     // boots, and hides the mirror when the page reports its takeover frame.
     // Without it the window shows a blank background between the system start
-    // window and the webview's first frame. The mirror layer takes the color
-    // resource itself, not a pre-resolved value: the color resource system
-    // picks base (#FFFFFF) vs dark (#000000) per the active color mode at
-    // render time, and $r references stay valid if the mode flips early.
+    // window and the webview's first frame. The background is passed as the
+    // resource reference, not a pre-resolved value: start_window_background is
+    // pinned to #000000 in both base/ and dark/, so every consumer of the
+    // color (the AbilityMgr-drawn system start window, this ArkUI mirror, the
+    // webview seed) resolves the same constant regardless of which color mode
+    // each consumer runs under — an application-level colorMode override (see
+    // set_theme_mode) would otherwise make the mirror diverge from the system
+    // start window whenever the system and app themes differ.
     AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_icon_light'));
     AppStorage.setOrCreate<ResourceColor>(
       'bitfunStartupSplashBackground',
