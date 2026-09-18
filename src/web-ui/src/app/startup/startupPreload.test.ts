@@ -79,6 +79,9 @@ describe('startup preload shell', () => {
     expect(
       document.documentElement.style.getPropertyValue('--bitfun-ohos-start-icon-size'),
     ).toBe('649px');
+    // The overlay announces its own presentation so the OHOS shell releases
+    // the native splash mirror exactly on the takeover frame (no white gap).
+    expect(readIndexHtml()).toContain('bitfun-startup-overlay-presented');
     // Window controls stay hidden: the OHOS window host does not implement
     // startup_window_control, and the loading hint stays off for a seamless
     // handoff from the native start window.

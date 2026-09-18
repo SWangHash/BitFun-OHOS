@@ -162,15 +162,25 @@ function WebBuilder(data: WebviewNodeData) {
         ctrl.loadData(data!.html, "text/html", "UTF-8", " ", " ");
       }
     })
-    // Hide the startup splash mirror once the webview has actually painted
-    // content. FCP is the earliest signal and onPageEnd is the reliable one:
-    // the document has finished loading, so its first paint already happened
-    // and the page (which draws its own brand splash on OpenHarmony hosts) is
-    // ready to take over. Some ArkWeb builds never deliver FCP, which would
-    // leave the mirror stuck until the fallback timer, so both are wired.
+    // Hide the startup splash mirror once the webview has actually presented
+    // the brand overlay. Release signals, earliest first:
+    // 1. FCP: the Web component painted content (absent on some ArkWeb builds).
+    // 2. The page's 'bitfun-startup-overlay-presented' console token: emitted
+    //    after the overlay icon is decoded and one double-rAF frame commits,
+    //    i.e. the takeover frame. This is the exact handoff point; releasing
+    //    earlier (e.g. on a load event) can expose a background-only frame
+    //    that reads as a white flash between the mirror and the overlay.
+    // 3. onPageEnd fallback, delayed so the overlay frame is on screen.
     // Clearing an already-empty value is idempotent.
     .onFirstContentfulPaint(() => {
       AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+    })
+    .onConsole((event) => {
+      if (event && event.message && event.message.getMessage() === 'bitfun-startup-overlay-presented') {
+        AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+        return true;
+      }
+      return false;
     })
     .onLoadIntercept((event) => {
       if (typeof data?.onNavigationRequest === "function") {
@@ -187,7 +197,13 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     .onPageEnd((event) => {
-      AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+      // Delayed fallback: onPageEnd itself is a load event, not a paint
+      // event, so releasing here immediately can expose a frame before the
+      // overlay is presented. The console token above releases at the exact
+      // takeover frame; this path only covers pages that never emit it.
+      setTimeout(() => {
+        AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+      }, 300);
       if (typeof data?.onPageEnd === "function") {
         const url = event?.url ?? "";
         data.onPageEnd(url);
