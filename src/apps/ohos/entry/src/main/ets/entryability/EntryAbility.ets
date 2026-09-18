@@ -32,6 +32,7 @@ import {
   NavigateRequest,
   BoundsRequest,
   LabelRequest,
+  SetBackgroundColorRequest,
 } from '../services/BrowserWebviewService';
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
 
@@ -661,6 +662,10 @@ export default class EntryAbility extends RustAbility {
     RustModule.registerArktsFunction('browser_webview_get_url_ohos', async (err: Error, arg: string): Promise<string> => {
       const req: LabelRequest = JSON.parse(arg);
       return await browserService.getUrl(req);
+    });
+    RustModule.registerArktsFunction('browser_webview_set_background_color_ohos', async (err: Error, arg: string): Promise<string> => {
+      const req: SetBackgroundColorRequest = JSON.parse(arg);
+      return await browserService.setBackgroundColor(req);
     });
     // Window chrome configuration. This MUST stay delayed (40ms): applying it
     // synchronously at the top of onWindowStageCreate, before loadContent,

@@ -26,6 +26,7 @@ import { gitService } from '@/tools/git/services';
 import { createGitDiffEditorTab, createGitCodeEditorTab } from '@/shared/utils/tabUtils';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import './WorkingCopyView.scss';
 
 const log = createLogger('WorkingCopyView');
@@ -197,6 +198,8 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
         if (fileType === 'untracked') {
           const full = workspacePath.replace(/\\/g, '/') + '/' + filePath.replace(/\\/g, '/');
           await workspaceAPI.deleteFile(full);
+          // Flag open editor tabs immediately (remote workspaces have no watcher).
+          globalEventBus.emit('editor:file-deleted', { filePath: full });
         } else {
           const unstage = fileType === 'staged';
           if (unstage) await gitService.resetFiles(workspacePath, [filePath], true);

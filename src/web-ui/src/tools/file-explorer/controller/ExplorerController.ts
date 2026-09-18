@@ -566,6 +566,13 @@ export class ExplorerController {
       globalEventBus.emit('editor:file-changed', { filePath: event.path });
     }
 
+    // Editors only probe the disk while their tab is active, so a deleted file
+    // leaves background tabs looking intact until the user clicks them.
+    // Broadcast deletions so open tabs can flag themselves immediately.
+    if (event.type === 'deleted') {
+      globalEventBus.emit('editor:file-deleted', { filePath: event.path });
+    }
+
     if (this.pendingRefreshTimer) {
       clearTimeout(this.pendingRefreshTimer);
     }

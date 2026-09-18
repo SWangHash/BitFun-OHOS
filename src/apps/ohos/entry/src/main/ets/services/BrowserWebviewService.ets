@@ -24,6 +24,7 @@ export interface CreateRequest {
   y: number;
   width: number;
   height: number;
+  backgroundColor?: string;
 }
 
 export interface EvalRequest {
@@ -46,6 +47,11 @@ export interface BoundsRequest {
 
 export interface LabelRequest {
   label: string;
+}
+
+export interface SetBackgroundColorRequest {
+  label: string;
+  backgroundColor: string;
 }
 
 interface OkResponse {
@@ -129,6 +135,7 @@ export class BrowserWebviewService {
       y: request.y,
       width: request.width,
       height: request.height,
+      backgroundColor: request.backgroundColor,
       visible: 'hidden',
     };
     // The page-load callbacks close over `label` (stable for the webview's
@@ -263,6 +270,22 @@ export class BrowserWebviewService {
       return this.errorEnvelope(`webview not found: ${request.label}`);
     }
     entry.controller.setVisible(false);
+    return this.okEnvelope();
+  }
+
+  async setBackgroundColor(request: SetBackgroundColorRequest): Promise<string> {
+    const entry = this.entries.get(request.label);
+    if (entry === undefined) {
+      return this.errorEnvelope(`webview not found: ${request.label}`);
+    }
+    const initData = entry.initData;
+    if (initData.style === undefined) {
+      return this.errorEnvelope(`webview has no style: ${request.label}`);
+    }
+    initData.style.backgroundColor = request.backgroundColor;
+    const controller = this.resolveController();
+    const node = controller?.getWebviewNode(entry.webTag);
+    node?.update(initData);
     return this.okEnvelope();
   }
 

@@ -511,6 +511,41 @@ pub async fn browser_webview_set_focus(
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebviewBackgroundColorRequest {
+    pub label: String,
+    pub background_color: String,
+}
+
+/// Update the default background color of an existing browser webview so the
+/// surface matches the active appearance when the theme changes after creation.
+///
+/// `background_color` must be `#rrggbb` (see `browser_background_color`).
+/// The frontend normalizes the computed theme color before sending it.
+#[tauri::command]
+pub async fn browser_webview_set_background_color(
+    app: tauri::AppHandle,
+    request: WebviewBackgroundColorRequest,
+) -> Result<(), String> {
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let color = browser_background_color(Some(request.background_color.as_str()));
+        find_browser_webview(&app, &request.label)?
+            .set_background_color(Some(color))
+            .map_err(|e| format!("set_background_color failed: {e}"))
+    }
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        validate_browser_label(&request.label)?;
+        let json = serde_json::to_string(&request)
+            .map_err(|e| format!("failed to encode request: {e}"))?;
+        let response = ohos_browser_call("browser_webview_set_background_color_ohos", &json).await?;
+        decode_ok_envelope(&response)
+    }
+}
+
 /// Return the current URL of a browser webview.
 ///
 /// On desktop the URL is read from the Tauri child webview, wrapped in

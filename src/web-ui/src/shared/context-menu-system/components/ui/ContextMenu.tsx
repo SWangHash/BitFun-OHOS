@@ -360,7 +360,6 @@ export const ContextMenu: React.FC<InternalContextMenuProps> = ({
     if (restoreFocusAfter) {
       restorePreviousFocus();
     }
-    onClose();
   }, [context, onItemClick, onClose, restorePreviousFocus]);
 
   const handleItemClick = useCallback((item: ContextMenuItem, event: React.MouseEvent) => {
@@ -485,14 +484,14 @@ export const ContextMenu: React.FC<InternalContextMenuProps> = ({
   ]);
 
   
-  const handleClickOutside = useCallback((event: MouseEvent) => {
+  const handleClickOutside = useCallback((event: PointerEvent | MouseEvent) => {
     if (!visible) return;
-    
-    
-    
+
+
+
     const target = event.target as HTMLElement;
     const isMenuClick = target.closest('.context-menu') !== null;
-    
+
     if (!isMenuClick) {
       onClose();
     }
@@ -501,44 +500,47 @@ export const ContextMenu: React.FC<InternalContextMenuProps> = ({
   
   const handlersRef = useRef<{
     keydown: (e: KeyboardEvent) => void;
-    mousedown: (e: MouseEvent) => void;
+    pointerdown: (e: PointerEvent) => void;
     contextmenu: (e: MouseEvent) => void;
   } | null>(null);
 
   useEffect(() => {
     if (visible) {
-      
+
       if (handlersRef.current) {
         document.removeEventListener('keydown', handlersRef.current.keydown, true);
-        document.removeEventListener('mousedown', handlersRef.current.mousedown, true);
+        document.removeEventListener('pointerdown', handlersRef.current.pointerdown, true);
         document.removeEventListener('contextmenu', handlersRef.current.contextmenu, true);
       }
-      
-      
+
+
       handlersRef.current = {
         keydown: handleKeyDown,
-        mousedown: handleClickOutside,
+        // pointerdown instead of mousedown: touch taps inside the Monaco editor
+        // suppress the synthetic mousedown (monaco's Gesture calls
+        // preventDefault on touchend), which previously kept the menu open.
+        pointerdown: handleClickOutside,
         contextmenu: handleClickOutside
       };
-      
-      
+
+
       document.addEventListener('keydown', handlersRef.current.keydown, true);
-      document.addEventListener('mousedown', handlersRef.current.mousedown, true);
+      document.addEventListener('pointerdown', handlersRef.current.pointerdown, true);
       document.addEventListener('contextmenu', handlersRef.current.contextmenu, true);
 
       return () => {
         if (handlersRef.current) {
           document.removeEventListener('keydown', handlersRef.current.keydown, true);
-          document.removeEventListener('mousedown', handlersRef.current.mousedown, true);
+          document.removeEventListener('pointerdown', handlersRef.current.pointerdown, true);
           document.removeEventListener('contextmenu', handlersRef.current.contextmenu, true);
           handlersRef.current = null;
         }
       };
     } else {
-      
+
       if (handlersRef.current) {
         document.removeEventListener('keydown', handlersRef.current.keydown, true);
-        document.removeEventListener('mousedown', handlersRef.current.mousedown, true);
+        document.removeEventListener('pointerdown', handlersRef.current.pointerdown, true);
         document.removeEventListener('contextmenu', handlersRef.current.contextmenu, true);
         handlersRef.current = null;
       }
