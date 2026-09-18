@@ -93,17 +93,19 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
         className="deep-review-action-bar__remediation-toggle"
         onClick={onToggleList}
       >
-        <Checkbox
-          checked={allSelected}
-          indeterminate={!allSelected && selectedCount > 0}
-          onChange={() => {
-            if (!selectionDisabled) {
-              onToggleAll();
-            }
-          }}
-          disabled={selectionDisabled || totalCount === 0}
-          size="small"
-        />
+        <span onClick={(event) => event.stopPropagation()}>
+          <Checkbox
+            checked={allSelected}
+            indeterminate={!allSelected && selectedCount > 0}
+            onChange={() => {
+              if (!selectionDisabled) {
+                onToggleAll();
+              }
+            }}
+            disabled={selectionDisabled || totalCount === 0}
+            size="small"
+          />
+        </span>
         <span className="deep-review-action-bar__remediation-label">
           {t('toolCards.codeReview.remediationActions.selectionCount', {
             selected: selectedCount,
