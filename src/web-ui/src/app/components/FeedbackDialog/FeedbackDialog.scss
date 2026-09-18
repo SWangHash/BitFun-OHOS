@@ -108,12 +108,19 @@
 
   .bitfun-textarea {
     flex: 1;
+    min-height: 0;
   }
 
-  .bitfun-textarea__wrapper,
+  .bitfun-textarea__wrapper {
+    flex: 1;
+    min-height: 0;
+  }
+
   .bitfun-textarea__field {
     height: 100%;
-    min-height: 170px;
+    min-height: 100px;
+    overflow-wrap: anywhere;
+    white-space: break-spaces;
   }
 }
 
@@ -259,6 +266,7 @@
 
 .bitfun-feedback__inbox-list {
   border-right: 1px solid var(--bf-appearance-token-border-subtle);
+  user-select: none;
 }
 
 .bitfun-feedback__inbox-header,
@@ -617,7 +625,9 @@
   .bitfun-textarea__field {
     min-height: 64px;
     max-height: 132px;
+    overflow-wrap: anywhere;
     resize: vertical;
+    white-space: break-spaces;
   }
 }
 

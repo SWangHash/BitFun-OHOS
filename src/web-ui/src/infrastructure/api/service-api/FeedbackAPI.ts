@@ -202,6 +202,42 @@ export function feedbackContentLength(value: string): number {
   return Array.from(value).length;
 }
 
+export interface FeedbackPastePlan {
+  acceptedText: string;
+  nativeMaxLength: number;
+  useNativePaste: boolean;
+}
+
+/**
+ * Plans a paste without taking over the browser's native edit transaction.
+ * Native paste preserves undo, caret movement, and textarea tail scrolling;
+ * only leading-whitespace normalization still needs a manual insertion.
+ */
+export function planFeedbackPaste(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertedText: string,
+): FeedbackPastePlan {
+  const acceptedText = feedbackInsertText(
+    value,
+    selectionStart,
+    selectionEnd,
+    insertedText,
+  );
+  const normalizedText = selectionStart === 0
+    ? insertedText.replace(/^\s+/, '')
+    : insertedText;
+  const finalValue = value.slice(0, selectionStart)
+    + acceptedText
+    + value.slice(selectionEnd);
+  return {
+    acceptedText,
+    nativeMaxLength: finalValue.length,
+    useNativePaste: normalizedText === insertedText,
+  };
+}
+
 /**
  * Returns the portion of an insertion that fits after replacing a textarea
  * selection. Keeping this calculation separate lets the UI intercept paste

@@ -32,6 +32,25 @@ interface OverlayGeometry {
   width: number;
 }
 
+interface OverflowClipAncestor {
+  clipX: boolean;
+  clipY: boolean;
+  element: HTMLElement;
+  style: CSSStyleDeclaration;
+}
+
+interface OverlayContext {
+  clippingAncestors: OverflowClipAncestor[];
+  host: HTMLElement;
+}
+
+interface OverlayClipInsets {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+}
+
 export class MouseGlowService {
   private enabled = DEFAULT_MOUSE_GLOW_ENABLED;
   private initialized = false;
@@ -217,6 +236,7 @@ export class MouseGlowService {
       this.overlay.hidden = true;
       this.overlay.removeAttribute('data-active');
       this.overlay.removeAttribute('data-divider');
+      this.overlay.style.clipPath = '';
     }
   }
 
@@ -269,7 +289,8 @@ export class MouseGlowService {
     const style = window.getComputedStyle(surface);
     const dividerGeometry = this.getDividerGeometry(surface, rect, style);
     const surfaceGeometry = dividerGeometry ?? rect;
-    const overlayHost = this.findOverlayHost(surface);
+    const overlayContext = this.findOverlayContext(surface, style);
+    const overlayHost = overlayContext.host;
     if (overlay.parentElement !== overlayHost) {
       overlayHost.appendChild(overlay);
     }
@@ -279,6 +300,18 @@ export class MouseGlowService {
       overlayHost,
       style,
     );
+    // The overlay is reparented above nested scrollports so it can share the
+    // floating layer's stacking context. Preserve the surface's full geometry
+    // for the border mask, then clip that geometry to the scrollports it
+    // bypassed; shrinking the rectangle would draw a false border at the clip.
+    const clipInsets = this.getOverflowClipInsets(
+      geometry,
+      overlayContext.clippingAncestors,
+    );
+    if (!clipInsets) {
+      this.deactivateSurface();
+      return;
+    }
     const overlayPosition = this.getOverlayPosition(
       geometry,
       overlayHost,
@@ -292,6 +325,7 @@ export class MouseGlowService {
     overlay.style.borderRadius = dividerGeometry ? '0px' : style.borderRadius;
     overlay.style.transform =
       `translate3d(${overlayPosition.left}px, ${overlayPosition.top}px, 0)`;
+    overlay.style.clipPath = this.toClipPath(clipInsets);
     overlay.style.setProperty('--mouse-glow-local-x', `${this.pointerX - geometry.left}px`);
     overlay.style.setProperty('--mouse-glow-local-y', `${this.pointerY - geometry.top}px`);
     overlay.hidden = false;
@@ -318,6 +352,60 @@ export class MouseGlowService {
       top: geometry.top + borderTopWidth,
       width: Math.max(geometry.width - borderLeftWidth - borderRightWidth, 1),
     };
+  }
+
+  private getOverflowClipInsets(
+    geometry: OverlayGeometry,
+    clippingAncestors: OverflowClipAncestor[],
+  ): OverlayClipInsets | null {
+    const geometryRight = geometry.left + geometry.width;
+    const geometryBottom = geometry.top + geometry.height;
+    let visibleLeft = geometry.left;
+    let visibleTop = geometry.top;
+    let visibleRight = geometryRight;
+    let visibleBottom = geometryBottom;
+
+    for (const { clipX, clipY, element, style } of clippingAncestors) {
+      const rect = element.getBoundingClientRect();
+      if (clipX) {
+        visibleLeft = Math.max(
+          visibleLeft,
+          rect.left + (parseFloat(style.borderLeftWidth) || 0),
+        );
+        visibleRight = Math.min(
+          visibleRight,
+          rect.right - (parseFloat(style.borderRightWidth) || 0),
+        );
+      }
+      if (clipY) {
+        visibleTop = Math.max(
+          visibleTop,
+          rect.top + (parseFloat(style.borderTopWidth) || 0),
+        );
+        visibleBottom = Math.min(
+          visibleBottom,
+          rect.bottom - (parseFloat(style.borderBottomWidth) || 0),
+        );
+      }
+    }
+
+    if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+      return null;
+    }
+
+    return {
+      bottom: Math.max(geometryBottom - visibleBottom, 0),
+      left: Math.max(visibleLeft - geometry.left, 0),
+      right: Math.max(geometryRight - visibleRight, 0),
+      top: Math.max(visibleTop - geometry.top, 0),
+    };
+  }
+
+  private toClipPath(insets: OverlayClipInsets): string {
+    if (Object.values(insets).every(value => value === 0)) {
+      return '';
+    }
+    return `inset(${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px)`;
   }
 
   private getOverlayPosition(
@@ -417,7 +505,7 @@ export class MouseGlowService {
       return false;
     }
 
-    if (this.getVisibleBorderSides(style).length >= 2) {
+    if (this.getVisibleBorderSides(style).length === 4) {
       return true;
     }
 
@@ -546,22 +634,50 @@ export class MouseGlowService {
     return /(?:^|-)resize$/i.test(style.cursor);
   }
 
-  private findOverlayHost(surface: HTMLElement): HTMLElement {
-    if (this.isFloatingLayer(surface)) {
-      return surface;
+  private findOverlayContext(
+    surface: HTMLElement,
+    surfaceStyle: CSSStyleDeclaration,
+  ): OverlayContext {
+    if (this.isFloatingLayer(surface, surfaceStyle)) {
+      return { clippingAncestors: [], host: surface };
     }
 
+    const clippingAncestors: OverflowClipAncestor[] = [];
     let current = surface.parentElement;
     while (current && current !== document.body) {
-      if (this.isFloatingLayer(current)) {
-        return current;
+      const style = window.getComputedStyle(current);
+      if (this.isFloatingLayer(current, style)) {
+        return { clippingAncestors, host: current };
+      }
+      const { clipX, clipY } = this.getOverflowClipAxes(style);
+      if (clipX || clipY) {
+        clippingAncestors.push({ clipX, clipY, element: current, style });
       }
       current = current.parentElement;
     }
-    return document.body;
+    return { clippingAncestors, host: document.body };
   }
 
-  private isFloatingLayer(element: HTMLElement): boolean {
+  private getOverflowClipAxes(style: CSSStyleDeclaration): {
+    clipX: boolean;
+    clipY: boolean;
+  } {
+    const [shorthandX = 'visible', shorthandY = shorthandX] =
+      style.overflow.trim().split(/\s+/);
+    return {
+      clipX: this.isClippingOverflow(style.overflowX || shorthandX),
+      clipY: this.isClippingOverflow(style.overflowY || shorthandY),
+    };
+  }
+
+  private isClippingOverflow(value: string): boolean {
+    return value === 'auto' || value === 'clip' || value === 'hidden' || value === 'scroll';
+  }
+
+  private isFloatingLayer(
+    element: HTMLElement,
+    knownStyle?: CSSStyleDeclaration,
+  ): boolean {
     const role = element.getAttribute('role');
     if (
       (role && FLOATING_LAYER_ROLES.has(role))
@@ -571,7 +687,7 @@ export class MouseGlowService {
       return true;
     }
 
-    const style = window.getComputedStyle(element);
+    const style = knownStyle ?? window.getComputedStyle(element);
     const isPositionedLayer = style.position === 'absolute' || style.position === 'fixed';
     return (
       isPositionedLayer
