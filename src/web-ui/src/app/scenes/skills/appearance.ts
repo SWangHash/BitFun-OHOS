@@ -27,6 +27,9 @@ export const skillsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'groupTable' }, { id: 'groupListHeader' },
     { id: 'groupRow' }, { id: 'groupOpen' }, { id: 'groupActions' },
     { id: 'groupEditor' }, { id: 'groupMembers' }, { id: 'groupMember' },
+    { id: 'matrix' }, { id: 'matrixSectionBar' }, { id: 'matrixSectionBtn' },
+    { id: 'matrixChipList' }, { id: 'matrixChip' }, { id: 'matrixChipLabel' },
+    { id: 'matrixChipCount' },
   ],
   facets: [
     { id: 'tab', attribute: 'data-bitfun-tab', values: ['installed', 'discover', 'matrix'] },

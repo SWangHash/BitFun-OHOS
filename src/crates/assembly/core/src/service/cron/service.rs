@@ -12,7 +12,9 @@ use crate::agentic::coordination::{
     ConversationCoordinator, DialogQueuePriority, DialogScheduler, DialogSubmissionPolicy,
     DialogTriggerSource,
 };
+use crate::agentic::agents::get_agent_registry;
 use crate::agentic::core::SessionConfig;
+use crate::agentic::session::session_manager::SessionManager;
 use crate::agentic::workspace::WorkspaceBinding;
 use crate::infrastructure::PathManager;
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
@@ -23,6 +25,7 @@ use bitfun_agent_runtime::scheduled_job::ScheduledJobEnqueueFailureAction;
 use bitfun_agent_runtime::sdk::AgentRuntime;
 use bitfun_runtime_ports::{AgentDialogPrependedReminder, AgentDialogTurnRequest};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{Mutex, Notify, RwLock};
@@ -459,15 +462,35 @@ impl CronService {
                 scheduled_at_ms = Some(pending_trigger_at_ms);
                 let (user_input, prepended_messages) =
                     format_scheduled_job_user_input(&job.payload.text, current_ms);
-                enqueue_input = Some(EnqueueInput {
+                let candidate = EnqueueInput {
                     job_id: job.id.clone(),
                     job_name: job.name.clone(),
                     turn_id,
                     target: job.target.clone(),
                     user_input,
                     prepended_messages,
-                });
-                should_attempt_enqueue = true;
+                };
+
+                // Resolve the model before any side effect: a workspace-launch
+                // target creates its session during enqueue submission, so a
+                // missing model configuration must be rejected here to keep the
+                // retry loop from creating a new session on every attempt.
+                match Self::preflight_model_available(&self.coordinator, &candidate).await {
+                    Ok(()) => {
+                        enqueue_input = Some(candidate);
+                        should_attempt_enqueue = true;
+                    }
+                    Err(error) => {
+                        job.state
+                            .mark_model_preflight_failed(current_ms, error.clone());
+                        job.updated_at_ms = current_ms;
+                        should_persist = true;
+                        warn!(
+                            "Scheduled job blocked before enqueue (no usable model): job_id={}, job_name={}, error={}",
+                            job.id, job.name.trim(), error
+                        );
+                    }
+                }
             }
         }
 
@@ -560,6 +583,68 @@ impl CronService {
     async fn persist_snapshot(&self) -> BitFunResult<()> {
         let jobs = self.jobs.read().await;
         self.persist_jobs_locked(&jobs).await
+    }
+
+    /// Mirror the execution engine's model resolution chain (explicit session
+    /// / launch model, then the agent default, then the global primary) and
+    /// reject the run before any side effect when nothing resolves to an
+    /// enabled model.
+    async fn preflight_model_available(
+        coordinator: &ConversationCoordinator,
+        enqueue_input: &EnqueueInput,
+    ) -> Result<(), String> {
+        let (explicit_model_id, agent_type, workspace_root) = match &enqueue_input.target {
+            CronJobTarget::Session {
+                session_id,
+                workspace,
+            } => {
+                let session = coordinator.get_session_manager().get_session(session_id);
+                (
+                    session.as_ref().and_then(|session| session.config.model_id.clone()),
+                    session.map(|session| session.agent_type).unwrap_or_default(),
+                    Some(workspace.workspace_path.clone()),
+                )
+            }
+            CronJobTarget::Workspace { workspace, launch } => (
+                launch.model_id.clone(),
+                launch.agent_type.clone(),
+                Some(workspace.workspace_path.clone()),
+            ),
+        };
+
+        let Some(ai_config) = SessionManager::load_ai_config_for_model_resolution().await else {
+            return Err(
+                "AI configuration is unavailable; cannot resolve a model for the scheduled job"
+                    .to_string(),
+            );
+        };
+
+        let configured_model_id = match explicit_model_id
+            .map(|model_id| model_id.trim().to_string())
+            .filter(|model_id| !model_id.is_empty())
+        {
+            Some(model_id) => model_id,
+            None => get_agent_registry()
+                .get_model_id_for_agent(
+                    &agent_type,
+                    workspace_root.as_deref().map(Path::new),
+                )
+                .await
+                .unwrap_or_else(|_| "primary".to_string()),
+        };
+
+        if ai_config
+            .resolve_model_selection(&configured_model_id)
+            .or_else(|| ai_config.resolve_model_selection("primary"))
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        Err(format!(
+            "No enabled model is configured: selector '{}' does not resolve to an enabled model",
+            configured_model_id
+        ))
     }
 
     async fn submit_enqueue_input(&self, enqueue_input: &EnqueueInput) -> Result<(), String> {

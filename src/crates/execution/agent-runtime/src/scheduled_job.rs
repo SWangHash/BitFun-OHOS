@@ -155,6 +155,20 @@ impl ScheduledJobRuntimeState {
         self.last_run_started_at_ms = Some(started_at_ms);
     }
 
+    /// A due run was blocked by the pre-submit model-availability check.
+    ///
+    /// Nothing was enqueued or created, so the job records the error and waits
+    /// for its next scheduled trigger instead of entering the tight enqueue
+    /// retry loop (which would re-create launch-target sessions every attempt).
+    pub fn mark_model_preflight_failed(&mut self, failed_at_ms: i64, error: String) {
+        self.last_run_status = Some(ScheduledJobRunStatus::Error);
+        self.last_error = Some(error);
+        self.last_run_finished_at_ms = Some(failed_at_ms);
+        self.pending_trigger_at_ms = None;
+        self.retry_at_ms = None;
+        self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+    }
+
     pub fn mark_turn_completed(&mut self, finished_at_ms: i64, duration_ms: u64) {
         self.active_turn_id = None;
         self.last_run_status = Some(ScheduledJobRunStatus::Ok);

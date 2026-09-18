@@ -220,10 +220,10 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                     className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
                     onClick={() => onToggleTag(tag.id)}
                     aria-pressed={selected}
-                    data-bf-scene="skills"
-                    data-bf-part="matrixChip"
+                    data-bitfun-scene="skills"
+                    data-bitfun-part="matrixChip"
                   >
-                    <span className="skills-matrix__chip-label" data-bf-scene="skills" data-bf-part="matrixChipLabel">{isZh ? tag.name : tag.enName}</span>
+                    <span className="skills-matrix__chip-label" data-bitfun-scene="skills" data-bitfun-part="matrixChipLabel">{isZh ? tag.name : tag.enName}</span>
                   </button>
                 );
               })}
@@ -267,12 +267,12 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                     className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
                     onClick={() => onToggleCategory(cat.id)}
                     aria-pressed={selected}
-                    data-bf-scene="skills"
-                    data-bf-part="matrixChip"
+                    data-bitfun-scene="skills"
+                    data-bitfun-part="matrixChip"
                   >
-                    <span className="skills-matrix__chip-label" data-bf-scene="skills" data-bf-part="matrixChipLabel">{label}</span>
+                    <span className="skills-matrix__chip-label" data-bitfun-scene="skills" data-bitfun-part="matrixChipLabel">{label}</span>
                     {typeof cat.count === 'number' && (
-                      <span className="skills-matrix__chip-count" data-bf-scene="skills" data-bf-part="matrixChipCount">{cat.count}</span>
+                      <span className="skills-matrix__chip-count" data-bitfun-scene="skills" data-bitfun-part="matrixChipCount">{cat.count}</span>
                     )}
                   </button>
                 );
@@ -317,12 +317,12 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                     className={`skills-matrix__chip ${selected ? 'is-active' : ''}`}
                     onClick={() => onToggleOrganization(org.id)}
                     aria-pressed={selected}
-                    data-bf-scene="skills"
-                    data-bf-part="matrixChip"
+                    data-bitfun-scene="skills"
+                    data-bitfun-part="matrixChip"
                   >
-                    <span className="skills-matrix__chip-label" data-bf-scene="skills" data-bf-part="matrixChipLabel">{label}</span>
+                    <span className="skills-matrix__chip-label" data-bitfun-scene="skills" data-bitfun-part="matrixChipLabel">{label}</span>
                     {typeof org.count === 'number' && (
-                      <span className="skills-matrix__chip-count" data-bf-scene="skills" data-bf-part="matrixChipCount">{org.count}</span>
+                      <span className="skills-matrix__chip-count" data-bitfun-scene="skills" data-bitfun-part="matrixChipCount">{org.count}</span>
                     )}
                   </button>
                 );
@@ -334,8 +334,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   };
 
   return (
-    <div className="skills-discover skills-matrix" data-testid="matrix-market" data-bf-scene="skills" data-bf-part="matrix">
-      <div className="skills-matrix__section-bar" role="tablist" data-testid="matrix-section-bar" data-bf-scene="skills" data-bf-part="matrixSectionBar">
+    <div className="skills-discover skills-matrix" data-testid="matrix-market" data-bitfun-scene="skills" data-bitfun-part="matrix">
+      <div className="skills-matrix__section-bar" role="tablist" data-testid="matrix-section-bar" data-bitfun-scene="skills" data-bitfun-part="matrixSectionBar">
         {SECTIONS.map((section) => (
           <button
             key={section}
@@ -344,8 +344,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
             aria-selected={activeSection === section}
             className={`skills-matrix__section-btn ${activeSection === section ? 'is-active' : ''}`}
             onClick={() => onSelectSection(section)}
-            data-bf-scene="skills"
-            data-bf-part="matrixSectionBtn"
+            data-bitfun-scene="skills"
+            data-bitfun-part="matrixSectionBtn"
           >
             {sectionLabel(section)}
           </button>
@@ -357,8 +357,8 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
           ref={listRef}
           className="skills-matrix__chip-list"
           data-testid={chipListTestId}
-          data-bf-scene="skills"
-          data-bf-part="matrixChipList"
+          data-bitfun-scene="skills"
+          data-bitfun-part="matrixChipList"
         >
           <div ref={measureRef} className="skills-matrix__chip-measure" aria-hidden="true">
             {renderChips()}
@@ -394,7 +394,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         </div>
         <div className="skills-matrix__chip-meta">
           {totalCount > 0 && (
-            <span className="skills-matrix__chip-total" data-bf-scene="skills" data-bf-part="resultsInfo">
+            <span className="skills-matrix__chip-total" data-bitfun-scene="skills" data-bitfun-part="resultsInfo">
               {t('totalSkills', { count: totalCount })}
             </span>
           )}
