@@ -5799,7 +5799,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       data-bf-command="actions"
                       data-bf-state="open"
                       data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      className="bitfun-chat-input__slash-command-picker bitfun-chat-input__slash-command-picker--overlay"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
@@ -5849,7 +5849,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       data-bf-command="all"
                       data-bf-state="open"
                       data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      className="bitfun-chat-input__slash-command-picker bitfun-chat-input__slash-command-picker--overlay"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
@@ -5898,57 +5898,58 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <span className="bitfun-chat-input__slash-command-section-line" aria-hidden />
                                   </div>
                                 )}
-                                <div
-                                  data-bf-component="chat-input"
-                                  data-bf-part="commandItem"
-                                  data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
-                                  data-bf-state={[
-                                    index === slashCommandState.selectedIndex && 'selected',
-                                    item.kind === 'mode' && item.id === modeState.current && 'current',
-                                  ].filter(Boolean).join(' ')}
-                                  className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''} ${item.kind === 'mode' && item.id === modeState.current ? 'bitfun-chat-input__slash-command-item--active' : ''}`}
-                                  title={`${commandText}\n${labelText}`}
-                                  onClick={() => {
-                                    if (item.kind === 'mode') {
-                                      selectSlashCommandMode(item.id);
-                                    } else if (item.kind === 'skill') {
-                                      selectSlashSkill(item);
-                                    } else if (item.kind === 'externalCommand') {
-                                      selectSlashExternalPromptCommand(item);
-                                    } else if (item.kind === 'mcpPrompt') {
-                                      selectSlashPromptCommand(item);
-                                    } else if (item.kind === 'acpCommand') {
-                                      selectSlashAcpCommand(item);
-                                    } else {
-                                      selectSlashCommandAction(item.id);
-                                    }
-                                  }}
-                                  onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
-                                >
-                                  <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
-                                    {commandText}
-                                  </span>
-                                  <span
-                                    className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
+                                <Tooltip content={`${commandText} · ${labelText}`} placement="right">
+                                  <div
                                     data-bf-component="chat-input"
-                                    data-bf-part="commandLabel"
+                                    data-bf-part="commandItem"
+                                    data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
+                                    data-bf-state={[
+                                      index === slashCommandState.selectedIndex && 'selected',
+                                      item.kind === 'mode' && item.id === modeState.current && 'current',
+                                    ].filter(Boolean).join(' ')}
+                                    className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''} ${item.kind === 'mode' && item.id === modeState.current ? 'bitfun-chat-input__slash-command-item--active' : ''}`}
+                                    onClick={() => {
+                                      if (item.kind === 'mode') {
+                                        selectSlashCommandMode(item.id);
+                                      } else if (item.kind === 'skill') {
+                                        selectSlashSkill(item);
+                                      } else if (item.kind === 'externalCommand') {
+                                        selectSlashExternalPromptCommand(item);
+                                      } else if (item.kind === 'mcpPrompt') {
+                                        selectSlashPromptCommand(item);
+                                      } else if (item.kind === 'acpCommand') {
+                                        selectSlashAcpCommand(item);
+                                      } else {
+                                        selectSlashCommandAction(item.id);
+                                      }
+                                    }}
+                                    onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
                                   >
-                                    {labelText}
-                                  </span>
-                                  {item.kind === 'mode' && item.id === modeState.current && <span className="bitfun-chat-input__slash-command-current" data-bf-component="chat-input" data-bf-part="commandCurrent">{t('chatInput.current')}</span>}
-                                  {item.kind === 'externalCommand' && item.status !== 'available' ? (
-                                    <span
-                                      className={`bitfun-chat-input__slash-command-status bitfun-chat-input__slash-command-status--${item.status === 'restricted' ? 'restricted' : 'choose'}`}
-                                      data-bf-component="chat-input"
-                                      data-bf-part="commandStatus"
-                                      data-bf-state={item.status}
-                                    >
-                                      {t(item.status === 'restricted'
-                                        ? 'chatInput.commandStatus.restricted'
-                                        : 'chatInput.commandStatus.chooseSource')}
+                                    <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
+                                      {commandText}
                                     </span>
-                                  ) : null}
-                                </div>
+                                    <span
+                                      className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
+                                      data-bf-component="chat-input"
+                                      data-bf-part="commandLabel"
+                                    >
+                                      {labelText}
+                                    </span>
+                                    {item.kind === 'mode' && item.id === modeState.current && <span className="bitfun-chat-input__slash-command-current" data-bf-component="chat-input" data-bf-part="commandCurrent">{t('chatInput.current')}</span>}
+                                    {item.kind === 'externalCommand' && item.status !== 'available' ? (
+                                      <span
+                                        className={`bitfun-chat-input__slash-command-status bitfun-chat-input__slash-command-status--${item.status === 'restricted' ? 'restricted' : 'choose'}`}
+                                        data-bf-component="chat-input"
+                                        data-bf-part="commandStatus"
+                                        data-bf-state={item.status}
+                                      >
+                                        {t(item.status === 'restricted'
+                                          ? 'chatInput.commandStatus.restricted'
+                                          : 'chatInput.commandStatus.chooseSource')}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </Tooltip>
                               </React.Fragment>
                             );
                           })
@@ -5977,7 +5978,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       data-bf-command="skills"
                       data-bf-state="open"
                       data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                      className="bitfun-chat-input__slash-command-picker"
+                      className="bitfun-chat-input__slash-command-picker bitfun-chat-input__slash-command-picker--overlay"
                       style={{
                         top: `${slashCommandPickerLayout?.top ?? 0}px`,
                         left: `${slashCommandPickerLayout?.left ?? 0}px`,
@@ -6005,44 +6006,48 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                   : item.label;
 
                             return (
-                              <div data-bf-component="chat-input" data-bf-part="commandItem"
-                                data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
-                                data-bf-state={[
-                                  index === slashCommandState.selectedIndex && 'selected',
-                                  item.kind === 'mode' && item.id === modeState.current && 'current',
-                                ].filter(Boolean).join(' ')}
+                              <Tooltip
                                 key={`${item.kind}-${item.id}`}
-                                className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''} ${item.kind === 'mode' && item.id === modeState.current ? 'bitfun-chat-input__slash-command-item--active' : ''}`}
-                                title={`${commandText}\n${labelText}`}
-                                onClick={() => {
-                                  if (item.kind === 'mode') {
-                                    selectSlashCommandMode(item.id);
-                                  } else if (item.kind === 'skill') {
-                                    selectSlashSkill(item);
-                                  } else if (item.kind === 'externalCommand') {
-                                    selectSlashExternalPromptCommand(item);
-                                  } else if (item.kind === 'mcpPrompt') {
-                                    selectSlashPromptCommand(item);
-                                  } else if (item.kind === 'acpCommand') {
-                                    selectSlashAcpCommand(item);
-                                  } else {
-                                    selectSlashCommandAction(item.id);
-                                  }
-                                }}
-                                onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
+                                content={`${commandText} · ${labelText}`}
+                                placement="right"
                               >
-                                <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
-                                  {commandText}
-                                </span>
-                                <span
-                                  className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
-                                  data-bf-component="chat-input"
-                                  data-bf-part="commandLabel"
+                                <div data-bf-component="chat-input" data-bf-part="commandItem"
+                                  data-bf-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
+                                  data-bf-state={[
+                                    index === slashCommandState.selectedIndex && 'selected',
+                                    item.kind === 'mode' && item.id === modeState.current && 'current',
+                                  ].filter(Boolean).join(' ')}
+                                  className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''} ${item.kind === 'mode' && item.id === modeState.current ? 'bitfun-chat-input__slash-command-item--active' : ''}`}
+                                  onClick={() => {
+                                    if (item.kind === 'mode') {
+                                      selectSlashCommandMode(item.id);
+                                    } else if (item.kind === 'skill') {
+                                      selectSlashSkill(item);
+                                    } else if (item.kind === 'externalCommand') {
+                                      selectSlashExternalPromptCommand(item);
+                                    } else if (item.kind === 'mcpPrompt') {
+                                      selectSlashPromptCommand(item);
+                                    } else if (item.kind === 'acpCommand') {
+                                      selectSlashAcpCommand(item);
+                                    } else {
+                                      selectSlashCommandAction(item.id);
+                                    }
+                                  }}
+                                  onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: index }))}
                                 >
-                                  {labelText}
-                                </span>
-                                {item.kind === 'mode' && item.id === modeState.current && <span className="bitfun-chat-input__slash-command-current" data-bf-component="chat-input" data-bf-part="commandCurrent">{t('chatInput.current')}</span>}
-                              </div>
+                                  <span className="bitfun-chat-input__slash-command-name" data-bf-component="chat-input" data-bf-part="commandName">
+                                    {commandText}
+                                  </span>
+                                  <span
+                                    className={`bitfun-chat-input__slash-command-label ${item.kind === 'skill' ? 'bitfun-chat-input__slash-command-label--single-line' : ''}`}
+                                    data-bf-component="chat-input"
+                                    data-bf-part="commandLabel"
+                                  >
+                                    {labelText}
+                                  </span>
+                                  {item.kind === 'mode' && item.id === modeState.current && <span className="bitfun-chat-input__slash-command-current" data-bf-component="chat-input" data-bf-part="commandCurrent">{t('chatInput.current')}</span>}
+                                </div>
+                              </Tooltip>
                             );
                           })
                         ) : (
@@ -6066,7 +6071,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     data-bf-command="modes"
                     data-bf-state="open"
                     data-bf-placement={slashCommandPickerLayout?.placement ?? 'top'}
-                    className="bitfun-chat-input__slash-command-picker"
+                    className="bitfun-chat-input__slash-command-picker bitfun-chat-input__slash-command-picker--overlay"
                     style={{
                       top: `${slashCommandPickerLayout?.top ?? 0}px`,
                       left: `${slashCommandPickerLayout?.left ?? 0}px`,
