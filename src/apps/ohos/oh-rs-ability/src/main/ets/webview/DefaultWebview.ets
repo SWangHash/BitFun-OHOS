@@ -141,6 +141,17 @@ function WebBuilder(data: WebviewNodeData) {
       y: data.style?.y || 0,
     })
     .backgroundColor(data?.style?.backgroundColor)
+    // Follow the system color mode so `prefers-color-scheme` inside the page
+    // resolves correctly. ArkWeb defaults to WebDarkMode.Off, which pins every
+    // page to light mode no matter what the system uses: the pre-React
+    // background and the startup brand splash (both keyed on
+    // prefers-color-scheme) would stay white on dark systems. Desktop webviews
+    // (WebView2/WKWebView) follow the system by default, so Auto keeps OHOS
+    // behavior aligned with the other platforms. forceDarkAccess stays off:
+    // pages style themselves via their own dark-theme CSS. Live mode changes
+    // are still delivered through notifySystemColorMode (see EntryAbility).
+    .darkMode(WebDarkMode.Auto)
+    .forceDarkAccess(false)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
     .mediaPlayGestureAccess(
@@ -162,6 +173,28 @@ function WebBuilder(data: WebviewNodeData) {
         ctrl.loadData(data!.html, "text/html", "UTF-8", " ", " ");
       }
     })
+    // Hide the startup splash mirror once the webview has actually presented
+    // the brand overlay. Release signals, earliest first:
+    // 1. FCP: the Web component painted content (absent on some ArkWeb builds).
+    // 2. The page's 'bitfun-startup-overlay-presented' console token: emitted
+    //    after the overlay icon is decoded and one double-rAF frame commits,
+    //    i.e. the takeover frame. This is the exact handoff point; releasing
+    //    earlier (e.g. on a load event) can expose a background-only frame
+    //    that reads as a white flash between the mirror and the overlay.
+    // 3. onPageEnd fallback, delayed so the overlay frame is on screen.
+    // Clearing an already-empty value is idempotent.
+    .onFirstContentfulPaint(() => {
+      hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by FCP');
+      AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+    })
+    .onConsole((event) => {
+      if (event && event.message && event.message.getMessage() === 'bitfun-startup-overlay-presented') {
+        hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by overlay-presented token');
+        AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+        return true;
+      }
+      return false;
+    })
     .onLoadIntercept((event) => {
       if (typeof data?.onNavigationRequest === "function") {
         const url = event.data.getRequestUrl();
@@ -177,6 +210,14 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     .onPageEnd((event) => {
+      // Delayed fallback: onPageEnd itself is a load event, not a paint
+      // event, so releasing here immediately can expose a frame before the
+      // overlay is presented. The console token above releases at the exact
+      // takeover frame; this path only covers pages that never emit it.
+      setTimeout(() => {
+        hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'splash mirror released by onPageEnd fallback');
+        AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
+      }, 300);
       if (typeof data?.onPageEnd === "function") {
         const url = event?.url ?? "";
         data.onPageEnd(url);
