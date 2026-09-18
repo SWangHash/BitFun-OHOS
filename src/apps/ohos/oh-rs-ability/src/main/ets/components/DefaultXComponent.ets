@@ -16,6 +16,17 @@ export struct DefaultXComponent {
   private nativeModule: ESObject;
   @StorageLink("bitfunStartupSplashIcon") splashIcon: ResourceStr = '';
   @StorageLink("bitfunStartupSplashBackground") splashBackground: ResourceColor = Color.Transparent;
+  // Resolved system color mode published by EntryAbility ('light' | 'dark').
+  // With WebDarkMode.Auto the page's prefers-color-scheme follows the system,
+  // but the Web component's own backgroundColor attribute stays at its default
+  // white unless the app syncs it — the documented Auto-mode pitfall for
+  // flashes of light background on dark systems.
+  @StorageProp('bitfunSystemColorMode') @Watch('onSystemColorModeChange')
+  systemColorMode: string = '';
+  // Controller object of the first webview created through the ArkHelper path
+  // (the main window webview). Used by onSystemColorModeChange to re-apply the
+  // background color when the system color mode flips.
+  private mainWebviewController: ESObject = null;
   private helper: ArkHelper = {
     exit,
     createWebview: (data: NativeWebViewInitData) => {
@@ -48,7 +59,18 @@ export struct DefaultXComponent {
       if (data?.transparent && !init.style?.backgroundColor) {
         init.style!.backgroundColor = Color.Transparent;
       }
+      // Match the documented WebDarkMode.Auto pairing: seed the Web
+      // component's background with the system color mode so resize/rotate
+      // gaps and pre-paint frames stay in sync with the page theme instead
+      // of flashing the ArkWeb default white. The startup splash mirror layer
+      // covers the very first frames anyway.
+      if (!init.style?.backgroundColor) {
+        init.style!.backgroundColor = this.systemColorMode === 'dark' ? '#000000' : '#FFFFFF';
+      }
       const ret = this.webviewController.addWebview(init);
+      if (this.mainWebviewController === null) {
+        this.mainWebviewController = ret.controller;
+      }
 
       ret.controller.setBackgroundColor = (color: string) => {
         init.style!.backgroundColor = color;
@@ -68,6 +90,17 @@ export struct DefaultXComponent {
   };
   @StorageProp("moduleName") name: string = "";
   @StorageProp("loadMode") loadMode: "async" | "sync" = "async";
+
+  /** Sync the webview background color with the new system color mode. */
+  onSystemColorModeChange(): void {
+    // The main webview is created through the ArkHelper path; its initData
+    // style closure is still live, so re-applying updates the builder node.
+    // Embedded browser webviews (BrowserWebviewService) manage their own
+    // colors and are intentionally untouched here.
+    if (this.mainWebviewController !== null && typeof this.mainWebviewController.setBackgroundColor === 'function') {
+      this.mainWebviewController.setBackgroundColor(this.systemColorMode === 'dark' ? '#000000' : '#FFFFFF');
+    }
+  }
 
   async aboutToAppear(): Promise<void> {
     // Last-resort safety net: if the webview never reaches a first contentful
