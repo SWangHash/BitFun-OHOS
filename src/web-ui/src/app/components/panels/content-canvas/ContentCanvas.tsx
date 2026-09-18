@@ -9,7 +9,7 @@ import { AnchorZone } from './anchor-zone';
 import { MissionControl } from './mission-control';
 import { EmptyState } from './empty-state';
 import { useCanvasStore } from './stores';
-import { useTabLifecycle, useKeyboardShortcuts, usePanelTabCoordinator } from './hooks';
+import { useTabLifecycle, useKeyboardShortcuts, usePanelTabCoordinator, useFileDeletionSync } from './hooks';
 import type { AnchorPosition } from './types';
 import { TAB_EVENTS } from './types';
 import { selectActiveBtwSessionTab } from '@/flow_chat/services/btwSessionPane';
@@ -88,6 +88,9 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     onCollapse: onCollapsePanel,
     expandEventName: expandPanelEventName,
   });
+  // Flag open tabs whose file was deleted on disk. Covers inactive tabs whose
+  // editors pause disk polling while backgrounded.
+  useFileDeletionSync();
 
   useEffect(() => {
     if (mode !== 'agent' || !activeBtwSessionTab?.id || !activeBtwSessionData?.parentSessionId) {
