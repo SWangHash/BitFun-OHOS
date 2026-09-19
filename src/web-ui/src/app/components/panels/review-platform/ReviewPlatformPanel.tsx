@@ -29,7 +29,7 @@ import { Button, IconButton, Input, MarkdownRenderer, Modal, Select, Tabs, TabPa
 import { reviewPlatformAPI, systemAPI, type ReviewPlatformAccount, type ReviewPlatformAuthChallenge, type ReviewPlatformCiItem, type ReviewPlatformCiLog, type ReviewPlatformCommit, type ReviewPlatformDetailSection, type ReviewPlatformFile, type ReviewPlatformPagination, type ReviewPlatformPullRequest, type ReviewPlatformPullRequestDetail, type ReviewPlatformPullRequestDetailPage, type ReviewPlatformRemote, type ReviewPlatformRepositoryRef, type ReviewPlatformThread, type ReviewPlatformWorkspaceSnapshot } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
-import { i18nService } from '@/infrastructure/i18n';
+import { i18nService, useI18n } from '@/infrastructure/i18n';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { openBtwSessionInAuxPane } from '@/flow_chat/services/btwSessionPane';
 import {
@@ -57,6 +57,7 @@ import {
   samePullRequestIdentity,
   type PullRequestReviewFreshness,
 } from './reviewLinking';
+import { reviewPlatformErrorMessage, reviewErrorText, reviewAuthErrorMessage, type ReviewErrorFallback } from './reviewErrors';
 import './ReviewPlatformPanel.scss';
 
 const log = createLogger('ReviewPlatformPanel');
@@ -323,7 +324,7 @@ function authLabel(account: ReviewPlatformAccount | null): string {
     case 'expired':
       return 'Expired';
     case 'error':
-      return 'Auth error';
+      return i18nService.t('common:reviewPlatform.messages.authError');
     default:
       return 'Not connected';
   }
@@ -345,14 +346,14 @@ function authSourceLabel(source: ReviewPlatformAccount['authSource'] | undefined
 }
 
 function authChallengeTitle(challenge: ReviewPlatformAuthChallenge): string {
-  if (challenge.platform === 'github') return 'GitHub CLI authentication required';
+  if (challenge.platform === 'github') return i18nService.t('common:reviewPlatform.messages.ghAuthRequired');
   switch (challenge.state) {
     case 'missing':
-      return 'Token required';
+      return i18nService.t('common:reviewPlatform.messages.tokenRequiredTitle');
     case 'insufficient_scope':
-      return 'Token permissions required';
+      return i18nService.t('common:reviewPlatform.messages.tokenScopeTitle');
     default:
-      return 'Token update required';
+      return i18nService.t('common:reviewPlatform.messages.tokenUpdateTitle');
   }
 }
 
@@ -659,6 +660,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   initialPullRequestUrl,
   detailOnly = false,
 }) => {
+  const { t } = useI18n('common');
   const snapshotRequestSeq = useRef(0);
   const detailRequestSeq = useRef(0);
   const detailSectionRequestSeq = useRef(0);
@@ -673,8 +675,13 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [detailFailure, setDetailFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
+  const detailError = detailFailure ? reviewPlatformErrorMessage(detailFailure.cause, t, detailFailure.fallback) : null;
+  const setDetailError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'detailsFailed') => {
+    setDetailFailure(cause === null ? null : { cause, fallback });
+  }, []);
+  const [snapshotError, setSnapshotError] = useState<{ cause: unknown } | null>(null);
+  const error = snapshotError ? reviewPlatformErrorMessage(snapshotError.cause, t) : null;
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<ListStateFilter>('all');
   const [pageIndex, setPageIndex] = useState(0);
@@ -689,13 +696,17 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [expandedFileKeys, setExpandedFileKeys] = useState<Set<string>>(() => new Set());
   const [expandedCiItemIds, setExpandedCiItemIds] = useState<Set<string>>(() => new Set());
   const [ciLogById, setCiLogById] = useState<Record<string, ReviewPlatformCiLog>>({});
-  const [ciLogErrorById, setCiLogErrorById] = useState<Record<string, string>>({});
+  const [ciLogErrorById, setCiLogErrorById] = useState<Record<string, { cause: unknown }>>({});
   const [ciLogLoadingIds, setCiLogLoadingIds] = useState<Set<string>>(() => new Set());
   const [snapshotCacheState, setSnapshotCacheState] = useState<SnapshotCacheState>('none');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [authSaving, setAuthSaving] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authFailure, setAuthFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
+  const authError = authFailure ? reviewPlatformErrorMessage(authFailure.cause, t, authFailure.fallback) : null;
+  const setAuthError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'saveTokenFailed') => {
+    setAuthFailure(cause === null ? null : { cause, fallback });
+  }, []);
   const [reviewLaunching, setReviewLaunching] = useState(false);
   const { confirmDeepReviewLaunch, deepReviewConsentDialog } = useDeepReviewConsent();
 
@@ -776,7 +787,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setDetail(null);
       setVerifiedDetailKey(null);
       setDetailError(null);
-      setError('No active workspace is available.');
+      setSnapshotError({ cause: 'No active workspace is available.' });
       setLoading(false);
       return;
     }
@@ -802,7 +813,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setDetail(null);
       setVerifiedDetailKey(null);
       setDetailError(null);
-      setError(null);
+      setSnapshotError(null);
       setSnapshotCacheState('cached');
       setLoading(false);
       return;
@@ -816,7 +827,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     }
 
     setLoading(true);
-    setError(null);
+    setSnapshotError(null);
     try {
       const next = detailOnly
         ? await reviewPlatformAPI.getWorkspaceContext(workspacePath, requestedRemoteId ?? null)
@@ -839,8 +850,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setSnapshotCacheState('cached');
     } catch (err) {
       if (snapshotRequestSeq.current !== requestSeq) return;
-      const message = err instanceof Error ? err.message : 'Failed to load pull requests';
-      setError(message);
+      setSnapshotError({ cause: err });
       if (!cached) {
         setSnapshot(emptySnapshot());
       }
@@ -893,7 +903,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     } catch (err) {
       if (detailRequestSeq.current !== requestSeq) return;
       log.error('Failed to load pull request detail', { pullRequestId, error: err });
-      setDetailError(err instanceof Error ? err.message : 'Failed to load pull request details.');
+      setDetailError(err);
       if (!cached) {
         setDetail(null);
       }
@@ -971,7 +981,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     } catch (err) {
       if (detailSectionRequestSeq.current !== requestSeq) return;
       log.error('Failed to load pull request detail section', { pullRequestId, section, page, perPage, error: err });
-      setDetailError(err instanceof Error ? err.message : 'Failed to load pull request details.');
+      setDetailError(err);
     } finally {
       if (detailSectionRequestSeq.current === requestSeq) {
         setDetailLoading(false);
@@ -1382,8 +1392,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setCiLogById(prev => ({ ...prev, [item.id]: nextLog }));
       return nextLog;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load CI error log.';
-      setCiLogErrorById(prev => ({ ...prev, [item.id]: message }));
+      setCiLogErrorById(prev => ({ ...prev, [item.id]: { cause: err } }));
       log.error('Failed to load CI log', { itemId: item.id, error: err });
       return null;
     } finally {
@@ -1422,7 +1431,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     metadata?: Record<string, unknown>;
   }) => {
     if (!parentSession) {
-      notificationService.warning('Open or create a chat session before sending PR context.', { duration: 3500 });
+      notificationService.warning(i18nService.t('common:reviewPlatform.messages.chatRequired'), { duration: 3500 });
       return;
     }
 
@@ -1465,7 +1474,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
   const handleStartReview = useCallback(async () => {
     if (!workspacePath || !selectedRemote || !repository || !selectedPr || !parentSession) {
-      notificationService.warning('Open or create a chat session before reviewing this pull request.', {
+      notificationService.warning(i18nService.t('common:reviewPlatform.messages.reviewChatRequired'), {
         duration: 3500,
       });
       return;
@@ -1556,7 +1565,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         prepared,
       });
       if (launched.launchStatus === 'uncertain') {
-        notificationService.warning('Review started, but its start acknowledgement is uncertain.', {
+        notificationService.warning(i18nService.t('common:reviewPlatform.messages.reviewUncertain'), {
           duration: 8000,
         });
       }
@@ -1566,7 +1575,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         error: reviewError,
       });
       notificationService.error(
-        reviewError instanceof Error ? reviewError.message : 'Failed to start pull request Review.',
+        reviewPlatformErrorMessage(reviewError, i18nService.t.bind(i18nService), 'reviewFailed'),
         { duration: 6000 },
       );
     } finally {
@@ -1673,8 +1682,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setAuthToken('');
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save token.';
-      setAuthError(message);
+      setAuthError(err, 'saveTokenFailed');
       log.error('Failed to save review platform token', { error: err, host: selectedRemote.host });
     } finally {
       setAuthSaving(false);
@@ -1694,8 +1702,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         duration: 3500,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to open GitHub CLI authentication.';
-      setAuthError(message);
+      setAuthError(err, 'openAuthFailed');
       log.error('Failed to prepare GitHub CLI authentication', { error: err, host: selectedRemote.host });
     } finally {
       setAuthSaving(false);
@@ -1709,8 +1716,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       await systemAPI.setClipboard(`gh auth login --hostname ${selectedRemote.host}`);
       notificationService.success('GitHub CLI login command copied.', { duration: 2500 });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to copy GitHub CLI login command.';
-      setAuthError(message);
+      setAuthError(err, 'copyAuthFailed');
       log.error('Failed to copy GitHub CLI authentication command', { error: err, host: selectedRemote.host });
     }
   }, [selectedRemote]);
@@ -1726,8 +1732,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       });
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to clear token.';
-      setAuthError(message);
+      setAuthError(err, 'clearTokenFailed');
       setAuthModalOpen(true);
       log.error('Failed to clear review platform token', { error: err, host: selectedRemote.host });
     } finally {
@@ -1744,7 +1749,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         </div>
         <div className="review-platform__auth-gate-copy" data-bf-component="review-platform" data-bf-part="authCopy">
           <strong>{authChallengeTitle(authChallenge)}</strong>
-          <span>{authChallenge.message}</span>
+          <span>{reviewAuthErrorMessage(authChallenge, t)}</span>
           <span>{authChallenge.host} · {authChallenge.projectPath}</span>
           <span>{selectedRemote.platform === 'github' ? 'CLI authorization' : 'Required scopes'}: {authChallengeScopes(authChallenge)}</span>
         </div>
@@ -1760,7 +1765,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         </div>
       </div>
     );
-  }, [authChallenge, authSaving, handleOpenAuthModal, loading, refreshAuthSnapshot, selectedRemote]);
+  }, [authChallenge, authSaving, handleOpenAuthModal, loading, refreshAuthSnapshot, selectedRemote, t]);
 
   const handleRetryDetail = useCallback(() => {
     if ((!repository && !workspacePath) || !selectedRemoteId || !selectedPrId) return;
@@ -1815,9 +1820,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const checksText = displayPr && displayPr.checks.total > 0
     ? `${displayPr.checks.passed}/${displayPr.checks.total}`
     : 'N/A';
-  const emptyStateMessage = snapshot.message
-    || account?.message
-    || selectedRemote?.message
+  const emptyStateMessage = reviewErrorText(snapshot.message, t)
+    || reviewErrorText(account?.message, t)
+    || reviewErrorText(selectedRemote?.message, t)
     || (snapshot.remotes.length
       ? isGithubUserList && !query.trim()
         ? 'No open pull requests authored by the current GitHub CLI account.'
@@ -1841,7 +1846,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     ? `${reviewItemCount} comment${reviewItemCount === 1 ? '' : 's'}`
     : 'No comments';
   const reviewStatusText = latestCurrentReview
-    ? currentPullRequestReviewStatusText(latestCurrentReview)
+    ? reviewErrorText(currentPullRequestReviewStatusText(latestCurrentReview), t)
     : latestStaleReview
       ? 'Previous Review is stale because the PR revisions or runtime evidence changed'
       : latestUnknownReview
@@ -2108,8 +2113,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             <div className="review-platform__detail-empty">
               <GitPullRequest size={24} />
               <span>
-                {snapshot.message
-                  || 'This pull request could not be resolved from the remotes of the current workspace.'}
+                {reviewErrorText(snapshot.message, t)
+                  || t('common:reviewPlatform.messages.unresolvedPullRequest')}
               </span>
               <div className="review-platform__detail-empty-actions">
                 <Button
@@ -2308,7 +2313,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                         const isCiExpanded = expandedCiItemIds.has(item.id);
                         const ciLog = ciLogById[item.id];
                         const ciLogLoading = ciLogLoadingIds.has(item.id);
-                        const ciLogError = ciLogErrorById[item.id];
+                        const ciLogFailure = ciLogErrorById[item.id];
+                        const ciLogError = ciLogFailure ? reviewPlatformErrorMessage(ciLogFailure.cause, t, 'ciLogFailed') : null;
                         const logAvailable = canLoadCiLog(selectedRemote, item);
                         const expandable = canExpandCiItem(selectedRemote, item);
                         return (
@@ -2374,7 +2380,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                                   </div>
                                 )}
                                 {!ciLogLoading && !ciLogError && (ciLog?.log || item.log) && <pre className="review-platform__ci-log-block">{ciLog?.log || item.log}</pre>}
-                                {!ciLogLoading && !ciLogError && ciLog && !ciLog.log && !item.log && ciLog.message && <div className="review-platform__ci-log-empty">{ciLog.message}</div>}
+                                {!ciLogLoading && !ciLogError && ciLog && !ciLog.log && !item.log && ciLog.message && <div className="review-platform__ci-log-empty">{reviewErrorText(ciLog.message, t)}</div>}
                               </div>
                             )}
                           </article>
