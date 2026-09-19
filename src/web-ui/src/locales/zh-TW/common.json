@@ -691,6 +691,11 @@
         "title": "刪除任務“{{name}}”？"
       },
       "messages": {
+        "reviewAvailable": "審查可用，開啟查看",
+        "reviewFailedInspect": "審查失敗，開啟查看詳細資料",
+        "reviewResultUnloaded": "審查已完成，開啟載入結果",
+        "reviewResultUnavailable": "審查已完成，但結果無法使用，開啟查看詳細資料",
+        "reviewError": "審查發生錯誤",
         "loadFailed": "載入定時任務失敗：{{error}}",
         "saveFailed": "儲存定時任務失敗：{{error}}",
         "updateFailed": "更新定時任務失敗：{{error}}",
@@ -2031,6 +2036,56 @@
       "minutesAgo": "{{count}} 分鐘前",
       "hoursAgo": "{{count}} 小時前",
       "daysAgo": "{{count}} 日前"
+    },
+    "errors": {
+      "gitUnavailable": "Git 無法使用。請在執行此工作區的環境中安裝 Git 並將其加入 PATH，然後重試。",
+      "loadFailed": "載入提取請求失敗",
+      "invalidRepository": "無法讀取此 Git 儲存庫，請檢查工作區路徑與存取權限。",
+      "repositoryUntrusted": "Git 尚未信任此儲存庫，請確認儲存庫擁有權後重試。",
+      "remoteNotFound": "所選遠端儲存庫已不存在，請重新整理並重新選取。",
+      "unsupportedPlatform": "不支援此儲存庫提供者。",
+      "providerFailed": "儲存庫提供者無法完成請求，請重試或檢查提供者服務。",
+      "authenticationRequired": "需要驗證，請登入或更新權杖後重試。",
+      "permissionDenied": "存取遭拒，請檢查帳號與權杖權限。",
+      "notFound": "找不到請求的儲存庫或項目，或目前帳號無權存取。",
+      "networkFailed": "無法連線至儲存庫提供者，請檢查網路後重試。",
+      "invalidResponse": "儲存庫提供者傳回了無法解析的回應。",
+      "staleTarget": "提取請求已變更，請重新整理後繼續審查。",
+      "evidenceTooLarge": "提供者證據超出支援的大小，請縮小審查範圍後重試。",
+      "targetIsPullRequest": "此項目是提取請求，請以提取請求開啟，而非以問題開啟。"
+    },
+    "messages": {
+      "noWorkspace": "沒有可用的作用中工作區。",
+      "unsupportedLink": "此連結不是支援的提取請求連結。",
+      "detailsFailed": "載入提取請求詳細資料失敗。",
+      "ciLogFailed": "載入 CI 錯誤記錄失敗。",
+      "chatRequired": "請先開啟或建立工作階段，再傳送提取請求上下文。",
+      "reviewChatRequired": "請先開啟或建立工作階段，再審查此提取請求。",
+      "reviewUncertain": "審查已發起，但尚未確認啟動結果。",
+      "reviewFailed": "啟動提取請求審查失敗。",
+      "tokenRequired": "請輸入權杖。",
+      "saveTokenFailed": "儲存權杖失敗。",
+      "clearTokenFailed": "清除權杖失敗。",
+      "openAuthFailed": "開啟 GitHub CLI 驗證失敗。",
+      "copyAuthFailed": "複製 GitHub CLI 登入命令失敗。",
+      "unresolvedPullRequest": "無法從目前工作區的遠端儲存庫中找到此提取請求。",
+      "ghAuthRequired": "需要 GitHub CLI 驗證",
+      "tokenRequiredTitle": "需要權杖",
+      "tokenScopeTitle": "需要權杖權限",
+      "tokenUpdateTitle": "需要更新權杖",
+      "headUnavailable": "無法取得 GitHub 提取請求的來源提交 SHA。",
+      "noActionsJob": "找不到與此檢查相符的 GitHub Actions 工作。",
+      "noActionsJobId": "相符的 GitHub Actions 工作未提供工作 ID。",
+      "authError": "驗證錯誤",
+      "reviewFailedInspect": "審查失敗 · 開啟以查看詳細資料",
+      "reviewResultUnavailable": "審查已完成 · 結果無法使用 · 開啟以查看詳細資料",
+      "reviewError": "審查錯誤"
+    },
+    "auth": {
+      "github": "請在工作區執行環境中完成 GitHub 驗證後重試：{{command}}",
+      "missing": "請為 {{host}} 新增存取權杖以存取此儲存庫。",
+      "invalid": "{{host}} 的存取權杖遭拒，請更新後重試。",
+      "insufficientScope": "{{host}} 的存取權杖權限不足，請更新後重試。"
     }
   },
   "dispatch": {
