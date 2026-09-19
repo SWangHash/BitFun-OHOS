@@ -14,7 +14,7 @@ import {
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
 
 interface CodeReviewReportExportActionsProps {
-  reviewData: CodeReviewReportData;
+  reviewData: CodeReviewReportData | null | undefined;
   runManifest?: ReviewTeamRunManifest;
   actions?: CodeReviewReportExportAction[];
   variant?: 'icon' | 'footer';
@@ -101,11 +101,11 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
   }), [t]);
 
   const markdown = useMemo(
-    () => formatCodeReviewReportMarkdown(
+    () => reviewData ? formatCodeReviewReportMarkdown(
       reviewData,
       markdownLabels,
       { runManifest: reviewData.review_mode === 'deep' ? runManifest : undefined },
-    ),
+    ) : '',
     [markdownLabels, reviewData, runManifest],
   );
 
@@ -179,6 +179,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             size="sm"
             leadingIcon={<Icon name="edit" size="md" />}
             onClick={handleOpenInEditor}
+            disabled={!reviewData}
           >
             {t('toolCards.codeReview.export.openMarkdown')}
           </Button>
@@ -195,6 +196,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleCopy}
+            disabled={!reviewData}
             aria-label={t('toolCards.codeReview.export.copyMarkdown')}
             icon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
           />
@@ -206,6 +208,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleOpenInEditor}
+            disabled={!reviewData}
             aria-label={t('toolCards.codeReview.export.openMarkdown')}
             icon={<Icon name="edit" size="sm" />}
           />
@@ -217,7 +220,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !reviewData}
             aria-label={t('toolCards.codeReview.export.saveMarkdown')}
             icon={saving ? <Loader2 className="animate-spin" size={14} /> : <Icon name="arrow-down" size="sm" />}
           />
