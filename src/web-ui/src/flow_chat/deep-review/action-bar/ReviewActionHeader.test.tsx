@@ -58,14 +58,15 @@ describe('ReviewActionHeader', () => {
     dom.window.close();
   });
 
-  it('keeps only compact export actions in the top-right controls', () => {
+  it.each([null, { summary: { recommended_action: 'request_changes' } }])('keeps compact export actions while running with report data %j', (reviewData) => {
     const Icon = () => <span>phase icon</span>;
     renderToStaticMarkup(
       <ReviewActionHeader
-        reviewData={{ summary: { recommended_action: 'request_changes' } } as any}
+        reviewData={reviewData as any}
+        isReviewRunning
         PhaseIcon={Icon}
         phaseIconClass="phase-class"
-        phaseTitle="Review completed"
+        phaseTitle="Review in progress"
         minimizeLabel="Minimize"
         onMinimize={vi.fn()}
       />,
