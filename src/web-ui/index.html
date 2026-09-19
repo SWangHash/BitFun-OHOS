@@ -264,6 +264,32 @@
         transform: translate(-50%, 0);
       }
 
+      /* OpenHarmony brand splash: mirror the native start window so the
+         handoff from startWindowBackground to the webview is seamless.
+         start_window_background is pinned to #000000 in the OHOS resources
+         (base and dark), so the canvas is a constant black and the same
+         bitfun_icon_light.png icon, which already has its rounded shape
+         baked into the PNG alpha channel. */
+      .splash-screen--ohos-brand {
+        background: #000000;
+        font-size: 0;
+      }
+
+      .splash-screen--ohos-brand .splash-screen__logo-wrap {
+        animation: none;
+        -webkit-animation: none;
+        will-change: auto;
+      }
+
+      .splash-screen--ohos-brand .bitfun-preload__logo {
+        /* The inline script overrides this variable with the native start
+           window's physical icon size (649px / devicePixelRatio, clamped to
+           the viewport). */
+        width: var(--bitfun-ohos-start-icon-size, 96px);
+        height: var(--bitfun-ohos-start-icon-size, 96px);
+        border-radius: 0;
+      }
+
       @keyframes splash-logo-idle {
         0%, 100% {
           opacity: 0.42;
@@ -394,6 +420,66 @@
             root.innerHTML = '<div class="bitfun-pet-preload"><div class="bitfun-pet-preload__sprite" aria-hidden="true"></div><span class="bitfun-sr-only"></span></div>';
             var petStatus = root.querySelector('.bitfun-sr-only');
             if (petStatus) petStatus.textContent = messages.petLoading;
+          }
+          return;
+        }
+
+        // OpenHarmony keeps the native start window visible until the webview
+        // paints, so the static splash must mirror it exactly instead of
+        // showing the themed desktop look: same bitfun_icon_light.png icon on
+        // a plain black canvas (see .splash-screen--ohos-brand). The overlay
+        // stays mounted and is faded out by hideStartupOverlay() as on
+        // desktop; window controls and the loading hint stay off because the
+        // OHOS window host does not implement startup_window_control.
+        // The fingerprint mirrors isOpenHarmonyRuntime() in
+        // src/infrastructure/runtime/environment.ts (this script cannot import).
+        var isOhosHost = /(?:openharmony|harmonyos|ohos)/i.test(
+          (navigator.userAgent || '') + ' ' + (navigator.platform || '')
+        );
+        if (isOhosHost) {
+          var ohosSplash = document.querySelector('.splash-screen');
+          if (ohosSplash) ohosSplash.classList.add('splash-screen--ohos-brand');
+          var ohosLogo = document.querySelector('.bitfun-preload__logo');
+          if (ohosLogo) {
+            ohosLogo.src = '/bitfun_icon_light.png';
+            // Mirror the native start window draw rule (SurfaceDraw::
+            // DoDrawImageRect): the icon is scaled by min(winW/iconW,
+            // winH/iconH) and never scaled up, i.e. it covers
+            // min(649, winW, winH) physical pixels. Convert to CSS px by the
+            // devicePixelRatio so the overlay icon lands on the same area.
+            var ohosDpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+            var ohosIconPx = 649 / ohosDpr;
+            var ohosViewport = Math.min(window.innerWidth || Infinity, window.innerHeight || Infinity);
+            if (ohosViewport < ohosIconPx) ohosIconPx = ohosViewport;
+            document.documentElement.style.setProperty(
+              '--bitfun-ohos-start-icon-size',
+              ohosIconPx + 'px'
+            );
+          }
+          // Tell the OHOS shell when the brand overlay has actually been
+          // presented: wait until the icon is decoded, then double
+          // requestAnimationFrame so at least one frame with the overlay has
+          // been committed. The native shell matches this token in its
+          // onConsoleMessage handler and releases the splash mirror exactly
+          // on the takeover frame instead of on a load event (a load event
+          // can fire while the webview still shows no content, which read as
+          // a white flash between the mirror and the overlay).
+          var signalOverlayPresented = function () {
+            var raf = window.requestAnimationFrame;
+            if (typeof raf === 'function') {
+              raf(function () {
+                raf(function () {
+                  console.info('bitfun-startup-overlay-presented');
+                });
+              });
+            } else {
+              console.info('bitfun-startup-overlay-presented');
+            }
+          };
+          if (ohosLogo && typeof ohosLogo.decode === 'function') {
+            ohosLogo.decode().then(signalOverlayPresented, signalOverlayPresented);
+          } else {
+            signalOverlayPresented();
           }
           return;
         }

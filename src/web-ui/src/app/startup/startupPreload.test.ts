@@ -47,6 +47,54 @@ describe('startup preload shell', () => {
     });
   });
 
+  it('brands the static splash like the native start window on OpenHarmony hosts', () => {
+    const dom = new JSDOM(readIndexHtml(), {
+      url: 'http://localhost:1422/',
+      runScripts: 'dangerously',
+      beforeParse(window) {
+        Object.defineProperty(window, '__BITFUN_BOOTSTRAP_LOCALE__', { value: 'zh-CN' });
+        Object.defineProperty(window.navigator, 'userAgent', {
+          value:
+            'Mozilla/5.0 (Linux; OpenHarmony 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 ArkWeb/4.1.6.1 Mobile',
+          configurable: true,
+        });
+      },
+    });
+
+    const document = dom.window.document;
+    expect(document.documentElement.lang).toBe('zh-CN');
+    // The overlay must stay mounted so hideStartupOverlay() can fade it out
+    // instead of exposing an unstyled white gap before the React shell.
+    expect(document.getElementById('bitfun-startup-overlay')).not.toBeNull();
+    const splash = document.querySelector<HTMLElement>('.splash-screen');
+    expect(splash).not.toBeNull();
+    expect(splash?.classList.contains('splash-screen--ohos-brand')).toBe(true);
+    // Same icon and background colors as startWindowIcon / startWindowBackground.
+    expect(document.querySelector<HTMLImageElement>('.bitfun-preload__logo')?.src).toContain(
+      '/bitfun_icon_light.png',
+    );
+    // The native start window draws the icon at its intrinsic pixel size, so
+    // the overlay icon size is 649px / devicePixelRatio (jsdom dpr is 1).
+    expect(
+      document.documentElement.style.getPropertyValue('--bitfun-ohos-start-icon-size'),
+    ).toBe('649px');
+    // The overlay announces its own presentation so the OHOS shell releases
+    // the native splash mirror exactly on the takeover frame (no white gap).
+    expect(readIndexHtml()).toContain('bitfun-startup-overlay-presented');
+    // start_window_background is pinned to #000000 in the OHOS resources, so
+    // the brand splash is a constant black canvas in every color mode (the
+    // webview runs with WebDarkMode.Auto and this layer must not depend on
+    // prefers-color-scheme, which can diverge from an app-level theme).
+    expect(readIndexHtml()).toMatch(
+      /\.splash-screen--ohos-brand \{\s*background: #000000;/,
+    );
+    // Window controls stay hidden: the OHOS window host does not implement
+    // startup_window_control, and the loading hint stays off for a seamless
+    // handoff from the native start window.
+    expect(document.querySelector('[data-startup-window-controls]')?.getAttribute('hidden')).not.toBeNull();
+    expect(document.querySelector('.splash-screen--ohos-brand .splash-screen__message')).toBeTruthy();
+  });
+
   it('shows the independent pet preload for the companion window', () => {
     const html = readIndexHtml();
     const dom = new JSDOM(html, {

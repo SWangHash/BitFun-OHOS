@@ -107,6 +107,28 @@ export default class EntryAbility extends RustAbility {
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
+    // Startup splash clone resources: DefaultXComponent mirrors the native
+    // start window (startWindowIcon + startWindowBackground) while the webview
+    // boots, and hides the mirror when the page reports its takeover frame.
+    // Without it the window shows a blank background between the system start
+    // window and the webview's first frame. The background is passed as the
+    // resource reference, not a pre-resolved value: start_window_background is
+    // pinned to #000000 in both base/ and dark/, so every consumer of the
+    // color (the AbilityMgr-drawn system start window, this ArkUI mirror, the
+    // webview seed) resolves the same constant regardless of which color mode
+    // each consumer runs under — an application-level colorMode override (see
+    // set_theme_mode) would otherwise make the mirror diverge from the system
+    // start window whenever the system and app themes differ.
+    AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_icon_light'));
+    AppStorage.setOrCreate<ResourceColor>(
+      'bitfunStartupSplashBackground',
+      $r('app.color.start_window_background'),
+    );
+    // Publish the resolved system color mode for ArkUI components. The webview
+    // runs with WebDarkMode.Auto (prefers-color-scheme works), but its
+    // backgroundColor attribute does not follow the system by itself (default
+    // white), so DefaultXComponent syncs it from this value.
+    AppStorage.setOrCreate<string>('bitfunSystemColorMode', this.readSystemColorMode());
     this.commonEventListener = new CommonEventListener();
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
@@ -128,6 +150,9 @@ export default class EntryAbility extends RustAbility {
   onConfigurationUpdate(newConfig: Configuration): void {
     const mode = this.colorModeToString(newConfig?.colorMode);
     if (mode.length > 0) {
+      // ArkUI consumers (splash mirror, webview background sync) re-resolve
+      // from AppStorage; the web-ui listens to the Rust-side notification.
+      AppStorage.setOrCreate<string>('bitfunSystemColorMode', mode);
       try {
         RustModule.notifySystemColorMode(mode);
         hilog.info(DOMAIN, 'vnext', 'onConfigurationUpdate: system color mode -> ' + mode);
@@ -637,15 +662,33 @@ export default class EntryAbility extends RustAbility {
       const req: LabelRequest = JSON.parse(arg);
       return await browserService.getUrl(req);
     });
+    // Window chrome configuration. This MUST stay delayed (40ms): applying it
+    // synchronously at the top of onWindowStageCreate, before loadContent,
+    // leaves the native title bar visible on HarmonyOS PC — at that point the
+    // window decoration state is not established yet and the configuration is
+    // reset by the loadContent process. The 40ms delay is the earliest
+    // verified-working point, which is why it predates the startup splash
+    // mirror. A resize triggered by the chrome change while the mirror is on
+    // screen would re-lay-out the mirror as a one-frame icon jump, but the
+    // decoration change hides chrome rather than resizing the window rect, so
+    // in practice the mirror stays pixel-stable. Diagnostics below record the
+    // applied rect and any windowSizeChange so a residual jump can be
+    // correlated with the mirror's aboutToAppear/release logs on device.
     setTimeout(() => {
       windowStage.getMainWindow((err, data) => {
         data.setWindowDecorHeight(38);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
-        // setWindowLimits expects px (physical pixels). Convert the 800x600
-        // logical minimum, matching the desktop MAIN_WINDOW_MIN_WIDTH/HEIGHT,
-        // using the display density so non-1x scaling keeps the same logical
-        // minimum as Windows/Linux/macOS.
+        try {
+          const rect = data.getWindowProperties().windowRect;
+          hilog.info(DOMAIN, 'BitFunStartup',
+            'startup window chrome applied, rect=' + rect.width + 'x' + rect.height);
+        } catch (e) {
+          hilog.warn(DOMAIN, 'BitFunStartup', 'read window rect on startup failed: ' + JSON.stringify(e));
+        }
+        data.on('windowSizeChange', (size) => {
+          hilog.info(DOMAIN, 'BitFunStartup', 'windowSizeChange ' + size.width + 'x' + size.height);
+        });
         let scale: number = 1;
         try {
           scale = display.getDefaultDisplaySync().densityPixels > 0
@@ -653,11 +696,13 @@ export default class EntryAbility extends RustAbility {
         } catch (e) {
           hilog.warn(DOMAIN, TAG, 'read densityPixels on startup failed: ' + JSON.stringify(e));
         }
-        const minWidth: number = Math.round(800 * scale);
-        const minHeight: number = Math.round(600 * scale);
+        // setWindowLimits expects px (physical pixels). Convert the 800x600
+        // logical minimum, matching the desktop MAIN_WINDOW_MIN_WIDTH/HEIGHT,
+        // using the display density so non-1x scaling keeps the same logical
+        // minimum as Windows/Linux/macOS.
         data.setWindowLimits({
-          minWidth: minWidth,
-          minHeight: minHeight,
+          minWidth: Math.round(800 * scale),
+          minHeight: Math.round(600 * scale),
           maxWidth: -1,
           maxHeight: -1,
         }).catch((e: BusinessError) => {
