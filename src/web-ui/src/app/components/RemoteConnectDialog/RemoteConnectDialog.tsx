@@ -1,6 +1,6 @@
 /**
  * Remote Connect dialog with three groups:
- *   - Network (LAN / Ngrok / BitFun Server / Custom Server) – mutually exclusive
+ *   - Network (LAN / Ngrok / Custom Server) – mutually exclusive
  *   - IM Bot (Telegram / Feishu / WeChat) – mutually exclusive
  *   - Account / My BitFun (login, cloud sync, peer device control, Pages entry)
  * Network and Bot require an open workspace and can be active simultaneously;
@@ -45,7 +45,7 @@ import './RemoteConnectDialog.scss';
 
 type ActiveGroup = 'network' | 'bot' | 'account';
 type ConnectionOwner = Exclude<ActiveGroup, 'account'>;
-type NetworkTab = 'lan' | 'ngrok' | 'bitfun_server' | 'custom_server';
+type NetworkTab = 'lan' | 'ngrok' | 'custom_server';
 type BotTab = 'telegram' | 'feishu' | 'weixin';
 
 /**
@@ -68,7 +68,6 @@ function isWeixinRasterQrSrc(raw: string): boolean {
 const NETWORK_TABS: { id: NetworkTab; labelKey: string }[] = [
   { id: 'lan', labelKey: 'shared:connectionMethods.lan' },
   { id: 'ngrok', labelKey: 'remoteConnect.tabNgrok' },
-  { id: 'bitfun_server', labelKey: 'shared:connectionMethods.bitfunServer' },
   { id: 'custom_server', labelKey: 'remoteConnect.tabCustomServer' },
 ];
 
@@ -114,7 +113,6 @@ const methodToNetworkTab = (method: string | null | undefined): NetworkTab | nul
   if (!method) return null;
   if (method.startsWith('Lan')) return 'lan';
   if (method.startsWith('Ngrok')) return 'ngrok';
-  if (method.startsWith('BitfunServer')) return 'bitfun_server';
   if (method.startsWith('CustomServer')) return 'custom_server';
   return null;
 };
@@ -305,7 +303,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
 
     // Relay and bot connections can coexist. Restore both selected subtabs
     // before choosing which group to show, otherwise the bot-first open path
-    // can leave a connected BitFun Server relay rendering the default LAN UI.
+    // can leave a connected relay rendering the default LAN UI.
     if (nextStatus.pairing_state === 'connected') {
       const connectedTab = methodToNetworkTab(nextStatus.active_method);
       if (connectedTab) setNetworkTab(connectedTab);
