@@ -15,7 +15,7 @@ import {
 import type { AIModelConfig } from '@/infrastructure/config/types';
 
 vi.mock('@/infrastructure/api/service-api/AIApi', () => ({
-  aiApi: { getModelCatalog: vi.fn() },
+  aiApi: { getModelCatalog: vi.fn(), projectReasoningCatalog: vi.fn() },
 }));
 
 vi.mock('@/infrastructure/config/services/ConfigManager', () => ({
@@ -91,11 +91,8 @@ describe('reasoning preset session creation resolution', () => {
     });
     vi.mocked(configManager.getConfigs).mockResolvedValue({
       'ai.agent_model_defaults': { mode: 'primary' },
-    });
-    vi.mocked(aiApi.getModelCatalog).mockResolvedValue({
-      version: 1,
-      default_models: { primary: 'model-primary', fast: 'model-fast' },
-      models: [
+      'ai.default_models': { primary: 'model-primary', fast: 'model-fast' },
+      'ai.models': [
         {
           id: 'model-primary',
           name: 'Primary',
@@ -127,6 +124,20 @@ describe('reasoning preset session creation resolution', () => {
         },
       ],
     });
+    vi.mocked(aiApi.projectReasoningCatalog).mockImplementation(async request => (
+      request.modelName === 'gpt-primary'
+        ? {
+            status: 'known',
+            presets: [{
+              id: 'high',
+              label: 'High',
+              order: 10,
+              source: 'models_dev',
+              actions: [{ type: 'effort', value: 'high' }],
+            }],
+          }
+        : { status: 'unsupported', presets: [] }
+    ));
   });
 
   afterEach(() => {
@@ -139,9 +150,7 @@ describe('reasoning preset session creation resolution', () => {
   });
 
   it('uses the configured mode model for a new session without an explicit model', async () => {
-    vi.mocked(configManager.getConfigs).mockResolvedValue({
-      'ai.agent_model_defaults': { mode: 'primary' },
-    });
+    // The mode default is what selects the model when the caller passes none.
     setRecentReasoningPreset('model-primary', 'high');
 
     await expect(resolveReasoningPresetForSessionCreation()).resolves.toBe('high');
@@ -155,5 +164,30 @@ describe('reasoning preset session creation resolution', () => {
   it('fails closed when the concrete model does not expose a known preset', async () => {
     setRecentReasoningPreset('model-fast', 'high');
     await expect(resolveReasoningPresetForSessionCreation('fast')).resolves.toBeUndefined();
+  });
+
+  it('never reads the whole model catalog while creating a session', async () => {
+    // The catalog carries the public models.dev projections, which cost
+    // multi-MiB over a peer connection and used to be awaited before the
+    // create-session RPC. Session creation must project one model instead.
+    const catalogRead = vi.mocked(aiApi.getModelCatalog);
+    const projection = vi.mocked(aiApi.projectReasoningCatalog);
+    catalogRead.mockClear();
+    projection.mockClear();
+    setRecentReasoningPreset('model-primary', 'high');
+    await expect(resolveReasoningPresetForSessionCreation('primary')).resolves.toBe('high');
+
+    expect(catalogRead).not.toHaveBeenCalled();
+    expect(projection).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'responses', modelName: 'gpt-primary' }),
+    );
+  });
+
+  it('projects nothing when the model has no recent preset to validate', async () => {
+    const projection = vi.mocked(aiApi.projectReasoningCatalog);
+    projection.mockClear();
+
+    await expect(resolveReasoningPresetForSessionCreation('primary')).resolves.toBeUndefined();
+    expect(projection).not.toHaveBeenCalled();
   });
 });

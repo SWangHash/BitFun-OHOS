@@ -1929,6 +1929,7 @@ pub async fn _run() {
             get_global_config_status,
             get_model_configs,
             get_ai_model_catalog,
+            get_local_models_dev_catalogs,
             project_ai_model_reasoning_catalog,
             get_models_dev_catalog_status,
             refresh_models_dev_catalog_now,

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "digest": "fnv1a64:193cd25af1826404",
+  "digest": "fnv1a64:473b241b029c6ea7",
   "retiredCommandPrefixes": [
     {
       "prefix": "lsp_",
@@ -11,6 +11,9 @@
     "ids": [
       "idempotent_dialog_submit",
       "inline_image_attachments_v1",
+      "btw_initial_model_selection_v1",
+      "control_conversation_v1",
+      "control_conversation_reset_v1",
       "targeted_session_rollback",
       "token_usage_statistics",
       "miniapp_agent_context_files_v1",
@@ -20,12 +23,16 @@
       "cancel_tool",
       "tool_catalog",
       "chat_mcp_catalog_v1",
+      "workspace_id_references_v1",
       "user_question_response",
       "user_question_interaction_v1"
     ],
     "desktop": [
       "idempotent_dialog_submit",
       "inline_image_attachments_v1",
+      "btw_initial_model_selection_v1",
+      "control_conversation_v1",
+      "control_conversation_reset_v1",
       "targeted_session_rollback",
       "token_usage_statistics",
       "miniapp_agent_context_files_v1",
@@ -35,10 +42,13 @@
       "cancel_tool",
       "tool_catalog",
       "chat_mcp_catalog_v1",
+      "workspace_id_references_v1",
       "user_question_response",
       "user_question_interaction_v1"
     ],
     "cli": [
+      "control_conversation_v1",
+      "control_conversation_reset_v1",
       "idempotent_dialog_submit",
       "inline_image_attachments_v1",
       "targeted_session_rollback",
@@ -47,6 +57,7 @@
       "cancel_tool",
       "tool_catalog",
       "chat_mcp_catalog_v1",
+      "workspace_id_references_v1",
       "user_question_response",
       "user_question_interaction_v1"
     ]
@@ -245,6 +256,18 @@
       }
     },
     {
+      "id": "account_relay_capabilities",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "controller_local"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
+      }
+    },
+    {
       "id": "account_status",
       "surface": "tauri_command",
       "remoteWorkspace": "WorkspaceAgnostic",
@@ -282,6 +305,18 @@
     },
     {
       "id": "account_unsubscribe_session",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "controller_local"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
+      }
+    },
+    {
+      "id": "account_update_device_alias",
       "surface": "tauri_command",
       "remoteWorkspace": "WorkspaceAgnostic",
       "peer": {
@@ -1123,6 +1158,17 @@
       }
     },
     {
+      "id": "create_control_conversation",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "proxied"
+      },
+      "cliPeer": {
+        "kind": "handled"
+      }
+    },
+    {
       "id": "create_cron_job",
       "surface": "tauri_command",
       "remoteWorkspace": "LegacyUnaudited",
@@ -1871,6 +1917,17 @@
       }
     },
     {
+      "id": "ensure_control_conversation",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "proxied"
+      },
+      "cliPeer": {
+        "kind": "handled"
+      }
+    },
+    {
       "id": "ensure_coordinator_session",
       "surface": "tauri_command",
       "remoteWorkspace": "RemoteRouted",
@@ -2541,6 +2598,18 @@
     },
     {
       "id": "get_latest_insights",
+      "surface": "tauri_command",
+      "remoteWorkspace": "LocalOnly",
+      "peer": {
+        "kind": "controller_local"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
+      }
+    },
+    {
+      "id": "get_local_models_dev_catalogs",
       "surface": "tauri_command",
       "remoteWorkspace": "LocalOnly",
       "peer": {
@@ -5246,6 +5315,17 @@
       "cliPeer": {
         "kind": "unsupported",
         "reason": "the CLI peer host has no handler for this command"
+      }
+    },
+    {
+      "id": "record_voice_exchange",
+      "surface": "tauri_command",
+      "remoteWorkspace": "WorkspaceAgnostic",
+      "peer": {
+        "kind": "proxied"
+      },
+      "cliPeer": {
+        "kind": "handled"
       }
     },
     {

@@ -211,6 +211,9 @@
       "get_configs",
       "set_config"
     ],
+    "modelCatalogEnrichment": [
+      "get_local_models_dev_catalogs"
+    ],
     "persistencePrimitives": [
       "save_session_metadata",
       "save_session_turn",

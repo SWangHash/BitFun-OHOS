@@ -300,6 +300,11 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("get_health_status",                                          Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_instruction_source_catalog",                             Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_latest_insights",                                        LocalOnly,   ControllerLocal,  REFUSED),
+    // This machine's own models.dev projections for the Model Settings surface a
+    // controller renders while a peer is selected. The data belongs to the
+    // public models.dev catalog, which every host refreshes for itself, so the
+    // controller keeps this read local instead of pulling the peer's copy.
+    op("get_local_models_dev_catalogs",                              LocalOnly,   ControllerLocal,  REFUSED),
     op("get_mcp_prompt",                                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_mcp_remote_oauth_session",                               Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_mcp_server_status",                                      Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),

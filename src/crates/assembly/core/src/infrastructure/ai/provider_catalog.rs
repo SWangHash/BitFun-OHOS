@@ -80,14 +80,6 @@ pub(crate) fn resolve_builtin_provider_catalog(
     source: ProviderCatalogSource,
 ) -> ProviderCatalog {
     let overlay = parse_overlay().expect("built-in AI provider overlay must be valid");
-    let has_bound_catalog_data = models_dev.is_some_and(|catalog| {
-        overlay.providers.iter().any(|provider| {
-            provider
-                .catalog_provider_ids
-                .iter()
-                .any(|provider_id| catalog.provider_facts(provider_id).is_some())
-        })
-    });
     let mut providers = overlay
         .providers
         .iter()
@@ -100,12 +92,52 @@ pub(crate) fn resolve_builtin_provider_catalog(
     });
     ProviderCatalog {
         revision: resolved_catalog_revision(&revision),
-        source: if has_bound_catalog_data && source == ProviderCatalogSource::BitFun {
-            ProviderCatalogSource::Mixed
-        } else {
-            source
-        },
+        source: promoted_catalog_source(&overlay, models_dev, source),
         providers,
+    }
+}
+
+/// The identity of the built-in provider catalog without projecting its
+/// providers.
+///
+/// A caller that must not ship the projected bodies — a peer answer, a session
+/// poll, a mobile or bot controller — still has to report the same `revision`
+/// and `source` the full build would: the revision drives
+/// `RemoteModelCatalog::version`, and an attached controller only accepts a new
+/// catalog when that version moves. Projecting the providers themselves is the
+/// expensive part, so the slim build keeps the identity and drops the bodies.
+pub(crate) fn builtin_provider_catalog_identity(
+    models_dev: Option<&ModelsDevCatalog>,
+    revision: String,
+    source: ProviderCatalogSource,
+) -> ProviderCatalog {
+    let overlay = parse_overlay().expect("built-in AI provider overlay must be valid");
+    ProviderCatalog {
+        revision: resolved_catalog_revision(&revision),
+        source: promoted_catalog_source(&overlay, models_dev, source),
+        providers: Vec::new(),
+    }
+}
+
+/// A models.dev snapshot that contributes provider bindings makes the catalog
+/// mixed even when the caller passed the BitFun-only source.
+fn promoted_catalog_source(
+    overlay: &ProviderOverlayDocument,
+    models_dev: Option<&ModelsDevCatalog>,
+    source: ProviderCatalogSource,
+) -> ProviderCatalogSource {
+    let has_bound_catalog_data = models_dev.is_some_and(|catalog| {
+        overlay.providers.iter().any(|provider| {
+            provider
+                .catalog_provider_ids
+                .iter()
+                .any(|provider_id| catalog.provider_facts(provider_id).is_some())
+        })
+    });
+    if has_bound_catalog_data && source == ProviderCatalogSource::BitFun {
+        ProviderCatalogSource::Mixed
+    } else {
+        source
     }
 }
 

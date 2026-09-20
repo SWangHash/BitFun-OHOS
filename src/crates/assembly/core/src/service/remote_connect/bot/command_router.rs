@@ -385,6 +385,9 @@ async fn start_switch_model(state: &mut BotChatState, s: &'static BotStrings) ->
         }
     };
 
+    // A bot menu reads the configured models and the session selection only: the
+    // models.dev bodies belong to the host's own settings surface, and a chat
+    // controller never offers provider or reasoning-catalog editing.
     let catalog = match CoreServiceAgentRuntime::load_remote_model_catalog(Some(&session_id)).await
     {
         Ok(c) => c,

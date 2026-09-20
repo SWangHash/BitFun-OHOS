@@ -44,20 +44,20 @@ use bitfun_services_integrations::remote_connect::{
     normalize_remote_model_selection as normalize_remote_model_selection_contract,
     normalize_remote_session_model_id, project_remote_chat_user,
     remote_dialog_submit_outcome_from_scheduler, remote_model_selection_needs_config, ChatMessage,
-    RemoteAssistantWorkspaceFacts, RemoteCancelRuntimeHost, RemoteChatHistoryRound,
-    RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall,
-    RemoteChatHistoryToolItem, RemoteChatHistoryTurn, RemoteConnectSubmissionSource,
-    RemoteDefaultModelsConfig, RemoteDialogQueuePriority, RemoteDialogResolvedSubmission,
-    RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact, RemoteDialogSteerOutcome,
-    RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy, RemoteDialogSubmitOutcome,
-    RemoteDialogWorkspaceBinding, RemoteImageContext, RemoteInitialSyncRuntimeHost,
-    RemoteInteractionRuntimeHost, RemoteModelCapabilityFact, RemoteModelCatalog,
-    RemoteModelCatalogFacts, RemoteModelFacts, RemotePermissionMode, RemotePollRuntimeHost,
-    RemoteRecentWorkspaceFacts, RemoteSessionMetadata, RemoteSessionModelSelection,
-    RemoteSessionRuntimeHost, RemoteSessionStateTracker, RemoteSessionTrackerHost,
-    RemoteTerminalPrewarmRequest, RemoteWorkspaceFacts, RemoteWorkspaceFileRuntimeHost,
-    RemoteWorkspaceKind as RemoteConnectWorkspaceKind, RemoteWorkspaceRuntimeHost,
-    RemoteWorkspaceUpdate,
+    LocalModelsDevCatalogs, RemoteAssistantWorkspaceFacts, RemoteCancelRuntimeHost,
+    RemoteChatHistoryRound, RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem,
+    RemoteChatHistoryToolCall, RemoteChatHistoryToolItem, RemoteChatHistoryTurn,
+    RemoteConnectSubmissionSource, RemoteDefaultModelsConfig, RemoteDialogQueuePriority,
+    RemoteDialogResolvedSubmission, RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact,
+    RemoteDialogSteerOutcome, RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy,
+    RemoteDialogSubmitOutcome, RemoteDialogWorkspaceBinding, RemoteImageContext,
+    RemoteInitialSyncRuntimeHost, RemoteInteractionRuntimeHost, RemoteModelCapabilityFact,
+    RemoteModelCatalog, RemoteModelCatalogFacts, RemoteModelFacts, RemotePermissionMode,
+    RemotePollRuntimeHost, RemoteRecentWorkspaceFacts, RemoteSessionMetadata,
+    RemoteSessionModelSelection, RemoteSessionRuntimeHost, RemoteSessionStateTracker,
+    RemoteSessionTrackerHost, RemoteTerminalPrewarmRequest, RemoteWorkspaceFacts,
+    RemoteWorkspaceFileRuntimeHost, RemoteWorkspaceKind as RemoteConnectWorkspaceKind,
+    RemoteWorkspaceRuntimeHost, RemoteWorkspaceUpdate,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -381,6 +381,78 @@ fn remote_workspace_kind(
         }
         crate::service::workspace::WorkspaceKind::Remote => RemoteConnectWorkspaceKind::Remote,
     }
+}
+
+#[cfg(feature = "remote-connect")]
+fn provider_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ProviderCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ProviderCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ProviderCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ProviderCatalogSource::BitFun,
+    }
+}
+
+#[cfg(feature = "remote-connect")]
+fn reasoning_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ModelsDevCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ModelsDevCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ModelsDevCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ModelsDevCatalogSource::Empty,
+    }
+}
+
+/// The models.dev projections that enrich model configuration.
+///
+/// These bodies cover every provider and every reasoning model of the public
+/// models.dev catalog, and every host keeps its own refreshed snapshot. Only an
+/// in-process local reader (TUI/app-server projections, the plugin host) or a
+/// controller's own Model Settings surface needs them, so a catalog that crosses
+/// a machine boundary is built without them.
+///
+/// The slim build still reports the built-in provider catalog's revision,
+/// because that revision participates in `RemoteModelCatalog::version`: a
+/// controller that already knows the version must not see it move just because
+/// the bodies stopped travelling.
+#[cfg(feature = "remote-connect")]
+fn remote_provider_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_providers: bool,
+) -> bitfun_core_types::ProviderCatalog {
+    let source = provider_catalog_source(models_dev.source);
+    if include_providers {
+        return resolve_builtin_provider_catalog(
+            models_dev.catalog.as_deref(),
+            models_dev.sha256.clone(),
+            source,
+        );
+    }
+    crate::infrastructure::ai::provider_catalog::builtin_provider_catalog_identity(
+        models_dev.catalog.as_deref(),
+        models_dev.sha256.clone(),
+        source,
+    )
+}
+
+#[cfg(feature = "remote-connect")]
+fn remote_models_dev_reasoning_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_catalog: bool,
+) -> Option<bitfun_core_types::ModelsDevReasoningCatalog> {
+    if !include_catalog {
+        return None;
+    }
+    models_dev.catalog.as_deref().map(|catalog| {
+        catalog.reasoning_binding_catalog(
+            models_dev.sha256.clone(),
+            reasoning_catalog_source(models_dev.source),
+        )
+    })
 }
 
 #[cfg(feature = "remote-connect")]
@@ -1973,9 +2045,28 @@ impl CoreServiceAgentRuntime {
         Ok((messages, false))
     }
 
+    /// Model catalog for a caller on another machine: configured models,
+    /// defaults and the session selection, never the models.dev bodies.
     #[cfg(feature = "remote-connect")]
     pub(crate) async fn load_remote_model_catalog(
         session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, false).await
+    }
+
+    /// Model catalog for an in-process local reader (TUI/app-server
+    /// projections, the plugin host), which does render the models.dev bodies.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_model_catalog(
+        session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, true).await
+    }
+
+    #[cfg(feature = "remote-connect")]
+    async fn build_model_catalog(
+        session_id: Option<&str>,
+        include_host_catalogs: bool,
     ) -> Result<RemoteModelCatalog, String> {
         let config_service = crate::service::config::get_global_config_service()
             .await
@@ -1986,37 +2077,9 @@ impl CoreServiceAgentRuntime {
             .map_err(|e| format!("Failed to load global config: {e}"))?;
         let ai_config: AIConfig = global_config.ai;
         let models_dev = load_models_dev_reasoning_catalog().await;
-        let models_dev_reasoning_catalog = models_dev.catalog.as_deref().map(|catalog| {
-            catalog.reasoning_binding_catalog(
-                models_dev.sha256.clone(),
-                match models_dev.source {
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                        bitfun_core_types::ModelsDevCatalogSource::Cache
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                        bitfun_core_types::ModelsDevCatalogSource::Bundle
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                        bitfun_core_types::ModelsDevCatalogSource::Empty
-                    }
-                },
-            )
-        });
-        let provider_catalog = resolve_builtin_provider_catalog(
-            models_dev.catalog.as_deref(),
-            models_dev.sha256.clone(),
-            match models_dev.source {
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                    bitfun_core_types::ProviderCatalogSource::Cache
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                    bitfun_core_types::ProviderCatalogSource::Bundle
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                    bitfun_core_types::ProviderCatalogSource::BitFun
-                }
-            },
-        );
+        let models_dev_reasoning_catalog =
+            remote_models_dev_reasoning_catalog(&models_dev, include_host_catalogs);
+        let provider_catalog = remote_provider_catalog(&models_dev, include_host_catalogs);
 
         let models: Vec<RemoteModelFacts> = ai_config
             .models
@@ -2064,6 +2127,17 @@ impl CoreServiceAgentRuntime {
             session_model_id,
             session_reasoning_preset,
         }))
+    }
+
+    /// Project this machine's own models.dev snapshot for a controller that
+    /// renders the Model Settings surface while a peer is selected.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_models_dev_catalogs() -> Result<LocalModelsDevCatalogs, String> {
+        let models_dev = load_models_dev_reasoning_catalog().await;
+        Ok(LocalModelsDevCatalogs {
+            provider_catalog: remote_provider_catalog(&models_dev, true),
+            models_dev_reasoning_catalog: remote_models_dev_reasoning_catalog(&models_dev, true),
+        })
     }
 
     #[cfg(feature = "remote-connect")]
@@ -3394,6 +3468,9 @@ impl RemotePollRuntimeHost for CoreRemotePollRuntimeHost<'_> {
     }
 
     async fn load_model_catalog(&self, session_id: &str) -> Option<RemoteModelCatalog> {
+        // A session poll runs per attached controller, so it reads the remote
+        // catalog: only the configured-model facts and the version reach a poll
+        // client, and the models.dev bodies stay local to the settings surface.
         CoreServiceAgentRuntime::load_remote_model_catalog(Some(session_id))
             .await
             .ok()
@@ -4448,5 +4525,38 @@ mod history_workspace_identity_tests {
         )
         .await
         .is_err());
+    }
+}
+
+/// The models.dev projections are opt-in, and the revision they carry is what
+/// keeps the catalog version stable for a controller that stays slim.
+#[cfg(all(test, feature = "remote-connect"))]
+mod remote_model_catalog_tests {
+    use super::{remote_models_dev_reasoning_catalog, remote_provider_catalog};
+    use crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot;
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+
+    fn empty_snapshot() -> ModelsDevReasoningCatalogSnapshot {
+        ModelsDevReasoningCatalogSnapshot {
+            catalog: None,
+            version: 7,
+            sha256: "revision-7".to_string(),
+            source: ModelsDevSnapshotSource::Empty,
+        }
+    }
+
+    #[test]
+    fn slim_projection_keeps_the_identity_without_the_catalog_bodies() {
+        let snapshot = empty_snapshot();
+        let slim = remote_provider_catalog(&snapshot, false);
+        let full = remote_provider_catalog(&snapshot, true);
+
+        assert!(slim.providers.is_empty());
+        // A controller that already knows this catalog version must not see the
+        // version move just because the bodies stopped travelling.
+        assert_eq!(full.revision, slim.revision);
+        assert_eq!(full.source, slim.source);
+        assert!(!full.providers.is_empty());
+        assert!(remote_models_dev_reasoning_catalog(&snapshot, false).is_none());
     }
 }

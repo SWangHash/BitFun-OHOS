@@ -1391,6 +1391,10 @@ pub trait RemoteSessionRuntimeHost: Send + Sync {
     /// The primary assistant workspace record, created on first use.
     async fn resolve_default_assistant_workspace(&self) -> Result<RemoteWorkspaceFacts, String>;
     async fn create_session(&self, request: AgentSessionCreateRequest) -> Result<String, String>;
+    /// The catalog a remote caller receives: configured models, defaults and
+    /// the session selection. The models.dev projections never travel here (see
+    /// [`RemoteModelCatalog`]); a caller that renders Model Settings reads its
+    /// own snapshot instead.
     async fn load_model_catalog(
         &self,
         session_id: Option<&str>,
@@ -1698,6 +1702,13 @@ pub trait RemotePollRuntimeHost: Send + Sync {
     /// Hydrate permission requests that may have been registered before the
     /// remote tracker observed the corresponding tool event.
     fn sync_pending_permissions(&self, _session_id: &str, _tracker: &RemoteSessionStateTracker) {}
+    /// Model catalog for a session poll.
+    ///
+    /// Polls run per attached controller and per session, so they never carry
+    /// the models.dev projections: a poll client reads the configured-model
+    /// facts and the version, and those projections belong to the public
+    /// models.dev catalog that every client refreshes for itself. The slim
+    /// build keeps the same catalog version, so change detection is unaffected.
     async fn load_model_catalog(&self, session_id: &str) -> Option<RemoteModelCatalog>;
     async fn resolve_session_storage_dir(&self, session_id: &str) -> Option<PathBuf>;
     async fn load_remote_chat_messages(
@@ -1892,6 +1903,18 @@ pub struct RemoteModelConfig {
     pub reasoning: Option<ReasoningCatalogProjection>,
 }
 
+/// Model catalog facts for one host.
+///
+/// The `provider_catalog` and `models_dev_reasoning_catalog` bodies describe the
+/// public models.dev catalog, which every host refreshes for itself and only a
+/// Model Settings surface reads. A caller that crosses a machine boundary — a
+/// peer request, a remote session poll, a mobile or bot controller — therefore
+/// receives the catalog *without* those bodies: the provider catalog keeps its
+/// revision (the revision drives `version`, which clients compare) and reports
+/// no providers, and the reasoning catalog is absent. Only the in-process local
+/// readers (`get_ai_model_catalog`, TUI/app-server projections, the plugin host)
+/// still receive them, and `get_local_models_dev_catalogs` serves the
+/// controller-local copy that Model Settings needs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemoteModelCatalog {
     pub version: u64,
@@ -1907,6 +1930,20 @@ pub struct RemoteModelCatalog {
     pub session_model_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_reasoning_preset: Option<String>,
+}
+
+/// The models.dev projections of *this* machine, for a controller that renders
+/// its own Model Settings surface while a peer is selected.
+///
+/// These bodies belong to the public models.dev catalog, not to a host: every
+/// host keeps its own refreshed snapshot, so a controller must enrich its own
+/// settings UI locally instead of requesting the peer's copy (which would put a
+/// multi-MiB body on the wire on every settings open).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalModelsDevCatalogs {
+    pub provider_catalog: ProviderCatalog,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models_dev_reasoning_catalog: Option<ModelsDevReasoningCatalog>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4450,6 +4487,45 @@ mod tests {
                 .get("opened_workspaces")
                 .is_none()
         );
+    }
+
+    /// A slim catalog must report the same version as the full one, and its
+    /// revision must still drive that version. Poll clients send the version
+    /// they already know and only accept a new catalog when it changes, so a
+    /// slim build that dropped the revision would make every poll look like a
+    /// catalog change.
+    #[test]
+    fn slim_model_catalog_keeps_the_version_of_the_full_catalog() {
+        let facts = |revision: &str, models_dev_reasoning_catalog| RemoteModelCatalogFacts {
+            last_modified_ms: 1_700_000_000_000,
+            source_version: Some(42),
+            models: Vec::new(),
+            provider_catalog: bitfun_core_types::ProviderCatalog {
+                revision: revision.to_string(),
+                source: bitfun_core_types::ProviderCatalogSource::Cache,
+                providers: Vec::new(),
+            },
+            models_dev_reasoning_catalog,
+            default_models: RemoteDefaultModelsConfig::default(),
+            session_model_id: Some("model-primary".to_string()),
+            session_reasoning_preset: Some("high".to_string()),
+        };
+        let with_bodies = build_remote_model_catalog(facts(
+            "models-dev-revision",
+            Some(ModelsDevReasoningCatalog {
+                revision: "models-dev-revision".to_string(),
+                source: bitfun_core_types::ModelsDevCatalogSource::Cache,
+                providers: Vec::new(),
+            }),
+        ));
+        let slim = build_remote_model_catalog(facts("models-dev-revision", None));
+        let other_revision = build_remote_model_catalog(facts("other-revision", None));
+
+        assert_eq!(with_bodies.version, slim.version);
+        assert_ne!(slim.version, other_revision.version);
+        assert_eq!(slim.provider_catalog.revision, "models-dev-revision");
+        assert!(slim.provider_catalog.providers.is_empty());
+        assert!(slim.models_dev_reasoning_catalog.is_none());
     }
 
     #[tokio::test]
