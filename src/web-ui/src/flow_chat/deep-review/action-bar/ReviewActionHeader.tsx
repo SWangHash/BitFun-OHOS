@@ -6,6 +6,7 @@ type ExportableReviewData = React.ComponentProps<typeof CodeReviewReportExportAc
 
 interface ReviewActionHeaderProps {
   reviewData?: ExportableReviewData | null;
+  isReviewRunning?: boolean;
   PhaseIcon: React.ComponentType<{
     size?: number | string;
     style?: React.CSSProperties;
@@ -20,6 +21,7 @@ interface ReviewActionHeaderProps {
 
 export const ReviewActionHeader: React.FC<ReviewActionHeaderProps> = ({
   reviewData,
+  isReviewRunning = false,
   PhaseIcon,
   phaseIconClass,
   phaseTitle,
@@ -29,7 +31,7 @@ export const ReviewActionHeader: React.FC<ReviewActionHeaderProps> = ({
 }) => (
   <>
     <div className="deep-review-action-bar__controls">
-      {reviewData && (
+      {(reviewData || isReviewRunning) && (
         <CodeReviewReportExportActions
           reviewData={reviewData}
           actions={['copy', 'save']}
