@@ -57,55 +57,38 @@ const TEMPLATE_QT_DECLARATIONS: &str = "entry/src/main/qt/libqohos.d.ts";
 /// accepts Qt5 qmake only.
 const QMAKE_EXECUTABLES: &[&str] = &["qmake", "qmake.exe"];
 
-/// Login shells tried (in order) to capture the session PATH. The BitFun app
-/// process on sandboxed platforms inherits a fixed minimal PATH, while
-/// user-installed toolchains are exposed through shell profiles.
-const LOGIN_SHELLS: &[&str] = &["bash", "zsh", "sh"];
-const LOGIN_SHELL_CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+/// The candidates key carrying the session-resolved toolchain directory: the
+/// model's `command -v qmake` hit (the environment-configured toolchain).
+/// Unlike `toolchain` (input-named, highest priority) it ranks at the PATH
+/// tier — last, per the agreed toolchain priority: 输入 > 工作区 > 托管 >
+/// 环境变量.
+pub(crate) const SESSION_TOOLCHAIN_CANDIDATES_KEY: &str = "toolchain_env";
 
-/// The PATH a login shell would see.
-///
-/// On desktop platforms the BitFun process inherits the user environment, so
-/// the process PATH is already equivalent and is returned directly. On
-/// sandboxed platforms (HarmonyOS) the app process gets a fixed minimal PATH,
-/// so the session PATH is captured from a login shell instead; this keeps
-/// "the qmake in the environment variables" consistent with what `which
-/// qmake` reports inside BitFun shell sessions.
-pub(crate) fn shell_session_path_env() -> String {
-    if cfg!(target_env = "ohos") {
-        for shell in LOGIN_SHELLS {
-            if let Some(captured) = capture_login_shell_path(shell) {
-                return captured;
-            }
-        }
-    }
-    std::env::var("PATH").unwrap_or_default()
-}
-
-/// Spawn a login shell that prints its PATH. Returns `None` when the shell is
-/// unavailable, the login phase fails, or the answer does not arrive in time.
-fn capture_login_shell_path(shell: &str) -> Option<String> {
-    let mut child = std::process::Command::new(shell)
-        .arg("-l")
-        .arg("-c")
-        .arg("echo $PATH")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        if let Ok(output) = child.wait_with_output() {
-            let _ = sender.send(output);
-        }
-    });
-    let output = receiver.recv_timeout(LOGIN_SHELL_CAPTURE_TIMEOUT).ok()?;
-    let captured = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if captured.is_empty() || !captured.contains(':') {
+/// Pop the session-resolved toolchain from the candidate map so it can be
+/// probed at the PATH tier instead of the input tier. `command -v qmake`
+/// answers with the executable's path while the toolchain candidate
+/// semantics is the containing directory, so a file hit is normalized to its
+/// parent (models may echo either form despite the instruction).
+pub(crate) fn take_session_toolchain_dir(
+    candidates: &mut HashMap<String, Vec<String>>,
+) -> Option<String> {
+    let hit = candidates
+        .remove(SESSION_TOOLCHAIN_CANDIDATES_KEY)?
+        .into_iter()
+        .next()?;
+    let path = PathBuf::from(hit.trim());
+    if path.as_os_str().is_empty() {
         return None;
     }
-    Some(captured)
+    let dir = if path.is_file() {
+        path.parent()?.to_path_buf()
+    } else if path.is_dir() {
+        path
+    } else {
+        // Neither an existing file nor a directory: a fabricated path.
+        return None;
+    };
+    (!dir.as_os_str().is_empty()).then_some(dir.to_string_lossy().into_owned())
 }
 
 /// Returns candidates from the current workspace and BitFun-managed shared
@@ -1467,6 +1450,95 @@ mod tests {
         let hits = probe_source_projects(&root, &[]);
         assert_eq!(hits.len(), 2);
         assert!(hits.iter().all(|h| !h.contains("build")));
+    }
+
+    #[test]
+    fn take_session_toolchain_dir_normalizes_hit_to_directory() {
+        let (_t, root) = tree();
+        let bin = mkdir(&root, "sdk/bin");
+        touch(&bin, "qmake");
+
+        // `command -v qmake` 的原始形态是可执行文件路径 → 归一化为父目录。
+        let mut candidates = candidate_map(
+            "toolchain_env",
+            vec![bin.join("qmake").to_string_lossy().into_owned()],
+        );
+        candidates.insert(
+            "toolchain".to_string(),
+            vec!["D:/from-prompt/bin".to_string()],
+        );
+        assert_eq!(
+            take_session_toolchain_dir(&mut candidates).as_deref(),
+            Some(bin.to_string_lossy().as_ref())
+        );
+        // 专用键取出后消失，输入命中的 toolchain 字段不受影响。
+        assert!(!candidates.contains_key("toolchain_env"));
+        assert!(candidates.contains_key("toolchain"));
+        assert_eq!(take_session_toolchain_dir(&mut candidates), None);
+
+        // 模型直接回传目录（按指令形态）→ 原样保留。
+        let mut dir_form = candidate_map("toolchain_env", vec![bin.to_string_lossy().into_owned()]);
+        assert_eq!(
+            take_session_toolchain_dir(&mut dir_form).as_deref(),
+            Some(bin.to_string_lossy().as_ref())
+        );
+
+        // 伪造路径（既非文件也非目录）→ 拒绝。
+        let mut bogus = candidate_map(
+            "toolchain_env",
+            vec![root.join("nope").to_string_lossy().into_owned()],
+        );
+        assert_eq!(take_session_toolchain_dir(&mut bogus), None);
+
+        // 空串 → 拒绝。
+        let mut empty = candidate_map("toolchain_env", vec![String::new()]);
+        assert_eq!(take_session_toolchain_dir(&mut empty), None);
+    }
+
+    #[test]
+    fn session_toolchain_ranks_at_path_tier_below_workspace() {
+        // 优先级：输入 > 工作区 > 托管 > 环境变量。无输入命中时，会话命中的
+        // qmake 目录作为 PATH 层条目探测，必须排在工作区命中之后。
+        let (_t, root) = tree();
+        let ws_bin = mkdir(&mkdir(&root, "Qt5.15.2"), "bin");
+        touch(&ws_bin, "qmake.exe");
+        let session_tmp = tempfile::tempdir().expect("session tempdir");
+        let session_bin = mkdir(&session_tmp.path(), "env/bin");
+        touch(&session_bin, "qmake");
+        let managed_root = root.join("managed");
+
+        let hits = probe_toolchains(&root, &session_bin.to_string_lossy(), &managed_root, &[]);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(path_key(Path::new(&hits[0])), path_key(&ws_bin));
+        assert_eq!(path_key(Path::new(&hits[1])), path_key(&session_bin));
+    }
+
+    #[test]
+    fn input_named_toolchain_outranks_session_and_workspace() {
+        let (_t, root) = tree();
+        let ws_bin = mkdir(&mkdir(&root, "Qt5.15.2"), "bin");
+        touch(&ws_bin, "qmake.exe");
+        let prompt_bin = mkdir(&root, "from-prompt");
+        touch(&prompt_bin, "qmake.exe");
+        let session_tmp = tempfile::tempdir().expect("session tempdir");
+        let session_bin = mkdir(&session_tmp.path(), "env/bin");
+        touch(&session_bin, "qmake");
+        let model = vec![prompt_bin.to_string_lossy().into_owned()];
+        let hits = probe_toolchains(
+            &root,
+            &session_bin.to_string_lossy(),
+            &root.join("managed"),
+            &model,
+        );
+        assert_eq!(hits.len(), 2);
+        assert_eq!(path_key(Path::new(&hits[0])), path_key(&prompt_bin));
+        assert_eq!(path_key(Path::new(&hits[1])), path_key(&ws_bin));
+        assert!(
+            !hits
+                .iter()
+                .any(|h| path_key(Path::new(h)) == path_key(&session_bin)),
+            "环境变量命中优先级最低，2 上限内被截断"
+        );
     }
 
     #[test]

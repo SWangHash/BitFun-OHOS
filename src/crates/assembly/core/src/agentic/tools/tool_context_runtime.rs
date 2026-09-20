@@ -216,9 +216,11 @@ pub(crate) async fn call_with_tool_runtime_hooks(
     // product.
     #[cfg(feature = "agent-runtime")]
     {
-        if let Err(error) =
-            crate::agentic::tools::qt_migration_gate::check_admission(tool_name, context)
-        {
+        if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+            tool_name,
+            Some(input),
+            context,
+        ) {
             log::debug!(
                 "QtMigration admission gate rejected tool: tool={}, session={:?}",
                 tool_name,
