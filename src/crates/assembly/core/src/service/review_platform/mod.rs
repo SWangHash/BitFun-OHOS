@@ -9,6 +9,7 @@ use crate::infrastructure::try_get_path_manager_arc;
 use std::sync::Arc;
 
 pub use bitfun_services_integrations::review_platform::{
+    classify_git_command_failure, untrusted_repository_error_message,
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,
     ReviewFileStatus, ReviewItemState, ReviewPlatformAccount, ReviewPlatformActionResult,
     ReviewPlatformApprovalRequest, ReviewPlatformAuthChallenge, ReviewPlatformAuthChallengeState,
@@ -98,7 +99,8 @@ impl ReviewPlatformWorkspaceClassifier for CoreReviewPlatformWorkspaceClassifier
             } else {
                 stderr
             };
-            return Err(ReviewPlatformError::InvalidRepository(
+            return Err(classify_git_command_failure(
+                current_dir,
                 message.trim().to_string(),
             ));
         }
