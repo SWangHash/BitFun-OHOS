@@ -1310,6 +1310,7 @@
       "emptyGitRange": "请求的 Git 范围没有变更文件",
       "unresolvedGitRange": "无法解析请求的 Git 范围，请检查引用或范围后重试",
       "emptyWorkspace": "当前工作区没有可审核的变更",
+      "workspaceMismatch": "审核使用当前会话所属的工作区。请切换到目标工作区中的会话，再运行 /review；工作区名称需唯一。",
       "emptyExplicitScope": "请求的文件或目录没有工作区变更",
       "missingExplicitScope": "请求的文件或目录在当前工作区中不存在",
       "unresolvedTarget": "无法读取待审核的文件或代码差异，请确认已打开对应工作区、审核目标有效，并查看日志中的具体错误",

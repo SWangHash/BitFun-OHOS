@@ -1307,6 +1307,7 @@
       "emptyGitRange": "要求的 Git 範圍沒有變更檔案",
       "unresolvedGitRange": "無法解析要求的 Git 範圍，請檢查引用或範圍後重試",
       "emptyWorkspace": "目前工作區沒有可審核的變更",
+      "workspaceMismatch": "審核使用目前工作階段所屬的工作區。請切換到目標工作區中的工作階段，再執行 /review；工作區名稱需唯一。",
       "emptyExplicitScope": "要求的檔案或目錄沒有工作區變更",
       "missingExplicitScope": "要求的檔案或目錄不存在於目前工作區中",
       "unresolvedTarget": "無法讀取待審核的檔案或程式碼差異，請確認已開啟對應工作區、審核目標有效，並查看日誌中的具體錯誤",

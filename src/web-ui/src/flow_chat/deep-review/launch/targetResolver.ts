@@ -1,5 +1,5 @@
 import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
-import { gitAPI, systemAPI, workspaceAPI } from '@/infrastructure/api';
+import { gitAPI, globalAPI, systemAPI, workspaceAPI } from '@/infrastructure/api';
 import {
   isGitRepositoryNotFoundError,
   isGitRepositoryUntrustedError,
@@ -601,6 +601,50 @@ export async function resolveSlashCommandReviewTarget(
   remoteConnectionId?: string,
 ): Promise<ResolvedDeepReviewTarget> {
   const workspacePath = workspace?.repositoryPath;
+  // A workspace name is a target, not reviewer guidance. Review children inherit
+  // their parent's workspace identity and execution target, so another workspace
+  // must be reviewed from a session belonging to that workspace.
+  if (commandFocus.trim()) {
+    const focus = commandFocus.trim();
+    const workspaces = await globalAPI.getOpenedWorkspaces();
+    const matches = workspaces.flatMap((workspace) => {
+      if (!workspace.name) return [];
+      const names = [workspace.name, ...['"', "'", '`'].map((quote) =>
+        quote + workspace.name + quote
+      )];
+      const name = names.find((candidate) =>
+        candidate && (focus === candidate ||
+          (focus.startsWith(candidate) && /^\s/.test(focus.slice(candidate.length))))
+      );
+      return name ? [{ workspace, length: name.length }] : [];
+    });
+    const longest = Math.max(0, ...matches.map((match) => match.length));
+    const selected = matches.filter((match) => match.length === longest);
+    if (selected.length > 0) {
+      const workspace = selected[0].workspace;
+      const comparableRoot = (path: string): string => {
+        const normalized = normalizePath(path, workspacePath ?? '').replace(/\/+$/, '');
+        return workspacePath && isWindowsWorkspacePath(workspacePath)
+          ? normalized.toLowerCase()
+          : normalized;
+      };
+      const sameWorkspace = selected.length === 1 && workspacePath &&
+        comparableRoot(workspace.rootPath) === comparableRoot(workspacePath) &&
+        (workspace.connectionId || undefined) === remoteConnectionId;
+      if (!sameWorkspace) {
+        const target = createUnknownReviewTargetClassification('workspace_diff');
+        return {
+          target,
+          changeStats: buildUnknownChangeStats(target),
+          targetEvidence: buildUnknownReviewTargetEvidence(
+            target,
+            'review_workspace_mismatch',
+          ),
+        };
+      }
+      commandFocus = focus.slice(longest).trim();
+    }
+  }
   if (/(?:^|\s)\S+\.\.\.\S+(?:\s|$)/.test(commandFocus)) {
     const target = createUnknownReviewTargetClassification('slash_command_git_ref');
     return {
