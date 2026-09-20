@@ -119,6 +119,52 @@ pub(crate) async fn ensure_bundled_profile(
     Ok(destination)
 }
 
+/// Inspect the launcher's shipped ACP composition instead of assuming version compatibility.
+/// The dump does not start an agent or send model requests. Only OHOS managed
+/// clients use this path; custom clients retain their configured commands.
+#[cfg(target_env = "ohos")]
+pub(crate) async fn has_native_acp_profile(
+    launcher: &str,
+    environment: &HashMap<String, String>,
+) -> bool {
+    let mut command = bitfun_core::util::process_manager::create_tokio_command(launcher);
+    command.args(["--profile", "acp", "--dump-default-config"]);
+    super::requirements::apply_command_environment(&mut command, Some(environment));
+    command.kill_on_drop(true);
+    if let Some(home) = environment_value(environment, "HOME") {
+        command.current_dir(home);
+    }
+    match tokio::time::timeout(Duration::from_secs(10), command.output()).await {
+        Ok(Ok(output)) if output.status.success() => native_acp_composition(&output.stdout),
+        _ => false,
+    }
+}
+
+#[cfg(any(target_env = "ohos", test))]
+fn native_acp_composition(output: &[u8]) -> bool {
+    String::from_utf8_lossy(output).lines().any(|line| {
+        line.trim()
+            .trim_start_matches("- ")
+            .strip_prefix("name:")
+            .is_some_and(|name| name.trim().trim_matches(['\'', '"']) == "@deepseek-ai/dsh-acp")
+    })
+}
+
+/// Use the same resource requirement as startup without installing or launching anything.
+pub(crate) fn check_bundled_profile_requirement(
+    probe: &mut super::config::AcpClientRequirementProbe,
+) {
+    let Some(profile) = super::builtin_clients::builtin_acp_client_preset(&probe.id)
+        .and_then(|preset| preset.bundled_profile)
+    else {
+        return;
+    };
+    if let Err(error) = bundled_build(profile) {
+        probe.runnable = false;
+        probe.notes.push(error.to_string());
+    }
+}
+
 /// The built profile this BitFun ships, and what it says about itself.
 fn bundled_build(profile: &str) -> BitFunResult<(PathBuf, BridgeStamp)> {
     let source = bundled_profile_source(profile).ok_or_else(|| {
@@ -850,6 +896,21 @@ mod tests {
     }
 
     #[test]
+    fn native_profile_probe_requires_the_acp_transport_in_the_dump() {
+        assert!(native_acp_composition(
+            b"- id: acp\n  name: '@deepseek-ai/dsh-acp'\n"
+        ));
+        assert!(native_acp_composition(b"  name: @deepseek-ai/dsh-acp\n"));
+        assert!(native_acp_composition(b"- name: '@deepseek-ai/dsh-acp'\n"));
+        assert!(!native_acp_composition(
+            b"  name: '@deepseek-ai/dsh-acp-app'\n"
+        ));
+        assert!(!native_acp_composition(
+            b"error: cannot find @deepseek-ai/dsh-acp"
+        ));
+    }
+
+    #[test]
     fn reads_the_content_digest_that_decides_whether_to_reinstall() {
         let source = scratch_directory("stamp");
         write_built_profile(&source, "digest");
@@ -904,6 +965,48 @@ mod tests {
 
     #[test]
     fn source_lookup_honours_the_override_and_checks_the_profile_name() {
+        // Probe the same resource requirement as startup, without writing a profile.
+        {
+            use super::super::config::{AcpClientRequirementProbe, AcpRequirementProbeItem};
+
+            let source = scratch_directory("requirement-profile");
+            temp_env(SOURCE_DIR_ENV, source.to_str(), || {
+                let make_probe = |id: &str| AcpClientRequirementProbe {
+                    id: id.to_string(),
+                    tool: AcpRequirementProbeItem {
+                        name: "dsh".to_string(),
+                        installed: true,
+                        version: None,
+                        path: None,
+                        error: None,
+                    },
+                    adapter: None,
+                    runnable: true,
+                    notes: Vec::new(),
+                };
+                let mut preset = make_probe("dsh");
+                check_bundled_profile_requirement(&mut preset);
+                assert!(!preset.runnable);
+                assert!(preset.tool.installed);
+                assert!(!preset.notes.is_empty());
+
+                let mut custom = make_probe("dsh-local");
+                check_bundled_profile_requirement(&mut custom);
+                assert!(custom.runnable);
+                assert!(custom.notes.is_empty());
+
+                write_built_profile(&source, "digest");
+                let mut preset = make_probe("dsh");
+                check_bundled_profile_requirement(&mut preset);
+                assert!(preset.runnable);
+                assert!(preset.notes.is_empty());
+                preset.runnable = false;
+                check_bundled_profile_requirement(&mut preset);
+                assert!(!preset.runnable);
+            });
+            let _ = std::fs::remove_dir_all(source);
+        }
+
         let source = scratch_directory("override");
         write_built_profile(&source, "override");
 
