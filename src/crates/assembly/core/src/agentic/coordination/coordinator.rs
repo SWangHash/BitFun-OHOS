@@ -5807,6 +5807,24 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(|_task| ())
     }
 
+    async fn bind_agent_for_turn_admission(
+        &self,
+        session: &mut Session,
+        agent_type: &str,
+        route_owner: SessionAgentRouteOwner,
+    ) -> BitFunResult<()> {
+        if session.agent_type != agent_type || session.config.agent_route_owner != route_owner {
+            self.session_manager
+                .update_session_agent_binding(&session.session_id, agent_type, route_owner)
+                .await?;
+            // Reflect only this admission's own successful write. Reloading the
+            // whole Session would hide concurrent model or permission changes.
+            session.agent_type = agent_type.to_string();
+            session.config.agent_route_owner = route_owner;
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn start_dialog_turn_internal(
         &self,
@@ -5849,7 +5867,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         // Get latest session, restoring from persistence on demand so every entry
         // point can use the same start_dialog_turn flow. A loaded session must keep
         // the same storage identity as this invocation.
-        let session = match loaded_session {
+        let mut session = match loaded_session {
             Some(session) => {
                 if let Some(restore) = requested_restore.as_ref() {
                     self.session_manager.ensure_session_storage_path(
@@ -5925,17 +5943,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             submission_policy.queue_priority
         );
 
-        if session.agent_type != effective_agent_type
-            || session.config.agent_route_owner != primary_agent_binding.route_owner
-        {
-            self.session_manager
-                .update_session_agent_binding(
-                    &session_id,
-                    &effective_agent_type,
-                    primary_agent_binding.route_owner,
-                )
-                .await?;
-        }
+        self.bind_agent_for_turn_admission(
+            &mut session,
+            &effective_agent_type,
+            primary_agent_binding.route_owner,
+        )
+        .await?;
 
         debug!(
             "Checking session state: session_id={}, state={:?}",
@@ -16575,6 +16588,85 @@ pub(crate) mod tests {
 
     pub(crate) fn test_execution_engine() -> Arc<ExecutionEngine> {
         test_coordinator().0.execution_engine
+    }
+
+    #[tokio::test]
+    async fn turn_admission_accepts_review_agent_switch_and_keeps_concurrent_settings_guard() {
+        use crate::agentic::session::session_manager::TurnAdmissionSessionFacts;
+        use bitfun_runtime_ports::PermissionMode;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        let (coordinator, manager) = test_persistent_coordinator();
+        let mut snapshot = manager
+            .create_session(
+                "Review repair admission".to_string(),
+                "DeepReview".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
+                    permission_mode: Some(PermissionMode::AutoApprove),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("create review session");
+        coordinator
+            .bind_agent_for_turn_admission(
+                &mut snapshot,
+                "ReviewFixer",
+                SessionAgentRouteOwner::Local,
+            )
+            .await
+            .expect("bind repair agent");
+        let expected = TurnAdmissionSessionFacts::from_session(&snapshot);
+        let turn_id = manager
+            .start_dialog_turn_with_prepended_messages_if_session_matches(
+                &snapshot.session_id,
+                "ReviewFixer".to_string(),
+                "Repair review findings".to_string(),
+                None,
+                None,
+                Vec::new(),
+                None,
+                &expected,
+            )
+            .await
+            .expect("an intentional agent switch must pass admission");
+        assert_eq!(snapshot.agent_type, "ReviewFixer");
+        assert_eq!(
+            snapshot.config.permission_mode,
+            Some(PermissionMode::AutoApprove)
+        );
+        manager.reset_session_state_if_processing(&snapshot.session_id, &turn_id);
+
+        // A later turn must still reject a real concurrent permission update,
+        // including one that happens before this admission changes the agent.
+        manager
+            .update_session_permission_mode(&snapshot.session_id, Some(PermissionMode::Ask))
+            .await
+            .expect("tighten permission");
+        coordinator
+            .bind_agent_for_turn_admission(
+                &mut snapshot,
+                "DeepReview",
+                SessionAgentRouteOwner::Local,
+            )
+            .await
+            .expect("bind review agent");
+        let error = manager
+            .start_dialog_turn_with_prepended_messages_if_session_matches(
+                &snapshot.session_id,
+                "DeepReview".to_string(),
+                "Review again".to_string(),
+                None,
+                None,
+                Vec::new(),
+                None,
+                &TurnAdmissionSessionFacts::from_session(&snapshot),
+            )
+            .await
+            .expect_err("a concurrent permission change must still invalidate admission");
+        assert!(error.to_string().contains("changed during turn admission"));
+        assert_eq!(manager.get_turn_count(&snapshot.session_id), 1);
     }
 
     #[tokio::test]
