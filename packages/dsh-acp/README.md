@@ -3,11 +3,10 @@
 An Agent Client Protocol server for [DeepSeek Harness](https://github.com/deepseek-ai)
 (`dsh`), written for an IDE rather than for automation.
 
-The harness ships no ACP entry point of its own. The published
-`@deepseek-ai/dsh-acp` is an automation surface: it deliberately withholds tool
-calls, reasoning, and mode selection, because a script does not need to watch an
-agent think. An IDE needs exactly those, so BitFun ships this bridge and runs it
-inside the harness the user already installed.
+This bridge targets the older harness APIs and provides IDE-oriented session,
+tool, reasoning, and mode integration. Recent harness releases include their
+own ACP profile; the HarmonyOS built-in client prefers that profile when its
+transport is available, avoiding a bridge/runtime API mismatch.
 
 ## For users
 
@@ -35,7 +34,7 @@ the next message and lasts that session — it does not rewrite your dsh default
 
 ## How BitFun launches it
 
-BitFun runs `dsh --profile bitfun-acp`. A dsh profile is just a directory under
+The bundled fallback runs `dsh --profile bitfun-acp`. A dsh profile is a directory under
 `$DSH_HOME/profiles/`, and BitFun materializes this one on first use — see
 `src/crates/interfaces/acp/src/client/dsh_profile.rs`.
 
@@ -113,6 +112,29 @@ resource; `desktop:dev` and `cargo check` do not compile it. A failure during
 packaging fails the desktop build: an app that silently ships no bridge is
 indistinguishable from a working one until a user starts a DeepSeek session.
 `BITFUN_SKIP_DSH_PROFILE=1` opts out on purpose.
+
+HarmonyOS packaging runs `prepare:dsh-profile` through Tauri's
+`beforeBuildCommand`. Build helpers that bypass that hook must run the same
+script before staging the OHOS project, including when reusing frontend outputs.
+The script stages the profile under
+`src/apps/ohos/entry/src/main/resources/resfile/dsh-profile`, using
+`bitfun-bridge.json` and `vendor-node-modules` as resource-safe aliases. Verify
+that the final HAP contains the stamp, `lib/app.js`, `cordis.patch.yml`, and the
+vendored dependencies under `resources/resfile/dsh-profile/`.
+
+On HarmonyOS, the built-in `dsh` client first checks the launcher's
+`--profile acp --dump-default-config` output for its native ACP transport. When
+available, startup uses `--profile acp` so the transport matches the installed
+runtime's APIs. Otherwise it keeps the bundled bridge path. This selection is
+made at launch without rewriting persisted client configuration. A missing
+bundled profile makes the legacy path unavailable even if the CLI is installed;
+the probe reports the resource error. Custom client IDs continue to
+launch their configured commands without BitFun materializing a profile.
+To verify a packaged fix on HarmonyOS, add the built-in DeepSeek Harness preset,
+create its session, send a prompt, and repeat after restarting BitFun. Use the
+built-in client ID `dsh` for this check; a successful custom client does not test
+the built-in provisioning and launch path. Model replies require a DeepSeek
+API key configured in dsh; installing the CLI does not configure credentials.
 
 Every `@deepseek-ai/*` dependency is pinned to the **`0.1.0-rc.6`** train — the
 set npm's `next` dist-tag points at. Half of these packages still carry a
