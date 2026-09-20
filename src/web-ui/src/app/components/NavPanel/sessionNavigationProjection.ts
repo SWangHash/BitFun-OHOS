@@ -1,6 +1,4 @@
 import type { WorkspaceInfo } from '@/shared/types';
-import { isLinkedWorktreeWorkspace, isRemoteWorkspace } from '@/shared/types';
-import { isSamePath } from '@/shared/utils/pathUtils';
 
 export type SessionNavigationScope = 'all' | 'assistants' | 'projects';
 export type WorkspaceBackedSessionGroupKind = 'assistant' | 'project';
@@ -19,26 +17,12 @@ export interface WorkspaceBackedSessionGroup {
   workspace: WorkspaceInfo;
 }
 
-/**
- * Resolve the active sidebar group without treating a remote POSIX path as a
- * workspace identity. The same path can be open on multiple remote hosts, so
- * remote workspaces must match by their stable workspace id. Local path
- * matching remains available for a linked worktree whose canonical project is
- * the visible navigation group.
- */
+/** Resolve the active sidebar group by its stable workspace identity. */
 export function isWorkspaceBackedSessionGroupActive(
   workspace: WorkspaceInfo,
   activeWorkspace: WorkspaceInfo | null | undefined,
 ): boolean {
-  if (!activeWorkspace) return false;
-  if (workspace.id === activeWorkspace.id) return true;
-  if (isRemoteWorkspace(workspace) || isRemoteWorkspace(activeWorkspace)) return false;
-
-  const activeProjectPath = activeWorkspace.worktree && !activeWorkspace.worktree.isMain
-    ? activeWorkspace.worktree.mainRepoPath
-    : activeWorkspace.rootPath;
-
-  return Boolean(activeProjectPath && isSamePath(workspace.rootPath, activeProjectPath));
+  return Boolean(activeWorkspace && workspace.id === activeWorkspace.id);
 }
 
 const isWorkspaceInScope = (
@@ -59,22 +43,11 @@ export function projectWorkspaceBackedSessionGroups(
     isWorkspaceInScope(workspace, scope)
   ));
 
-  const projectRoots = scopedWorkspaces
-    .filter(workspace => workspace.workspaceKind !== 'assistant')
-    .filter(workspace => !isLinkedWorktreeWorkspace(workspace))
-    .map(workspace => workspace.rootPath);
+  const projectedGroups = scopedWorkspaces.map(workspace => ({
+    groupId: `workspace:${workspace.id}` as const,
+    kind: workspace.workspaceKind === 'assistant' ? 'assistant' as const : 'project' as const,
+    workspace,
+  }));
 
-  return scopedWorkspaces
-    .filter(workspace => (
-      workspace.workspaceKind === 'assistant'
-      || !isLinkedWorktreeWorkspace(workspace)
-      || !projectRoots.some(projectRoot => (
-        isSamePath(projectRoot, workspace.worktree?.mainRepoPath || '')
-      ))
-    ))
-    .map(workspace => ({
-      groupId: `workspace:${workspace.id}`,
-      kind: workspace.workspaceKind === 'assistant' ? 'assistant' : 'project',
-      workspace,
-    }));
+  return projectedGroups;
 }

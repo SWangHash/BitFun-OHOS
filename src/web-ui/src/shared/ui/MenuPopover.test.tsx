@@ -39,8 +39,13 @@ describe('public MenuPopover', () => {
     act(() => { trigger.focus(); trigger.click(); });
     return trigger;
   };
-  beforeEach(() => { host = document.createElement('div'); document.body.append(host); root = createRoot(host); selected.mockClear(); });
-  afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    const media = new EventTarget();
+    Object.defineProperty(media, 'matches', { value: false });
+    vi.stubGlobal('matchMedia', () => media);
+    host = document.createElement('div'); document.body.append(host); root = createRoot(host); selected.mockClear();
+  });
+  afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
   it('portals inside the theme scope, supports typeahead and dispatches after focus return', async () => {
     const trigger = open();
@@ -84,6 +89,16 @@ describe('public MenuPopover', () => {
     expect(document.activeElement?.textContent).toBe('Copy');
     act(() => document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
     expect(close).toHaveBeenCalledOnce();
+  });
+  it('dismisses a submenu before its parent on Escape', () => {
+    const trigger = open(); key('End'); key('ArrowRight');
+    expect(document.activeElement?.textContent).toBe('Email');
+    key('Escape');
+    expect(host.querySelector('[role="menu"][aria-label="Share"]')).toBeNull();
+    expect(host.querySelector('[role="menu"]')?.getAttribute('aria-hidden')).toBeNull();
+    expect(document.activeElement?.textContent).toBe('Share');
+    key('Escape');
+    expect(document.activeElement).toBe(trigger);
   });
   it('retains exit geometry and focuses the first item when reopened during exit', () => {
     const trigger = open();

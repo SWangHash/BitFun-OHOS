@@ -69,6 +69,118 @@ impl DeviceIdentity {
     }
 }
 
+/// Collect metadata on the executing host, without changing its persisted identity.
+/// Unsupported or failed probes are omitted, never sent as destructive nulls.
+pub async fn local_device_metadata() -> serde_json::Value {
+    async fn probe(program: &str, args: &[&str]) -> Option<String> {
+        let mut command = bitfun_services_core::process_manager::create_tokio_command(program);
+        command.args(args).kill_on_drop(true);
+        let output = tokio::time::timeout(std::time::Duration::from_secs(5), command.output())
+            .await
+            .ok()?
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    }
+    let os = match std::env::consts::OS {
+        "macos" => "macOS",
+        "windows" => "Windows",
+        "linux" => "Linux",
+        other => other,
+    };
+    #[cfg(target_os = "macos")]
+    let (model, version) = (
+        probe("/usr/sbin/sysctl", &["-n", "hw.model"]).await,
+        probe("/usr/bin/sw_vers", &["-productVersion"]).await,
+    );
+    #[cfg(target_os = "linux")]
+    let (model, version) = (
+        tokio::fs::read_to_string("/sys/class/dmi/id/product_name")
+            .await
+            .ok()
+            .or_else(|| std::fs::read_to_string("/proc/device-tree/model").ok())
+            .map(|v| {
+                v.trim_matches(|c: char| c.is_whitespace() || c == '\0')
+                    .to_string()
+            })
+            .filter(|v| !v.is_empty()),
+        match tokio::fs::read_to_string("/etc/os-release")
+            .await
+            .ok()
+            .and_then(|text| linux_distribution_version(&text))
+        {
+            Some(version) => Some(version),
+            None => probe("uname", &["-r"]).await,
+        },
+    );
+    #[cfg(target_os = "windows")]
+    let (model, version) = (
+        probe(
+            "powershell.exe",
+            &[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).Model",
+            ],
+        )
+        .await,
+        probe(
+            "powershell.exe",
+            &[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "(Get-CimInstance Win32_OperatingSystem).Version",
+            ],
+        )
+        .await,
+    );
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    let (model, version): (Option<String>, Option<String>) = (None, None);
+    metadata_payload(os, model, version)
+}
+
+// Validate independently: a broken firmware/probe value must not reject the
+// entire PATCH. Omission preserves previously reported metadata on the Relay.
+fn metadata_value(value: &str) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
+        .then(|| value.to_string())
+}
+
+fn metadata_payload(os: &str, model: Option<String>, version: Option<String>) -> serde_json::Value {
+    let mut metadata = serde_json::Map::new();
+    for (key, value) in [
+        ("device_os", Some(os.to_string())),
+        ("device_model", model),
+        ("device_os_version", version),
+    ] {
+        if let Some(value) = value.as_deref().and_then(metadata_value) {
+            metadata.insert(key.into(), value.into());
+        }
+    }
+    serde_json::Value::Object(metadata)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn linux_distribution_version(text: &str) -> Option<String> {
+    // Match the system-info PRETTY_NAME convention without pulling its desktop
+    // action feature into remote-connect or executing os-release as shell code.
+    text.lines().find_map(|line| {
+        let value = line.strip_prefix("PRETTY_NAME=")?.trim();
+        let value = value
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
+            .unwrap_or(value);
+        metadata_value(value)
+    })
+}
+
 fn is_valid_device_id(device_id: &str) -> bool {
     device_id.len() == 32 && device_id.chars().all(|c| c.is_ascii_hexdigit())
 }
@@ -179,6 +291,66 @@ mod tests {
             .map(|d| d.as_nanos())
             .unwrap_or(0);
         format!("{nanos:x}")
+    }
+
+    #[test]
+    fn metadata_filters_each_field_independently_by_bytes_and_controls() {
+        assert_eq!(metadata_value(&"a".repeat(256)), Some("a".repeat(256)));
+        assert!(metadata_value(&"a".repeat(257)).is_none());
+        assert!(metadata_value(&"界".repeat(86)).is_none());
+        for invalid in ["", "   ", "bad\0model", "bad\tmodel", "bad\u{7f}model"] {
+            assert!(metadata_value(invalid).is_none());
+        }
+        assert_eq!(
+            metadata_payload(
+                "Linux",
+                Some("x".repeat(257)),
+                Some(" Ubuntu 24.04\n".into())
+            ),
+            serde_json::json!({"device_os": "Linux", "device_os_version": "Ubuntu 24.04"})
+        );
+        assert_eq!(
+            metadata_payload("Windows", Some("PC".into()), Some("bad\0version".into())),
+            serde_json::json!({"device_os": "Windows", "device_model": "PC"})
+        );
+        assert_eq!(
+            metadata_payload("macOS", None, None),
+            serde_json::json!({"device_os": "macOS"})
+        );
+    }
+
+    #[test]
+    fn linux_distribution_version_is_data_not_shell() {
+        assert_eq!(
+            linux_distribution_version("NAME=Ubuntu\nPRETTY_NAME=\"Ubuntu 24.04 LTS\"\n"),
+            Some("Ubuntu 24.04 LTS".into())
+        );
+        assert_eq!(
+            linux_distribution_version("PRETTY_NAME='Debian GNU/Linux 12'"),
+            Some("Debian GNU/Linux 12".into())
+        );
+        assert!(linux_distribution_version("VERSION_ID=24.04").is_none());
+        assert!(
+            linux_distribution_version(&format!("PRETTY_NAME=\"{}\"", "x".repeat(257))).is_none()
+        );
+        assert!(linux_distribution_version("PRETTY_NAME=\"bad\0version\"").is_none());
+    }
+
+    #[tokio::test]
+    async fn local_metadata_has_display_os_and_only_non_destructive_valid_fields() {
+        let metadata = local_device_metadata().await;
+        let expected = match std::env::consts::OS {
+            "macos" => "macOS",
+            "windows" => "Windows",
+            "linux" => "Linux",
+            other => other,
+        };
+        assert_eq!(metadata["device_os"], expected);
+        for (key, value) in metadata.as_object().unwrap() {
+            assert!(["device_os", "device_model", "device_os_version"].contains(&key.as_str()));
+            let value = value.as_str().unwrap();
+            assert_eq!(metadata_value(value).as_deref(), Some(value));
+        }
     }
 
     #[test]

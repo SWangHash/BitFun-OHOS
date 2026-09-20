@@ -1,7 +1,10 @@
 import type { ContextItem } from '@/shared/types/context';
+import { formatConversationExcerpt } from './conversationExcerpt';
 
 export function formatContextForPrompt(context: ContextItem): string {
   switch (context.type) {
+    case 'conversation-excerpt':
+      return formatConversationExcerpt(context);
     case 'file':
       return `[File: ${context.relativePath || context.filePath}]`;
     case 'directory':

@@ -16,7 +16,7 @@ import {
 } from './appearancePayload';
 
 const CANONICAL_THEME_VARIABLE_NAMES = Object.values(themeCssVariables);
-const SHARED_THEME_VARIABLE_NAMES_HASH = 'e80ebcdf9452a0b5f8ab26d9b41cb81c4e74d75451e4402f99afc68af3c13f42';
+const SHARED_THEME_VARIABLE_NAMES_HASH = '208ee459d220e280ec9f60089c51d353ee8e51846d1976f8c73e08f2c182b2a8';
 // Button owns these state colors independently of the existing shared actions.
 // Keep the original shared contract intact and enumerate this addition exactly.
 const BUTTON_THEME_VARIABLE_NAMES = [
@@ -129,7 +129,7 @@ describe('generated widget appearance payload contract', () => {
       first: sharedNames[0],
       last: sharedNames[sharedNames.length - 1],
     }).toEqual({
-      count: 127,
+      count: 128,
       hash: SHARED_THEME_VARIABLE_NAMES_HASH,
       first: '--bitfun-color-accent-border',
       last: '--bitfun-shadow-xs',

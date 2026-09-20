@@ -1,3 +1,4 @@
+import { InteractionMailboxState } from '../../model/InteractionMailbox';
 import { ObservableChatTimelineItem } from '../../model/ChatTimelineModels';
 import {
   GeneralChatServiceStatus
@@ -24,6 +25,7 @@ import { RemotePageState } from './RemotePageState';
 
 /** Immutable presentation state consumed by ConversationView. */
 export class ConversationViewState {
+  interactionMailbox: InteractionMailboxState = new InteractionMailboxState();
   activeSession: ConversationUiSession = ConversationViewState.emptySession();
   surface: ChatSurface = ChatSurface.General;
   desktopName: string = '';
@@ -34,8 +36,11 @@ export class ConversationViewState {
   composerCapabilities: ChatComposerCapabilities = GENERAL_CHAT_COMPOSER_CAPABILITIES;
   isBusy: boolean = false;
   isLoadingConversation: boolean = false;
+  isLoadingTranscript: boolean = false;
   canStop: boolean = false;
   hasMoreMessages: boolean = false;
+  historyLoading: boolean = false;
+  historyFailed: boolean = false;
   timelineItems: ObservableChatTimelineItem[] = [];
   timelineRevision: number = 0;
   showSuggestionsWhenEmpty: boolean = false;
@@ -68,6 +73,10 @@ export class ConversationViewState {
     state.workspaceBranch = remote.workspaceBranch;
     state.connectionState = remote.connectionState;
     state.isLoadingConversation = remote.isLoadingConversation;
+    // Nothing is being waited for once the pane has no session: a skeleton left
+    // standing after a disconnect or a delete would describe a load that was
+    // abandoned rather than one still running.
+    state.isLoadingTranscript = remote.isLoadingTranscript && remote.activeSession.sessionId.length > 0;
     if (state.isLoadingConversation) {
       state.activeSession = ConversationViewState.emptySession();
     }
@@ -76,6 +85,7 @@ export class ConversationViewState {
     state.downloadingFilePath = remote.downloadingFilePath;
     state.downloadedFilePath = remote.downloadedFilePath;
     state.fileDownloadStatus = remote.fileDownloadStatus;
+    state.interactionMailbox = remote.interactionMailbox;
     return state;
   }
 
@@ -95,6 +105,8 @@ export class ConversationViewState {
     state.isBusy = core.isBusy;
     state.canStop = core.hasRunningActiveTurn();
     state.hasMoreMessages = core.hasMoreMessages;
+    state.historyLoading = core.historyLoading;
+    state.historyFailed = core.historyFailed;
     state.timelineItems = core.timelineItems;
     state.timelineRevision = core.timelineRevision;
     state.modelCatalog = toConversationUiModelCatalog(core.modelCatalog);

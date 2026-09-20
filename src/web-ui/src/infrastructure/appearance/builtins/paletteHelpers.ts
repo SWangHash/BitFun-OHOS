@@ -213,7 +213,7 @@ export function createGitColors(
 
 export function createDarkNeutralScrollbar(): ScrollbarColors {
   return {
-    thumb: overlayWhite(0.15),
+    thumb: overlayWhite(0.2),
     thumbHover: overlayWhite(0.3),
   };
 }

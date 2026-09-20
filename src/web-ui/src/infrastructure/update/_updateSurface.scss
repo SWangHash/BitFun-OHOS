@@ -1,0 +1,76 @@
+// Shared by the notification and release dialog so both use the same material.
+@mixin frosted-surface {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: var(--bitfun-color-border-subtle);
+  background-color: color-mix(in srgb, var(--bitfun-color-surface-raised) 94%, transparent);
+  -webkit-backdrop-filter: var(--bitfun-effect-blur-medium);
+  backdrop-filter: var(--bitfun-effect-blur-medium);
+  box-shadow: var(--bitfun-shadow-inner-highlight), var(--bitfun-shadow-overlay);
+
+  // An even, low-contrast cool wash supplies depth without a directional hotspot.
+  &::before {
+    position: absolute;
+    z-index: -1;
+    inset: calc(-1 * var(--bitfun-space-6));
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bitfun-color-status-info-emphasis) 6%, transparent),
+      color-mix(in srgb, var(--bitfun-color-accent-default) 5%, transparent) 50%,
+      color-mix(in srgb, var(--bitfun-color-status-info-emphasis) 6%, transparent)
+    );
+    filter: var(--bitfun-effect-blur-medium);
+    pointer-events: none;
+    content: '';
+  }
+
+  :where([data-color-scheme='dark']) & {
+    background-color: color-mix(
+      in srgb,
+      color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, var(--bitfun-color-content-on-dark)) 92%,
+      transparent
+    );
+    box-shadow: var(--bitfun-shadow-inner-highlight-hover), var(--bitfun-shadow-overlay);
+
+    &::before {
+      background-image:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--bitfun-color-content-on-dark) 3%, transparent),
+          transparent 50%,
+          color-mix(in srgb, var(--bitfun-color-content-on-dark) 1.5%, transparent)
+        ),
+        linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--bitfun-color-status-info-content) 10%, transparent),
+          color-mix(
+            in srgb,
+            color-mix(in srgb, var(--bitfun-component-update-material-cyan) 70%, var(--bitfun-color-content-on-dark)) 9%,
+            transparent
+          ) 50%,
+          color-mix(in srgb, var(--bitfun-color-status-info-content) 10%, transparent)
+        );
+    }
+  }
+
+  [data-contrast='high'] & {
+    border-color: var(--bitfun-color-border-default);
+    background-color: var(--bitfun-color-surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    &::before { display: none; }
+  }
+
+  @media (prefers-contrast: more), (forced-colors: active), (prefers-reduced-transparency: reduce) {
+    border-color: var(--bitfun-color-border-default);
+    background-color: var(--bitfun-color-surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    &::before { display: none; }
+  }
+}

@@ -254,8 +254,15 @@
     cursor: default;
   }
 
+  // A failed lookup is information, not decoration: dimming the card to 0.56
+  // made the reason unreadable. Show the failure tone instead.
   .file-card[data-status='error'] {
-    opacity: 0.56;
+    border-color: var(--bitfun-color-status-danger-border);
+    background: var(--bitfun-color-status-danger-surface);
+  }
+
+  .file-card[data-status='error'] .file-card__name {
+    color: var(--bitfun-color-status-danger-content);
   }
 
   .file-card__icon {
@@ -299,6 +306,24 @@
 
   .file-card__meta {
     margin-block-start: 2px;
+  }
+
+  .file-card__reason {
+    display: -webkit-box;
+    margin-block-start: 2px;
+    overflow: hidden;
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-support-font-size);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .file-card__retry {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    flex: 0 0 auto;
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-support-font-size);
   }
 
   .file-card__placeholder {

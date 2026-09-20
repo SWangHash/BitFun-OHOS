@@ -154,11 +154,13 @@ test('small icons retain a bright rim around the entire silhouette', async () =>
 
 test('desktop tray uses a macOS template and the application icon on other platforms', () => {
   const source = readFileSync('src/apps/desktop/src/tray.rs', 'utf8');
-  assert.match(source, /#\[cfg\(target_os = "macos"\)\]\s*let icon = macos_tray_icon\(false\)\?/);
+  assert.match(source, /#\[cfg\(target_os = "macos"\)\]\s*let icon = macos_tray_icon\(\)\?/);
   assert.match(source, /#\[cfg\(not\(target_os = "macos"\)\)\]\s*let icon = app\s*\.default_window_icon\(\)/);
   assert.doesNotMatch(source, /bitfun-tray-template/);
   assert.match(source, /\.icon_as_template\(cfg!\(target_os = "macos"\)\)/);
-  assert.match(source, /tray\.set_icon_with_as_template\(Some\(icon\), true\)/);
+  // The unread badge is gone, so the mark is built once and never swapped:
+  // nothing may re-apply the icon or write a numeric tray title afterwards.
+  assert.doesNotMatch(source, /set_icon_with_as_template|set_title/);
 });
 
 test('browser entry points reference generated application favicons', () => {

@@ -1,14 +1,14 @@
-import { RecentWorkspaceEntry, RemoteSession, SessionListResult } from '../../model/RemoteModels';
+import { RecentWorkspaceEntry, RemoteSession, RemoteWorkspaceIdentity, SessionListResult } from '../../model/RemoteModels';
 import {
   AccountDeviceDirectory,
   AccountDeviceDirectorySource
 } from '../../services/AccountDeviceDirectory';
-import { CloudAccountBinding, CloudAccountDevice } from '../../services/CloudAccountClient';
+import { CloudAccountBinding, CloudAccountDevice, CloudAccountSession } from '../../services/CloudAccountClient';
 import { DeviceDirectoryCoordinator } from '../../services/DeviceDirectoryCoordinator';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { RemoteLogger } from '../../services/RemoteLogger';
 import { RemoteSessionListStore } from '../../services/RemoteSessionListCache';
-import { stampRemoteSessionsDevice } from '../../services/RemoteSessionIdentity';
+import { remoteSessionBelongsToWorkspace, stampRemoteSessionsWorkspace, stampRemoteSessionsDevice } from '../../services/RemoteSessionIdentity';
 import { RemoteUiState } from '../../services/RemoteUiState';
 import { mapInConcurrentBatches, CONCURRENT_WORKSPACE_LISTINGS } from '../../services/ConcurrentWorkspaceListing';
 import {
@@ -23,8 +23,14 @@ export interface DeviceDirectoryViewModelHooks {
   readonly activeDeviceId: () => string;
   /** Whether the conversation link to [activeDeviceId] is currently live. */
   readonly activeDeviceConnected: () => boolean;
-  readonly loadActiveWorkspaceSessions?: (path: string) => Promise<SessionListResult>;
-  readonly onActiveWorkspaceSessions?: (path: string, result: SessionListResult) => void;
+  readonly loadActiveWorkspaceSessions?: (path: string, remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string) => Promise<SessionListResult>;
+  readonly onActiveWorkspaceSessions?: (path: string, result: SessionListResult, remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string) => void;
+}
+
+interface DeviceCatalogRequest {
+  entry: DeviceDirectoryEntry;
+  session: CloudAccountSession | undefined;
+  relayUrl: string | undefined;
 }
 
 /** Selection, loading, and retry for the sidebar's device directory. */
@@ -33,7 +39,7 @@ export class DeviceDirectoryViewModel {
   private readonly store?: RemoteSessionListStore;
   private readonly hooks: DeviceDirectoryViewModelHooks;
   private readonly directory?: AccountDeviceDirectorySource;
-  private readonly inFlight: Set<string> = new Set<string>();
+  private readonly inFlight: Map<string, DeviceCatalogRequest> = new Map<string, DeviceCatalogRequest>();
   private readonly workspaceInFlight: Map<WorkspaceDirectoryState, Promise<void>> =
     new Map<WorkspaceDirectoryState, Promise<void>>();
   /** Device whose control-target catalog request currently owns `loading`. */
@@ -49,6 +55,26 @@ export class DeviceDirectoryViewModel {
     this.hooks = hooks;
     this.store = store;
     this.directory = directory;
+  }
+
+  async refreshDevices(load: () => Promise<void>): Promise<void> {
+    if (this.state.refreshing) return;
+    const binding = this.hooks.credentials();
+    if (!binding) return;
+    const generation = ++this.state.refreshGeneration;
+    const current = (): boolean => {
+      const now = this.hooks.credentials();
+      return generation === this.state.refreshGeneration && binding.session === now?.session && binding.relayUrl === now?.relayUrl;
+    };
+    this.state.refreshing = true; this.state.refreshError = '';
+    try {
+      await load();
+      if (current()) await this.refreshExpandedWorkspaceSessions();
+    } catch (error) {
+      if (current()) this.state.refreshError = error instanceof Error ? error.message : RemoteI18n.t('remote.settings.deviceLoadFailed');
+    } finally {
+      if (generation === this.state.refreshGeneration) this.state.refreshing = false;
+    }
   }
 
   /**
@@ -92,7 +118,7 @@ export class DeviceDirectoryViewModel {
     if (workspaces.length === 0 && sessions.length === 0) {
       return;
     }
-    if (workspaces.length > 0) {
+    if (workspaces.length > 0 && entry.catalogSource.length === 0) {
       entry.workspaces = workspaces;
     }
     if (sessions.length > 0) {
@@ -125,6 +151,7 @@ export class DeviceDirectoryViewModel {
     if (!entry) {
       return;
     }
+    this.inFlight.delete(target);
     this.liveCatalogDeviceId = target;
     entry.status = 'loading';
     entry.errorText = '';
@@ -156,7 +183,8 @@ export class DeviceDirectoryViewModel {
     // scan-room -> account-device). The handshake replaces cross-workspace
     // sessions below, so the old generation's `ready` flags cannot survive it.
     this.state.resetWorkspaceDirectory(target);
-    entry.workspaces = workspaces.slice();
+    if (entry.catalogSource.length === 0) entry.workspaces = [];
+    // The workspace catalog is loaded independently of the handshake.
     // The handshake is the authoritative snapshot for the incoming target.
     // Merging the row's old cache here makes any historical cross-device
     // misattribution immortal, because those stale sessions never disappear.
@@ -170,13 +198,15 @@ export class DeviceDirectoryViewModel {
   }
 
   /** Publishes the authoritative full catalog returned by the live target. */
-  completeLiveCatalog(deviceId: string, workspaces: RecentWorkspaceEntry[]): void {
+  completeLiveCatalog(deviceId: string, workspaces: RecentWorkspaceEntry[], source?: string, recentWorkspaces?: RecentWorkspaceEntry[]): void {
     const target = deviceId.trim();
     const entry = this.state.find(target);
     if (!entry) {
       return;
     }
     entry.workspaces = workspaces.slice();
+    entry.catalogSource = source || "recent";
+    entry.recentWorkspaces = recentWorkspaces || workspaces;
     entry.status = 'ready';
     entry.errorText = '';
     if (this.liveCatalogDeviceId === target) {
@@ -226,18 +256,17 @@ export class DeviceDirectoryViewModel {
       if (existing) {
         existing.deviceName = device.deviceName || existing.deviceName;
         if (existing.online && !online) {
-          existing.expanded = false;
+          this.inFlight.delete(device.deviceId);
+          if (existing.status === 'loading') existing.status = 'idle';
         }
         existing.online = online;
         return existing;
       }
-      const isActive = device.deviceId === activeId && online;
       const created = emptyDeviceDirectoryEntry(
         device.deviceId,
         device.deviceName || device.deviceId,
         online
       );
-      created.expanded = isActive;
       return created;
     });
     this.state.replace(next);
@@ -245,10 +274,10 @@ export class DeviceDirectoryViewModel {
       (this.state.selectedDeviceId === activeId && activeId.length > 0 && activeConnected)) {
       return;
     }
-    // A live control target is transport state, not a user selection in the
-    // directory. Expanding it here made a freshly signed-in sidebar show a
-    // workspace loader before the user had chosen any device.
-    this.state.select('');
+    // Restore the persisted control target without selecting a different device
+    // merely because it happens to be online.
+    this.state.select(activeId);
+
   }
 
   async hydrateKnownDevices(): Promise<void> {
@@ -263,7 +292,7 @@ export class DeviceDirectoryViewModel {
     const entry = this.state.find(target);
     if (!entry) {
       // A QR-paired desktop is projected into the sidebar without belonging to
-      // the account directory. It is still a real selectable disclosure row
+      // the account directory. It is still a real selectable device row
       // while its control link is live; accepting only directory entries made
       // that row render normally but ignore every tap.
       if (target.length > 0 && target === this.hooks.activeDeviceId().trim() &&
@@ -298,14 +327,14 @@ export class DeviceDirectoryViewModel {
    * every workspace here was both expensive and the source of unrelated row
    * updates while the user was only opening one branch.
    */
-  async loadWorkspaceSessions(deviceId: string, path: string): Promise<void> {
+  async loadWorkspaceSessions(deviceId: string, path: string, remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string): Promise<void> {
     const entry = this.state.find(deviceId);
     const normalizedPath = path.trim();
     const active = deviceId === this.hooks.activeDeviceId() && this.hooks.activeDeviceConnected();
     if (normalizedPath.length === 0 || (!active && (!entry || !entry.online))) {
       return;
     }
-    const scope = this.state.workspaceLoadState(deviceId, normalizedPath);
+    const scope = this.state.workspaceLoadState(deviceId, normalizedPath, remoteConnectionId, remoteSshHost, workspaceId);
     const pending = this.workspaceInFlight.get(scope);
     if (pending) {
       return pending;
@@ -329,7 +358,7 @@ export class DeviceDirectoryViewModel {
       if (!this.state.isCurrentWorkspaceLoad(scope) || !scope.expanded ||
         this.state.selectedDeviceId !== selected) return;
       try {
-        await this.loadWorkspaceSessions(scope.deviceId, scope.path);
+        await this.loadWorkspaceSessions(scope.deviceId, scope.path, scope.remoteConnectionId, scope.remoteSshHost, scope.workspaceId);
       } catch (_err) {
         // Each failed branch exposes its own retry row and retains its cache.
       }
@@ -350,18 +379,26 @@ export class DeviceDirectoryViewModel {
         (!active || (scope.deviceId === this.hooks.activeDeviceId() && this.hooks.activeDeviceConnected()));
     };
     scope.status = 'loading';
+    // The disclosed row keyed by its ID when the catalog supplied one; the
+    // legacy triple is only what pre-ID rows have.
+    const workspace: RemoteWorkspaceIdentity = {
+      workspaceId: scope.workspaceId.length > 0 ? scope.workspaceId : undefined,
+      path: path,
+      remoteConnectionId: scope.remoteConnectionId.length > 0 ? scope.remoteConnectionId : undefined,
+      remoteSshHost: scope.remoteSshHost.length > 0 ? scope.remoteSshHost : undefined
+    };
     try {
       if (active && this.hooks.loadActiveWorkspaceSessions && this.hooks.onActiveWorkspaceSessions) {
-        const result = await this.hooks.loadActiveWorkspaceSessions(path);
+        const result = await this.hooks.loadActiveWorkspaceSessions(path, workspace.remoteConnectionId, workspace.remoteSshHost, workspace.workspaceId);
         if (!isCurrent()) return;
-        this.captureWorkspaceSessions(scope.deviceId, path, result.sessions);
-        this.hooks.onActiveWorkspaceSessions(path, result);
+        this.captureWorkspaceSessions(scope.deviceId, path, result.sessions, workspace.remoteConnectionId, workspace.remoteSshHost, workspace.workspaceId);
+        this.hooks.onActiveWorkspaceSessions(path, result, workspace.remoteConnectionId, workspace.remoteSshHost, workspace.workspaceId);
       } else {
         const source = this.directorySource();
         if (!source || !entry) throw new Error('Account device directory is unavailable.');
-        const sessions = await new DeviceDirectoryCoordinator(source).loadWorkspaceSessions(scope.deviceId, path);
+        const sessions = await new DeviceDirectoryCoordinator(source).loadWorkspaceSessions(scope.deviceId, workspace);
         if (!isCurrent()) return;
-        entry.sessions = DeviceDirectoryViewModel.replaceWorkspaceSessions(entry.sessions, path, sessions);
+        entry.sessions = DeviceDirectoryViewModel.replaceWorkspaceSessions(entry.sessions, workspace, sessions, entry.workspaces);
         await this.persistDevice(scope.deviceId, entry.workspaces, entry.sessions);
       }
       if (isCurrent()) {
@@ -381,16 +418,23 @@ export class DeviceDirectoryViewModel {
   }
 
   /** Replaces one refreshed workspace while preserving every cached sibling. */
-  captureWorkspaceSessions(deviceId: string, path: string, sessions: RemoteSession[]): void {
+  captureWorkspaceSessions(deviceId: string, path: string, sessions: RemoteSession[], remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string): void {
     const entry = this.state.find(deviceId.trim());
     const normalizedPath = path.trim();
     if (!entry || normalizedPath.length === 0) {
       return;
     }
+    const workspace: RemoteWorkspaceIdentity = {
+      workspaceId: workspaceId?.trim() || undefined,
+      path: normalizedPath,
+      remoteConnectionId,
+      remoteSshHost
+    };
     entry.sessions = DeviceDirectoryViewModel.replaceWorkspaceSessions(
       entry.sessions,
-      normalizedPath,
-      stampRemoteSessionsDevice(sessions, deviceId.trim())
+      workspace,
+      stampRemoteSessionsDevice(stampRemoteSessionsWorkspace(sessions, workspace), deviceId.trim()),
+      entry.workspaces
     );
   }
 
@@ -432,7 +476,10 @@ export class DeviceDirectoryViewModel {
     if (!entry.online) {
       return;
     }
-    if (this.inFlight.has(deviceId)) {
+    const binding = this.hooks.credentials();
+    const pending = this.inFlight.get(deviceId);
+    if (pending && pending.entry === entry && pending.session === binding?.session &&
+      pending.relayUrl === binding?.relayUrl) {
       return;
     }
     const source = this.directorySource();
@@ -441,16 +488,30 @@ export class DeviceDirectoryViewModel {
       entry.errorText = RemoteI18n.t('remote.settings.accountNotSignedIn');
       return;
     }
-    this.inFlight.add(deviceId);
+    const request: DeviceCatalogRequest = {
+      entry, session: binding?.session, relayUrl: binding?.relayUrl
+    };
+    this.inFlight.set(deviceId, request);
+    const isCurrent = (): boolean => {
+      const currentBinding = this.hooks.credentials();
+      return this.inFlight.get(deviceId) === request && this.state.find(deviceId) === entry &&
+        entry.online && request.session === currentBinding?.session &&
+        request.relayUrl === currentBinding?.relayUrl && deviceId !== this.hooks.activeDeviceId();
+    };
     entry.status = 'loading';
     entry.errorText = '';
     try {
       const coordinator = new DeviceDirectoryCoordinator(source);
-      entry.workspaces = await coordinator.loadWorkspaces(deviceId);
+      const catalog = await coordinator.loadWorkspaceCatalog(deviceId);
+      if (!isCurrent()) return;
+      entry.workspaces = catalog.workspaces;
+      entry.catalogSource = catalog.source;
+      entry.recentWorkspaces = catalog.recentWorkspaces;
       entry.status = 'ready';
       entry.errorText = '';
       await this.persistDevice(deviceId, entry.workspaces, entry.sessions);
     } catch (err) {
+      if (!isCurrent()) return;
       // The retry row carries a localized line of its own. What the transport
       // throws is English and frequently a stack, so it stays in the log, which
       // is the only place it reads as anything but noise.
@@ -458,22 +519,31 @@ export class DeviceDirectoryViewModel {
       entry.status = 'failed';
       entry.errorText = '';
     } finally {
-      this.inFlight.delete(deviceId);
+      if (this.inFlight.get(deviceId) === request) {
+        this.inFlight.delete(deviceId);
+        if (entry.status === 'loading') entry.status = 'idle';
+      }
     }
   }
 
   private async hydrateDevice(entry: DeviceDirectoryEntry): Promise<void> {
+    const binding = this.hooks.credentials();
+    const previousWorkspaces = entry.workspaces;
+    const previousSessions = entry.sessions;
     const workspaces = this.store ?
       await DeviceDirectoryViewModel.safeWorkspaces(this.store, entry.deviceId) : [];
     const sessions = this.store ?
       await DeviceDirectoryViewModel.safeSessions(this.store, entry.deviceId) : [];
+    const currentBinding = this.hooks.credentials();
+    if (this.state.find(entry.deviceId) !== entry || binding?.session !== currentBinding?.session ||
+      binding?.relayUrl !== currentBinding?.relayUrl) return;
     if (workspaces.length === 0 && sessions.length === 0) {
       return;
     }
-    if (workspaces.length > 0) {
+    if (workspaces.length > 0 && entry.catalogSource.length === 0 && entry.workspaces === previousWorkspaces) {
       entry.workspaces = workspaces;
     }
-    if (sessions.length > 0) {
+    if (sessions.length > 0 && entry.sessions === previousSessions) {
       entry.sessions = stampRemoteSessionsDevice(sessions, entry.deviceId);
     }
     if (entry.status === 'idle') {
@@ -530,12 +600,12 @@ export class DeviceDirectoryViewModel {
 
   private static replaceWorkspaceSessions(
     current: RemoteSession[],
-    path: string,
-    replacement: RemoteSession[]
+    workspace: RemoteWorkspaceIdentity,
+    replacement: RemoteSession[],
+    catalog: RecentWorkspaceEntry[] = []
   ): RemoteSession[] {
-    const target = path.trim();
     const preserved = current.filter((item: RemoteSession): boolean => {
-      return (item.workspacePath || '').trim() !== target;
+      return !remoteSessionBelongsToWorkspace(item, workspace, catalog);
     });
     return replacement.concat(preserved);
   }

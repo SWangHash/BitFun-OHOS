@@ -38,7 +38,14 @@ const highContrastDarkTokens = resolveTokens(
   mergeTokenDocuments(reference, dark, highContrastDark),
 );
 
-const PUBLIC_THEME_TOKEN_PREFIXES = ["color.", "component.button.", "effect.", "opacity.", "shadow."];
+const PUBLIC_THEME_TOKEN_PREFIXES = [
+  "color.",
+  "component.button.",
+  "component.empty.",
+  "effect.",
+  "opacity.",
+  "shadow.",
+];
 const REFERENCE_COLOR_TOKEN_PATTERN = /^ref\.color\.([a-z][a-z0-9-]*)\.(\d+)$/;
 
 function createReferenceColorArtifacts(document, tokens) {
@@ -106,6 +113,7 @@ const semanticThemes = {
 };
 
 const requiredSemanticTokens = [
+  "component.empty.media",
   "color.surface.canvas",
   "color.surface.panel",
   "color.surface.raised",

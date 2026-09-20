@@ -337,6 +337,8 @@
     "collapse": "收起",
     "resultsSummary": "找到 {{files}} 個檔案，共 {{matches}} 處匹配",
     "resultsShowing": "（顯示前 {{count}} 個）",
+    "resultsSummaryCompact": "{{files}} 檔案 / {{matches}} 匹配",
+    "resultsShowingCompact": "前 {{count}} 個",
     "loadMore": "載入更多 ({{count}})",
     "replace": "替換",
     "replaceAll": "全部替換",

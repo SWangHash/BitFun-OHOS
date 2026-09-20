@@ -67,28 +67,40 @@ describe('projectWorkspaceBackedSessionGroups', () => {
     ).map(group => group.workspace.id)).toEqual(['personal-assistant']);
   });
 
-  it('hides a linked worktree owner only while its canonical project is also open', () => {
+  it('keeps the canonical project and linked worktrees as separate groups in open order', () => {
     const canonicalProject = createWorkspace('canonical-project', WorkspaceKind.Normal, {
       rootPath: '/repo',
     });
-    const linkedWorktree = createWorkspace('linked-worktree', WorkspaceKind.Normal, {
-      rootPath: '/repo/.worktrees/feature',
+    const firstWorktree = createWorkspace('first-worktree', WorkspaceKind.Normal, {
+      rootPath: '/repo/.worktrees/first',
       worktree: {
-        path: '/repo/.worktrees/feature',
+        path: '/repo/.worktrees/first',
         mainRepoPath: '/repo',
-        branch: 'feature',
+        branch: 'first',
+        isMain: false,
+      },
+    });
+    const secondWorktree = createWorkspace('second-worktree', WorkspaceKind.Normal, {
+      rootPath: '/repo/.worktrees/second',
+      worktree: {
+        path: '/repo/.worktrees/second',
+        mainRepoPath: '/repo',
+        branch: 'second',
         isMain: false,
       },
     });
 
+    const openedWorkspaces = [canonicalProject, firstWorktree, secondWorktree];
+    const expectedIds = ['canonical-project', 'first-worktree', 'second-worktree'];
+
     expect(projectWorkspaceBackedSessionGroups(
-      [canonicalProject, linkedWorktree],
+      openedWorkspaces,
       'all',
-    ).map(group => group.workspace.id)).toEqual(['canonical-project']);
+    ).map(group => group.workspace.id)).toEqual(expectedIds);
     expect(projectWorkspaceBackedSessionGroups(
-      [linkedWorktree],
-      'all',
-    ).map(group => group.workspace.id)).toEqual(['linked-worktree']);
+      openedWorkspaces,
+      'projects',
+    ).map(group => group.workspace.id)).toEqual(expectedIds);
   });
 });
 
@@ -109,20 +121,37 @@ describe('isWorkspaceBackedSessionGroupActive', () => {
     expect(isWorkspaceBackedSessionGroupActive(secondRemote, firstRemote)).toBe(false);
   });
 
-  it('keeps the canonical local project active for its selected worktree', () => {
+  it('does not select another local workspace with the same path', () => {
+    const first = createWorkspace('local-first', WorkspaceKind.Normal, { rootPath: '/same' });
+    const second = createWorkspace('local-second', WorkspaceKind.Normal, { rootPath: '/same' });
+    expect(isWorkspaceBackedSessionGroupActive(first, second)).toBe(false);
+  });
+
+  it('marks only the selected worktree workspace as active', () => {
     const canonicalProject = createWorkspace('canonical-project', WorkspaceKind.Normal, {
       rootPath: '/repo',
     });
-    const linkedWorktree = createWorkspace('linked-worktree', WorkspaceKind.Normal, {
-      rootPath: '/repo/.worktrees/feature',
+    const selectedWorktree = createWorkspace('selected-worktree', WorkspaceKind.Normal, {
+      rootPath: '/repo/.worktrees/selected',
       worktree: {
-        path: '/repo/.worktrees/feature',
+        path: '/repo/.worktrees/selected',
         mainRepoPath: '/repo',
-        branch: 'feature',
+        branch: 'selected',
+        isMain: false,
+      },
+    });
+    const siblingWorktree = createWorkspace('sibling-worktree', WorkspaceKind.Normal, {
+      rootPath: '/repo/.worktrees/sibling',
+      worktree: {
+        path: '/repo/.worktrees/sibling',
+        mainRepoPath: '/repo',
+        branch: 'sibling',
         isMain: false,
       },
     });
 
-    expect(isWorkspaceBackedSessionGroupActive(canonicalProject, linkedWorktree)).toBe(true);
+    expect(isWorkspaceBackedSessionGroupActive(selectedWorktree, selectedWorktree)).toBe(true);
+    expect(isWorkspaceBackedSessionGroupActive(canonicalProject, selectedWorktree)).toBe(false);
+    expect(isWorkspaceBackedSessionGroupActive(siblingWorktree, selectedWorktree)).toBe(false);
   });
 });

@@ -35,6 +35,27 @@ describe('WorkspaceAPI', () => {
     vi.unstubAllGlobals();
   });
 
+  it('sends workspace IDs for file IO without caller path or SSH identity', async () => {
+    await workspaceAPI.readWorkspaceFile('first-id', '/same/file.txt');
+    expect(invokeMock).toHaveBeenCalledWith('read_file_content', { request: { workspaceId: 'first-id', filePath: '/same/file.txt', encoding: undefined } });
+    await workspaceAPI.writeWorkspaceFile('second-id', '/same/file.txt', 'text');
+    expect(invokeMock).toHaveBeenCalledWith('write_file_content', { request: { workspaceId: 'second-id', filePath: '/same/file.txt', content: 'text' } });
+    invokeMock.mockResolvedValue({ isFile: true, size: 4 });
+    expect(await workspaceAPI.getWorkspaceFileMetadata('second-id', '/same/file.txt')).toMatchObject({ isFile: true, size: 4 });
+    expect(invokeMock).toHaveBeenCalledWith('get_file_metadata', { request: { workspaceId: 'second-id', path: '/same/file.txt' } });
+  });
+
+  it('uses workspace IDs for directory trees and paginated children', async () => {
+    await workspaceAPI.getFileTree('workspace-id', '/same/folder', 1);
+    expect(invokeMock).toHaveBeenCalledWith('get_file_tree', {
+      request: { workspaceId: 'workspace-id', path: '/same/folder', maxDepth: 1 },
+    });
+    await workspaceAPI.getDirectoryChildrenPaginated('another-id', '/same/folder', 5, 10);
+    expect(invokeMock).toHaveBeenCalledWith('get_directory_children_paginated', {
+      request: { workspaceId: 'another-id', path: '/same/folder', offset: 5, limit: 10 },
+    });
+  });
+
   it('reads text through the registered command with remote routing context', async () => {
     await workspaceAPI.readFileContent(
       '/workspace/src/new.ts',
@@ -71,9 +92,9 @@ describe('WorkspaceAPI', () => {
 
   it('browses the resource tree through the explicit remote workspace scope', async () => {
     invokeMock.mockResolvedValue([]);
-    await workspaceAPI.explorerGetChildren('/workspace', 'remote-connection-2');
+    await workspaceAPI.explorerGetChildren('remote-workspace-id', '/workspace');
     expect(invokeMock).toHaveBeenCalledWith('explorer_get_children', {
-      request: { path: '/workspace', remoteConnectionId: 'remote-connection-2' },
+      request: { path: '/workspace', workspaceId: 'remote-workspace-id' },
     });
   });
 
@@ -94,7 +115,7 @@ describe('WorkspaceAPI', () => {
     invokeMock.mockResolvedValueOnce({ results: [], limit: 30, truncated: false });
 
     await workspaceAPI.searchFilenamesOnlyDetailed(
-      '/workspace',
+      'workspace-id',
       '手写',
       false,
       false,
@@ -103,16 +124,14 @@ describe('WorkspaceAPI', () => {
       30,
       true,
       undefined,
-      'remote-connection-1',
     );
 
     expect(invokeMock).toHaveBeenCalledWith('search_filenames', {
       request: expect.objectContaining({
-        rootPath: '/workspace',
+        workspaceId: 'workspace-id',
         pattern: '手写',
         maxResults: 30,
         includeDirectories: true,
-        remoteConnectionId: 'remote-connection-1',
       }),
     });
   });
@@ -131,7 +150,7 @@ describe('WorkspaceAPI', () => {
     const onProgress = vi.fn();
 
     await workspaceAPI.searchFilenamesOnlyStreamDetailed(
-      '/workspace',
+      'workspace-id',
       '手写',
       false,
       false,
@@ -141,13 +160,10 @@ describe('WorkspaceAPI', () => {
       true,
       { onProgress },
       undefined,
-      'remote-connection-1',
     );
 
     expect(invokeMock).toHaveBeenCalledWith('search_filenames', {
-      request: expect.objectContaining({
-        remoteConnectionId: 'remote-connection-1',
-      }),
+      request: expect.objectContaining({ workspaceId: 'workspace-id' }),
     });
     expect(invokeMock).not.toHaveBeenCalledWith(
       'start_search_filenames_stream',
@@ -185,7 +201,7 @@ describe('WorkspaceAPI', () => {
     });
 
     await workspaceAPI.searchFilenamesOnlyStreamDetailed(
-      '/workspace',
+      'workspace-id',
       '手写',
       false,
       false,
@@ -195,13 +211,11 @@ describe('WorkspaceAPI', () => {
       true,
       {},
       undefined,
-      'remote-connection-1',
     );
 
     expect(invokeMock).toHaveBeenCalledWith('start_search_filenames_stream', {
       request: expect.objectContaining({
-        rootPath: '/workspace',
-        remoteConnectionId: 'remote-connection-1',
+        workspaceId: 'workspace-id',
       }),
     });
     expect(waitForListenerRegistrationsMock).toHaveBeenCalledOnce();
@@ -216,7 +230,7 @@ describe('WorkspaceAPI', () => {
     const controller = new AbortController();
 
     const search = workspaceAPI.searchFilenamesOnlyStreamDetailed(
-      '/workspace',
+      'workspace-id',
       '手写',
       false,
       false,
@@ -226,7 +240,6 @@ describe('WorkspaceAPI', () => {
       true,
       {},
       controller.signal,
-      'remote-connection-1',
     );
     await vi.waitFor(() => {
       expect(waitForListenerRegistrationsMock).toHaveBeenCalledOnce();

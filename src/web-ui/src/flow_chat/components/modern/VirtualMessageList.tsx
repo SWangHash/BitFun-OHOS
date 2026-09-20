@@ -20,7 +20,7 @@ import React, {
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useActiveSessionState } from '../../hooks/useActiveSessionState';
-import { useSessionCompletionReceipt } from '../../hooks/useSessionCompletionReceipt';
+import { useSessionReadOnOpen } from '../../hooks/useSessionReadOnOpen';
 import { useScrollToTurnHeader } from '../../hooks/useScrollToTurnHeader';
 import type { SessionHistoryWindowDirection } from '../../store/FlowChatStore';
 import {
@@ -30,6 +30,7 @@ import {
 import {
   useActiveSession,
   useModernFlowChatStore,
+  useModernFlowChatStoreApi,
   useVirtualItems,
   type VirtualItem,
 } from '../../store/modernFlowChatStore';
@@ -93,6 +94,9 @@ import {
   traceViewportRepeating,
 } from '@/infrastructure/diagnostics/flowChatViewportDiagnostics';
 import { noteFlowListCommit } from '@/infrastructure/diagnostics/flowChatTailFollowDiagnostics';
+import type { ConversationExcerptContext } from '@/shared/types/context';
+import { findExcerptSource, resolveExcerptRange } from '../../selection/flowChatSelection';
+import { highlightExcerptRange } from '../../selection/locateConversationExcerpt';
 import './VirtualMessageList.scss';
 
 const SEARCH_NAVIGATION_MAX_ATTEMPTS = 24;
@@ -156,16 +160,22 @@ export interface HistoryWindowBoundaryIntentOptions {
   cancelViewportPresentationCommit?: () => void;
 }
 
+export interface FlowChatTextNavigationTarget {
+  virtualItemIndex: number;
+  query: string;
+  flowItemId?: string;
+  occurrenceIndex?: number;
+  expandableIds?: readonly string[];
+  excerpt?: ConversationExcerptContext;
+  onUnavailable?: () => void;
+  isCurrent?: () => boolean;
+}
+
 export interface VirtualMessageListRef {
   scrollToTurn: (turnIndex: number) => void;
   scrollToIndex: (index: number) => void;
-  scrollToSearchMatch: (target: {
-    virtualItemIndex: number;
-    query: string;
-    flowItemId?: string;
-    occurrenceIndex?: number;
-    expandableIds?: readonly string[];
-  }) => void;
+  scrollToSearchMatch: (target: FlowChatTextNavigationTarget) => void;
+  notifyUserSelectionIntent: () => void;
   clearSearchMatch: () => void;
   scrollToPhysicalBottom: () => void;
   scrollToTurnEnd: (turnId: string) => boolean;
@@ -369,6 +379,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   useEffect(() => {
     noteFlowListCommit();
   });
+  const modernStore = useModernFlowChatStoreApi();
   const canonicalVirtualItems = useVirtualItems();
   const virtualItems = items ?? canonicalVirtualItems;
   const { exploreGroupStates } = useFlowChatVolatileContext();
@@ -434,7 +445,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   onViewportSnapshotRef.current = onViewportSnapshot;
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isOpenViewportSettled, setIsOpenViewportSettled] = useState(false);
-  useSessionCompletionReceipt(activeSessionId, scrollerElementRef, isViewportActive && isOpenViewportSettled);
+  useSessionReadOnOpen(activeSessionId, isViewportActive);
   const shouldRestoreInitialSnapshot = Boolean(
     initialViewportSnapshot
     && initialViewportSnapshot.sessionId === activeSessionId
@@ -915,7 +926,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   ]);
 
   useLayoutEffect(() => {
-    viewportAnchor.openSettleWindow();
+    viewportAnchor.openSettleWindow('items');
   }, [viewportAnchor, virtualItems]);
 
   const updateVisibleTurnInfoFromViewport = useCallback(() => {
@@ -949,7 +960,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     const currentTurn = currentTurnId
       ? userMessageItems.find(({ item }) => item.turnId === currentTurnId)
       : undefined;
-    const store = useModernFlowChatStore.getState();
+    const store = modernStore.getState();
 
     if (!currentTurn || currentTurn.item.type !== 'user-message') {
       if (store.visibleTurnInfo !== null) store.setVisibleTurnInfo(null);
@@ -971,7 +982,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
       && previous.visibleTurnIds.length === visibleTurnIds.length
       && previous.visibleTurnIds.every((turnId, index) => turnId === visibleTurnIds[index]);
     if (!unchanged) store.setVisibleTurnInfo(nextVisibleTurnInfo);
-  }, [isFollowingOutputNow, userMessageItems]);
+  }, [isFollowingOutputNow, modernStore, userMessageItems]);
 
   const scheduleVisibleTurnInfoUpdate = useCallback(() => {
     if (visibleTurnUpdateFrameRef.current !== null) return;
@@ -1132,7 +1143,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     // Seed the ordinary settle loop from the restored relationship so later
     // virtual-item measurements keep the same Turn at the same viewport offset.
     viewportAnchor.captureAnchor();
-    viewportAnchor.openSettleWindow();
+    viewportAnchor.openSettleWindow('snapshot');
     traceViewport({
       location: 'viewport.sessionSnapshotRestored',
       message: 'FlowChat restored a session anchor from its semantic snapshot',
@@ -1468,7 +1479,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         });
         restoredScrollTopFallback = true;
       }
-      viewportAnchor.openSettleWindow();
+      viewportAnchor.openSettleWindow('resume');
     }
 
     traceViewport({
@@ -1707,7 +1718,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
       if (viewportBoxChanged) {
         viewportAnchor.captureAnchor();
       } else {
-        viewportAnchor.openSettleWindow();
+        viewportAnchor.openSettleWindow('resize');
       }
 
       if (tailRealignCallbacksRef.current > 0) {
@@ -2054,13 +2065,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     virtualizer.cancelAim();
   }, [virtualizer]);
 
-  const scrollToSearchMatch = useCallback((target: {
-    virtualItemIndex: number;
-    query: string;
-    flowItemId?: string;
-    occurrenceIndex?: number;
-    expandableIds?: readonly string[];
-  }) => {
+  const scrollToSearchMatch = useCallback((target: FlowChatTextNavigationTarget) => {
     clearSearchMatch();
     exitFollowOutput('scroll-to-index');
     setNavigatedTurn(virtualItems[target.virtualItemIndex]?.turnId ?? null);
@@ -2080,12 +2085,14 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     });
     const resolve = () => {
       if (searchNavigationRequestIdRef.current !== requestId) return;
+      if (target.isCurrent && !target.isCurrent()) { virtualizer.cancelAim(); return; }
       attempts += 1;
       const retry = (reason: string) => {
         if (attempts < SEARCH_NAVIGATION_MAX_ATTEMPTS) requestAnimationFrame(resolve);
         else {
           if (materializing) virtualizer.cancelAim();
           traceSkipped(reason);
+          target.onUnavailable?.();
         }
       };
       const scroller = scrollerElementRef.current;
@@ -2121,14 +2128,16 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
           return;
         }
       }
-      const root = getFlowChatSearchTextRoot(wrapper, target.flowItemId);
+      const root = target.excerpt
+        ? findExcerptSource(wrapper, target.excerpt.fragments[0])
+        : getFlowChatSearchTextRoot(wrapper, target.flowItemId);
       if (!root) {
         retry('source-not-mounted');
         return;
       }
-      const ranges = findFlowChatSearchTextRanges(root, target.query);
+      const ranges = target.excerpt ? [] : findFlowChatSearchTextRanges(root, target.query);
       const rangeIndex = Math.min(target.occurrenceIndex ?? 0, Math.max(0, ranges.length - 1));
-      const range = ranges[rangeIndex] ?? null;
+      const range = target.excerpt ? resolveExcerptRange(root, target.excerpt.fragments[0]) : ranges[rangeIndex] ?? null;
       // Use the same first painted line as the passive current-line marker.
       const rangeRect = range && Array.from(range.getClientRects())
         .find(rect => rect.width > 0 && rect.height > 0);
@@ -2149,6 +2158,10 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         if (materializing) virtualizer.cancelAim();
         traceSkipped('no-readable-area');
         return;
+      }
+      if (target.excerpt && range) {
+        const clear = highlightExcerptRange(range);
+        window.setTimeout(clear, 1800);
       }
       if (rangeRect.top >= readableTop && rangeRect.bottom <= readableBottom) {
         if (materializing) virtualizer.cancelAim();
@@ -2449,9 +2462,9 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
 
   useEffect(() => {
     if (userMessageItems.length === 0) {
-      useModernFlowChatStore.getState().setVisibleTurnInfo(null);
+      modernStore.getState().setVisibleTurnInfo(null);
     }
-  }, [userMessageItems.length]);
+  }, [modernStore, userMessageItems.length]);
 
   const handleScrollerRef = useCallback((element: HTMLElement | null) => {
     const scroller = element;
@@ -2494,6 +2507,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     scrollToTurn,
     scrollToIndex,
     scrollToSearchMatch,
+    notifyUserSelectionIntent: notifyUserScrollIntent,
     clearSearchMatch,
     scrollToPhysicalBottom,
     scrollToTurnEnd,
@@ -2509,6 +2523,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   }), [
     captureViewportSnapshot,
     clearSearchMatch,
+    notifyUserScrollIntent,
     focusFlowItem,
     isTurnRenderedInViewport,
     isTurnTextRenderedInViewport,

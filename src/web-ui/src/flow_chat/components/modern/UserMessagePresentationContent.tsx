@@ -4,6 +4,7 @@ import type { ComposerPresentation } from '../../utils/composerPresentation';
 import { getMcpPromptReferenceMatches } from '../../utils/mcpPromptReference';
 import { MessageReferenceCapsule } from './MessageReferenceCapsule';
 import { messageInlineTokenIcon } from './messageReferenceIcons';
+import { ConversationExcerptPreview } from '../../selection/ConversationExcerptAttachments';
 
 /** Render the persisted prompt format without requiring newer message metadata. */
 export const UserMessageTextContent: React.FC<{ text: string }> = ({ text }) => {
@@ -48,6 +49,9 @@ export const UserMessagePresentationContent: React.FC<{
         );
       }
 
+      if (segment.context.type === 'conversation-excerpt') {
+        return <ConversationExcerptPreview key={segment.context.id} excerpt={segment.context} origin="sent" />;
+      }
       return (
         <MessageReferenceCapsule
           key={`context-${index}`}

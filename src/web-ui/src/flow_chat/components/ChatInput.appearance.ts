@@ -15,6 +15,8 @@ export const chatInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'image' },
     { id: 'imagePreview' },
     { id: 'imageRemove' },
+    { id: 'attachment' },
+    { id: 'attachmentRemove' },
     { id: 'placeholder' },
     { id: 'commandPicker' },
     { id: 'commandHeader' },

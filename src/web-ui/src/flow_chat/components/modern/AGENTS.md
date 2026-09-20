@@ -192,12 +192,18 @@ before reporting a defect as new.
   replays a delta against a scroll position it learns about a frame late, and
   every continuous writer here assigns `scrollTop` directly.
 - The virtualizer never follows output.
-- No mount or enter animation inside `.virtual-item-wrapper`, no mount-triggered
+- No mount-triggered enter animation inside `.virtual-item-wrapper`, no mount-triggered
   motion that changes transcript geometry, and nothing keyed on a state change a
   scroll can replay. A row mounts when it enters the rendered window, not when
   its content arrives, so the animation runs again on every page up and every
   scroll back. Cancel it at the wrapper rather than in the component — this has
   been patched locally four times and recurred each time.
+- Explicit submission feedback must consume a short-lived, device-activation,
+  Session, Turn, and message-scoped receipt from `submittedMessagePresentation`.
+  Only `useSubmittedMessageMotion` may use it for opacity/translation on the
+  message contents; never animate the measured wrapper or infer an arrival from
+  mount, timestamps, status, or transcript growth. Remounts consume no second
+  receipt; reduced motion, focus, and surface changes settle immediately.
 - Tool cards reflow naturally and dispatch only `tool-card-toggle` after an
   expanded-state change so the virtualizer can remeasure.
 - Stable virtual-item keys and projection identity must be preserved. Do not

@@ -1,3 +1,5 @@
+import { useAccountIdentity } from '@/infrastructure/account-identity';
+import { startDeviceDirectory, useDeviceDirectory, resolveDeviceNameFrom } from '@/infrastructure/account/deviceDirectory';
 /** Thin React binding for the window-wide device-surface controller. */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -9,6 +11,13 @@ import {
 } from './peerDeviceContextState';
 
 export const PeerDeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const identity = useAccountIdentity();
+  const accountId = identity.me?.user.accountId ?? identity.me?.user.githubId;
+  const directory = useDeviceDirectory();
+  useEffect(() => {
+    if (identity.status !== 'signed-in' || accountId === undefined) return;
+    return startDeviceDirectory();
+  }, [identity.status, accountId]);
   const [snapshot, setSnapshot] = useState<PeerDeviceSurfaceSnapshot>(
     () => peerDeviceSurfaceController.getSnapshot(),
   );
@@ -54,8 +63,8 @@ export const PeerDeviceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           )?.capabilities ?? null
         : null;
       return {
-        peerMode: snapshot.peerMode,
-        attachments: [...snapshot.attachments],
+        peerMode: snapshot.peerMode.active ? { ...snapshot.peerMode, deviceName: resolveDeviceNameFrom(directory.devices, snapshot.peerMode.deviceId, snapshot.peerMode.deviceName) } : snapshot.peerMode,
+        attachments: snapshot.attachments.map(item => ({ ...item, deviceName: resolveDeviceNameFrom(directory.devices, item.deviceId, item.deviceName) })),
         currentPeerCapabilities,
         switchToDevice,
         switchToLocal,
@@ -65,6 +74,7 @@ export const PeerDeviceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     },
     [
       snapshot,
+      directory,
       switchToDevice,
       switchToLocal,
       disconnectDevice,

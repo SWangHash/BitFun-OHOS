@@ -1,3 +1,4 @@
+import { StartupRevealPreference } from '../services/StartupRevealPreference';
 import { StartupBrandReveal } from './components/StartupBrandReveal';
 import { AppRootPresentation } from './components/AppRootPresentation';
 import { WatchProvisionCard } from './components/WatchProvisionCard';
@@ -7,7 +8,7 @@ import { AppRootRuntime } from './runtime/AppRootRuntime';
 @Entry
 @ComponentV2
 struct AppRoot {
-  @Local showStartupBrand: boolean = true;
+  @Local showStartupBrand: boolean = false;
   private readonly hostAdapter: ArkUiAppRootHostAdapter = new ArkUiAppRootHostAdapter();
   private readonly runtime: AppRootRuntime = new AppRootRuntime(this.hostAdapter);
 
@@ -16,6 +17,7 @@ struct AppRoot {
     if (!hostContext) {
       throw new Error('App root host context is unavailable.');
     }
+    this.showStartupBrand = StartupRevealPreference.claim(hostContext);
     this.hostAdapter.attach(hostContext, this.getUIContext());
     await this.runtime.aboutToAppear();
   }

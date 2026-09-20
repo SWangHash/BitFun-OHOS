@@ -35,10 +35,10 @@ const SKILL_REFERENCE_BADGE_ICON = renderToStaticMarkup(
   <Icon name="extension" size="xs" aria-hidden="true" />,
 );
 const SESSION_REFERENCE_BADGE_ICON = renderToStaticMarkup(
-  <MessageCircle size={12} strokeWidth={2.2} aria-hidden="true" />,
+  <Icon glyph={MessageCircle} size="xs" aria-hidden="true" />,
 );
 const MCP_REFERENCE_BADGE_ICON = renderToStaticMarkup(
-  <Plug size={12} strokeWidth={2.2} aria-hidden="true" />,
+  <Icon glyph={Plug} size="xs" aria-hidden="true" />,
 );
 const EMPTY_PENDING_LARGE_PASTES: Record<string, string> = Object.freeze({});
 const LARGE_PASTE_CARET_ANCHOR = '\u200B';
@@ -142,6 +142,7 @@ function getContextDisplayName(context: ContextItem): string {
     case 'file': return context.fileName;
     case 'directory': return context.directoryName;
     case 'session-reference': return context.sessionName;
+    case 'conversation-excerpt': return context.source.sessionName;
     case 'code-snippet': return `${context.fileName}:${context.startLine}-${context.endLine}`;
     case 'pull-request': return context.label;
     case 'image': return context.imageName;
@@ -166,6 +167,7 @@ function getContextTagFormat(context: ContextItem): string {
     case 'file': return `#file:${context.fileName}`;
     case 'directory': return `#dir:${context.directoryName}`;
     case 'session-reference': return `[session: ${context.sessionName}]`;
+    case 'conversation-excerpt': return '';
     case 'code-snippet': return `#code:${context.fileName}:${context.startLine}-${context.endLine}`;
     case 'pull-request': return `#pr:${context.label.replace(/\s+/g, '_')}`;
     case 'image': return `#img:${context.imageName}`;
@@ -193,6 +195,8 @@ function getContextFullPath(context: ContextItem): string {
       return context.directoryPath + (context.recursive ? ' (recursive)' : '');
     case 'session-reference':
       return `${context.workspaceLabel} · ${context.workspacePath}`;
+    case 'conversation-excerpt':
+      return context.fragments.map(fragment => fragment.text).join('\n\n');
     case 'code-snippet':
       return `${context.filePath} (lines ${context.startLine}-${context.endLine})`;
     case 'pull-request':
@@ -679,7 +683,9 @@ export const RichTextInput = React.forwardRef<HTMLDivElement, RichTextInputProps
         }
         fragment.appendChild(document.createTextNode(segment.text.slice(cursor)));
       } else if (segment.kind === 'context') {
-        fragment.appendChild(createTagElement(segment.context));
+        if (segment.context.type !== 'conversation-excerpt') {
+          fragment.appendChild(createTagElement(segment.context));
+        }
       } else {
         fragment.appendChild(createInlineTokenElement(segment.token) ?? document.createTextNode(segment.token));
       }

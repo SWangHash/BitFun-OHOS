@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { localSessionDriver } from './LocalSessionDriver';
 import type { DialogTurn } from '../../types/flow-chat';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { consumeSubmittedMessageArrival } from '../../services/submittedMessagePresentation';
 
 const { mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockTransition, mockUpdateSessionMetadata } = vi.hoisted(() => ({
   mockStartAcpDialogTurn: vi.fn(),
@@ -30,7 +31,10 @@ vi.mock('../../state-machine', () => ({
   },
 }));
 
-vi.mock('../shared', () => ({ applyGeneratingTitlePlaceholder: vi.fn() }));
+vi.mock('../shared', async importOriginal => ({
+  ...await importOriginal<typeof import('../shared')>(),
+  applyGeneratingTitlePlaceholder: vi.fn(),
+}));
 vi.mock('../../services/flow-chat-manager/PersistenceModule', () => ({
   cleanupSaveState: vi.fn(), updateSessionMetadata: mockUpdateSessionMetadata,
 }));
@@ -117,6 +121,7 @@ describe('localSessionDriver.startTurn on an ACP session', () => {
 
     expect(mockStartAcpDialogTurn).toHaveBeenCalledTimes(1);
     expect(addedTurns).toHaveLength(1);
+    expect(consumeSubmittedMessageArrival(SESSION_ID, addedTurns[0].id, addedTurns[0].userMessage.id)).toBeDefined();
     expect(addedTurns[0].storageTurnIndex).toBe(0);
     expect(mockUpdateSessionMetadata).toHaveBeenCalledExactlyOnceWith(context, SESSION_ID, ['titleMetadata']);
     expect(mockStartAcpDialogTurn.mock.invocationCallOrder[0]).toBeLessThan(mockUpdateSessionMetadata.mock.invocationCallOrder[0]);

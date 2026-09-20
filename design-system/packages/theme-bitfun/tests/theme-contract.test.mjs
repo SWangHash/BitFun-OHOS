@@ -270,6 +270,14 @@ test("Button states have a mode-complete palette independent from shared actions
   }
 });
 
+test("Empty artwork uses a mode-complete opaque component color", () => {
+  assert.equal(themes.light["component.empty.media"], "color-mix(in srgb, #6a6a6a 35%, #f7f7f7)");
+  assert.equal(themes.dark["component.empty.media"], "color-mix(in srgb, #858585 35%, #0e0e10)");
+  for (const values of Object.values(themes)) {
+    assert.match(values["component.empty.media"], /^color-mix\(in srgb, #[0-9a-f]{6} 35%, #[0-9a-f]{6}\)$/i);
+  }
+});
+
 test("default modes preserve the built-in Appearance anchor values", () => {
   assert.equal(themes.light["color.surface.canvas"], "#fdfdfd");
   assert.equal(themes.light["color.content.primary"], "rgba(0, 0, 0, 0.80)");
@@ -287,8 +295,8 @@ test("default modes preserve the built-in Appearance anchor values", () => {
   assert.equal(themes.light["color.selection.surface"], "rgba(0, 0, 0, 0.08)");
   assert.equal(themes.light["color.surface.chrome"], "#f8f8f9");
   assert.equal(themes.light["color.surface.tertiary"], "#f7f7f7");
-  assert.equal(themes.light["color.scrollbar.thumb"], "rgba(0, 0, 0, 0.10)");
-  assert.equal(themes.light["color.scrollbar.thumbHover"], "rgba(0, 0, 0, 0.10)");
+  assert.equal(themes.light["color.scrollbar.thumb"], "rgba(0, 0, 0, 0.20)");
+  assert.equal(themes.light["color.scrollbar.thumbHover"], "rgba(0, 0, 0, 0.30)");
   assert.equal(themes.light["color.keyHint.background"], "rgba(0, 0, 0, 0.08)");
   assert.equal(themes.light["color.control.highlight.background"], "#059cb0");
   assert.equal(themes.light["color.control.highlight.content"], "#000000");
@@ -354,8 +362,8 @@ test("default modes preserve the built-in Appearance anchor values", () => {
   assert.equal(themes.dark["color.identity.globalSearch.openProject"], "#059cb0");
   assert.equal(themes.dark["color.identity.globalSearch.newProject"], "#3271d7");
   assert.equal(themes.dark["color.identity.globalSearch.openFiles"], "#9e54ff");
-  assert.equal(themes.dark["color.scrollbar.thumb"], "rgba(255, 255, 255, 0.12)");
-  assert.equal(themes.dark["color.scrollbar.thumbHover"], "rgba(255, 255, 255, 0.15)");
+  assert.equal(themes.dark["color.scrollbar.thumb"], "rgba(255, 255, 255, 0.20)");
+  assert.equal(themes.dark["color.scrollbar.thumbHover"], "rgba(255, 255, 255, 0.30)");
   assert.equal(themes.dark["shadow.base"], "0 4px 8px rgba(0, 0, 0, 0.7)");
   assert.equal(themes.dark["shadow.composer"], "0 2px 6px rgba(0, 0, 0, 0.32)");
   assert.equal(themes.dark["shadow.menu"], "0 4px 10px rgba(0, 0, 0, 0.48)");
@@ -373,11 +381,15 @@ test("public theme catalog contains only semantic theme tokens for every mode", 
   assert.equal(themeTokenCatalog.length, Object.keys(themes.light).length);
   for (const token of themeTokenCatalog) {
     assert.equal(
-      ["color.", "component.button.", "effect.", "opacity.", "shadow."].some((prefix) => token.name.startsWith(prefix)),
+      ["color.", "component.button.", "component.empty.", "effect.", "opacity.", "shadow."].some((prefix) => token.name.startsWith(prefix)),
       true,
     );
     assert.equal(token.name.startsWith("ref."), false);
-    if (token.name.startsWith("color.") || token.name.startsWith("component.button.")) {
+    if (
+      token.name.startsWith("color.")
+      || token.name.startsWith("component.button.")
+      || token.name.startsWith("component.empty.")
+    ) {
       assert.equal(token.type, "color");
     }
     assert.deepEqual(Object.keys(token.values), themeModes);

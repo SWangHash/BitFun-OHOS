@@ -10,8 +10,8 @@ import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import type { AIModelConfig, AgentModelDefaultsConfig, DefaultModelsConfig } from '@/infrastructure/config/types';
 import { createLogger } from '@/shared/utils/logger';
 import type { FlowChatContext } from '../services/flow-chat-manager/types';
-import { getModelMaxTokens } from './modelResolution';
-import { sessionProjectWorkspacePath } from './sessionWorkspace';
+import { getModelMaxTokens, resolveModelReference } from './modelResolution';
+import { sessionProjectWorkspacePath, sessionWorkspaceId } from './sessionWorkspace';
 import {
   getActiveSurfaceScope,
   type SurfaceScope,
@@ -34,11 +34,11 @@ function normalizeModelSelection(
     return matchedModel ? value : 'primary';
   }
 
-  const matchedModel = models.find(model =>
-    model.enabled !== false
-    && (model.id === value || model.name === value || model.model_name === value),
-  );
-  return matchedModel?.id || 'primary';
+  const matchedModel = resolveModelReference(models, value);
+  if (!matchedModel?.id) {
+    throw new Error(`Unknown, disabled, or ambiguous model configuration ID: ${value}`);
+  }
+  return matchedModel.id;
 }
 
 export async function syncSessionModelSelection(
@@ -79,6 +79,7 @@ export async function syncSessionModelSelection(
     sessionId,
     modelName: desiredModelId,
     reasoningPreset: session.config.reasoningPreset ?? null,
+    workspaceId: sessionWorkspaceId(session),
     workspacePath: sessionProjectWorkspacePath(session),
     remoteConnectionId: session.remoteConnectionId,
     remoteSshHost: session.remoteSshHost,

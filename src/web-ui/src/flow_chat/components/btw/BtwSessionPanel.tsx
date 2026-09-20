@@ -6,6 +6,8 @@ import {useTranslation} from 'react-i18next';
 import path from 'path-browserify';
 import { CornerUpLeft, Loader2, Square } from 'lucide-react';
 import {FlowChatContext, FlowChatVolatileContext} from '../modern/FlowChatContext';
+import { FlowChatSelectionBar } from '../../selection/FlowChatSelectionBar';
+import { ConversationExcerptSourceProvider } from '../../selection/ConversationExcerptSources';
 import {BtwVirtualSessionList} from './BtwVirtualSessionList';
 import {useBtwSessionState} from './useBtwSessionState';
 import {useFlowChatViewportOwner} from '../modern/useFlowChatViewportOwner';
@@ -57,7 +59,6 @@ import {
 } from '../../store/deepReviewActionBarStore';
 import {loadPersistedReviewState} from '../../services/ReviewActionBarPersistenceService';
 import type {ReviewActionPersistedState} from '@/shared/types/session-history';
-import {sessionProjectWorkspacePath} from '../../utils/sessionWorkspace';
 import {
   collectModifiedFilePathsFromTurns,
   hasOpaqueWorkspaceMutationRisk,
@@ -68,7 +69,7 @@ import {
   SubagentAvatar,
 } from '../../subagent-identity';
 import { FlowChatManager } from '../../services/FlowChatManager';
-import { useSessionCompletionReceipt } from '../../hooks/useSessionCompletionReceipt';
+import { useSessionReadOnOpen } from '../../hooks/useSessionReadOnOpen';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import { bindBtwTailFollow } from './btwTailFollow';
 
@@ -97,6 +98,8 @@ export interface BtwSessionPanelProps {
   isActive?: boolean;
   childSessionId?: string;
   parentSessionId?: string;
+  /** Owning workspace ID used when the child session has not reported its own yet. */
+  workspaceId?: string;
   workspacePath?: string;
   viewKind?: BtwSessionViewKind;
   displayTitle?: string;
@@ -147,6 +150,7 @@ const isSameReviewResult = (left: unknown, right: unknown): boolean => {
 const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPanelViewState }> = ({
   childSessionId,
   parentSessionId,
+  workspaceId,
   workspacePath,
   viewKind,
   displayTitle,
@@ -164,7 +168,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listHeaderRef = useRef<HTMLDivElement>(null);
   const viewportOwner = useFlowChatViewportOwner(scrollContainerRef);
-  useSessionCompletionReceipt(childSessionId ?? null, scrollContainerRef);
+  useSessionReadOnOpen(childSessionId ?? null);
   const actionBarRef = useRef<HTMLDivElement>(null);
   const [actionBarHeight, setActionBarHeight] = useState(0);
   const shouldAutoScrollRef = useRef(viewState.followTail);
@@ -266,20 +270,8 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
   const loadChildHistory = useCallback(async () => {
     if (!childSessionId || !childSession) return;
 
-    const path = workspacePath ?? childSession.workspacePath ?? parentMetadata?.workspacePath;
-    if (!path) return;
-
-    await loadBtwSessionHistory({
-      childSessionId,
-      ...(!childSession.workspacePath
-        ? {
-            workspacePath: path,
-            remoteConnectionId: childSession.remoteConnectionId || parentMetadata?.remoteConnectionId,
-            remoteSshHost: childSession.remoteSshHost || parentMetadata?.remoteSshHost,
-          }
-        : {}),
-    });
-  }, [childSessionId, childSession, parentMetadata, workspacePath]);
+    await loadBtwSessionHistory({ childSessionId, parentSessionId });
+  }, [childSessionId, childSession, parentSessionId]);
 
   useEffect(() => {
     if (!childSession?.isHistorical || childSession.historyState !== 'metadata-only') return;
@@ -342,11 +334,13 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
     fileTabManager.openFile({
       filePath: absoluteFilePath,
       fileName,
+      // The child session owns the referenced file; the path is its IO projection.
+      workspaceId: childSessionRef.current?.workspaceId || childSessionRef.current?.config?.workspaceId || workspaceId,
       workspacePath,
       jumpToRange: lineRange,
       mode: 'agent',
     });
-  }, [workspacePath]);
+  }, [workspaceId, workspacePath]);
 
   const handleTabOpen = useCallback((tabInfo: any) => {
     if (!tabInfo?.type) return;
@@ -769,17 +763,17 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
     t,
   ]);
 
-  const persistedReviewWorkspacePath = childSession
-    ? sessionProjectWorkspacePath(childSession)
+  const persistedReviewWorkspaceId = childSession
+    ? childSession.workspaceId || childSession.config.workspaceId
     : undefined;
   const persistedReviewRemoteConnectionId = childSession?.remoteConnectionId;
   const persistedReviewRemoteSshHost = childSession?.remoteSshHost;
 
   // Restore persisted review action state once for each stable session location.
   useEffect(() => {
-    if (!isReviewSession || !childSessionId || !persistedReviewWorkspacePath) return;
+    if (!isReviewSession || !childSessionId || !persistedReviewWorkspaceId) return;
     const locationKey = JSON.stringify([
-      childSessionId, persistedReviewWorkspacePath,
+      childSessionId, persistedReviewWorkspaceId,
       persistedReviewRemoteConnectionId, persistedReviewRemoteSshHost,
     ]);
     if (viewState.restoredReviewLocation === locationKey) return;
@@ -799,14 +793,12 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
 
     loadPersistedReviewState(
       childSessionId,
-      persistedReviewWorkspacePath,
-      persistedReviewRemoteConnectionId,
-      persistedReviewRemoteSshHost,
+      persistedReviewWorkspaceId,
     ).then((persisted: ReviewActionPersistedState | null) => {
       const latestChildSession = childSessionRef.current;
       if (cancelled || !latestChildSession) return;
       if (
-        sessionProjectWorkspacePath(latestChildSession) !== persistedReviewWorkspacePath
+        (latestChildSession.workspaceId || latestChildSession.config.workspaceId) !== persistedReviewWorkspaceId
         || latestChildSession.remoteConnectionId !== persistedReviewRemoteConnectionId
         || latestChildSession.remoteSshHost !== persistedReviewRemoteSshHost
       ) return;
@@ -922,7 +914,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
     parentSessionId,
     isReviewSession,
     isDeepReview,
-    persistedReviewWorkspacePath,
+    persistedReviewWorkspaceId,
     persistedReviewRemoteConnectionId,
     persistedReviewRemoteSshHost,
     viewState,
@@ -1050,6 +1042,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
 
   return (
     <FlowChatContext.Provider value={contextValue}>
+      <ConversationExcerptSourceProvider sessionId={childSession.sessionId}>
       <FlowChatVolatileContext.Provider value={volatileContextValue}>
       <div
         className={`btw-session-panel${retainsReviewActionBarLayout ? ' btw-session-panel--has-action-bar' : ''}`}
@@ -1140,6 +1133,8 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
 
         <div
           ref={scrollContainerRef}
+          data-flowchat-selection-root={childSessionId}
+          data-flowchat-parent-session-id={parentSessionId}
           tabIndex={-1}
           className="btw-session-panel__body"
           data-bitfun-component="btw-session-panel"
@@ -1191,10 +1186,16 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
               followRef={shouldAutoScrollRef}
               viewportOwner={viewportOwner}
               exploreGroupStates={exploreGroupStates}
+              onExpandGroup={onExpandGroup}
               isHistorical={childSession.isHistorical === true}
               viewState={viewState}
             />
           )}
+          {childSession.sessionKind === 'btw' && <FlowChatSelectionBar rootRef={scrollContainerRef}
+            sessionId={childSessionId} parentSessionId={parentSessionId} onSelectionIntent={() => {
+              shouldAutoScrollRef.current = false;
+              viewState.followTail = false;
+            }} />}
           <RuntimeStatusSlot
             sessionId={childSessionId}
             className="btw-session-panel__runtime-status"
@@ -1251,6 +1252,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
         </RetainedMountBoundary>
       </div>
       </FlowChatVolatileContext.Provider>
+      </ConversationExcerptSourceProvider>
     </FlowChatContext.Provider>
   );
 };

@@ -1,7 +1,7 @@
 {
   "name": "BitFun",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -66,7 +66,7 @@
     "product:identity:audit": "node scripts/product-identity-audit.mjs",
     "product:identity:audit:test": "node --test scripts/product-identity-audit.test.mjs",
     "release:version:check": "node scripts/verify-release-version-sync.mjs",
-    "check:repo-hygiene": "pnpm run product:identity:audit:test && pnpm run product:identity:audit && pnpm run release:version:check && node scripts/check-repo-hygiene.mjs && node scripts/update-models-dev-snapshot.mjs --check",
+    "check:repo-hygiene": "pnpm run product:identity:audit:test && pnpm run product:identity:audit && pnpm run release:version:check && node --test scripts/check-repo-hygiene.test.mjs && node scripts/check-repo-hygiene.mjs && node scripts/update-models-dev-snapshot.mjs --check",
     "models-dev:check": "node scripts/update-models-dev-snapshot.mjs --check",
     "models-dev:update": "node scripts/update-models-dev-snapshot.mjs",
     "check:build-prereqs": "node scripts/check-build-prereqs.mjs",

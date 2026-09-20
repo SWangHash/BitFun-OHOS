@@ -1,43 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { gitService } from '@/tools/git/services/GitService';
-import { createLogger } from '@/shared/utils/logger';
+import { useGitState } from '@/tools/git/hooks/useGitState';
 import './ChatEmptyState.scss';
-
-const log = createLogger('ChatEmptyState');
 
 /**
  * Chat empty state component
- * Displays current workspace, branch info, and prompts user to interact via AI chat
+ * Displays current workspace, branch info, and prompts user to interact via AI chat.
+ *
+ * Uses the shared GitStateManager so the branch label stays in sync with
+ * external changes (e.g. `git checkout` from the integrated terminal) via
+ * the manager's polling interval instead of being stuck at mount-time value.
  */
 export const ChatEmptyState: React.FC = () => {
   const { t } = useTranslation('flow-chat');
   const { workspace: currentWorkspace } = useCurrentWorkspace();
-  const [currentBranch, setCurrentBranch] = useState<string>('');
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadGitInfo = async () => {
-      if (!currentWorkspace?.rootPath) {
-        setLoading(false);
-        return;
-      }
+  const scope = currentWorkspace?.id
+    ? { workspaceId: currentWorkspace.id }
+    : { workspaceId: '' };
 
-      try {
-        const status = await gitService.getStatus(currentWorkspace.rootPath);
-        if (status) {
-          setCurrentBranch(status.current_branch || '');
-        }
-      } catch (error) {
-        log.debug('Failed to get Git info', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const { isRepository, currentBranch } = useGitState({
+    repositoryPath: scope,
+    layers: ['basic'],
+    isActive: !!currentWorkspace?.id,
+    refreshOnMount: !!currentWorkspace?.id,
+    refreshOnActive: true,
+    participateInWindowFocusRefresh: true,
+    debugSource: 'chat_empty_state',
+  });
 
-    loadGitInfo();
-  }, [currentWorkspace]);
+  const loading = !!currentWorkspace?.id && !isRepository && !currentBranch;
 
   return (
     <div data-bitfun-component="chat-empty-state" data-bitfun-part="root" data-bitfun-state={loading ? 'loading' : ''} className="fc-chat-empty">
@@ -90,4 +83,3 @@ export const ChatEmptyState: React.FC = () => {
     </div>
   );
 };
-

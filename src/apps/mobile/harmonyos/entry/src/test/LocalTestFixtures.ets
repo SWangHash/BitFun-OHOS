@@ -1,4 +1,5 @@
-import { DurableSessionStream, DurableSessionCallbacks, DurableSessionEvent, DurableSessionSource, SessionKeyGrant } from '../main/ets/services/DurableSessionStream';
+import { WorkspaceCatalog, mergeLegacyWorkspaces } from '../main/ets/services/WorkspaceCatalog';
+import { HostSessionStream, HostSessionCallbacks, HostSessionEvent, HostSessionSource, HostStreamPage } from '../main/ets/services/HostSessionStream';
 import { SessionRecord } from '../main/ets/services/DurableSessionReducer';
 import { SavedRuntimeConnection } from '../main/ets/model/RemoteModels';
 import { describe, it, expect } from '@ohos/hypium';
@@ -123,6 +124,7 @@ import {
   ReadFileChunkResult,
   ReadFileResult,
   RemoteSession,
+  RemoteWorkspaceIdentity,
   SelectedImageAttachment,
   SteerTurnResult,
   SessionListResult,
@@ -169,12 +171,23 @@ export class FakeRemoteWorkspaceDataSource implements RemoteWorkspaceDataSource 
   /** Every path listed, in the order the listings were started. */
   listedPaths: string[] = [];
 
+  async listWorkspaceCatalog(): Promise<WorkspaceCatalog> {
+    const recent = await this.listRecentWorkspaces();
+    return { workspaces: mergeLegacyWorkspaces(recent, await this.listAssistants()), recentWorkspaces: recent, source: 'recent' };
+  }
+
   async listRecentWorkspaces(): Promise<RecentWorkspaceEntry[]> {
     return this.recent;
   }
 
-  async setWorkspace(_path: string): Promise<WorkspaceInfo> {
+  /** The last identified selection, so tests can assert IDs reach the data source. */
+  lastSetWorkspaceId: string | undefined = undefined;
+  lastSetAssistantId: string | undefined = undefined;
+
+  async setWorkspace(_path: string, _connectionId?: string, _sshHost?: string, workspaceId?: string): Promise<WorkspaceInfo> {
+    this.lastSetWorkspaceId = workspaceId;
     return {
+      workspaceId: workspaceId,
       name: 'workspace', path: '/workspace', hasWorkspace: true,
       gitBranch: 'main', workspaceKind: 'normal', assistantId: ''
     };
@@ -184,19 +197,23 @@ export class FakeRemoteWorkspaceDataSource implements RemoteWorkspaceDataSource 
     return [];
   }
 
-  async setAssistant(_path: string): Promise<WorkspaceInfo> {
+  async setAssistant(_path: string, workspaceId?: string): Promise<WorkspaceInfo> {
+    this.lastSetAssistantId = workspaceId;
     return {
+      workspaceId: workspaceId,
       name: 'assistant', path: '/assistant', hasWorkspace: true,
       gitBranch: '', workspaceKind: 'assistant', assistantId: 'assistant'
     };
   }
 
-  async listSessionsForWorkspace(path: string, _limit: number): Promise<RemoteSession[]> {
-    this.listedPaths.push(path);
-    if (this.failingPaths.includes(path)) {
-      throw new Error(`workspace unavailable: ${path}`);
+  /** Rows with an ID are looked up by ID; pre-ID rows by their path. */
+  async listSessionsForWorkspace(workspace: RemoteWorkspaceIdentity, _limit: number): Promise<RemoteSession[]> {
+    const key = workspace.workspaceId ? workspace.workspaceId : workspace.path;
+    this.listedPaths.push(key);
+    if (this.failingPaths.includes(key)) {
+      throw new Error(`workspace unavailable: ${key}`);
     }
-    return this.sessionsByPath.get(path) || [];
+    return this.sessionsByPath.get(key) || [];
   }
 
   async ping(): Promise<void> {
@@ -1366,23 +1383,23 @@ export class FakeGeneralChatConfigStore extends GeneralChatConfigStore {
   }
 }
 
-export class FakeDurableSessionManager extends RemoteSessionManager {
-  callbacks?: DurableSessionCallbacks;
-  subscribeSession(logicalId: string, callbacks: DurableSessionCallbacks): DurableSessionStream {
+export class FakeHostSessionManager extends RemoteSessionManager {
+  callbacks?: HostSessionCallbacks;
+  subscribeSession(logicalId: string, callbacks: HostSessionCallbacks): HostSessionStream {
     this.callbacks = callbacks;
-    const source: DurableSessionSource = {
-      grant: () => new Promise<SessionKeyGrant>(() => {}),
-      read: async () => ({ messages: [], hasMore: false }),
-      decrypt: async (): Promise<DurableSessionEvent> => { throw new Error('Unexpected decrypt in lifecycle fixture'); },
-      onUpdate: () => () => {}, onReconnect: () => () => {}
+    const source: HostSessionSource = {
+      target: 'fixture-host',
+      read: () => new Promise<HostStreamPage>(() => {}),
+      unsubscribe: async (): Promise<void> => {},
+      onHint: () => () => {}, onReconnect: () => () => {}
     };
-    return new DurableSessionStream(logicalId, source, callbacks);
+    return new HostSessionStream(logicalId, source, callbacks);
   }
-  async emit(event: DurableSessionEvent): Promise<void> {
+  async emit(event: HostSessionEvent): Promise<void> {
     await this.callbacks?.onEvent(event); await this.callbacks?.onCaughtUp();
   }
 }
-export function durableRecord(sessionId: string, revision: number, text: string, status: string = 'inprogress'): DurableSessionEvent {
+export function hostRecord(sessionId: string, revision: number, text: string, status: string = 'inprogress'): HostSessionEvent {
   const record: SessionRecord = { sessionId: sessionId, id: 'item/text', revision: revision,
     turn: { sessionId: sessionId, turnId: 'turn', turnIndex: 0, timestamp: 1,
       userMessage: { id: 'user', content: 'question', timestamp: 1 }, status: status },

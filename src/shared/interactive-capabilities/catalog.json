@@ -195,6 +195,9 @@
     "runtimeLifecycle": [
       "ensure_assistant_bootstrap",
       "ensure_coordinator_session",
+      "ensure_control_conversation",
+      "create_control_conversation",
+      "record_voice_exchange",
       "initialize_ai",
       "initialize_mcp_servers",
       "initialize_mcp_servers_non_destructive",
@@ -4387,16 +4390,18 @@
         },
         {
           "id": "devices",
-          "titleZh": "列出、连接、查看在线状态和删除同账户设备",
-          "titleEn": "List, connect, inspect online status, and remove same-account devices",
+          "titleZh": "列出、连接、查看设备型号与系统、设置别名和删除同账户设备",
+          "titleEn": "List, connect, inspect model and OS, set aliases, and remove same-account devices",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“列出、连接、查看在线状态和删除同账户设备”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“List, connect, inspect online status, and remove same-account devices” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“列出、连接、查看设备型号与系统、设置别名和删除同账户设备”需要选择设备并确认操作。设备目录使用控制端的账户身份，不随 Peer Device 切换到目标主机。别名优先于技术名称显示，但不修改技术名称；型号与系统信息由设备自身上报。仅支持对应能力的 Relay 可更新或清除别名，旧 Relay 明确显示不支持。智能体打开设备管理入口，由用户确认后续交互。",
+            "reasonEn": "“List, connect, inspect model and OS, set aliases, and remove same-account devices” requires device selection and confirmation. The device directory uses the controller's account identity, not the selected Peer host. Aliases take display priority without changing technical names; model and OS metadata come from the device itself. Alias updates and clearing require Relay capability support; older Relays explicitly remain unsupported. The Agent opens device management and leaves subsequent interaction to the user."
           },
           "evidence": [
             "command:account_list_devices",
+            "command:account_relay_capabilities",
+            "command:account_update_device_alias",
             "command:account_connect_devices",
             "command:account_online_devices",
             "command:account_delete_device",

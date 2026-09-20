@@ -1,3 +1,5 @@
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { workspaceHistoryRequest, workspaceIdRequest } from './legacyWorkspaceCompatibility';
 import { translateAgentIdentityFields } from '../../../../../shared/agent-harness/wire';
  
 
@@ -98,6 +100,8 @@ export interface StartDialogTurnRequest {
   execution?: AgentDialogTurnExecution;
   agentType: string; 
   /** Concrete root where this session executes. */
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   /** Stable project root used to locate persistence for worktree sessions. */
   projectWorkspacePath?: string;
@@ -163,6 +167,7 @@ export interface PendingUserQuestion {
   modelRoundId?: string;
   questions: unknown;
   registeredAtMs: number;
+  interactionStarted?: boolean;
 }
 
 export interface PendingUserQuestionSnapshot {
@@ -231,6 +236,8 @@ export type PermissionRequestEvent =
 
 export interface CompactSessionRequest {
   sessionId: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -259,6 +266,8 @@ export type SessionMemoryMode = 'enabled' | 'disabled' | 'polluted';
 export interface SetSessionMemoryModeRequest {
   sessionId: string;
   mode: Exclude<SessionMemoryMode, 'polluted'>;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -326,6 +335,8 @@ export interface RestoreSessionViewResponse {
 
 export interface LoadSessionTurnWindowRequest {
   sessionId: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath: string;
   includeInternal?: boolean;
   targetStorageTurnIndex: number;
@@ -357,15 +368,11 @@ export type LoadSessionTurnWindowResponse =
     };
 
 export interface RollbackSessionToTurnRequest {
-  workspacePath: string;
-  workspaceId?: string;
-  workspaceHostname?: string;
+  workspaceId: string;
   sessionId: string;
   targetTurnId: string;
   expectedStorageTurnIndex?: number;
   expectedCatalogRevision?: string;
-  remoteConnectionId?: string;
-  remoteSshHost?: string;
 }
 
 export type RollbackSessionToTurnOutcome =
@@ -410,11 +417,15 @@ type RollbackSessionToTurnWireOutcome =
 
 export interface EnsureAssistantBootstrapRequest {
   sessionId: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath: string;
 }
 
 export interface RunInitAgentsMdRequest {
   sessionId: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -441,6 +452,8 @@ export interface UpdateSessionModelRequest {
   sessionId: string;
   modelName: string;
   reasoningPreset?: string | null;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -456,6 +469,8 @@ export interface SessionPermissionModeRequest {
   mode?: SessionPermissionMode | null;
   /** Exact active turn whose temporary override should be read or cleared. */
   turnId?: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -475,6 +490,8 @@ export interface ActiveTurnPermissionModeRequest extends SessionPermissionModeRe
 export interface UpdateSessionModeRequest {
   sessionId: string;
   modeId: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -491,6 +508,8 @@ export interface AgentContextReloadRequest {
 export interface UpdateSessionTitleRequest {
   sessionId: string;
   title: string;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -602,6 +621,8 @@ export interface RecoverInterruptedDialogTurnRequest {
   sessionId: string;
   dialogTurnId: string;
   executionGeneration: number;
+  /** Workspace identity; authoritative when present. Paths below are IO projections. */
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -823,6 +844,8 @@ export class AgentAPI {
   async activateSessionGoal(request: {
     sessionId: string;
     userHint?: string;
+    /** Workspace identity; authoritative when present. Paths below are IO projections. */
+    workspaceId?: string;
     workspacePath?: string;
     remoteConnectionId?: string;
     remoteSshHost?: string;
@@ -849,6 +872,8 @@ export class AgentAPI {
 
   async getSessionThreadGoal(request: {
     sessionId: string;
+    /** Workspace identity; authoritative when present. Paths below are IO projections. */
+    workspaceId?: string;
     workspacePath?: string;
     remoteConnectionId?: string;
     remoteSshHost?: string;
@@ -874,6 +899,8 @@ export class AgentAPI {
 
   async clearSessionThreadGoal(request: {
     sessionId: string;
+    /** Workspace identity; authoritative when present. Paths below are IO projections. */
+    workspaceId?: string;
     workspacePath?: string;
     remoteConnectionId?: string;
     remoteSshHost?: string;
@@ -888,6 +915,8 @@ export class AgentAPI {
   async setSessionThreadGoalStatus(request: {
     sessionId: string;
     status: string;
+    /** Workspace identity; authoritative when present. Paths below are IO projections. */
+    workspaceId?: string;
     workspacePath?: string;
     remoteConnectionId?: string;
     remoteSshHost?: string;
@@ -912,6 +941,8 @@ export class AgentAPI {
   async updateSessionThreadGoalObjective(request: {
     sessionId: string;
     objective: string;
+    /** Workspace identity; authoritative when present. Paths below are IO projections. */
+    workspaceId?: string;
     workspacePath?: string;
     remoteConnectionId?: string;
     remoteSshHost?: string;
@@ -1026,65 +1057,61 @@ export class AgentAPI {
    
   async deleteSession(
     sessionId: string,
-    workspacePath: string,
-    remoteConnectionId?: string,
-    remoteSshHost?: string
+    workspaceId: string
   ): Promise<void> {
     try {
       await api.invoke<void>('delete_session', { 
-        request: { sessionId, workspacePath, remoteConnectionId, remoteSshHost } 
+        request: { sessionId, ...await workspaceIdRequest(workspaceId, 'workspacePath') }
       });
     } catch (error) {
-      throw createTauriCommandError('delete_session', error, { sessionId, workspacePath });
+      throw createTauriCommandError('delete_session', error, { sessionId, workspaceId });
     }
   }
 
    
   async restoreSession(
     sessionId: string,
-    workspacePath: string,
-    remoteConnectionId?: string,
-    remoteSshHost?: string,
+    workspaceId: string,
     traceId?: string,
     includeInternal?: boolean,
   ): Promise<SessionInfo> {
+    const scope = getActiveSurfaceScope();
     try {
+      const workspace = await workspaceIdRequest(workspaceId, 'workspacePath');
+      scope.assertCurrent();
       return await api.invoke<SessionInfo>('restore_session', {
         request: {
           sessionId,
-          workspacePath,
-          remoteConnectionId,
-          remoteSshHost,
+          ...workspace,
           traceId,
           includeInternal,
         },
       });
     } catch (error) {
-      throw createTauriCommandError('restore_session', error, { sessionId, workspacePath });
+      throw createTauriCommandError('restore_session', error, { sessionId, workspaceId });
     }
   }
 
   async restoreSessionWithTurns(
     sessionId: string,
-    workspacePath: string,
-    remoteConnectionId?: string,
-    remoteSshHost?: string,
+    workspaceId: string,
     traceId?: string,
     includeInternal?: boolean,
   ): Promise<RestoreSessionWithTurnsResponse> {
+    const scope = getActiveSurfaceScope();
     try {
+      const workspace = await workspaceIdRequest(workspaceId, 'workspacePath');
+      scope.assertCurrent();
       return await api.invoke<RestoreSessionWithTurnsResponse>('restore_session_with_turns', {
         request: {
           sessionId,
-          workspacePath,
-          remoteConnectionId,
-          remoteSshHost,
+          ...workspace,
           traceId,
           includeInternal,
         },
       });
     } catch (error) {
-      throw createTauriCommandError('restore_session_with_turns', error, { sessionId, workspacePath });
+      throw createTauriCommandError('restore_session_with_turns', error, { sessionId, workspaceId });
     }
   }
 
@@ -1094,27 +1121,26 @@ export class AgentAPI {
 
   async restoreSessionView(
     sessionId: string,
-    workspacePath: string,
-    remoteConnectionId?: string,
-    remoteSshHost?: string,
+    workspaceId: string,
     traceId?: string,
     includeInternal?: boolean,
     tailTurnCount?: number,
   ): Promise<RestoreSessionViewResponse> {
+    const scope = getActiveSurfaceScope();
     try {
+      const workspace = await workspaceIdRequest(workspaceId, 'workspacePath');
+      scope.assertCurrent();
       return await api.invoke<RestoreSessionViewResponse>('restore_session_view', {
         request: {
           sessionId,
-          workspacePath,
-          remoteConnectionId,
-          remoteSshHost,
+          ...workspace,
           traceId,
           includeInternal,
           ...(tailTurnCount !== undefined ? { tailTurnCount } : {}),
         },
       });
     } catch (error) {
-      throw createTauriCommandError('restore_session_view', error, { sessionId, workspacePath });
+      throw createTauriCommandError('restore_session_view', error, { sessionId, workspaceId });
     }
   }
 
@@ -1156,8 +1182,9 @@ export class AgentAPI {
     request: RollbackSessionToTurnRequest,
   ): Promise<RollbackSessionToTurnOutcome> {
     try {
+      const { workspaceId, ...mutation } = request;
       const outcome = await api.invoke<RollbackSessionToTurnWireOutcome>('rollback_session_to_turn', {
-        request,
+        request: { ...mutation, ...await workspaceHistoryRequest(workspaceId) },
       });
       if (outcome.status === 'completed') {
         return {
@@ -1208,17 +1235,19 @@ export class AgentAPI {
 
   /**
    * No-op if the session is already in the coordinator; otherwise loads it from disk
-   * using the same workspace path resolution as restore_session (required for SSH remote workspaces).
+   * using the owning workspace ID, as restore_session does.
    */
   async ensureCoordinatorSession(request: {
     sessionId: string;
-    workspacePath: string;
-    remoteConnectionId?: string;
-    remoteSshHost?: string;
+    workspaceId: string;
     includeInternal?: boolean;
   }): Promise<void> {
+    const scope = getActiveSurfaceScope();
     try {
-      await api.invoke<void>('ensure_coordinator_session', { request });
+      const { workspaceId, ...session } = request;
+      const workspace = await workspaceIdRequest(workspaceId, 'workspacePath');
+      scope.assertCurrent();
+      await api.invoke<void>('ensure_coordinator_session', { request: { ...session, ...workspace } });
     } catch (error) {
       throw createTauriCommandError('ensure_coordinator_session', error, request);
     }
@@ -1306,17 +1335,14 @@ export class AgentAPI {
 
 
    
-  async listSessions(
-    workspacePath: string,
-    remoteConnectionId?: string,
-    remoteSshHost?: string
-  ): Promise<SessionInfo[]> {
+  async listSessions(workspaceId: string): Promise<SessionInfo[]> {
+    const scope = getActiveSurfaceScope();
     try {
-      return await api.invoke<SessionInfo[]>('list_sessions', {
-        request: { workspacePath, remoteConnectionId, remoteSshHost },
-      });
+      const request = await workspaceIdRequest(workspaceId, 'workspacePath');
+      scope.assertCurrent();
+      return await api.invoke<SessionInfo[]>('list_sessions', { request });
     } catch (error) {
-      throw createTauriCommandError('list_sessions', error, { workspacePath });
+      throw createTauriCommandError('list_sessions', error, { workspaceId });
     }
   }
 
@@ -1698,13 +1724,11 @@ export class AgentAPI {
   
 
    
-  async getAvailableModes(request: {
-    workspacePath?: string;
-    remoteConnectionId?: string;
-    remoteSshHost?: string;
-  } = {}): Promise<ModeInfo[]> {
+  async getAvailableModes(request: { workspaceId?: string } = {}): Promise<ModeInfo[]> {
     try {
-      return translateAgentIdentityFields(await api.invoke<ModeInfo[]>('get_available_modes', { request }), 'canonical');
+      if (request.workspaceId !== undefined && !request.workspaceId.trim()) throw new Error('Workspace identity is unresolved');
+      const wire = request.workspaceId !== undefined ? await workspaceIdRequest(request.workspaceId, 'workspacePath') : {};
+      return translateAgentIdentityFields(await api.invoke<ModeInfo[]>('get_available_modes', { request: wire }), 'canonical');
     } catch (error) {
       throw createTauriCommandError('get_available_modes', error);
     }

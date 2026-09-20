@@ -1,3 +1,4 @@
+import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
 /**
  * Unified Git state consumer hook
  * 
@@ -28,7 +29,7 @@
  * ```
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { gitStateManager } from '../state/GitStateManager';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import {
@@ -38,6 +39,7 @@ import {
   RefreshOptions,
 } from '../state/types';
 import type { GitBranch, GitCommit } from '../types/repository';
+import { useStableGitWorkspaceScope } from './useStableGitWorkspaceScope';
 
 const DEFAULT_CANCEL_PENDING_REFRESH_SOURCES: readonly string[] = [];
 
@@ -64,13 +66,10 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
     layers,
   } = options;
 
-  const normalizedPath = useMemo(
-    () => repositoryPath.replace(/\\/g, '/'),
-    [repositoryPath]
-  );
+  const normalizedPath = useStableGitWorkspaceScope(repositoryPath);
 
   const [state, setState] = useState<GitState | null>(() =>
-    gitStateManager.getState(normalizedPath)
+    normalizedPath.workspaceId ? gitStateManager.getState(normalizedPath) : null
   );
 
   const prevActiveRef = useRef(isActive);
@@ -88,7 +87,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
   }, [layers]);
 
   useEffect(() => {
-    if (!normalizedPath) return;
+    if (!normalizedPath.workspaceId) return;
 
     mountedRef.current = true;
 
@@ -124,7 +123,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
   const isFirstMountRef = useRef(true);
 
   useEffect(() => {
-    if (!normalizedPath || !isActive || !participateInWindowFocusRefresh) {
+    if (!normalizedPath.workspaceId || !isActive || !participateInWindowFocusRefresh) {
       return;
     }
 
@@ -132,7 +131,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
   }, [isActive, normalizedPath, participateInWindowFocusRefresh]);
 
   useEffect(() => {
-    if (!normalizedPath || !isActive) {
+    if (!normalizedPath.workspaceId || !isActive) {
       return;
     }
 
@@ -177,7 +176,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
   ]);
 
   useEffect(() => {
-    if (!normalizedPath) return;
+    if (!normalizedPath.workspaceId) return;
 
     const isFirstMount = isFirstMountRef.current;
     isFirstMountRef.current = false;
@@ -208,7 +207,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
 
   const refresh = useCallback(
     async (options?: RefreshOptions): Promise<void> => {
-      if (!normalizedPath) return;
+      if (!normalizedPath.workspaceId) return;
       return gitStateManager.refresh(normalizedPath, {
         ...options,
         layers: options?.layers || layersRef.current || ['basic', 'status'],
@@ -218,7 +217,11 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
   );
 
   const refreshBasic = useCallback(async (): Promise<void> => {
-    return refresh({ layers: ['basic'] });
+    // Force because the basic layer uses an infinite TTL by default, so a
+    // non-forced refresh would be a silent no-op when the caller explicitly
+    // asked to re-read the current branch (e.g. after a worktree-path
+    // change). The status/detailed caches are left untouched.
+    return refresh({ layers: ['basic'], force: true });
   }, [refresh]);
 
   const refreshStatus = useCallback(async (): Promise<void> => {
@@ -259,7 +262,7 @@ export function useGitState(options: UseGitStateOptions): UseGitStateReturn {
  * Suitable for scenarios like BottomBar that only need branch name
  */
 export function useGitBasicInfo(
-  repositoryPath: string,
+  repositoryPath: GitWorkspaceScope,
   options: GitBasicInfoOptions = {}
 ) {
   return useGitState({
@@ -278,7 +281,7 @@ export function useGitBasicInfo(
  * Hook for file status only
  */
 export function useGitFileStatus(
-  repositoryPath: string,
+  repositoryPath: GitWorkspaceScope,
   options: { isActive?: boolean } = {}
 ) {
   return useGitState({
@@ -292,7 +295,7 @@ export function useGitFileStatus(
 }
 
 /** Hook for branch list. */
-export function useGitBranches(repositoryPath: string): {
+export function useGitBranches(repositoryPath: GitWorkspaceScope): {
   branches: GitBranch[] | undefined;
   currentBranch: string | null;
   isLoading: boolean;
@@ -316,7 +319,7 @@ export function useGitBranches(repositoryPath: string): {
 /**
  * Hook for commit history
  */
-export function useGitCommits(repositoryPath: string): {
+export function useGitCommits(repositoryPath: GitWorkspaceScope): {
   commits: GitCommit[] | undefined;
   isLoading: boolean;
   refresh: () => Promise<void>;

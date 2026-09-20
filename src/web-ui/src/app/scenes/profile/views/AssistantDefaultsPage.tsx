@@ -694,7 +694,7 @@ const AssistantDefaultsPage: React.FC = () => {
   const renderEmptyState = (message: string) => (
     <div data-bitfun-component="assistant-defaults-page" data-bitfun-part="empty">
       <Empty
-        icon={<Icon name="search" size="lg" />}
+        icon={<Icon name="search" />}
         description={message}
         actions={(searchQuery || statusFilter !== 'all') ? (
           <Button

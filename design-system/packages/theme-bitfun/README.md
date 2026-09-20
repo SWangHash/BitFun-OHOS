@@ -55,6 +55,13 @@ IconButton, and other controls. Dark and high-contrast mappings retain their
 mode-specific feedback and outline contrast. Color entries remain editable in
 Design Lab's Colors catalog; Button geometry is independent of this palette.
 
+`component.empty.media` owns the low-emphasis color for decorative Empty
+artwork. It resolves to an opaque neutral in every mode because Lucide icons can
+contain overlapping paths; reusing translucent disabled-content colors would
+make those intersections visibly darker. The color matches muted content at 35%
+over the tertiary empty-state surface, while `layout.empty.*` owns the reference
+10px rhythm, 32/16px padding, and 24/32/40px media sizes.
+
 The default Web UI appearances consume these published component values.
 Branded presets and imported appearances may still supply the existing action
 tokens: the Web UI inherits explicit old values only when the corresponding
@@ -80,6 +87,6 @@ menu labels to secondary text (60%). Explicit imported action colors still win.
 
 Action cards own `color.actionCard.background`: the light entry surface is black at 3% opacity. `surface.subtle` is a transient navy tint and `field.groupBackground` belongs to form groups, so neither represents this persistent action surface. Other modes retain their neutral action surface. Product Appearance preserves explicit legacy neutral-surface overrides in root and chrome.
 
-Compact indicators own `color.numberBadge.background` and `color.keyHint.content` so reference light values (8% fill and 60% text) can coexist with existing dark/contrast values and explicit legacy Appearance overrides. The light Switch off track and resting scrollbar thumb use 10% black; KeyHint and Launcher resting fills use 8%. Long status labels keep content colors; StatusPill emphasis is opt-in.
+Compact indicators own `color.numberBadge.background` and `color.keyHint.content` so reference light values (8% fill and 60% text) can coexist with existing dark/contrast values and explicit legacy Appearance overrides. The light Switch off track uses 10% black; scrollbar thumbs use 20% at rest and 30% on hover so their state change stays visible without a harsh contrast jump. KeyHint and Launcher resting fills use 8%. Long status labels keep content colors; StatusPill emphasis is opt-in.
 
 `color.composer.border` and `color.composer.contextBackground` are the shared editor-surface contract for Composer and ChatComposer. Reference light uses an 8% border and 3% context tint; persistent entry cards and form groups keep their separate owners. Legacy explicit field-border and subtle-surface overrides populate the new keys only when absent. Composer shadow uses a 12px CSS box-shadow blur (the Figma effect radius; its generated filter drop-shadow uses a 6px standard deviation).

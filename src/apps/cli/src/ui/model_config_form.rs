@@ -71,7 +71,7 @@ impl ModelFormResult {
             base_url: model.base_url,
             api_key: String::new(),
             provider_format: model.provider,
-            context_window: model.context_window.unwrap_or(128_000),
+            context_window: model.context_window.unwrap_or(300_000),
             max_tokens: model.max_tokens.unwrap_or(8_192),
             reasoning_preset_options: projection.reasoning_preset_options,
             reasoning: projection.reasoning,
@@ -202,7 +202,7 @@ impl ModelConfigFormState {
             base_url: String::new(),
             api_key: String::new(),
             provider_format_index: 0,
-            context_window: "128000".into(),
+            context_window: "300000".into(),
             max_tokens: "8192".into(),
             reasoning_preset_options: Vec::new(),
             reasoning_preset_index: 0,
@@ -233,7 +233,7 @@ impl ModelConfigFormState {
         self.base_url = "https://".into();
         self.api_key.clear();
         self.provider_format_index = 0;
-        self.context_window = "128000".into();
+        self.context_window = "300000".into();
         self.max_tokens = "8192".into();
         self.reasoning_preset_options.clear();
         self.reasoning_preset_index = 0;
@@ -273,7 +273,7 @@ impl ModelConfigFormState {
             .iter()
             .position(|&f| f == format)
             .unwrap_or(0);
-        self.context_window = "128000".into();
+        self.context_window = "300000".into();
         self.max_tokens = "8192".into();
         self.reasoning_preset_options.clear();
         self.reasoning_preset_index = 0;
@@ -559,7 +559,7 @@ impl ModelConfigFormState {
             base_url: self.base_url.trim().to_string(),
             api_key: self.api_key.trim().to_string(),
             provider_format: PROVIDER_FORMATS[self.provider_format_index].to_string(),
-            context_window: self.context_window.trim().parse().unwrap_or(128000),
+            context_window: self.context_window.trim().parse().unwrap_or(300_000),
             max_tokens: self.max_tokens.trim().parse().unwrap_or(8192),
             reasoning_preset_options: self.reasoning_preset_options.clone(),
             reasoning,
@@ -1237,7 +1237,7 @@ impl ModelConfigFormState {
             }
             FormField::ApiKey => "Enter your API key",
             FormField::ProviderFormat => "",
-            FormField::ContextWindow => "128000",
+            FormField::ContextWindow => "300000",
             FormField::MaxTokens => "8192",
             FormField::DefaultReasoningPreset => "",
             FormField::SkipSslVerify => "",

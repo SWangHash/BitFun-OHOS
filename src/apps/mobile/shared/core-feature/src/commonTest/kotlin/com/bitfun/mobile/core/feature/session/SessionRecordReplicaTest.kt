@@ -24,6 +24,35 @@ class SessionRecordReplicaTest {
         assertEquals("hello world", messages[1].text)
         assertEquals("completed", messages[1].status)
     }
+    @Test fun turnRecordUserMessageOutlivesTheHeadersItsChildrenRepeat() {
+        val replica = SessionRecordReplica("s")
+        replica.apply(buildJsonObject {
+            put("sessionId", "s"); put("id", "turn/t"); put("revision", 1)
+            put("turn", buildJsonObject {
+                put("sessionId", "s"); put("turnId", "t"); put("turnIndex", 0); put("status", "inprogress")
+                put("userMessage", buildJsonObject {
+                    put("id", "u"); put("content", "look at this"); put("timestamp", 1)
+                    put("metadata", buildJsonObject {
+                        put("images", buildJsonArray {
+                            add(buildJsonObject { put("name", "shot.png"); put("data_url", "data:image/png;base64,AA") })
+                            add(buildJsonObject { put("name", "unreachable.png"); put("image_path", "/Users/dev/gone.png") })
+                        })
+                    })
+                })
+            })
+        })
+        // Attachments are drawn from the pixels recorded with the turn; one that
+        // kept only a host path has none to hand a client that cannot reach it.
+        assertEquals(listOf("shot.png"), replica.messages()[0].images.orEmpty().map { it.name })
+
+        // A round or item record repeats the turn as a parent header, without
+        // those pixels. It must not replace the turn record it descends from.
+        replica.apply(record(5, "inprogress", "on it"))
+        val messages = replica.messages()
+        assertEquals("look at this", messages[0].text)
+        assertEquals(listOf("data:image/png;base64,AA"), messages[0].images.orEmpty().map { it.dataUrl })
+        assertEquals("on it", messages[1].text)
+    }
     @Test fun tombstonesPreventOldReplayResurrection() {
         val replica = SessionRecordReplica("s")
         replica.apply(record(3, "completed", "final"))
@@ -33,6 +62,79 @@ class SessionRecordReplicaTest {
         replica.apply(record(5, "completed", "restored"))
         assertEquals("restored", replica.messages()[1].text)
     }
+    @Test fun restoringParentHeaderDoesNotResurrectChildrenBeforeDeletion() {
+        for (parent in listOf("turn/t", "round/r")) {
+            val replica = SessionRecordReplica("s")
+            replica.apply(record(1, "inprogress", "deleted content"))
+            replica.apply(buildJsonObject {
+                put("sessionId", "s"); put("id", parent); put("revision", 10); put("deleted", true)
+            })
+            val source = record(11, "inprogress", "")
+            replica.apply(JsonObject((source - "item" - "round") + ("id" to JsonPrimitive("turn/t"))))
+            assertEquals("", replica.messages()[1].text)
+            val child = record(12, "inprogress", "new child")
+            val item = child.getValue("item").jsonObject
+            val data = item.getValue("data").jsonObject
+            replica.apply(JsonObject(child + mapOf(
+                "id" to JsonPrimitive("item/new"),
+                "item" to JsonObject(item + ("data" to JsonObject(data + ("id" to JsonPrimitive("new")))))
+            )))
+            assertEquals("new child", replica.messages()[1].text)
+        }
+    }
+
+    @Test fun retrySupersededItemsAreNotPresented() {
+        for (kind in listOf("text", "thinking", "tool")) {
+            for (status in listOf("superseded", "retry_superseded")) {
+                val replica = SessionRecordReplica("s")
+                val source = record(1, "inprogress", "obsolete")
+                val item = source.getValue("item").jsonObject
+                val data = item.getValue("data").jsonObject
+                replica.apply(JsonObject(source + ("item" to JsonObject(item + mapOf(
+                    "type" to JsonPrimitive(kind),
+                    "data" to JsonObject(data + ("status" to JsonPrimitive(status)))
+                )))))
+                val assistant = replica.messages()[1]
+                assertTrue(assistant.items.orEmpty().isEmpty(), "$kind/$status must not reach presentation")
+                assertEquals("", assistant.text)
+                assertTrue(assistant.tools.orEmpty().isEmpty())
+            }
+        }
+    }
+
+    @Test fun subagentSessionIdentityMarksItemsWithoutLegacyBoolean() {
+        val replica = SessionRecordReplica("s")
+        val source = record(1, "inprogress", "child output")
+        val item = source.getValue("item").jsonObject
+        val data = item.getValue("data").jsonObject
+        replica.apply(JsonObject(source + ("item" to JsonObject(item +
+            ("data" to JsonObject(data + ("subagentSessionId" to JsonPrimitive("child-session"))))))))
+        assertEquals(true, replica.messages()[1].items.orEmpty().single().isSubagent)
+        assertEquals("", replica.messages()[1].text, "Child output must not leak through the aggregate text fallback")
+    }
+
+    @Test fun toolRecordUsesCallIdentityAndResultStatusWhenLegacyStatusIsMissing() {
+        for ((success, expected) in listOf(true to "completed", false to "failed")) {
+            val replica = SessionRecordReplica("s")
+            val source = record(1, "inprogress", "")
+            val data = buildJsonObject {
+                put("id", "i"); put("toolName", "Read"); put("startTime", 123)
+                put("toolCall", buildJsonObject { put("id", "call-id"); put("input", buildJsonObject { put("path", "/test") }) })
+                put("toolResult", buildJsonObject { put("success", success); put("result", "output"); put("durationMs", 9) })
+            }
+            replica.apply(JsonObject(source + ("item" to buildJsonObject { put("type", "tool"); put("data", data) })))
+            val tool = replica.messages()[1].tools.orEmpty().single()
+            assertEquals("call-id", tool.id)
+            assertEquals(expected, tool.status)
+            assertEquals(123L, tool.startMs)
+            assertEquals(9L, tool.durationMs)
+            val zero = JsonObject(source + mapOf("revision" to JsonPrimitive(2),
+                "item" to buildJsonObject { put("type", "tool"); put("data", JsonObject(data + ("durationMs" to JsonPrimitive(0)))) }))
+            replica.apply(zero)
+            assertEquals(0L, replica.messages()[1].tools.orEmpty().single().durationMs)
+        }
+    }
+
     @Test fun pendingApprovalIsASeparateControlOverlayAndCompletionClearsIt() {
         val replica = SessionRecordReplica("s")
         replica.apply(record(1, "inprogress", "working"))
@@ -43,6 +145,33 @@ class SessionRecordReplicaTest {
         replica.apply(record(2, "completed", "done"))
         assertTrue(replica.messages()[1].tools.orEmpty().isEmpty())
     }
+    @Test fun rejectedRoundBindingDoesNotMutateOrConsumeRevision() {
+        val replica = SessionRecordReplica("s")
+        replica.apply(record(1, "inprogress", "working"))
+        val before = replica.messages()
+        val valid = record(2, "completed", "done")
+        val invalid = JsonObject(valid + ("round" to JsonObject(valid.getValue("round").jsonObject +
+            ("turnId" to JsonPrimitive("foreign-turn")))))
+        assertFails { replica.apply(invalid) }
+        assertEquals(before, replica.messages(), "Rejected records must not partially update the turn")
+        replica.apply(valid)
+        assertEquals("done", replica.messages()[1].text)
+        assertEquals("completed", replica.messages()[1].status)
+    }
+
+    @Test fun rejectedItemParentDoesNotMutateOrConsumeRevision() {
+        val replica = SessionRecordReplica("s")
+        replica.apply(record(1, "inprogress", "working"))
+        val before = replica.messages()
+        val valid = record(2, "completed", "done")
+        val invalid = JsonObject(valid + ("round" to JsonObject(valid.getValue("round").jsonObject +
+            ("id" to JsonPrimitive("other-round")))))
+        assertFails { replica.apply(invalid) }
+        assertEquals(before, replica.messages())
+        replica.apply(valid)
+        assertEquals("done", replica.messages()[1].text)
+    }
+
     @Test fun rejectsForeignSessionBinding() {
         val replica = SessionRecordReplica("other")
         assertFails { replica.apply(record(1, "running", "private")) }

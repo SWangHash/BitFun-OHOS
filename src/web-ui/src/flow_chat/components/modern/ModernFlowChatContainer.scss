@@ -1,6 +1,7 @@
 /**
  * Modern FlowChat container styles.
  */
+@use '../../transcript-layout' as transcriptLayout;
 
 .modern-flowchat-container.flow-chat-typography {
   font-family:var(--bitfun-type-body-sm-font-family);
@@ -19,6 +20,8 @@
   position: relative; // Positioning context for the permission panel and overlays.
 
   &__messages {
+    @include transcriptLayout.viewport;
+
     // Header and messages stack vertically; messages take the remaining space.
     position: relative;
     flex: 1 1 auto;

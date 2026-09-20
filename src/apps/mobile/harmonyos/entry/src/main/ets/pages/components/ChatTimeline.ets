@@ -1,3 +1,4 @@
+import { InteractionMailboxState } from '../../model/InteractionMailbox';
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import {
   ConversationUiMessage,
@@ -33,6 +34,7 @@ import { RemoteLogger } from '../../services/RemoteLogger';
 @ReusableV2
 @ComponentV2
 struct ChatAssistantTimelineRow {
+  @Param interactionMailbox: InteractionMailboxState = new InteractionMailboxState();
   @Param row: ObservableChatTimelineItem = new ObservableChatTimelineItem({
     id: '',
     type: 'empty_state',
@@ -78,6 +80,7 @@ struct ChatAssistantTimelineRow {
     // can be thawed before its retained @Local state has been synchronized,
     // and omitting the child at that point leaves a permanently hollow row.
     ChatMessageBubble({
+      interactionMailbox: this.interactionMailbox,
       item: this.uiMessage,
       renderRevision: this.renderRevision,
       isStreaming: this.row.isStreaming,
@@ -110,6 +113,7 @@ struct ChatAssistantTimelineRow {
 
 @ComponentV2
 export struct ChatTimeline {
+  @Param interactionMailbox: InteractionMailboxState = new InteractionMailboxState();
   private readonly listScroller: Scroller = new Scroller();
   private followTimerId: number = 0;
   private followedActiveTurnKey: string = '';
@@ -123,6 +127,8 @@ export struct ChatTimeline {
   @Param timelineItems: ObservableChatTimelineItem[] = [];
   @Param timelineRevision: number = 0;
   @Param hasMoreMessages: boolean = false;
+  @Param historyLoading: boolean = false;
+  @Param historyFailed: boolean = false;
   @Param isBusy: boolean = false;
   @Param connectionState: string = 'connected';
   @Param statusText: string = '';
@@ -132,6 +138,13 @@ export struct ChatTimeline {
   @Param activeFilePreviewPath: string = '';
   @Param activeFilePreviewLoading: boolean = false;
   @Param maxContentWidth: number = 0;
+  /**
+   * How much of the pane the floating header and composer cover. The list runs
+   * the full height behind them, so without these the first and last messages
+   * would sit under a capsule and never come out from under it.
+   */
+  @Param topInset: number = 0;
+  @Param bottomInset: number = 0;
   @Event onLoadOlder: () => void = () => {};
   @Event onApproveTool: (toolId: string, updatedInput?: Object) => void =
     (_toolId: string, _updatedInput?: Object) => {};
@@ -181,14 +194,14 @@ export struct ChatTimeline {
       List({ space: MobileDesignGeometry.messageSpacing, scroller: this.listScroller }) {
         if (this.hasMoreMessages) {
           ListItem() {
-            Text(this.isBusy ? RemoteI18n.t('common.loading') : RemoteI18n.t('chat.loadOlder'))
+            Text(this.historyLoading ? RemoteI18n.t('common.loading') : RemoteI18n.t(this.historyFailed ? 'chat.loadOlderFailed' : 'chat.loadOlder'))
               .fontSize(MobileDesignTypography.bodySmall.size)
               .fontColor(MUTED)
               .textAlign(TextAlign.Center)
               .width('100%')
               .padding({ top: 10, bottom: 10 })
               .onClick(() => {
-                this.onLoadOlder();
+                if (!this.historyLoading) this.onLoadOlder();
               })
           }
         }
@@ -218,6 +231,7 @@ export struct ChatTimeline {
                   .reuse({ reuseId: () => 'chat_user' })
                 } else {
                   ChatAssistantTimelineRow({
+                    interactionMailbox: this.interactionMailbox,
                     row: repeatItem.item,
                     renderRevision: this.timelineRevision,
                     isBusy: this.isBusy,
@@ -272,6 +286,7 @@ export struct ChatTimeline {
           if (item.message) {
             ListItem() {
               ChatAssistantTimelineRow({
+                interactionMailbox: this.interactionMailbox,
                 row: item,
                 renderRevision: this.timelineRevision,
                 isBusy: this.isBusy,
@@ -308,9 +323,15 @@ export struct ChatTimeline {
       .padding({
         left: MobileDesignGeometry.contentGutter,
         right: MobileDesignGeometry.contentGutter,
-        top: 0,
-        bottom: 12
+        bottom: this.bottomInset > 0 ? 0 : 12
       })
+      // Content offsets, not padding: padding shrinks the viewport, so the
+      // transcript would stop at the floating header and composer instead of
+      // running underneath them. These reserve the space at rest and still let
+      // the content scroll through — ArkUI's equivalent of Compose's
+      // contentPadding and SwiftUI's safeAreaInset.
+      .contentStartOffset(this.topInset)
+      .contentEndOffset(this.bottomInset)
       // A streaming reply grows in place rather than arriving as a new item, so
       // the bottom of the list has to be the anchor — otherwise the text the
       // agent is writing right now renders below the fold and never comes back.
@@ -346,7 +367,8 @@ export struct ChatTimeline {
         .backgroundColor(CARD)
         .borderRadius(21)
         .shadow({ radius: 14, color: SHADOW_SUBTLE, offsetY: 5 })
-        .margin({ bottom: 4 })
+        // Rides above the floating composer rather than hiding behind it.
+        .margin({ bottom: this.bottomInset + 4 })
         .onClick(() => {
           this.stickToBottom = true;
           this.userScrollActive = false;

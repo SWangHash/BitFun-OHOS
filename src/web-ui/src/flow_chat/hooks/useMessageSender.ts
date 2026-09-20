@@ -19,6 +19,11 @@ import type {
 } from '@/shared/types/context';
 import { createLogger } from '@/shared/utils/logger';
 import { formatContextForPrompt } from '@/shared/utils/contextPrompt';
+import { isConversationExcerpt, withConversationExcerptFallback } from '@/shared/utils/conversationExcerpt';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { isBtwSessionDraft } from '../utils/modelSelectionTarget';
+import { sendMessageToBtwSession } from '../services/BtwThreadService';
 import { buildImagePayload } from '../utils/imagePayload';
 import {
   FLOWCHAT_MESSAGE_SUBMITTED_EVENT,
@@ -26,6 +31,7 @@ import {
 } from '../events/flowchatNavigation';
 import {
   composerPresentationSessionReferences,
+  withConversationExcerpts,
   type ComposerPresentation,
 } from '../utils/composerPresentation';
 import type {
@@ -92,6 +98,8 @@ interface UseMessageSenderReturn {
 }
 
 export function useMessageSender(props: UseMessageSenderProps): UseMessageSenderReturn {
+  const peer = usePeerDeviceModeOptional();
+  const canSetInitialBtwModel = !peer?.peerMode.active || peer.currentPeerCapabilities?.btwInitialModelSelectionV1 === true;
   const {
     currentSessionId,
     contexts,
@@ -122,7 +130,12 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
       return;
     }
 
+    const surfaceScope = getActiveSurfaceScope();
     const trimmedMessage = message.trim();
+    const hasExcerpts = contexts.some(isConversationExcerpt);
+    const presentation = hasExcerpts
+      ? withConversationExcerpts(options?.composerPresentation, contexts, options?.displayMessage ?? trimmedMessage)
+      : options?.composerPresentation;
     // Strip inline `#img:<name>` tags from the AI-bound text. The rich text
     // editor inserts these when an image is pasted, but the named file does
     // not exist on disk; image bytes are sent out-of-band via `imageContexts`
@@ -165,8 +178,8 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
       }
 
       const imageContexts = contexts.filter(ctx => ctx.type === 'image') as ImageContext[];
-      const presentationSessionReferences = options?.composerPresentation
-        ? composerPresentationSessionReferences(options.composerPresentation)
+      const presentationSessionReferences = presentation
+        ? composerPresentationSessionReferences(presentation)
         : [];
       const sessionReferenceContexts = presentationSessionReferences.length > 0
         ? presentationSessionReferences
@@ -174,15 +187,16 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
         .filter((context): context is SessionReferenceContext => context.type === 'session-reference')
       const sessionReferences = sessionReferenceContexts.map((context) => ({
           sessionId: context.sessionId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
           workspacePath: context.workspacePath,
           remoteConnectionId: context.remoteConnectionId,
           remoteSshHost: context.remoteSshHost,
         }));
       const userMessageMetadata =
-        options?.composerPresentation || sessionReferences.length > 0 || turnPermissionMode
+        presentation || sessionReferences.length > 0 || turnPermissionMode
           ? {
-              ...(options?.composerPresentation
-                ? { composerPresentation: options.composerPresentation }
+              ...(presentation
+                ? { composerPresentation: presentation }
                 : {}),
               ...(sessionReferences.length > 0 ? { sessionReferences } : {}),
               // Read by the coordinator as the turn layer of
@@ -209,6 +223,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
 
       let fullMessage = aiTrimmedMessage;
       const displayMessage = options?.displayMessage?.trim() || trimmedMessage;
+      const displayFallback = withConversationExcerptFallback(displayMessage, contexts);
 
       if (contexts.length > 0) {
         const fullContextSection = contexts
@@ -223,10 +238,26 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
       }
       // Always pass imageContexts to the backend; the coordinator decides
       // whether to expose a path to analyze_image or attach pixels directly.
-      await flowChatManager.sendMessage(
+      surfaceScope.assertCurrent('submit conversation excerpts');
+      const targetSession = flowChatManager.getFlowChatState().sessions.get(sessionId!);
+      if (targetSession && isBtwSessionDraft(targetSession)) {
+        const parentSessionId = targetSession.parentSessionId;
+        if (!parentSessionId) throw new Error('Side question is missing its parent session');
+        await flowChatManager.ensureBackendSession(parentSessionId);
+        surfaceScope.assertCurrent('prepare side question parent');
+        await sendMessageToBtwSession({ parentSessionId, childSessionId: targetSession.sessionId,
+          question: fullMessage, imagePayload, modelId: targetSession.config.modelName,
+          userMessageMetadata,
+          ...(canSetInitialBtwModel ? { initialModelSelection: {
+            modelId: targetSession.config.modelName || 'primary',
+            reasoningPreset: targetSession.config.reasoningPreset,
+          } } : {}),
+          requestId: targetSession.btwOrigin?.requestId,
+        });
+      } else await flowChatManager.sendMessage(
         fullMessage,
         sessionId || undefined,
-        displayMessage,
+        displayFallback,
         agentTypeForSend,
         undefined,
         {
@@ -255,6 +286,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
         }
       );
 
+      if (!surfaceScope.isCurrent()) return;
       if (options?.clearContextsOnSuccess !== false) {
         onClearContexts();
       }
@@ -293,6 +325,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
       throw error;
     }
   }, [
+    canSetInitialBtwModel,
     currentSessionId,
     contexts,
     onClearContexts,

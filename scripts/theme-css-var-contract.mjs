@@ -22,7 +22,14 @@ const bitfunThemeTokens = resolveTokens(mergeTokenDocuments(
   readDesignSystemTokenDocument('design-system/packages/theme-bitfun/src/reference.tokens.json'),
   readDesignSystemTokenDocument('design-system/packages/theme-bitfun/src/light.tokens.json'),
 ));
-const publicThemePrefixes = ['color.', 'component.button.', 'effect.', 'opacity.', 'shadow.'];
+const publicThemePrefixes = [
+  'color.',
+  'component.button.',
+  'component.empty.',
+  'effect.',
+  'opacity.',
+  'shadow.',
+];
 
 export const PACKAGE_CSS_VAR_DEFINITION_CONTRACTS = Object.freeze([
   Object.freeze({

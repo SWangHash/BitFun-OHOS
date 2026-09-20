@@ -266,6 +266,9 @@
     <string name="model_catalog_stale_warning">The model list could not be refreshed. Showing the previously loaded list.</string>
     <string name="workspace_title">Workspace</string>
     <string name="workspace_failed">Could not load workspace information.</string>
+    <string name="workspace_reference_unsupported">The desktop does not support selecting workspaces by ID. Update BitFun on the desktop.</string>
+    <string name="workspace_reference_unknown">The desktop no longer has this workspace.</string>
+    <string name="workspace_reference_ambiguous">Several open workspaces share this path. Choose one from the list.</string>
     <string name="assistants_title">Assistants</string>
     <string name="file_reference_label">Remote file path</string>
     <!-- The second line of a file card under an agent turn; see FileReferenceCards. -->
@@ -335,6 +338,8 @@
     <string name="sidebar_connect_desktop">Connect a computer</string>
     <string name="sidebar_add_connection">Add connection</string>
     <string name="sidebar_empty_workspaces">This computer has no workspaces yet</string>
+    <string name="sidebar_workspace_empty_sessions">No chats in this workspace</string>
+    <string name="sidebar_workspace_load_failed">This workspace cannot be read right now</string>
     <string name="sidebar_more_workspaces">%1$d more workspaces</string>
     <string name="sidebar_more_devices">%1$d more devices</string>
     <string name="sidebar_new_in_workspace">New in this workspace</string>
@@ -367,6 +372,9 @@
     <string name="sessions_failed_rate_limited">Too many requests; try again shortly.</string>
     <string name="sessions_failed_protocol_mismatch">The desktop answered in a format this app does not understand. Update BitFun on the desktop.</string>
     <string name="sessions_failed_session_not_found">That session is no longer on the desktop.</string>
+    <string name="sessions_failed_workspace_id_unsupported">The desktop does not support selecting workspaces by ID. Update BitFun on the desktop.</string>
+    <string name="sessions_failed_host_stream_unsupported">The desktop runs an older BitFun version that does not support on-demand session streaming. Update BitFun on the desktop to continue.</string>
+    <string name="sessions_failed_workspace_id_unknown">The desktop no longer has this workspace.</string>
     <!-- 8.3 conversation surface -->
     <string name="conversation_back">Back to sessions</string>
     <string name="conversation_settings">Session settings</string>
@@ -509,7 +517,7 @@
     <string name="workspace_sort_modified_asc">Oldest first</string>
     <string name="workspace_terminal">Terminal</string>
     <string name="workspace_actions">Workspace actions</string>
-    <string name="device_tools">Device tools</string>
+    <string name="device_tools">Tools</string>
 
     <string name="plan_title">Plan</string>
     <string name="plan_view">View plan</string>
@@ -525,4 +533,12 @@
     <string name="miniapps_offline">Available offline</string>
     <string name="miniapps_load_failed">Unable to load apps. Please retry.</string>
     <string name="account_authorization_open_failed">Unable to open the authorization page. Please retry.</string>
+    <string name="sidebar_legacy_workspace_catalog">Older device: showing recent workspaces</string>
+    <string name="tool_edit_approval_input">Edit input</string>
+    <string name="tool_hide_approval_input">Hide input</string>
+    <string name="workspace_file_name">File name</string>
+    <string name="workspace_file_actions">File actions</string>
+    <string name="workspace_file_conflict">File changed on the computer. Your draft is preserved. Copy it before reopening the file to load the latest version.</string>
+    <string name="chat_load_older_failed">Could not load earlier messages. Tap to retry.</string>
+    <string name="chat_loading_older_messages">Loading earlier messages…</string>
 </resources>

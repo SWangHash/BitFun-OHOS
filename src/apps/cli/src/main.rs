@@ -9,6 +9,7 @@
 /// - Single command execution
 /// - Batch task processing
 mod account;
+mod account_guidance;
 mod acp_cli;
 mod actions;
 mod agent;
@@ -890,7 +891,7 @@ async fn initialize_core_services_for_deployment(
         {
             bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                 "CLI startup configuration",
-                Some(workspace_root),
+                None,
                 error,
             )
             .await;
@@ -908,7 +909,7 @@ async fn initialize_core_services_for_deployment(
             Err(error) => {
                 bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                     "CLI startup",
-                    Some(workspace_root),
+                    None,
                     error,
                 )
                 .await;
@@ -958,9 +959,10 @@ async fn initialize_core_services_for_deployment(
     .map_err(|error| anyhow!("Failed to initialize agentic system: {error}"))?;
     tracing::info!("Agentic system initialized");
 
+    let workspace = create_cli_local_workspace(workspace_root).await?;
     let runtime = std::sync::Arc::new(runtime::CliRuntimeContext::build(
         agentic_system,
-        workspace_root,
+        workspace,
         approval_policy,
     )?);
     // Restore on the executing host for TUI, exec, Shared and detached jobs alike.
@@ -1056,10 +1058,7 @@ async fn run_interactive(
         )
     };
     let agent = if let Some(runtime) = &runtime {
-        Arc::new(agent::runtime_client::CliAgentRuntimeClient::new(
-            runtime,
-            Some(workspace_path.clone()),
-        ))
+        Arc::new(agent::runtime_client::CliAgentRuntimeClient::new(runtime))
     } else {
         let client = shared_runtime::connect_or_start(&workspace_path).await?;
         client.health().await?;
@@ -1068,7 +1067,7 @@ async fn run_interactive(
         }
         Arc::new(agent::runtime_client::CliAgentRuntimeClient::new_shared(
             client,
-            Some(workspace_path.clone()),
+            &create_cli_local_workspace(&workspace_path).await?,
         ))
     };
     let account_runtime = runtime
@@ -1671,10 +1670,7 @@ async fn run_interactive_with_session(
 
     let workspace_path = runtime.workspace_root().to_path_buf();
     let workspace = Some(workspace_path.to_string_lossy().to_string());
-    let agent = Arc::new(agent::runtime_client::CliAgentRuntimeClient::new(
-        &runtime,
-        Some(workspace_path),
-    ));
+    let agent = Arc::new(agent::runtime_client::CliAgentRuntimeClient::new(&runtime));
     let sessions = agent.list_sessions().await?;
     let agent_type = sessions
         .iter()
@@ -1714,6 +1710,9 @@ fn main() {
         .stack_size(16 * 1024 * 1024)
         .spawn(|| {
             let runtime = tokio::runtime::Builder::new_multi_thread()
+                // Agent execution can exceed Tokio's default stack in debug builds.
+                // Runtime threads do not inherit the outer thread's stack size.
+                .thread_stack_size(16 * 1024 * 1024)
                 .enable_all()
                 .build()
                 .expect("failed to build tokio runtime");
@@ -2352,4 +2351,35 @@ mod daemon_command_tests {
             .to_string();
         assert!(!daemon_help.contains("__dispatch_"));
     }
+}
+
+/// Resolves the stable workspace record for a directory the CLI is operating in
+/// (its cwd, `--workspace`, or a command operand). Session and protocol routing
+/// must use the resulting record ID.
+///
+/// This registers a hidden record only. The CLI shares the workspace catalog
+/// with the desktop, and running `bitfun doctor` or a chat in some folder
+/// must not make that folder an opened, recent, or current desktop workspace;
+/// opening a folder for the desktop UI is an explicit user action there.
+async fn create_cli_local_workspace(
+    path: &std::path::Path,
+) -> Result<bitfun_core::service::workspace::WorkspaceInfo> {
+    use bitfun_core::service::workspace::{
+        get_global_workspace_service, set_global_workspace_service, WorkspaceService,
+    };
+    let service = if let Some(service) = get_global_workspace_service() {
+        service
+    } else {
+        let service = std::sync::Arc::new(
+            WorkspaceService::new()
+                .await
+                .map_err(|error| anyhow!(error.to_string()))?,
+        );
+        set_global_workspace_service(service.clone());
+        service
+    };
+    service
+        .register_local_workspace_record(path.to_owned())
+        .await
+        .map_err(|error| anyhow!(error.to_string()))
 }

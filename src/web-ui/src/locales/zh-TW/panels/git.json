@@ -233,22 +233,6 @@
       "unexpected": "切換分支時發生未預期的錯誤"
     }
   },
-  "branchSelect": {
-    "title": "選擇或建立分支",
-    "inputPlaceholder": "輸入新分支名...",
-    "loading": "載入中...",
-    "createNewLabel": "建立新分支:",
-    "openAfterCreate": {
-      "label": "建立後開啟",
-      "description": "建立完成後，立即將新的 worktree 作為工作區開啟。"
-    },
-    "badges": {
-      "inUse": "已使用"
-    },
-    "errors": {
-      "loadFailed": "Failed to load branch list"
-    }
-  },
   "selection": {
     "selectAll": "全選所有未暫存檔案",
     "deselectAll": "取消全選",

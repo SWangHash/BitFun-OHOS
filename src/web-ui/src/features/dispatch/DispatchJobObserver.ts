@@ -1,3 +1,4 @@
+import { resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { createLogger } from '@/shared/utils/logger';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -347,7 +348,9 @@ async function ensureProjection(
   // Never create a workspace-less projection. SessionsSection renders once
   // per workspace, and an unowned projection must not be allowed to appear in
   // every navigation group while startup workspace state is still loading.
-  if (!sourceWorkspacePath) {
+  // Ownership is the source workspace ID; the path is only its checkout label
+  // and is enough on its own solely for pre-ID records.
+  if (!job.sourceWorkspaceId && !sourceWorkspacePath) {
     return false;
   }
 
@@ -943,7 +946,7 @@ async function refreshJobPage(
         task: job.title,
         target:
           job.target.kind === 'ssh' || job.target.kind === 'device'
-            ? job.target.displayName
+            ? (job.target.kind === 'device' ? resolveDeviceName(job.target.deviceId, job.target.displayName) : job.target.displayName)
             : i18nService.t('common:dispatch.localTarget'),
       });
       void systemAPI.sendSystemNotification(title, body).catch(error => {

@@ -5,8 +5,11 @@
 //! while that process is still running so later calls can poll or write stdin.
 
 use crate::{shell::invalidate_cached_executable, TerminalError, TerminalResult};
-use chardetng::EncodingDetector;
-use encoding_rs::{Encoding, IBM866, WINDOWS_1252};
+mod output_decoder;
+#[cfg(test)]
+mod output_encoding_tests;
+
+use output_decoder::OutputDecoder;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, SlavePty};
 use rand::Rng;
 use std::collections::{HashMap, VecDeque};
@@ -35,6 +38,8 @@ const PTY_EXIT_DRAIN_TIMEOUT_MS: u64 = 500;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const PIPE_JOB_CLOSE_WAIT_MS: u64 = 2_000;
+#[cfg(windows)]
+const PIPE_TASKKILL_WAIT_MS: u64 = 3_000;
 
 static GLOBAL_EXEC_MANAGER: OnceLock<Arc<ExecProcessManager>> = OnceLock::new();
 
@@ -223,7 +228,7 @@ struct OutputState {
 }
 
 struct OutputInner {
-    chunks: VecDeque<(u64, Vec<u8>)>,
+    chunks: VecDeque<(u64, String)>,
     next_seq: u64,
     retained_bytes: usize,
     total_output_chars: usize,
@@ -725,7 +730,7 @@ impl ExecProcess {
                         let _ = killer.kill();
                     }
                     Terminator::Pipe(tx) => {
-                        self.close_windows_pipe_job("request_control");
+                        // Preserve the root for tree termination before closing its job.
                         let _ = tx.try_send(action);
                     }
                 }
@@ -779,13 +784,12 @@ impl OutputState {
         }
     }
 
-    async fn push_chunk(&self, chunk: Vec<u8>) {
+    async fn push_text(&self, chunk: String) {
         if chunk.is_empty() {
             return;
         }
-        let decoded = bytes_to_string_smart(&chunk);
-        let decoded_chars = decoded.chars().count();
-        let capture_text = self.output_capture_tx.as_ref().map(|_| decoded);
+        let decoded_chars = chunk.chars().count();
+        let capture_text = self.output_capture_tx.as_ref().map(|_| chunk.clone());
         {
             let mut inner = self.inner.lock().await;
             let seq = inner.next_seq;
@@ -846,10 +850,9 @@ impl OutputState {
         let inner = self.inner.lock().await;
         for (seq, chunk) in inner.chunks.iter() {
             if *seq >= cursor.next_seq {
-                let text = bytes_to_string_smart(chunk);
-                sink.push_str(&text);
+                sink.push_str(chunk);
                 if let Some(tx) = output_tx {
-                    let _ = tx.try_send(text);
+                    let _ = tx.try_send(chunk.clone());
                 }
             }
         }
@@ -1150,9 +1153,11 @@ async fn spawn_pty_process(request: &ExecCommandRequest) -> TerminalResult<ExecP
     let output_task = tokio::spawn({
         let output = Arc::clone(&output);
         async move {
+            let mut decoder = OutputDecoder::default();
             while let Some(chunk) = output_rx.recv().await {
-                output.push_chunk(chunk).await;
+                output.push_text(decoder.push(&chunk)).await;
             }
+            output.push_text(decoder.finish()).await;
         }
     });
 
@@ -1251,6 +1256,7 @@ async fn spawn_pipe_process(
     };
     #[cfg(windows)]
     let pipe_job = create_windows_pipe_job(&child)?;
+
     #[cfg(windows)]
     let wait_task_pipe_job = Arc::clone(&pipe_job);
     #[cfg(unix)]
@@ -1478,17 +1484,33 @@ async fn interrupt_pipe_child(
 }
 
 #[cfg(windows)]
+async fn wait_for_tree_killer(
+    helper: &mut tokio::process::Child,
+    timeout: Duration,
+) -> std::io::Result<std::process::ExitStatus> {
+    match tokio::time::timeout(timeout, helper.wait()).await {
+        Ok(result) => result,
+        Err(_) => {
+            // Bound cleanup too: a stuck helper must not prevent job fallback.
+            let _ = helper.start_kill();
+            let _ =
+                tokio::time::timeout(Duration::from_millis(PIPE_JOB_CLOSE_WAIT_MS), helper.wait())
+                    .await;
+            Err(std::io::Error::new(
+                ErrorKind::TimedOut,
+                "process-tree termination helper timed out",
+            ))
+        }
+    }
+}
+
+#[cfg(windows)]
 async fn kill_pipe_child(
     child: &mut tokio::process::Child,
     pipe_job: &WindowsPipeJobHandle,
 ) -> Option<i32> {
-    let _ = close_windows_pipe_job_handle(pipe_job, "kill_pipe_child");
-    if let Ok(wait_result) =
-        tokio::time::timeout(Duration::from_millis(PIPE_JOB_CLOSE_WAIT_MS), child.wait()).await
-    {
-        return wait_result.ok().and_then(|status| status.code());
-    }
-
+    // App Execution Alias descendants can live outside the job. Terminate
+    // the process tree while its shell root is still alive.
     if let Some(pid) = child.id() {
         let pid = pid.to_string();
         let mut command = Command::new("taskkill");
@@ -1500,10 +1522,34 @@ async fn kill_pipe_child(
             command.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let taskkill_result = command.status().await;
-        if taskkill_result.is_ok_and(|status| status.success()) {
-            return child.wait().await.ok().and_then(|status| status.code());
+        command.kill_on_drop(true);
+        let taskkill_result = match command.spawn() {
+            Ok(mut helper) => {
+                wait_for_tree_killer(&mut helper, Duration::from_millis(PIPE_TASKKILL_WAIT_MS))
+                    .await
+            }
+            Err(error) => Err(error),
+        };
+        if let Err(error) = &taskkill_result {
+            log::warn!("Process-tree termination failed; falling back to job termination: pid={}, error={}", pid, error);
         }
+
+        if taskkill_result.is_ok_and(|status| status.success()) {
+            if let Ok(wait_result) =
+                tokio::time::timeout(Duration::from_millis(PIPE_JOB_CLOSE_WAIT_MS), child.wait())
+                    .await
+            {
+                let _ = close_windows_pipe_job_handle(pipe_job, "kill_after_taskkill");
+                return wait_result.ok().and_then(|status| status.code());
+            }
+        }
+    }
+
+    let _ = close_windows_pipe_job_handle(pipe_job, "kill_pipe_child");
+    if let Ok(wait_result) =
+        tokio::time::timeout(Duration::from_millis(PIPE_JOB_CLOSE_WAIT_MS), child.wait()).await
+    {
+        return wait_result.ok().and_then(|status| status.code());
     }
 
     let _ = child.kill().await;
@@ -1597,21 +1643,28 @@ async fn kill_pipe_child(child: &mut tokio::process::Child) -> Option<i32> {
 }
 
 #[cfg(not(unix))]
-fn spawn_pipe_reader<R>(mut reader: R, output: Arc<OutputState>) -> JoinHandle<()>
+fn spawn_pipe_reader<R>(reader: R, output: Arc<OutputState>) -> JoinHandle<()>
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
-    tokio::spawn(async move {
-        let mut buffer = vec![0u8; 8192];
-        loop {
-            match reader.read(&mut buffer).await {
-                Ok(0) => break,
-                Ok(n) => output.push_chunk(buffer[..n].to_vec()).await,
-                Err(ref error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(_) => break,
-            }
+    tokio::spawn(read_pipe_output(reader, output))
+}
+
+async fn read_pipe_output<R>(mut reader: R, output: Arc<OutputState>)
+where
+    R: AsyncRead + Unpin,
+{
+    let mut decoder = OutputDecoder::default();
+    let mut buffer = vec![0u8; 8192];
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(n) => output.push_text(decoder.push(&buffer[..n])).await,
+            Err(ref error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(_) => break,
         }
-    })
+    }
+    output.push_text(decoder.finish()).await;
 }
 
 #[cfg(not(unix))]
@@ -1634,7 +1687,7 @@ where
 
 #[cfg(unix)]
 fn spawn_pipe_reader_with_done<R>(
-    mut reader: R,
+    reader: R,
     output: Arc<OutputState>,
     done_tx: mpsc::Sender<()>,
 ) -> JoinHandle<()>
@@ -1642,15 +1695,7 @@ where
     R: AsyncRead + Unpin + Send + 'static,
 {
     tokio::spawn(async move {
-        let mut buffer = vec![0u8; 8192];
-        loop {
-            match reader.read(&mut buffer).await {
-                Ok(0) => break,
-                Ok(n) => output.push_chunk(buffer[..n].to_vec()).await,
-                Err(ref error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(_) => break,
-            }
-        }
+        read_pipe_output(reader, output).await;
         let _ = done_tx.send(()).await;
     })
 }
@@ -1746,74 +1791,16 @@ fn input_bytes_for_write(chars: &str, append_enter: bool) -> Vec<u8> {
     bytes
 }
 
-fn bytes_to_string_smart(bytes: &[u8]) -> String {
-    if bytes.is_empty() {
-        return String::new();
-    }
-
-    if let Ok(text) = std::str::from_utf8(bytes) {
-        return text.to_owned();
-    }
-
-    decode_bytes(bytes, detect_encoding(bytes))
-}
-
-fn detect_encoding(bytes: &[u8]) -> &'static Encoding {
-    let mut detector = EncodingDetector::new();
-    detector.feed(bytes, true);
-    let (encoding, _is_confident) = detector.guess_assess(None, true);
-
-    if encoding == IBM866 && looks_like_windows_1252_punctuation(bytes) {
-        return WINDOWS_1252;
-    }
-
-    encoding
-}
-
-fn decode_bytes(bytes: &[u8], encoding: &'static Encoding) -> String {
-    let (decoded, _, had_errors) = encoding.decode(bytes);
-    if had_errors {
-        String::from_utf8_lossy(bytes).into_owned()
-    } else {
-        decoded.into_owned()
-    }
-}
-
-const WINDOWS_1252_PUNCT_BYTES: [u8; 8] = [0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x99];
-
-fn looks_like_windows_1252_punctuation(bytes: &[u8]) -> bool {
-    let mut saw_extended_punctuation = false;
-    let mut saw_ascii_word = false;
-
-    for &byte in bytes {
-        if byte >= 0xA0 {
-            return false;
-        }
-        if (0x80..=0x9F).contains(&byte) {
-            if !WINDOWS_1252_PUNCT_BYTES.contains(&byte) {
-                return false;
-            }
-            saw_extended_punctuation = true;
-        }
-        if byte.is_ascii_alphabetic() {
-            saw_ascii_word = true;
-        }
-    }
-
-    saw_extended_punctuation && saw_ascii_word
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        bytes_to_string_smart, input_bytes_for_write, ExecCommandRequest, ExecControlAction,
-        ExecControlOrigin, ExecControlRequest, ExecProcessLifecycleStatus, ExecProcessManager,
+        input_bytes_for_write, ExecCommandRequest, ExecControlAction, ExecControlOrigin,
+        ExecControlRequest, ExecProcessLifecycleStatus, ExecProcessManager,
         ExecSessionCompletionSource, ExecSessionCompletionStatus, HeadTailText, OutputCursor,
         OutputState, SendStdinRequest, WriteStdinRequest,
     };
     #[cfg(windows)]
     use crate::shell::{ShellDetector, ShellType};
-    use encoding_rs::GBK;
     use std::collections::HashMap;
     #[cfg(windows)]
     use std::path::PathBuf;
@@ -1911,9 +1898,9 @@ mod tests {
     #[tokio::test]
     async fn original_output_chars_survives_multibyte_retention_eviction() {
         let output = OutputState::new(None);
-        let chunk = "🦀".repeat(32 * 1024).into_bytes();
+        let chunk = "🦀".repeat(32 * 1024);
         for _ in 0..10 {
-            output.push_chunk(chunk.clone()).await;
+            output.push_text(chunk.clone()).await;
         }
         output.close(Some(0)).await;
 
@@ -2449,12 +2436,81 @@ print("parent_exit", flush=True)"#;
 
     #[cfg(windows)]
     async fn assert_default_windows_shell_python_child_control(action: ExecControlAction) {
-        let manager = ExecProcessManager::default();
         let script = r#"python -c "import time; [print(i, flush=True) or time.sleep(1) for i in range(30)]""#;
+        assert_windows_python_control(default_windows_shell_argv(script), action).await;
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires a working Python Install Manager App Execution Alias"]
+    async fn control_terminates_python_app_execution_alias() {
+        use std::os::windows::fs::MetadataExt;
+        let alias = std::env::var("BITFUN_TEST_PYTHON_ALIAS")
+            .expect("set BITFUN_TEST_PYTHON_ALIAS to the WindowsApps python.exe alias");
+        let metadata = std::fs::metadata(&alias).expect("alias metadata");
+        assert_eq!(metadata.len(), 0, "must use an application execution alias");
+        assert_ne!(metadata.file_attributes() & 0x400, 0);
+        for action in [ExecControlAction::Kill, ExecControlAction::Interrupt] {
+            let script = format!(
+                "& '{}' -u -c \"import time; print('ALIAS_READY', flush=True); time.sleep(30)\"",
+                alias.replace('\'', "''")
+            );
+            assert_windows_python_control(
+                vec![
+                    "powershell.exe".into(),
+                    "-NoProfile".into(),
+                    "-Command".into(),
+                    script,
+                ],
+                action,
+            )
+            .await;
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn tree_killer_timeout_reaps_helper() {
+        use super::{wait_for_tree_killer, CREATE_NO_WINDOW};
+        use std::{io::ErrorKind, process::Stdio, time::Duration};
+        use tokio::process::Command;
+        let mut command = Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Sleep -Seconds 30",
+        ]);
+        command.creation_flags(CREATE_NO_WINDOW);
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        command.kill_on_drop(true);
+        let mut helper = command.spawn().expect("start slow helper");
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            wait_for_tree_killer(&mut helper, Duration::from_millis(100)),
+        )
+        .await
+        .expect("helper timeout and cleanup must be bounded");
+        assert_eq!(
+            result.expect_err("slow helper must time out").kind(),
+            ErrorKind::TimedOut
+        );
+        assert!(
+            helper.try_wait().expect("query helper").is_some(),
+            "timed-out helper must be reaped"
+        );
+    }
+
+    #[cfg(windows)]
+    async fn assert_windows_python_control(argv: Vec<String>, action: ExecControlAction) {
+        let manager = ExecProcessManager::default();
 
         let first = manager
             .exec_command(ExecCommandRequest {
-                argv: default_windows_shell_argv(script),
+                argv,
                 cwd: std::env::current_dir().expect("current dir"),
                 env: HashMap::new(),
                 tty: false,
@@ -2808,26 +2864,6 @@ print("parent_exit", flush=True)"#;
         assert_eq!(
             rendered.chars().count(),
             10 + "\n... [truncated, middle omitted] ...\n".chars().count()
-        );
-    }
-
-    #[test]
-    fn smart_decode_preserves_utf8() {
-        assert_eq!(bytes_to_string_smart("小游戏平台".as_bytes()), "小游戏平台");
-    }
-
-    #[test]
-    fn smart_decode_handles_gbk_chinese_output() {
-        let (encoded, _, had_errors) = GBK.encode("小游戏平台");
-        assert!(!had_errors);
-        assert_eq!(bytes_to_string_smart(&encoded), "小游戏平台");
-    }
-
-    #[test]
-    fn smart_decode_keeps_windows_1252_punctuation() {
-        assert_eq!(
-            bytes_to_string_smart(b"\x93\x94 test \x96 dash"),
-            "\u{201C}\u{201D} test \u{2013} dash"
         );
     }
 

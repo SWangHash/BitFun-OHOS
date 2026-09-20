@@ -4,6 +4,47 @@ import { APPEARANCE_THEME_TOKEN_NAMES } from './catalog';
 import { composeAppearancePackage } from './composeAppearancePackage';
 
 describe('composeAppearancePackage', () => {
+  it.each(['light', 'dark'] as const)('supplies update material cyan to legacy %s packages and preserves explicit overrides', mode => {
+    const original: AppearancePackage = {
+      schema: 'bitfun.appearance', schemaVersion: 2,
+      id: 'example.legacy-updates', name: 'Legacy updates', version: '1.0.0', mode,
+      renderers: { 'theme-tokens': { version: 1, settings: {
+        tokens: { '--bitfun-color-accent-default': '#7755aa' },
+      } } },
+    };
+    const payload = JSON.stringify(original);
+    const resolved = composeAppearancePackage(JSON.parse(payload));
+    expect(resolved.renderers!['theme-tokens']!.settings.tokens).toMatchObject({
+      '--bitfun-component-update-material-cyan': '#059cb0',
+      '--bitfun-color-accent-default': '#7755aa',
+    });
+    expect(composeAppearancePackage(JSON.parse(JSON.stringify(resolved))).renderers?.['theme-tokens'])
+      .toEqual(resolved.renderers?.['theme-tokens']);
+    expect(JSON.stringify(original)).toBe(payload);
+
+    original.renderers!['theme-tokens']!.settings.tokens['--bitfun-component-update-material-cyan'] = '#44aaaa';
+    expect(composeAppearancePackage(JSON.parse(JSON.stringify(original))).renderers!['theme-tokens']!.settings.tokens)
+      .toHaveProperty('--bitfun-component-update-material-cyan', '#44aaaa');
+  });
+
+  it.each(['light', 'dark'] as const)('supplies annotation cyan to legacy %s packages without replacing their accent', mode => {
+    const original: AppearancePackage = {
+      schema: 'bitfun.appearance', schemaVersion: 2,
+      id: 'example.legacy-annotations', name: 'Legacy annotations', version: '1.0.0', mode,
+      renderers: { 'theme-tokens': { version: 1, settings: {
+        tokens: { '--bitfun-color-accent-default': '#7755aa' },
+      } } },
+    };
+    const resolved = composeAppearancePackage(JSON.parse(JSON.stringify(original)));
+    const tokens = resolved.renderers!['theme-tokens']!.settings.tokens;
+    expect(tokens['--bitfun-component-conversation-excerpt-accent']).toBe('#059cb0');
+    expect(tokens['--bitfun-color-accent-default']).toBe('#7755aa');
+    expect(composeAppearancePackage(JSON.parse(JSON.stringify(resolved))).renderers?.['theme-tokens'])
+      .toEqual(resolved.renderers?.['theme-tokens']);
+    expect(original.renderers!['theme-tokens']!.settings.tokens)
+      .not.toHaveProperty('--bitfun-component-conversation-excerpt-accent');
+  });
+
   it('preserves legacy action-card backgrounds in root and chrome across old-payload round trips', () => {
     const original: AppearancePackage = {
       schema: 'bitfun.appearance', schemaVersion: 2,

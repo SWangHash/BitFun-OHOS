@@ -64,6 +64,7 @@ public data class RemoteCommand(
     @SerialName("display_content") val displayContent: String? = null,
     @SerialName("plan_file_path") val planFilePath: String? = null,
     @SerialName("plan_name") val planName: String? = null,
+    @SerialName("workspace_id") val workspaceId: String? = null,
     @SerialName("workspace_path") val workspacePath: String? = null,
     @SerialName("path") val path: String? = null,
     @SerialName("remote_connection_id") val remoteConnectionId: String? = null,
@@ -96,4 +97,12 @@ public data class RemoteCommand(
     @SerialName("answers") val answers: JsonElement? = null,
     @SerialName("image_contexts") val imageContexts: List<RemoteImageContext>? = null,
     @SerialName("images") val images: List<ImageAttachment>? = null,
+    // `read_stream` / `unsubscribe_stream`: host-owned streams read directly
+    // from the online desktop. Mirrors `StreamReadRequest` in
+    // `remote_connect/host_stream.rs`.
+    @SerialName("stream_id") val streamId: String? = null,
+    @SerialName("after") val after: Long? = null,
+    @SerialName("before") val before: Long? = null,
+    @SerialName("epoch") val epoch: Long? = null,
+    @SerialName("subscribe") val subscribe: Boolean? = null,
 )

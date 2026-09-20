@@ -1,0 +1,19 @@
+.bitfun-update-indicator {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-status-info-emphasis);
+}
+
+.bitfun-update-indicator-anchor {
+  position: relative;
+  display: inline-flex;
+
+  > .bitfun-update-indicator {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+}

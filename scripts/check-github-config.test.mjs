@@ -1183,6 +1183,15 @@ test('Desktop packaging keeps beta identity explicit and stable-safe', () => {
     (step) => step.name === 'Publish beta channel manifest',
   );
   assert.ok(verifyIndexPublished >= 0 && verifyIndexPublished < promoteIndex);
+  const requiredManual = 'windows-x86_64,darwin-aarch64,darwin-x86_64';
+  assert.match(
+    uploadSteps.find((step) => step.name === 'Verify updater manifest').run,
+    new RegExp(`--required-manual-platforms "${requiredManual}"`),
+  );
+  assert.match(
+    uploadSteps[verifyIndexPublished].run,
+    new RegExp(`--required-manual-platforms "${requiredManual}"`),
+  );
   assert.doesNotMatch(workflow.jobs['linux-binaries'].if, /release_channel/);
   assert.equal(
     uploadSteps.find((step) => step.name === 'Stage release assets').if,

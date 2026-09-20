@@ -51,10 +51,6 @@
 .mcp-interaction-dialog__editor-field {
   width: 100%;
 }
-
-
 .mcp-interaction-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  flex-wrap: wrap;
 }

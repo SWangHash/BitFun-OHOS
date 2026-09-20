@@ -12,7 +12,6 @@ import {
   ArrowUpRight,
   Bell,
   Blocks,
-  Brain,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -64,6 +63,7 @@ import {
 } from "lucide-react";
 import { classNames } from "../../internal/classNames";
 import gitUrl from "./assets/git.svg";
+import thinkingUrl from "./assets/thinking.svg";
 import creativeUrl from "./assets/creative.svg";
 import ultimateUrl from "./assets/ultimate.svg";
 import standardUrl from "./assets/standard.svg";
@@ -160,13 +160,14 @@ export type IconSource =
   | { glyph: LucideIcon; name?: never }
   | { glyph?: never; name: IconName };
 
-// Only the four harness modes and Git branch retain their authored artwork.
+// Only the four harness modes, Git branch, and user-authored thinking mark retain authored artwork.
 const iconSources: Partial<Record<IconName, string>> = {
   creative: creativeUrl,
   ultimate: ultimateUrl,
   standard: standardUrl,
   minimal: minimalUrl,
   git: gitUrl,
+  thinking: thinkingUrl,
 };
 
 const lineGlyphs = {
@@ -226,12 +227,11 @@ const lineGlyphs = {
   "star": Star,
   "store": Store,
   "terminal": Terminal,
-  "thinking": Brain,
   "turn": Circle,
   "upload": Upload,
   "user": User,
   "xmark": X,
-} satisfies Record<Exclude<IconName, "creative" | "ultimate" | "standard" | "minimal" | "git">, LucideIcon>;
+} satisfies Record<Exclude<IconName, "creative" | "ultimate" | "standard" | "minimal" | "git" | "thinking">, LucideIcon>;
 
 interface IconBaseProps
   extends Omit<HTMLAttributes<HTMLSpanElement>, "aria-label" | "children"> {

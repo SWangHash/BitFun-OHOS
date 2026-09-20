@@ -70,4 +70,24 @@ describe('mobile output artifact rendering', () => {
     expect(read).toHaveBeenLastCalledWith('preview.png', true);
     expect(container.querySelector('img')?.src).toBe('data:image/png;base64,YQ==');
   });
+
+  it('explains a failed file card and re-reads it on retry', async () => {
+    const info = vi.fn()
+      .mockRejectedValueOnce(new Error('Cannot resolve output file: No such file or directory'))
+      .mockResolvedValue({ name: 'report.zip', size: 2048, mimeType: 'application/zip' });
+    await act(async () => root.render(
+      <ArtifactImageReader.Provider value={vi.fn()}>
+        <MarkdownContent content="[Archive](computer://report.zip)" onGetFileInfo={info} onFileDownload={vi.fn()} />
+      </ArtifactImageReader.Provider>,
+    ));
+    expect(container.querySelector('.file-card')?.getAttribute('data-status')).toBe('error');
+    expect(container.textContent).toContain('chat.fileUnavailable');
+    expect(container.textContent).toContain('Cannot resolve output file: No such file or directory');
+    const retry = [...container.querySelectorAll('button')].find(button => button.textContent === 'devices.retry');
+    expect(retry).toBeDefined();
+    await act(async () => retry!.click());
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.file-card')?.getAttribute('data-status')).toBe('ready');
+    expect(container.textContent).toContain('report.zip');
+  });
 });

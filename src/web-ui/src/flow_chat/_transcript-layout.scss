@@ -1,0 +1,92 @@
+// The transcript reserves a lane for turn navigation before sizing its column.
+// Keep the lane geometry shared with the rail so narrow panes cannot overlap it.
+$turn-rail-offset: 4px;
+$turn-rail-width: 30px;
+
+@mixin viewport {
+  container: flow-chat-transcript / inline-size;
+}
+
+@mixin reading-column {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+
+  // Reserve only the rail side plus a small opposite inset. Wide columns stay
+  // centered; neither the composer nor the welcome surface needs this lane.
+  @container flow-chat-transcript (min-width: 0px) {
+    width: calc(100% - #{$turn-rail-offset + $turn-rail-width} - var(--bitfun-space-1) - var(--bitfun-space-2));
+    margin-inline-start: max(
+      calc(#{$turn-rail-offset + $turn-rail-width} + var(--bitfun-space-1)),
+      calc((100% - 900px) / 2)
+    );
+  }
+}
+
+// Transcript containers own the reading column; leaf content adds no inset.
+// User-message decoration may extend into this gutter without moving its text.
+@mixin content-column {
+  box-sizing: border-box;
+  padding-inline: var(--bitfun-control-flow-chat-content-padding-inline);
+
+  @media (max-width: 768px) {
+    padding-inline: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
+  }
+}
+
+$action-size: 28px;
+
+@mixin metadata-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  column-gap: var(--bitfun-space-2);
+  row-gap: 0;
+  min-block-size: $action-size;
+  // Align the last icon frame with the text edge, keeping its full hit target.
+  margin-inline-end: calc((var(--bitfun-control-flow-chat-row-icon-size) - #{$action-size}) / 2);
+}
+
+@mixin metadata-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bitfun-space-1) / 2);
+  flex: 0 0 auto;
+  margin: 0;
+
+  &:empty {
+    display: none;
+  }
+}
+
+@mixin metadata-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: $action-size;
+  block-size: $action-size;
+  min-inline-size: $action-size;
+  min-block-size: $action-size;
+  padding: 0;
+  border: none;
+  border-radius: var(--bitfun-radius-sm);
+
+  &::before { content: none; }
+
+  > [data-bitfun-part='icon'] {
+    --bitfun-opacity-icon-artwork: inherit;
+    display: contents;
+  }
+
+  > :where([data-bitfun-part='icon']) > :where(svg, [data-bitfun-component='icon']) {
+    inline-size: var(--bitfun-control-flow-chat-row-icon-size);
+    block-size: var(--bitfun-control-flow-chat-row-icon-size);
+    display: block;
+    flex-shrink: 0;
+  }
+}

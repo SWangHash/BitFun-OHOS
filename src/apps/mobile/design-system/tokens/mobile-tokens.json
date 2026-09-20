@@ -21,6 +21,10 @@
       "light": "#00FFFFFF",
       "dark": "#00151514"
     },
+    "page_bg_overlay": {
+      "light": "#B8FFFFFF",
+      "dark": "#B8151514"
+    },
     "ink": {
       "light": "#171717",
       "dark": "#F4F3EF"
@@ -40,6 +44,10 @@
     "card": {
       "light": "#FFFFFF",
       "dark": "#252522"
+    },
+    "card_overlay": {
+      "light": "#CCFFFFFF",
+      "dark": "#CC252522"
     },
     "accent": {
       "light": "#111111",
@@ -196,6 +204,10 @@
     "welcome_secondary": {
       "light": "#B9BCB9",
       "dark": "#B9BCB9"
+    },
+    "status_warning": {
+      "light": "#FF8C00",
+      "dark": "#FF8C00"
     }
   },
   "typography": {
@@ -292,6 +304,8 @@
     "content_gutter": 16,
     "connection_strip_height": 48,
     "timeline_top_padding": 22,
+    "conversation_overlay_side_inset": 16,
+    "conversation_edge_fade_height": 28,
     "message_spacing": 18,
     "message_bubble_max_width": 276,
     "message_bubble_horizontal_padding": 14,
@@ -360,7 +374,12 @@
     "recent_home_mark_size": 132,
     "recent_home_title_size": 25,
     "recent_home_max_width": 560,
-    "recent_home_row_padding": 18
+    "recent_home_row_padding": 18,
+    "approval_card_radius": 12,
+    "approval_card_padding": 12,
+    "approval_card_gap": 8,
+    "approval_action_radius": 8,
+    "approval_action_height": 36
   },
   "breakpoints": {
     "wide": 600,

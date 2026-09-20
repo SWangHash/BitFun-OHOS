@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   pendingQueueManager,
   queuedItemDuplicatesLiveTurn,
@@ -109,6 +109,31 @@ describe('PendingQueueModule', () => {
 
     pendingQueueManager.clearSurface('peer-b');
     activateSurface(LOCAL_SURFACE_ID);
+  });
+
+  it('persists a pending payload edit in place and refuses edits after sending starts', () => {
+    const sessionId = testSession();
+    const first = pendingQueueManager.enqueue({ sessionId, content: 'first' });
+    const target = pendingQueueManager.enqueue({ sessionId, content: 'original',
+      imageContexts: [{ id: 'image' }], initialStatus: 'failed', retryCount: 1 });
+    const third = pendingQueueManager.enqueue({ sessionId, content: 'third' });
+    const before = pendingQueueManager.list(sessionId);
+    const edit = vi.fn(() => ({ content: 'revised', displayMessage: 'Revised display' }));
+    expect(pendingQueueManager.updatePayloadForSurface(LOCAL_SURFACE_ID, sessionId, target.id, edit)).toBe(true);
+    const items = pendingQueueManager.list(sessionId);
+    expect(items).not.toBe(before);
+    expect(items.map(item => item.id)).toEqual([first.id, target.id, third.id]);
+    expect(items[1]).toMatchObject({ ...target, content: 'revised', displayMessage: 'Revised display' });
+    expect(items[1].imageContexts).toBe(target.imageContexts);
+    expect(items[0]).toBe(first);
+    expect(items[2]).toBe(third);
+    expect(before[1].content).toBe('original');
+    const canonicalKey = `bitfun.flowChat.pendingQueue.v1.${encodeURIComponent(JSON.stringify([LOCAL_SURFACE_ID, sessionId]))}`;
+    expect(JSON.parse(window.localStorage.getItem(canonicalKey)!)[1].content).toBe('revised');
+    pendingQueueManager.setStatus(sessionId, target.id, 'sending');
+    expect(pendingQueueManager.updatePayloadForSurface(LOCAL_SURFACE_ID, sessionId, target.id, edit)).toBe(false);
+    expect(pendingQueueManager.updatePayloadForSurface('another-device', sessionId, target.id, edit)).toBe(false);
+    expect(edit).toHaveBeenCalledOnce();
   });
 
   it('drops a queued duplicate of a live turn after a surface switch', () => {

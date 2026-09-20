@@ -38,6 +38,11 @@ The panel reuses existing owners; it does not create an independent terminal man
 or filesystem cache. Search preferences are kept in the file-explorer owner under an
 explicit resource key, while results are refreshed from the target.
 
+`WorkspaceBody` owns the shared navigation background material. Resource navigation
+uses the same `NavPanel` transition as other navigation pages, with transparent
+content above that material. Retained inactive navigation layers are inert and hidden
+from assistive technology; resource navigation does not add an opaque cover.
+
 ## Interaction contracts
 
 - File and terminal sections scroll independently and support collapse. The splitter

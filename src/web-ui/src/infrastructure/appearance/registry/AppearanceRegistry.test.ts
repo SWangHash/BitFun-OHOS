@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { AppearanceRegistry } from './AppearanceRegistry';
+import { createDefaultAppearanceRegistry } from './defaultAppearanceRegistry';
 
 describe('AppearanceRegistry', () => {
+  it('initializes the complete production registry without invalid host contracts', () => {
+    const registry = createDefaultAppearanceRegistry();
+    expect(registry.isFrozen()).toBe(true);
+    expect(registry.getComponent('conversation-excerpt')).toBeDefined();
+  });
+
   it('deep-freezes registered host surface contracts', () => {
     const descriptor = {
       id: 'test-surface',

@@ -415,7 +415,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
             : submissions.length === 0 ? (
               <Empty
                 className="appearance-market__empty"
-                icon={<Inbox size={28} aria-hidden="true" />}
+                icon={<Inbox aria-hidden="true" />}
                 description={t('package.market.submissions.empty')}
               />
             ) : (
@@ -505,7 +505,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       ) : reviewQueue.length === 0 ? (
         <Empty
           className="appearance-market__empty"
-          icon={<ShieldCheck size={28} aria-hidden="true" />}
+          icon={<ShieldCheck aria-hidden="true" />}
           description={t('package.market.review.empty')}
         />
       ) : (

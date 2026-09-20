@@ -1,3 +1,5 @@
+import { useDeviceDirectory, resolveDeviceNameFrom, isDeviceControllable } from '@/infrastructure/account/deviceDirectory';
+import { useAccountIdentity } from '@/infrastructure/account-identity';
 /**
  * Account device roster for the sidebar device switcher.
  *
@@ -9,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
+import { remoteConnectAPI, deviceDisplayName } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import { createLogger } from '@/shared/utils/logger';
 import { useAccountLoginState } from '@/infrastructure/account/useAccountLoginState';
 
@@ -22,6 +24,8 @@ export interface DeviceRosterEntry {
   deviceName: string;
   online: boolean;
   isLocal: boolean;
+  /** Relay-confirmed client compatibility; `false` blocks mutual control. */
+  controllable: boolean;
 }
 
 export interface AccountDeviceRoster {
@@ -34,6 +38,9 @@ export interface AccountDeviceRoster {
 }
 
 export function useAccountDeviceRoster(): AccountDeviceRoster {
+  const identity = useAccountIdentity();
+  const directory = useDeviceDirectory();
+  const accountId = identity.me?.user.accountId ?? identity.me?.user.githubId;
   const { loggedIn, deviceName: localDeviceName } = useAccountLoginState();
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null);
   const [peers, setPeers] = useState<DeviceRosterEntry[]>([]);
@@ -59,9 +66,10 @@ export function useAccountDeviceRoster(): AccountDeviceRoster {
             .filter(device => device.device_id !== info.device_id)
             .map(device => ({
               deviceId: device.device_id,
-              deviceName: device.device_name,
+              deviceName: deviceDisplayName(device),
               online: device.online,
               isLocal: false,
+              controllable: isDeviceControllable(device),
             })),
         );
       } catch (error) {
@@ -79,47 +87,25 @@ export function useAccountDeviceRoster(): AccountDeviceRoster {
       setPeers([]);
       return;
     }
+    setPeers([]);
+    setLocalDeviceId(null);
     refresh();
     const poll = setInterval(refresh, ROSTER_POLL_MS);
-    return () => clearInterval(poll);
-  }, [loggedIn, refresh]);
+    return () => { generationRef.current += 1; clearInterval(poll); };
+    // `accountId` belongs to the reset condition, not to the request itself:
+    // switching accounts must drop the previous account's roster instead of
+    // showing it until the next poll corrects it.
+  }, [accountId, loggedIn, refresh]);
 
   useEffect(() => {
     if (!loggedIn) {
       return;
     }
-    return api.listen<{ devices: Array<{ device_id: string; device_name: string }> }>(
-      'account://device-presence',
-      (payload) => {
-        const online = payload?.devices ?? [];
-        const onlineIds = new Set(online.map(device => device.device_id));
-        setPeers(prev => {
-          const byId = new Map(prev.map(device => [device.deviceId, device]));
-          for (const device of online) {
-            if (device.device_id === localDeviceId) {
-              continue;
-            }
-            const existing = byId.get(device.device_id);
-            byId.set(device.device_id, {
-              deviceId: device.device_id,
-              deviceName: device.device_name || existing?.deviceName || device.device_id,
-              online: true,
-              isLocal: false,
-            });
-          }
-          for (const [deviceId, device] of byId) {
-            if (!onlineIds.has(deviceId) && device.online) {
-              byId.set(deviceId, { ...device, online: false });
-            }
-          }
-          return Array.from(byId.values());
-        });
-      },
-    );
-  }, [loggedIn, localDeviceId]);
+    return api.listen('account://device-presence', refresh);
+  }, [loggedIn, refresh]);
 
   const devices = useMemo<DeviceRosterEntry[]>(() => {
-    const sortedPeers = [...peers].sort((a, b) => {
+    const sortedPeers = peers.map(peer => ({ ...peer, deviceName: resolveDeviceNameFrom(directory.devices, peer.deviceId, peer.deviceName) })).sort((a, b) => {
       if (a.online !== b.online) {
         return a.online ? -1 : 1;
       }
@@ -134,10 +120,11 @@ export function useAccountDeviceRoster(): AccountDeviceRoster {
         deviceName: localDeviceName || localDeviceId,
         online: true,
         isLocal: true,
+        controllable: true,
       },
       ...sortedPeers,
     ];
-  }, [peers, localDeviceId, localDeviceName]);
+  }, [peers, localDeviceId, localDeviceName, directory]);
 
   return { loggedIn, localDeviceId, localDeviceName, devices, refresh };
 }

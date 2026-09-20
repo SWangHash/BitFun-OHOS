@@ -1,0 +1,127 @@
+.bitfun-update-download {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+
+  &__button {
+    // Keep the full hit area while the circle itself owns pointer feedback.
+    &::before { display: none; }
+
+    &:is(:hover, :focus-visible):not(:disabled) .bitfun-update-download__vessel {
+      filter: brightness(1.12);
+      scale: 1.06;
+    }
+
+    &:active:not(:disabled) .bitfun-update-download__vessel {
+      filter: brightness(0.98);
+      scale: 0.96;
+    }
+  }
+
+  &__vessel {
+    position: relative;
+    isolation: isolate;
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--bitfun-space-5);
+    block-size: var(--bitfun-space-5);
+    overflow: hidden;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-status-info-border);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-status-info-surface);
+    transition:
+      filter var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      scale var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+    &[data-download-status='ready'],
+    &[data-download-status='installing'] {
+      border: 0;
+      background: var(--bitfun-color-status-success-emphasis);
+    }
+
+  }
+
+  &__fill {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: var(--bitfun-color-status-info-emphasis);
+    transition: transform var(--bitfun-motion-duration-base) linear;
+
+    &::before {
+      position: absolute;
+      inset-block-start: calc(var(--bitfun-space-1) * -1);
+      left: 0;
+      inline-size: 200%;
+      block-size: var(--bitfun-space-1);
+      background: inherit;
+      // Two matching wave periods keep crests and troughs flowing through the loop.
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4C3.33 0 6.67 0 10 4S16.67 8 20 4S26.67 0 30 4S36.67 8 40 4V8H0Z'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+      animation: bitfun-update-download-wave calc(var(--bitfun-motion-duration-loop) * 2) linear infinite;
+      content: '';
+    }
+
+    &[data-bitfun-state='indeterminate'] {
+      // Keep the wave near the bottom until byte progress can set the water level.
+      transform: translateY(calc(100% - var(--bitfun-space-1) / 4));
+    }
+  }
+
+  &__complete {
+    color: var(--bitfun-color-content-on-dark);
+    animation: bitfun-update-download-complete var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-enter) both;
+  }
+
+  &__transfer {
+    position: fixed;
+    z-index: var(--bitfun-layer-notification);
+    top: 0;
+    left: 0;
+    inline-size: var(--bitfun-space-5);
+    block-size: var(--bitfun-space-5);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-status-info-emphasis);
+    box-shadow: var(--bitfun-shadow-raised);
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@keyframes bitfun-update-download-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes bitfun-update-download-complete {
+  from { opacity: 0; transform: translateY(var(--bitfun-motion-distance-sm)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bitfun-update-download {
+    &__vessel { transition: none; }
+    &__button:is(:hover, :focus-visible, :active):not(:disabled) .bitfun-update-download__vessel { scale: 1; }
+    &__complete { animation: none; }
+    &__fill { transition: none; }
+    &__fill::before { animation: none; }
+    &__transfer { display: none; }
+  }
+}
+
+@media (forced-colors: active) {
+  .bitfun-update-download__button:is(:hover, :focus-visible, :active):not(:disabled) .bitfun-update-download__vessel {
+    filter: none;
+  }
+  .bitfun-update-download__vessel[data-download-status] {
+    border-color: ButtonText;
+    background: Canvas;
+  }
+  .bitfun-update-download__fill,
+  .bitfun-update-download__vessel[data-download-status='ready'],
+  .bitfun-update-download__vessel[data-download-status='installing'],
+  .bitfun-update-download__transfer { background: Highlight; }
+  .bitfun-update-download__complete { color: HighlightText; }
+}

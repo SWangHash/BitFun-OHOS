@@ -81,9 +81,9 @@ function publish(sessionId: string): void {
 function targetFor(sessionId: string): ActivityTarget | undefined {
   const session = flowChatStore.getState().sessions.get(sessionId);
   if (!session || session.isTransient || session.config.dispatchJobId) return;
-  const workspacePath = session.projectWorkspacePath || session.config.projectWorkspacePath || session.workspacePath;
-  if (!workspacePath) return;
-  return { sessionId, workspacePath, remoteConnectionId: session.remoteConnectionId, remoteSshHost: session.remoteSshHost };
+  const workspaceId = session.projectWorkspaceId || session.workspaceId || session.config.workspaceId;
+  if (!workspaceId) return;
+  return { sessionId, workspaceId };
 }
 
 /** Installed for the FlowChat lifetime, with one subscription per source. */
@@ -214,9 +214,9 @@ export function installSessionNavStatusService(): () => void {
     if (machineTurns.get(sessionId) === identity) return;
     machineTurns.set(sessionId, identity);
     if (machine.currentState === SessionExecutionState.PROCESSING) {
-      sessionActivityStore.observe(getActiveSurfaceId(), 'agentic://dialog-turn-started', {
-        sessionId, turnId: machine.context.currentDialogTurnId,
-      });
+      // A local start is not a host acknowledgement. Refresh the host facts;
+      // navigation projects the pending local Turn until those facts catch up.
+      sessionActivityStore.invalidate(sessionId);
     }
     publish(sessionId);
   }));

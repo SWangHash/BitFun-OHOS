@@ -2,6 +2,8 @@ import "./styles/layers.css";
 import "./styles/scrollbars.css";
 
 export { VoiceCallPanel, type VoiceCallPanelProps, type VoiceCallLabels, type VoiceCallPhase } from "./components/VoiceCallPanel";
+export { VoiceCallTranscript, VoiceCallControls, VoiceCallIdentity, type VoiceTranscriptEntry, type VoiceCallTranscriptProps, type VoiceCallControlsProps, type VoiceCallIdentityProps } from "./components/VoiceCallPanel";
+export { VoiceCallHeader, type VoiceCallHeaderProps } from "./components/VoiceCallPanel";
 export { VoiceParticleLogo, type VoiceParticleLogoProps, type VoiceParticleAudio, type VoiceParticleAudioReader } from "./components/VoiceParticleLogo";
 
 export {
@@ -11,12 +13,24 @@ export {
 } from "./providers";
 export {
   useDismissibleLayer,
+  subscribeOverlayInteraction,
   useHasOverlayLayers,
+  hasOverlayLayers,
+  useHasModalOverlay,
+  Portal,
+  OverlayLayer,
+  OverlayRegion,
+  createOverlayPortal,
+  getOverlayHost,
+  type PortalProps,
   useOverlayLayerActions,
+  usePresence,
   type OverlayDismissReason,
   type OverlayLayerScope,
   type OverlayPortalContainer,
   type OverlayPortalTarget,
+  type PresenceSnapshot,
+  type PresenceState,
   type UseDismissibleLayerOptions,
 } from "./overlay";
 
@@ -150,10 +164,12 @@ export {
   type MenuPopoverParts,
   type MenuEntry,
   MenuItem,
+  MenuList,
   MenuSection,
   MenuSeparator,
   type MenuItemProps,
   type MenuItemRole,
+  type MenuListProps,
   type MenuProps,
   type MenuSectionAction,
   type MenuSectionProps,

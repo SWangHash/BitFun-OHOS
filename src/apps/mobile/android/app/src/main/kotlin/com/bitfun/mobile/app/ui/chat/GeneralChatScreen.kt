@@ -190,7 +190,7 @@ internal fun GeneralChatScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(com.bitfun.mobile.app.ui.theme.generated.MobileDesignGeometry.ConversationHeaderHeight)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

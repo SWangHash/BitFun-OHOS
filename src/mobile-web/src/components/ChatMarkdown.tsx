@@ -269,9 +269,13 @@ interface FileCardProps {
 const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) => {
   const { t } = useI18n();
   const [state, setState] = useState<FileCardState>({ status: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   const onGetFileInfoRef = useRef(onGetFileInfo);
   onGetFileInfoRef.current = onGetFileInfo;
 
+  // The owning host resolves metadata on demand, so a failure is not final: a
+  // file can appear after the message that names it, and a target switch can
+  // fail the request. Keep the reason and make the lookup repeatable.
   useEffect(() => {
     let cancelled = false;
     onGetFileInfoRef.current(path)
@@ -283,7 +287,12 @@ const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) 
           setState({ status: 'error', message: err instanceof Error ? err.message : String(err) });
       });
     return () => { cancelled = true; };
-  }, [path]);
+  }, [path, attempt]);
+
+  const handleRetry = useCallback(() => {
+    setState({ status: 'loading' });
+    setAttempt(value => value + 1);
+  }, []);
 
   const handleClick = useCallback(async () => {
     if (state.status !== 'ready' && state.status !== 'done') return;
@@ -311,10 +320,18 @@ const FileCard: React.FC<FileCardProps> = ({ path, onGetFileInfo, onDownload }) 
     );
   }
   if (state.status === 'error') {
+    // The reason used to live only in `title`, which no touch host shows. Keep
+    // the failure readable and repeatable instead of a dead, dimmed card.
     return (
-      <span className="file-card" data-status="error" title={state.message}>
+      <span className="file-card" data-status="error">
         <span className="file-card__icon"><FileTextIcon size={20} /></span>
-        <span className="file-card__placeholder">{t('chat.fileUnavailable')}</span>
+        <span className="file-card__copy">
+          <span className="file-card__name">{t('chat.fileUnavailable')}</span>
+          <span className="file-card__reason">{state.message}</span>
+        </span>
+        <MobileButton appearance="plain" className="file-card__retry" onClick={handleRetry}>
+          {t('devices.retry')}
+        </MobileButton>
       </span>
     );
   }

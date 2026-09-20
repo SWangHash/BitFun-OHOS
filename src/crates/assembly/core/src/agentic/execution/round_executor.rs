@@ -1425,6 +1425,7 @@ impl RoundExecutor {
                             tool_call.tool_id.clone(),
                             tool_call.tool_name.clone(),
                         ),
+                        error_detail: None,
                         error: format!("Tool arguments stream interrupted: {}", error),
                         duration_ms: None,
                         queue_wait_ms: None,

@@ -1,3 +1,4 @@
+import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
 /**
  * Git branch commit history view.
  * Shows a branch's commits and supports cherry-pick when applicable.
@@ -14,13 +15,15 @@ import type { GitGraphNode } from '@/infrastructure/api/service-api/GitAPI';
 import { i18nService } from '@/infrastructure/i18n';
 import { describeGitTrustFailure } from '../../services/GitService';
 import { createLogger } from '@/shared/utils/logger';
+import { useStableGitWorkspaceScope } from '../../hooks/useStableGitWorkspaceScope';
+import { useGitState } from '../../hooks/useGitState';
 import './GitBranchHistoryView.scss';
 
 const log = createLogger('GitBranchHistoryView');
 
 export interface GitBranchHistoryViewProps {
   /** Repository path */
-  repositoryPath: string;
+  repositoryPath: GitWorkspaceScope;
   /** Branch name */
   branchName: string;
   /** Current branch name (used to determine if cherry-pick is allowed) */
@@ -79,15 +82,32 @@ function convertToCommitInfo(node: GitGraphNode): CommitInfo {
 }
 
 export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
-  repositoryPath,
+  repositoryPath: workspaceReference,
   branchName,
   currentBranch,
   maxCount = 100,
   className = '',
   onCherryPickSuccess
 }) => {
+  const repositoryPath = useStableGitWorkspaceScope(workspaceReference);
   const { t } = useTranslation('panels/git');
   const { t: tComponents } = useI18n('components');
+
+  // Subscribe to live Git state so the cherry-pick availability (which
+  // depends on whether the viewed branch is the current one) stays accurate
+  // after external checkouts. The prop value is used as an initial hint when
+  // the panel first opens (before the subscription has produced a value).
+  const { currentBranch: liveCurrentBranch } = useGitState({
+    repositoryPath,
+    layers: ['basic'],
+    isActive: true,
+    refreshOnMount: true,
+    refreshOnActive: true,
+    participateInWindowFocusRefresh: true,
+    debugSource: 'git_branch_history_view',
+  });
+  const effectiveCurrentBranch = liveCurrentBranch ?? currentBranch ?? null;
+
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +124,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
   const notification = useNotification();
   
 
-  const canCherryPick = currentBranch && branchName !== currentBranch;
+  const canCherryPick = effectiveCurrentBranch && branchName !== effectiveCurrentBranch;
 
 
   const loadCommits = useCallback(async () => {
@@ -267,7 +287,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
     if (failedHashes.length === 0 && successHashes.length > 0) {
       notification.success(t('branchHistory.notifications.cherryPickSuccess', {
         count: successHashes.length,
-        branch: currentBranch
+        branch: effectiveCurrentBranch
       }));
       setSelectedCommits(new Set());
       onCherryPickSuccess?.(successHashes);
@@ -289,7 +309,7 @@ export const GitBranchHistoryView: React.FC<GitBranchHistoryViewProps> = ({
 
       setSelectedCommits(new Set(failedHashes.map(f => f.hash)));
     }
-  }, [selectedCommits, commits, repositoryPath, currentBranch, notification, onCherryPickSuccess, t]);
+  }, [selectedCommits, commits, repositoryPath, effectiveCurrentBranch, notification, onCherryPickSuccess, t]);
 
   if (loading) {
     return (

@@ -137,4 +137,17 @@ describe('sessionComposerStore', () => {
 
     expect(sessionComposerStore.getState().getDraft('local-session').contexts).toEqual([]);
   });
+
+  it('can restore a failed submission on its original surface without touching the active peer draft', () => {
+    activateSurface('peer');
+    const store = sessionComposerStore.getState();
+    store.setValue('same-session', 'Peer draft');
+    store.setValue('same-session', 'Recovered question', LOCAL_SURFACE_ID);
+    store.setContexts('same-session', [context('quote')], LOCAL_SURFACE_ID);
+    store.setPendingLargePastes('same-session', { paste: 'content' }, LOCAL_SURFACE_ID);
+    expect(store.getDraft('same-session')).toMatchObject({ value: 'Peer draft', contexts: [], pendingLargePastes: {} });
+    expect(store.getDraft('same-session', LOCAL_SURFACE_ID)).toMatchObject({
+      value: 'Recovered question', contexts: [context('quote')], pendingLargePastes: { paste: 'content' },
+    });
+  });
 });

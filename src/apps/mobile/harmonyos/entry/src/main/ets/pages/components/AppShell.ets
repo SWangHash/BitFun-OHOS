@@ -105,7 +105,7 @@ export struct AppShell {
         x: (this.allowSidebar && this.shellState.showSidebar) ? 0.985 : 1,
         y: (this.allowSidebar && this.shellState.showSidebar) ? 0.992 : 1,
         centerX: '0%',
-        centerY: '50%'
+        centerY: MobileDesignGeometry.conversationHeaderHeight / 2
       })
       .translate({ x: (this.allowSidebar && this.shellState.showSidebar) ? this.sidebarWidth() : 0 })
       .animation({

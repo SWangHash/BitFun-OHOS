@@ -108,6 +108,9 @@ export struct RemoteSurfaceHost {
           statusFilter: this.presentationState.statusFilter,
           workspaceName: this.remotePageState.workspaceName,
           workspacePath: this.remotePageState.workspacePath,
+          workspaceId: this.remotePageState.workspaceId,
+          workspaceConnectionId: this.remotePageState.workspaceConnectionId,
+          workspaceSshHost: this.remotePageState.workspaceSshHost,
           workspaceKind: this.remotePageState.workspaceKind,
           recentWorkspaces: this.remotePageState.recentWorkspaces,
           actionPresentation: SessionActionPresentation.Popover,
@@ -126,8 +129,10 @@ export struct RemoteSurfaceHost {
             (this.showSelectedSession ? this.remotePageState.conversation.activeSession.sessionId : ''),
           onCreate: () => this.createSession('code'),
           onCreateAssistantSession: () => this.createAssistantSession(),
-          onCreateInWorkspace: (path: string, agentType: string) => this.createSessionInWorkspace(path, agentType),
-          onSelectWorkspace: (path: string) => this.actions.onRemoteHome.selectWorkspace(path),
+          onCreateInWorkspace: (path: string, agentType: string, connectionId?: string, sshHost?: string, workspaceId?: string) =>
+            this.createSessionInWorkspace(path, agentType, connectionId, sshHost, workspaceId),
+          onSelectWorkspace: (path: string, connectionId?: string, sshHost?: string, workspaceId?: string) =>
+            this.actions.onRemoteHome.selectWorkspace(path, undefined, connectionId, sshHost, workspaceId),
           onOpenSession: (session: RemoteSession) => this.openSession(session),
           onDeleteSession: (session: RemoteSession) => this.actions.onRemoteHome.deleteSession(session),
           onLoadMore: () => this.actions.onRemoteHome.loadMore()
@@ -203,7 +208,7 @@ export struct RemoteSurfaceHost {
 
   @Builder
   private ConnectionEntry() {
-    if (this.isSyncing()) {
+    if (this.isInitialLoading()) {
       RemoteSessionLoadingView()
     } else {
       this.CompactEmptyState()
@@ -234,6 +239,9 @@ export struct RemoteSurfaceHost {
   @Builder
   private CompactEmptyState() {
     RecentRemoteHome({
+      sessions: this.remotePageState.recentHomeSessions(),
+      desktopName: this.desktopName(),
+      onOpen: (session: RemoteSession) => this.openSession(session),
       connected: this.remotePageState.connectionState === 'connected',
       busy: this.isInitialLoading(),
       onBrowse: () => { if (this.compact) this.onOpenSidebar(); else this.onRestoreSidebar(); },
@@ -251,7 +259,7 @@ export struct RemoteSurfaceHost {
           Blank().width(48).height(48)
         }
         Column({ space: 4 }) {
-          Text(RemoteI18n.t('remote.chats')).fontSize(MobileDesignTypography.headlineMedium.size).fontWeight(FontWeight.Bold).fontColor(INK)
+          Text(RemoteI18n.t('app.title')).fontSize(MobileDesignTypography.headlineMedium.size).fontWeight(FontWeight.Bold).fontColor(INK)
           Text(this.desktopName()).fontSize(MobileDesignTypography.bodySmall.size).fontColor(MUTED).maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -310,12 +318,14 @@ export struct RemoteSurfaceHost {
     }
   }
 
-  private createSessionInWorkspace(path: string, agentType: string): void {
+  private createSessionInWorkspace(
+    path: string, agentType: string, connectionId?: string, sshHost?: string, workspaceId?: string
+  ): void {
     if (this.compact) {
       this.actions.onSidebar.close();
-      this.actions.onRemoteHome.createInWorkspace(path, agentType);
+      this.actions.onRemoteHome.createInWorkspace(path, agentType, undefined, connectionId, sshHost, workspaceId);
     } else {
-      this.actions.onRemoteHome.createInWorkspaceInPlace(path, agentType);
+      this.actions.onRemoteHome.createInWorkspaceInPlace(path, agentType, undefined, connectionId, sshHost, workspaceId);
     }
   }
 
@@ -354,10 +364,11 @@ export struct RemoteSurfaceHost {
    * placeholder rows would be a step backwards.
    */
   private isInitialLoading(): boolean {
-    if (this.remotePageState.sessions.length > 0) {
-      return false;
-    }
-    return this.isSyncing();
+    return RemoteCompactHomePolicy.shouldShowInitialLoading(
+      this.remotePageState.connectionState,
+      this.remotePageState.sessions.length,
+      this.remotePageState.isLoadingHome
+    );
   }
 
   /** Work in progress, whether or not there is already a list behind it. */
@@ -388,8 +399,8 @@ export struct RemoteSurfaceHost {
 
   /**
    * Compact Remote Home names the bound desktop under the title, the same
-   * context the conversation header carries. Stays empty while disconnected so
-   * the connect state does not advertise a stale desktop.
+   * context the conversation header carries. Keep it stable during recovery so
+   * the content does not shift when the sidebar health state changes.
    */
   private compactHeaderContext(): string {
     return RemoteCompactHomePolicy.headerSubtitle(

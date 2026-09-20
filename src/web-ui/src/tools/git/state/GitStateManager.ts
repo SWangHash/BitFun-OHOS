@@ -1,3 +1,4 @@
+import { GitWorkspaceScope, gitWorkspaceKey } from '@/infrastructure/api/service-api/GitAPI';
 /**
  * Git state manager - central state management for Git repositories
  * 
@@ -46,6 +47,22 @@ interface SubscriberEntry {
   options: SubscribeOptions;
 }
 
+/**
+ * Git metadata changes (checkout, commit, rebase, etc.) often happen outside
+ * the app — in an integrated terminal, an external Git client, a script, or
+ * triggered by the agent itself. None of those emit our in-process
+ * `branch:changed` / `operation:completed` events, so the UI can stay stale
+ * indefinitely. We therefore run a low-frequency poll against any repository
+ * that currently has at least one active subscriber, so the branch chip,
+ * welcome panel and Git scene all pick up external changes promptly.
+ *
+ * The poll hits the lightweight `basic` endpoint (`git branch --show-current`
+ * plus repo name), so it is cheap even at 2 s cadence. Heavy `status` and
+ * `detailed` layers keep their longer TTLs and are only refreshed on demand
+ * or by user-driven events.
+ */
+const POLL_INTERVAL_MS = 2000;
+
 interface PendingRefresh {
   layers: Set<GitStateLayer>;
   force: boolean;
@@ -72,6 +89,8 @@ export class GitStateManager {
   private readonly DEBOUNCE_DELAY = 100;
   private globalListenersInitialized = false;
   private globalListenerCleanups: Array<() => void> = [];
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollVisibilityCleanup: (() => void) | null = null;
 
   private constructor() {
     this.setupGlobalListeners();
@@ -99,7 +118,7 @@ export class GitStateManager {
    * @returns Unsubscribe function.
    */
   subscribe(
-    repositoryPath: string,
+    repositoryPath: GitWorkspaceScope,
     callback: GitStateSubscriber,
     options: SubscribeOptions = {}
   ): () => void {
@@ -108,6 +127,8 @@ export class GitStateManager {
     if (!this.subscribers.has(normalizedPath)) {
       this.subscribers.set(normalizedPath, new Set());
     }
+
+    const firstSubscriberForRepo = this.subscribers.get(normalizedPath)!.size === 0;
 
     const entry: SubscriberEntry = { callback, options };
     this.subscribers.get(normalizedPath)!.add(entry);
@@ -119,15 +140,27 @@ export class GitStateManager {
       }
     }
 
+    if (firstSubscriberForRepo) {
+      this.ensurePollingStarted();
+    }
+
     return () => {
-      this.subscribers.get(normalizedPath)?.delete(entry);
+      const set = this.subscribers.get(normalizedPath);
+      if (!set) return;
+      set.delete(entry);
+      if (set.size === 0) {
+        this.subscribers.delete(normalizedPath);
+        if (this.subscribers.size === 0) {
+          this.stopPolling();
+        }
+      }
     };
   }
 
   /**
    * Get current state synchronously (cached).
    */
-  getState(repositoryPath: string): GitState | null {
+  getState(repositoryPath: GitWorkspaceScope): GitState | null {
     const normalizedPath = this.normalizePath(repositoryPath);
     return this.states.get(normalizedPath) || null;
   }
@@ -135,7 +168,7 @@ export class GitStateManager {
   /**
    * Get state or create an initial one.
    */
-  getOrCreateState(repositoryPath: string): GitState {
+  getOrCreateState(repositoryPath: GitWorkspaceScope): GitState {
     const normalizedPath = this.normalizePath(repositoryPath);
     let state = this.states.get(normalizedPath);
 
@@ -151,7 +184,7 @@ export class GitStateManager {
    * Request a refresh.
    */
   async refresh(
-    repositoryPath: string,
+    repositoryPath: GitWorkspaceScope,
     options: RefreshOptions = {}
   ): Promise<void> {
     const normalizedPath = this.normalizePath(repositoryPath);
@@ -167,7 +200,7 @@ export class GitStateManager {
   }
 
   cancelPendingRefresh(
-    repositoryPath: string,
+    repositoryPath: GitWorkspaceScope,
     options: {
       reason?: RefreshReason;
       source?: string;
@@ -204,7 +237,7 @@ export class GitStateManager {
    * Register a consumer that wants automatic refresh on window focus.
    * Multiple concurrent consumers for the same repository are reference-counted.
    */
-  registerWindowFocusRefresh(repositoryPath: string): () => void {
+  registerWindowFocusRefresh(repositoryPath: GitWorkspaceScope): () => void {
     const normalizedPath = this.normalizePath(repositoryPath);
     const nextCount = (this.windowFocusRefreshCounts.get(normalizedPath) ?? 0) + 1;
     this.windowFocusRefreshCounts.set(normalizedPath, nextCount);
@@ -223,7 +256,7 @@ export class GitStateManager {
    * Invalidate cache by resetting last refresh timestamps.
    */
   invalidateCache(
-    repositoryPath: string,
+    repositoryPath: GitWorkspaceScope,
     layers: GitStateLayer[] = ['basic', 'status', 'detailed']
   ): void {
     const normalizedPath = this.normalizePath(repositoryPath);
@@ -258,11 +291,13 @@ export class GitStateManager {
     }
     this.refreshDebounceTimers.clear();
 
+    this.stopPolling();
 
     this.subscribers.clear();
 
 
     this.states.clear();
+    this.workspaceScopes.clear();
 
     this.windowFocusRefreshCounts.clear();
 
@@ -411,7 +446,7 @@ export class GitStateManager {
     let probeError: string | null = null;
     let probeOutcome = 'completed';
 
-    let state = this.getOrCreateState(repositoryPath);
+    let state = this.getOrCreateState(this.scopeForKey(repositoryPath));
     const prevState = { ...state };
 
 
@@ -462,7 +497,7 @@ export class GitStateManager {
         }
 
 
-        state = this.getOrCreateState(repositoryPath);
+        state = this.getOrCreateState(this.scopeForKey(repositoryPath));
         const newLastRefreshTime = { ...state.lastRefreshTime };
         for (const layer of layersToRefresh) {
           newLastRefreshTime[layer] = now;
@@ -476,7 +511,7 @@ export class GitStateManager {
         });
 
 
-        const finalState = this.getState(repositoryPath)!;
+        const finalState = this.getState(this.scopeForKey(repositoryPath))!;
         const comparison = compareStates(prevState, finalState);
         if (comparison.hasChanges) {
           this.notifySubscribers(repositoryPath, finalState, prevState, comparison.changedLayers);
@@ -593,7 +628,7 @@ export class GitStateManager {
     repositoryPath: string
   ): Promise<{ trustRequired: boolean; path?: string } | undefined> {
     try {
-      const report = await gitAPI.getRepositoryTrust(repositoryPath);
+      const report = await gitAPI.getRepositoryTrust(this.scopeForKey(repositoryPath));
       if (report.state !== 'trust_required') {
         return { trustRequired: false };
       }
@@ -612,7 +647,7 @@ export class GitStateManager {
     layersToRefresh: GitStateLayer[]
   ): Promise<void> {
     try {
-      const isRepo = await gitAPI.isGitRepository(repositoryPath);
+      const isRepo = await gitAPI.isGitRepository(this.scopeForKey(repositoryPath));
 
       // The probe answers `true` for a repository Git refuses on ownership
       // grounds — local and remote alike — so `false` here really is "no
@@ -637,8 +672,8 @@ export class GitStateManager {
 
       const shouldRefreshStatus = layersToRefresh.includes('status');
       if (!shouldRefreshStatus) {
-        const repository = await gitAPI.getRepositoryBasic(repositoryPath);
-        const currentState = this.getOrCreateState(repositoryPath);
+        const repository = await gitAPI.getRepositoryBasic(this.scopeForKey(repositoryPath));
+        const currentState = this.getOrCreateState(this.scopeForKey(repositoryPath));
         this.updateState(repositoryPath, {
           isRepository: true,
           currentBranch: repository.current_branch || repository.branch || null,
@@ -647,7 +682,7 @@ export class GitStateManager {
         return;
       }
 
-      const status = await gitAPI.getStatus(repositoryPath, 'git_state_manager');
+      const status = await gitAPI.getStatus(this.scopeForKey(repositoryPath), 'git_state_manager');
 
       const hasChanges =
         (status.staged?.length || 0) > 0 ||
@@ -676,14 +711,14 @@ export class GitStateManager {
    * Refresh detailed layer (branches/commits).
    */
   private async refreshDetailed(repositoryPath: string): Promise<void> {
-    const state = this.getState(repositoryPath);
+    const state = this.getState(this.scopeForKey(repositoryPath));
     if (!state?.isRepository) return;
 
     try {
 
       const [branches, commits] = await Promise.all([
-        gitAPI.getBranches(repositoryPath, true).catch(() => []),
-        gitAPI.getCommits(repositoryPath, { maxCount: 20 }).catch(() => []),
+        gitAPI.getBranches(this.scopeForKey(repositoryPath), true).catch(() => []),
+        gitAPI.getCommits(this.scopeForKey(repositoryPath), { maxCount: 20 }).catch(() => []),
       ]);
 
       this.updateState(repositoryPath, {
@@ -725,7 +760,7 @@ export class GitStateManager {
     repositoryPath: string,
     partial: Partial<GitState>
   ): GitState {
-    const currentState = this.getOrCreateState(repositoryPath);
+    const currentState = this.getOrCreateState(this.scopeForKey(repositoryPath));
     const newState: GitState = {
       ...currentState,
       ...partial,
@@ -781,7 +816,7 @@ export class GitStateManager {
     reason: RefreshReason
   ): void {
     const eventData: GitStateChangedEventData = {
-      repositoryPath,
+      repositoryPath: this.scopeForKey(repositoryPath),
       state,
       changedLayers,
       reason,
@@ -793,7 +828,7 @@ export class GitStateManager {
 
 
     gitEventService.emit('status:changed', {
-      repositoryPath,
+      repositoryPath: this.scopeForKey(repositoryPath),
       status: {
         current_branch: state.currentBranch || '',
         staged: state.staged,
@@ -869,7 +904,7 @@ export class GitStateManager {
       repositories,
     });
     for (const repoPath of repositories) {
-      this.refresh(repoPath, {
+      this.refresh(this.scopeForKey(repoPath), {
         layers: ['basic', 'status'],
         reason: 'window-focus',
         silent: true,
@@ -895,9 +930,60 @@ export class GitStateManager {
     });
   };
 
+  /**
+   * Write a completed checkout into the shared state and broadcast it.
+   *
+   * Both manual switch entry points (the Git scene branch list and the
+   * composer branch picker) announce a successful checkout as a
+   * `branch:changed` event, so that event is the single place where a manual
+   * switch reaches this cache. Writing it here makes every surface that
+   * renders `currentBranch` flip at the same moment, instead of each waiting
+   * for the reconciling refresh below or, worse, the poll interval.
+   *
+   * Git stays the source of truth: the forced refresh that follows overwrites
+   * whatever we write here, so a guess that does not match reality is
+   * corrected rather than persisted. This runs only after a checkout the host
+   * reported as successful — it never fabricates one.
+   *
+   * The cached branch list is patched too, but only the `current` flag, so
+   * pickers that render from `state.branches` move their marker immediately
+   * without touching names or upstream data.
+   */
+  private applyBranchChange(scope: GitWorkspaceScope, branchName: string): void {
+    // `states`, `subscribers` and `updateState` are all keyed by the
+    // normalized workspace key, so normalize once here rather than at each use.
+    const repositoryPath = this.normalizePath(scope);
+    const prevState = this.states.get(repositoryPath) ?? null;
+
+    const branches = prevState?.branches?.map((branch) => {
+      const isCurrent = branch.name === branchName;
+      return branch.current === isCurrent ? branch : { ...branch, current: isCurrent };
+    });
+
+    const nextState = this.updateState(repositoryPath, {
+      isRepository: true,
+      repositoryTrustRequired: false,
+      currentBranch: branchName,
+      ...(branches ? { branches } : {}),
+    });
+
+    const comparison = compareStates(prevState, nextState);
+    if (!comparison.hasChanges) return;
+
+    this.notifySubscribers(repositoryPath, nextState, prevState, comparison.changedLayers);
+    this.emitStateChanged(repositoryPath, nextState, comparison.changedLayers, 'operation');
+  }
+
   private handleBranchChanged = (event: any): void => {
-    const { repositoryPath } = event.data;
+    const { repositoryPath, branch } = event.data;
     if (!repositoryPath) return;
+
+    // Apply the reported branch first so the UI moves now; the forced refresh
+    // below then reconciles ahead/behind, the working copy and the branch list.
+    const branchName = typeof branch?.name === 'string' ? branch.name : '';
+    if (branchName) {
+      this.applyBranchChange(repositoryPath, branchName);
+    }
 
     this.invalidateCache(repositoryPath, ['basic', 'status', 'detailed']);
     this.refresh(repositoryPath, {
@@ -908,14 +994,105 @@ export class GitStateManager {
   };
 
   // -------------------------------------------------------------------------
+  // Polling — catch external branch / HEAD changes every POLL_INTERVAL_MS.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Start the interval-based poll if not already running. The poll is global
+   * (one timer for all repositories) and pauses while the document is hidden
+   * to avoid unnecessary work in background tabs. It only refreshes repos
+   * that currently have subscribers and always uses a silent basic-layer
+   * refresh so status/detailed caches are not thrashed.
+   */
+  private ensurePollingStarted(): void {
+    if (typeof window === 'undefined') return;
+
+    if (this.pollVisibilityCleanup === null) {
+      const handleVisibility = (): void => {
+        if (document.hidden) {
+          this.stopPollingTimerOnly();
+        } else if (this.subscribers.size > 0) {
+          // Kick off an immediate refresh so we don't lag by up to one
+          // interval after becoming visible, then resume the timer.
+          this.pollTick();
+          this.startPollingTimer();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+      this.pollVisibilityCleanup = () => {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
+    }
+
+    // A subscription can be added while the document is hidden. Keep the
+    // timer paused in that case; the visibility listener above will start it
+    // when the document becomes visible again.
+    if (!document.hidden) {
+      this.startPollingTimer();
+    }
+  }
+
+  private startPollingTimer(): void {
+    if (this.pollTimer !== null || this.subscribers.size === 0) return;
+    this.pollTimer = setInterval(() => {
+      this.pollTick();
+    }, POLL_INTERVAL_MS);
+  }
+
+  private stopPolling(): void {
+    this.stopPollingTimerOnly();
+    if (this.pollVisibilityCleanup) {
+      this.pollVisibilityCleanup();
+      this.pollVisibilityCleanup = null;
+    }
+  }
+
+  private stopPollingTimerOnly(): void {
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private pollTick(): void {
+    if (isPeerDeviceModeActive()) {
+      // In peer-device mode the controller is not the execution host; rely
+      // on the transport's state sync instead of issuing local git calls.
+      return;
+    }
+    for (const repoKey of this.subscribers.keys()) {
+      const scope = this.scopeForKey(repoKey);
+      // Invalidate the basic-layer timestamp so the non-forced refresh below
+      // bypasses the Infinity TTL and actually hits Git. We only invalidate
+      // `basic` — status/detailed keep their longer TTLs and are refreshed
+      // on demand or by user-driven events, not by this tick.
+      this.invalidateCache(scope, ['basic']);
+      this.refresh(scope, {
+        layers: ['basic'],
+        reason: 'interval',
+        silent: true,
+      }).catch((error) => {
+        log.debug('Poll-tick refresh failed', { repositoryPath: repoKey, error });
+      });
+    }
+  }
 
   // -------------------------------------------------------------------------
 
   /**
    * Normalize path separators for stable map keys.
    */
-  private normalizePath(path: string): string {
-    return path.replace(/\\/g, '/');
+  private normalizePath(scope: GitWorkspaceScope): string {
+    const key = gitWorkspaceKey(scope);
+    this.workspaceScopes.set(key, scope);
+    return key;
+  }
+
+  private workspaceScopes = new Map<string, GitWorkspaceScope>();
+  private scopeForKey(key: string): GitWorkspaceScope {
+    const scope = this.workspaceScopes.get(key);
+    if (!scope) throw new Error('Git workspace ID is unavailable');
+    return scope;
   }
 }
 

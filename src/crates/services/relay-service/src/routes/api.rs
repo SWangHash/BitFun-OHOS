@@ -71,6 +71,7 @@ pub struct ServerInfo {
     pub name: String,
     pub version: String,
     pub protocol_version: u8,
+    pub capabilities: Vec<&'static str>,
 }
 
 pub async fn server_info() -> Json<ServerInfo> {
@@ -82,5 +83,10 @@ pub(crate) async fn server_info_for_host(host_version: &'static str) -> Json<Ser
         name: "BitFun Relay Server".to_string(),
         version: host_version.to_string(),
         protocol_version: 3,
+        capabilities: vec![
+            "device_alias_v1",
+            "device_metadata_v1",
+            "device_client_build_v1",
+        ],
     })
 }

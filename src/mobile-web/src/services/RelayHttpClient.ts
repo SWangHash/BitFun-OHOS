@@ -1,8 +1,10 @@
-import { openSessionStream, type SessionStreamHandle, type SessionHistoryState } from '../../../shared/relay-transport/SessionStream';
-import type { SessionEvent } from '../../../shared/relay-transport/SessionCipher';
+import {
+  openHostStream, parseStreamHint, parseStreamPage,
+  type HostStreamOptions, type SessionStreamHandle, type StreamHint, type StreamReadRequest,
+} from '../../../shared/relay-transport/HostStream';
 /** Account directory plus the shared Socket.IO encrypted RPC transport. */
-import { AccountRealtime } from '../../../shared/relay-transport/AccountRealtime';
-import { deriveDeviceMessageKey, encrypt, decrypt, decryptBytes, fromB64 } from './E2EEncryption';
+import { AccountRealtime, type DeviceEventEnvelope } from '../../../shared/relay-transport/AccountRealtime';
+import { deriveDeviceMessageKey, encrypt, decrypt, fromB64 } from './E2EEncryption';
 import { normalizeRelayUrl } from './pairingLink';
 
 export interface AccountIdentity {
@@ -30,12 +32,53 @@ const RELAY_HTTP_RETRY_BUDGET_MS = 120_000;
 const TRANSIENT_RELAY_STATUSES = new Set([408, 425, 500, 502, 503, 504]);
 type RelayRequestOptions = { retryable?: boolean; timeoutMs?: number };
 
+export interface RelayDeviceInfo {
+  device_id: string;
+  device_name: string;
+  device_alias?: string | null;
+  device_model?: string | null;
+  device_os?: string | null;
+  device_os_version?: string | null;
+  /** Client build the device reported to the Relay. Absent on older Relays. */
+  client_version?: string | null;
+  /** Client wire protocol the device reported. Absent on older Relays. */
+  client_protocol?: number | null;
+  /**
+   * Relay-computed mutual-control compatibility of this device with this one.
+   *
+   * `false` means confirmed incompatible: either a client build/protocol
+   * mismatch or a peer that reported no version information (an older client).
+   * Absent only on an older Relay that does not gate at all, which must be
+   * treated as "unknown but usable", never as incompatible.
+   */
+  compatible?: boolean;
+  online: boolean;
+  last_seen_at?: number | null;
+}
+
+export function deviceDisplayName(device: Pick<RelayDeviceInfo, 'device_id' | 'device_name' | 'device_alias'>): string {
+  return device.device_alias ?? device.device_name ?? device.device_id;
+}
+
+
 export class RelayHttpClient {
   private readonly relayUrl: string;
   private realtime: AccountRealtime | null = null;
   private identity: AccountIdentitySnapshot | null = null;
   private identityGeneration = 0;
   private accountEpochValue = 0;
+  private directoryRequest = 0;
+  private appliedDirectoryRequest = 0;
+  private directorySnapshot: RelayDeviceInfo[] = [];
+  private directorySnapshotListeners = new Set<(devices: RelayDeviceInfo[]) => void>();
+  onDeviceDirectorySnapshot(listener: (devices: RelayDeviceInfo[]) => void): () => void {
+    this.directorySnapshotListeners.add(listener);
+    return () => { this.directorySnapshotListeners.delete(listener); };
+  }
+  resolveDeviceName(deviceId: string, fallback = deviceId): string {
+    const device = this.directorySnapshot.find(item => item.device_id === deviceId);
+    return device ? deviceDisplayName(device) : fallback;
+  }
   private directoryListeners = new Set<() => void>();
   private ownerListeners = new Set<(change: AccountOwnerChange) => void>();
   private authorizationExpiredListeners = new Set<(token: string) => void>();
@@ -43,6 +86,7 @@ export class RelayHttpClient {
   private controlTargetEpochValue = 0;
   private controlTargetListeners = new Set<(snapshot: ControlTargetSnapshot) => void>();
   private deviceMessageKeys = new Map<string, { expires: number; key: Promise<Uint8Array> }>();
+  private streamHintListeners = new Set<(hint: StreamHint) => void>();
 
   constructor(relayUrl: string, identity: AccountIdentity) {
     const endpoint = normalizeRelayUrl(relayUrl);
@@ -64,7 +108,12 @@ export class RelayHttpClient {
     const notifyDirectory = () => { for (const listener of this.directoryListeners) listener(); };
     this.realtime.onDeviceDirectoryChanged(notifyDirectory);
     this.realtime.onReconnect(notifyDirectory);
+    this.realtime.onDeviceEvent(envelope => { void this.receiveDeviceEvent(envelope); });
     this.accountEpochValue += 1;
+    this.directorySnapshot = [];
+    this.directoryRequest += 1;
+    // A read that started under the previous identity must not seed the cache.
+    this.appliedDirectoryRequest = this.directoryRequest;
     this.deviceMessageKeys.clear();
     this.setTargetDeviceId(null);
     for (const listener of this.ownerListeners) listener({ kind, epoch: this.accountEpochValue, userId: identity.userId });
@@ -77,6 +126,10 @@ export class RelayHttpClient {
     this.identity = null;
     this.identityGeneration += 1;
     this.accountEpochValue += 1;
+    this.directorySnapshot = [];
+    this.directoryRequest += 1;
+    // A read from the closed identity must not seed the cache either.
+    this.appliedDirectoryRequest = this.directoryRequest;
     this.deviceMessageKeys.clear();
     this.setTargetDeviceId(null);
     for (const listener of this.ownerListeners) listener({ kind: 'unavailable', epoch: this.accountEpochValue, userId: null });
@@ -117,29 +170,71 @@ export class RelayHttpClient {
     return () => this.controlTargetListeners.delete(listener);
   }
 
-  async subscribeSessionStream(sessionId: string, relaySessionId: string, key: string,
-    onEvent: (event: SessionEvent) => void, onError: (error: unknown) => void, onCaughtUp?: () => void, onHistoryState?: (state: SessionHistoryState) => void, onResumed?: () => void): Promise<SessionStreamHandle> {
+  /** Stream hints decrypted from the controlled host; only its device is trusted. */
+  onStreamHint(listener: (hint: StreamHint) => void): () => void {
+    this.streamHintListeners.add(listener);
+    return () => { this.streamHintListeners.delete(listener); };
+  }
+
+  /** Decrypt a forwarded `DeviceEvent`. Only the selected control target is a
+   * hint source; events from any other device are dropped before key lookup. */
+  private async receiveDeviceEvent(envelope: DeviceEventEnvelope): Promise<void> {
+    const identity = this.identity;
+    const target = this.getControlTargetSnapshot();
+    if (!identity || envelope.sourceDeviceId !== target.deviceId) return;
+    try {
+      const messageKey = await this.deviceMessageKey(identity, envelope.sourceDeviceId);
+      if (this.identity !== identity || !this.isControlTargetCurrent(target)) return;
+      const plaintext = JSON.parse(await decrypt(messageKey, envelope.encrypted_data, envelope.nonce)) as { cmd?: unknown; event?: unknown; payload?: unknown };
+      if (plaintext?.cmd !== 'device_event' || typeof plaintext.event !== 'string') return;
+      const hint = parseStreamHint(envelope.sourceDeviceId, plaintext.event, plaintext.payload);
+      if (hint) for (const listener of this.streamHintListeners) listener(hint);
+    } catch (error) {
+      console.warn('[RelayHttpClient] device event ignored', error);
+    }
+  }
+
+  /** Read one host-owned stream (session records, terminal output hints, host
+   * catalog) directly from the selected control target. Nothing is cached. */
+  async subscribeHostStream(streamId: string, callbacks: Pick<HostStreamOptions, 'onEvent' | 'onError' | 'onCaughtUp' | 'onHistoryState' | 'onResumed' | 'onGap'>): Promise<SessionStreamHandle> {
     const identity = this.identity;
     const connection = this.realtime;
     const target = this.getControlTargetSnapshot();
     if (!identity || !connection || !target.deviceId) throw new Error('No controlled runtime is selected');
+    const deviceId = target.deviceId;
     let disposed = false;
     let stop: SessionStreamHandle | undefined;
     const current = () => !disposed && this.identity === identity && this.isControlTargetCurrent(target);
     const dispose = () => { disposed = true; stop?.close(); unbindTarget(); unbindOwner(); };
     const unbindTarget = this.onControlTargetChange(dispose);
     const unbindOwner = this.onAccountOwnerChange(dispose);
+    const transport = {
+      readStream: async (request: StreamReadRequest) => {
+        if (!current()) throw new AccountIdentityChangedError();
+        return parseStreamPage(await this.sendDeviceRpc(deviceId, { cmd: 'read_stream', ...request }, { retryable: true, timeoutMs: 30_000 }));
+      },
+      unsubscribeStream: async (id: string) => {
+        // Best effort: the host also drops the lease when this device goes
+        // offline or stops renewing.
+        if (this.identity !== identity) return;
+        await this.sendDeviceRpc(deviceId, { cmd: 'unsubscribe_stream', stream_id: id }, { retryable: true, timeoutMs: 10_000 });
+      },
+    };
+    const signals = {
+      onHint: (listener: (hint: StreamHint) => void) => this.onStreamHint(listener),
+      onReconnect: (listener: () => void) => connection.onReconnect(listener),
+    };
     try {
-      stop = await openSessionStream({ connection, relay: this.relayUrl, token: identity.token,
-        decrypt: decryptBytes, account: identity.userId, machine: target.deviceId, sessionId, relaySessionId, key,
-        onEvent: event => { if (current()) onEvent(event); },
-        onError: error => { if (current()) onError(error); },
-        onCaughtUp: () => { if (current()) onCaughtUp?.(); },
-        onHistoryState: state => { if (current()) onHistoryState?.(state); },
-        onResumed: () => { if(current())onResumed?.(); },
+      stop = await openHostStream({ transport, signals, target: deviceId, streamId,
+        onEvent: event => { if (current()) callbacks.onEvent(event); },
+        onError: error => { if (current()) callbacks.onError(error); },
+        onCaughtUp: () => { if (current()) callbacks.onCaughtUp?.(); },
+        onHistoryState: state => { if (current()) callbacks.onHistoryState?.(state); },
+        onResumed: () => { if (current()) callbacks.onResumed?.(); },
+        onGap: reason => { if (current()) callbacks.onGap?.(reason); },
       });
       if (!current()) dispose();
-      return {close:dispose,wake:()=>{if(current())stop?.wake();},loadOlder:()=>current()&&stop?stop.loadOlder():Promise.resolve()};
+      return { close: dispose, wake: () => { if (current()) stop?.wake(); }, loadOlder: () => current() && stop ? stop.loadOlder() : Promise.resolve() };
     } catch (error) { dispose(); throw error; }
   }
 
@@ -213,7 +308,8 @@ export class RelayHttpClient {
     throw lastError;
   }
 
-  async listDevices(): Promise<Array<{ device_id: string; device_name: string; online: boolean }>> {
+  async listDevices(): Promise<RelayDeviceInfo[]> {
+    const request = ++this.directoryRequest;
     return this.withAccount(async (identity) => {
       const resp = await this.fetchWithRetry(`${this.relayUrl}/api/devices`, {
         headers: { 'Authorization': `Bearer ${identity.token}` },
@@ -227,8 +323,42 @@ export class RelayHttpClient {
         err.status = resp.status;
         throw err;
       }
-      return resp.json();
+      const devices = await resp.json() as RelayDeviceInfo[];
+      if (identity.generation !== this.identityGeneration) throw new AccountIdentityChangedError();
+      // Several surfaces read the directory at once (this app's mount effect, the
+      // device page, the compact session list). A read that another read
+      // superseded answers with the newest completion instead of failing its
+      // caller: a spurious failure here leaves that surface on an empty device
+      // list until its next poll, which is exactly what a second tab used to do.
+      if (request < this.appliedDirectoryRequest) return this.directorySnapshot;
+      this.appliedDirectoryRequest = request;
+      this.directorySnapshot = devices;
+      for (const listener of this.directorySnapshotListeners) listener(devices);
+      return devices;
     });
+  }
+
+  async supportsDeviceAlias(): Promise<boolean> {
+    const response = await this.fetchWithTimeout(`${this.relayUrl}/api/info`, {}, 20_000);
+    if (response.status === 404 || response.status === 405) return false;
+    if (!response.ok) throw new Error(`Relay info failed: HTTP ${response.status}`);
+    const info = await response.json() as { capabilities?: string[] };
+    return Array.isArray(info.capabilities) && info.capabilities.includes('device_alias_v1');
+  }
+
+  async updateDeviceAlias(deviceId: string, alias: string | null): Promise<void> {
+    await this.withAccount(async identity => {
+      if (!await this.supportsDeviceAlias()) throw new Error('Device alias updates unsupported by this Relay');
+      if (identity.generation !== this.identityGeneration) throw new AccountIdentityChangedError();
+      const response = await this.fetchWithTimeout(`${this.relayUrl}/api/devices/${encodeURIComponent(deviceId)}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${identity.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_alias: alias }),
+      }, 20_000);
+      if (response.status === 404 || response.status === 405) throw new Error('Device alias updates unsupported or device unavailable');
+      if (!response.ok) throw Object.assign(new Error(`Update device failed: HTTP ${response.status}`), { status: response.status });
+    });
+    for (const listener of this.directoryListeners) listener();
   }
 
   /** Send a command encrypted with the two account devices' X25519 key agreement. */
@@ -239,27 +369,7 @@ export class RelayHttpClient {
   ): Promise<T> {
     const targetEpoch = this.controlTargetEpochValue;
     return this.withAccount(async (identity) => {
-      const cacheId = `${identity.generation}:${targetDeviceId}`;
-      let cached = this.deviceMessageKeys.get(cacheId);
-      if (!cached || cached.expires < Date.now()) {
-        const key = (async () => {
-          const response = await this.fetchWithTimeout(
-            `${this.relayUrl}/api/devices/${encodeURIComponent(targetDeviceId)}/key`,
-            { headers: { Authorization: `Bearer ${identity.token}` } }, 20_000,
-          );
-          if (!response.ok) {
-            const error = new Error(`Device key unavailable: HTTP ${response.status}`) as Error & { status?: number };
-            error.status = response.status;
-            throw error;
-          }
-          const peer = await response.json();
-          if (peer.device_id !== targetDeviceId) throw new Error('Relay returned a different device identity.');
-          return deriveDeviceMessageKey(identity.masterKey, fromB64(peer.public_key));
-        })();
-        cached = { expires: Date.now() + 60_000, key };
-        this.deviceMessageKeys.set(cacheId, cached);
-      }
-      const messageKey = await cached.key;
+      const messageKey = await this.deviceMessageKey(identity, targetDeviceId);
       const plaintext = JSON.stringify(command);
       const { data: encData, nonce: encNonce } = await encrypt(
         messageKey,
@@ -298,6 +408,32 @@ export class RelayHttpClient {
       this.deviceMessageKeys.clear();
       throw error;
     });
+  }
+
+  /** Pairwise X25519-derived message key for one account device, cached briefly. */
+  private deviceMessageKey(identity: AccountIdentitySnapshot, targetDeviceId: string): Promise<Uint8Array> {
+    const cacheId = `${identity.generation}:${targetDeviceId}`;
+    let cached = this.deviceMessageKeys.get(cacheId);
+    if (!cached || cached.expires < Date.now()) {
+      const key = (async () => {
+        const response = await this.fetchWithTimeout(
+          `${this.relayUrl}/api/devices/${encodeURIComponent(targetDeviceId)}/key`,
+          { headers: { Authorization: `Bearer ${identity.token}` } }, 20_000,
+        );
+        if (!response.ok) {
+          const error = new Error(`Device key unavailable: HTTP ${response.status}`) as Error & { status?: number };
+          error.status = response.status;
+          throw error;
+        }
+        const peer = await response.json();
+        if (peer.device_id !== targetDeviceId) throw new Error('Relay returned a different device identity.');
+        return deriveDeviceMessageKey(identity.masterKey, fromB64(peer.public_key));
+      })();
+      cached = { expires: Date.now() + 60_000, key };
+      this.deviceMessageKeys.set(cacheId, cached);
+      key.catch(() => { if (this.deviceMessageKeys.get(cacheId) === cached) this.deviceMessageKeys.delete(cacheId); });
+    }
+    return cached.key;
   }
 
   private async withAccount<T>(operation: (identity: AccountIdentitySnapshot) => Promise<T>): Promise<T> {

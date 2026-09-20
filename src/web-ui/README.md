@@ -9,6 +9,69 @@ This directory contains BitFun’s **Web UI** (React + TypeScript). The same fro
 - **Desktop**: loaded via **Tauri**
 - **Server/Web**: built into static assets and served by the backend
 
+## MCP configuration
+
+In Desktop, open **Settings → Tools → MCP** to add or edit a user-level server
+with a form. Choose a server URL (Streamable HTTP) or a start command (stdio).
+Arguments are separate entries; environment variables and request headers use
+name/value rows. Saved values remain hidden until edited. These values use the
+existing configuration-file storage, not a new credential vault.
+
+New servers and JSON imports are saved disabled. Review them, then use **Enable
+and start** in the list. Imports accept `mcpServers` JSON, preview each entry,
+and require a different ID for an existing name. Editing a running service uses
+**Save and apply**, which can reconnect it. Connection errors and successful
+configuration writes are reported separately.
+
+Per-server and full-configuration JSON editors remain available. Unknown fields
+are retained, unsupported form shapes stay editable in JSON, and concurrent
+configuration changes cannot silently overwrite one another. This management
+surface edits the local Desktop user's configuration; project-scoped editing,
+Peer Device management, and standalone Web management are not exposed by it.
+
+## Floating conversations
+
+The bottom-right window opens the persistent BitFun control conversation in
+text mode. Drag a session tab into the window to continue that session there;
+use its return action or drag it back to the main tab bar to move it out.
+Agentic MiniApps add their associated conversations as tabs automatically.
+Drafts, attachments, execution and reading position stay with the conversation.
+
+The MiniApp header's Conversation action restores its current conversation,
+including a hidden dock tab, without creating a session. Open app in the dock
+returns to its application tab. An expanded MiniApp conversation follows the
+active application unless the user is typing, on a call, or viewing a regular
+conversation. Hidden tabs and collapsed windows stay hidden during background
+updates. Closing the application tab stops its Agent runs and worker, ends its
+call, and removes its dock entry; saved history remains. A failed shutdown keeps
+the application open and reports the failure. Switching devices only detaches
+the view and never stops applications on the device being left.
+
+The control conversation uses a continuous, lightweight transcript. Scrolling up
+automatically loads earlier records while preserving the reading position.
+In text mode, records scroll beneath the fixed controls, whose translucent blur
+appears away from the top. A quiet three-dot activity indicator appears below the
+current user message while its turn is processing, and stops when attention is
+needed or processing ends. Collapsing hides the whole panel after its exit
+animation while retaining the draft and records.
+The new-conversation button selects a fresh control conversation on the host and
+keeps earlier records. Finish a running task or call before starting a new one;
+peer hosts must advertise `control_conversation_reset_v1` for this action.
+Its compact logo-and-label button
+above the messages opens realtime voice, expanding into the particle call image
+on the same axis. The original top-left back arrow returns to text and gathers
+it back into the compact identity;
+the transcript, reading position and unsent draft stay mounted. Only available
+task progress is shown. Permission requests bring the text composer back into
+view while keeping the call active. Other conversation tabs retain their
+standard chat presentation and header voice entry. Collapsing the window also
+keeps the call active; hang up explicitly to end it. Voice and text share
+saved conversation history; a live call remains bound to its original session
+and device. ACP and Detached Dispatch conversations retain text interaction;
+shared voice history requires a host advertising `control_conversation_v1`.
+The standalone web server does not yet expose this control-conversation contract;
+use Desktop or a capable peer host.
+
 ## Tech stack
 
 - React 18.3
@@ -20,6 +83,8 @@ This directory contains BitFun’s **Web UI** (React + TypeScript). The same fro
 
 ## Directory structure
 
+Dependency versions are locked by the repository-root `pnpm-lock.yaml`.
+
 ```
 src/web-ui/
 ├── README.md                     # This file
@@ -27,7 +92,6 @@ src/web-ui/
 ├── LOGGING.md                    # Logging & debugging notes
 ├── index.html                    # Entry HTML
 ├── package.json                  # Dependencies & scripts
-├── package-lock.json             # Locked dependency versions
 ├── public/                       # Static assets
 ├── src/                          # Frontend source
 │   ├── app/                      # Main app UI

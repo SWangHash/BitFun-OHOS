@@ -7,6 +7,9 @@ export const conversationModeSurfaceAppearanceDescriptor: AppearanceSurfaceDescr
     { id: 'body' },
     { id: 'modeSwitch' },
     { id: 'modeSwitchButton' },
+    { id: 'history' },
+    { id: 'images' },
+    { id: 'imagePreview' },
   ],
   states: [
     { id: 'chat', selector: { kind: 'self', suffix: '[data-bitfun-state~="chat"]' } },

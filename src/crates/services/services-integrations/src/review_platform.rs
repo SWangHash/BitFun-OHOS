@@ -530,6 +530,9 @@ pub struct ReviewPlatformReplyToThreadRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPlatformSubmitReviewRequest {
+    /// Owning workspace ID; authoritative for local/remote routing when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
     pub repository_path: String,
     pub remote_id: String,
     pub pull_request_id: String,
@@ -550,6 +553,9 @@ pub struct ReviewPlatformResolveThreadRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPlatformApprovalRequest {
+    /// Owning workspace ID; authoritative for local/remote routing when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
     pub repository_path: String,
     pub remote_id: String,
     pub pull_request_id: String,

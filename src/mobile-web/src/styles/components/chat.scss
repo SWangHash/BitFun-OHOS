@@ -170,6 +170,15 @@
   position: relative;
 }
 
+.chat-page__hydrate {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+}
+
 .chat-page__load-more-indicator {
   text-align: center;
   font-size: var(--bitfun-type-body-xs-font-size);
@@ -349,6 +358,17 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
   animation: toastSlideIn 0.25s ease-out;
+  // This notice floats over the transcript, so the shared status surface (a 10%
+  // tint) would let the message behind it show through the text. Composite the
+  // tone tint onto an opaque raised surface instead.
+  --chat-toast-tint: var(--bitfun-color-surface-subtle);
+  background-color: var(--bitfun-color-surface-raised);
+  background-image: linear-gradient(var(--chat-toast-tint), var(--chat-toast-tint));
+  box-shadow: var(--bitfun-shadow-base);
+
+  &[data-tone='info'] { --chat-toast-tint: var(--bitfun-color-status-info-surface); }
+  &[data-tone='warning'] { --chat-toast-tint: var(--bitfun-color-status-warning-surface); }
+  &[data-tone='danger'] { --chat-toast-tint: var(--bitfun-color-status-danger-surface); }
 }
 
 @keyframes toastSlideIn {

@@ -13,8 +13,14 @@ import {
 } from './index';
 import { TaskToolDisplay } from './TaskToolDisplay';
 import { AgentControlToolCard } from './AgentControlToolCard';
+import { BitFunControlToolCard } from './BitFunControlToolCard';
 
 describe('tool card registry', () => {
+  it('keeps BitFun controls visible through their dedicated product card', () => {
+    expect(getToolCardComponent('BitFunControl')).toBe(BitFunControlToolCard);
+    expect(usesDefaultToolCard('BitFunControl')).toBe(false);
+    expect(isCollapsibleTool('BitFunControl')).toBe(false);
+  });
   it('projects managed Review workers through the unified coverage card', () => {
     expect(getToolCardComponent('LaunchReviewAgent')).toBe(TaskToolDisplay);
   });
@@ -72,6 +78,7 @@ describe('tool card registry', () => {
       'InitMiniApp',
       'GenerativeUI',
       'ComputerUse',
+      'BitFunControl',
       'CreateCanvas',
       'ReadCanvas',
       'UpdateCanvas',

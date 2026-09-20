@@ -9,6 +9,7 @@ import { DEFERRED_TOOL_GATEWAY_NAME } from '../utils/toolInvocationIdentity';
 export {
   TOOL_CARD_CONFIGS,
   getToolCardConfig,
+  getToolItemCardConfig,
   requiresConfirmation,
   getAllToolNames,
   COLLAPSIBLE_TOOL_NAMES,
@@ -58,6 +59,7 @@ import { SessionControlToolCard } from './SessionControlToolCard';
 import { SessionMessageToolCard } from './SessionMessageToolCard';
 import { ComputerUseToolCard } from './ComputerUseToolCard';
 import { ViewImageToolCard } from './ViewImageToolCard';
+import { BitFunControlToolCard } from './BitFunControlToolCard';
 
 /**
  * Standard tool adapters backed by concrete `@bitfun/ui/flow-chat` views.
@@ -136,6 +138,7 @@ export const PRODUCT_OWNED_TOOL_CARD_COMPONENTS = {
   'InitMiniApp': InitMiniAppDisplay,
   'GenerativeUI': GenerativeWidgetToolCard,
   'ComputerUse': ComputerUseToolCard,
+  'BitFunControl': BitFunControlToolCard,
 
   // BitFun Canvas tools
   'CreateCanvas': CanvasToolCard,

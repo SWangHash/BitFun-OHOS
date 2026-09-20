@@ -680,25 +680,6 @@ jobs:
             --out-dir release-updater-assets \
             --required-platforms "${REQUIRED_UPDATER_PLATFORMS}"
 
-      - name: Generate updater manifest
-        run: |
-          node scripts/generate-tauri-latest-json.mjs \
-            --assets-dir release-updater-assets \
-            --manual-assets-dir release-manual-assets \
-            --version "${{ needs.prepare.outputs.version }}" \
-            --tag "${{ needs.prepare.outputs.release_tag }}" \
-            --repo "${{ github.repository }}" \
-            --out release-updater-assets/latest-v1.json \
-            --required-platforms "${REQUIRED_UPDATER_PLATFORMS}"
-
-      - name: Verify updater manifest
-        run: |
-          node scripts/verify-tauri-latest-json.mjs \
-            --manifest release-updater-assets/latest-v1.json \
-            --version "${{ needs.prepare.outputs.version }}" \
-            --required-platforms "${REQUIRED_UPDATER_PLATFORMS}" \
-            --required-manual-platforms "windows-x86_64"
-
       - name: Generate Linux binaries manifest
         run: |
           node scripts/generate-linux-binaries-manifest.mjs \
@@ -737,6 +718,29 @@ jobs:
           # can fetch a key for is not verifiable.
           node scripts/write-minisign-public-key.mjs \
             --out release-assets/minisign.pub
+
+      # Runs after the signing step because the manifest declares the macOS
+      # .dmg installers, and a manual installer is only declarable once its
+      # detached signature exists next to it.
+      - name: Generate updater manifest
+        run: |
+          node scripts/generate-tauri-latest-json.mjs \
+            --assets-dir release-updater-assets \
+            --manual-assets-dir release-manual-assets \
+            --installer-assets-dir release-assets \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --tag "${{ needs.prepare.outputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --out release-updater-assets/latest-v1.json \
+            --required-platforms "${REQUIRED_UPDATER_PLATFORMS}"
+
+      - name: Verify updater manifest
+        run: |
+          node scripts/verify-tauri-latest-json.mjs \
+            --manifest release-updater-assets/latest-v1.json \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --required-platforms "${REQUIRED_UPDATER_PLATFORMS}" \
+            --required-manual-platforms "windows-x86_64,darwin-aarch64,darwin-x86_64"
 
       - name: Stage release assets
         shell: bash
@@ -838,7 +842,7 @@ jobs:
             --manifest latest.published.json \
             --version "${{ needs.prepare.outputs.version }}" \
             --required-platforms "${REQUIRED_UPDATER_PLATFORMS}" \
-            --required-manual-platforms "windows-x86_64" \
+            --required-manual-platforms "windows-x86_64,darwin-aarch64,darwin-x86_64" \
             --check-urls true
 
       - name: Verify published Linux binaries manifest

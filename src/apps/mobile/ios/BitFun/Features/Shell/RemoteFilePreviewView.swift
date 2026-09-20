@@ -328,6 +328,7 @@ struct RemoteFilePreviewSheet: View {
         .background(BitFunTheme.page)
         .onAppear { highlightCode() }
         .onChange(of: preview) { _ in highlightCode() }
+        .modifier(RuntimeDownloadPresentation(model: model, enabled: model.runtimeDeviceTools?.visible != true))
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

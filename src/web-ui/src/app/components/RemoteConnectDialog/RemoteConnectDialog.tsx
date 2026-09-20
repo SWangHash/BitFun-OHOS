@@ -48,9 +48,7 @@ import {
   type RemoteConnectStatus,
   type LanNetworkInterface,
 } from '@/infrastructure/api/service-api/RemoteConnectAPI';
-import {
-  RemoteConnectDisclaimerContent,
-} from './RemoteConnectDisclaimer';
+import { RemoteConnectDisclaimer } from './RemoteConnectDisclaimer';
 import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
@@ -1684,13 +1682,11 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
           </DialogHeading>
           <DialogClose />
         </DialogHeader>
-        <DialogBody>
-        <RemoteConnectDisclaimerContent
+        <RemoteConnectDisclaimer
           agreed={hasAgreedDisclaimer}
           onClose={handleDisclaimerClose}
           onAgree={hasAgreedDisclaimer ? undefined : handleAgreeDisclaimer}
         />
-              </DialogBody>
       </Dialog>
 
 

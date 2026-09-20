@@ -9,6 +9,14 @@ const dialogStyleSource = readFileSync(
   new URL('./RemoteConnectDialog.scss', import.meta.url),
   'utf8',
 );
+const disclaimerSource = readFileSync(
+  new URL('./RemoteConnectDisclaimer.tsx', import.meta.url),
+  'utf8',
+);
+const disclaimerStyleSource = readFileSync(
+  new URL('./RemoteConnectDisclaimer.scss', import.meta.url),
+  'utf8',
+);
 const chatAppBrandIconSource = readFileSync(
   new URL('./ChatAppBrandIcon.tsx', import.meta.url),
   'utf8',
@@ -38,6 +46,25 @@ describe('Remote Connect safety contracts', () => {
   it('gates the complete dialog surface behind disclaimer agreement', () => {
     expect(dialogSource).toContain('open={isOpen && hasAgreedDisclaimer}');
     expect(dialogSource).toContain('open={isOpen && (disclaimerIsGate || showDisclaimer)}');
+  });
+
+  it('composes disclaimer actions through the shared dialog footer spacing', () => {
+    const rootStyle = disclaimerStyleSource.slice(
+      disclaimerStyleSource.indexOf('.bitfun-remote-disclaimer {'),
+      disclaimerStyleSource.indexOf('.bitfun-remote-disclaimer__meta'),
+    );
+    const actionStyle = disclaimerStyleSource.slice(
+      disclaimerStyleSource.indexOf('.bitfun-remote-disclaimer__actions'),
+    );
+
+    expect(disclaimerSource).toContain('<DialogBody>');
+    expect(disclaimerSource).toContain('<DialogFooter');
+    expect(disclaimerSource).toContain('separator');
+    expect(disclaimerSource).toContain("variant={canAgree ? 'fill' : 'primary'}");
+    expect(rootStyle).toContain('padding-block-start: var(--bitfun-space-3);');
+    expect(rootStyle).not.toContain('padding-block-end');
+    expect(actionStyle).not.toContain('border-top');
+    expect(actionStyle).not.toContain('padding-top');
   });
 
   it('presents one overview with account and connection destinations', () => {
@@ -190,7 +217,9 @@ describe('Remote Connect safety contracts', () => {
     expect(refreshFlow).toContain('!deviceRoutingReadyRef.current');
     expect(refreshFlow).toContain('DEVICE_LIST_FAILURE_THRESHOLD');
     expect(refreshFlow.indexOf('!deviceRoutingReadyRef.current')).toBeLessThan(
-      refreshFlow.indexOf('markRelayUnreachable()'),
+      // The call passes the failure so it can be classified; only the order of
+      // the healthy-routing guard against this call is contracted here.
+      refreshFlow.indexOf('markRelayUnreachable('),
     );
   });
 

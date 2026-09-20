@@ -31,9 +31,11 @@ legacy release. Publication rejects legacy feeds whose version is not 0.2.19.
 Thus installed 0.2.x clients continue to see only 0.2.x, even after GitHub Latest
 moves to 1.x. Do not rename the 1.x manifests back to the legacy filenames.
 
-The mirror writes only the versioned feeds and retains existing legacy feeds
-and 0.2.x artifact directories. Deploy the updated mirror script before the
-release and verify both old feed versions and new feed versions afterwards.
+The mirror writes only the versioned 1.x feeds and keeps the two newest
+version directories. It does not retain 0.2.x artifact trees; 0.2.x clients
+keep reading the unchanged `latest.json` / `linux-binaries.json` assets on
+GitHub Latest. Deploy the updated mirror script before the release and verify
+the new feed versions afterwards.
 The old `channel-beta/latest.json` pointer is not modified; new prerelease builds
 use `channel-v1-beta/latest-v1.json`. The final `1.0.0` version sorts above
 both `1.0.0-beta` and numbered `1.0.0-beta.N` versions. Stable publication

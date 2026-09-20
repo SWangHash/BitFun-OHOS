@@ -21,7 +21,7 @@ fn desktop_btw_submission_policy() -> DialogSubmissionPolicy {
     DialogSubmissionPolicy::for_source(DialogTriggerSource::DesktopUi)
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BtwAskStreamRequest {
     pub request_id: String,
@@ -35,6 +35,11 @@ pub struct BtwAskStreamRequest {
     pub model_id: Option<String>,
     #[serde(default)]
     pub image_contexts: Option<Vec<ImageContextData>>,
+    /// Optional presentation metadata. The question remains readable by older hosts.
+    #[serde(default)]
+    pub user_message_metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub initial_model_selection: Option<bitfun_runtime_ports::AgentSessionModelSelection>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -116,6 +121,8 @@ pub async fn btw_ask_stream(
             image_contexts,
             request.parent_dialog_turn_id.as_deref(),
             request.parent_turn_index,
+            request.user_message_metadata,
+            request.initial_model_selection,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -162,6 +169,49 @@ pub async fn btw_ask_stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn btw_request_reads_legacy_payloads_and_round_trips_optional_metadata() {
+        let legacy = serde_json::json!({
+            "requestId": "request-1",
+            "sessionId": "parent-1",
+            "childSessionId": "child-1",
+            "question": "A readable quote and question"
+        });
+        let request: BtwAskStreamRequest = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(request.user_message_metadata.is_none());
+        assert!(request.initial_model_selection.is_none());
+        let round_trip: BtwAskStreamRequest =
+            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+        assert_eq!(round_trip.question, legacy["question"]);
+
+        let metadata = serde_json::json!({
+            "composerPresentation": { "version": 1, "segments": [] },
+            "sessionReferences": [{ "sessionId": "reference-1" }],
+            "permission_mode": "default"
+        });
+        let mut current = legacy;
+        current["userMessageMetadata"] = metadata.clone();
+        current["initialModelSelection"] = serde_json::json!({
+            "modelId": "primary", "reasoningPreset": "high"
+        });
+        current["futureField"] = serde_json::json!(true);
+        let request: BtwAskStreamRequest = serde_json::from_value(current).unwrap();
+        let round_trip: BtwAskStreamRequest =
+            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+        assert_eq!(round_trip.user_message_metadata, Some(metadata));
+        assert_eq!(
+            round_trip
+                .initial_model_selection
+                .unwrap()
+                .reasoning_preset
+                .as_deref(),
+            Some("high")
+        );
+        let auto: bitfun_runtime_ports::AgentSessionModelSelection =
+            serde_json::from_value(serde_json::json!({ "modelId": "primary" })).unwrap();
+        assert!(auto.reasoning_preset.is_none());
+    }
 
     #[test]
     fn btw_turns_use_the_desktop_chat_output_surface() {

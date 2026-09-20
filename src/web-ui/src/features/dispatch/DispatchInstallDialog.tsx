@@ -1,3 +1,4 @@
+import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 import {
   Alert,
   Button,
@@ -42,6 +43,7 @@ interface DispatchInstallDialogProps {
   open: boolean;
   target: DispatchTargetOption | null;
   sourceWorkspacePath?: string;
+  sourceWorkspaceId?: string;
   onClose: () => void;
   onReady: (selection: DispatchSelection) => void;
 }
@@ -50,9 +52,11 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
   open,
   target,
   sourceWorkspacePath,
+  sourceWorkspaceId,
   onClose,
   onReady,
 }) => {
+  useDeviceDirectory();
   const { t } = useI18n('common');
   const [includeUncommitted, setIncludeUncommitted] = useState(false);
   const [baseRef, setBaseRef] = useState('HEAD');
@@ -311,7 +315,8 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
     !!protocol &&
     !probe.protocolError &&
     protocolCompatible;
-  const workspaceReady = !!sourceWorkspacePath?.trim();
+  // The source workspace is owned by ID; the path only labels its checkout.
+  const workspaceReady = !!sourceWorkspaceId?.trim() || !!sourceWorkspacePath?.trim();
   /** A compatible signed release makes one-click preparation available. */
   const installPending =
     !cliReady
@@ -345,7 +350,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
     setValidatingBaseRef(true);
     setBaseRefError(null);
     try {
-      await gitAPI.resolveRevision(normalizedSourcePath, normalizedBaseRef);
+      await gitAPI.resolveRevision({ workspaceId: sourceWorkspaceId ?? '', repositoryPath: normalizedSourcePath }, normalizedBaseRef);
     } catch (nextError) {
       if (generation === generationRef.current) {
         log.warn('Failed to resolve dispatch base revision', {
@@ -410,7 +415,7 @@ export const DispatchInstallDialog: React.FC<DispatchInstallDialogProps> = ({
         >
           <DialogHeading>
             <DialogTitle id={DIALOG_TITLE_ID}>
-              {t('dispatch.configureTitle', { target: target?.displayName ?? '' })}
+              {t('dispatch.configureTitle', { target: target?.kind === 'device' && target.deviceId ? resolveDeviceName(target.deviceId, target.displayName) : target?.displayName ?? '' })}
             </DialogTitle>
             <DialogDescription>{t('dispatch.configureSubtitle')}</DialogDescription>
           </DialogHeading>

@@ -7,6 +7,15 @@
     margin: 0 0 var(--bitfun-control-flow-chat-flow-item-gap) 0;
   }
 
+  // A card may render nothing for a settled state: an errored exploration tool
+  // (Read/Grep/Glob/LS/WebSearch...) hides its row on purpose. The item wrapper
+  // still measures zero height, so giving it a gap leaves invisible space
+  // behind — a boundary between two visible rows then reads as 16px or 24px
+  // instead of the one 8px item gap.
+  > .flowchat-flow-item:has(> .flow-tool-card-wrapper:empty) {
+    margin-bottom: 0;
+  }
+
   // Consecutive collapsed ambient tools form a continuous run of 22px lines.
   > .flowchat-flow-item:has(
     > .flow-tool-card-wrapper[data-bitfun-attention='ambient']

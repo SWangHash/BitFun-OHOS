@@ -1,0 +1,85 @@
+.mcp-config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-4);
+  min-width: 0;
+
+  &__field,
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+  }
+
+  &__section > button {
+    align-self: flex-start;
+  }
+
+  &__key-value {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: var(--bitfun-space-2);
+    align-items: center;
+  }
+
+  &__argument,
+  &__import-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+  }
+
+  &__argument > :first-child,
+  &__import-row > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__hint,
+  &__error {
+    margin: 0;
+    font-size: var(--bitfun-type-label-sm-font-size);
+    line-height: var(--bitfun-type-body-lg-line-height);
+    overflow-wrap: anywhere;
+  }
+
+  &__hint {
+    color: var(--bitfun-color-content-muted);
+  }
+
+  &__error {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
+  &__advanced {
+    border-top: 1px solid var(--bitfun-color-border-subtle);
+    padding-top: var(--bitfun-space-2);
+    min-width: 0;
+  }
+
+  &__advanced-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-4);
+    min-width: 0;
+  }
+
+  @media (max-width: 480px) {
+    &__key-value {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    &__key-value > :first-child {
+      grid-column: 1 / -1;
+    }
+  }
+}

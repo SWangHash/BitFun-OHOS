@@ -80,6 +80,19 @@ pub struct AccountInfo {
 pub struct AccountDevice {
     pub device_id: String,
     pub device_name: String,
+    pub device_alias: Option<String>,
+    pub device_model: Option<String>,
+    pub device_os: Option<String>,
+    pub device_os_version: Option<String>,
+    /// Build string the device last reported to the Relay; absent for legacy
+    /// devices and older Relays.
+    pub device_client_version: Option<String>,
+    /// Control-contract protocol number the device last reported; absent for
+    /// legacy devices and older Relays.
+    pub device_client_protocol: Option<u32>,
+    /// Relay-computed compatibility with our control contract. `None` means
+    /// unknown (older Relay) and must be treated as compatible.
+    pub compatible: Option<bool>,
     pub online: bool,
 }
 
@@ -220,6 +233,7 @@ impl AccountRuntime {
         }
         let transition = self.begin_account_transition().await;
         self.host.stop_device_routing().await;
+        let mut metadata_device_id = None;
         let restored = match session_store::load_session_detailed() {
             Ok(Some(loaded)) => {
                 let relay_url = match normalize_relay_url(&loaded.relay_url) {
@@ -232,8 +246,11 @@ impl AccountRuntime {
                 };
                 let user_id = loaded.user_id.clone();
                 if let Some(device_id) = loaded.device_id.as_deref() {
-                    if let Err(error) = DeviceIdentity::adopt_account_device_id(device_id) {
-                        log::warn!("Failed to adopt restored session device_id: {error}");
+                    match DeviceIdentity::adopt_account_device_id(device_id) {
+                        Ok(_) => metadata_device_id = Some(device_id.to_string()),
+                        Err(error) => {
+                            log::warn!("Failed to adopt restored session device_id: {error}")
+                        }
                     }
                 }
                 let session = AccountSession::new(loaded.token, user_id.clone(), loaded.master_key);
@@ -248,8 +265,31 @@ impl AccountRuntime {
                 None
             }
         };
-        transition.finish();
+        let generation = transition.finish();
+        // Headless exec/Shared/dispatch hosts may never start routing. Report
+        // their own persisted account identity here, not a controller's SSH
+        // provisioning target. Legacy sessions without an id wait for AuthOk.
+        if let Some(device_id) = metadata_device_id {
+            if let Err(error) = self
+                .report_local_device_metadata(generation, &device_id)
+                .await
+            {
+                log::warn!("Failed to report restored host metadata: {error}");
+            }
+        }
         restored
+    }
+
+    /// Called on the account-owning host, using its restored or authenticated id.
+    pub async fn report_local_device_metadata(
+        &self,
+        generation: u64,
+        device_id: &str,
+    ) -> Result<()> {
+        let (session, relay_url) = self.read_account_context_for_generation(generation).await?;
+        AccountClient::new()
+            .report_local_metadata(&relay_url, &session, device_id)
+            .await
     }
 
     pub async fn advance_github_login(
@@ -474,6 +514,32 @@ impl AccountRuntime {
         })
     }
 
+    pub async fn relay_capabilities(&self) -> Result<Vec<String>> {
+        let generation = self.account_context_generation();
+        let (_, relay_url) = self.read_account_context_for_generation(generation).await?;
+        let capabilities = AccountClient::new().relay_capabilities(&relay_url).await?;
+        if !self.account_context_is_current(generation) {
+            return Err(anyhow!("account context changed"));
+        }
+        Ok(capabilities)
+    }
+
+    pub async fn update_device_alias(
+        &self,
+        device_id: &str,
+        device_alias: Option<&str>,
+    ) -> Result<()> {
+        let generation = self.account_context_generation();
+        let (session, relay_url) = self.read_account_context_for_generation(generation).await?;
+        AccountClient::new()
+            .update_device_alias(&relay_url, &session, device_id, device_alias)
+            .await?;
+        if !self.account_context_is_current(generation) {
+            return Err(anyhow!("account context changed"));
+        }
+        Ok(())
+    }
+
     pub async fn list_devices(&self) -> Result<Vec<AccountDevice>> {
         let (session, relay_url) = self.read_account_context().await?;
         let devices = AccountClient::new()
@@ -484,6 +550,13 @@ impl AccountRuntime {
             .map(|device| AccountDevice {
                 device_id: device.device_id,
                 device_name: device.device_name,
+                device_alias: device.device_alias,
+                device_model: device.device_model,
+                device_os: device.device_os,
+                device_os_version: device.device_os_version,
+                device_client_version: device.device_client_version,
+                device_client_protocol: device.device_client_protocol,
+                compatible: device.compatible,
                 online: device.online,
             })
             .collect())
@@ -661,6 +734,94 @@ mod tests {
 
     pub(super) fn test_runtime() -> Arc<AccountRuntime> {
         AccountRuntime::new(Arc::new(TestAccountRuntimeHost))
+    }
+
+    #[tokio::test]
+    async fn metadata_report_rejects_stale_or_missing_account_before_network() {
+        let runtime = test_runtime();
+        let generation = runtime.account_context_generation();
+        assert_eq!(
+            runtime
+                .report_local_device_metadata(generation, "host")
+                .await
+                .unwrap_err()
+                .to_string(),
+            "not logged in"
+        );
+        assert_eq!(
+            runtime
+                .report_local_device_metadata(generation + 1, "host")
+                .await
+                .unwrap_err()
+                .to_string(),
+            "account context changed"
+        );
+    }
+
+    #[tokio::test]
+    async fn metadata_report_uses_host_account_and_negotiates_capability() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            for index in 0..2 {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                let header_end = loop {
+                    let mut buffer = [0; 4096];
+                    let count = stream.read(&mut buffer).await.unwrap();
+                    assert!(count > 0);
+                    bytes.extend_from_slice(&buffer[..count]);
+                    if let Some(end) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+                        break end + 4;
+                    }
+                };
+                let headers = String::from_utf8(bytes[..header_end].to_vec())
+                    .unwrap()
+                    .to_lowercase();
+                let length = headers
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length: "))
+                    .map(|value| value.parse::<usize>().unwrap())
+                    .unwrap_or(0);
+                while bytes.len() < header_end + length {
+                    let mut buffer = [0; 4096];
+                    let count = stream.read(&mut buffer).await.unwrap();
+                    assert!(count > 0);
+                    bytes.extend_from_slice(&buffer[..count]);
+                }
+                let body = if index == 0 {
+                    assert!(headers.starts_with("get /api/info "));
+                    r#"{"capabilities":["device_metadata_v1"]}"#
+                } else {
+                    assert!(headers.starts_with("patch /api/devices/executing-host "));
+                    assert!(headers.contains("authorization: bearer host-token\r\n"));
+                    let payload: serde_json::Value =
+                        serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap();
+                    assert!(payload["device_os"].is_string());
+                    assert!(payload.get("device_alias").is_none());
+                    "{}"
+                };
+                stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        let runtime = test_runtime();
+        *runtime.account_context.write().await = Some(AccountContextState {
+            session: AccountSession::new("host-token".into(), "host-user".into(), [0; 32]),
+            relay_url: url,
+        });
+        tokio::time::timeout(Duration::from_secs(20), async {
+            runtime
+                .report_local_device_metadata(
+                    runtime.account_context_generation(),
+                    "executing-host",
+                )
+                .await
+                .unwrap();
+            server.await.unwrap();
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

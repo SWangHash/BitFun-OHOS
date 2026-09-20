@@ -24,6 +24,12 @@
     "sha256": "cb7a5c5c3080b3ad8cfbd1352b4f7bf7bb765cd9c98722d5005fee5f97809098"
   },
   {
+    "name": "thinking",
+    "node": "user:thinking-icon-2026-09-17",
+    "asset": "thinking.svg",
+    "sha256": "e09f657a1c22ed3cba5508ed4542e8733d01449c144e62e9552b14037c7c326e"
+  },
+  {
     "name": "ultimate",
     "node": "538:19950",
     "asset": "ultimate.svg",
