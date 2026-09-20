@@ -265,6 +265,12 @@ importers:
 
   src/mobile-web:
     dependencies:
+      '@bitfun/theme-bitfun':
+        specifier: workspace:^
+        version: link:../../design-system/packages/theme-bitfun
+      '@bitfun/ui':
+        specifier: workspace:^
+        version: link:../../design-system/packages/ui
       '@noble/ciphers':
         specifier: ^2.1.1
         version: 2.1.1
@@ -274,12 +280,6 @@ importers:
       '@noble/hashes':
         specifier: ^2.0.1
         version: 2.0.1
-      '@bitfun/theme-bitfun':
-        specifier: workspace:^
-        version: link:../../design-system/packages/theme-bitfun
-      '@bitfun/ui':
-        specifier: workspace:^
-        version: link:../../design-system/packages/ui
       '@xterm/addon-fit':
         specifier: 0.12.0-beta.141
         version: 0.12.0-beta.141(@xterm/xterm@6.1.0-beta.141)
@@ -381,9 +381,6 @@ importers:
 
   src/web-ui:
     dependencies:
-      '@monaco-editor/react':
-        specifier: ^4.6.0
-        version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@bitfun/design-tokens':
         specifier: workspace:^
         version: link:../../design-system/packages/design-tokens
@@ -393,6 +390,9 @@ importers:
       '@bitfun/ui':
         specifier: workspace:^
         version: link:../../design-system/packages/ui
+      '@monaco-editor/react':
+        specifier: ^4.6.0
+        version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tanstack/react-virtual':
         specifier: ^3.13.23
         version: 3.13.23(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -549,6 +549,9 @@ importers:
       remark-stringify:
         specifier: ^11.0.0
         version: 11.0.0
+      semver:
+        specifier: 7.7.4
+        version: 7.7.4
       unified:
         specifier: ^11.0.5
         version: 11.0.5
@@ -5278,11 +5281,6 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
-  semver@7.7.3:
-    resolution: {integrity: sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   semver@7.7.4:
     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
     engines: {node: '>=10'}
@@ -8713,7 +8711,7 @@ snapshots:
       normalize-package-data: 7.0.1
       read-pkg-up: 10.1.0
       recursive-readdir: 2.2.3
-      semver: 7.7.3
+      semver: 7.7.4
       type-fest: 4.41.0
       yargs: 17.7.2
     transitivePeerDependencies:
@@ -9408,7 +9406,7 @@ snapshots:
       process-warning: 5.0.0
       rfdc: 1.4.1
       secure-json-parse: 4.1.0
-      semver: 7.7.3
+      semver: 7.7.4
       toad-cache: 3.7.0
 
   fastq@1.20.1:
@@ -10714,13 +10712,13 @@ snapshots:
   normalize-package-data@6.0.2:
     dependencies:
       hosted-git-info: 7.0.2
-      semver: 7.7.3
+      semver: 7.7.4
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@7.0.1:
     dependencies:
       hosted-git-info: 8.1.0
-      semver: 7.7.3
+      semver: 7.7.4
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
@@ -11474,8 +11472,6 @@ snapshots:
 
   semver@6.3.1: {}
 
-  semver@7.7.3: {}
-
   semver@7.7.4: {}
 
   serialize-error@12.0.0:
@@ -11496,7 +11492,7 @@ snapshots:
     dependencies:
       '@img/colour': 1.0.0
       detect-libc: 2.1.2
-      semver: 7.7.3
+      semver: 7.7.4
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.34.5
       '@img/sharp-darwin-x64': 0.34.5

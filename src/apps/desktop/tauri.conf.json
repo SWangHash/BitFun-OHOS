@@ -4,6 +4,7 @@
   "identifier": "com.bitfun.desktop",
   "build": {
     "devUrl": "http://localhost:1422",
+    "beforeBuildCommand": "pnpm run frontend:build-all",
     "frontendDist": "../../../dist"
   },
   "bundle": {
