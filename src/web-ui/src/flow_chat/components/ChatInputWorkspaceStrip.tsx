@@ -400,7 +400,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       ? tWorktrees('labels.detached', { commit: executionTarget.baseCommit.slice(0, 9) })
       : isRepository && currentBranch?.trim()
       ? currentBranch.trim()
-      : '??);
+      : '');
 
   const workspaceTooltipContent = trimmedPath || label;
   const switchableWorkspaces = workspaceContext?.openedWorkspacesList ?? [];
