@@ -755,8 +755,12 @@
     min-height: 0;
     flex: 1;
 
-    &.bitfun-tabs,
-    .bitfun-tabs__content,
+    .bitfun-tabs__content {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .bitfun-tabs__content-view,
     .bitfun-tab-pane {
       min-height: 0;
       height: 100%;
