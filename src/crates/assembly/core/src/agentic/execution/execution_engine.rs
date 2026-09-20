@@ -698,7 +698,7 @@ fn qt_migration_bound_inputs_instruction(
         }
     }
     text.push_str(
-        "\noutput_project 是输出容器：迁移工程目录 `<原始应用名>-ohos` 创建于该容器内。容器内已存在同名历次迁移产物时，禁止覆盖或复用旧目录，必须按 `<app-name>-ohos-2` 序号取最小可用值避让，并在最终响应中告知用户新目录名。\n",
+        "\noutput_project 是输出容器，即迁移技能 ENV 中的 `${PROJECTS_ROOT}`（`<MIGRATION_PROJECT_ROOT>`）。执行迁移时必须先在该容器内创建迁移工程子目录 `<app-name>-ohos`（与技能 §1.2 一致），模板与迁移产物只能写入该子目录；禁止把模板文件或迁移产物直接写入容器根目录本身——即使 output_project 是当前工作区根也一样。容器内已存在同名历次迁移产物时，禁止覆盖或复用旧目录，必须按 `<app-name>-ohos-2` 序号取最小可用值避让，并在最终响应中告知用户新目录名。\n",
     );
     if values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE
         || values["template"] == QT_MIGRATION_OFFICIAL_VALUE
@@ -7837,6 +7837,25 @@ mod tests {
         assert!(text.contains("/root/toolchains"));
         assert!(text.contains("/root/templates"));
         assert!(text.contains("BITFUN_QT_MIGRATION_ROOT"));
+    }
+
+    #[test]
+    fn bound_inputs_instruction_binds_output_container_semantics() {
+        // output_project 必须绑定到技能的 PROJECTS_ROOT 词汇，且明确"先建
+        // <app-name>-ohos 子目录、禁止直写容器根"，否则模型会把容器本身当
+        // 作迁移工程目录（跳过子目录创建）。
+        let snapshot = bound_snapshot("D:/sdk/qt", "D:/tpl");
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "windows",
+        )
+        .expect("all resolved");
+
+        assert!(text.contains("`${PROJECTS_ROOT}`"));
+        assert!(text.contains("禁止把模板文件或迁移产物直接写入容器根目录"));
+        assert!(text.contains("创建迁移工程子目录 `<app-name>-ohos`"));
     }
 
     #[test]

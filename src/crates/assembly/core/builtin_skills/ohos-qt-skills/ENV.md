@@ -76,6 +76,18 @@
 
 > 新版 Qt 鸿蒙分支已将胶水模板内置于 `qtbase/src/harmonyos/templates`，无需再从外部下载 ZIP。
 
+## 📁 迁移输出根目录
+
+| 变量名 | 你的值 | 说明 |
+|--------|--------|------|
+| `PROJECTS_ROOT` | 见下方取值规则 | 迁移输出容器：每个迁移项目在其下独立建 `<app-name>-ohos` 子目录（亦即流程页中的 `<MIGRATION_PROJECT_ROOT>`） |
+
+**取值规则**：
+1. **BitFun QtMigration 会话**：`PROJECTS_ROOT` = 用户在问题卡片确认的 `output_project` 绑定值（引擎注入的"迁移绑定输入"）。它只是容器——必须先在其内创建 `<app-name>-ohos` 子目录，模板与迁移产物只能写入该子目录，**禁止把模板或迁移产物直接写入容器根目录**（即使容器是当前工作区根）。
+2. **独立/CLI 场景**：在 `ENV.local.md` 手工填写，或默认使用当前工作区下的 `qt-ohos-projects/` 目录。
+
+> `${PROJECTS_ROOT}` 与 `<MIGRATION_PROJECT_ROOT>` 是同一容器的两种写法，流程页二者混用。
+
 ## 🔨 构建工具链
 
 | 变量名 | 你的值 | 说明 |
