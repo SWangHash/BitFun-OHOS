@@ -2,10 +2,10 @@
 
 use crate::api::app_state::AppState;
 use bitfun_core::service::review_platform::{
-    ReviewPlatformCiLog, ReviewPlatformDetailSection, ReviewPlatformError,
-    ReviewPlatformIssueEvidence, ReviewPlatformKind, ReviewPlatformPullRequestDetail,
-    ReviewPlatformPullRequestDetailPage, ReviewPlatformPullRequestReviewTarget,
-    ReviewPlatformService, ReviewPlatformWorkspaceSnapshot,
+    untrusted_repository_error_message, ReviewPlatformCiLog, ReviewPlatformDetailSection,
+    ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind,
+    ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,
+    ReviewPlatformPullRequestReviewTarget, ReviewPlatformService, ReviewPlatformWorkspaceSnapshot,
 };
 use log::error;
 use serde::Deserialize;
@@ -88,10 +88,7 @@ pub async fn review_platform_get_workspace_snapshot(
             "Failed to get review platform workspace snapshot: path={}, remote_id={:?}, error={}",
             request.repository_path, request.remote_id, error
         );
-        format!(
-            "Failed to get review platform workspace snapshot: {}",
-            error
-        )
+        review_platform_ui_error(&error)
     })
 }
 
@@ -107,7 +104,7 @@ pub async fn review_platform_get_workspace_context(
             "Failed to get review platform workspace context: path={}, remote_id={:?}, error={}",
             request.repository_path, request.remote_id, error
         );
-            format!("Failed to get review platform workspace context: {}", error)
+            review_platform_ui_error(&error)
         })
 }
 
@@ -130,7 +127,7 @@ pub async fn review_platform_get_pull_request_detail(
             request.pull_request_id,
             error
         );
-        format!("Failed to get review platform pull request detail: {}", error)
+        review_platform_ui_error(&error)
     })
 }
 
@@ -153,7 +150,7 @@ pub async fn review_platform_get_pull_request_review_target(
             request.pull_request_id,
             error
         );
-        format!("Failed to prepare pull request Review target: {}", error)
+        review_platform_ui_error(&error)
     })
 }
 
@@ -182,7 +179,7 @@ pub async fn review_platform_get_issue(
             request.issue_id,
             safe_error
         );
-        format!("Failed to get provider Issue evidence: {safe_error}")
+        review_platform_ui_error(&error)
     })
 }
 
@@ -209,8 +206,34 @@ pub async fn review_platform_get_pull_request_review_target_by_identity(
             request.pull_request_id,
             safe_error
         );
-        format!("Failed to prepare pull request Review target: {safe_error}")
+        review_platform_ui_error(&error)
     })
+}
+
+fn review_platform_ui_error(error: &ReviewPlatformError) -> String {
+    let code = match error {
+        ReviewPlatformError::RepositoryUntrusted {
+            repository_path, ..
+        } => return untrusted_repository_error_message(repository_path),
+        ReviewPlatformError::GitUnavailable => return error.to_string(),
+        ReviewPlatformError::InvalidRepository(_) => "invalidRepository",
+        ReviewPlatformError::RemoteNotFound(_) => "remoteNotFound",
+        ReviewPlatformError::UnsupportedPlatform(_) => "unsupportedPlatform",
+        ReviewPlatformError::Api(_) => "providerFailed",
+        ReviewPlatformError::Http { status: 401, .. } => "authenticationRequired",
+        ReviewPlatformError::Http { status: 403, .. } => "permissionDenied",
+        ReviewPlatformError::Http { status: 404, .. } => "notFound",
+        ReviewPlatformError::Http { .. } => "providerFailed",
+        ReviewPlatformError::Network(_) => "networkFailed",
+        ReviewPlatformError::Parse(_) => "invalidResponse",
+        ReviewPlatformError::StaleTarget(_) => "staleTarget",
+        ReviewPlatformError::EvidenceTooLarge { .. } => "evidenceTooLarge",
+        ReviewPlatformError::TargetIsPullRequest { .. } => "targetIsPullRequest",
+    };
+    format!(
+        "review_platform_error:{code}: {}",
+        safe_review_platform_error(error)
+    )
 }
 
 fn safe_review_platform_error(error: &ReviewPlatformError) -> String {
@@ -227,7 +250,11 @@ fn safe_review_platform_error(error: &ReviewPlatformError) -> String {
         ReviewPlatformError::TargetIsPullRequest { .. } => {
             "requested Issue is a pull request".to_string()
         }
+        ReviewPlatformError::GitUnavailable => "Git is unavailable".to_string(),
         ReviewPlatformError::InvalidRepository(_) => "invalid repository".to_string(),
+        ReviewPlatformError::RepositoryUntrusted { .. } => {
+            "repository ownership is not trusted".to_string()
+        }
         ReviewPlatformError::RemoteNotFound(_) => "provider remote was not found".to_string(),
         ReviewPlatformError::UnsupportedPlatform(_) => "unsupported provider".to_string(),
         ReviewPlatformError::Api(_) => "provider request was rejected".to_string(),
@@ -259,10 +286,7 @@ pub async fn review_platform_get_pull_request_detail_page(
             request.per_page,
             error
         );
-        format!(
-            "Failed to get review platform pull request detail page: {}",
-            error
-        )
+        review_platform_ui_error(&error)
     })
 }
 
@@ -288,7 +312,7 @@ pub async fn review_platform_get_pull_request_ci_log(
             request.ci_item_id,
             error
         );
-        format!("Failed to get review platform CI log: {}", error)
+        review_platform_ui_error(&error)
     })
 }
 
@@ -304,7 +328,7 @@ pub async fn review_platform_update_auth_token(
                 "Failed to update review platform auth token: platform={:?}, host={}, error={}",
                 request.platform, request.host, error
             );
-            format!("Failed to update review platform auth token: {}", error)
+            review_platform_ui_error(&error)
         })
 }
 
@@ -320,7 +344,7 @@ pub async fn review_platform_clear_auth_token(
                 "Failed to clear review platform auth token: platform={:?}, host={}, error={}",
                 request.platform, request.host, error
             );
-            format!("Failed to clear review platform auth token: {}", error)
+            review_platform_ui_error(&error)
         })
 }
 
@@ -350,6 +374,29 @@ pub struct ReviewPlatformPullRequestIdentityRequest {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn review_platform_command_errors_preserve_the_repository_trust_code() {
+        let error = ReviewPlatformError::RepositoryUntrusted {
+            repository_path: "/srv/shared/repo".to_string(),
+            detail: "fatal: detected dubious ownership".to_string(),
+        };
+
+        assert_eq!(
+            review_platform_ui_error(&error),
+            "git_repository_untrusted: /srv/shared/repo"
+        );
+    }
+
+    #[test]
+    fn review_platform_command_errors_keep_localizable_codes_for_other_failures() {
+        let error = ReviewPlatformError::RemoteNotFound("origin".to_string());
+
+        assert_eq!(
+            review_platform_ui_error(&error),
+            "review_platform_error:remoteNotFound: provider remote was not found"
+        );
+    }
 
     #[test]
     fn review_platform_request_wire_deserializes_issue_identity_fields() {
