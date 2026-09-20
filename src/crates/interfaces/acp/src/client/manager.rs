@@ -48,7 +48,9 @@ use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
     AcpClientRequirementProbe, AcpClientStatus, RemoteAcpClientRequirementSnapshot,
 };
-use super::dsh_profile::{ensure_bundled_profile, ensure_bundled_profile_remote};
+use super::dsh_profile::{
+    check_bundled_profile_requirement, ensure_bundled_profile, ensure_bundled_profile_remote,
+};
 #[cfg(target_env = "ohos")]
 use super::managed_provisioning::probe_existing_managed_client;
 use super::managed_provisioning::{
@@ -418,13 +420,15 @@ impl AcpClientService {
                 notes
             );
 
-            probes.push(AcpClientRequirementProbe {
+            let mut probe = AcpClientRequirementProbe {
                 id,
                 tool,
                 adapter,
                 runnable,
                 notes,
-            });
+            };
+            check_bundled_profile_requirement(&mut probe);
+            probes.push(probe);
         }
 
         Ok(probes)
@@ -517,13 +521,15 @@ impl AcpClientService {
                 notes
             );
 
-            probes.push(AcpClientRequirementProbe {
+            let mut probe = AcpClientRequirementProbe {
                 id,
                 tool,
                 adapter,
                 runnable,
                 notes,
-            });
+            };
+            check_bundled_profile_requirement(&mut probe);
+            probes.push(probe);
         }
 
         Ok(probes)
@@ -2027,15 +2033,29 @@ impl AcpClientService {
         Child,
         StderrTail,
     )> {
-        // An agent whose runtime BitFun ships (dsh) needs it in place before the
-        // command runs, because the command's only job is to boot it.
-        if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
-        {
-            ensure_bundled_profile(profile, &config.command, &config.env).await?;
-        }
-
         let program = resolve_configured_command(&config.command, &config.env);
         let mut args = config.args.clone();
+        if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
+        {
+            // Prefer the installed runtime's own ACP implementation when it
+            // advertises one. Keep old launch arguments persisted so older
+            // runtimes and custom profile selections remain readable.
+            #[cfg(target_env = "ohos")]
+            let native_acp = args == ["--profile", profile]
+                && super::dsh_profile::has_native_acp_profile(
+                    &program.to_string_lossy(),
+                    &config.env,
+                )
+                .await;
+            #[cfg(not(target_env = "ohos"))]
+            let native_acp = false;
+            if native_acp {
+                args = vec!["--profile".to_string(), "acp".to_string()];
+                log::info!("Using the installed DeepSeek Harness ACP profile");
+            } else {
+                ensure_bundled_profile(profile, &config.command, &config.env).await?;
+            }
+        }
         prepare_node_command(&self.path_manager, &program, &mut args).await?;
         let mut command = bitfun_core::util::process_manager::create_tokio_command(&program);
         command

@@ -203,3 +203,9 @@ test('official frontend packaging still compiles the DeepSeek profile', () => {
   );
   assert.match(frontendBuildAll, /prepare:dsh-profile/);
 });
+
+// The HAP entrypoint does not use desktop frontend:build-all.
+test('HarmonyOS Tauri packaging prepares the bridge before building the frontends', () => {
+  const config = JSON.parse(readFileSync(path.join(repoRoot, 'src/apps/desktop/tauri.conf.json'), 'utf8'));
+  assert.equal(config.build.beforeBuildCommand.split(' && ')[0], 'pnpm run prepare:dsh-profile');
+});
