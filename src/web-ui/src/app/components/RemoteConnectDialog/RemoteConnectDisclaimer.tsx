@@ -4,13 +4,13 @@ import React from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import './RemoteConnectDisclaimer.scss';
 
-interface RemoteConnectDisclaimerContentProps {
+interface RemoteConnectDisclaimerProps {
   agreed: boolean;
   onClose: () => void;
   onAgree?: () => void;
 }
 
-export const RemoteConnectDisclaimerContent: React.FC<RemoteConnectDisclaimerContentProps> = ({
+export const RemoteConnectDisclaimer: React.FC<RemoteConnectDisclaimerProps> = ({
   agreed,
   onClose,
   onAgree,

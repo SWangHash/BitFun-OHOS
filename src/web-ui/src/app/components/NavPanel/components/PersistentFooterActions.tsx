@@ -22,7 +22,7 @@ import { activateProductAction } from '@/app/global-search/productActionActivato
 import { useToolbarModeContext } from '@/flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import NotificationButton from '../../TitleBar/NotificationButton';
-import { RemoteConnectDisclaimerContent } from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
+import { RemoteConnectDisclaimer } from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
 import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
@@ -290,7 +290,7 @@ const PersistentFooterActions: React.FC = () => {
           <DialogClose />
         </DialogHeader>
         <DialogBody>
-        <RemoteConnectDisclaimerContent
+        <RemoteConnectDisclaimer
           agreed={hasAgreedRemoteDisclaimer}
           onClose={() => setShowRemoteDisclaimer(false)}
           onAgree={handleAgreeDisclaimer}
