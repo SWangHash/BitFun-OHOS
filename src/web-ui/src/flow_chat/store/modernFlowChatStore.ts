@@ -223,6 +223,34 @@ function mergeRoundGroupForDisplay(currentRound: ModelRound, nextRound: ModelRou
   };
 }
 
+/**
+ * The bootstrap qmake probe (ExecCommand `command -v qmake`) is plumbing the
+ * migration gate runs before the question card opens: it resolves the
+ * env-configured toolchain and feeds the card's candidates. It stays in the
+ * round items (persistence, runtime status and the model context are
+ * unaffected) but is hidden from the transcript — it carries no information
+ * for the reader. The gate's allowlist (`qt_migration_gate.rs`) is the
+ * authoritative form; this display predicate mirrors it.
+ */
+function isHiddenBootstrapQmakeProbeItem(item: AnyFlowItem): boolean {
+  if (item.type !== 'tool') {
+    return false;
+  }
+  const tool = item as FlowToolItem;
+  if (tool.toolName !== 'ExecCommand') {
+    return false;
+  }
+  const input = tool.toolCall?.input;
+  const command = input && typeof input === 'object'
+    ? (input as Record<string, unknown>).cmd
+    : undefined;
+  if (typeof command !== 'string') {
+    return false;
+  }
+  const normalized = command.trim().split(/\s+/).join(' ');
+  return normalized === 'command -v qmake';
+}
+
 function isTerminalTurnStatus(status: DialogTurn['status']): boolean {
   return status === 'completed' || status === 'cancelled' || status === 'error';
 }
@@ -358,7 +386,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
     turn.modelRounds.forEach(round => {
       if (!round.items || round.items.length === 0) return;
-      const nonSteeringItems = round.items.filter(item => item.type !== 'user-steering');
+      const nonSteeringItems = round.items.filter(
+        item => item.type !== 'user-steering' && !isHiddenBootstrapQmakeProbeItem(item),
+      );
       if (nonSteeringItems.length > 0) {
         const normalizedRound = nonSteeringItems.length === round.items.length
           ? round

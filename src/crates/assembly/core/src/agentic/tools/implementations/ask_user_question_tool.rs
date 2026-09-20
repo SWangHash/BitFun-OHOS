@@ -272,6 +272,18 @@ Usage notes:
                 if let Some(resolved) = context.custom_data.get("qt_migration_resolved_paths") {
                     merge_prompt_resolved_paths(&mut candidates, resolved);
                 }
+                // The session toolchain (env-configured qmake) is resolved by
+                // the MODEL running `command -v qmake` via ExecCommand — the
+                // one shell command the migration gate allows before the
+                // inputs are bound. It arrives under its dedicated key and is
+                // probed at the PATH tier (last) per the agreed priority:
+                // 输入 > 工作区 > 托管 > 环境变量.
+                let session_toolchain_dir =
+                    crate::agentic::tools::qt_migration_candidates::take_session_toolchain_dir(
+                        &mut candidates,
+                    );
+                let probe_path_env = session_toolchain_dir
+                    .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
                 if let Some(workspace) = context.workspace_root() {
                     if !context.is_remote() {
                         // Pre-probe prompt-named candidate map (model echo +
@@ -281,7 +293,7 @@ Usage notes:
                         let path_manager = crate::infrastructure::get_path_manager_arc();
                         let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
                             workspace,
-                            &crate::agentic::tools::qt_migration_candidates::shell_session_path_env(),
+                            &probe_path_env,
                             &path_manager.qt_migration_root_dir(),
                             &candidates,
                         );
