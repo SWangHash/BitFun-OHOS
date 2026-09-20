@@ -1,5 +1,5 @@
 /**
- * WorkingCopyView — Git working copy: commit bar + file list + diff area (ContentCanvas mode=git).
+ * WorkingCopyView ??Git working copy: commit bar + file list + diff area (ContentCanvas mode=git).
  */
 
 import { OverflowText, Button, Icon, IconButton, SearchField, Textarea, Tooltip } from '@bitfun/ui';
@@ -396,12 +396,12 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
           <span className="bitfun-git-scene-working-copy__branch" data-bitfun-component="working-copy-view" data-bitfun-part="branch">{status?.current_branch ?? t('common.unknown')}</span>
           {(status?.ahead ?? 0) > 0 && (
             <Tooltip content={t('status.ahead')}>
-              <span className="bitfun-git-scene-working-copy__badge wcv-badge--ahead">↑{status?.ahead}</span>
+              <span className="bitfun-git-scene-working-copy__badge wcv-badge--ahead">{status?.ahead}</span>
             </Tooltip>
           )}
           {(status?.behind ?? 0) > 0 && (
             <Tooltip content={t('status.behind')}>
-              <span className="bitfun-git-scene-working-copy__badge wcv-badge--behind">↓{status?.behind}</span>
+              <span className="bitfun-git-scene-working-copy__badge wcv-badge--behind">{status?.behind}</span>
             </Tooltip>
           )}
           <div className="bitfun-git-scene-working-copy__sync-actions" data-bitfun-component="working-copy-view" data-bitfun-part="syncActions">

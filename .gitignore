@@ -125,3 +125,4 @@ src/apps/mobile/android/.kotlin/
 
 # Node.js compile cache emitted by WSL runs with a relative NODE_COMPILE_CACHE
 node-compile-cache/
+.openbitfun/

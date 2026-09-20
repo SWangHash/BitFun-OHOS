@@ -1322,7 +1322,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
             {/*
               Always mount AsyncPrismSyntaxHighlighter. While streaming,
               preferFallback keeps the lightweight line-numbered pre so we do
-              not remount Fallback ↔ Prism when the turn finishes (that remount
+              not remount Fallback ??Prism when the turn finishes (that remount
               flashed the chat pane).
             */}
             <AsyncPrismSyntaxHighlighter
@@ -1638,7 +1638,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
             data-bitfun-part="imageFallback"
             title={label}
           >
-            {props.alt ? `${props.alt} — ${label}` : label}
+            {props.alt ? `${props.alt} ??${label}` : label}
           </span>
         );
       }

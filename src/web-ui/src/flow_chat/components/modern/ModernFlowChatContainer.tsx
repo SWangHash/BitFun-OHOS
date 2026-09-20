@@ -413,15 +413,15 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
    *
    * Deliberately the *rendered* presentation and not `historyPresentationRef`,
    * which holds the window the store cut. The continuous projection makes those
-   * two differ — see `resolveHistoryBoundaryTarget`.
+   * two differ ??see `resolveHistoryBoundaryTarget`.
    */
   const renderedHistoryPresentationRef = useRef(renderedHistoryPresentation);
   renderedHistoryPresentationRef.current = renderedHistoryPresentation;
   /*
    * Whether the transcript on screen still reaches the newest Turn.
    *
-   * Both consumers of `history-reading` — suppressing streaming follow, and the
-   * jump-to-latest affordance — are asking this, not "did the user navigate".
+   * Both consumers of `history-reading` ??suppressing streaming follow, and the
+   * jump-to-latest affordance ??are asking this, not "did the user navigate".
    * A turn intent used to answer it faithfully because only navigation ever
    * activated a history window. Automatic tail paging activates one with nobody
    * navigating: a session whose loaded tail is shorter than the viewport pages
@@ -429,8 +429,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
    * reading history, which pinned the jump-to-latest bar open and routed it
    * through a presentation reset that dropped the window and paged it back in.
    *
-   * The window's own ordinal bookkeeping answers it exactly — these are ledger
-   * numbers, not measurements — and keeps answering it as the session grows: a
+   * The window's own ordinal bookkeeping answers it exactly ??these are ledger
+   * numbers, not measurements ??and keeps answering it as the session grows: a
    * Turn arriving past the end of the window flips this back on its own, where
    * a provenance flag recorded at activation time would stay stale and leave no
    * way back to the live tail.
@@ -1629,7 +1629,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
    * end, so the transcript on screen silently stops at the previous Turn: the
    * message the user just sent is not rendered at all, and because
    * `latestTurnId` is read off the rendered items, follow-output never even
-   * learns a new Turn exists — no pin, no follow, and no way to scroll to it.
+   * learns a new Turn exists ??no pin, no follow, and no way to scroll to it.
    *
    * `resolveTailWindowGrowth` carries the reasoning and the reason it is not
    * edge-triggered; this effect is only the plumbing.
@@ -1669,7 +1669,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
 
     // The newest Turn is not inside the loaded range this window was cut from.
     // Dropping back to the canonical tail costs a visible re-page of the
-    // history above, which is why it is the fallback and not the rule — but it
+    // history above, which is why it is the fallback and not the rule ??but it
     // is the only branch that always shows the message the user just sent.
     restoreTailPresentation();
   }, [
@@ -1691,7 +1691,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
    * `resolveTailWindowGrowth` deliberately leaves a navigated window alone as
    * the session grows, because a Turn arriving from elsewhere is no reason to
    * take a reader out of the history they are in. A Turn they submitted
-   * themselves is, and nothing in the ledger tells the two apart — measured, a
+   * themselves is, and nothing in the ledger tells the two apart ??measured, a
    * message sent while parked on the first Turn left the transcript on a
    * 24-item window it was never in, with follow-output holding an answer it
    * had nothing to align.

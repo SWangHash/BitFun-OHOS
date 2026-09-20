@@ -79,7 +79,7 @@ export function findReusableEmptySessionId(
 
 /**
  * Code / Cowork sessions belong to project (non-assistant) workspaces only.
- * Assistant “instances” use Claw sessions under their own storage.
+ * Assistant ??nstances??use Claw sessions under their own storage.
  */
 export function pickWorkspaceForProjectChatSession(
   currentWorkspace: WorkspaceInfo | null | undefined,

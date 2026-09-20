@@ -36,7 +36,7 @@ export function useSkillMarket({
 }: UseSkillMarketOptions) {
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
-  const { hasWorkspace, workspacePath, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
+  const { workspace, hasWorkspace, workspacePath, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
 
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
@@ -46,7 +46,7 @@ export function useSkillMarket({
   const [downloadingPackage, setDownloadingPackage] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const marketRequestIdRef = useRef(0);
-  const capabilityKey = `${enabled}\u0000${workspacePath ?? ''}\u0000${isRemoteWorkspace}`;
+  const capabilityKey = `${enabled}\u0000${workspace?.id ?? ''}\u0000${isRemoteWorkspace}`;
   const capabilityRef = useRef({ key: capabilityKey, epoch: 0, enabled });
   useLayoutEffect(() => {
     if (capabilityRef.current.key !== capabilityKey) {
@@ -171,7 +171,7 @@ export function useSkillMarket({
         return;
       }
       // Fetch one extra item so an exhausted result set is detected without an
-      // extra request (no next page → stop scroll loading).
+      // extra request (no next page ??stop scroll loading).
       const fetchBatch = pageSize + 1;
       const skillList = await fetchSkills(searchQuery || undefined, fetchBatch, nextOffset);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
@@ -212,7 +212,7 @@ export function useSkillMarket({
 
     const resolvedLevel: SkillLevel = isRemoteWorkspace ? 'user' : targetLevel;
     // Block project-level install when the active workspace is the assistant
-    // workspace — it would land in the assistant dir and "disappear" when the
+    // workspace ??it would land in the assistant dir and "disappear" when the
     // workspace switches. User must open a real project first (no auto-fallback).
     if (resolvedLevel === 'project' && (!hasWorkspace || isAssistantWorkspace)) {
       notification.warning(t('messages.noWorkspace'));
@@ -238,7 +238,7 @@ export function useSkillMarket({
       const result = await configAPI.downloadSkillMarket({
         packageId: skill.installId,
         level: resolvedLevel,
-        workspacePath: resolvedLevel === 'project' ? workspacePath || undefined : undefined,
+        workspaceId: resolvedLevel === 'project' ? workspace?.id : undefined,
       });
       if (!capabilityIsCurrent(capabilityEpoch)) {
         return;
@@ -260,7 +260,7 @@ export function useSkillMarket({
         setDownloadingPackage(null);
       }
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, installedDirNamesByLevel, installedMarketIds, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspacePath]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspace?.id]);
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);

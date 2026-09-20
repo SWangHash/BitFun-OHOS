@@ -62,9 +62,6 @@ export type SaveTextFileDialogResult =
   | { status: 'saved'; filePath: string }
   | { status: 'cancelled'; filePath?: undefined };
 
-/** Close-button behavior values (matches `app.close_button_behavior` config key). */
-export type CloseBehavior = 'quit' | 'minimize_to_tray' | 'ask';
-
 export class SystemAPI {
   /** Application updates always belong to the controller, including in Peer mode. */
   async getLocalAppVersion(): Promise<string> {

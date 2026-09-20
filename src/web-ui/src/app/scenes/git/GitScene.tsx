@@ -1,5 +1,5 @@
 /**
- * GitScene — Git scene content. Renders view by activeView from gitSceneStore.
+ * GitScene ??Git scene content. Renders view by activeView from gitSceneStore.
  * Left nav is GitNav (registered in nav-registry). Handles not-repo and loading.
  */
 

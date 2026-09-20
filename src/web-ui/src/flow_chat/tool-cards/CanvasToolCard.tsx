@@ -119,7 +119,7 @@ export const CanvasToolCard: React.FC<ToolCardProps> = ({ toolItem, sessionId })
     liveSource.length > 0 && !isFailed && (status !== 'completed' || sourceTypewriter.isRevealing);
   const sourceDisplayContent = isSourceVisuallyStreaming ? sourceTypewriter.displayText : liveSource;
   const metaText = liveSource.length > 0
-    ? `Source · ${i18nService.formatNumber(liveSource.length)} chars`
+    ? `Source ? ${i18nService.formatNumber(liveSource.length)} chars`
     : isOpenable ? 'Canvas artifact' : 'Waiting for Canvas';
 
   const handleOpenPanel = useCallback(() => {

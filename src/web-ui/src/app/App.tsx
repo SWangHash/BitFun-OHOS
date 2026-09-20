@@ -100,7 +100,7 @@ const DEFERRED_TRAY_INIT_DELAY_MS = 1500;
 function App() {
   const { t } = useI18n('settings/application');
 
-  // Workspace loading state — drives splash exit timing
+  // Workspace loading state ??drives splash exit timing
   const { loading: workspaceLoading } = useWorkspaceContext();
   const peerSurfaceActive = usePeerDeviceModeOptional()?.peerMode.active ?? false;
 

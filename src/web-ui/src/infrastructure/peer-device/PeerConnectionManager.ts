@@ -1,8 +1,8 @@
 /**
  * Peer connection lifecycle, outside React.
  *
- * Attaching to a peer is a long-lived state machine — handshake, capability
- * negotiation, keepalive, backoff, teardown — and it has to outlive whatever is
+ * Attaching to a peer is a long-lived state machine ??handshake, capability
+ * negotiation, keepalive, backoff, teardown ??and it has to outlive whatever is
  * on screen: attachments survive surface switches, keep running our work, and
  * must not restart because a provider re-rendered. Expressed as effects it
  * became several timers and async closures racing over refs, where a switch
@@ -29,7 +29,7 @@ export const PEER_RECONNECT_BASE_DELAY_MS = 1_000;
 export const PEER_RECONNECT_MAX_DELAY_MS = 15_000;
 
 /**
- * `connecting` → first handshake. `ready` → the peer answers. `degraded` → it
+ * `connecting` ??first handshake. `ready` ??the peer answers. `degraded` ??it
  * needs its control link checked/re-attached. Recovery keeps retrying with a
  * capped delay until explicit disposal; connectivity never selects a different
  * device surface or discards its cached work.
@@ -64,7 +64,7 @@ export interface PeerHostCapabilities {
   /**
    * Host implements `cancel_tool` (per-tool interrupt). `null` = the host's
    * `peer_mode_ping` did not advertise the field (older host): resolve via
-   * `hostKind` — an older Desktop always implemented cancel_tool, an older CLI
+   * `hostKind` ??an older Desktop always implemented cancel_tool, an older CLI
    * never did. The controller currently has no consumer (the Terminal
    * Interrupt button left with the legacy TerminalControl tool); hosts keep
    * advertising it for older controllers that still render that button.
@@ -135,7 +135,7 @@ export interface PeerConnectionManagerOptions {
 
 export interface PeerDisposeOptions {
   /**
-   * Send `peer_control_detach`. Skip it for a peer that is already gone — the
+   * Send `peer_control_detach`. Skip it for a peer that is already gone ??the
    * host prunes the stale controller through presence instead.
    */
   notifyPeer?: boolean;
@@ -174,7 +174,7 @@ const NO_CAPABILITIES: PeerHostCapabilities = {
   productControlV1: false,
   productControlNativeV1: false,
   productControlPresentationV1: false,
-  // Unknown (not yet probed) — not the same as `false` (probed, unsupported).
+  // Unknown (not yet probed) ??not the same as `false` (probed, unsupported).
   // Consumers treat `null` optimistically so an unprobed host is not gated off.
   cancelTool: null,
   toolCatalog: null,
@@ -442,7 +442,7 @@ export class PeerConnectionManager {
     // does not advertise the field but does implement the command would
     // otherwise have its working capability hidden. `null` lets consumers
     // stay optimistic; an older CLI that truly lacks the command is resolved
-    // via `hostKind` (cli → unsupported) instead of failing on invoke. See
+    // via `hostKind` (cli ??unsupported) instead of failing on invoke. See
     // PR #2428 #4 + round 5 #1.
     // A legacy host with all three new fields absent is classified by the
     // read-only tool catalog probe below; transport failures remain unknown.
