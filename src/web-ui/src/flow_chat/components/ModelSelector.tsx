@@ -446,11 +446,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (dropdownRef.current && !dropdownRef.current.contains(target)
-          && portalDropdownRef.current && !portalDropdownRef.current.contains(target)) {
-        setDropdownOpen(false);
-        setKeyboardNavigationOpen(false);
+      // The ACP-mode and reasoning pickers mount inside this same root, so a
+      // root-containment check would treat a press on their triggers as
+      // "inside" and keep two menus stacked. Exempt only this picker's own
+      // trigger and portal menu; a press anywhere else — including a sibling
+      // picker's trigger — closes this menu before that picker's click opens.
+      if (portalDropdownRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+        return;
       }
+      setDropdownOpen(false);
+      setKeyboardNavigationOpen(false);
     };
 
     if (dropdownOpen) {

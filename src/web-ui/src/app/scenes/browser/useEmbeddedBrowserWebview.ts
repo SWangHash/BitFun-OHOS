@@ -64,10 +64,71 @@ type WebviewBounds = {
   height: number;
 };
 
+/**
+ * Fallback browser webview background colors. Keep in sync with the bootstrap
+ * colors in `src/web-ui/index.html` (`colors.background.primary` per mode).
+ */
+const BROWSER_FALLBACK_BACKGROUND: Record<'light' | 'dark', string> = {
+  dark: '#121214',
+  light: '#f3f3f5',
+};
+
+/**
+ * Normalize a CSS color string to the `#rrggbb` form the desktop
+ * `browser_webview_create/set_background_color` commands require. Returns null
+ * for colors that cannot be represented opaquely (fully transparent, named
+ * colors, non-sRGB color functions).
+ */
+export function normalizeBrowserBackgroundColor(value: string): string | null {
+  const trimmed = value.trim();
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(trimmed);
+  if (hex) {
+    const digits = hex[1];
+    if (digits.length === 3) {
+      return `#${digits[0]}${digits[0]}${digits[1]}${digits[1]}${digits[2]}${digits[2]}`.toLowerCase();
+    }
+    if (digits.length === 6) {
+      return `#${digits.toLowerCase()}`;
+    }
+    if (digits.length === 8) {
+      return `#${digits.slice(0, 6).toLowerCase()}`;
+    }
+    return null;
+  }
+  const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(trimmed);
+  if (rgb) {
+    // A fully transparent page background resolves to the webview's white
+    // canvas, which is exactly the theme mismatch this module must avoid.
+    if (rgb[4] !== undefined && Number(rgb[4]) === 0) {
+      return null;
+    }
+    const channel = (raw: string): string => {
+      const clamped = Math.max(0, Math.min(255, Math.round(Number(raw))));
+      return clamped.toString(16).padStart(2, '0');
+    };
+    return `#${channel(rgb[1])}${channel(rgb[2])}${channel(rgb[3])}`;
+  }
+  return null;
+}
+
 function getBrowserBackgroundColor(): string {
-  const root = document.documentElement;
-  const color = getComputedStyle(root).backgroundColor;
-  return color || (getCurrentAppearanceMode() === 'dark' ? '#1e1e1e' : '#ffffff');
+  const mode = getCurrentAppearanceMode();
+  const rootColor = getComputedStyle(document.documentElement).backgroundColor;
+  const rootNormalized = normalizeBrowserBackgroundColor(rootColor);
+  if (rootNormalized) return rootNormalized;
+  // The appearance runtime paints the primary background inline on the root,
+  // but imported/custom appearances may rely on the body background instead.
+  const bodyColor = document.body ? getComputedStyle(document.body).backgroundColor : '';
+  const bodyNormalized = normalizeBrowserBackgroundColor(bodyColor);
+  if (bodyNormalized) return bodyNormalized;
+  // Last resort: resolve the primary background token directly so non-default
+  // themes (Slate/Midnight/Tokyo Night) never fall back to a hardcoded color.
+  const tokenColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bf-appearance-token-color-bg-primary')
+    .trim();
+  const tokenNormalized = normalizeBrowserBackgroundColor(tokenColor);
+  if (tokenNormalized) return tokenNormalized;
+  return BROWSER_FALLBACK_BACKGROUND[mode];
 }
 
 type BrowserWebviewPageLoadPayload = {
@@ -174,7 +235,9 @@ function getCurrentAppearanceMode(): 'light' | 'dark' {
     : 'dark';
 }
 
-async function injectBrowserPageScripts(label: string): Promise<void> {
+let browserWebviewNativeBackgroundUnsupported = false;
+
+async function injectBrowserPageScripts(label: string, backgroundColor?: string): Promise<void> {
   const appearanceMode = getCurrentAppearanceMode();
   const themeScript = `(() => {
     const mode = ${JSON.stringify(appearanceMode)};
@@ -188,7 +251,20 @@ async function injectBrowserPageScripts(label: string): Promise<void> {
     }
     meta.content = mode;
   })();`;
-  await evalWebview(label, `${themeScript}\n${BLANK_TARGET_INTERCEPT_SCRIPT};\n${STREAM_RENDER_OPTIMIZATION_SCRIPT};`);
+  const backgroundScript = backgroundColor
+    ? `(() => {
+      const FALLBACK_ID = 'bf-browser-bg-fallback';
+      const color = ${JSON.stringify(backgroundColor)};
+      let style = document.getElementById(FALLBACK_ID);
+      if (!style) {
+        style = document.createElement('style');
+        style.id = FALLBACK_ID;
+        document.head?.appendChild(style);
+      }
+      style.textContent = 'html { background-color: ' + color + '; }';
+    })();`
+    : '';
+  await evalWebview(label, `${backgroundScript}\n${themeScript}\n${BLANK_TARGET_INTERCEPT_SCRIPT};\n${STREAM_RENDER_OPTIMIZATION_SCRIPT};`);
 }
 
 async function navigateWebview(label: string, url: string): Promise<void> {
@@ -301,6 +377,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     requestedWebviewLabel,
   } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
+  const isTauriRef = useRef(isTauri);
+  isTauriRef.current = isTauri;
   const startUrl = initialUrl ?? defaultUrl;
   const initialHtmlRef = useRef<string | undefined>(initialHtml);
   const automationBootstrapRef = useRef<string | undefined>(
@@ -485,7 +563,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           setInputValue(payload.url);
           setCurrentUrl(payload.url);
           setError(null);
-          injectBrowserPageScripts(label).catch(() => {});
+          injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? getBrowserBackgroundColor() : undefined).catch(() => {});
         }
       },
     );
@@ -520,7 +598,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           webviewRef.current = handle;
           lastBoundsRef.current = initialBounds;
           await startPageLoadListener(label);
-          void injectBrowserPageScripts(label).catch(() => {});
+          void injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? getBrowserBackgroundColor() : undefined).catch(() => {});
           adoptExistingWebviewRef.current = false;
           return handle;
         }
@@ -534,7 +612,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         );
         webviewRef.current = handle;
         lastBoundsRef.current = initialBounds;
-        await injectBrowserPageScripts(label);
+        await injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? getBrowserBackgroundColor() : undefined);
         await startPageLoadListener(label);
         automationBootstrapRef.current = undefined;
         initialHtmlRef.current = undefined;
@@ -563,11 +641,23 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   }, [closeWebview, labelPrefix, log, requestedWebviewLabel, startPageLoadListener, waitForViewportBounds]);
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
+    const syncWebviewTheme = (): void => {
       const label = webviewLabelRef.current;
-      if (label) void injectBrowserPageScripts(label).catch(() => {});
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bf-appearance-mode'] });
+      if (!label) return;
+      const color = getBrowserBackgroundColor();
+      void injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? color : undefined).catch(() => {});
+      if (!isTauriRef.current) return;
+      void import('@tauri-apps/api/core').then(({ invoke }) =>
+        invoke('browser_webview_set_background_color', {
+          request: { label, backgroundColor: color },
+        }),
+      ).catch(() => {
+        browserWebviewNativeBackgroundUnsupported = true;
+        void injectBrowserPageScripts(label, getBrowserBackgroundColor()).catch(() => {});
+      });
+    };
+    const observer = new MutationObserver(syncWebviewTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bf-appearance-mode', 'data-bf-appearance'] });
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -589,12 +679,12 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       await navigateWebview(label, url);
       window.setTimeout(() => {
         if (webviewLabelRef.current === label) {
-          void injectBrowserPageScripts(label).catch(() => {});
+          void injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? getBrowserBackgroundColor() : undefined).catch(() => {});
         }
       }, 1000);
       window.setTimeout(() => {
         if (webviewLabelRef.current === label) {
-          void injectBrowserPageScripts(label).catch(() => {});
+          void injectBrowserPageScripts(label, browserWebviewNativeBackgroundUnsupported ? getBrowserBackgroundColor() : undefined).catch(() => {});
         }
       }, 2500);
       return true;
