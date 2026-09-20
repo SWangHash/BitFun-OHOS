@@ -357,25 +357,47 @@ fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<S
     candidates
 }
 
+/// CMake-based Qt project marker: a CMakeLists.txt that resolves Qt via
+/// `find_package(Qt…)`. One of the two build systems the ohos-qt-skills
+/// pre-flight (阶段零) recognizes — qmake `.pro` is the other. Detection
+/// criteria deliberately mirror the skill's analyzer workflow so the backend
+/// probe and the model-driven migration flow agree on what a Qt project is.
+fn is_qt_cmake_project(dir: &Path) -> bool {
+    let Ok(cmake) = std::fs::read_to_string(dir.join("CMakeLists.txt")) else {
+        return false;
+    };
+    // Covers find_package(Qt5 …), find_package(Qt6 …), find_package(Qt …).
+    cmake.to_ascii_lowercase().contains("find_package(qt")
+}
+
 fn is_qt_source_project(dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };
-    entries.flatten().any(|entry| {
-        entry
+    let mut has_cmake = false;
+    for entry in entries.flatten() {
+        if !entry
             .file_type()
             .map(|kind| kind.is_file())
             .unwrap_or(false)
-            && entry
-                .file_name()
-                .to_string_lossy()
-                .to_lowercase()
-                .ends_with(".pro")
-    })
+        {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        if name.ends_with(".pro") {
+            return true;
+        }
+        if name == "cmakelists.txt" {
+            has_cmake = true;
+        }
+    }
+    has_cmake && is_qt_cmake_project(dir)
 }
 
-/// Collect directories that directly contain a `*.pro` file (project roots).
-/// Roots terminate recursion: sub-projects inside a project are not hoisted.
+/// Collect directories that directly contain a `*.pro` file or a Qt CMake
+/// build (CMakeLists.txt with `find_package(Qt…)` — same criteria as the
+/// ohos-qt-skills pre-flight). Roots terminate recursion: sub-projects inside
+/// a project are not hoisted.
 fn scan_projects(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
     if depth > MAX_PROBE_DEPTH {
         return;
@@ -384,6 +406,7 @@ fn scan_projects(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
         return;
     };
     let mut has_pro = false;
+    let mut has_cmake = false;
     let mut subdirs: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let p = entry.path();
@@ -398,11 +421,15 @@ fn scan_projects(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
             subdirs.push(p);
             continue;
         }
-        if name.to_lowercase().ends_with(".pro") && !name.starts_with('.') {
+        let lower = name.to_lowercase();
+        if lower.ends_with(".pro") && !name.starts_with('.') {
             has_pro = true;
         }
+        if lower == "cmakelists.txt" {
+            has_cmake = true;
+        }
     }
-    if has_pro {
+    if has_pro || (has_cmake && is_qt_cmake_project(dir)) {
         if is_inside_migrated_harmony_project(dir) {
             return;
         }
@@ -1377,6 +1404,37 @@ mod tests {
             probe_source_projects(&root, &[]),
             vec![root.to_string_lossy().into_owned()]
         );
+    }
+
+    #[test]
+    fn cmake_qt_project_is_a_source_candidate() {
+        // 探测依据与 ohos-qt-skills 阶段零预检一致：qmake .pro 之外，
+        // 含 find_package(Qt…) 的 CMakeLists.txt 工程同样是 Qt 工程
+        // （coin3d / SARibbon 等 CMake 型项目均属此类）。
+        let (_t, root) = tree();
+        std::fs::write(
+            root.join("CMakeLists.txt"),
+            "cmake_minimum_required(VERSION 3.16)\nfind_package(Qt5 COMPONENTS Widgets REQUIRED)\nadd_executable(app main.cpp)\n",
+        )
+        .unwrap();
+        touch(&root, "main.cpp");
+
+        assert_eq!(
+            probe_source_projects(&root, &[]),
+            vec![root.to_string_lossy().into_owned()]
+        );
+    }
+
+    #[test]
+    fn cmake_without_qt_is_not_a_source_candidate() {
+        let (_t, root) = tree();
+        std::fs::write(
+            root.join("CMakeLists.txt"),
+            "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\nadd_library(foo foo.c)\n",
+        )
+        .unwrap();
+
+        assert_eq!(probe_source_projects(&root, &[]), Vec::<String>::new());
     }
 
     #[test]

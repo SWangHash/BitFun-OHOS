@@ -605,7 +605,14 @@ const QT_MIGRATION_CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统
 
 你的下一步必须且只能是调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}。在调用前可使用只读工具探测当前工作区；一旦发现用户当前指定或明确指代的 Qt 工程，必须把其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。用户在 prompt 中明确写出的其他路径（输出目录、工具链、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.toolchain` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。不得只在分析文字中描述候选而省略 `candidates`。其他已探测候选也应按字段传入；不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。调用后等待用户提交答案。
 
-用户提交答案后，AskUserQuestion 工具结果返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
+. 调用 ExecCommand 工具执行 `command -v qmake`。这是四项输入绑定前唯一允许的 shell 命令，用于解析用户配置在环境变量中的工具链。
+2. 立即调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}，并按以下规则填充 candidates：
+   - 第 1 步命中路径时，取其父目录放入 `candidates.toolchain_env`（专用字段——环境变量命中的工具链优先级最低，后端会排在输入/工作区/托管候选之后；不要放入 `candidates.toolchain`）。未命中则不传该字段（卡片会显示输入框）。
+   - 用户当前指定或明确指代的 Qt 工程：其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项（Qt 工程判定标准见 ohos-qt-skills 阶段零预检：qmake `.pro` 工程，或含 `find_package(Qt…)` 的 CMakeLists.txt 工程）。用户在 prompt 中明确写出的其他路径（输出目录、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。
+   - 其他已探测候选也应按字段传入。不得只在分析文字中描述候选而省略 `candidates`。不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。
+
+除上述第 1 步外，四项输入绑定前禁止执行任何其他 shell 命令。调用 AskUserQuestion 后等待用户提交答案；答案返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
+4b3d8f3c7 (原始工程探测依据对齐 ohos-qt-skills 阶段零预检)
 
 // Engine-level constraint ensuring Qt migration work always uses the
 // `ohos-qt-skills` knowledge base. Gate semantics only: which skill must load
