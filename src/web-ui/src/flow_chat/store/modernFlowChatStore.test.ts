@@ -145,6 +145,98 @@ describe('sessionToVirtualItems explore grouping', () => {
     vi.useRealTimers();
   });
 
+  it('hides the bootstrap qmake probe round from the transcript', () => {
+    // gate 引导探针：四项输入绑定前唯一放行的 shell 命令。数据保留在
+    // 轮次里（持久化/运行时状态不受影响），但投影不再渲染它。
+    const probeRound: ModelRound = {
+      id: 'round-probe',
+      index: 0,
+      items: [{
+        id: 'probe-1',
+        type: 'tool',
+        toolName: 'ExecCommand',
+        timestamp: 1000,
+        status: 'completed',
+        toolCall: { id: 'probe-1', input: { cmd: 'command -v qmake' } },
+      } as FlowToolItem],
+      isStreaming: false,
+      isComplete: true,
+      status: 'completed',
+      startTime: 1000,
+    };
+    const askRound: ModelRound = {
+      id: 'round-ask',
+      index: 1,
+      items: [{
+        id: 'ask-1',
+        type: 'tool',
+        toolName: 'AskUserQuestion',
+        timestamp: 1001,
+        status: 'pending_confirmation',
+        toolCall: { id: 'ask-1', input: { templateId: 'qt-migration-paths', questions: [] } },
+      }],
+      isStreaming: false,
+      isComplete: false,
+      status: 'streaming',
+      startTime: 1001,
+    };
+    const session = makeSession({
+      sessionId: 'qt-probe-session',
+      status: 'processing',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'qt-probe-session',
+        userMessage: { id: 'user-1', content: '迁移', timestamp: 900 },
+        modelRounds: [probeRound, askRound],
+        status: 'processing',
+        startTime: 900,
+      }],
+    });
+
+    const items = sessionToVirtualItems(session);
+    const roundIds = items
+      .filter(item => item.type === 'model-round')
+      .map(item => (item.data as ModelRound).id);
+
+    expect(roundIds).toEqual(['round-ask']);
+  });
+
+  it('keeps ordinary ExecCommand rounds visible', () => {
+    const execRound: ModelRound = {
+      id: 'round-exec',
+      index: 0,
+      items: [{
+        id: 'exec-1',
+        type: 'tool',
+        toolName: 'ExecCommand',
+        timestamp: 1000,
+        status: 'completed',
+        toolCall: { id: 'exec-1', input: { cmd: 'ls -la' } },
+      } as FlowToolItem],
+      isStreaming: false,
+      isComplete: true,
+      status: 'completed',
+      startTime: 1000,
+    };
+    const session = makeSession({
+      sessionId: 'exec-session',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'exec-session',
+        userMessage: { id: 'user-1', content: 'Help', timestamp: 900 },
+        modelRounds: [execRound],
+        status: 'completed',
+        startTime: 900,
+      }],
+    });
+
+    const items = sessionToVirtualItems(session);
+    const roundIds = items
+      .filter(item => item.type === 'model-round')
+      .map(item => (item.data as ModelRound).id);
+    expect(roundIds).toEqual(['round-exec']);
+  });
+
   it('groups normal rounds containing only collapsible tools and narrative', () => {
     const session = makeSession({ sessionId: 'normal-session' });
 

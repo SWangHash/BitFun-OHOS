@@ -624,9 +624,11 @@ Usage notes:
         // explicitly before executing any command.
         #[cfg(feature = "agent-runtime")]
         {
-            if let Err(error) =
-                crate::agentic::tools::qt_migration_gate::check_admission(self.name(), context)
-            {
+            if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+                self.name(),
+                Some(input),
+                context,
+            ) {
                 return Err(error);
             }
         }
