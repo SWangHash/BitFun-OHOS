@@ -93,6 +93,10 @@ summary: >
 mkdir -p "<MIGRATION_PROJECT_ROOT>/<app-name>-ohos"
 ```
 
+**`${PROJECTS_ROOT}` 取值**见 `ENV.md`「迁移输出根目录」；BitFun QtMigration 会话中 = 用户确认的 `output_project` 绑定值（输出容器）。
+
+> **⚠️ 必须先建子目录**：模板与迁移产物只能写入 `<app-name>-ohos/` 子目录内，**禁止把模板文件或迁移产物直接写入 `${PROJECTS_ROOT}` 根目录**——即使它是当前工作区根或已存在的目录，跳过子目录创建都是错误行为。
+
 **目录命名规范**：
 - 格式：`<原始应用名>-ohos`（如 `calculator-ohos`、`notepad-ohos`）
 - 全部小写，空格替换为短横线

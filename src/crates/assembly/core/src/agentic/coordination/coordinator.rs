@@ -12598,6 +12598,22 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         format!("qt_migration_path_not_found: field={field}; path={value}"),
                     ));
                 }
+                // A migrated product directory must never be bound as the
+                // output target: re-migration would overwrite the previous
+                // result. Same artifact criteria the output-candidate probe
+                // excludes, so typed-in paths cannot bypass candidate
+                // filtering. The card renders the stable code with recovery
+                // copy (choose another output directory).
+                if field == "output_project"
+                    && crate::agentic::tools::qt_migration_candidates::is_migration_output_artifact(
+                        std::path::Path::new(value),
+                    )
+                {
+                    return Err(bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                        format!("qt_migration_output_is_artifact: field={field}; path={value}"),
+                    ));
+                }
             }
         }
 

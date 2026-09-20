@@ -18,11 +18,17 @@ import './AskUserQuestionCard.scss';
 const log = createLogger('AskUserQuestionCard');
 
 /**
- * Backend rejection for a non-existent migration path. Stable machine format
- * emitted by the coordinator: `qt_migration_path_not_found: field=<id>; path=<value>`.
+ * Backend rejections for migration answers. Stable machine formats emitted by
+ * the coordinator:
+ * - `qt_migration_path_not_found: field=<id>; path=<value>`
+ * - `qt_migration_output_is_artifact: field=<id>; path=<value>`
  */
 const PATH_NOT_FOUND_PATTERN =
   /qt_migration_path_not_found:\s*field=([^;]+);\s*path=(.+)/;
+const OUTPUT_ARTIFACT_PATTERN =
+  /qt_migration_output_is_artifact:\s*field=([^;]+);\s*path=(.+)/;
+
+type SubmitRejectionCode = 'path-not-found' | 'output-artifact';
 
 /** Static i18n keys for the migration field ids rejected by the backend. */
 const FIELD_LABEL_KEYS: Record<string, string> = {
@@ -32,12 +38,27 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
   template: 'toolCards.askUser.fieldName.template',
 };
 
-function parsePathNotFoundRejection(
+function parseSubmitRejection(
   message: string,
-): { field: string; path: string } | null {
-  const match = PATH_NOT_FOUND_PATTERN.exec(message.trim());
-  if (!match) return null;
-  return { field: match[1].trim(), path: match[2].trim() };
+): { code: SubmitRejectionCode; field: string; path: string } | null {
+  const trimmed = message.trim();
+  const pathNotFound = PATH_NOT_FOUND_PATTERN.exec(trimmed);
+  if (pathNotFound) {
+    return {
+      code: 'path-not-found',
+      field: pathNotFound[1].trim(),
+      path: pathNotFound[2].trim(),
+    };
+  }
+  const outputArtifact = OUTPUT_ARTIFACT_PATTERN.exec(trimmed);
+  if (outputArtifact) {
+    return {
+      code: 'output-artifact',
+      field: outputArtifact[1].trim(),
+      path: outputArtifact[2].trim(),
+    };
+  }
+  return null;
 }
 
 interface QuestionOption {
@@ -431,15 +452,20 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       const rawMessage = error instanceof Error && error.message.trim()
         ? error.message
         : '';
-      const rejection = parsePathNotFoundRejection(rawMessage);
+      const rejection = parseSubmitRejection(rawMessage);
       let message: string;
       if (rejection) {
         const fieldLabelKey = FIELD_LABEL_KEYS[rejection.field];
         const fieldLabel = fieldLabelKey ? t(fieldLabelKey) : rejection.field;
-        message = t('toolCards.askUser.submitPathNotFound', {
-          field: fieldLabel,
-          path: rejection.path,
-        });
+        message = rejection.code === 'output-artifact'
+          ? t('toolCards.askUser.submitOutputArtifact', {
+            field: fieldLabel,
+            path: rejection.path,
+          })
+          : t('toolCards.askUser.submitPathNotFound', {
+            field: fieldLabel,
+            path: rejection.path,
+          });
       } else {
         message = rawMessage || t('toolCards.askUser.submitFailed');
       }
@@ -494,7 +520,15 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       ? Array.isArray(answer) && answer.includes('Other')
       : answer === 'Other';
 
-    const inputName = `question-${questionIndex}`;
+    // Radio names must be unique per card instance. Radios are not inside a
+    // `<form>`, so same-name radios form ONE document-wide mutual-exclusion
+    // group; a second mounted instance (e.g. an expanded completed card being
+    // reviewed while a new card waits for answers) would otherwise steal the
+    // group's checked state, and react-dom's controlled-radio restore would
+    // revert the user's first click. The name never participates in
+    // submission — answers bind through React state and are submitted by
+    // field id / position.
+    const inputName = `${toolId ?? 'ask'}:question-${questionIndex}`;
 
     return (
       <div data-bf-component="ask-user-question-card" data-bf-part="question" key={questionIndex} className="ask-question-item">

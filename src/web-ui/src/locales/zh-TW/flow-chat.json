@@ -1527,6 +1527,10 @@
     "separator": "，",
     "collapse": "收起命令列表"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "二進位輸出已攔截，未渲染（{{count}} 字元）。",
+    "truncated": "… 輸出已截斷，僅顯示前 {{count}} 字元。"
+  },
   "toolCards": {
     "file": {
       "write": "寫入檔案",
@@ -1789,6 +1793,7 @@
       "submitting": "提交中...",
       "submitFailed": "提交失敗，請檢查輸入後重試",
       "submitPathNotFound": "{{field}}路徑不存在：{{path}}",
+      "submitOutputArtifact": "{{field}}指向歷史遷移產物，禁止覆蓋：{{path}}。請為本次遷移改用其他輸出目錄。",
       "fieldName": {
         "source_project": "原始工程",
         "output_project": "輸出工程",

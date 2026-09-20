@@ -1526,6 +1526,10 @@
     "separator": ", ",
     "collapse": "Collapse commands"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "Binary output suppressed, not rendered ({{count}} characters).",
+    "truncated": "… output truncated (showing the first {{count}} characters)."
+  },
   "toolCards": {
     "file": {
       "write": "Write File",
@@ -1788,6 +1792,7 @@
       "submitting": "Submitting...",
       "submitFailed": "Submission failed. Check the inputs and try again.",
       "submitPathNotFound": "The {{field}} path does not exist: {{path}}",
+      "submitOutputArtifact": "The {{field}} path is a previous migration result and must not be overwritten: {{path}}. Choose a different output directory for this migration.",
       "fieldName": {
         "source_project": "Source project",
         "output_project": "Output project",

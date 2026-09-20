@@ -394,6 +394,8 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
         content={options?.formatSessionPreview ? formatSessionViewPreviewText(output) : output}
         className="terminal-xterm-output"
         maxRows={maxRows}
+        binarySuppressedText={(count) => t('terminalOutputGuard.binarySuppressed', { count })}
+        truncatedMarkerText={(count) => t('terminalOutputGuard.truncated', { count })}
       />
     </div>
   );
