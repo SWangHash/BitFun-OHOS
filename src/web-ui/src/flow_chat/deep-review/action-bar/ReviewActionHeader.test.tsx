@@ -44,6 +44,8 @@ describe('ReviewActionHeader', () => {
         phaseIconClass="phase-error"
         phaseTitle="Fix failed"
         errorMessage={error}
+        errorSummary="Localized error summary"
+        errorDetailsLabel="Technical details"
         minimizeLabel="Minimize"
         onMinimize={vi.fn()}
       />,
@@ -51,7 +53,9 @@ describe('ReviewActionHeader', () => {
     const dom = new JSDOM(html);
     const document = dom.window.document;
     const details = document.querySelector('.deep-review-action-bar__error-message')!;
-    expect(details.textContent).toBe(error);
+    expect(details.lastElementChild?.textContent).toBe(error);
+    expect(details.textContent).toContain('Localized error summary');
+    expect(details.textContent).toContain('Technical details');
     expect(details.closest('.deep-review-action-bar__status')).toBeNull();
     expect(details.closest('.deep-review-action-bar__controls')).toBeNull();
     expect(details.getAttribute('role')).toBe('status');
