@@ -68,7 +68,7 @@ async function prepareWithRepositoryTrust(
 ): Promise<PreparedReviewLaunch> {
   try {
     // Launching Review is one deliberate action, not a call inside a refresh
-    // burst, so it is always worth a prompt — including right after a decline.
+    // burst, so it is always worth a prompt ??including right after a decline.
     return await withGitRepositoryTrustRecovery(prepare, workspace, { userInitiated: true });
   } catch (error) {
     if (isGitRepositoryNotFoundError(error)) {

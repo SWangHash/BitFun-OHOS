@@ -66,9 +66,6 @@ export type SaveTextFileDialogResult =
 export type CloseBehavior = 'quit' | 'minimize_to_tray' | 'ask';
 
 export class SystemAPI {
-<<<<<<< src/web-ui/src/infrastructure/api/service-api/SystemAPI.ts
-
-=======
   /** Application updates always belong to the controller, including in Peer mode. */
   async getLocalAppVersion(): Promise<string> {
     return getControllerAppVersion();
@@ -88,8 +85,7 @@ export class SystemAPI {
     window.addEventListener(AUTO_UPDATE_CHANGED, listener);
     return () => window.removeEventListener(AUTO_UPDATE_CHANGED, listener);
   }
-   
->>>>>>> C:\Users\admin\AppData\Local\Temp\tmp642B.tmp
+
   async getSystemInfo(): Promise<SystemInfo> {
     try {
       return await api.invoke('get_system_info', { 

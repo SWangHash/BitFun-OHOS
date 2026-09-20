@@ -212,7 +212,7 @@ export interface SessionRuntimeEventSnapshot {
  *
  * `delta` is contiguous: apply the events in order and the projection is
  * repaired in place. `snapshotRequired` means the Host cannot prove
- * contiguity — the cursor aged out of its replay window, it belongs to an
+ * contiguity ??the cursor aged out of its replay window, it belongs to an
  * older Runtime process, or the Host keeps no journal at all.
  */
 export type SessionEventBackfill =
@@ -1024,8 +1024,8 @@ export class AgentAPI {
    * Rust side and consumed by the execution engine at the next round boundary
    * without ending the current turn.
    *
-   * Carries the same payload a turn submission does — attachments and message
-   * metadata included — so a message keeps its content whether it is sent at a
+   * Carries the same payload a turn submission does ??attachments and message
+   * metadata included ??so a message keeps its content whether it is sent at a
    * turn boundary or injected into a running turn.
    */
   async steerDialogTurn(request: {
