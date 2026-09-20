@@ -8,9 +8,10 @@ import './GraphView.scss';
 
 interface GraphViewProps {
   workspacePath?: string;
+  workspaceId?: string;
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ workspacePath = '' }) => {
+const GraphView: React.FC<GraphViewProps> = ({ workspacePath = '', workspaceId }) => {
   if (!workspacePath) {
     return (
       <div data-bitfun-component="git-graph-view" data-bitfun-part="root" data-bitfun-state="empty" className="bitfun-git-scene-graph bitfun-git-scene-graph--empty">
@@ -21,7 +22,7 @@ const GraphView: React.FC<GraphViewProps> = ({ workspacePath = '' }) => {
 
   return (
     <div data-bitfun-component="git-graph-view" data-bitfun-part="root" className="bitfun-git-scene-graph">
-      <GitGraphView repositoryPath={workspacePath} />
+      <GitGraphView repositoryPath={{ workspaceId: workspaceId ?? '', repositoryPath: workspacePath }} />
     </div>
   );
 };

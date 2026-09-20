@@ -4,11 +4,9 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, FolderPlus } from 'lucide-react';
-import { Button, Menu, MenuItem, MenuSeparator, Icon, PageHeader } from '@bitfun/ui';
-import { gitAPI } from '../../infrastructure/api';
+import { subscribeOverlayInteraction, createOverlayPortal, Button, Menu, MenuItem, MenuSeparator, Icon, PageHeader } from '@bitfun/ui';
 import { useApp } from '../../app/hooks/useApp';
 import { createLogger } from '@/shared/utils/logger';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
@@ -17,22 +15,18 @@ import CoworkExampleCards from './CoworkExampleCards';
 import { useAgentIdentityDocument } from '@/app/scenes/my-agent/useAgentIdentityDocument';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
+import { useGitState } from '@/tools/git/hooks/useGitState';
 import './WelcomePanel.css';
 import './WelcomePanelSurface.scss';
 
 const log = createLogger('WelcomePanel');
 
-interface GitWorkState {
-  currentBranch: string;
-  unstagedFiles: number;
-  stagedFiles: number;
-  unpushedCommits: number;
-}
-
 interface WelcomePanelProps {
   onQuickAction?: (command: string) => void;
   className?: string;
   sessionMode?: string;
+  /** Owning workspace ID of the session being welcomed; selects the assistant identity document. */
+  workspaceId?: string;
   workspacePath?: string;
 }
 
@@ -40,11 +34,11 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
   onQuickAction,
   className = '',
   sessionMode,
+  workspaceId,
   workspacePath = '',
 }) => {
   const { t } = useTranslation('flow-chat');
   const { t: tCommon } = useTranslation('common');
-  const [gitState, setGitState] = useState<GitWorkState | null>(null);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [isSelectingWorkspace, setIsSelectingWorkspace] = useState(false);
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
@@ -63,7 +57,46 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
   const isCoworkSession = sessionModeLower === 'cowork';
   const isClawSession = sessionModeLower === 'claw';
 
-  const { document: identityDoc } = useAgentIdentityDocument(isClawSession ? workspacePath : '');
+  // Subscribe to shared Git state so the welcome panel stays in sync with
+  // branch / worktree changes (including external ones picked up by the
+  // GitStateManager poll). When there is no workspace or we are in a
+  // cowork/claw session we pass a blank scope so the hook stays idle.
+  const activeWsId = !isCoworkSession && !isClawSession ? currentWorkspace?.id : undefined;
+  const gitScope = activeWsId ? { workspaceId: activeWsId } : { workspaceId: '' };
+  const {
+    isRepository,
+    currentBranch,
+    ahead,
+    staged,
+    unstaged,
+    untracked,
+  } = useGitState({
+    repositoryPath: gitScope,
+    layers: ['basic', 'status'],
+    isActive: !!activeWsId,
+    refreshOnMount: !!activeWsId,
+    refreshOnActive: true,
+    participateInWindowFocusRefresh: true,
+    debugSource: 'welcome_panel',
+  });
+
+  // Derive the same shape the old loadGitState produced so the render and
+  // narrative helpers below do not have to change.
+  const gitState = useMemo(() => {
+    if (!isRepository || !currentBranch) return null;
+    return {
+      currentBranch,
+      unstagedFiles: (unstaged?.length || 0) + (untracked?.length || 0),
+      stagedFiles: staged?.length || 0,
+      unpushedCommits: ahead || 0,
+    };
+  }, [isRepository, currentBranch, ahead, staged, unstaged, untracked]);
+
+  const identityWorkspace = useMemo(
+    () => (isClawSession && workspaceId ? { id: workspaceId, rootPath: workspacePath } : null),
+    [isClawSession, workspaceId, workspacePath],
+  );
+  const { document: identityDoc } = useAgentIdentityDocument(identityWorkspace);
   const assistantName = isClawSession ? (identityDoc.name || '') : '';
 
   const greeting = useMemo(() => {
@@ -145,38 +178,9 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
     );
   }, [gitState, handleGitClick, t]);
 
-  const loadGitState = useCallback(async (
-    workspacePath: string,
-    shouldCancel: () => boolean = () => false,
-  ) => {
-    try {
-      const isGitRepo = await gitAPI.isGitRepository(workspacePath);
-      if (shouldCancel()) return;
-      if (!isGitRepo) { setGitState(null); return; }
-      const s = await gitAPI.getStatus(workspacePath, 'welcome_panel');
-      if (shouldCancel()) return;
-      setGitState({
-        currentBranch: s.current_branch,
-        unstagedFiles: s.unstaged.length + s.untracked.length,
-        stagedFiles: s.staged.length,
-        unpushedCommits: s.ahead,
-      });
-    } catch (err) {
-      log.warn('Failed to load git state', err);
-      setGitState(null);
-    }
-  }, []);
-
   useEffect(() => {
-    if (isCoworkSession || isClawSession || !currentWorkspace?.rootPath) { setGitState(null); return; }
-    let cancelled = false;
-    void loadGitState(currentWorkspace.rootPath, () => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [currentWorkspace?.rootPath, isCoworkSession, isClawSession, loadGitState]);
-
-  useEffect(() => {
+    let removeOverlayMousedown0: (() => void) | undefined;
+    let removeOverlayKeydown1: (() => void) | undefined;
     if (!workspaceDropdownOpen) return;
     const handlePointerDown = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -194,11 +198,11 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
       setWorkspaceDropdownOpen(false);
       workspaceTriggerRef.current?.focus();
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    removeOverlayMousedown0 = subscribeOverlayInteraction(workspaceMenuRef, 'mousedown', handlePointerDown);
+    removeOverlayKeydown1 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      removeOverlayMousedown0?.();
+      removeOverlayKeydown1?.();
     };
   }, [workspaceDropdownOpen]);
 
@@ -307,7 +311,7 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
                       >
                         {currentWorkspace?.name || t('shared:features.workspace')}
                       </Button>
-                      {workspaceDropdownOpen && createPortal(
+                      {workspaceDropdownOpen && createOverlayPortal(
                         <Menu
                           ref={workspaceMenuRef}
                           data-bitfun-product-component="welcome-panel"

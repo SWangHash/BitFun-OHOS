@@ -7,6 +7,7 @@ import {
   Disclosure,
   DialogBody,
   DialogClose,
+  DialogFooter,
   DialogHeader,
   DialogHeading,
   DialogTitle,
@@ -112,7 +113,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
     setExternalReferencesLoading(true);
     setExternalReferencesFailed(false);
     void externalSourcesAPI
-      .getWorkspaceReferences(workspace.rootPath, workspace.id)
+      .getWorkspaceReferences(workspace.id)
       .then(snapshot => {
         if (!cancelled) {
           setExternalReferences(snapshot.references);
@@ -427,7 +428,15 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
             </div>
           ) : null}
 
-          <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="footer" className="workspace-related-paths-dialog__footer">
+        </div>
+                </div>
+                </DialogBody>
+          <DialogFooter
+            separator
+            data-bitfun-component="workspace-related-paths-dialog"
+            data-bitfun-part="footer"
+            className="workspace-related-paths-dialog__footer"
+          >
             <Button
               type="button"
               variant="outline"
@@ -459,10 +468,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                 {saving ? t('status.saving') : t('actions.save')}
               </Button>
             </div>
-          </div>
-        </div>
-                </div>
-                </DialogBody>
+          </DialogFooter>
       </Dialog>
 
       {remoteWorkspace && connectionId && browsingIndex !== null ? (
