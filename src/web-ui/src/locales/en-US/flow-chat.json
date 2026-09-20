@@ -1526,6 +1526,10 @@
     "separator": ", ",
     "collapse": "Collapse commands"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "Binary output suppressed, not rendered ({{count}} characters).",
+    "truncated": "… output truncated (showing the first {{count}} characters)."
+  },
   "toolCards": {
     "file": {
       "write": "Write File",

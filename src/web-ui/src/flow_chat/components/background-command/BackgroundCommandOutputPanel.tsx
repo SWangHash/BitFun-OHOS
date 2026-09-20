@@ -392,6 +392,8 @@ export const BackgroundCommandOutputPanel: React.FC<BackgroundCommandOutputPanel
                 className="background-command-output-panel__terminal"
                 minHeight={420}
                 maxHeight={1200}
+                binarySuppressedText={(count) => t('terminalOutputGuard.binarySuppressed', { count })}
+                truncatedMarkerText={(count) => t('terminalOutputGuard.truncated', { count })}
               />
             </div>
           ) : (
