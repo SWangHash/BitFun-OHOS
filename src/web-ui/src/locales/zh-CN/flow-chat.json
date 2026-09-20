@@ -1527,6 +1527,10 @@
     "separator": "，",
     "collapse": "收起命令列表"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "二进制输出已拦截，未渲染（{{count}} 字符）。",
+    "truncated": "… 输出已截断，仅显示前 {{count}} 字符。"
+  },
   "toolCards": {
     "file": {
       "write": "写入文件",
