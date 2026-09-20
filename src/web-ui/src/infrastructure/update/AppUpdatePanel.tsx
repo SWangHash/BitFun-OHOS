@@ -111,7 +111,7 @@ export function AppUpdatePanel() {
                 </Button>}
                 {state.version && <Button size="md" variant="primary" disabled={busy} onClick={state.requestInstall}>
                   {t(state.status === 'installing' ? 'update.installing' : 'update.installAndRestart')}
-                  {candidate && candidate !== state.version && ` · v${state.version}`}
+                  {candidate && candidate !== state.version && ` ? v${state.version}`}
                 </Button>}
                 {!canDownload && !canSkip && !versionChanged && !state.version && <Button size="md" variant="fill" onClick={state.closeDetails}>
                   {t('actions.close')}
