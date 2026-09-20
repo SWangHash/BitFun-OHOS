@@ -2122,6 +2122,7 @@ pub async fn _run() {
             api::browser_api::browser_webview_navigate,
             api::browser_api::browser_webview_reload,
             api::browser_api::browser_webview_set_bounds,
+            api::browser_api::browser_webview_set_background_color,
             api::browser_api::browser_webview_show,
             api::browser_api::browser_webview_hide,
             api::browser_api::browser_webview_close,

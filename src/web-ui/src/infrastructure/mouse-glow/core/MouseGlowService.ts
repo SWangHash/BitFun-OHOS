@@ -59,11 +59,14 @@ export class MouseGlowService {
   private pointerY = 0;
   private pendingElements: HTMLElement[] | null = null;
   private pendingSurface: HTMLElement | null = null;
-  /// Set by scroll/resize, consumed by the next frame. See `handleViewportChange`.
+  /// Set by scroll/viewport resize or an observed surface box change, and
+  /// consumed by the next frame. See `handleViewportChange`.
   private resolveFromPointerPosition = false;
   private activeSurface: HTMLElement | null = null;
   private overlay: HTMLDivElement | null = null;
   private reducedMotionQuery: MediaQueryList | null = null;
+  private surfaceResizeObserver: ResizeObserver | null = null;
+  private observedSurface: HTMLElement | null = null;
   private readonly listeners = new Set<MouseGlowListener>();
 
   initialize = (): void => {
@@ -75,6 +78,7 @@ export class MouseGlowService {
     const previousEnabled = this.enabled;
     this.enabled = this.readStoredPreference();
     this.reducedMotionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
+    this.surfaceResizeObserver = this.createSurfaceResizeObserver();
     this.overlay = this.ensureOverlay();
 
     this.applyEnabledState();
@@ -105,6 +109,7 @@ export class MouseGlowService {
     this.reducedMotionQuery?.removeEventListener?.('change', this.handleReducedMotionChange);
     this.resetPointerState();
     this.overlay?.remove();
+    this.surfaceResizeObserver = null;
     this.overlay = null;
     document.documentElement.removeAttribute('data-mouse-glow-enabled');
     this.reducedMotionQuery = null;
@@ -232,12 +237,43 @@ export class MouseGlowService {
     this.pendingElements = null;
     this.pendingSurface = null;
     this.activeSurface = null;
+    this.stopSurfaceObservation();
     if (this.overlay) {
       this.overlay.hidden = true;
       this.overlay.removeAttribute('data-active');
       this.overlay.removeAttribute('data-divider');
       this.overlay.style.clipPath = '';
     }
+  }
+
+  /// A surface can change its own box — content growth, expansion animations,
+  /// virtualized re-measure — without any pointer event. Watch the active
+  /// surface so the overlay border keeps hugging it while it does.
+  private createSurfaceResizeObserver(): ResizeObserver | null {
+    if (typeof ResizeObserver === 'undefined') {
+      return null;
+    }
+    return new ResizeObserver(() => {
+      if (!this.enabled || this.reducedMotionQuery?.matches) {
+        return;
+      }
+      this.resolveFromPointerPosition = true;
+      this.scheduleFrame();
+    });
+  }
+
+  private startSurfaceObservation(surface: HTMLElement): void {
+    if (!this.surfaceResizeObserver || this.observedSurface === surface) {
+      return;
+    }
+    this.surfaceResizeObserver.disconnect();
+    this.surfaceResizeObserver.observe(surface);
+    this.observedSurface = surface;
+  }
+
+  private stopSurfaceObservation(): void {
+    this.surfaceResizeObserver?.disconnect();
+    this.observedSurface = null;
   }
 
   private scheduleFrame(): void {
@@ -328,6 +364,7 @@ export class MouseGlowService {
     overlay.style.clipPath = this.toClipPath(clipInsets);
     overlay.style.setProperty('--mouse-glow-local-x', `${this.pointerX - geometry.left}px`);
     overlay.style.setProperty('--mouse-glow-local-y', `${this.pointerY - geometry.top}px`);
+    this.startSurfaceObservation(surface);
     overlay.hidden = false;
     overlay.setAttribute('data-active', '');
   }

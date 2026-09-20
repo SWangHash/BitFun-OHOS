@@ -11,6 +11,77 @@ describe('MouseGlowService', () => {
   let service: MouseGlowService;
   let nextFrame: FrameRequestCallback | undefined;
 
+  /// jsdom has no ResizeObserver. This fake records observe/disconnect calls so
+  /// tests can assert which surface is watched and fire box changes manually.
+  /// Like the real observer, a disconnected fake stops reporting.
+  class FakeResizeObserver {
+    static latest(): FakeResizeObserver | undefined {
+      return resizeObservers.at(-1);
+    }
+
+    readonly callback: ResizeObserverCallback;
+    observedTargets: Element[] = [];
+    disconnectCount = 0;
+
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+      resizeObservers.push(this);
+    }
+
+    observe(target: Element): void {
+      this.observedTargets.push(target);
+    }
+
+    unobserve(): void {}
+
+    disconnect(): void {
+      this.disconnectCount += 1;
+      this.observedTargets = [];
+    }
+
+    trigger(): void {
+      if (this.observedTargets.length === 0) {
+        return;
+      }
+      const entries = this.observedTargets.map(target => ({ target })) as ResizeObserverEntry[];
+      this.callback(entries, this as unknown as ResizeObserver);
+    }
+  }
+
+  let resizeObservers: FakeResizeObserver[] = [];
+
+  const makeRect = (left: number, top: number, width: number, height: number): DOMRect =>
+    ({
+      bottom: top + height,
+      height,
+      left,
+      right: left + width,
+      top,
+      width,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  const stubElementFromPoint = (target: Element | null): (() => void) => {
+    const original = document.elementFromPoint?.bind(document) ?? null;
+    document.elementFromPoint = () => target;
+    return () => {
+      if (original) {
+        document.elementFromPoint = original;
+      } else {
+        delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+      }
+    };
+  };
+
+  const makeSurface = (rect: DOMRect): HTMLElement => {
+    const surface = document.createElement('div');
+    surface.setAttribute('data-mouse-glow-surface', '');
+    surface.getBoundingClientRect = () => rect;
+    return surface;
+  };
+
   beforeEach(() => {
     const storedValues = new Map<string, string>();
     Object.defineProperty(window, 'localStorage', {
@@ -47,12 +118,18 @@ describe('MouseGlowService', () => {
       return 1;
     });
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: FakeResizeObserver,
+    });
 
     service = new MouseGlowService();
   });
 
   afterEach(() => {
     service.dispose();
+    resizeObservers = [];
+    delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
     vi.restoreAllMocks();
   });
 
@@ -763,5 +840,155 @@ describe('MouseGlowService', () => {
     expect(overlay?.hasAttribute('data-active')).toBe(false);
     expect(overlay?.hidden).toBe(true);
     resizer.remove();
+  });
+
+  it('observes the active surface and follows self-driven size changes', () => {
+    const rect = makeRect(20, 48, 200, 80);
+    const surface = makeSurface(rect);
+    document.body.appendChild(surface);
+    service.initialize();
+
+    surface.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 72,
+      clientY: 68,
+    }));
+    nextFrame?.(0);
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    const observer = FakeResizeObserver.latest();
+    expect(observer?.observedTargets).toEqual([surface]);
+
+    // The surface grows itself (content streaming, expansion, ...) while the
+    // pointer stays put — no pointer event fires.
+    rect.width = 320;
+    rect.right = rect.left + rect.width;
+    rect.height = 120;
+    rect.bottom = rect.top + rect.height;
+    const restoreElementFromPoint = stubElementFromPoint(surface);
+    try {
+      observer?.trigger();
+      nextFrame?.(0);
+    } finally {
+      restoreElementFromPoint();
+    }
+
+    expect(overlay?.style.width).toBe('320px');
+    expect(overlay?.style.height).toBe('120px');
+    surface.remove();
+  });
+
+  it('updates the local pointer variables after an observed surface moves', () => {
+    const rect = makeRect(20, 48, 200, 80);
+    const surface = makeSurface(rect);
+    document.body.appendChild(surface);
+    service.initialize();
+
+    surface.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 120,
+      clientY: 128,
+    }));
+    nextFrame?.(0);
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.style.getPropertyValue('--mouse-glow-local-x')).toBe('100px');
+    expect(overlay?.style.getPropertyValue('--mouse-glow-local-y')).toBe('80px');
+
+    // Same viewport pointer position, shifted surface: local coordinates move
+    // with the geometry, so the highlight stays under the cursor.
+    rect.left = 40;
+    rect.x = 40;
+    rect.right = rect.left + rect.width;
+    const restoreElementFromPoint = stubElementFromPoint(surface);
+    try {
+      FakeResizeObserver.latest()?.trigger();
+      nextFrame?.(0);
+    } finally {
+      restoreElementFromPoint();
+    }
+
+    expect(overlay?.style.getPropertyValue('--mouse-glow-local-x')).toBe('80px');
+    surface.remove();
+  });
+
+  it('stops observing the previous surface when the glow moves on', () => {
+    const firstRect = makeRect(20, 48, 200, 80);
+    const secondRect = makeRect(240, 48, 200, 80);
+    const first = makeSurface(firstRect);
+    const second = makeSurface(secondRect);
+    document.body.append(first, second);
+    service.initialize();
+
+    first.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 72,
+      clientY: 68,
+    }));
+    nextFrame?.(0);
+
+    const observer = FakeResizeObserver.latest();
+    expect(observer?.observedTargets).toEqual([first]);
+
+    second.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 300,
+      clientY: 68,
+    }));
+    nextFrame?.(0);
+
+    expect(observer?.observedTargets).toEqual([second]);
+    expect(observer?.disconnectCount).toBe(2);
+
+    // The switched observation stays live for the new surface.
+    secondRect.width = 260;
+    secondRect.right = secondRect.left + secondRect.width;
+    const restoreElementFromPoint = stubElementFromPoint(second);
+    try {
+      observer?.trigger();
+      nextFrame?.(0);
+    } finally {
+      restoreElementFromPoint();
+    }
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.style.width).toBe('260px');
+    first.remove();
+    second.remove();
+  });
+
+  it('stops observing once the pointer leaves the window', () => {
+    const rect = makeRect(20, 48, 200, 80);
+    const surface = makeSurface(rect);
+    document.body.appendChild(surface);
+    service.initialize();
+
+    surface.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 72,
+      clientY: 68,
+    }));
+    nextFrame?.(0);
+
+    const observer = FakeResizeObserver.latest();
+    expect(observer?.observedTargets).toEqual([surface]);
+
+    surface.dispatchEvent(new MouseEvent('pointerout', {
+      bubbles: true,
+      relatedTarget: null,
+    }));
+
+    const overlay = document.getElementById('bitfun-mouse-glow-overlay');
+    expect(overlay?.hidden).toBe(true);
+    expect(observer?.observedTargets).toEqual([]);
+
+    // A late box change must not bring the glow back on its own.
+    rect.width = 320;
+    rect.right = rect.left + rect.width;
+    observer?.trigger();
+
+    expect(overlay?.hidden).toBe(true);
+    expect(overlay?.style.width).toBe('200px');
+    surface.remove();
   });
 });

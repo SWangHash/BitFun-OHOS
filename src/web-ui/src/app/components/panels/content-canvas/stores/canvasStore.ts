@@ -25,7 +25,7 @@ import {
   clampSplitRatio,
   clampAnchorSize,
 } from '../types';
-import { normalizePath } from '@/shared/utils/pathUtils';
+import { normalizePath, pathsEquivalentFs } from '@/shared/utils/pathUtils';
 
 // ==================== Store State Types ====================
 
@@ -71,7 +71,10 @@ interface CanvasStoreActions {
 
   /** Mark whether the tab's file is missing on disk (editor-detected) */
   setTabFileDeletedFromDisk: (tabId: string, groupId: EditorGroupId, deleted: boolean) => void;
-  
+
+  /** Mark every tab whose file lives under a deleted path (file-watch driven) */
+  markTabsFileDeletedByPath: (deletedPath: string) => void;
+
   /** Promote tab state (preview -> active) */
   promoteTab: (tabId: string, groupId: EditorGroupId) => void;
   
@@ -207,6 +210,24 @@ const getPinnedBoundary = (group: EditorGroupState) => {
 const insertTabRespectingPinnedBoundary = (group: EditorGroupState, tab: CanvasTab) => {
   const insertIndex = getPinnedBoundary(group);
   group.tabs.splice(insertIndex, 0, tab);
+};
+
+/**
+ * Whether `candidatePath` is the deleted path itself or a file inside a
+ * deleted directory. Case-insensitive on Windows-shaped paths, matching the
+ * repository's other path comparisons (`pathsEquivalentFs`).
+ */
+const pathIsDeletedOrUnderDeletedDir = (candidatePath: string, deletedPath: string): boolean => {
+  if (pathsEquivalentFs(candidatePath, deletedPath)) {
+    return true;
+  }
+
+  const candidate = candidatePath.replace(/\\/g, '/');
+  const deleted = deletedPath.replace(/\\/g, '/');
+  const isWindowsLike = /^[a-zA-Z]:/.test(candidate) || /^[a-zA-Z]:/.test(deleted);
+  const candidateFold = isWindowsLike ? candidate.toLowerCase() : candidate;
+  const deletedFold = isWindowsLike ? deleted.toLowerCase() : deleted;
+  return candidateFold.startsWith(`${deletedFold}/`);
 };
 
 // ==================== Store Creation ====================
@@ -740,7 +761,24 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
           }
         });
       },
-      
+
+      markTabsFileDeletedByPath: (deletedPath) => {
+        set((draft) => {
+          const groups = [draft.primaryGroup, draft.secondaryGroup, draft.tertiaryGroup];
+          for (const group of groups) {
+            for (const tab of group.tabs) {
+              const tabPath = tab.content.data?.filePath ?? tab.content.metadata?.filePath;
+              if (typeof tabPath !== 'string' || !tabPath) {
+                continue;
+              }
+              if (pathIsDeletedOrUnderDeletedDir(tabPath, deletedPath)) {
+                tab.fileDeletedFromDisk = true;
+              }
+            }
+          }
+        });
+      },
+
       promoteTab: (tabId, groupId) => {
         set((draft) => {
           const group = getGroup(draft, groupId);

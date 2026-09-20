@@ -538,6 +538,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       }
       log.info('File deleted', { path: normalizedPath, isDirectory: data.isDirectory });
       removePath(normalizedPath);
+      // Flag open editor tabs immediately. Remote workspaces have no local
+      // watcher, so the tab state would otherwise stay stale until clicked.
+      globalEventBus.emit('editor:file-deleted', { filePath: normalizedPath });
       await loadFileTree(workspacePath || '', true);
     } catch (error) {
       log.error('Failed to delete file', error);

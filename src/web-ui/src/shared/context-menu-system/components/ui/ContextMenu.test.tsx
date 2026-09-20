@@ -157,6 +157,39 @@ describe('ContextMenu presence', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('closes on a pointerdown outside the menu even without mousedown', () => {
+    // Regression: a touch tap inside the Monaco editor suppresses the synthetic
+    // mousedown (monaco's Gesture calls preventDefault on touchend), so the
+    // menu must close on the native pointerdown instead.
+    const onClose = vi.fn();
+
+    act(() => root.render(
+      <ContextMenu
+        items={[{ id: 'copy', label: 'Copy' }]}
+        position={{ x: 0, y: 0 }}
+        visible
+        onClose={onClose}
+      />,
+    ));
+
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+
+    act(() => outside.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true })));
+    expect(onClose).toHaveBeenCalledOnce();
+
+    act(() => root.render(
+      <ContextMenu
+        items={[{ id: 'copy', label: 'Copy' }]}
+        position={{ x: 0, y: 0 }}
+        visible
+        onClose={onClose}
+      />,
+    ));
+    act(() => outside.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true })));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('opens a submenu from the keyboard and keeps keyboard handling in the owning menu', () => {
     const items: ContextMenuItem[] = [{
       id: 'share',
