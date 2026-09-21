@@ -15,6 +15,7 @@
     "goToSymbol": "跳轉到符號",
     "format": "格式化",
     "formatSelection": "格式化選中內容",
+    "formatUnavailable": "目前檔案類型沒有可用的格式化程式",
     "comment": "切換註釋",
     "fold": "摺疊",
     "unfold": "展開",

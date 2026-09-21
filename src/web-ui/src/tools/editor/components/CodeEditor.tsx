@@ -23,6 +23,8 @@ import { EditorConfig as EditorConfigType } from '@/infrastructure/config/types'
 import { LoadingState } from '@bitfun/ui';
 import { getMonacoLanguage } from '@/infrastructure/language-detection';
 import { createLogger } from '@/shared/utils/logger';
+import { useNotification } from '@/shared/notification-system';
+import { GlobalAdapterRegistry } from '@/tools/lsp/services/MonacoLspAdapter';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { isSamePath } from '@/shared/utils/pathUtils';
@@ -210,7 +212,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const documentInvoke = documentSession?.invoke;
 
   const { t } = useI18n('tools');
-  
+  const notification = useNotification();
+
   const detectLanguageFromFileName = useCallback((fileName: string): string => {
     const detected = getMonacoLanguage(fileName);
     return detected !== 'plaintext' ? detected : (language || 'plaintext');
@@ -1992,6 +1995,42 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
     };
 
+    // Format needs special handling: Monaco's formatDocument action exists
+    // for every language but silently no-ops when no formatting provider is
+    // registered (basic-language models without an attached LSP). Fall back
+    // to the workspace LSP adapter and surface a visible message instead of
+    // failing silently.
+    const runFormatDocumentAction = async (): Promise<void> => {
+      const action = editor.getAction('editor.action.formatDocument');
+      const model = editor.getModel();
+      const versionBefore = model?.getVersionId();
+      if (action?.isSupported()) {
+        try {
+          await action.run();
+        } catch (error) {
+          log.error('Format document failed', error);
+        }
+        if (model && model.getVersionId() !== versionBefore) {
+          return;
+        }
+        log.warn('Monaco format action made no changes; trying LSP fallback', { filePath });
+      } else {
+        log.warn('Monaco format action unsupported; trying LSP fallback', { filePath });
+      }
+
+      const adapter = model ? GlobalAdapterRegistry.get(model.uri.toString()) : undefined;
+      if (adapter && model) {
+        const edits = await adapter.provideFormatting(model);
+        if (edits && edits.length > 0) {
+          editor.executeEdits('lsp-format-document', edits);
+          return;
+        }
+      }
+      notification.warning(t('editor.formatUnavailable'), {
+        title: t('editor.format'),
+      });
+    };
+
     const unsubGotoDef = globalEventBus.on('editor:goto-definition', (data: any) => {
       if (matchesEventFile(data)) {
         void runSupportedEditorAction(
@@ -2031,10 +2070,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     const unsubFormat = globalEventBus.on('editor:format-document', (data: any) => {
       if (matchesEventFile(data)) {
-        void runSupportedEditorAction(
-          'editor.action.formatDocument',
-          'Format document failed'
-        );
+        void runFormatDocumentAction();
       }
     });
     unsubscribers.push(unsubFormat);
@@ -2179,7 +2215,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [applyDiskSnapshotToEditor, documentFiles, fetchFileMetadata, monacoReady, filePath, isMemoryContent, isActiveTab, documentSession, t, workspacePath]);
+  }, [applyDiskSnapshotToEditor, documentFiles, fetchFileMetadata, monacoReady, filePath, isMemoryContent, isActiveTab, documentSession, t, notification, workspacePath]);
 
   useEffect(() => {
     userLanguageOverrideRef.current = false;

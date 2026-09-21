@@ -15,6 +15,7 @@
     "goToSymbol": "Go to Symbol",
     "format": "Format",
     "formatSelection": "Format Selection",
+    "formatUnavailable": "No formatter is available for this file type",
     "comment": "Toggle Comment",
     "fold": "Fold",
     "unfold": "Unfold",
