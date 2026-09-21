@@ -146,16 +146,12 @@ pub(crate) async fn handle_exec_command(config: CliConfig, args: ExecCommandArgs
         );
     }
     if let Some(session_id) = resume.as_deref().filter(|session_id| *session_id != "last") {
-        if let Err(error) =
-            bitfun_agent_runtime::session_control::validate_session_id(session_id)
-        {
+        if let Err(error) = bitfun_agent_runtime::session_control::validate_session_id(session_id) {
             return exec_preflight_error(args.output_format, anyhow::anyhow!(error));
         }
     }
     if let Some(session_id) = args.session_id.as_deref() {
-        if let Err(error) =
-            bitfun_agent_runtime::session_control::validate_session_id(session_id)
-        {
+        if let Err(error) = bitfun_agent_runtime::session_control::validate_session_id(session_id) {
             return exec_preflight_error(args.output_format, anyhow::anyhow!(error));
         }
     }
@@ -282,7 +278,8 @@ pub(crate) async fn handle_session_action(
 
     match action {
         SessionAction::List => {
-            let sessions = list_cli_sessions(runtime.agent_runtime(), &workspace_path).await?;
+            let sessions =
+                list_cli_sessions(runtime.agent_runtime(), &runtime.workspace().id).await?;
 
             if sessions.is_empty() {
                 println!(
@@ -318,12 +315,14 @@ pub(crate) async fn handle_session_action(
 
         SessionAction::Show { id } => {
             let session_id =
-                resolve_cli_session_id(runtime.agent_runtime(), &workspace_path, &id).await?;
+                resolve_cli_session_id(runtime.agent_runtime(), &runtime.workspace().id, &id)
+                    .await?;
 
             let restored = runtime
                 .agent_runtime()
                 .restore_session(AgentSessionRestoreRequest {
-                    workspace_path: workspace_path.to_string_lossy().to_string(),
+                    workspace_id: Some(runtime.workspace().id.clone()),
+                    workspace_path: String::new(),
                     session_id: session_id.clone(),
                     include_internal: false,
                     remote_connection_id: None,
@@ -370,7 +369,8 @@ pub(crate) async fn handle_session_action(
             runtime
                 .agent_runtime()
                 .delete_session(bitfun_runtime_ports::AgentSessionDeleteRequest {
-                    workspace_path: workspace_path.to_string_lossy().to_string(),
+                    workspace_id: Some(runtime.workspace().id.clone()),
+                    workspace_path: String::new(),
                     session_id: id.clone(),
                     remote_connection_id: None,
                     remote_ssh_host: None,
@@ -382,23 +382,27 @@ pub(crate) async fn handle_session_action(
 
         SessionAction::Resume { id } => {
             let session_id =
-                resolve_cli_session_id(runtime.agent_runtime(), &workspace_path, &id).await?;
+                resolve_cli_session_id(runtime.agent_runtime(), &runtime.workspace().id, &id)
+                    .await?;
             return Ok(Some((session_id, runtime)));
         }
 
         SessionAction::Continue => {
             let session_id =
-                resolve_cli_session_id(runtime.agent_runtime(), &workspace_path, "last").await?;
+                resolve_cli_session_id(runtime.agent_runtime(), &runtime.workspace().id, "last")
+                    .await?;
             return Ok(Some((session_id, runtime)));
         }
 
         SessionAction::Fork { id, id_only } => {
             let session_id =
-                resolve_cli_session_id(runtime.agent_runtime(), &workspace_path, &id).await?;
+                resolve_cli_session_id(runtime.agent_runtime(), &runtime.workspace().id, &id)
+                    .await?;
             let result = runtime
                 .agent_runtime()
                 .fork_session(bitfun_agent_runtime::sdk::AgentSessionForkRequest {
-                    workspace_path: workspace_path.to_string_lossy().to_string(),
+                    workspace_id: Some(runtime.workspace().id.clone()),
+                    workspace_path: String::new(),
                     source_session_id: session_id.clone(),
                     remote_connection_id: None,
                     remote_ssh_host: None,
@@ -423,29 +427,29 @@ pub(crate) async fn handle_session_action(
 
 async fn resolve_cli_session_id(
     runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
-    workspace_path: &Path,
+    workspace_id: &str,
     id: &str,
 ) -> Result<String> {
     if id == "last" {
-        let sessions = list_cli_sessions(runtime, workspace_path).await?;
+        let sessions = list_cli_sessions(runtime, workspace_id).await?;
         return sessions
             .first()
             .map(|session| session.session_id.clone())
             .ok_or_else(|| anyhow::anyhow!("No history sessions"));
     }
 
-    bitfun_agent_runtime::session_control::validate_session_id(id)
-        .map_err(anyhow::Error::msg)?;
+    bitfun_agent_runtime::session_control::validate_session_id(id).map_err(anyhow::Error::msg)?;
     Ok(id.to_string())
 }
 
 async fn list_cli_sessions(
     runtime: &bitfun_agent_runtime::sdk::AgentRuntime,
-    workspace_path: &Path,
+    workspace_id: &str,
 ) -> Result<Vec<bitfun_runtime_ports::AgentSessionSummary>> {
     runtime
         .list_sessions(bitfun_runtime_ports::AgentSessionListRequest {
-            workspace_path: workspace_path.to_string_lossy().to_string(),
+            workspace_id: Some(workspace_id.to_owned()),
+            workspace_path: String::new(),
             remote_connection_id: None,
             remote_ssh_host: None,
         })
@@ -686,7 +690,11 @@ fn select_external_ecosystem(
 }
 
 async fn resolve_external_ecosystem(requested: Option<String>) -> Result<EcosystemId> {
-    let workspace = std::env::current_dir().context("Failed to resolve current workspace")?;
+    let workspace = crate::create_cli_local_workspace(
+        &std::env::current_dir().context("Failed to resolve current workspace")?,
+    )
+    .await?
+    .id;
     let snapshot = external_source_snapshot(Some(&workspace), false)
         .await
         .map_err(external_cli_operation_error)?;
@@ -747,7 +755,11 @@ async fn update_external_policy(
     scope: ExternalPolicyScopeArg,
     change: ExternalIntegrationPolicyOperation,
 ) -> Result<()> {
-    let workspace = std::env::current_dir().context("Failed to resolve current workspace")?;
+    let workspace = crate::create_cli_local_workspace(
+        &std::env::current_dir().context("Failed to resolve current workspace")?,
+    )
+    .await?
+    .id;
     let snapshot = external_source_snapshot(Some(&workspace), false)
         .await
         .map_err(external_cli_operation_error)?;
@@ -782,8 +794,11 @@ async fn update_external_policy(
 async fn handle_external_config_action(action: ExternalConfigAction) -> Result<()> {
     match action {
         ExternalConfigAction::Status => {
-            let workspace =
-                std::env::current_dir().context("Failed to resolve current workspace")?;
+            let workspace = crate::create_cli_local_workspace(
+                &std::env::current_dir().context("Failed to resolve current workspace")?,
+            )
+            .await?
+            .id;
             let snapshot = external_source_snapshot(Some(&workspace), false)
                 .await
                 .map_err(external_cli_operation_error)?;
@@ -859,8 +874,7 @@ pub(crate) fn handle_health_command() -> Result<()> {
     use bitfun_core::runtime_ports::PluginRuntimeAvailability;
 
     let workspace = std::env::current_dir().context("Failed to resolve current directory")?;
-    let (_, services) =
-        bitfun_core::product_runtime::build_local_runtime_services(&workspace, 16)?;
+    let (_, services) = bitfun_core::product_runtime::build_local_runtime_services(&workspace, 16)?;
     let product_runtime = crate::product_assembly::assemble_cli_runtime_parts(services)?;
 
     println!("BitFun CLI health");
@@ -908,17 +922,24 @@ pub(crate) async fn serve_acp_stdio() -> Result<()> {
 
     crate::initialize_terminal_service().await;
 
+    // The ACP host owns workspace records for the directories its clients
+    // name by `cwd`; the process cwd is opened first so the fixed runtime
+    // ownership below and the session records share one workspace identity.
+    let workspace = crate::create_cli_local_workspace(&workspace_root)
+        .await
+        .context("Failed to open the ACP workspace record")?;
+    tracing::info!(workspace_id = %workspace.id, "ACP workspace record opened");
+
     let path_manager = bitfun_core::infrastructure::try_get_path_manager_arc()
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let deployment = bitfun_services_core::runtime_ownership::RuntimeDeployment::Embedded;
-    let runtime_ownership =
-        bitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
-            path_manager.as_ref(),
-            "acp",
-            &workspace_root,
-            deployment,
-        )
-        .map_err(|error| anyhow::anyhow!(error.startup_message(deployment, "acp")))?;
+    let runtime_ownership = bitfun_core::runtime_ownership::CoreRuntimeOwnership::fixed_workspace(
+        path_manager.as_ref(),
+        "acp",
+        &workspace_root,
+        deployment,
+    )
+    .map_err(|error| anyhow::anyhow!(error.startup_message(deployment, "acp")))?;
 
     let agentic_system = crate::agent::agentic_system::init_agentic_system(
         bitfun_core::product_assembly::DeliveryProfile::Acp,

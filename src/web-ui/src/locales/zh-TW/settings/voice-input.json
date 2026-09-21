@@ -86,6 +86,12 @@
       "launcherLabel": "Hello",
       "switchToVoice": "切換到即時語音",
       "switchToChat": "返回文字聊天",
+      "identity": {
+        "start": "即時通話",
+        "ongoing": "通話中",
+        "connecting": "連線中",
+        "retry": "重新連線"
+      },
       "empty": "直接說話即可。需要做事時，我會啟動一個新的 BitFun 會話。",
       "mute": "將麥克風靜音",
       "unmute": "取消靜音",
@@ -129,7 +135,8 @@
         "needs_input": "BitFun 需要你在任務會話中補充資訊。",
         "finishing": "任務主體已完成，BitFun 正在整理最終結果。",
         "stopping": "正在停止目前的 BitFun 任務。"
-      }
+      },
+      "historySaveFailed": "語音記錄暫未儲存，轉寫內容已保留，稍後重試。"
     }
   },
   "diagnostics": {

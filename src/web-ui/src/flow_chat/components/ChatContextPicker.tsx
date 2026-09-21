@@ -1,11 +1,10 @@
-import { Disclosure } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, Disclosure } from '@bitfun/ui';
 /**
  * Unified chat context picker.
  * The source level exposes files, skills, MCP, and images; typing searches providers together.
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Icon,
   IconButton,
@@ -203,10 +202,8 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
     setIsDirectoryLoading(true);
     setDirectoryLoadError(false);
     try {
-      const children = await workspaceAPI.getDirectoryChildren(
-        dirPath || workspacePath,
-        remoteConnectionId,
-      );
+      if (!workspaceId) throw new Error('Workspace ID is required to browse context files');
+      const children = await workspaceAPI.explorerGetChildren(workspaceId, dirPath || workspacePath);
       const items: FileItem[] = children
         .filter((entry: ExplorerNodeDto) => {
           const name = entry.name || '';
@@ -238,7 +235,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
     } finally {
       if (requestId === directoryLoadRequestIdRef.current) setIsDirectoryLoading(false);
     }
-  }, [workspacePath, remoteConnectionId, getRelativePath]);
+  }, [workspaceId, workspacePath, getRelativePath]);
 
   const enterDirectory = useCallback((item: FileItem) => {
     if (!item.isDirectory) return;
@@ -295,14 +292,14 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
   }, [isOpen, view]);
 
   useEffect(() => {
-    if (!isOpen || !workspacePath) {
+    if (!isOpen || !workspaceId) {
       workspaceReferenceRequestIdRef.current += 1;
       setWorkspaceReferences([]);
       return;
     }
     const requestId = ++workspaceReferenceRequestIdRef.current;
     void externalSourcesAPI
-      .getWorkspaceReferences(workspacePath, workspaceId)
+      .getWorkspaceReferences(workspaceId)
       .then(snapshot => {
         if (requestId === workspaceReferenceRequestIdRef.current) {
           setWorkspaceReferences(snapshot.references);
@@ -331,14 +328,14 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
     controller: AbortController,
     requestId: number,
   ) => {
-    if (!workspacePath) {
+    if (!workspaceId) {
       setResults([]);
       setIsFileSearchLoading(false);
       return;
     }
     try {
       await workspaceAPI.searchFilenamesOnlyStreamDetailed(
-        workspacePath,
+        workspaceId,
         query,
         false,
         false,
@@ -357,7 +354,6 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
           },
         },
         controller.signal,
-        remoteConnectionId,
       );
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -370,7 +366,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         setIsFileSearchLoading(false);
       }
     }
-  }, [workspacePath, remoteConnectionId, getRelativePath]);
+  }, [workspaceId, getRelativePath]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -642,6 +638,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         type: 'session-reference',
         sessionId: session.sessionId,
         sessionName: session.sessionName,
+        workspaceId: session.workspaceId,
         workspacePath: session.workspacePath,
         remoteConnectionId: session.remoteConnectionId,
         remoteSshHost: session.remoteSshHost,
@@ -731,18 +728,20 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
   }, [canNavigateBack, displayItems, enterDirectory, goBack, handleItemClick, handleSelect, isOpen, isSearchMode, onClose, openSource, selectedIndex]);
 
   useEffect(() => {
+    let removeOverlayKeydown0: (() => void) | undefined;
     if (!isOpen) return;
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
+    return () => removeOverlayKeydown0?.();
   }, [handleKeyDown, isOpen]);
 
   useEffect(() => {
+    let removeOverlayMousedown1: (() => void) | undefined;
     if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
     };
-    document.addEventListener('mousedown', handleClickOutside, true);
-    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+    removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', handleClickOutside);
+    return () => removeOverlayMousedown1?.();
   }, [isOpen, onClose]);
 
   useEffect(() => {
@@ -993,7 +992,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
     </div>
   );
 
-  return isOverlay ? createPortal(picker, getAppearanceOverlayHost()) : picker;
+  return isOverlay ? createOverlayPortal(picker, getAppearanceOverlayHost()) : picker;
 };
 
 export default ChatContextPicker;

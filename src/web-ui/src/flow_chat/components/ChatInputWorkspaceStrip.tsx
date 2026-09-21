@@ -1,20 +1,20 @@
+import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 /**
  * Two fixed rails in the composer's upper context band.
  *
- * The left rail is the situation the session is in — its workspace and branch,
+ * The left rail is the situation the session is in ??its workspace and branch,
  * followed by the local/remote execution target. Worktree isolation is a local
- * target mode. The right rail is the contract for the next turn — how much
+ * target mode. The right rail is the contract for the next turn ??how much
  * confirmation it asks for and how
  * much context is left. Nothing is centered and no column template is
  * conditional, so a control appearing or disappearing cannot move the rest of
  * the track.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, Shield, ShieldAlert, ShieldCheck, Square, SquareCheck } from 'lucide-react';
-import { OverflowText, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
 import { Tooltip, Icon } from '@bitfun/ui';
 import { BranchQuickSwitch } from '@/tools/git/components/BranchQuickSwitch';
 import { useGitState } from '@/tools/git/hooks/useGitState';
@@ -36,9 +36,10 @@ import './ChatInputWorkspaceStrip.scss';
 export interface ChatInputWorkspaceStripProps {
   /** Repo root for git status; may come from session when global workspace is unset. */
   repositoryPath: string;
+  workspaceId: string;
   /** Resolved display name (workspace title or folder basename). */
   workspaceLabel: string;
-  /** Session usage report (/usage) — context ring on the right rail. */
+  /** Session usage report (/usage) ??context ring on the right rail. */
   usageReport?: {
     visible: boolean;
     currentTokens: number;
@@ -92,7 +93,7 @@ export interface ChatInputWorkspaceStripProps {
   worktreeControl?: {
     /** Desired state, including an armed worktree not created until first send. */
     enabled: boolean;
-    /** Locked once the session has a transcript — its history describes one directory. */
+    /** Locked once the session has a transcript ??its history describes one directory. */
     locked: boolean;
     /** Why the control is locked, when a transcript is not the reason. */
     lockedReason?: 'dispatch';
@@ -135,6 +136,7 @@ const PERMISSION_MODE_ICONS: Record<ChatInputPermissionMode, typeof Shield> = {
 
 export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = ({
   repositoryPath,
+  workspaceId,
   workspaceLabel,
   usageReport,
   permissionControl,
@@ -143,6 +145,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   worktreeControl,
   dispatchControl,
 }) => {
+  useDeviceDirectory();
   const { t } = useTranslation('flow-chat');
   const { t: tWorktrees } = useI18n('worktrees');
   const { t: tCommon } = useI18n('common');
@@ -158,6 +161,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const branchTriggerRef = useRef<HTMLButtonElement>(null);
+  const branchPickerId = useId();
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const permissionMenuLayout = useAnchoredPopoverPosition({
     open: permissionMenuOpen,
@@ -180,7 +184,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   const label = workspaceLabel.trim();
 
   const { currentBranch, isRepository, repositoryTrustRequired, refreshBasic } = useGitState({
-    repositoryPath: trimmedPath,
+    repositoryPath: { workspaceId, repositoryPath: trimmedPath },
     layers: ['basic'],
     isActive: !deferPassiveGitRefresh,
     refreshOnMount: !deferPassiveGitRefresh,
@@ -283,6 +287,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   }, [permissionMenuOpen, permissionMenuView]);
 
   useEffect(() => {
+    let removeOverlayPointerdown0: (() => void) | undefined;
+    let removeOverlayKeydown1: (() => void) | undefined;
     if (!permissionMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -307,11 +313,11 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       }
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    removeOverlayPointerdown0 = subscribeOverlayInteraction(permissionMenuRef, 'pointerdown', handlePointerDown);
+    removeOverlayKeydown1 = subscribeOverlayInteraction(permissionMenuRef, 'keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      removeOverlayPointerdown0?.();
+      removeOverlayKeydown1?.();
     };
   }, [
     closePermissionMenu,
@@ -321,6 +327,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   ]);
 
   useEffect(() => {
+    let removeOverlayPointerdown2: (() => void) | undefined;
+    let removeOverlayKeydown3: (() => void) | undefined;
     if (!workspaceMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -338,11 +346,11 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       }
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    removeOverlayPointerdown2 = subscribeOverlayInteraction(workspaceMenuRef, 'pointerdown', handlePointerDown);
+    removeOverlayKeydown3 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      removeOverlayPointerdown2?.();
+      removeOverlayKeydown3?.();
     };
   }, [workspaceMenuOpen]);
 
@@ -392,7 +400,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       ? tWorktrees('labels.detached', { commit: executionTarget.baseCommit.slice(0, 9) })
       : isRepository && currentBranch?.trim()
       ? currentBranch.trim()
-      : '—');
+      : '');
 
   const workspaceTooltipContent = trimmedPath || label;
   const switchableWorkspaces = workspaceContext?.openedWorkspacesList ?? [];
@@ -514,14 +522,15 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
 
     return (
       <>
-        <Tooltip content={branchTooltipContent} placement="top">
+        <Tooltip content={branchTooltipContent} placement="top" disabled={branchMenuOpen}>
           <button
             ref={branchTriggerRef}
             type="button"
             className="bitfun-chat-input-workspace-strip__chip bitfun-chat-input-workspace-strip__chip--branch bitfun-chat-input-workspace-strip__chip--branch-switchable"
             aria-label={t('workspaceStrip.branchSwitchLabel', { branch: branchLabel })}
-            aria-haspopup="listbox"
+            aria-haspopup="dialog"
             aria-expanded={branchMenuOpen}
+            aria-controls={branchMenuOpen ? branchPickerId : undefined}
             data-testid="chat-input-branch-trigger"
             onClick={event => {
               event.stopPropagation();
@@ -532,9 +541,10 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
           </button>
         </Tooltip>
         <BranchQuickSwitch
+          id={branchPickerId}
           isOpen={branchMenuOpen}
           onClose={() => setBranchMenuOpen(false)}
-          repositoryPath={trimmedPath}
+          repositoryPath={{ workspaceId, repositoryPath: trimmedPath }}
           currentBranch={currentBranch.trim()}
           anchorRef={branchTriggerRef}
           onSwitchSuccess={() => {
@@ -547,7 +557,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
 
   // The workspace names where the session lives; with more than one workspace
   // open it doubles as the switcher. Either way it wears the track's pill so
-  // the row keeps one rhythm — only the hover fill says whether it answers.
+  // the row keeps one rhythm ??only the hover fill says whether it answers.
   const renderWorkspaceControl = () => {
     if (!workspaceSwitchable || !workspaceContext) {
       return (
@@ -579,7 +589,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
             <span className="bitfun-chat-input-workspace-strip__workspace-name"><OverflowText>{label}</OverflowText></span>
           </button>
         </Tooltip>
-        {workspaceMenuOpen ? createPortal(
+        {workspaceMenuOpen ? createOverlayPortal(
           <Menu
             ref={workspaceMenuRef}
             data-bitfun-component="chat-input-workspace-strip"
@@ -715,7 +725,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
           : 'chatInput.permissionMode.nextTurnOnly', {
           mode: copy.label,
         })
-      : `${copy.label} — ${copy.description}`;
+      : `${copy.label} ??${copy.description}`;
     const optionTestId = oneOff
       ? `chat-input-permission-next-turn-${mode}`
       : `chat-input-permission-option-${mode}`;
@@ -826,7 +836,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
               baselineWorktreePath={dispatchControl.baselineWorktreePath}
               baselineMissing={dispatchControl.baselineMissing}
               targetLabel={dispatchControl.target.kind !== 'local'
-                ? dispatchControl.target.displayName
+                ? (dispatchControl.target.kind === 'device' ? resolveDeviceName(dispatchControl.target.deviceId, dispatchControl.target.displayName) : dispatchControl.target.displayName)
                 : undefined}
               onClose={() => setResultDialogOpen(false)}
             />
@@ -893,7 +903,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
               </button>
             </Tooltip>
 
-            {permissionMenuOpen && permissionMode !== 'acp' ? createPortal(
+            {permissionMenuOpen && permissionMode !== 'acp' ? createOverlayPortal(
               <Menu
                 ref={permissionMenuRef}
                 data-bitfun-component="chat-input-workspace-strip"
@@ -906,7 +916,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   left: `${permissionMenuLayout?.left ?? 0}px`,
                   visibility: permissionMenuLayout ? 'visible' : 'hidden',
                 }}
-                aria-label={`${t('chatInput.permissionMode.menuLabel')} · ${permissionMenuScopeLabel}`}
+                aria-label={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionMenuScopeLabel}`}
                 data-testid="chat-input-permission-menu"
                 autoFocusFirstItem
                 onKeyDown={event => {
@@ -923,7 +933,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 {permissionMenuView === 'session' ? (
                   <>
                     <MenuSection
-                      title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionSessionScopeLabel}`}
+                      title={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionSessionScopeLabel}`}
                       data-bitfun-component="chat-input-workspace-strip"
                       data-bitfun-part="permissionOptions"
                     >
@@ -983,7 +993,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   </>
                 ) : (
                   <MenuSection
-                    title={`${t('chatInput.permissionMode.menuLabel')} · ${permissionTurnScopeLabel}`}
+                    title={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionTurnScopeLabel}`}
                     data-bitfun-component="chat-input-workspace-strip"
                     data-bitfun-part="permissionOptions"
                   >
@@ -1003,7 +1013,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                     <MenuItem
                       role="menuitemradio"
                       checked={!permissionNextTurnArmed}
-                      aria-label={`${t('chatInput.permissionMode.followSessionMode')} — ${permissionCopy[permissionMode].label}`}
+                      aria-label={`${t('chatInput.permissionMode.followSessionMode')} ??${permissionCopy[permissionMode].label}`}
                       leading={(
                         <PermissionSessionIcon
                           size={13}

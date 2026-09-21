@@ -91,8 +91,8 @@
     --bitfun-color-link-hover: #93c5fd;
     --bitfun-color-number-badge-background: rgba(255, 255, 255, 0.1);
     --bitfun-color-overlay-scrim: rgba(0, 0, 0, 0.56);
-    --bitfun-color-scrollbar-thumb: rgba(255, 255, 255, 0.12);
-    --bitfun-color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+    --bitfun-color-scrollbar-thumb: rgba(255, 255, 255, 0.20);
+    --bitfun-color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.30);
     --bitfun-color-selection-surface: rgba(255, 255, 255, 0.12);
     --bitfun-color-status-danger-border: rgba(236, 34, 31, 0.3);
     --bitfun-color-status-danger-content: #f47f7d;
@@ -131,6 +131,7 @@
     --bitfun-component-button-text-content: #60a5fa;
     --bitfun-component-button-text-content-disabled: rgba(96, 165, 250, 0.30);
     --bitfun-component-button-text-content-hover: #3b82f6;
+    --bitfun-component-empty-media: color-mix(in srgb, #858585 35%, #0e0e10);
     --bitfun-effect-blur-base: blur(8px) saturate(1.1);
     --bitfun-effect-blur-medium: blur(12px) saturate(1.2);
     --bitfun-effect-blur-subtle: blur(4px) saturate(1.05);

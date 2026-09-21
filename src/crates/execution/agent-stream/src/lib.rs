@@ -708,6 +708,7 @@ impl StreamProcessor {
             } else {
                 ToolEventData::Failed {
                     identity,
+                    error_detail: None,
                     error: reason.clone(),
                     duration_ms: None,
                     queue_wait_ms: None,

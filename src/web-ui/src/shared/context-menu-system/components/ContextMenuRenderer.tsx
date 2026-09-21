@@ -15,6 +15,7 @@ import {
   List,
   Navigation,
   Scissors,
+  Square,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ const CONTEXT_MENU_CATALOG: Record<string, IconName> = {
   Pin: 'pin',
   Plus: 'plus',
   Search: 'search',
+  Settings: 'gear',
   Terminal: 'terminal',
   RefreshCw: 'refresh',
   X: 'xmark',
@@ -57,6 +59,7 @@ const CONTEXT_MENU_ICONS = {
   List,
   Navigation,
   Scissors,
+  Square,
 } satisfies Record<string, LucideIcon>;
 
 function getIconComponent(icon: any): string | React.ReactNode | undefined {

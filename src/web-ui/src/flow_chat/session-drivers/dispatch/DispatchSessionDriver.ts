@@ -51,7 +51,7 @@ import {
   showRuntimeStatus,
 } from '../../store/runtimeStatusStore';
 import { claimSubmissionRetry, releaseSubmissionRetry } from '../idempotency';
-import { applyGeneratingTitlePlaceholder } from '../shared';
+import { addSubmittedDialogTurn, applyGeneratingTitlePlaceholder } from '../shared';
 
 const log = createLogger('DispatchSessionDriver');
 
@@ -205,7 +205,7 @@ async function continueDispatchJob(
   );
 
   const optimisticTurnId = `dispatch_pending_${jobId}`;
-  context.flowChatStore.addDialogTurn(sessionId, {
+  addSubmittedDialogTurn(context, input.surfaceScope, sessionId, {
     id: optimisticTurnId,
     sessionId,
     agentType: followUpAgentType,
@@ -739,7 +739,7 @@ export const dispatchSessionDriver: SessionDriver = {
       status: 'pending',
       startTime: Date.now(),
     };
-    context.flowChatStore.addDialogTurn(sessionId, optimisticTurn);
+    addSubmittedDialogTurn(context, input.surfaceScope, sessionId, optimisticTurn);
     tracker.createdLocalTurnId = optimisticTurnId;
 
     const includeUncommitted = readySession.config.dispatchIncludeUncommitted ?? false;

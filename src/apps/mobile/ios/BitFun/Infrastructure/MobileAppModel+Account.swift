@@ -32,7 +32,7 @@ extension MobileAppModel {
         remoteCreateRequestEpoch = remoteTargetEpoch
         remoteCreateRequestDeviceKey = nil
         pendingRemoteWorkspaceCreate = nil
-        pendingRemoteSessionRefreshWorkspacePath = nil
+        pendingRemoteSessionRefreshWorkspace = nil
         pendingRemoteAssistantCreate = false
         remoteSessionSelected = false
     }
@@ -48,6 +48,7 @@ extension MobileAppModel {
         guard remoteExpectedDeviceKey != targetKey else { return }
         invalidateTargetScopedFileTransfers()
         remoteTargetEpoch &+= 1
+        accountSelectedDeviceID = device.id
         remoteExpectedDeviceKey = "account:\(device.id)"
         remoteInitialSessionReady = false
         remoteInitialWorkspaceReady = false
@@ -67,8 +68,9 @@ extension MobileAppModel {
         remoteSessions = []
         remoteWorkspaces = []
         workspaceCatalog = []
+        remoteSidebarWorkspaceState = nil
         pendingRemoteWorkspaceCreate = nil
-        pendingRemoteSessionRefreshWorkspacePath = nil
+        pendingRemoteSessionRefreshWorkspace = nil
         pendingRemoteAssistantCreate = false
         selectedRemoteWorkspaceKind = ""
         messages = []
@@ -130,6 +132,7 @@ extension MobileAppModel {
             remoteSessions = []
             remoteWorkspaces = []
             workspaceCatalog = []
+            remoteSidebarWorkspaceState = nil
             workspaceSelectionBusy = false
             remoteCreateWorkspacePhase = .unavailable
             pendingRemoteWorkspaceCreate = nil
@@ -193,9 +196,16 @@ extension MobileAppModel {
     }
 
     func apply(accountState state: AccountUiState, generation: UInt64) {
-        guard !accountLoginPreview, !localActionPreview, !remoteCreatePreview,
+        // The directory fixture describes a signed-in account with a chosen
+        // device; a signed-out core would otherwise wipe it on launch.
+        guard !accountLoginPreview, !localActionPreview, !remoteCreatePreview, !directoryFixturePreview,
               generation == accountGeneration else { return }
         accountGeneration = generation
+        if let ready = state as? AccountUiStateReady, let failure = ready.refreshFailure {
+            accountDirectoryError = accountErrorMessage(failure.name, stage: "DEVICE_LIST")
+        } else {
+            accountDirectoryError = nil
+        }
         accountBusy = state is AccountUiStateSigningIn || state is AccountUiStateAuthorizing
         let previousAuthorizationURL = accountAuthorizationURL
         accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { authorization in
@@ -241,6 +251,9 @@ extension MobileAppModel {
                 )
             }
             accountDirectoryGeneration = coreAdapter?.syncDeviceDirectory(accountDevices) ?? (accountDirectoryGeneration &+ 1)
+            if let selectedID = ready.selectedDeviceId {
+                coreAdapter?.loadDeviceDirectory(selectedID)
+            }
             if let link = pendingDeviceLink {
                 pendingDeviceLink = nil
                 submitPairing(url: link)
@@ -260,9 +273,6 @@ extension MobileAppModel {
                 connectionPhase = ready.selectedDeviceId == nil ? .disconnected : .reconnecting
             }
             surface = .remote
-            if ready.refreshFailure != nil {
-                showToast(localized("设备列表刷新失败，仍显示上次结果"))
-            }
         } else if let failed = state as? AccountUiStateFailed {
             accountBusy = false
             accountFailureStage = failed.stage.name

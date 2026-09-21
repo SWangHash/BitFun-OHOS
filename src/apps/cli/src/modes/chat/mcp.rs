@@ -291,8 +291,7 @@ impl ChatMode {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("MCP management is unavailable for a Remote workspace")
                 }
-                let mcp = if let Some(mcp) = bitfun_core::service::mcp::get_global_mcp_service()
-                {
+                let mcp = if let Some(mcp) = bitfun_core::service::mcp::get_global_mcp_service() {
                     mcp
                 } else {
                     let config = bitfun_core::service::config::get_global_config_service()
@@ -301,9 +300,9 @@ impl ChatMode {
                     crate::ensure_cli_mcp_service(config)
                         .ok_or_else(|| anyhow!("The current CLI Host has no MCP service"))?
                 };
-                let workspace = self.agent.workspace_path_string();
+                let workspace = self.agent.workspace_id();
                 let external = bitfun_core::external_sources::external_source_snapshot(
-                    Some(std::path::Path::new(&workspace)),
+                    workspace.as_deref(),
                     false,
                 )
                 .await
@@ -360,8 +359,7 @@ impl ChatMode {
                                 .find(|candidate| candidate.candidate_id == native_id)
                                 .and_then(|candidate| candidate.unavailable_reason.clone())
                                 .unwrap_or_else(|| {
-                                    "Enable this BitFun server in its MCP configuration"
-                                        .to_string()
+                                    "Enable this BitFun server in its MCP configuration".to_string()
                                 });
                             McpServerAction::ReadOnly { reason }
                         }
@@ -513,7 +511,7 @@ impl ChatMode {
         chat_state: &mut ChatState,
         rt_handle: &tokio::runtime::Handle,
     ) {
-        let workspace_path = self.agent.workspace_path_string();
+        let workspace_id = self.agent.workspace_id();
         let action = item.action.clone();
         let item_id = item.id.clone();
         let item_name = item.name.clone();
@@ -526,7 +524,7 @@ impl ChatMode {
                     expected_mcp_generation,
                     expected_preference_revision,
                 } => bitfun_core::external_sources::set_external_mcp_server_decision(
-                    Some(std::path::Path::new(&workspace_path)),
+                    workspace_id.as_deref(),
                     &candidate_id,
                     &decision_key,
                     approved,
@@ -542,7 +540,7 @@ impl ChatMode {
                     expected_mcp_generation,
                     expected_preference_revision,
                 } => bitfun_core::external_sources::choose_external_mcp_conflict(
-                    Some(std::path::Path::new(&workspace_path)),
+                    workspace_id.as_deref(),
                     &conflict_key,
                     &candidate_id,
                     approve_external,

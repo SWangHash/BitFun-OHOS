@@ -308,7 +308,7 @@ const WorktreesConfig: React.FC = () => {
       const discardLocalWork =
         target.worktree.dirty || target.worktree.hasUnpublishedCommits;
       await worktreeAPI.remove(
-        target.projectWorkspacePath,
+        { projectWorkspacePath: target.projectWorkspacePath },
         target.worktree.worktreeId,
         createDeleteRequestId(),
         discardLocalWork,
@@ -364,6 +364,15 @@ const WorktreesConfig: React.FC = () => {
     }
   };
 
+  const refreshWorkspaceSessionsForPath = useCallback(async (projectWorkspacePath: string) => {
+    const projectWorkspaceId = projects.find(
+      project => project.projectWorkspacePath === projectWorkspacePath,
+    )?.projectWorkspaceId;
+    if (projectWorkspaceId) {
+      await flowChatManager.refreshWorkspaceSessions({ id: projectWorkspaceId });
+    }
+  }, [projects]);
+
   const openAssociatedSession = useCallback(async (
     projectWorkspacePath: string,
     session: WorktreeSessionSummary,
@@ -381,16 +390,12 @@ const WorktreesConfig: React.FC = () => {
           return;
         }
         await sessionAPI.unarchiveSession(session.sessionId, projectWorkspacePath);
-        await flowChatManager.refreshWorkspaceSessions({
-          rootPath: projectWorkspacePath,
-        });
+        await refreshWorkspaceSessionsForPath(projectWorkspacePath);
       }
 
       let opened = await openAgentCompanionSession(session.sessionId);
       if (!opened) {
-        await flowChatManager.refreshWorkspaceSessions({
-          rootPath: projectWorkspacePath,
-        });
+        await refreshWorkspaceSessionsForPath(projectWorkspacePath);
         opened = await openAgentCompanionSession(session.sessionId);
       }
       if (!opened) {
@@ -403,7 +408,7 @@ const WorktreesConfig: React.FC = () => {
     } finally {
       setOpeningSessionId(null);
     }
-  }, [openingSessionId, t]);
+  }, [openingSessionId, refreshWorkspaceSessionsForPath, t]);
 
   const renderSettings = () => {
     if (settingsLoading) {

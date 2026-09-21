@@ -1,8 +1,8 @@
 /**
  * Peer connection lifecycle, outside React.
  *
- * Attaching to a peer is a long-lived state machine — handshake, capability
- * negotiation, keepalive, backoff, teardown — and it has to outlive whatever is
+ * Attaching to a peer is a long-lived state machine ??handshake, capability
+ * negotiation, keepalive, backoff, teardown ??and it has to outlive whatever is
  * on screen: attachments survive surface switches, keep running our work, and
  * must not restart because a provider re-rendered. Expressed as effects it
  * became several timers and async closures racing over refs, where a switch
@@ -29,7 +29,7 @@ export const PEER_RECONNECT_BASE_DELAY_MS = 1_000;
 export const PEER_RECONNECT_MAX_DELAY_MS = 15_000;
 
 /**
- * `connecting` → first handshake. `ready` → the peer answers. `degraded` → it
+ * `connecting` ??first handshake. `ready` ??the peer answers. `degraded` ??it
  * needs its control link checked/re-attached. Recovery keeps retrying with a
  * capped delay until explicit disposal; connectivity never selects a different
  * device surface or discards its cached work.
@@ -42,6 +42,9 @@ export interface PeerHostCapabilities {
   readonly idempotentDialogSubmit: boolean;
   /** Only true after explicit negotiation; older hosts need the upload API. */
   readonly inlineImageAttachmentsV1?: boolean;
+  readonly btwInitialModelSelectionV1?: boolean;
+  readonly controlConversationV1?: boolean;
+  readonly controlConversationResetV1?: boolean;
   readonly targetedSessionRollback: boolean;
   readonly tokenUsageStatistics: boolean;
   /** MiniApp Agent runs accept immutable virtual context-file snapshots. */
@@ -61,7 +64,7 @@ export interface PeerHostCapabilities {
   /**
    * Host implements `cancel_tool` (per-tool interrupt). `null` = the host's
    * `peer_mode_ping` did not advertise the field (older host): resolve via
-   * `hostKind` — an older Desktop always implemented cancel_tool, an older CLI
+   * `hostKind` ??an older Desktop always implemented cancel_tool, an older CLI
    * never did. The controller currently has no consumer (the Terminal
    * Interrupt button left with the legacy TerminalControl tool); hosts keep
    * advertising it for older controllers that still render that button.
@@ -75,6 +78,7 @@ export interface PeerHostCapabilities {
   readonly toolCatalog: boolean | null;
   /** Scoped MCP choices must be explicitly advertised by the host. */
   readonly chatMcpCatalogV1?: boolean;
+  readonly workspaceIdReferencesV1?: boolean;
   /**
    * Host implements `submit_user_answers` for Runtime-owned
    * AskUserQuestion interactions. Older Desktop hosts already implemented the
@@ -131,7 +135,7 @@ export interface PeerConnectionManagerOptions {
 
 export interface PeerDisposeOptions {
   /**
-   * Send `peer_control_detach`. Skip it for a peer that is already gone — the
+   * Send `peer_control_detach`. Skip it for a peer that is already gone ??the
    * host prunes the stale controller through presence instead.
    */
   notifyPeer?: boolean;
@@ -161,17 +165,21 @@ interface PeerModePingResult {
 const NO_CAPABILITIES: PeerHostCapabilities = {
   idempotentDialogSubmit: false,
   inlineImageAttachmentsV1: false,
+  btwInitialModelSelectionV1: false,
+  controlConversationV1: false,
+  controlConversationResetV1: false,
   targetedSessionRollback: false,
   tokenUsageStatistics: false,
   miniAppAgentContextFilesV1: false,
   productControlV1: false,
   productControlNativeV1: false,
   productControlPresentationV1: false,
-  // Unknown (not yet probed) — not the same as `false` (probed, unsupported).
+  // Unknown (not yet probed) ??not the same as `false` (probed, unsupported).
   // Consumers treat `null` optimistically so an unprobed host is not gated off.
   cancelTool: null,
   toolCatalog: null,
   chatMcpCatalogV1: false,
+  workspaceIdReferencesV1: false,
   userQuestionResponse: null,
   // Host kind is unknown until the first `peer_mode_ping` resolves. Consumers
   // treat `null` optimistically. See PR #2428 round 5 #1.
@@ -434,7 +442,7 @@ export class PeerConnectionManager {
     // does not advertise the field but does implement the command would
     // otherwise have its working capability hidden. `null` lets consumers
     // stay optimistic; an older CLI that truly lacks the command is resolved
-    // via `hostKind` (cli → unsupported) instead of failing on invoke. See
+    // via `hostKind` (cli ??unsupported) instead of failing on invoke. See
     // PR #2428 #4 + round 5 #1.
     // A legacy host with all three new fields absent is classified by the
     // read-only tool catalog probe below; transport failures remain unknown.
@@ -493,6 +501,9 @@ export class PeerConnectionManager {
     return {
       idempotentDialogSubmit: caps?.idempotent_dialog_submit === true,
       inlineImageAttachmentsV1: caps?.inline_image_attachments_v1 === true,
+      btwInitialModelSelectionV1: caps?.btw_initial_model_selection_v1 === true,
+      controlConversationV1: caps?.control_conversation_v1 === true,
+      controlConversationResetV1: caps?.control_conversation_reset_v1 === true,
       targetedSessionRollback: caps?.targeted_session_rollback === true,
       tokenUsageStatistics: caps?.token_usage_statistics === true,
       miniAppAgentContextFilesV1: caps?.miniapp_agent_context_files_v1 === true,
@@ -503,6 +514,7 @@ export class PeerConnectionManager {
       cancelTool,
       toolCatalog,
       chatMcpCatalogV1: caps?.chat_mcp_catalog_v1 === true,
+      workspaceIdReferencesV1: caps?.workspace_id_references_v1 === true,
       userQuestionResponse,
       userQuestionInteraction: caps?.user_question_interaction_v1 === true,
       hostKind,
@@ -724,12 +736,16 @@ function capabilitiesEqual(
 ): boolean {
   return a.idempotentDialogSubmit === b.idempotentDialogSubmit &&
     a.inlineImageAttachmentsV1 === b.inlineImageAttachmentsV1 &&
+    a.btwInitialModelSelectionV1 === b.btwInitialModelSelectionV1 &&
+    a.controlConversationV1 === b.controlConversationV1 &&
+    a.controlConversationResetV1 === b.controlConversationResetV1 &&
     a.targetedSessionRollback === b.targetedSessionRollback &&
     a.tokenUsageStatistics === b.tokenUsageStatistics &&
     a.miniAppAgentContextFilesV1 === b.miniAppAgentContextFilesV1 &&
     a.cancelTool === b.cancelTool &&
     a.toolCatalog === b.toolCatalog &&
     a.chatMcpCatalogV1 === b.chatMcpCatalogV1 &&
+    a.workspaceIdReferencesV1 === b.workspaceIdReferencesV1 &&
     a.userQuestionResponse === b.userQuestionResponse &&
     a.userQuestionInteraction === b.userQuestionInteraction &&
     a.hostKind === b.hostKind;

@@ -1,0 +1,146 @@
+@use './updateSurface';
+
+.bitfun-update-notice {
+  box-sizing: border-box;
+  inline-size: 368px;
+  max-inline-size: calc(100vw - var(--bitfun-space-6));
+  block-size: 224px;
+  animation: bitfun-update-notice-enter var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-enter) both;
+
+  &__surface {
+    @include updateSurface.frosted-surface;
+
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    block-size: 100%;
+  }
+
+  &__title {
+    margin-inline-start: calc(-1 * var(--bitfun-space-2));
+    max-inline-size: calc(100% + var(--bitfun-space-2));
+  }
+
+  &__heading {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  &__title-text {
+    font-family: var(--bitfun-type-heading-panel-font-family);
+    font-size: var(--bitfun-type-heading-panel-font-size);
+    font-weight: var(--bitfun-type-heading-panel-font-weight);
+    line-height: var(--bitfun-type-heading-panel-line-height);
+    letter-spacing: var(--bitfun-type-heading-panel-letter-spacing);
+  }
+
+  &__body {
+    min-block-size: 0;
+    overflow: hidden;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__introduction {
+    flex: 0 0 auto;
+    block-size: 3lh;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-family: var(--bitfun-type-body-md-font-family);
+    font-size: var(--bitfun-type-body-md-font-size);
+    font-weight: var(--bitfun-type-body-md-font-weight);
+    line-height: var(--bitfun-type-body-md-line-height);
+    letter-spacing: var(--bitfun-type-body-md-letter-spacing);
+
+    &[data-overflow-lines='1'] {
+      block-size: 1lh;
+    }
+  }
+
+  &__empty-introduction {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    min-block-size: 0;
+    gap: var(--bitfun-space-4);
+    pointer-events: none;
+
+    &::before,
+    &::after {
+      block-size: var(--bitfun-border-width-default);
+      background: linear-gradient(to right, transparent, var(--bitfun-color-border-default));
+      content: '';
+    }
+
+    &::after { transform: scaleX(-1); }
+  }
+
+  &__brand-mark {
+    inline-size: 80px;
+    block-size: 100%;
+    max-block-size: 80px;
+    background: var(--bitfun-color-content-muted);
+    mask: url('/brand/bitfun-mark.svg') center / contain no-repeat;
+  }
+
+  &__feedback {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: baseline;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__message {
+    display: flex;
+    flex: 1;
+    align-items: flex-start;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__status-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    block-size: 1lh;
+  }
+
+  &__progress {
+    flex: 0 0 auto;
+    margin-block-start: auto;
+    min-inline-size: 0;
+    block-size: var(--bitfun-space-1);
+  }
+
+  &__footer {
+    padding-block-start: var(--bitfun-space-2);
+  }
+
+  &__actions {
+    flex-wrap: nowrap;
+  }
+
+  &__action {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+}
+
+@keyframes bitfun-update-notice-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--bitfun-motion-distance-sm));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bitfun-update-notice {
+    animation: none;
+  }
+}

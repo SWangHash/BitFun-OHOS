@@ -1,7 +1,6 @@
 //! Skill Management API
 
-use crate::api::app_state::RemoteWorkspace;
-use crate::api::skill_market_downloader::install_skill_from_market;
+use bitfun_core::service::workspace::{WorkspaceInfo, WorkspaceKind};
 use log::info;
 use regex::Regex;
 use reqwest::Client;
@@ -9,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::OnceLock;
 use tauri::State;
 use tokio::sync::RwLock;
@@ -22,6 +22,7 @@ use bitfun_core::agentic::tools::implementations::skills::mode_overrides::{
     project_mode_skills_path_for_remote, save_project_mode_skills_document_local,
     set_disabled_mode_skills_in_document, set_global_project_skill_disabled,
     set_global_user_skill_disabled, set_mode_skill_disabled_in_document, set_user_mode_skill_state,
+    SkillPolicyWorkspace,
 };
 use bitfun_core::agentic::tools::implementations::skills::registry::imports::{
     self as skill_imports, SkillImportPreview,
@@ -35,19 +36,19 @@ use bitfun_core::infrastructure::get_path_manager_arc;
 use bitfun_core::service::config::agent_profile_project_store::{
     deserialize_project_agent_profiles_document, serialize_project_agent_profiles_document,
 };
-use bitfun_core::service::config::types::ProxyConfig;
-use bitfun_core::service::remote_ssh::workspace_state::is_remote_path;
-use bitfun_core::service::remote_ssh::{get_remote_workspace_manager, RemoteWorkspaceEntry};
+use bitfun_core::service::runtime::RuntimeManager;
+use bitfun_core::util::process_manager;
 
 const SKILLS_SEARCH_API_BASE: &str = "https://skills.sh";
 const DEFAULT_MARKET_QUERY: &str = "skill";
 const DEFAULT_MARKET_LIMIT: u32 = 12;
 const MAX_MARKET_LIMIT: u32 = 500;
+const MAX_OUTPUT_PREVIEW_CHARS: usize = 2000;
 const MARKET_DESC_FETCH_TIMEOUT_SECS: u64 = 4;
-const MARKET_DESC_FETCH_CONCURRENCY: usize = 12;
+const MARKET_DESC_FETCH_CONCURRENCY: usize = 6;
 const MARKET_DESC_MAX_LEN: usize = 220;
-const REMOTE_SKILL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(60);
 const MARKET_DESC_FETCH_DEADLINE_SECS: u64 = 15;
+const REMOTE_SKILL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(60);
 
 static MARKET_DESCRIPTION_CACHE: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
 
@@ -65,65 +66,6 @@ async fn await_remote_skill_discovery<T>(
         })?
 }
 
-/// Build a per-call HTTP client for the skill market listing/description
-/// paths. Uses BitFun's configured `ProxyConfig` when enabled (read live so
-/// changing the AI proxy takes effect without restart), falling back to the
-/// standard HTTPS_PROXY/HTTP_PROXY/ALL_PROXY env vars (reqwest default), then
-/// direct. No aggressive connect/overall timeout is set here: skills.sh is an
-/// international domain and a slow-but-reachable direct connection can take
-/// 8-20s; a tight connect_timeout would cut it off and turn "works" into
-/// "timed out". The per-skill description fetch keeps its own per-page bound
-/// in fetch_description_from_skill_page.
-fn build_market_client(proxy: Option<&ProxyConfig>) -> Result<Client, String> {
-    let mut builder = Client::builder()
-        .user_agent(concat!("BitFun/", env!("CARGO_PKG_VERSION")));
-    if let Some(proxy_url) = resolve_proxy_url(proxy) {
-        match reqwest::Proxy::all(&proxy_url) {
-            Ok(p) => builder = builder.proxy(p),
-            Err(e) => log::warn!("Failed to apply skill market proxy: {}", e),
-        }
-    }
-    builder
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {}", e))
-}
-
-/// Resolve the proxy URL: BitFun's `ProxyConfig` if enabled, else startup env.
-fn resolve_proxy_url(proxy: Option<&ProxyConfig>) -> Option<String> {
-    if let Some(p) = proxy {
-        if p.enabled {
-            let url = p.url.trim();
-            if !url.is_empty() {
-                return Some(normalize_proxy_url(url));
-            }
-        }
-    }
-    read_startup_proxy_env()
-}
-
-/// Prefix `http://` to bare `host:port` proxy URLs (mirrors the AI adapter).
-fn normalize_proxy_url(url: &str) -> String {
-    if url.contains("://") {
-        url.to_string()
-    } else {
-        format!("http://{}", url)
-    }
-}
-
-/// Read a proxy URL from the standard env vars (HTTPS_PROXY / HTTP_PROXY /
-/// ALL_PROXY, case-insensitive). Returns the first one set.
-fn read_startup_proxy_env() -> Option<String> {
-    for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"] {
-        if let Ok(value) = std::env::var(key) {
-            let trimmed = value.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-    None
-}
-
 fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) -> bool {
     if is_builtin {
         return false;
@@ -131,7 +73,7 @@ fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) 
 
     let source_id = source_id.trim().to_ascii_lowercase();
     if !source_id.is_empty() {
-        return matches!(source_id.as_str(), "bitfun" | "bitfun-system" | "matrix");
+        return matches!(source_id.as_str(), "bitfun" | "bitfun-system");
     }
 
     let source_slot = source_slot.trim().to_ascii_lowercase();
@@ -165,8 +107,6 @@ pub struct SkillValidationResult {
 pub struct SkillMarketListRequest {
     pub query: Option<String>,
     pub limit: Option<u32>,
-    #[serde(default)]
-    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,13 +114,13 @@ pub struct SkillMarketListRequest {
 pub struct SkillMarketSearchRequest {
     pub query: String,
     pub limit: Option<u32>,
-    #[serde(default)]
-    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMarketDownloadRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     pub package: String,
     pub level: Option<SkillLocation>,
     pub workspace_path: Option<String>,
@@ -198,6 +138,8 @@ pub struct SkillMarketDownloadResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceModeSkillSelectionRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     pub mode_id: String,
     pub enabled_skill_keys: Vec<String>,
     pub workspace_path: Option<String>,
@@ -206,6 +148,8 @@ pub struct ReplaceModeSkillSelectionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResetModeSkillSelectionRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     pub mode_id: String,
     pub workspace_path: Option<String>,
 }
@@ -213,6 +157,8 @@ pub struct ResetModeSkillSelectionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetGlobalSkillDisabledRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     pub skill_key: String,
     pub disabled: bool,
     #[serde(default)]
@@ -230,6 +176,8 @@ pub struct GlobalSkillSettingsResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalSkillSettingsRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     #[serde(default)]
     pub workspace_path: Option<String>,
 }
@@ -264,56 +212,31 @@ struct SkillSearchApiItem {
     installs: u64,
 }
 
-fn workspace_root_from_input(workspace_path: Option<&str>) -> Option<PathBuf> {
-    workspace_path
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-}
-
-fn trim_workspace_path(workspace_path: Option<&str>) -> Option<String> {
-    workspace_path
-        .map(str::trim)
-        .filter(|path| !path.is_empty())
-        .map(str::to_string)
-}
-
-async fn lookup_remote_entry_for_path(
-    state: &State<'_, AppState>,
-    path: &str,
-) -> Option<RemoteWorkspaceEntry> {
-    let manager = get_remote_workspace_manager()?;
-    let preferred = state
-        .get_remote_workspace_async()
-        .await
-        .map(|workspace: RemoteWorkspace| workspace.connection_id);
-    manager.lookup_connection(path, preferred.as_deref()).await
+fn workspace_root_from_input(workspace: Option<&WorkspaceInfo>) -> Option<PathBuf> {
+    workspace.map(|record| record.root_path.clone())
 }
 
 async fn resolve_remote_workspace(
-    state: &State<'_, AppState>,
-    workspace_path: Option<&str>,
-) -> Result<Option<(String, RemoteWorkspaceEntry)>, String> {
-    let Some(path) = trim_workspace_path(workspace_path) else {
+    workspace: Option<&WorkspaceInfo>,
+) -> Result<Option<(String, String)>, String> {
+    let Some(record) = workspace else {
         return Ok(None);
     };
-
-    if !is_remote_path(&path).await {
-        return Ok(None);
-    }
-
-    let entry = lookup_remote_entry_for_path(state, &path)
-        .await
-        .ok_or_else(|| format!("Remote workspace connection not found for '{}'", path))?;
-    Ok(Some((path, entry)))
+    Ok(record.filesystem_connection_id()?.map(|connection| {
+        (
+            record.root_path.to_string_lossy().into_owned(),
+            connection.to_owned(),
+        )
+    }))
 }
 
 async fn get_all_skills_for_workspace_input(
     state: &State<'_, AppState>,
     registry: &SkillRegistry,
-    workspace_path: Option<&str>,
+    workspace: Option<&WorkspaceInfo>,
 ) -> Result<Vec<SkillInfo>, String> {
     Ok(
-        get_skill_scan_report_for_workspace_input(state, registry, workspace_path)
+        get_skill_scan_report_for_workspace_input(state, registry, workspace)
             .await?
             .skills,
     )
@@ -322,16 +245,16 @@ async fn get_all_skills_for_workspace_input(
 async fn get_skill_scan_report_for_workspace_input(
     state: &State<'_, AppState>,
     registry: &SkillRegistry,
-    workspace_path: Option<&str>,
+    workspace: Option<&WorkspaceInfo>,
 ) -> Result<SkillScanReport, String> {
-    if let Some((remote_root, entry)) = resolve_remote_workspace(state, workspace_path).await? {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace).await? {
         await_remote_skill_discovery(
             async {
                 let remote_fs = state
                     .get_remote_file_service_async()
                     .await
                     .map_err(|e| format!("Remote file service not available: {}", e))?;
-                let remote_workspace_fs = RemoteWorkspaceFs::new(entry.connection_id, remote_fs);
+                let remote_workspace_fs = RemoteWorkspaceFs::new(entry, remote_fs);
                 Ok(registry
                     .get_skill_scan_report_for_remote_workspace(&remote_workspace_fs, &remote_root)
                     .await)
@@ -341,9 +264,7 @@ async fn get_skill_scan_report_for_workspace_input(
         .await
     } else {
         Ok(registry
-            .get_skill_scan_report_for_workspace(
-                workspace_root_from_input(workspace_path).as_deref(),
-            )
+            .get_skill_scan_report_for_workspace(workspace_root_from_input(workspace).as_deref())
             .await)
     }
 }
@@ -352,17 +273,16 @@ async fn get_mode_skill_scan_report_for_workspace_input(
     state: &State<'_, AppState>,
     registry: &SkillRegistry,
     mode_id: &str,
-    workspace_path: Option<&str>,
+    workspace: Option<&WorkspaceInfo>,
 ) -> Result<SkillScanReport<ModeSkillInfo>, String> {
-    if let Some((remote_root, entry)) = resolve_remote_workspace(state, workspace_path).await? {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace).await? {
         await_remote_skill_discovery(
             async {
                 let remote_fs = state
                     .get_remote_file_service_async()
                     .await
                     .map_err(|e| format!("Remote file service not available: {}", e))?;
-                let remote_workspace_fs =
-                    RemoteWorkspaceFs::new(entry.connection_id.clone(), remote_fs.clone());
+                let remote_workspace_fs = RemoteWorkspaceFs::new(entry.clone(), remote_fs.clone());
                 Ok(registry
                     .get_mode_skill_scan_report_for_remote_workspace(
                         &remote_workspace_fs,
@@ -374,9 +294,12 @@ async fn get_mode_skill_scan_report_for_workspace_input(
             REMOTE_SKILL_DISCOVERY_TIMEOUT,
         )
         .await
-    } else if let Some(workspace_root) = workspace_root_from_input(workspace_path) {
+    } else if let Some(record) = workspace {
         Ok(registry
-            .get_mode_skill_scan_report_for_workspace(Some(&workspace_root), mode_id)
+            .get_mode_skill_scan_report_for_workspace(
+                Some(SkillPolicyWorkspace::from_record(record)),
+                mode_id,
+            )
             .await)
     } else {
         // Mode-scoped built-in and user-level skills should still be available even
@@ -481,7 +404,7 @@ async fn persist_project_mode_skill_selection_local(
 async fn persist_project_mode_skill_selection_remote(
     state: &State<'_, AppState>,
     remote_root: &str,
-    entry: &RemoteWorkspaceEntry,
+    entry: &str,
     mode_id: &str,
     disabled_project_skills: Vec<String>,
 ) -> Result<(), String> {
@@ -491,12 +414,12 @@ async fn persist_project_mode_skill_selection_remote(
         .map_err(|e| format!("Remote file service not available: {}", e))?;
     let config_path = project_mode_skills_path_for_remote(remote_root);
     let mut document = if remote_fs
-        .exists(&entry.connection_id, &config_path)
+        .exists(&entry, &config_path)
         .await
         .map_err(|e| format!("Failed to check remote project skill overrides: {}", e))?
     {
         let content = remote_fs
-            .read_file(&entry.connection_id, &config_path)
+            .read_file(&entry, &config_path)
             .await
             .map_err(|e| format!("Failed to read remote project skill overrides: {}", e))?;
         let content = String::from_utf8(content)
@@ -516,7 +439,7 @@ async fn persist_project_mode_skill_selection_remote(
         .ok_or_else(|| format!("Invalid remote project config path '{}'", config_path))?;
 
     remote_fs
-        .create_dir_all(&entry.connection_id, &config_dir)
+        .create_dir_all(&entry, &config_dir)
         .await
         .map_err(|e| {
             format!(
@@ -526,7 +449,7 @@ async fn persist_project_mode_skill_selection_remote(
         })?;
     remote_fs
         .write_file(
-            &entry.connection_id,
+            &entry,
             &config_path,
             serialize_project_agent_profiles_document(&document)
                 .map_err(|e| format!("Failed to serialize remote project skill overrides: {}", e))?
@@ -577,7 +500,7 @@ async fn clear_project_mode_skill_selection_local(
 async fn clear_project_mode_skill_selection_remote(
     state: &State<'_, AppState>,
     remote_root: &str,
-    entry: &RemoteWorkspaceEntry,
+    entry: &str,
     mode_id: &str,
 ) -> Result<(), String> {
     let remote_fs = state
@@ -586,7 +509,7 @@ async fn clear_project_mode_skill_selection_remote(
         .map_err(|e| format!("Remote file service not available: {}", e))?;
     let config_path = project_mode_skills_path_for_remote(remote_root);
     let exists = remote_fs
-        .exists(&entry.connection_id, &config_path)
+        .exists(&entry, &config_path)
         .await
         .map_err(|e| format!("Failed to check remote project skill overrides: {}", e))?;
     if !exists {
@@ -594,7 +517,7 @@ async fn clear_project_mode_skill_selection_remote(
     }
 
     let content = remote_fs
-        .read_file(&entry.connection_id, &config_path)
+        .read_file(&entry, &config_path)
         .await
         .map_err(|e| format!("Failed to read remote project skill overrides: {}", e))?;
     let content = String::from_utf8(content)
@@ -609,13 +532,13 @@ async fn clear_project_mode_skill_selection_remote(
 
     if document_is_empty {
         remote_fs
-            .remove_file(&entry.connection_id, &config_path)
+            .remove_file(&entry, &config_path)
             .await
             .map_err(|e| format!("Failed to remove remote project skill overrides: {}", e))?;
     } else {
         remote_fs
             .write_file(
-                &entry.connection_id,
+                &entry,
                 &config_path,
                 serialize_project_agent_profiles_document(&document)
                     .map_err(|e| {
@@ -635,8 +558,11 @@ pub async fn get_skill_configs(
     state: State<'_, AppState>,
     force_refresh: Option<bool>,
     include_diagnostics: Option<bool>,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
 ) -> Result<Value, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     let registry = SkillRegistry::global();
 
     if force_refresh.unwrap_or(false) {
@@ -644,15 +570,14 @@ pub async fn get_skill_configs(
     }
 
     let all_skills =
-        get_skill_scan_report_for_workspace_input(&state, registry, workspace_path.as_deref())
-            .await?;
+        get_skill_scan_report_for_workspace_input(&state, registry, workspace.as_ref()).await?;
 
     let mut response =
         serialize_skill_scan_response(all_skills, include_diagnostics.unwrap_or(false))
             .map_err(|e| format!("Failed to serialize skill configs: {}", e))?;
     if let Some(object) = response.as_object_mut() {
-        let supported = match workspace_path.as_deref() {
-            Some(path) => !is_remote_path(path).await,
+        let supported = match workspace.as_ref() {
+            Some(record) => record.workspace_kind != WorkspaceKind::Remote,
             None => true,
         };
         object.insert(
@@ -663,21 +588,46 @@ pub async fn get_skill_configs(
     Ok(response)
 }
 
+async fn resolve_skill_workspace(
+    id: Option<&str>,
+    legacy_path: Option<&str>,
+) -> Result<Option<WorkspaceInfo>, String> {
+    if id.is_none() && legacy_path.is_none() {
+        return Ok(None);
+    }
+    let service = bitfun_core::service::workspace::get_global_workspace_service()
+        .ok_or("Workspace service is unavailable")?;
+    if let Some(id) = id {
+        return service
+            .require_workspace(id)
+            .await
+            .map(Some)
+            .map_err(|e| e.to_string());
+    }
+    // Temporary pre-ID request ingress. Normal callers select a catalog ID.
+    service
+        .resolve_legacy_workspace_reference(None, legacy_path.unwrap_or_default(), None, None)
+        .await
+        .map_err(|e| e.to_string())?
+        .map(Some)
+        .ok_or_else(|| "Legacy Skill workspace cannot be resolved".into())
+}
+
 async fn skill_availability_settings(
-    workspace_path: Option<&str>,
+    workspace: Option<&WorkspaceInfo>,
 ) -> Result<GlobalSkillSettingsResponse, String> {
     let globally_disabled_user_skill_keys = load_globally_disabled_user_skills()
         .await
         .map_err(|error| error.to_string())?;
-    let globally_disabled_project_skill_keys = match workspace_path {
-        Some(path) => {
-            if is_remote_path(path).await {
+    let globally_disabled_project_skill_keys = match workspace {
+        Some(record) => {
+            if record.workspace_kind == WorkspaceKind::Remote {
                 return Err(
                     "Direct Skill availability management is not supported for remote workspaces"
                         .into(),
                 );
             }
-            load_globally_disabled_project_skills(Path::new(path))
+            load_globally_disabled_project_skills(SkillPolicyWorkspace::from_record(record))
                 .await
                 .map_err(|error| error.to_string())?
         }
@@ -694,12 +644,12 @@ async fn skill_availability_settings(
 pub async fn get_global_skill_settings(
     request: Option<GetGlobalSkillSettingsRequest>,
 ) -> Result<GlobalSkillSettingsResponse, String> {
-    skill_availability_settings(
-        request
-            .as_ref()
-            .and_then(|request| request.workspace_path.as_deref()),
+    let workspace = resolve_skill_workspace(
+        request.as_ref().and_then(|r| r.workspace_id.as_deref()),
+        request.as_ref().and_then(|r| r.workspace_path.as_deref()),
     )
-    .await
+    .await?;
+    skill_availability_settings(workspace.as_ref()).await
 }
 
 #[tauri::command]
@@ -707,10 +657,14 @@ pub async fn set_global_skill_disabled(
     request: SetGlobalSkillDisabledRequest,
 ) -> Result<GlobalSkillSettingsResponse, String> {
     let skill_key = request.skill_key.trim();
-    let workspace = request.workspace_path.as_deref();
+    let workspace = resolve_skill_workspace(
+        request.workspace_id.as_deref(),
+        request.workspace_path.as_deref(),
+    )
+    .await?;
     // Validate the serving scope before scanning or persisting any local state.
-    if let Some(path) = workspace {
-        if is_remote_path(path).await {
+    if let Some(record) = workspace.as_ref() {
+        if record.workspace_kind == WorkspaceKind::Remote {
             return Err(
                 "Direct Skill availability management is not supported for remote workspaces"
                     .into(),
@@ -718,7 +672,7 @@ pub async fn set_global_skill_disabled(
         }
     }
     let known_skill = SkillRegistry::global()
-        .get_all_skills_for_workspace(workspace.map(Path::new))
+        .get_all_skills_for_workspace(workspace.as_ref().map(|record| record.root_path.as_path()))
         .await
         .into_iter()
         .find(|skill| skill.key == skill_key)
@@ -730,17 +684,22 @@ pub async fn set_global_skill_disabled(
                 .map_err(|error| error.to_string())?;
         }
         SkillLocation::Project => {
-            let root = workspace
+            let record = workspace
+                .as_ref()
                 .ok_or_else(|| "Project Skill availability requires a workspace".to_string())?;
-            set_global_project_skill_disabled(Path::new(root), skill_key, request.disabled)
-                .await
-                .map_err(|error| error.to_string())?;
+            set_global_project_skill_disabled(
+                SkillPolicyWorkspace::from_record(record),
+                skill_key,
+                request.disabled,
+            )
+            .await
+            .map_err(|error| error.to_string())?;
         }
     }
     if let Err(error) = bitfun_core::service::config::reload_global_config().await {
         log::warn!("Failed to reload configuration after Skill availability update: skill_key={}, error={}", skill_key, error);
     }
-    skill_availability_settings(workspace).await
+    skill_availability_settings(workspace.as_ref()).await
 }
 
 #[tauri::command]
@@ -749,8 +708,11 @@ pub async fn get_mode_skill_configs(
     mode_id: String,
     force_refresh: Option<bool>,
     include_diagnostics: Option<bool>,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
 ) -> Result<Value, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     let registry = SkillRegistry::global();
 
     if force_refresh.unwrap_or(false) {
@@ -761,7 +723,7 @@ pub async fn get_mode_skill_configs(
         &state,
         registry,
         &mode_id,
-        workspace_path.as_deref(),
+        workspace.as_ref(),
     )
     .await?;
 
@@ -775,18 +737,21 @@ pub async fn set_mode_skill_disabled(
     mode_id: String,
     skill_key: String,
     disabled: bool,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
 ) -> Result<String, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     if skill_key.starts_with("user::") {
         let registry = SkillRegistry::global();
         let skill_info = if let Some((remote_root, entry)) =
-            resolve_remote_workspace(&state, workspace_path.as_deref()).await?
+            resolve_remote_workspace(workspace.as_ref()).await?
         {
             let remote_fs = state
                 .get_remote_file_service_async()
                 .await
                 .map_err(|e| format!("Remote file service not available: {}", e))?;
-            let remote_workspace_fs = RemoteWorkspaceFs::new(entry.connection_id, remote_fs);
+            let remote_workspace_fs = RemoteWorkspaceFs::new(entry, remote_fs);
             registry
                 .find_skill_by_key_for_remote_workspace(
                     &remote_workspace_fs,
@@ -798,7 +763,7 @@ pub async fn set_mode_skill_disabled(
             registry
                 .find_skill_by_key_for_workspace(
                     &skill_key,
-                    workspace_root_from_input(workspace_path.as_deref()).as_deref(),
+                    workspace_root_from_input(workspace.as_ref()).as_deref(),
                 )
                 .await
         }
@@ -826,21 +791,19 @@ pub async fn set_mode_skill_disabled(
         return Err(format!("Unsupported skill key '{}'", skill_key));
     }
 
-    if let Some((remote_root, entry)) =
-        resolve_remote_workspace(&state, workspace_path.as_deref()).await?
-    {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace.as_ref()).await? {
         let remote_fs = state
             .get_remote_file_service_async()
             .await
             .map_err(|e| format!("Remote file service not available: {}", e))?;
         let config_path = project_mode_skills_path_for_remote(&remote_root);
         let mut document = if remote_fs
-            .exists(&entry.connection_id, &config_path)
+            .exists(&entry, &config_path)
             .await
             .map_err(|e| format!("Failed to check remote project skill overrides: {}", e))?
         {
             let content = remote_fs
-                .read_file(&entry.connection_id, &config_path)
+                .read_file(&entry, &config_path)
                 .await
                 .map_err(|e| format!("Failed to read remote project skill overrides: {}", e))?;
             let content = String::from_utf8(content).map_err(|e| {
@@ -861,7 +824,7 @@ pub async fn set_mode_skill_disabled(
             .ok_or_else(|| format!("Invalid remote project config path '{}'", config_path))?;
 
         remote_fs
-            .create_dir_all(&entry.connection_id, &config_dir)
+            .create_dir_all(&entry, &config_dir)
             .await
             .map_err(|e| {
                 format!(
@@ -871,7 +834,7 @@ pub async fn set_mode_skill_disabled(
             })?;
         remote_fs
             .write_file(
-                &entry.connection_id,
+                &entry,
                 &config_path,
                 serialize_project_agent_profiles_document(&document)
                     .map_err(|e| {
@@ -882,7 +845,7 @@ pub async fn set_mode_skill_disabled(
             .await
             .map_err(|e| format!("Failed to write remote project skill overrides: {}", e))?;
     } else {
-        let workspace_root = workspace_root_from_input(workspace_path.as_deref())
+        let workspace_root = workspace_root_from_input(workspace.as_ref())
             .ok_or_else(|| "Project-level skill overrides require an open workspace".to_string())?;
         let mut document = load_project_mode_skills_document_local(&workspace_root)
             .await
@@ -905,10 +868,14 @@ pub async fn replace_mode_skill_selection(
     state: State<'_, AppState>,
     request: ReplaceModeSkillSelectionRequest,
 ) -> Result<String, String> {
+    let workspace = resolve_skill_workspace(
+        request.workspace_id.as_deref(),
+        request.workspace_path.as_deref(),
+    )
+    .await?;
     let registry = SkillRegistry::global();
     let all_skills =
-        get_all_skills_for_workspace_input(&state, registry, request.workspace_path.as_deref())
-            .await?;
+        get_all_skills_for_workspace_input(&state, registry, workspace.as_ref()).await?;
 
     let enabled_skill_keys = normalize_skill_key_list(request.enabled_skill_keys);
     let enabled_keys: HashSet<String> = enabled_skill_keys.iter().cloned().collect();
@@ -933,9 +900,7 @@ pub async fn replace_mode_skill_selection(
         &enabled_keys,
     ));
 
-    if let Some((remote_root, entry)) =
-        resolve_remote_workspace(&state, request.workspace_path.as_deref()).await?
-    {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace.as_ref()).await? {
         persist_project_mode_skill_selection_remote(
             &state,
             &remote_root,
@@ -944,9 +909,7 @@ pub async fn replace_mode_skill_selection(
             disabled_project_skills,
         )
         .await?;
-    } else if let Some(workspace_root) =
-        workspace_root_from_input(request.workspace_path.as_deref())
-    {
+    } else if let Some(workspace_root) = workspace_root_from_input(workspace.as_ref()) {
         persist_project_mode_skill_selection_local(
             &request.mode_id,
             &workspace_root,
@@ -974,18 +937,19 @@ pub async fn reset_mode_skill_selection(
     state: State<'_, AppState>,
     request: ResetModeSkillSelectionRequest,
 ) -> Result<String, String> {
+    let workspace = resolve_skill_workspace(
+        request.workspace_id.as_deref(),
+        request.workspace_path.as_deref(),
+    )
+    .await?;
     clear_user_mode_skill_overrides(&request.mode_id)
         .await
         .map_err(|e| format!("Failed to reset user skill overrides: {}", e))?;
 
-    if let Some((remote_root, entry)) =
-        resolve_remote_workspace(&state, request.workspace_path.as_deref()).await?
-    {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace.as_ref()).await? {
         clear_project_mode_skill_selection_remote(&state, &remote_root, &entry, &request.mode_id)
             .await?;
-    } else if let Some(workspace_root) =
-        workspace_root_from_input(request.workspace_path.as_deref())
-    {
+    } else if let Some(workspace_root) = workspace_root_from_input(workspace.as_ref()) {
         clear_project_mode_skill_selection_local(&request.mode_id, &workspace_root).await?;
     }
 
@@ -1006,15 +970,18 @@ pub async fn reset_mode_skill_selection(
 async fn resolve_external_skill_import_source(
     source_path: &str,
     source_key: &str,
-    workspace: Option<&Path>,
+    workspace: Option<&WorkspaceInfo>,
 ) -> Result<SkillInfo, String> {
-    if let Some(root) = workspace {
-        if is_remote_path(&root.to_string_lossy()).await {
+    if let Some(record) = workspace {
+        if record.workspace_kind == WorkspaceKind::Remote {
             return Err("External Skill import into remote workspaces is not supported".into());
         }
     }
     let source = SkillRegistry::global()
-        .find_skill_by_key_for_workspace(source_key, workspace)
+        .find_skill_by_key_for_workspace(
+            source_key,
+            workspace.map(|record| record.root_path.as_path()),
+        )
         .await
         .ok_or("skill_import_stale: External Skill source changed; refresh before importing")?;
     if tokio::fs::canonicalize(&source.path)
@@ -1033,13 +1000,15 @@ async fn resolve_external_skill_import_source(
 pub async fn validate_skill_path(
     path: String,
     source_key: Option<String>,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
 ) -> Result<SkillValidationResult, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     use std::path::Path;
     if let Some(source_key) = source_key {
-        let workspace = workspace_root_from_input(workspace_path.as_deref());
         let source =
-            resolve_external_skill_import_source(&path, &source_key, workspace.as_deref()).await?;
+            resolve_external_skill_import_source(&path, &source_key, workspace.as_ref()).await?;
         let preview = skill_imports::preview_import(source).await?;
         return Ok(SkillValidationResult {
             valid: true,
@@ -1117,23 +1086,26 @@ pub async fn add_skill(
     _state: State<'_, AppState>,
     source_path: String,
     level: String,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
     source_key: Option<String>,
     target_name: Option<String>,
     expected_source_fingerprint: Option<String>,
 ) -> Result<String, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     if let Some(source_key) = source_key {
         if !matches!(level.as_str(), "user" | "project") {
             return Err("Invalid Skill target scope".into());
         }
-        let workspace = workspace_root_from_input(workspace_path.as_deref());
+        let workspace_root = workspace_root_from_input(workspace.as_ref());
         let source =
-            resolve_external_skill_import_source(&source_path, &source_key, workspace.as_deref())
+            resolve_external_skill_import_source(&source_path, &source_key, workspace.as_ref())
                 .await?;
         let paths = get_path_manager_arc();
         let target = if level == "project" {
             paths
-                .project_root(workspace.as_deref().ok_or("No workspace selected")?)
+                .project_root(workspace_root.as_deref().ok_or("No workspace selected")?)
                 .join("skills")
         } else {
             paths.user_skills_dir()
@@ -1146,14 +1118,14 @@ pub async fn add_skill(
         )
         .await?;
         SkillRegistry::global()
-            .refresh_for_workspace(workspace.as_deref())
+            .refresh_for_workspace(workspace_root.as_deref())
             .await;
         return Ok("External Skill imported successfully".into());
     }
     if target_name.is_some() || expected_source_fingerprint.is_some() {
         return Err("Reviewed or renamed Skill imports require their source identity".into());
     }
-    let validation = validate_skill_path(source_path.clone(), None, None).await?;
+    let validation = validate_skill_path(source_path.clone(), None, None, None).await?;
     if !validation.valid {
         return Err(validation.error.unwrap_or("Invalid skill path".to_string()));
     }
@@ -1165,14 +1137,19 @@ pub async fn add_skill(
     let source = Path::new(&source_path);
 
     let target_dir = if level == "project" {
-        if let Some(workspace_root) = workspace_root_from_input(workspace_path.as_deref()) {
-            if is_remote_path(&workspace_root.to_string_lossy()).await {
+        if let Some(workspace_root) = workspace_root_from_input(workspace.as_ref()) {
+            if workspace
+                .as_ref()
+                .is_some_and(|record| record.workspace_kind == WorkspaceKind::Remote)
+            {
                 return Err(
                     "Installing project skills into remote workspaces is not supported yet"
                         .to_string(),
                 );
             }
-            workspace_root.join(".bitfun").join("skills")
+            get_path_manager_arc()
+                .project_root(&workspace_root)
+                .join("skills")
         } else {
             return Err("No workspace open, cannot add project-level Skill".to_string());
         }
@@ -1208,7 +1185,7 @@ pub async fn add_skill(
     }
 
     SkillRegistry::global()
-        .refresh_for_workspace(workspace_root_from_input(workspace_path.as_deref()).as_deref())
+        .refresh_for_workspace(workspace_root_from_input(workspace.as_ref()).as_deref())
         .await;
 
     info!(
@@ -1243,13 +1220,14 @@ async fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 pub async fn delete_skill(
     state: State<'_, AppState>,
     skill_key: String,
+    workspace_id: Option<String>,
     workspace_path: Option<String>,
     expected_import_id: Option<String>,
 ) -> Result<String, String> {
+    let workspace =
+        resolve_skill_workspace(workspace_id.as_deref(), workspace_path.as_deref()).await?;
     let registry = SkillRegistry::global();
-    if let Some((remote_root, entry)) =
-        resolve_remote_workspace(&state, workspace_path.as_deref()).await?
-    {
+    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace.as_ref()).await? {
         if expected_import_id.is_some() {
             return Err("External Skill import undo on remote workspaces is not supported".into());
         }
@@ -1257,8 +1235,7 @@ pub async fn delete_skill(
             .get_remote_file_service_async()
             .await
             .map_err(|e| format!("Remote file service not available: {}", e))?;
-        let remote_workspace_fs =
-            RemoteWorkspaceFs::new(entry.connection_id.clone(), remote_fs.clone());
+        let remote_workspace_fs = RemoteWorkspaceFs::new(entry.clone(), remote_fs.clone());
         let skill_info = registry
             .find_skill_by_key_for_remote_workspace(&remote_workspace_fs, &remote_root, &skill_key)
             .await
@@ -1268,7 +1245,7 @@ pub async fn delete_skill(
         match skill_info.level {
             SkillLocation::Project => {
                 remote_fs
-                    .remove_dir_all(&entry.connection_id, &skill_info.path)
+                    .remove_dir_all(&entry, &skill_info.path)
                     .await
                     .map_err(|e| format!("Failed to delete remote skill folder: {}", e))?;
                 info!(
@@ -1296,7 +1273,7 @@ pub async fn delete_skill(
         return Ok(format!("Skill '{}' deleted successfully", skill_info.name));
     }
 
-    let workspace_root = workspace_root_from_input(workspace_path.as_deref());
+    let workspace_root = workspace_root_from_input(workspace.as_ref());
     let skill_info = registry
         .find_skill_by_key_for_workspace(&skill_key, workspace_root.as_deref())
         .await
@@ -1363,6 +1340,51 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn skill_provider_uses_record_kind_and_saved_connection_not_its_root() {
+        use bitfun_core::service::workspace::WorkspaceInfoRuntimeExt;
+        let root = tempfile::tempdir().unwrap();
+        let mut local = super::WorkspaceInfo::new_without_worktree(
+            root.path().to_path_buf(),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+        local
+            .metadata
+            .insert("connectionId".into(), serde_json::json!("stale-ssh"));
+        assert!(super::resolve_remote_workspace(Some(&local))
+            .await
+            .unwrap()
+            .is_none());
+        let mut remote = local.clone();
+        remote.id = "remote-id".into();
+        remote.workspace_kind = super::WorkspaceKind::Remote;
+        let target = super::resolve_remote_workspace(Some(&remote))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(target.1, "stale-ssh");
+        remote.metadata.clear();
+        assert!(super::resolve_remote_workspace(Some(&remote))
+            .await
+            .is_err());
+    }
+
+    #[test]
+    fn skill_settings_accept_an_id_without_a_path() {
+        let request: super::SetGlobalSkillDisabledRequest =
+            serde_json::from_value(serde_json::json!({
+                "workspaceId": "opaque-id", "skillKey": "project::agents::demo", "disabled": false,
+            }))
+            .unwrap();
+        assert_eq!(request.workspace_id.as_deref(), Some("opaque-id"));
+        assert!(request.workspace_path.is_none());
+        let restored: super::SetGlobalSkillDisabledRequest =
+            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+        assert_eq!(restored.workspace_id.as_deref(), Some("opaque-id"));
+    }
+
     #[test]
     fn skill_validation_reads_and_round_trips_legacy_payloads() {
         let old = serde_json::json!({ "valid": true, "name": "demo", "description": "existing", "error": null });
@@ -1383,10 +1405,14 @@ mod tests {
             "---\nname: demo\ndescription: Existing\n---\nBody",
         )
         .unwrap();
-        let result =
-            super::validate_skill_path(temp.path().to_string_lossy().into_owned(), None, None)
-                .await
-                .unwrap();
+        let result = super::validate_skill_path(
+            temp.path().to_string_lossy().into_owned(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
         assert!(result.valid);
         assert!(result.import_preview.is_none());
         assert_eq!(result.name.as_deref(), Some("demo"));
@@ -1446,7 +1472,6 @@ mod tests {
             "bitfun-system",
             false
         ));
-        assert!(can_delete_owned_skill("matrix", "bitfun", false));
         assert!(!can_delete_owned_skill(
             "bitfun-system",
             "bitfun-system",
@@ -1462,7 +1487,7 @@ mod tests {
 
 #[tauri::command]
 pub async fn list_skill_market(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: SkillMarketListRequest,
 ) -> Result<Vec<SkillMarketItem>, String> {
     let query = request
@@ -1472,14 +1497,12 @@ pub async fn list_skill_market(
         .filter(|v| !v.is_empty())
         .unwrap_or(DEFAULT_MARKET_QUERY);
     let limit = normalize_market_limit(request.limit);
-    let offset = normalize_market_offset(request.offset);
-    let proxy = configured_proxy_for_skills(&state).await?;
-    fetch_skill_market(query, limit, offset, proxy.as_ref()).await
+    fetch_skill_market(query, limit).await
 }
 
 #[tauri::command]
 pub async fn search_skill_market(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: SkillMarketSearchRequest,
 ) -> Result<Vec<SkillMarketItem>, String> {
     let query = request.query.trim();
@@ -1487,9 +1510,7 @@ pub async fn search_skill_market(
         return Ok(Vec::new());
     }
     let limit = normalize_market_limit(request.limit);
-    let offset = normalize_market_offset(request.offset);
-    let proxy = configured_proxy_for_skills(&state).await?;
-    fetch_skill_market(query, limit, offset, proxy.as_ref()).await
+    fetch_skill_market(query, limit).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1505,7 +1526,7 @@ pub struct SkillDescriptionRequest {
 /// process-level cache) when the overall deadline elapses.
 #[tauri::command]
 pub async fn get_skill_descriptions(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: SkillDescriptionRequest,
 ) -> Result<HashMap<String, String>, String> {
     if request.ids.is_empty() {
@@ -1515,11 +1536,13 @@ pub async fn get_skill_descriptions(
     let api_base =
         std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
     let base_url = api_base.trim_end_matches('/').to_string();
-    let proxy = configured_proxy_for_skills(&state).await?;
+
+    crate::ensure_rustls_crypto_provider();
+    let client = Client::new();
 
     let fetched = timeout(
         Duration::from_secs(MARKET_DESC_FETCH_DEADLINE_SECS),
-        fetch_descriptions_for_ids(&request.ids, &base_url, proxy.as_ref()),
+        fetch_descriptions_for_ids(&client, &base_url, &request.ids),
     )
     .await;
     Ok(fetched.unwrap_or_default())
@@ -1527,7 +1550,7 @@ pub async fn get_skill_descriptions(
 
 #[tauri::command]
 pub async fn download_skill_market(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: SkillMarketDownloadRequest,
 ) -> Result<SkillMarketDownloadResponse, String> {
     let package = request.package.trim().to_string();
@@ -1536,16 +1559,21 @@ pub async fn download_skill_market(
     }
 
     let level = request.level.unwrap_or(SkillLocation::Project);
+    let workspace = resolve_skill_workspace(
+        request.workspace_id.as_deref(),
+        request.workspace_path.as_deref(),
+    )
+    .await?;
     let workspace_path = if level == SkillLocation::Project {
-        let path = trim_workspace_path(request.workspace_path.as_deref())
-            .ok_or_else(|| "No workspace open, cannot add project-level Skill".to_string())?;
-        if is_remote_path(&path).await {
+        let record = workspace
+            .as_ref()
+            .ok_or("No workspace open, cannot add project-level Skill")?;
+        if record.workspace_kind == WorkspaceKind::Remote {
             return Err(
-                "Downloading project skills into remote workspaces is not supported yet"
-                    .to_string(),
+                "Downloading project skills into remote workspaces is not supported yet".into(),
             );
         }
-        Some(PathBuf::from(path))
+        Some(record.root_path.clone())
     } else {
         None
     };
@@ -1558,19 +1586,64 @@ pub async fn download_skill_market(
         .map(|skill| skill.name)
         .collect();
 
-    let proxy = configured_proxy_for_skills(&state).await?;
-    let outcome = install_skill_from_market(
-        &package,
-        level,
-        workspace_path.as_deref(),
-        proxy.as_ref(),
-    )
-    .await?;
-    let install_summary = format!(
-        "Installed skill '{}' to {}",
-        package,
-        outcome.target_dir.display()
-    );
+    let runtime_manager = RuntimeManager::new()
+        .map_err(|e| format!("Failed to initialize runtime manager: {}", e))?;
+    let resolved_npx = runtime_manager.resolve_command("npx").ok_or_else(|| {
+        "Command 'npx' is not available. Install Node.js or configure BitFun runtimes.".to_string()
+    })?;
+
+    let mut command = process_manager::create_tokio_command(&resolved_npx.command);
+    command
+        .arg("-y")
+        .arg("skills")
+        .arg("add")
+        .arg(&package)
+        .arg("-y")
+        .arg("-a")
+        .arg("universal");
+
+    if level == SkillLocation::User {
+        command.arg("-g");
+    }
+
+    if let Some(path) = workspace_path.as_ref() {
+        command.current_dir(path);
+    }
+
+    let current_path = std::env::var("PATH").ok();
+    if let Some(merged_path) = runtime_manager.merged_path_env(current_path.as_deref()) {
+        command.env("PATH", &merged_path);
+        #[cfg(windows)]
+        {
+            command.env("Path", &merged_path);
+        }
+    }
+
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+
+    let output = command
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute skills installer: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        let exit_code = output.status.code().unwrap_or(-1);
+        let detail = if !stderr.trim().is_empty() {
+            truncate_preview(stderr.trim())
+        } else if !stdout.trim().is_empty() {
+            truncate_preview(stdout.trim())
+        } else {
+            "Unknown installer error".to_string()
+        };
+        return Err(format!(
+            "Failed to download skill package '{}' (exit code {}): {}",
+            package, exit_code, detail
+        ));
+    }
 
     registry
         .refresh_for_workspace(workspace_path.as_deref())
@@ -1596,23 +1669,8 @@ pub async fn download_skill_market(
         package,
         level,
         installed_skills,
-        output: install_summary,
+        output: summarize_command_output(&stdout, &stderr),
     })
-}
-
-/// Read the BitFun AI proxy config (`global_config.ai.proxy`) for use by the
-/// native skill downloader. Mirrors `commands.rs::configured_ai_proxy` inline
-/// to keep the skill market download path self-contained; the duplication is a
-/// known follow-up cleanup (extract to a shared `api::proxy` module).
-async fn configured_proxy_for_skills(
-    state: &State<'_, AppState>,
-) -> Result<Option<ProxyConfig>, String> {
-    let global_config: bitfun_core::service::config::GlobalConfig = state
-        .config_service
-        .get_config(None)
-        .await
-        .map_err(|e| format!("Failed to get configuration: {}", e))?;
-    Ok(global_config.ai.proxy.enabled.then_some(global_config.ai.proxy))
 }
 
 fn normalize_market_limit(value: Option<u32>) -> u32 {
@@ -1621,16 +1679,7 @@ fn normalize_market_limit(value: Option<u32>) -> u32 {
         .clamp(1, MAX_MARKET_LIMIT)
 }
 
-fn normalize_market_offset(value: Option<u32>) -> u32 {
-    value.unwrap_or(0)
-}
-
-async fn fetch_skill_market(
-    query: &str,
-    limit: u32,
-    offset: u32,
-    proxy: Option<&ProxyConfig>,
-) -> Result<Vec<SkillMarketItem>, String> {
+async fn fetch_skill_market(query: &str, limit: u32) -> Result<Vec<SkillMarketItem>, String> {
     let api_base =
         std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
     let base_url = api_base.trim_end_matches('/');
@@ -1638,27 +1687,14 @@ async fn fetch_skill_market(
 
     crate::ensure_rustls_crypto_provider();
     let client = Client::new();
-    // Over-fetch by `offset` so we can slice the requested page out of the
-    // prefix without depending on whether skills.sh's legacy /api/search
-    // honors an `offset`/`page` parameter. The legacy endpoint does not
-    // document one, so requesting `limit + offset` and slicing locally is the
-    // safe, correct fallback.
-    let fetch_limit = offset
-        .saturating_add(limit)
-        .min(MAX_MARKET_LIMIT);
-
-    let client = build_market_client(proxy)?;
     let response = client
         .get(&endpoint)
-        .query(&[("q", query), ("limit", &fetch_limit.to_string())])
+        .query(&[("q", query), ("limit", &limit.to_string())])
         .send()
         .await
         .map_err(|e| format!("Failed to query skill market: {}", e))?;
 
     if !response.status().is_success() {
-        if response.status().is_client_error() {
-            return Ok(Vec::new());
-        }
         return Err(format!(
             "Skill market request failed with status {}",
             response.status()
@@ -1700,46 +1736,62 @@ async fn fetch_skill_market(
         });
     }
 
-    // Slice the requested page.
-    let start = (offset as usize).min(items.len());
-    let end = (start.saturating_add(limit as usize)).min(items.len());
-    let mut page: Vec<SkillMarketItem> = items.into_iter().skip(start).take(end - start).collect();
+    fill_market_descriptions(&client, base_url, &mut items).await;
 
-    // Block on description fill so cards appear WITH their descriptions (no
-    // title-only placeholders that pop in later). skills.sh's legacy search has
-    // no description field and its v1 API needs Vercel OIDC auth, so per-skill
-    // HTML scrape is the only no-auth source — this is the unavoidable
-    // ~few-second cost of a cold page (the process cache speeds up repeat
-    // views of the same skills). Each per-skill fetch is bounded by
-    // MARKET_DESC_FETCH_TIMEOUT_SECS, so this cannot hang indefinitely.
-    if !page.is_empty() {
-        let ids: Vec<String> = page.iter().map(|i| i.id.clone()).collect();
-        let descs = fetch_descriptions_for_ids(&ids, base_url, proxy).await;
-        for item in page.iter_mut() {
-            if item.description.trim().is_empty() {
-                if let Some(desc) = descs.get(&item.id) {
-                    item.description = desc.clone();
-                }
-            }
-        }
+    Ok(items)
+}
+
+fn summarize_command_output(stdout: &str, stderr: &str) -> String {
+    let primary = if !stdout.trim().is_empty() {
+        stdout.trim()
+    } else {
+        stderr.trim()
+    };
+
+    if primary.is_empty() {
+        return "Skill downloaded successfully.".to_string();
     }
 
-    Ok(page)
+    truncate_preview(primary)
+}
+
+fn truncate_preview(text: &str) -> String {
+    if text.chars().count() <= MAX_OUTPUT_PREVIEW_CHARS {
+        return text.to_string();
+    }
+
+    let truncated: String = text.chars().take(MAX_OUTPUT_PREVIEW_CHARS).collect();
+    format!("{}...", truncated)
 }
 
 fn market_description_cache() -> &'static RwLock<HashMap<String, String>> {
     MARKET_DESCRIPTION_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+async fn fill_market_descriptions(client: &Client, base_url: &str, items: &mut [SkillMarketItem]) {
+    let ids: Vec<String> = items.iter().map(|item| item.id.clone()).collect();
+    let fetched = fetch_descriptions_for_ids(client, base_url, &ids).await;
+    if fetched.is_empty() {
+        return;
+    }
+
+    for item in items.iter_mut() {
+        if item.description.trim().is_empty() {
+            if let Some(desc) = fetched.get(&item.id) {
+                item.description = desc.clone();
+            }
+        }
+    }
+}
+
 async fn fetch_descriptions_for_ids(
-    ids: &[String],
+    client: &Client,
     base_url: &str,
-    proxy: Option<&ProxyConfig>,
+    ids: &[String],
 ) -> HashMap<String, String> {
     let cache = market_description_cache();
     let mut result: HashMap<String, String> = HashMap::new();
 
-    // 1. Serve whatever is already in the process-level cache.
     {
         let reader = cache.read().await;
         for id in ids {
@@ -1759,11 +1811,6 @@ async fn fetch_descriptions_for_ids(
         return result;
     }
 
-    // 2. Concurrent HTML scrape for uncached ids. Concurrency and per-page
-    //    timeout are bounded by MARKET_DESC_FETCH_CONCURRENCY and
-    //    MARKET_DESC_FETCH_TIMEOUT_SECS respectively; the caller also wraps
-    //    the whole call in an overall deadline.
-    let client = build_market_client(proxy).unwrap_or_else(|_| Client::new());
     let mut join_set = JoinSet::new();
     let mut fetched = HashMap::new();
 
@@ -1783,13 +1830,12 @@ async fn fetch_descriptions_for_ids(
         }
     }
 
-    while let Some(result_entry) = join_set.join_next().await {
-        if let Ok((skill_id, Some(desc))) = result_entry {
+    while let Some(result) = join_set.join_next().await {
+        if let Ok((skill_id, Some(desc))) = result {
             fetched.insert(skill_id, desc);
         }
     }
 
-    // 3. Write back to cache and merge into the result map.
     if !fetched.is_empty() {
         let mut writer = cache.write().await;
         for (skill_id, desc) in &fetched {
@@ -1799,7 +1845,6 @@ async fn fetch_descriptions_for_ids(
     for (id, desc) in fetched {
         result.insert(id, desc);
     }
-
     result
 }
 

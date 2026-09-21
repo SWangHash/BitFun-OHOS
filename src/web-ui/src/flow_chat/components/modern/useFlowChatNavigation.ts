@@ -7,9 +7,12 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { createLogger } from '@/shared/utils/logger';
+import { useConversationDockStore, dockConversationKey } from '@/app/stores/conversationDockStore';
+import { useConversationViewScope } from '../../contexts/conversationViewScope';
 import { flowChatStore } from '../../store/FlowChatStore';
-import { useModernFlowChatStore, type VirtualItem } from '../../store/modernFlowChatStore';
+import { useModernFlowChatStoreApi, type VirtualItem } from '../../store/modernFlowChatStore';
 import { flowChatManager } from '../../services/FlowChatManager';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   FLOWCHAT_FOCUS_ITEM_EVENT,
   type FlowChatFocusItemRequest,
@@ -20,6 +23,8 @@ import { resolveFlowChatFocusTarget, type ResolvedFocusTarget } from './flowChat
 const log = createLogger('useFlowChatNavigation');
 
 interface UseFlowChatNavigationOptions {
+  containerRef: RefObject<HTMLElement | null>;
+  isViewportActive?: boolean;
   activeSessionId?: string;
   virtualItems: VirtualItem[];
   virtualListRef: RefObject<VirtualMessageListRef | null>;
@@ -60,12 +65,16 @@ function navigateToResolvedTarget(
 }
 
 export function useFlowChatNavigation({
+  containerRef,
+  isViewportActive = true,
   activeSessionId,
   virtualItems,
   virtualListRef,
   onExpandExploreGroup,
   onNavigateToFocusTurn,
 }: UseFlowChatNavigationOptions): void {
+  const viewScope = useConversationViewScope();
+  const modernStore = useModernFlowChatStoreApi();
   const virtualItemsRef = useRef(virtualItems);
   const onExpandExploreGroupRef = useRef(onExpandExploreGroup);
   const onNavigateToFocusTurnRef = useRef(onNavigateToFocusTurn);
@@ -77,9 +86,26 @@ export function useFlowChatNavigation({
   }, [onExpandExploreGroup, onNavigateToFocusTurn, virtualItems]);
 
   useEffect(() => {
-    const unsubscribe = globalEventBus.on<FlowChatFocusItemRequest>(FLOWCHAT_FOCUS_ITEM_EVENT, async (request) => {
+    let excerptGeneration = 0;
+    let disposed = false;
+    const cancelExcerpt = () => { excerptGeneration++; };
+    window.addEventListener('wheel', cancelExcerpt, { passive: true });
+    window.addEventListener('pointerdown', cancelExcerpt);
+    window.addEventListener('keydown', cancelExcerpt);
+    const handleRequest = async (request: FlowChatFocusItemRequest) => {
       const { sessionId, itemId } = request;
-      if (!sessionId) return;
+      if (!sessionId || (viewScope && viewScope.sessionId !== sessionId)) return;
+      if (request.embedded) return;
+      const scope = getActiveSurfaceScope();
+      if (request.surfaceEpoch !== undefined && request.surfaceEpoch !== scope.epoch) return;
+      if (!viewScope) {
+        const dock = useConversationDockStore.getState();
+        const target = dock.entries.find(entry => entry.surfaceId === scope.surfaceId && entry.sessionId === sessionId);
+        if (target) { dock.select(dockConversationKey(target)); dock.setOpen(true); return; }
+      }
+      const generation = ++excerptGeneration;
+      const isCurrent = () => !disposed && generation === excerptGeneration && scope.isCurrent()
+        && modernStore.getState().activeSession?.sessionId === sessionId;
 
       if (activeSessionId !== sessionId) {
         try {
@@ -91,11 +117,41 @@ export function useFlowChatNavigation({
       }
 
       const ready = await waitForCondition(() => {
-        const modernActiveSessionId = useModernFlowChatStore.getState().activeSession?.sessionId;
+        const modernActiveSessionId = modernStore.getState().activeSession?.sessionId;
         return modernActiveSessionId === sessionId && !!virtualListRef.current;
       }, 1500);
       if (!ready) {
         log.warn('FlowChat focus target did not become active before timeout', { sessionId });
+        if (request.excerpt && isCurrent()) request.onUnavailable?.();
+        return;
+      }
+
+      if (request.excerpt) {
+        if (!isCurrent()) return;
+        const excerpt = request.excerpt;
+        const fragment = excerpt.fragments[0];
+        const findIndex = () => fragment.flowItemId
+          ? resolveFlowChatFocusTarget(request, virtualItemsRef.current, flowChatStore.getState().sessions.get(sessionId)).resolvedVirtualIndex
+          : virtualItemsRef.current.findIndex(item => item.type === 'user-message' && item.turnId === fragment.turnId);
+        try {
+          if ((findIndex() ?? -1) < 0) await onNavigateToFocusTurnRef.current?.(request);
+        } catch (error) {
+          log.warn('Failed to load the selected excerpt source', { sessionId, error });
+          if (isCurrent()) request.onUnavailable?.();
+          return;
+        }
+        const found = await waitForCondition(() => {
+          if (!isCurrent()) return true;
+          const index = findIndex();
+          if (index === undefined || index < 0 || !virtualListRef.current) return false;
+          const target = resolveFlowChatFocusTarget(request, virtualItemsRef.current, flowChatStore.getState().sessions.get(sessionId));
+          if (target.expandExploreGroupId) onExpandExploreGroupRef.current?.(target.expandExploreGroupId);
+          virtualListRef.current?.scrollToSearchMatch({ virtualItemIndex: index, query: fragment.text,
+            flowItemId: fragment.flowItemId, excerpt, isCurrent,
+            onUnavailable: () => { if (isCurrent()) request.onUnavailable?.(); } });
+          return true;
+        }, 2000);
+        if (!found && isCurrent()) request.onUnavailable?.();
         return;
       }
 
@@ -144,6 +200,7 @@ export function useFlowChatNavigation({
       let attempts = 0;
       let expandedExploreGroupId: string | null = null;
       const tryFocus = () => {
+        if (!isCurrent()) return;
         attempts += 1;
         const currentTarget = resolveFlowChatFocusTarget(
           request,
@@ -158,7 +215,7 @@ export function useFlowChatNavigation({
           onExpandExploreGroupRef.current?.(currentTarget.expandExploreGroupId);
         }
         const focusItemId = currentTarget.focusItemId ?? itemId;
-        const element = document.querySelector(`[data-flow-item-id="${CSS.escape(focusItemId)}"]`) as HTMLElement | null;
+        const element = containerRef.current?.querySelector<HTMLElement>(`[data-flow-item-id="${CSS.escape(focusItemId)}"]`);
         if (!element || !virtualListRef.current?.focusFlowItem(focusItemId)) {
           if (
             attempts % 12 === 0
@@ -191,8 +248,29 @@ export function useFlowChatNavigation({
        * part is unavoidable: something has to be on screen while we wait.
        */
       tryFocus();
-    });
+    };
+    // The shell retains requests while a dock view is mounting or hidden. Taking
+    // one after activation avoids rebroadcasts and duplicate navigation writers.
+    const drainDockRequest = () => {
+      if (!viewScope || !isViewportActive) return;
+      const key = dockConversationKey(viewScope);
+      const dock = useConversationDockStore.getState();
+      const request = dock.focusRequests[key];
+      if (!request) return;
+      dock.consumeFocus(key, request);
+      void handleRequest(request);
+    };
+    const unsubscribe = viewScope
+      ? useConversationDockStore.subscribe(drainDockRequest)
+      : globalEventBus.on<FlowChatFocusItemRequest>(FLOWCHAT_FOCUS_ITEM_EVENT, handleRequest);
+    drainDockRequest();
 
-    return unsubscribe;
-  }, [activeSessionId, virtualListRef]);
+    return () => {
+      disposed = true;
+      unsubscribe();
+      window.removeEventListener('wheel', cancelExcerpt);
+      window.removeEventListener('pointerdown', cancelExcerpt);
+      window.removeEventListener('keydown', cancelExcerpt);
+    };
+  }, [activeSessionId, containerRef, virtualListRef, viewScope, modernStore, isViewportActive]);
 }

@@ -31,6 +31,15 @@ to content, it stops being a reservation and becomes the compensation engine
 that was removed in "remove synthetic tail-space scrolling" — do not rebuild
 that under a new name.
 
+## Transcript Width
+
+The main transcript scroller uses `overflow-y: scroll` together with
+`scrollbar-gutter: stable`. Its native scrollbar space must remain present when
+collapsing content removes vertical overflow, including desktop WebViews where
+gutter reservation alone does not reserve custom scrollbar space. Overlay
+scrollbars continue to use the platform's zero-width layout. Scrollbar paint
+and hover visibility remain owned by the design system.
+
 ## How Much To Reserve
 
 The input-stack footer and spacer together occupy at most three quarters of the

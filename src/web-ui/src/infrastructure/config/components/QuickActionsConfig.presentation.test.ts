@@ -19,4 +19,13 @@ describe('QuickActionsConfig draft lifecycle', () => {
     expect(source).not.toContain("addEventListener('beforeunload'");
     expect(source).not.toContain('discardConfirmOpen');
   });
+
+  it('uses the shared empty-state presentation for custom actions', () => {
+    expect(source).toContain('<Empty');
+    expect(source).toContain('icon={<Zap aria-hidden />}');
+    expect(source).toContain('description={t(\'sections.custom.empty\')}');
+    expect(source).not.toContain('imageSize="sm"');
+    expect(source).not.toContain('icon={<Zap size={20}');
+    expect(source).not.toContain('quick-actions-config__empty-icon');
+  });
 });

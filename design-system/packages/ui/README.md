@@ -40,6 +40,17 @@ User bubbles apply `type.modifier.leading.tight` for 18px leading, with 12px
 padding on all sides and a 12px corner radius. They fit their content and wrap
 within the conversation width; a single line is 42px high at the default size.
 
+`VoiceCallTranscript` exposes its `entries` part for host-owned reading insets
+and `data-scrolled` when records have moved below their starting position. Hosts
+can layer compact controls above that viewport without creating another scroller.
+Each entry may supply `activity` beneath its message; the host owns its real
+processing state, localized accessible label, and completion lifecycle.
+Its `presentation="chat"` variant uses FlowChat's `type.flow.control` text size
+and weight, `type.flow.body` font stack and leading, `color.content.primary`
+text, and `color.action.quiet.hover` user-bubble fill. `compact` controls spacing
+independently. The default `presentation="voice"` retains the call typography
+and inverse colors; hosts can switch presentation on the existing viewport.
+
 `VoiceParticleLogo` is also exported independently. Its `readAudio` callback
 reads `{ user, assistant, assistantSpeaking }` once per animation frame. The
 two spectra are FFT byte bins from analysers configured with `fftSize = 256`;
@@ -324,7 +335,10 @@ Sized icon slots in buttons, tabs, menu items and fields own their glyph geometr
 Pass catalog `Icon` nodes through `leadingIcon`, `trailingIcon`, `icon` or the
 matching component slot, just as for SVG icons. These slots constrain catalog
 icons to the component's size; a standalone `Icon` retains its explicit size
-(24px by default). Do not shrink the catalog globally to correct a slot mismatch.
+(24px by default). They also normalize a direct Lucide glyph that still has
+Lucide's default 2px stroke to the shared 1.6 line weight and inherit the slot's
+color. Explicit non-default strokes and non-Lucid SVG artwork remain unchanged.
+Do not shrink the catalog globally to correct a slot mismatch.
 
 `IconButton` defaults to `quiet`: its resting surface is transparent, hover and
 pressed states use shared action feedback, and keyboard focus keeps a visible
@@ -384,9 +398,23 @@ Selection visuals now come from the public field/menu semantic tokens.
 SearchField sizes its decorative wrapper through Input's icon slot, so default
 catalog icons and native SVGs occupy the same region. Shortcut hints and clear
 actions can coexist; disabled and read-only fields disable the clear action.
+Use `trailing` for inline text or indicators and `trailingAction` for terminal
+`IconButton size="xs" shape="square"` controls (including tooltip-wrapped controls). Actions
+follow the shortcut hint, with the built-in clear action last. Standalone and
+panel fields inset terminal actions equally from the inline-end and block
+layout edges using `(input row height - action size) / 2`. The search outline
+is centered on those edges and does not participate in layout; its inner edge
+reduces each visible clearance equally by half the stroke width. Text-only trailing content retains
+the ordinary trailing input padding; embedded fields retain container-owned geometry.
+Search rows use `control.searchField.height.sm/md/lg`; compact `sm` is 30px,
+while other sizes and densities alias the generic control heights. Leading
+padding uses `space.component.inline` and icon-to-text spacing uses `space.1`.
+An absolute-positioned search host must reserve that same search-row height.
+The built-in clear action uses the shared square xs quiet-button hover feedback.
 
 Choose `size` explicitly when composing form rows: selectors default to `md`,
-while `Input` defaults to `sm`. The shared `control.height.sm/md/lg` tokens and
+while `Input` defaults to `sm`. Except for SearchField's dedicated row contract,
+the shared `control.height.sm/md/lg` tokens and
 active density own the actual heights; consumers must not replace them with
 page-level heights or padding overrides. Picker bodies stay single-line and
 token-sized, with labels and validation messages outside that height. Select
@@ -430,11 +458,50 @@ restores focus before dispatching `onSelect`; the host owns asynchronous work
 and error handling. The popup flips and clamps to the viewport, keeps keyboard
 navigation in the active menu, and supports safe pointer travel to either side.
 
-Portals resolve through `DesignSystemProvider.portalHost`, then fall back to the
-nearest design-system root. Stable `parts` wrappers preserve host data hooks;
+Portals resolve through `DesignSystemProvider.portalHost`, then fall back to one
+document-owned overlay host above application content. Stable `parts` wrappers preserve host data hooks;
 they must forward all props and refs and retain public component ownership.
 `useSubmenuIntent` is available for product popovers that need the same pointer
 corridor behavior.
+
+Custom composed menus reuse `useDismissibleLayer` and the public `usePresence`
+hook. Keep the positioned/measured layer separate from its animated surface,
+retain geometry until presence unmounts it, and make exiting content inert.
+Presence cancels a pending exit when reopened and honors reduced motion.
+The host should opt a presence-owned surface out of its fallback animations;
+outside-pointer dismissal leaves the clicked control's focus alone, while
+Escape and menu actions restore the trigger before handing off to another UI.
+
+### Overlay ownership and ordering
+
+`Portal` (or its expression form `createOverlayPortal`) registers each presented
+surface with one coordinator per document. All providers in that document share
+the same order. New openings receive a later rank; content/progress updates and
+StrictMode effect replay retain their rank. Reopening a retained surface brings
+it forward. Do not use category z-index values to rank menus, dialogs or notices.
+
+Nested portals inherit ownership. Sibling portals and coordinate menus pass
+`ownerRef` for their source element, including menus rendered by a global
+renderer. Child menus remain above their owner, belong to its modal focus domain,
+and become hidden when that owner closes. A modal may have owned child portals;
+unrelated background surfaces remain inert through its exit transition.
+
+Use `open={open}` for retained exits and unmount when the exit completes.
+Custom modal portals additionally pass `modal`, `surfaceRef`, and `onDismiss`;
+their surface supplies dialog semantics and a label. The coordinator owns scroll
+locking, background inert state, top-layer Escape/outside dismissal and focus
+return after the modal barrier is released. Use `subscribeOverlayInteraction`
+for custom menu keyboard/outside handling instead of competing document listeners.
+Host shortcut routers can use `hasOverlayLayers()` to defer Escape.
+
+Background notices use `passive`. Their first presentation waits until a modal
+releases the document; already visible notices retain their rank behind later
+modals. Start dismissal timers inside the admitted content and pause them while
+`useHasModalOverlay()` is true. A notification stack uses a layout-only
+`OverlayRegion`, with one `OverlayLayer` per card. The region and scroll ancestors
+must not introduce a stacking context (z-index, fixed positioning, transform,
+filter, isolation or paint containment); apply material and motion to each card.
+Panel-local views and noninteractive export render trees remain local content.
 
 ## FlowChat tool cards
 
@@ -507,9 +574,22 @@ leading roles scale with user typography. FieldGroup uses the form group tint,
 retaining its existing row padding, dividers, and radius. The Patterns form
 specimen shows both orientations and long values over a tinted container.
 
-Menus keep contiguous 30px rows with no additional list or heading-to-item gap;
-separators own their 8px vertical margins. Their keyboard focus indicator is
-inset so scrolling does not clip it or require extra permanent padding.
+Menu and Listbox row surfaces are separated by `overlay.menu.rowGap` (2px),
+including grouped options and the Listbox used by Select, Combobox and MultiSelect.
+This is distinct from `itemGap` (icon-to-label spacing) and `sectionGap` (8px).
+Menu keeps its 30px row height and no extra heading-to-item gap; separators and
+adjacent sections account for the row gap instead of adding it twice.
+The menu keyboard focus indicator stays inset so scrolling does not clip it.
+
+The list owns spacing; individual rows never add compensating margins. `Menu`
+and `MenuSection` use `MenuList` internally. If custom scrolling, animation or
+other markup wraps a collection of MenuItems, use `MenuList` immediately around
+the rows (for example, `<ScrollArea><MenuList>...</MenuList></ScrollArea>`).
+Flex gap only reaches immediate children, so a plain wrapper loses that contract.
+Product code owns positioning and viewport limits, and must not patch private
+list/section-items/group-options gaps. A deliberate density variation belongs
+on the owning surface via `--bitfun-overlay-menu-row-gap`.
+
 ActionItem hover and pressed surfaces use the semantic neutral hover fill;
 pressed text remains semibold. Menu and navigation captions consume the final
 caption color directly, avoiding a second opacity multiplier. The nested-menu

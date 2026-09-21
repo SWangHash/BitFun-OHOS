@@ -131,7 +131,8 @@ export class ExplorerController {
       ...this.config,
       ...config,
     });
-    const rootChanged = this.config.rootPath !== nextConfig.rootPath
+    const rootChanged = this.config.workspaceId !== nextConfig.workspaceId
+      || this.config.rootPath !== nextConfig.rootPath
       || this.config.remoteConnectionId !== nextConfig.remoteConnectionId;
     const optionsChanged = didReloadRelevantOptionsChange(this.lastAppliedConfig, nextConfig);
     this.config = nextConfig;
@@ -448,7 +449,7 @@ export class ExplorerController {
     try {
       const children = await this.provider.getChildren({
         path: canonicalPath,
-        remoteConnectionId: this.config.remoteConnectionId,
+        workspaceId: this.config.workspaceId,
         options: this.config,
       });
 
@@ -629,7 +630,7 @@ export class ExplorerController {
       if (this.watchedPaths.has(key)) {
         continue;
       }
-      const unwatch = this.provider.watch(path, (event) => this.handleFileChange(event), { recursive: false });
+      const unwatch = this.provider.watch(path, (event) => this.handleFileChange(event), { recursive: false, workspaceId: this.config.workspaceId });
       this.watchedPaths.set(key, unwatch);
     }
 

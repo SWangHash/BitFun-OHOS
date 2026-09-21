@@ -22,8 +22,19 @@ infrastructure, not a product command or UI layer.
 
 ```bash
 cargo check -p terminal-core
+cargo test -p terminal-core --lib exec:: # process output, encoding, polling and lifecycle
 cargo test -p terminal-core --lib workspace_origin_contract_tests # terminal response compatibility
 node scripts/check-core-boundaries.mjs
 ```
 
 For documentation-only changes, run `git diff --check`.
+
+For Windows App Execution Alias termination, install Python Install Manager and
+run this opt-in regression with its working alias (not the Store redirector):
+
+```powershell
+$env:BITFUN_TEST_PYTHON_ALIAS = "$env:LOCALAPPDATA/Microsoft/WindowsApps/python.exe"
+cargo test -p terminal-core --lib control_terminates_python_app_execution_alias -- --ignored
+```
+
+This covers both kill and interrupt without changing the machine PATH.

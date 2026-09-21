@@ -60,6 +60,9 @@ vi.mock('@bitfun/ui', () => ({
     children,
   }: React.PropsWithChildren<{ open: boolean }>) => open ? <div role="dialog">{children}</div> : null,
   DialogBody: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogFooter: ({ children }: React.PropsWithChildren<{ separator?: boolean }>) => (
+    <footer>{children}</footer>
+  ),
   DialogClose: () => <button type="button" aria-label="Close" />,
   DialogHeader: ({ children }: React.PropsWithChildren) => <header>{children}</header>,
   DialogHeading: ({ children }: React.PropsWithChildren) => <div>{children}</div>,

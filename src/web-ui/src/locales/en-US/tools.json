@@ -337,6 +337,8 @@
     "collapse": "Collapse",
     "resultsSummary": "Found {{files}} files with {{matches}} matches",
     "resultsShowing": " (showing first {{count}})",
+    "resultsSummaryCompact": "{{files}} files / {{matches}} matches",
+    "resultsShowingCompact": "first {{count}}",
     "loadMore": "Load more ({{count}})",
     "replace": "Replace",
     "replaceAll": "Replace All",

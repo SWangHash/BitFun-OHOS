@@ -16,6 +16,7 @@ import { TurnFailureNoticeItem } from './TurnFailureNoticeItem';
 import './VirtualItemRenderer.scss';
 import { getVirtualItemStableKey } from './virtualItemIdentity';
 import { useFlowChatSearchPresentation } from './useFlowChatSearchPresentation';
+import { ConversationExcerptMarkers } from '../../selection/ConversationExcerptMarkers';
 
 interface VirtualItemRendererProps {
   item: VirtualItem;
@@ -137,6 +138,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
         data-item-index={index}
       >
         {content || <div style={{ minHeight: '1px' }} />}
+        <ConversationExcerptMarkers wrapper={wrapper} turnId={item.turnId} />
         <span
           aria-hidden="true"
           hidden={!searchLine}

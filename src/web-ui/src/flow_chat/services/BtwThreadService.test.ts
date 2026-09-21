@@ -7,6 +7,7 @@ const mockUpdateSessionRelationship = vi.fn();
 const mockUpdateSessionBtwOrigin = vi.fn();
 const mockAddBtwThreadMarker = vi.fn();
 const mockUpdateSessionModelName = vi.fn();
+const mockUpdateSessionReasoningPreset = vi.fn();
 const mockEnsureBackendSession = vi.fn();
 
 const sessions = new Map<string, any>();
@@ -28,6 +29,7 @@ vi.mock('../store/FlowChatStore', () => ({
     updateSessionBtwOrigin: (...args: any[]) => mockUpdateSessionBtwOrigin(...args),
     addBtwThreadMarker: (...args: any[]) => mockAddBtwThreadMarker(...args),
     updateSessionModelName: (...args: any[]) => mockUpdateSessionModelName(...args),
+    updateSessionReasoningPreset: (...args: any[]) => mockUpdateSessionReasoningPreset(...args),
   },
 }));
 
@@ -68,11 +70,13 @@ describe('BtwThreadService', () => {
     sessions.set('parent-1', {
       sessionId: 'parent-1',
       mode: 'Standard',
+      workspaceId: 'workspace-1',
       workspacePath: '/workspace',
       remoteConnectionId: 'remote-1',
       remoteSshHost: 'host-1',
       config: {
         modelName: 'primary',
+        reasoningPreset: 'high',
       },
       dialogTurns: [
         {
@@ -106,6 +110,7 @@ describe('BtwThreadService', () => {
         sessionName: 'Deep review',
         agentType: 'DeepReview',
         sessionId: 'review_child_review-request-1',
+        workspaceId: 'workspace-1',
         workspacePath: '/workspace',
         remoteConnectionId: 'remote-1',
         remoteSshHost: 'host-1',
@@ -202,6 +207,37 @@ describe('BtwThreadService', () => {
 
     expect(result.parentDialogTurnId).toBe('turn-parent-1');
     expect(result.parentTurnIndex).toBe(100);
+  });
+
+  it('anchors a selected historical Turn and inherits the parent model', () => {
+    sessions.get('parent-1').dialogTurns.unshift({ id: 'selected-turn' });
+    const result = createBtwSessionPlaceholder({ parentSessionId: 'parent-1',
+      childSessionName: 'Side question', parentDialogTurnId: 'selected-turn' });
+    expect(result.parentDialogTurnId).toBe('selected-turn');
+    expect(result.parentTurnIndex).toBe(1);
+    expect(mockUpdateSessionModelName).toHaveBeenCalledWith(result.childSessionId, 'primary');
+    expect(mockUpdateSessionReasoningPreset).toHaveBeenCalledWith(result.childSessionId, 'high');
+    expect(mockUpdateSessionModelName).toHaveBeenCalledWith(result.childSessionId, 'primary');
+  });
+
+  it('retains quote metadata and stable request identity on a failed initial submission retry', async () => {
+    sessions.set('btw-child', {
+      sessionId: 'btw-child', title: 'Side question', sessionKind: 'btw',
+      btwOrigin: { parentDialogTurnId: 'selected-turn' }, config: {},
+    });
+    const userMessageMetadata = { composerPresentation: { version: 1, segments: [{ kind: 'text', text: 'quote' }] },
+      sessionReferences: [{ sessionId: 'reference' }] };
+    const params = { parentSessionId: 'parent-1', childSessionId: 'btw-child', question: 'Quote and question',
+      requestId: 'stable-request', userMessageMetadata,
+      initialModelSelection: { modelId: 'primary', reasoningPreset: 'high' } };
+    mockAskStream.mockRejectedValueOnce(new Error('network unavailable'));
+    await expect(sendMessageToBtwSession(params)).rejects.toThrow('network unavailable');
+    await sendMessageToBtwSession(params);
+    expect(mockAskStream).toHaveBeenLastCalledWith(expect.objectContaining({
+      requestId: 'stable-request', question: 'Quote and question', userMessageMetadata, parentDialogTurnId: 'selected-turn',
+      initialModelSelection: { modelId: 'primary', reasoningPreset: 'high' },
+    }));
+    expect(sessions.has('btw-child')).toBe(true);
   });
 
   it('passes image contexts and parent turn metadata through to the desktop /btw API', async () => {

@@ -468,6 +468,11 @@ describe('UsageStatisticsConfig', () => {
 
     expect(container.textContent).toContain('filter.empty.title');
     expect(container.textContent).toContain('filter.empty.description');
+    expect(
+      container.querySelector(
+        '[data-bitfun-component="usage-statistics-config"][data-bitfun-part="empty"] [data-bitfun-component="empty"]',
+      ),
+    ).not.toBeNull();
   });
 
   it('surfaces load failures without crashing', async () => {

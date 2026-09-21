@@ -11,6 +11,8 @@ import type {
 } from '@/shared/services/reviewTeamService';
 import type { ImagePayload } from '../utils/imagePayload';
 import { absoluteSessionTurnIndexForId } from '../utils/flowChatTurnOrdinal';
+import { requireSessionWorkspaceId, sessionWorkspaceId } from '../utils/sessionWorkspace';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 
 export function createBtwRequestId(prefix = 'btw'): string {
   try {
@@ -66,6 +68,9 @@ function requireSession(sessionId: string): Session {
 
 export async function createBtwChildSession(params: {
   parentSessionId: string;
+  /** Owning workspace ID; defaults to the parent session's workspace. */
+  workspaceId?: string;
+  /** Execution root (IO operand); defaults to the parent session's root. */
   workspacePath?: string;
   childSessionName: string;
   agentType?: string;
@@ -96,6 +101,12 @@ export async function createBtwChildSession(params: {
   const { parentDialogTurnId, parentTurnIndex } = getParentInterruptionContext(parentSessionId);
 
   const parentSession = flowChatStore.getState().sessions.get(parentSessionId);
+  // The child inherits the parent's workspace identity; the path is only the
+  // execution root the backend runs the child in.
+  const workspaceId = params.workspaceId || sessionWorkspaceId(parentSession);
+  if (!workspaceId) {
+    throw new Error(`Workspace ID is required for BTW child session: ${parentSessionId}`);
+  }
   const workspacePath = params.workspacePath || parentSession?.workspacePath;
   if (!workspacePath) {
     throw new Error(`Workspace path is required for BTW child session: ${parentSessionId}`);
@@ -134,7 +145,7 @@ export async function createBtwChildSession(params: {
                 worktreeId: inheritedExecutionTarget.worktreeId,
               }
             : { kind: 'local' },
-          workspaceId: parentSession?.workspaceId,
+          workspaceId,
           remoteConnectionId,
           remoteSshHost,
           relationship,
@@ -174,7 +185,7 @@ export async function createBtwChildSession(params: {
         createdSession?.projectWorkspacePath || projectWorkspacePath,
       executionTarget:
         createdSession?.executionTarget || inheritedExecutionTarget,
-      workspaceId: createdSession?.workspaceId || parentSession?.workspaceId,
+      workspaceId: createdSession?.workspaceId || workspaceId,
       isTransient: params.isTransient ?? false,
       agentBackedTransient: params.isTransient ?? false,
     },
@@ -216,8 +227,10 @@ export function createBtwSessionPlaceholder(params: {
   parentSessionId: string;
   workspacePath?: string;
   childSessionName: string;
+  parentDialogTurnId?: string;
 }): { childSessionId: string; parentDialogTurnId?: string; parentTurnIndex?: number } {
   const parentSession = requireSession(params.parentSessionId);
+  const workspaceId = requireSessionWorkspaceId(parentSession);
   const workspacePath = params.workspacePath || parentSession.workspacePath;
   if (!workspacePath) {
     throw new Error(`Workspace path is required for BTW child session: ${params.parentSessionId}`);
@@ -225,7 +238,10 @@ export function createBtwSessionPlaceholder(params: {
 
   const childSessionId = createBtwRequestId('btw_session');
   const childSessionName = params.childSessionName.trim() || 'Side thread';
-  const { parentDialogTurnId, parentTurnIndex } = getParentInterruptionContext(params.parentSessionId);
+  const { parentDialogTurnId, parentTurnIndex } = params.parentDialogTurnId
+    ? { parentDialogTurnId: params.parentDialogTurnId,
+        parentTurnIndex: absoluteSessionTurnIndexForId(parentSession, params.parentDialogTurnId) }
+    : getParentInterruptionContext(params.parentSessionId);
 
   flowChatStore.addExternalSession(
     childSessionId,
@@ -247,7 +263,7 @@ export function createBtwSessionPlaceholder(params: {
         || parentSession.config.projectWorkspacePath
         || workspacePath,
       executionTarget: parentSession.config.executionTarget,
-      workspaceId: parentSession.workspaceId,
+      workspaceId,
     },
     parentSession.remoteConnectionId,
     parentSession.remoteSshHost
@@ -257,6 +273,10 @@ export function createBtwSessionPlaceholder(params: {
     parentSessionId: params.parentSessionId,
     sessionKind: 'btw',
   });
+  if (parentSession.config.modelName) {
+    flowChatStore.updateSessionModelName(childSessionId, parentSession.config.modelName);
+  }
+  flowChatStore.updateSessionReasoningPreset(childSessionId, parentSession.config.reasoningPreset);
 
   return { childSessionId, parentDialogTurnId, parentTurnIndex };
 }
@@ -270,6 +290,9 @@ export async function sendMessageToBtwSession(params: {
   imagePayload?: ImagePayload;
   parentDialogTurnId?: string;
   parentTurnIndex?: number;
+  userMessageMetadata?: Record<string, unknown>;
+  initialModelSelection?: { modelId: string; reasoningPreset?: string };
+  requestId?: string;
 }): Promise<{ requestId: string }> {
   const question = params.question.trim();
   if (!question) {
@@ -282,7 +305,8 @@ export async function sendMessageToBtwSession(params: {
     throw new Error(`Session is not a persistent /btw session: ${params.childSessionId}`);
   }
 
-  const requestId = createBtwRequestId('btw');
+  const scope = getActiveSurfaceScope();
+  const requestId = params.requestId ?? createBtwRequestId('btw');
   flowChatStore.updateSessionBtwOrigin(params.childSessionId, {
     ...(childSession.btwOrigin || {}),
     requestId,
@@ -301,8 +325,10 @@ export async function sendMessageToBtwSession(params: {
     parentDialogTurnId: params.parentDialogTurnId ?? childSession.btwOrigin?.parentDialogTurnId,
     parentTurnIndex: params.parentTurnIndex ?? childSession.btwOrigin?.parentTurnIndex,
     imageContexts: params.imagePayload?.imageContexts,
+    ...(params.userMessageMetadata ? { userMessageMetadata: params.userMessageMetadata } : {}),
+    ...(params.initialModelSelection ? { initialModelSelection: params.initialModelSelection } : {}),
   });
-  if (modelId) {
+  if (modelId && scope.isCurrent()) {
     flowChatStore.updateSessionModelName(params.childSessionId, modelId);
   }
 

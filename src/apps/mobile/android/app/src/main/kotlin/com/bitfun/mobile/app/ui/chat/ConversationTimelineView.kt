@@ -1,5 +1,7 @@
 package com.bitfun.mobile.app.ui.chat
 
+import com.bitfun.mobile.core.feature.session.HistoryLoadState
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.bitfun.mobile.app.R
 import com.bitfun.mobile.core.feature.session.ConversationRow
@@ -81,6 +85,14 @@ internal fun ConversationTimelineView(
     onDownloadFile: (String, String) -> Unit,
     downloadEnabled: Boolean,
     modifier: Modifier,
+    historyLoadState: HistoryLoadState = HistoryLoadState.IDLE,
+    /**
+     * How much of the pane the floating header and composer cover. The list
+     * runs the full height behind them, so without these the first and last
+     * messages would sit under a capsule and never come out from under it.
+     */
+    topInset: Dp = 0.dp,
+    bottomInset: Dp = 0.dp,
 ) {
     val listState = rememberLazyListState()
     var stickToBottom by rememberSaveable { mutableStateOf(true) }
@@ -120,14 +132,27 @@ internal fun ConversationTimelineView(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().testTag(CONVERSATION_LIST_TEST_TAG),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 12.dp),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = topInset,
+                bottom = if (bottomInset > 0.dp) bottomInset else 12.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
         ) {
             if (hasMoreMessages) {
                 item(key = "load-older-messages") {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        TextButton(onClick = { stickToBottom = false; onLoadOlder() }, enabled = enabled) {
-                            Text(stringResource(R.string.chat_load_older_messages))
+                        TextButton(
+                            onClick = { stickToBottom = false; onLoadOlder() },
+                            enabled = enabled && historyLoadState != HistoryLoadState.LOADING,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                        ) {
+                            Text(stringResource(when (historyLoadState) {
+                                HistoryLoadState.LOADING -> R.string.chat_loading_older_messages
+                                HistoryLoadState.FAILED -> R.string.chat_load_older_failed
+                                else -> R.string.chat_load_older_messages
+                            }))
                         }
                     }
                 }
@@ -160,7 +185,10 @@ internal fun ConversationTimelineView(
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 5.dp,
                 tonalElevation = 1.dp,
-                modifier = Modifier.align(Alignment.BottomCenter).offset(y = (-4).dp).size(42.dp),
+                // Sits above the floating composer rather than behind it.
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .offset(y = -(bottomInset + 4.dp))
+                    .size(42.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(

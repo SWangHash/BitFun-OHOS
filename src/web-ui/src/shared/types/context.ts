@@ -19,6 +19,7 @@ export type ContextItem =
   | FileContext
   | DirectoryContext
   | SessionReferenceContext
+  | ConversationExcerptContext
   | CodeSnippetContext
   | PullRequestContext
   | MermaidNodeContext
@@ -51,6 +52,13 @@ export interface SessionReferenceContext extends BaseContext {
   type: 'session-reference';
   sessionId: string;
   sessionName: string;
+  /**
+   * Owning workspace ID of the referenced session; the identity the host uses
+   * to locate its storage. Optional only for references persisted before IDs
+   * existed, which are upgraded from the legacy fields below.
+   */
+  workspaceId?: string;
+  /** Legacy pre-ID storage selector; display/IO projection for new references. */
   workspacePath: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -68,6 +76,32 @@ export interface CodeSnippetContext extends BaseContext {
   
   beforeContext?: string; 
   afterContext?: string;  
+}
+
+/** Frozen transcript material. DOM ranges and viewport coordinates never cross this boundary. */
+export interface ConversationExcerptContext extends BaseContext {
+  type: 'conversation-excerpt';
+  /** Display label preserved with the annotation; id remains its identity. */
+  annotationNumber?: number;
+  source: {
+    surfaceId: string;
+    sessionId: string;
+    sessionName: string;
+    workspaceId?: string;
+    workspacePath?: string;
+    remoteConnectionId?: string;
+    remoteSshHost?: string;
+  };
+  fragments: Array<{
+    turnId: string;
+    flowItemId?: string;
+    text: string;
+    start: number;
+    end: number;
+    prefix: string;
+    suffix: string;
+  }>;
+  comment?: string;
 }
 
 export interface PullRequestContext extends BaseContext {

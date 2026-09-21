@@ -1132,17 +1132,21 @@ impl PersistenceManager {
     ) -> SessionMetadata {
         let last_active_at = Self::system_time_to_unix_ms(session.last_activity_at);
 
-        let resolved_identity =
-            if let Some(workspace_root) = session.config.workspace_path.as_deref() {
-                resolve_workspace_session_identity(
-                    workspace_root,
-                    session.config.remote_connection_id.as_deref(),
-                    session.config.remote_ssh_host.as_deref(),
-                )
+        let resolved_identity = if let Some(id) = session.config.workspace_id.as_deref() {
+            crate::agentic::WorkspaceBinding::resolve(id)
                 .await
-            } else {
-                None
-            };
+                .ok()
+                .map(|binding| binding.session_identity)
+        } else if let Some(workspace_root) = session.config.workspace_path.as_deref() {
+            resolve_workspace_session_identity(
+                workspace_root,
+                session.config.remote_connection_id.as_deref(),
+                session.config.remote_ssh_host.as_deref(),
+            )
+            .await
+        } else {
+            None
+        };
 
         let workspace_root = resolved_identity
             .as_ref()
@@ -1155,7 +1159,7 @@ impl PersistenceManager {
             .map(|identity| identity.hostname.clone())
             .or_else(|| existing.and_then(|value| value.workspace_hostname.clone()))
             .or_else(|| {
-                if session.config.remote_connection_id.is_some() {
+                if session.config.is_remote_workspace() {
                     session.config.remote_ssh_host.clone()
                 } else {
                     Some(LOCAL_WORKSPACE_SSH_HOST.to_string())
@@ -1163,6 +1167,8 @@ impl PersistenceManager {
             });
 
         build_persisted_session_metadata(SessionMetadataBuildFacts {
+            workspace_id: session.config.workspace_id.as_deref(),
+            project_workspace_id: session.config.project_workspace_id.as_deref(),
             session_id: &session.session_id,
             session_name: &session.session_name,
             agent_type: &session.agent_type,
@@ -2546,11 +2552,11 @@ impl PersistenceManager {
         Ok(session)
     }
 
-    fn build_session_from_persisted_parts(
+    async fn build_session_from_persisted_parts(
         metadata: SessionMetadata,
         stored_state: Option<StoredSessionStateFile>,
         turns: &[DialogTurnData],
-    ) -> Session {
+    ) -> BitFunResult<Session> {
         let legacy_minimal = stored_state
             .as_ref()
             .is_some_and(|value| value.config.legacy_minimal_agent);
@@ -2559,6 +2565,12 @@ impl PersistenceManager {
             .map(|value| value.config.clone())
             .unwrap_or_default();
         config.legacy_minimal_agent = false;
+        if config.project_workspace_id.is_none() {
+            config.project_workspace_id = metadata.project_workspace_id.clone();
+        }
+        if config.workspace_id.is_none() {
+            config.workspace_id = metadata.workspace_id.clone();
+        }
         if config.workspace_path.is_none() {
             config.workspace_path = metadata.workspace_path.clone();
         }
@@ -2568,6 +2580,7 @@ impl PersistenceManager {
                 .clone()
                 .filter(|host| host != LOCAL_WORKSPACE_SSH_HOST && host != "_unresolved");
         }
+        crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
         if config.model_id.is_none() && !metadata.model_name.is_empty() {
             config.model_id = Some(metadata.model_name.clone());
         }
@@ -2584,7 +2597,7 @@ impl PersistenceManager {
         let last_activity_at = Self::unix_ms_to_system_time(metadata.last_active_at);
         let dialog_turn_ids = turns.iter().map(|turn| turn.turn_id.clone()).collect();
 
-        Session {
+        Ok(Session {
             session_id: metadata.session_id.clone(),
             session_name: metadata.session_name.clone(),
             agent_type: if legacy_minimal {
@@ -2613,7 +2626,7 @@ impl PersistenceManager {
             created_at,
             updated_at: last_activity_at,
             last_activity_at,
-        }
+        })
     }
 
     /// Read identity/config facts without loading dialog content or restoring a
@@ -2633,11 +2646,7 @@ impl PersistenceManager {
         let state = self
             .load_stored_session_state(storage_path, session_id)
             .await?;
-        Ok(Self::build_session_from_persisted_parts(
-            metadata,
-            state,
-            &[],
-        ))
+        Self::build_session_from_persisted_parts(metadata, state, &[]).await
     }
 
     /// Load session and return the persisted turns read while rebuilding the session header.
@@ -2697,7 +2706,8 @@ impl PersistenceManager {
         let turns = read_result.turns;
 
         let build_started_at = Instant::now();
-        let session = Self::build_session_from_persisted_parts(metadata, stored_state, &turns);
+        let session =
+            Self::build_session_from_persisted_parts(metadata, stored_state, &turns).await?;
         let build_session_duration_ms = elapsed_ms_u64(build_started_at);
         let total_duration_ms = elapsed_ms_u64(started_at);
 
@@ -2834,7 +2844,8 @@ impl PersistenceManager {
             )
         };
         let build_started_at = Instant::now();
-        let session = Self::build_session_from_persisted_parts(metadata, stored_state, &turns);
+        let session =
+            Self::build_session_from_persisted_parts(metadata, stored_state, &turns).await?;
         let build_session_duration_ms = elapsed_ms_u64(build_started_at);
         let total_duration = started_at.elapsed();
 
@@ -3740,21 +3751,45 @@ impl PersistenceManager {
         Ok(turns)
     }
 
-    /// Load the product-visible Session history while retaining the current
-    /// process's persisted writer lease across the marker and Turn reads.
+    /// Load the product-visible Session history.
+    ///
+    /// When this process can take or reuse the persisted writer lease, the
+    /// revert marker and Turn files are read under that lease. When another
+    /// process already holds the exclusive writer, this still projects the
+    /// persisted visible history so observer surfaces (host streams, remote
+    /// chat, session views) can display a Session that is open elsewhere.
     ///
     /// Runtime owners that reconcile, redo, or permanently discard a staged
     /// suffix must use [`Self::load_session_turns`] instead. Passive product
     /// consumers must enter through Core's per-Session mutation owner before
-    /// using this projection; the persistence lease supplies cross-process,
-    /// not in-process, ordering.
+    /// using this projection; the persistence lease supplies cross-process
+    /// snapshot ordering when it is available, not a ban on observer reads.
     pub async fn load_visible_session_turns(
         &self,
         workspace_path: &Path,
         session_id: &str,
     ) -> BitFunResult<Vec<DialogTurnData>> {
         Self::validate_session_id(session_id)?;
-        let _session_write = self.lock_session_write_operation(workspace_path, session_id)?;
+        let _session_write = match self.lock_session_write_operation(workspace_path, session_id) {
+            Ok(lock) => Some(lock),
+            Err(BitFunError::SessionInUse { .. }) => {
+                debug!(
+                    "Reading visible session history without the writer lease: session_id={}",
+                    session_id
+                );
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        self.project_visible_session_turns(workspace_path, session_id)
+            .await
+    }
+
+    async fn project_visible_session_turns(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+    ) -> BitFunResult<Vec<DialogTurnData>> {
         let boundary_turn = self
             .load_session_revert_state(workspace_path, session_id)
             .await?
@@ -4592,10 +4627,12 @@ mod tests {
     };
     use crate::BitFunError;
     use bitfun_runtime_ports::SessionTurnWindowRequest;
+    use bitfun_services_core::session::SessionWriteLock;
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
+    use std::process::{Command, Stdio};
     use std::sync::Arc;
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
     use uuid::Uuid;
 
     struct TestWorkspace {
@@ -4609,6 +4646,11 @@ mod tests {
                 Uuid::new_v4()
             ));
             std::fs::create_dir_all(&path).expect("test workspace should be created");
+            // Sessions only exist inside registered workspaces; register the
+            // fixture directory like a host that opened this folder. Keep the
+            // canonical path so record-derived IO projections compare equal.
+            let path = dunce::canonicalize(&path).expect("test workspace should canonicalize");
+            crate::service::workspace::legacy_compat::register_local_fixture_blocking(&path);
             Self { path }
         }
 
@@ -4809,6 +4851,52 @@ mod tests {
             .expect_err("path-like session id must be rejected");
 
         assert!(error.to_string().contains("session_id"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn legacy_local_session_identity_is_repaired_after_restart_and_resave() {
+        let workspace = TestWorkspace::new();
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let mut value = serde_json::to_value(SessionConfig::default()).unwrap();
+        value["workspace_path"] = serde_json::json!(workspace.path().to_string_lossy());
+        value["remote_ssh_host"] = serde_json::json!("localhost");
+        value.as_object_mut().unwrap().remove("workspace_kind");
+        let config: SessionConfig = serde_json::from_value(value).unwrap();
+        let session = Session::new_with_id(
+            "legacy-local-identity".into(),
+            "Keep title".into(),
+            "Standard".into(),
+            config,
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .unwrap();
+        drop(manager);
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let restored = manager
+            .load_session(workspace.path(), &session.session_id)
+            .await
+            .unwrap();
+        assert_eq!(restored.session_name, "Keep title");
+        assert_eq!(
+            restored.config.workspace_kind,
+            Some(bitfun_core_types::WorkspaceKind::Normal)
+        );
+        assert!(restored.config.remote_ssh_host.is_none());
+        assert!(!restored.config.is_remote_workspace());
+        manager
+            .save_session(workspace.path(), &restored)
+            .await
+            .unwrap();
+        drop(manager);
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let again = manager
+            .load_session(workspace.path(), &session.session_id)
+            .await
+            .unwrap();
+        assert_eq!(again.config.workspace_kind, restored.config.workspace_kind);
+        assert!(again.config.remote_ssh_host.is_none());
     }
 
     #[tokio::test]
@@ -5408,6 +5496,166 @@ mod tests {
         assert_eq!(loaded_session.dialog_turn_ids, vec!["turn-1".to_string()]);
         assert_eq!(loaded_turns.len(), 1);
         assert_eq!(loaded_turns[0].turn_id, "turn-1");
+    }
+
+    const VISIBLE_HISTORY_WRITER_CHILD_ENV: &str = "BITFUN_VISIBLE_HISTORY_WRITER_CHILD";
+    const VISIBLE_HISTORY_WRITER_CHILD_TEST: &str =
+        "agentic::persistence::manager::tests::visible_history_writer_child_holds_lock";
+
+    fn spawn_exclusive_session_writer_child(
+        sessions_dir: &Path,
+        session_id: &str,
+        ready_path: &Path,
+    ) -> std::process::Child {
+        let mut command = Command::new(std::env::current_exe().expect("current test executable"));
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000);
+        }
+        command
+            .arg("--exact")
+            .arg(VISIBLE_HISTORY_WRITER_CHILD_TEST)
+            .arg("--nocapture")
+            .env(VISIBLE_HISTORY_WRITER_CHILD_ENV, "1")
+            .env(
+                "BITFUN_VISIBLE_HISTORY_SESSIONS_DIR",
+                sessions_dir.as_os_str(),
+            )
+            .env("BITFUN_VISIBLE_HISTORY_SESSION_ID", session_id)
+            .env(
+                "BITFUN_VISIBLE_HISTORY_READY_PATH",
+                ready_path.as_os_str(),
+            )
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn exclusive session writer child")
+    }
+
+    fn wait_for_writer_child_ready(child: &mut std::process::Child, ready_path: &Path) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !ready_path.exists() && Instant::now() < deadline {
+            if let Some(status) = child.try_wait().expect("poll writer child") {
+                panic!("writer child exited before acquiring the lock: {status}");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if !ready_path.exists() {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("writer child did not become ready");
+        }
+    }
+
+    #[test]
+    fn visible_history_writer_child_holds_lock() {
+        if std::env::var_os(VISIBLE_HISTORY_WRITER_CHILD_ENV).is_none() {
+            return;
+        }
+        let sessions_dir = PathBuf::from(
+            std::env::var_os("BITFUN_VISIBLE_HISTORY_SESSIONS_DIR")
+                .expect("child sessions directory"),
+        );
+        let session_id =
+            std::env::var("BITFUN_VISIBLE_HISTORY_SESSION_ID").expect("child session id");
+        let ready_path = PathBuf::from(
+            std::env::var_os("BITFUN_VISIBLE_HISTORY_READY_PATH").expect("child ready path"),
+        );
+        let _writer =
+            SessionWriteLock::try_acquire(&sessions_dir, &session_id).expect("child writer");
+        std::fs::write(ready_path, b"ready").expect("publish child readiness");
+        loop {
+            std::thread::park();
+        }
+    }
+
+    #[tokio::test]
+    async fn visible_session_history_is_readable_while_another_process_holds_the_writer() {
+        let workspace = TestWorkspace::new();
+        let manager =
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager");
+        let session_id = Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            session_id.clone(),
+            "Observer history".to_string(),
+            "Standard".to_string(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                ..Default::default()
+            },
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .expect("session should save");
+        for index in 0..=1 {
+            let mut turn = DialogTurnData::new(
+                format!("turn-{index}"),
+                index,
+                session_id.clone(),
+                UserMessageData {
+                    id: format!("user-{index}"),
+                    content: format!("prompt {index}"),
+                    timestamp: index as u64,
+                    metadata: None,
+                },
+            );
+            turn.mark_completed();
+            manager
+                .save_dialog_turn(workspace.path(), &turn)
+                .await
+                .expect("fixture turn should persist");
+        }
+        manager
+            .save_session_revert_state(
+                workspace.path(),
+                &session_id,
+                &SessionRevertState {
+                    schema_version: SESSION_REVERT_SCHEMA_VERSION,
+                    boundary_turn: 1,
+                    original_turn_end: 2,
+                    phase: SessionRevertPhase::Staged,
+                    workspace_checkpoint: Vec::new(),
+                },
+            )
+            .await
+            .expect("staged revert should persist");
+
+        let sessions_dir = manager
+            .path_manager()
+            .project_sessions_dir(workspace.path());
+        let ready_path = workspace.path().join("writer-child-ready");
+        let mut child =
+            spawn_exclusive_session_writer_child(&sessions_dir, &session_id, &ready_path);
+        wait_for_writer_child_ready(&mut child, &ready_path);
+
+        let error = manager
+            .lock_session_writes(workspace.path(), &session_id)
+            .expect_err("another process must own the exclusive writer");
+        assert!(
+            matches!(
+                error,
+                BitFunError::SessionInUse { session_id: ref locked }
+                    if locked == &session_id
+            ),
+            "expected SessionInUse, got {error:?}"
+        );
+
+        let visible = manager
+            .load_visible_session_turns(workspace.path(), &session_id)
+            .await
+            .expect("host-stream observers must read persisted history while another client holds the writer");
+        assert_eq!(
+            visible
+                .iter()
+                .map(|turn| turn.turn_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["turn-0"]
+        );
+
+        child.kill().expect("terminate writer child");
+        child.wait().expect("reap writer child");
     }
 
     fn user_message(content: &str) -> UserMessageData {
@@ -7605,11 +7853,19 @@ mod tests {
         let workspace = TestWorkspace::new();
         let path_manager = workspace.path_manager();
         let manager = PersistenceManager::new(path_manager.clone()).expect("persistence manager");
+        let remote_path = format!("/home/wsp/corrupt-index-{}", Uuid::new_v4());
+        let remote_workspace = crate::service::workspace::legacy_compat::register_remote_fixture(
+            &remote_path,
+            "ssh-1",
+            "dev-host",
+        )
+        .await;
         let sessions_dir = crate::service::WorkspaceRuntimeService::new(path_manager)
-            .context_for_remote_workspace("dev-host", "/home/wsp/project")
+            .context_for_remote_workspace("dev-host", &remote_path)
             .sessions_dir;
         let config = SessionConfig {
-            workspace_path: Some("/home/wsp/project".to_string()),
+            workspace_id: Some(remote_workspace.id.clone()),
+            workspace_path: Some(remote_path.clone()),
             remote_connection_id: Some("ssh-1".to_string()),
             remote_ssh_host: Some("dev-host".to_string()),
             ..Default::default()

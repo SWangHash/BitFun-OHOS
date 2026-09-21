@@ -86,6 +86,9 @@ export struct AppSidebarSurface {
       savedConnectionsTargetId: this.remotePageState.savedConnectionsTargetId,
       workspaceName: this.remotePageState.workspaceName,
       workspacePath: this.remotePageState.workspacePath,
+      workspaceConnectionId: this.remotePageState.workspaceConnectionId,
+      workspaceSshHost: this.remotePageState.workspaceSshHost,
+      workspaceId: this.remotePageState.workspaceId,
       workspaceKind: this.remotePageState.workspaceKind,
       connectionState: this.remotePageState.connectionState,
       controlTargetType: this.remotePageState.controlTargetType,
@@ -98,18 +101,21 @@ export struct AppSidebarSurface {
         REMOTE_CAPABILITY_HARNESS_PROFILES_V1),
       workspacePickerPlacement: this.sessionDetailsPlacement,
       onOpenSession: this.actions.onSidebar.openSession,
-      onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string) => {
+      onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string, sshHost?: string,
+        workspaceId?: string) => {
         this.actions.onSidebar.close();
-        this.actions.onRemoteHome.createInWorkspace(path, agentType, deviceId, connectionId);
+        this.actions.onRemoteHome.createInWorkspace(path, agentType, deviceId, connectionId, sshHost, workspaceId);
       },
-      onOpenWorkspace: (deviceId: string, path: string, connectionId?: string) => {
-        this.actions.onRemoteHome.selectWorkspace(path, deviceId, connectionId);
+      onOpenWorkspace: (deviceId: string, path: string, connectionId?: string, sshHost?: string, workspaceId?: string) => {
+        this.actions.onRemoteHome.selectWorkspace(path, deviceId, connectionId, sshHost, workspaceId);
       },
-      onExpandWorkspace: async (deviceId: string, path: string): Promise<void> => {
-        await this.actions.onRemoteHome.loadWorkspaceSessions(deviceId, path);
+      onExpandWorkspace: async (deviceId: string, path: string, remoteConnectionId?: string, remoteSshHost?: string,
+        workspaceId?: string): Promise<void> => {
+        await this.actions.onRemoteHome.loadWorkspaceSessions(deviceId, path, remoteConnectionId, remoteSshHost, workspaceId);
       },
       onSelectDevice: this.actions.onRemoteHome.selectDirectoryDevice,
       onRetryDevice: this.actions.onRemoteHome.retryDirectoryDevice,
+      onReconnect: this.actions.onRemoteHome.reconnect,
       onAddWorkspace: this.actions.onRemoteHome.addDirectoryWorkspace,
       onRefreshDevices: this.actions.onSidebar.refreshDevices,
       onAddDevice: this.actions.onSidebar.addDesktop

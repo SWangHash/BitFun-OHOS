@@ -27,6 +27,28 @@
     line-height: var(--bitfun-type-flow-body-line-height);
   }
 
+  /* Flow Chat's readable answer copy is slightly stronger than the shared
+   * light-theme content-primary anchor, without changing other surfaces. */
+  :root[data-color-scheme='light'][data-contrast='standard'] & .markdown-renderer,
+  :root[data-color-scheme='light'][data-contrast='standard'] & .text-content {
+    color: color-mix(in srgb, var(--bitfun-color-content-on-light) 90%, transparent);
+
+    &:is(.markdown-renderer) :is(
+      p,
+      h1,
+      h2,
+      h3,
+      ul,
+      ol,
+      summary,
+      .table-wrapper th,
+      .table-wrapper td,
+      strong
+    ) {
+      color: color-mix(in srgb, var(--bitfun-color-content-on-light) 90%, transparent);
+    }
+  }
+
   /* Keep all rendered link variants (anchors and button-like local links) visibly link-blue. */
   .markdown-renderer a,
   .markdown-renderer .file-link,

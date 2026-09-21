@@ -6,10 +6,12 @@ use crate::api::path_target::{
     create_directory as create_desktop_directory, create_empty_file,
     delete_directory as delete_desktop_directory, delete_file as delete_desktop_file,
     get_path_metadata, path_exists, read_binary_file, read_text_file, read_text_file_prefix,
-    rename_path, resolve_desktop_path_target, write_text_file, DesktopPathTarget,
+    rename_path, resolve_desktop_path_target, resolve_desktop_workspace_target, write_text_file,
+    DesktopPathTarget,
 };
 use crate::api::search_api::{
     build_content_search_request, group_search_results, prepare_content_search_runner,
+    remote_content_search_refusal, remote_content_search_refusal_message, resolve_search_workspace,
     search_file_contents_via_workspace_search, search_metadata_from_content_result,
     should_use_workspace_search, SearchMetadataResponse,
 };
@@ -386,6 +388,10 @@ pub struct CreateAssistantWorkspaceRequest {}
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanWorkspaceInfoRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only: removed after pre-ID clients are no longer supported.
+    #[serde(default)]
     pub workspace_path: String,
 }
 
@@ -469,6 +475,8 @@ pub struct UpdateAppStatusRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ReadFileContentRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     #[serde(rename = "filePath")]
     pub file_path: String,
     pub encoding: Option<String>,
@@ -525,7 +533,10 @@ pub struct ListAgentCompanionPetsResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct WriteFileContentRequest {
-    #[serde(rename = "workspacePath")]
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
+    /// Temporary legacy wire field; current clients select by ID.
+    #[serde(default, rename = "workspacePath")]
     pub workspace_path: String,
     #[serde(rename = "filePath")]
     pub file_path: String,
@@ -544,12 +555,20 @@ pub struct ResetWorkspacePersonaFilesRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CheckPathExistsRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
+    #[serde(default, rename = "remoteConnectionId")]
+    pub remote_connection_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct GetFileMetadataRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
+    #[serde(default, rename = "remoteConnectionId")]
+    pub remote_connection_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -588,9 +607,14 @@ pub type ExplorerGetChildrenPaginatedRequest = GetDirectoryChildrenPaginatedRequ
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchFilesRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only input. Current callers send workspaceId.
     pub root_path: String,
     pub pattern: String,
     pub search_content: bool,
+    #[serde(default)]
+    pub remote_connection_id: Option<String>,
     #[serde(default)]
     pub search_id: Option<String>,
     #[serde(default)]
@@ -608,6 +632,9 @@ pub struct SearchFilesRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchFilenamesRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only input. Current callers send workspaceId.
     pub root_path: String,
     pub pattern: String,
     #[serde(default)]
@@ -661,6 +688,9 @@ mod search_filenames_request_tests {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchFileContentsRequest {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only input. Current callers send workspaceId.
     pub root_path: String,
     pub pattern: String,
     #[serde(default)]
@@ -698,6 +728,8 @@ fn resolve_search_limit(requested: Option<usize>, fallback: usize) -> usize {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenameFileRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub old_path: String,
     pub new_path: String,
     #[serde(default)]
@@ -713,6 +745,8 @@ pub struct ExportLocalFileRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteFileRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
     #[serde(default, rename = "remoteConnectionId")]
     pub remote_connection_id: Option<String>,
@@ -720,6 +754,8 @@ pub struct DeleteFileRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteDirectoryRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
     pub recursive: Option<bool>,
     #[serde(default, rename = "remoteConnectionId")]
@@ -728,6 +764,8 @@ pub struct DeleteDirectoryRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateFileRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
     #[serde(default, rename = "remoteConnectionId")]
     pub remote_connection_id: Option<String>,
@@ -735,6 +773,8 @@ pub struct CreateFileRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDirectoryRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
     #[serde(default, rename = "remoteConnectionId")]
     pub remote_connection_id: Option<String>,
@@ -742,6 +782,8 @@ pub struct CreateDirectoryRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct RevealInExplorerRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
 }
 
@@ -754,8 +796,7 @@ async fn clear_active_workspace_context(
     let _ = app;
 
     let step_started = Instant::now();
-    let previous_workspace_path = state.workspace_path.read().await.clone();
-    *state.workspace_path.write().await = None;
+    let previous_workspace_id = state.workspace_id.write().await.take();
     if let Some(trace) = startup_trace {
         trace.record_elapsed_step(
             "tauri_command",
@@ -764,13 +805,18 @@ async fn clear_active_workspace_context(
         );
     }
 
-    if let Some(previous_workspace_path) = previous_workspace_path {
+    if let Some(previous_workspace_id) = previous_workspace_id {
         let step_started = Instant::now();
-        let root_str = previous_workspace_path.to_string_lossy().to_string();
-        if !is_remote_path(root_str.trim()).await {
-            state
-                .workspace_search_service
-                .schedule_repo_release(previous_workspace_path);
+        if let Some(previous) = state
+            .workspace_service
+            .get_workspace(&previous_workspace_id)
+            .await
+        {
+            if previous.workspace_kind != WorkspaceKind::Remote {
+                state
+                    .workspace_search_service
+                    .schedule_repo_release(previous.root_path);
+            }
         }
         if let Some(trace) = startup_trace {
             trace.record_elapsed_step(
@@ -848,7 +894,7 @@ async fn apply_active_workspace_context(
     }
 
     let step_started = Instant::now();
-    *state.workspace_path.write().await = Some(workspace_info.root_path.clone());
+    *state.workspace_id.write().await = Some(workspace_info.id.clone());
     if let Some(trace) = startup_trace {
         trace.record_elapsed_step(
             "tauri_command",
@@ -2321,38 +2367,25 @@ pub async fn scan_workspace_info(
     state: State<'_, AppState>,
     request: ScanWorkspaceInfoRequest,
 ) -> Result<Option<WorkspaceInfoDto>, String> {
-    let workspace_path = std::path::PathBuf::from(&request.workspace_path);
-
-    if let Some(existing_workspace) = state
-        .workspace_service
-        .get_workspace_by_path(&workspace_path)
-        .await
-    {
-        return state
-            .workspace_service
-            .rescan_workspace(&existing_workspace.id)
+    let service = &state.workspace_service;
+    let record = if let Some(id) = request.workspace_id.as_deref() {
+        service.require_workspace(id).await
+    } else {
+        service
+            .resolve_legacy_workspace_reference(None, &request.workspace_path, None, None)
             .await
-            .map(|workspace| Some(WorkspaceInfoDto::from_workspace_info(&workspace)))
-            .map_err(|e| format!("Failed to rescan workspace: {}", e));
+            .and_then(|record| {
+                record.ok_or_else(|| {
+                    bitfun_core::BitFunError::service("Workspace ID is required for scanning")
+                })
+            })
     }
-
-    WorkspaceInfo::new(
-        workspace_path,
-        WorkspaceOpenOptions {
-            scan_options: ScanOptions::default(),
-            auto_set_current: false,
-            add_to_recent: false,
-            workspace_kind: WorkspaceKind::Normal,
-            assistant_id: None,
-            display_name: None,
-            remote_connection_id: None,
-            remote_ssh_host: None,
-            stable_workspace_id: None,
-        },
-    )
-    .await
-    .map(|workspace| Some(WorkspaceInfoDto::from_workspace_info(&workspace)))
-    .map_err(|e| format!("Failed to scan workspace info: {}", e))
+    .map_err(|error| error.to_string())?;
+    service
+        .rescan_workspace(&record.id)
+        .await
+        .map(|workspace| Some(WorkspaceInfoDto::from_workspace_info(&workspace)))
+        .map_err(|error| error.to_string())
 }
 
 async fn ensure_directory_request_path(path: &str) -> Result<(), String> {
@@ -2588,6 +2621,7 @@ pub async fn read_file_content(
         &request.file_path,
         request.encoding.as_deref(),
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -2681,8 +2715,7 @@ mod pet_package_tests {
     #[ignore = "Imports installed Codex pets into an isolated temporary directory"]
     fn installed_builtin_pets_can_be_previewed_and_imported() {
         let temp = tempfile::tempdir().unwrap();
-        let sources =
-            bitfun_core::external_sources::external_builtin_pet_sources("codex", None);
+        let sources = bitfun_core::external_sources::external_builtin_pet_sources("codex", None);
         assert!(sources.diagnostics.is_empty(), "{:?}", sources.diagnostics);
         assert!(!sources.pets.is_empty());
         for source in sources.pets {
@@ -3003,6 +3036,7 @@ pub async fn write_file_content(
         &state,
         &request.file_path,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await?;
     use bitfun_core::service::filesystem::path_operations::{
@@ -3074,7 +3108,13 @@ pub async fn check_path_exists(
     state: State<'_, AppState>,
     request: CheckPathExistsRequest,
 ) -> Result<bool, String> {
-    path_exists(&state, &request.path).await
+    path_exists(
+        &state,
+        &request.path,
+        request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3082,7 +3122,13 @@ pub async fn get_file_metadata(
     state: State<'_, AppState>,
     request: GetFileMetadataRequest,
 ) -> Result<serde_json::Value, String> {
-    get_path_metadata(&state, &request.path).await
+    get_path_metadata(
+        &state,
+        &request.path,
+        request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
+    )
+    .await
 }
 
 /// Returns SHA-256 hex (lowercase) of file bytes after the same normalization as the web editor
@@ -3092,7 +3138,14 @@ pub async fn get_file_editor_sync_hash(
     state: State<'_, AppState>,
     request: GetFileMetadataRequest,
 ) -> Result<serde_json::Value, String> {
-    match resolve_desktop_path_target(&state, &request.path, None).await? {
+    match resolve_desktop_path_target(
+        &state,
+        &request.path,
+        request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
+    )
+    .await?
+    {
         DesktopPathTarget::Remote {
             requested_path,
             entry,
@@ -3139,6 +3192,7 @@ pub async fn rename_file(
         &request.old_path,
         &request.new_path,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -3218,6 +3272,7 @@ pub async fn delete_file(
         &state,
         &request.path,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -3233,6 +3288,7 @@ pub async fn delete_directory(
         &request.path,
         recursive,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -3246,6 +3302,7 @@ pub async fn create_file(
         &state,
         &request.path,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -3259,6 +3316,7 @@ pub async fn create_directory(
         &state,
         &request.path,
         request.remote_connection_id.as_deref(),
+        request.workspace_id.as_deref(),
     )
     .await
 }
@@ -4739,6 +4797,8 @@ mod archive_tests {
 
 #[derive(Debug, Deserialize)]
 pub struct ListDirectoryFilesRequest {
+    #[serde(default, rename = "workspaceId", alias = "workspace_id")]
+    pub workspace_id: Option<String>,
     pub path: String,
     pub extensions: Option<Vec<String>>,
 }
@@ -4750,7 +4810,9 @@ pub async fn list_directory_files(
 ) -> Result<Vec<String>, String> {
     use std::path::Path;
 
-    match resolve_desktop_path_target(&state, &request.path, None).await? {
+    match resolve_desktop_path_target(&state, &request.path, None, request.workspace_id.as_deref())
+        .await?
+    {
         DesktopPathTarget::Remote {
             requested_path,
             entry,
@@ -4826,7 +4888,9 @@ pub async fn reveal_in_explorer(
     state: State<'_, AppState>,
     request: RevealInExplorerRequest,
 ) -> Result<(), String> {
-    let target = resolve_desktop_path_target(&state, &request.path, None).await?;
+    let target =
+        resolve_desktop_path_target(&state, &request.path, None, request.workspace_id.as_deref())
+            .await?;
     let path = match target.as_local_path() {
         Some(path) => path,
         None => {
@@ -4944,9 +5008,24 @@ pub(crate) fn reveal_local_path_in_explorer(
 #[tauri::command]
 pub async fn search_files(
     state: State<'_, AppState>,
-    request: SearchFilesRequest,
+    mut request: SearchFilesRequest,
 ) -> Result<serde_json::Value, String> {
     use bitfun_core::service::filesystem::FileSearchOptions;
+
+    let workspace = resolve_search_workspace(
+        &state,
+        request.workspace_id.as_deref(),
+        &request.root_path,
+        request.remote_connection_id.as_deref(),
+    )
+    .await?;
+    request.root_path = workspace.root_path.to_string_lossy().into_owned();
+    request.remote_connection_id = Some(
+        workspace
+            .filesystem_connection_id()?
+            .unwrap_or("")
+            .to_owned(),
+    );
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -4969,15 +5048,25 @@ pub async fn search_files(
     };
 
     let use_workspace_search =
-        request.search_content && should_use_workspace_search(&state, &request.root_path).await;
+        request.search_content && should_use_workspace_search(&state, &workspace).await;
     let result = if request.search_content {
-        if is_remote_path(request.root_path.trim()).await {
+        if workspace.workspace_kind == WorkspaceKind::Remote {
             if !use_workspace_search {
-                Err("Remote content search requires workspace search support".to_string())
+                Err(
+                    remote_content_search_refusal(&state, "search_files", &workspace)
+                        .await
+                        .unwrap_or_else(|| {
+                            remote_content_search_refusal_message(
+                                "search_files",
+                                &request.root_path,
+                                "remote workspace search is unavailable",
+                            )
+                        }),
+                )
             } else {
                 search_file_contents_via_workspace_search(
                     &state,
-                    &request.root_path,
+                    &workspace,
                     &request.pattern,
                     request.case_sensitive,
                     request.use_regex,
@@ -5010,7 +5099,7 @@ pub async fn search_files(
                 let mut content_outcome = if use_workspace_search {
                     search_file_contents_via_workspace_search(
                         &state,
-                        &request.root_path,
+                        &workspace,
                         &request.pattern,
                         request.case_sensitive,
                         request.use_regex,
@@ -5049,12 +5138,39 @@ pub async fn search_files(
             }
         }
     } else {
-        state
-            .filesystem_service
-            .search_file_names(&request.root_path, &request.pattern, options, cancel_flag)
-            .await
-            .map(|outcome| outcome.results)
-            .map_err(|error| format!("Failed to search filenames: {}", error))
+        match resolve_desktop_workspace_target(&state, &workspace.id).await {
+            Ok(DesktopPathTarget::Remote {
+                requested_path,
+                entry,
+            }) => match state.get_remote_file_service_async().await {
+                Ok(remote_fs) => search_remote_file_names(RemoteFileNameSearch {
+                    remote_fs,
+                    workspace: entry,
+                    root_path: requested_path,
+                    pattern: request.pattern.clone(),
+                    case_sensitive: request.case_sensitive,
+                    use_regex: request.use_regex,
+                    whole_word: request.whole_word,
+                    include_directories: request.include_directories,
+                    limit: max_results,
+                    cancel_flag,
+                    progress_sink: None,
+                })
+                .await
+                .map(|outcome| outcome.results),
+                Err(error) => Err(format!(
+                    "search_files cannot list remote workspace path '{}': remote file service is unavailable ({}); local filesystem fallback was not attempted",
+                    request.root_path, error
+                )),
+            },
+            Ok(DesktopPathTarget::Local { .. }) => state
+                .filesystem_service
+                .search_file_names(&request.root_path, &request.pattern, options, cancel_flag)
+                .await
+                .map(|outcome| outcome.results)
+                .map_err(|error| format!("Failed to search filenames: {}", error)),
+            Err(error) => Err(error),
+        }
     };
     unregister_search(&state, search_id.as_deref());
 
@@ -5082,9 +5198,24 @@ pub async fn search_files(
 #[tauri::command]
 pub async fn search_filenames(
     state: State<'_, AppState>,
-    request: SearchFilenamesRequest,
+    mut request: SearchFilenamesRequest,
 ) -> Result<serde_json::Value, String> {
     use bitfun_core::service::filesystem::FileSearchOptions;
+
+    let workspace = resolve_search_workspace(
+        &state,
+        request.workspace_id.as_deref(),
+        &request.root_path,
+        request.remote_connection_id.as_deref(),
+    )
+    .await?;
+    request.root_path = workspace.root_path.to_string_lossy().into_owned();
+    request.remote_connection_id = Some(
+        workspace
+            .filesystem_connection_id()?
+            .unwrap_or("")
+            .to_owned(),
+    );
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -5099,13 +5230,7 @@ pub async fn search_filenames(
         include_directories: request.include_directories,
     };
 
-    let result = match resolve_desktop_path_target(
-        &state,
-        &request.root_path,
-        request.remote_connection_id.as_deref(),
-    )
-    .await
-    {
+    let result = match resolve_desktop_workspace_target(&state, &workspace.id).await {
         Ok(DesktopPathTarget::Remote {
             requested_path,
             entry,
@@ -5165,9 +5290,25 @@ pub async fn search_filenames(
 #[tauri::command]
 pub async fn search_file_contents(
     state: State<'_, AppState>,
-    request: SearchFileContentsRequest,
+    mut request: SearchFileContentsRequest,
 ) -> Result<serde_json::Value, String> {
     use bitfun_core::service::filesystem::FileSearchOptions;
+
+    let workspace = resolve_search_workspace(
+        &state,
+        request.workspace_id.as_deref(),
+        &request.root_path,
+        None,
+    )
+    .await?;
+    request.root_path = workspace.root_path.to_string_lossy().into_owned();
+
+    if let Some(message) =
+        remote_content_search_refusal(&state, "search_file_contents", &workspace).await
+    {
+        error!("Content search refused: {}", message);
+        return Err(message);
+    }
 
     let search_id = request.search_id.clone();
     let cancel_flag = register_search(&state, search_id.as_deref());
@@ -5182,10 +5323,10 @@ pub async fn search_file_contents(
         include_directories: false,
     };
 
-    let result = if should_use_workspace_search(&state, &request.root_path).await {
+    let result = if should_use_workspace_search(&state, &workspace).await {
         search_file_contents_via_workspace_search(
             &state,
-            &request.root_path,
+            &workspace,
             &request.pattern,
             request.case_sensitive,
             request.use_regex,
@@ -5233,9 +5374,24 @@ pub async fn search_file_contents(
 pub async fn start_search_filenames_stream(
     app_handle: AppHandle,
     state: State<'_, AppState>,
-    request: SearchFilenamesRequest,
+    mut request: SearchFilenamesRequest,
 ) -> Result<serde_json::Value, String> {
     use bitfun_core::service::filesystem::FileSearchOptions;
+
+    let workspace = resolve_search_workspace(
+        &state,
+        request.workspace_id.as_deref(),
+        &request.root_path,
+        request.remote_connection_id.as_deref(),
+    )
+    .await?;
+    request.root_path = workspace.root_path.to_string_lossy().into_owned();
+    request.remote_connection_id = Some(
+        workspace
+            .filesystem_connection_id()?
+            .unwrap_or("")
+            .to_owned(),
+    );
 
     let search_id = ensure_search_id(request.search_id.clone(), "filenames-stream");
     let cancel_flag = register_search(&state, Some(&search_id));
@@ -5250,13 +5406,7 @@ pub async fn start_search_filenames_stream(
         include_directories: request.include_directories,
     };
 
-    let remote_search_target = match resolve_desktop_path_target(
-        &state,
-        &request.root_path,
-        request.remote_connection_id.as_deref(),
-    )
-    .await
-    {
+    let remote_search_target = match resolve_desktop_workspace_target(&state, &workspace.id).await {
         Ok(DesktopPathTarget::Remote {
             requested_path,
             entry,
@@ -5379,9 +5529,25 @@ pub async fn start_search_filenames_stream(
 pub async fn start_search_file_contents_stream(
     app_handle: AppHandle,
     state: State<'_, AppState>,
-    request: SearchFileContentsRequest,
+    mut request: SearchFileContentsRequest,
 ) -> Result<serde_json::Value, String> {
     use bitfun_core::service::filesystem::FileSearchOptions;
+
+    let workspace = resolve_search_workspace(
+        &state,
+        request.workspace_id.as_deref(),
+        &request.root_path,
+        None,
+    )
+    .await?;
+    request.root_path = workspace.root_path.to_string_lossy().into_owned();
+
+    if let Some(message) =
+        remote_content_search_refusal(&state, "start_search_file_contents_stream", &workspace).await
+    {
+        error!("Content search stream refused: {}", message);
+        return Err(message);
+    }
 
     let search_id = ensure_search_id(request.search_id.clone(), "content-stream");
     let cancel_flag = register_search(&state, Some(&search_id));
@@ -5403,10 +5569,10 @@ pub async fn start_search_file_contents_stream(
     let case_sensitive = request.case_sensitive;
     let use_regex = request.use_regex;
     let whole_word = request.whole_word;
-    let use_workspace_search = should_use_workspace_search(&state, &root_path).await;
+    let use_workspace_search = should_use_workspace_search(&state, &workspace).await;
     let workspace_search_runner = if use_workspace_search {
         Some(
-            prepare_content_search_runner(&state, &root_path)
+            prepare_content_search_runner(&state, &workspace)
                 .await
                 .map_err(|error| format!("Failed to prepare workspace search: {}", error))?,
         )
@@ -5798,11 +5964,18 @@ pub async fn detect_local_model_service(
         request.port
     };
 
-    log::info!("[local-model-command] detect_local_model_service called with port={}", port);
+    log::info!(
+        "[local-model-command] detect_local_model_service called with port={}",
+        port
+    );
 
     match local_model_client::detect_service(port).await {
         Ok(status) => {
-            log::info!("[local-model-command] detect succeeded: available={}, models_count={}", status.available, status.models.len());
+            log::info!(
+                "[local-model-command] detect succeeded: available={}, models_count={}",
+                status.available,
+                status.models.len()
+            );
             Ok(status)
         }
         Err(e) => {
@@ -5847,7 +6020,7 @@ pub async fn list_local_models(
 
 /// Pull (download) a model from the local model service.
 ///
-/// Streaming progress is emitted via the `local-model-pull-progress` Tauri 
+/// Streaming progress is emitted via the `local-model-pull-progress` Tauri
 /// event. The frontend should listen for this event to display a progress bar.
 #[tauri::command]
 pub async fn pull_local_model(
@@ -5865,8 +6038,11 @@ pub async fn pull_local_model(
     let mut rx = local_model_client::pull_model(port, &request.model_name)
         .await
         .map_err(|e| format!("Failed to start model pull: {}", e))?;
-    
-    log::info!("[local-model-command] pull_model started for '{}', waiting for progress events", request.model_name);
+
+    log::info!(
+        "[local-model-command] pull_model started for '{}', waiting for progress events",
+        request.model_name
+    );
 
     // Forward progress events to the frontend via Tauri event system.
     let app_handle = app.clone();
@@ -5875,7 +6051,11 @@ pub async fn pull_local_model(
         let mut event_count: u32 = 0;
         while let Some(progress) = rx.recv().await {
             event_count += 1;
-            if event_count <= 5 || progress.status == "success" || progress.status == "paused" || progress.status == "failed" {
+            if event_count <= 5
+                || progress.status == "success"
+                || progress.status == "paused"
+                || progress.status == "failed"
+            {
                 log::info!(
                     "[local-model-command] Emitting progress event #{}: model={}, status={}, total={}, completed={}", 
                     event_count, progress.model_name, progress.status, progress.total, progress.completed
@@ -5891,7 +6071,8 @@ pub async fn pull_local_model(
         }
         log::info!(
             "[local-model-command] Progress event stream for model '{}' : {} events emitted",
-            model_name_for_log, event_count
+            model_name_for_log,
+            event_count
         );
     });
 
@@ -5911,15 +6092,27 @@ pub async fn pause_local_model_download(
         request.port
     };
 
-    log::info!("[local-model-command] pause_local_model_download called for model='{}' port={}", request.model_name, port);
+    log::info!(
+        "[local-model-command] pause_local_model_download called for model='{}' port={}",
+        request.model_name,
+        port
+    );
 
     match local_model_client::pause_download(port, &request.model_name).await {
         Ok(success) => {
-            log::info!("[local-model-command] Pause download result for '{}': success={}", request.model_name, success);
+            log::info!(
+                "[local-model-command] Pause download result for '{}': success={}",
+                request.model_name,
+                success
+            );
             Ok(success)
         }
         Err(e) => {
-            log::warn!("[local-model-command] Pause download failed for '{}': {}", request.model_name, e);
+            log::warn!(
+                "[local-model-command] Pause download failed for '{}': {}",
+                request.model_name,
+                e
+            );
             Err(format!("Failed to pause model download: {}", e))
         }
     }
@@ -5934,7 +6127,6 @@ pub async fn workspace_file_upload(
         .user_id
         .ok_or("Sign in to use workspace transfers")?;
     let status =
-        bitfun_core::service::filesystem::upload::workspace_file_upload(account, request)
-            .await?;
+        bitfun_core::service::filesystem::upload::workspace_file_upload(account, request).await?;
     serde_json::to_value(status).map_err(|error| error.to_string())
 }

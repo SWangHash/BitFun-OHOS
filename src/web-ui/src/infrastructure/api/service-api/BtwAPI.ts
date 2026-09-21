@@ -12,6 +12,10 @@ export interface BtwAskStreamRequest {
   parentDialogTurnId?: string;
   parentTurnIndex?: number;
   imageContexts?: ImageInputContextData[];
+  /** Optional UI metadata; question always contains the complete readable fallback. */
+  userMessageMetadata?: Record<string, unknown>;
+  /** Negotiated on peers; omission retains the parent's model/reasoning policy. */
+  initialModelSelection?: { modelId: string; reasoningPreset?: string };
 }
 
 export interface BtwAskStreamResponse {

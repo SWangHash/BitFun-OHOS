@@ -1,4 +1,4 @@
-﻿import { buttonAppearanceDescriptor } from '@/component-library/components/Button/appearance';
+import { buttonAppearanceDescriptor } from '@/component-library/components/Button/appearance';
 import { cardAppearanceDescriptor } from '@/component-library/components/Card/appearance';
 import { inputAppearanceDescriptor } from '@/component-library/components/Input/appearance';
 import { modalAppearanceDescriptor } from '@/component-library/components/Modal/appearance';
@@ -141,6 +141,7 @@ import { dateTimePickerAppearanceDescriptor } from '@/app/components/scheduled-j
 import { todosSceneAppearanceDescriptor } from '@/app/scenes/todos/appearance';
 import { flexiblePanelAppearanceDescriptor } from '@/app/components/panels/base/FlexiblePanel.appearance';
 import { btwSessionPanelAppearanceDescriptor } from '@/flow_chat/components/btw/BtwSessionPanel.appearance';
+import { conversationExcerptAppearanceDescriptor } from '@/flow_chat/selection/ConversationExcerpt.appearance';
 import { modernFlowChatAppearanceDescriptor, virtualMessageListAppearanceDescriptor } from '@/flow_chat/components/modern/appearance';
 import { modelSettingsAppearanceDescriptor } from '@/infrastructure/config/components/ModelSettingsPage.appearance';
 import { reasoningConfigPanelAppearanceDescriptor } from '@/infrastructure/config/components/ReasoningConfigPanel.appearance';
@@ -151,6 +152,7 @@ import { runtimeSettingsAppearanceDescriptor } from '@/infrastructure/config/com
 import { sessionTitleConfigAppearanceDescriptor } from '@/infrastructure/config/components/SessionTitleConfig.appearance';
 import { mcpToolsConfigAppearanceDescriptor } from '@/infrastructure/config/components/McpToolsConfig.appearance';
 import { localModelManagerAppearanceDescriptor } from '@/infrastructure/config/components/LocalModelManagerInline.appearance';
+import { mcpServerConfigDialogAppearanceDescriptor } from '@/infrastructure/config/components/MCPServerConfigDialog.appearance';
 import { externalMcpOverviewAppearanceDescriptor } from '@/infrastructure/config/components/ExternalMcpOverview.appearance';
 import { voiceInputDiagnosticsAppearanceDescriptor } from '@/infrastructure/config/components/VoiceInputDiagnostics.appearance';
 import { assistantCardAppearanceDescriptor } from '@/app/scenes/profile/views/AssistantCard.appearance';
@@ -189,7 +191,6 @@ import { statusBarPopoversAppearanceDescriptor } from '@/tools/editor/components
 import { mEditorAppearanceDescriptor } from '@/tools/editor/meditor/components/MEditor.appearance';
 import { globalSearchAppearanceDescriptor } from '@/app/global-search/GlobalSearchRoot.appearance';
 import { workspaceRelatedPathsDialogAppearanceDescriptor } from '@/app/components/NavPanel/sections/workspaces/WorkspaceRelatedPathsDialog.appearance';
-import { branchSelectModalAppearanceDescriptor } from '@/app/components/panels/BranchSelectModal.appearance';
 import { floatingMiniChatAppearanceDescriptor } from '@/app/layout/FloatingMiniChat.appearance';
 import { miniAppBubbleWelcomeAppearanceDescriptor } from '@/app/layout/MiniAppBubbleWelcome.appearance';
 import { branchesViewAppearanceDescriptor } from '@/app/scenes/git/views/BranchesView.appearance';
@@ -259,6 +260,7 @@ import { flowTextBlockAppearanceDescriptor } from '@/flow_chat/components/FlowTe
 import { chatInputApprovalBandAppearanceDescriptor } from '@/flow_chat/components/ChatInputApprovalBand.appearance';
 import { canvasToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/CanvasToolCard.appearance';
 import { computerUseToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/ComputerUseToolCard.appearance';
+import { bitFunControlToolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/BitFunControlToolCard.appearance';
 import { miniAppToolDisplayAppearanceDescriptor } from '@/flow_chat/tool-cards/MiniAppToolDisplay.appearance';
 import { modelThinkingDisplayAppearanceDescriptor } from '@/flow_chat/tool-cards/ModelThinkingDisplay.appearance';
 import { toolTimeoutIndicatorAppearanceDescriptor } from '@/flow_chat/tool-cards/ToolTimeoutIndicator.appearance';
@@ -452,6 +454,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(dateTimePickerAppearanceDescriptor)
     .registerComponent(flexiblePanelAppearanceDescriptor)
     .registerComponent(btwSessionPanelAppearanceDescriptor)
+    .registerComponent(conversationExcerptAppearanceDescriptor)
     .registerComponent(modernFlowChatAppearanceDescriptor)
     .registerComponent(virtualMessageListAppearanceDescriptor)
     .registerComponent(modelSettingsAppearanceDescriptor)
@@ -463,6 +466,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(sessionTitleConfigAppearanceDescriptor)
     .registerComponent(mcpToolsConfigAppearanceDescriptor)
     .registerComponent(localModelManagerAppearanceDescriptor)
+    .registerComponent(mcpServerConfigDialogAppearanceDescriptor)
     .registerComponent(externalMcpOverviewAppearanceDescriptor)
     .registerComponent(voiceInputDiagnosticsAppearanceDescriptor)
     .registerComponent(assistantCardAppearanceDescriptor)
@@ -492,7 +496,6 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(mEditorAppearanceDescriptor)
     .registerComponent(globalSearchAppearanceDescriptor)
     .registerComponent(workspaceRelatedPathsDialogAppearanceDescriptor)
-    .registerComponent(branchSelectModalAppearanceDescriptor)
     .registerComponent(floatingMiniChatAppearanceDescriptor)
     .registerComponent(miniAppBubbleWelcomeAppearanceDescriptor)
     .registerComponent(branchesViewAppearanceDescriptor)
@@ -535,6 +538,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(chatInputApprovalBandAppearanceDescriptor)
     .registerComponent(canvasToolCardAppearanceDescriptor)
     .registerComponent(computerUseToolCardAppearanceDescriptor)
+    .registerComponent(bitFunControlToolCardAppearanceDescriptor)
     .registerComponent(miniAppToolDisplayAppearanceDescriptor)
     .registerComponent(modelThinkingDisplayAppearanceDescriptor)
     .registerComponent(toolTimeoutIndicatorAppearanceDescriptor)

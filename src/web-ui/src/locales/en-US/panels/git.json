@@ -233,22 +233,6 @@
       "unexpected": "Unexpected error while switching branches"
     }
   },
-  "branchSelect": {
-    "title": "Select or Create Branch",
-    "inputPlaceholder": "Enter new branch name...",
-    "loading": "Loading...",
-    "createNewLabel": "Create new branch:",
-    "openAfterCreate": {
-      "label": "Open after create",
-      "description": "Open the new worktree as a workspace immediately after it is created."
-    },
-    "badges": {
-      "inUse": "In Use"
-    },
-    "errors": {
-      "loadFailed": "Failed to load branch list"
-    }
-  },
   "selection": {
     "selectAll": "Select all unstaged files",
     "deselectAll": "Deselect all",

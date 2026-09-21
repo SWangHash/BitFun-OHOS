@@ -10,8 +10,8 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 
 .bitfun-skills-scene {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -19,6 +19,43 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
   overflow: hidden;
   container: skills-scene / inline-size;
   color: var(--bitfun-color-content-primary);
+
+  > .gallery-page-header {
+    grid-area: 1 / 1 / 2 / 2;
+    min-inline-size: 0;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Tab bar
+// ══════════════════════════════════════════════════════════════════════════════
+
+.skills-tabs-bar {
+  grid-area: 2 / 1 / 3 / 2;
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  padding: var(--bitfun-space-3) var(--bitfun-space-6);
+  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+}
+
+.skills-tabs-bar__tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-1);
+  min-inline-size: 0;
+}
+
+.skills-tabs-bar__tab {
+  flex: none;
+}
+
+.skills-tabs-bar__divider {
+  flex: none;
+  inline-size: 1px;
+  block-size: 16px;
+  margin-inline: var(--bitfun-space-2);
+  background: var(--bitfun-color-border-subtle);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -26,7 +63,7 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 // ══════════════════════════════════════════════════════════════════════════════
 
 .skills-page {
-  grid-area: 1 / 2 / 3 / 3;
+  grid-area: 3 / 1 / 4 / 2;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -45,7 +82,6 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 }
 
 .skills-sidebar {
-  grid-area: 1 / 1 / 3 / 2;
   inline-size: $skills-sidebar-width;
   min-inline-size: 0;
   border-inline-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
@@ -503,6 +539,51 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
   overflow: hidden;
 }
 
+// Market hero: shares the scene gutters so title, search, and the card grid
+// align on the same symmetric left/right edges.
+
+.skills-discover__hero {
+  flex: none;
+  display: flex;
+  min-inline-size: 0;
+  padding: var(--bitfun-space-5) var(--bitfun-space-6) var(--bitfun-space-4);
+  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+}
+
+.skills-discover__hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-2);
+  min-inline-size: 0;
+  inline-size: 100%;
+}
+
+.skills-discover__title {
+  margin: 0;
+  font-family: var(--bitfun-type-heading-dialog-font-family);
+  font-size: var(--bitfun-type-heading-dialog-font-size);
+  font-weight: var(--bitfun-type-heading-dialog-font-weight);
+  line-height: var(--bitfun-type-heading-dialog-line-height);
+  letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
+}
+
+.skills-discover__subtitle {
+  margin: 0;
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
+}
+
+.skills-discover__search-wrapper {
+  margin-block-start: var(--bitfun-space-2);
+  max-inline-size: 520px;
+  min-inline-size: 0;
+}
+
+.skills-discover__search {
+  inline-size: 100%;
+}
+
 .skills-discover__content {
   flex: 1;
   min-height: 0;
@@ -529,6 +610,292 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 .skills-discover__state {
   min-block-size: 200px;
   overflow-wrap: anywhere;
+}
+
+.skills-discover__skeleton-card {
+  min-block-size: 176px;
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-lg);
+  background: var(--bitfun-color-action-neutral-surface-hover);
+  animation: skills-card-in 0.2s var(--bitfun-motion-easing-decelerate) both;
+  @include surface-stagger.animation-delay(32ms);
+}
+
+.skills-discover__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bitfun-space-3);
+  min-block-size: 220px;
+  padding: var(--bitfun-space-6);
+  border-radius: var(--bitfun-layout-field-group-radius);
+  background: var(--bitfun-color-surface-tertiary);
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-label-md-font-size);
+  text-align: center;
+  overflow-wrap: anywhere;
+
+  &--error {
+    color: var(--bitfun-color-status-danger-content);
+  }
+}
+
+// ── Matrix (格物) market ──
+// The view mounts inside .skills-discover; it owns its section bar, filter
+// chips, and the scrollable content region.
+
+.skills-matrix {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.skills-matrix > .skills-discover__content {
+  overflow-y: auto;
+}
+
+.skills-matrix__section-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-1);
+  min-inline-size: 0;
+  padding: var(--bitfun-space-3) var(--bitfun-space-6);
+  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+}
+
+.skills-matrix__section-btn {
+  flex: none;
+  margin: 0;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: var(--bitfun-radius-base);
+  background: transparent;
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  font-weight: var(--bitfun-type-label-sm-font-weight);
+  line-height: var(--bitfun-type-label-sm-line-height);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  &.is-active {
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
+    color: var(--bitfun-color-accent-default);
+  }
+}
+
+.skills-matrix__chip-row {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bitfun-space-2) var(--bitfun-space-3);
+  min-inline-size: 0;
+  padding: var(--bitfun-space-3) var(--bitfun-space-6);
+  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+}
+
+.skills-matrix__chip-list {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  min-inline-size: 0;
+}
+
+.skills-matrix__chip-measure {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.skills-matrix__chip-scroll {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  min-inline-size: 0;
+  overflow: hidden;
+
+  &.is-expanded {
+    flex-wrap: wrap;
+  }
+}
+
+.skills-matrix__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bitfun-space-1);
+  max-inline-size: 100%;
+  padding: 2px 10px;
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-radius-pill);
+  background: transparent;
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  line-height: var(--bitfun-type-label-sm-line-height);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--bitfun-color-border-default);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  &.is-active {
+    border-color: color-mix(in srgb, var(--bitfun-color-accent-default) 35%, transparent);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, transparent);
+    color: var(--bitfun-color-accent-default);
+  }
+}
+
+.skills-matrix__chip--clear {
+  border-style: dashed;
+  color: var(--bitfun-color-content-muted);
+}
+
+.skills-matrix__chip-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-matrix__chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding: 0 5px;
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-action-neutral-surface-hover);
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-micro-font-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.skills-matrix__chip-expand {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 24px;
+  min-inline-size: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--bitfun-radius-base);
+  background: transparent;
+  color: var(--bitfun-color-content-secondary);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: 1px;
+  }
+}
+
+.skills-matrix__chip-meta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  margin-inline-start: auto;
+}
+
+.skills-matrix__chip-total {
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.skills-matrix__chip-hint,
+.skills-matrix__chip-loading,
+.skills-matrix__chip-empty {
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
+  white-space: nowrap;
+}
+
+.skills-matrix__chip-error {
+  color: var(--bitfun-color-status-danger-content);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
+}
+
+// ── Load more ──
+
+.skills-load-more-sentinel {
+  block-size: 1px;
+}
+
+.skills-load-more-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bitfun-space-2);
+  padding: var(--bitfun-space-4) 0;
+  color: var(--bitfun-color-content-muted);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
+}
+
+.skills-load-more-spinner {
+  animation: skills-load-more-spin 0.9s linear infinite;
+}
+
+.skills-load-more-retry {
+  margin: 0;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--bitfun-radius-base);
+  background: transparent;
+  color: var(--bitfun-color-accent-default);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  &:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: 1px;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -718,6 +1085,10 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes skills-load-more-spin {
+  to { transform: rotate(360deg); }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Responsive
 // ══════════════════════════════════════════════════════════════════════════════
@@ -727,7 +1098,11 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
   .skills-main__toolbar,
   .skills-main__list-shell,
   .skills-discover__pagination,
-  .skills-discover__content {
+  .skills-discover__content,
+  .skills-tabs-bar,
+  .skills-discover__hero,
+  .skills-matrix__section-bar,
+  .skills-matrix__chip-row {
     padding-inline: var(--bitfun-space-4);
   }
 
@@ -767,7 +1142,6 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 
 @container skills-scene (max-width: 760px) {
   .skills-sidebar {
-    grid-area: 1 / 1 / 2 / 3;
     inline-size: 100%;
     block-size: auto;
     border-inline-end: 0;
@@ -792,10 +1166,6 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
   .skills-sidebar__compact-picker {
     display: block;
     grid-area: 1 / 2;
-  }
-
-  .skills-page {
-    grid-area: 2 / 1 / 3 / 3;
   }
 }
 
@@ -837,7 +1207,9 @@ $skills-installed-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(120px, 0.85f
 
 @media (prefers-reduced-motion: reduce) {
   .skills-card,
-  .skills-card-skeleton {
+  .skills-card-skeleton,
+  .skills-discover__skeleton-card,
+  .skills-load-more-spinner {
     animation: none;
     transition: none;
   }

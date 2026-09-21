@@ -1,5 +1,15 @@
 # FlowChat Viewport Register
 
+Anchor diagnostics distinguish `anchor.correct` (a requested shift) from
+`anchor.correctionResult` (actual scroll travel, residual and progress). Results
+include the trigger source, anchor row key, rendered first index/count, frame
+timestamp, and cumulative correction/travel/reversal counts since capture.
+Reversals are evidence, not a stop condition. `anchor.settleOpened` records
+items/resize/snapshot/resume triggers and the previous budget; `anchor.settleEnded`
+records the final outcome. Repeating events use the existing gated coalescer;
+none contain message or tool content. Read suppressed counts as well as emitted
+samples. These diagnostics do not prove that a correction painted on screen.
+
 Every deliberate write to the FlowChat scroller goes through one register, which
 decides whether the writer may act. This document covers the register, what it
 replaced, the two writers that stand outside it, and the trail it leaves.
@@ -69,6 +79,15 @@ Only the parts that were really answering "is someone else moving the viewport"
 are gone.
 
 ## What Counts as a Gesture
+
+Selecting transcript text hands the viewport to the reader through the existing
+user-gesture path. The selection toolbar waits for pointer release and uses a
+portal; neither the toolbar nor its frozen annotation changes row geometry.
+Returning to an excerpt reuses concrete text navigation: stable Turn/item ids
+materialize only missing rows, then saved offsets and text context resolve the
+selected occurrence. CSS highlights do not wrap or resize transcript nodes.
+An edited or ambiguous source retains the quote and reports that it cannot be
+located. Gestures, a new request, and surface changes cancel a pending aim.
 
 Ordinary `scroll` events do not transfer viewport ownership; only explicit
 wheel, touch, or keyboard navigation exits follow-output. Once a reader takes

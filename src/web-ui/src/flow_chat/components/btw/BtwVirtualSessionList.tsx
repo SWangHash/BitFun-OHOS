@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject, type MutableRefObject } from 'react';
 import type { VirtualItem } from '../../store/modernFlowChatStore';
 import { VirtualItemRenderer } from '../modern/VirtualItemRenderer';
 import { useFlowChatVirtualizer } from '../modern/useFlowChatVirtualizer';
@@ -7,22 +7,29 @@ import { getVirtualItemStableKey } from '../modern/virtualItemIdentity';
 import { estimateVirtualMessageItemHeightWithContext } from '../modern/virtualMessageListLayout';
 import type { BtwPanelViewState } from './btwPanelViewState';
 import { useBtwPanelViewport } from './useBtwPanelViewport';
+import { globalEventBus } from '@/infrastructure/event-bus';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { FLOWCHAT_FOCUS_ITEM_EVENT, type FlowChatFocusItemRequest } from '../../events/flowchatNavigation';
+import { findExcerptTextRoot, highlightLocatedExcerpt } from '../../selection/locateConversationExcerpt';
+import { resolveExcerptRange } from '../../selection/flowChatSelection';
+import { resolveFlowChatFocusTarget } from '../modern/flowChatFocusTarget';
 
 interface BtwVirtualSessionListProps {
   items: VirtualItem[];
   scrollerRef: RefObject<HTMLDivElement | null>;
   headerRef: RefObject<HTMLDivElement | null>;
-  followRef: RefObject<boolean>;
+  followRef: MutableRefObject<boolean>;
   viewportOwner: FlowChatViewportOwnerApi;
   exploreGroupStates: Map<string, boolean>;
   isHistorical: boolean;
   viewState?: BtwPanelViewState;
+  onExpandGroup?: (id: string) => void;
 }
 
 /** The embedded transcript shares row placement, not the primary session shell. */
 export function BtwVirtualSessionList({
   items, scrollerRef, headerRef, followRef, viewportOwner,
-  exploreGroupStates, isHistorical, viewState,
+  exploreGroupStates, isHistorical, viewState, onExpandGroup,
 }: BtwVirtualSessionListProps) {
   const windowRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -53,6 +60,65 @@ export function BtwVirtualSessionList({
     shiftViewport: viewportOwner.shift,
   });
   useBtwPanelViewport(viewState, items, scrollerRef, windowRef, virtualizer, viewportOwner);
+  const navigationRef = useRef({ items, virtualizer, onExpandGroup });
+  navigationRef.current = { items, virtualizer, onExpandGroup };
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    let generation = 0;
+    let frame = 0;
+    const cancel = () => { generation++; cancelAnimationFrame(frame); navigationRef.current.virtualizer.cancelAim(); };
+    const unsubscribe = globalEventBus.on<FlowChatFocusItemRequest>(FLOWCHAT_FOCUS_ITEM_EVENT, request => {
+      if (!request.embedded || !request.excerpt || request.sessionId !== scroller.dataset.flowchatSelectionRoot) return;
+      cancel();
+      const ownGeneration = generation;
+      const scope = getActiveSurfaceScope();
+      if (request.surfaceEpoch !== scope.epoch) return;
+      const excerpt = request.excerpt;
+      const fragment = excerpt.fragments[0];
+      const startedAt = performance.now();
+      let materialized = false;
+      followRef.current = false;
+      if (viewState) viewState.followTail = false;
+      const aim = () => {
+        if (generation !== ownGeneration || !scope.isCurrent()) return;
+        const current = navigationRef.current;
+        const source = findExcerptTextRoot(excerpt);
+        const range = source && resolveExcerptRange(source, fragment);
+        if (range) {
+          const bounds = scroller.getBoundingClientRect();
+          const rect = range.getBoundingClientRect();
+          current.virtualizer.cancelAim();
+          if (rect.top < bounds.top || rect.bottom > bounds.bottom) {
+            current.virtualizer.scrollToOffset(scroller.scrollTop + rect.top - bounds.top - bounds.height / 3,
+              { owner: 'one-shot-navigation', holdForMs: 0 });
+          }
+          highlightLocatedExcerpt(excerpt);
+          return;
+        }
+        if (!materialized) {
+          const target = resolveFlowChatFocusTarget(request, current.items);
+          const index = fragment.flowItemId ? target.resolvedVirtualIndex
+            : current.items.findIndex(item => item.type === 'user-message' && item.turnId === fragment.turnId);
+          if (index === undefined || index < 0) { request.onUnavailable?.(); return; }
+          if (target.expandExploreGroupId) current.onExpandGroup?.(target.expandExploreGroupId);
+          current.virtualizer.scrollItemIntoView(index, { align: 'center', owner: 'one-shot-navigation' });
+          materialized = true;
+        }
+        if (performance.now() - startedAt >= 2000) { request.onUnavailable?.(); return; }
+        frame = requestAnimationFrame(aim);
+      };
+      aim();
+    });
+    scroller.addEventListener('wheel', cancel, { passive: true });
+    scroller.addEventListener('touchmove', cancel, { passive: true });
+    scroller.addEventListener('pointerdown', cancel);
+    scroller.addEventListener('keydown', cancel);
+    return () => {
+      cancel(); unsubscribe(); scroller.removeEventListener('wheel', cancel); scroller.removeEventListener('touchmove', cancel);
+      scroller.removeEventListener('pointerdown', cancel); scroller.removeEventListener('keydown', cancel);
+    };
+  }, [scrollerRef, followRef, viewState]);
 
   // Estimated offscreen rows change the scroll range as they mount. Follow
   // those measurements as well as streamed data, but recheck user intent in

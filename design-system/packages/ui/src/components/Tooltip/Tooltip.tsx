@@ -13,6 +13,7 @@ import {
   type RefObject,
 } from "react";
 import { classNames } from "../../internal/classNames";
+import { isImeOwnedKeyboardEvent } from "../../internal/ime";
 import { TooltipTriggerContext } from "../../internal/tooltipTriggerContext";
 import { Portal } from "../../overlay/Portal";
 import { useDesignSystem } from "../../overlay/useDesignSystem";
@@ -405,12 +406,16 @@ export function Tooltip({
 
   useEffect(() => {
     const ownerDocument = triggerRef.current?.ownerDocument;
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") hideTooltip();
+    const cancelPendingShow = (event: KeyboardEvent) => {
+      // A delayed tooltip has no painted layer yet. Cancel its timer without
+      // consuming Escape or dismissing any surface owned by the coordinator.
+      if (event.key !== "Escape" || isImeOwnedKeyboardEvent(event) || showTimeoutRef.current === null) return;
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
     };
-    ownerDocument?.addEventListener("keydown", onEscape, true);
-    return () => ownerDocument?.removeEventListener("keydown", onEscape, true);
-  }, [hideTooltip, triggerRef]);
+    ownerDocument?.addEventListener("keydown", cancelPendingShow, true);
+    return () => ownerDocument?.removeEventListener("keydown", cancelPendingShow, true);
+  }, [triggerRef]);
 
   const childProps = (children?.props ?? {}) as Record<string, unknown>;
   const childRef = (children as (ReactElement & { ref?: Ref<HTMLElement> }) | undefined)?.ref;
@@ -497,7 +502,8 @@ export function Tooltip({
         {triggerElement}
       </TooltipTriggerContext.Provider>
       {visible && (
-        <Portal ownerDocument={triggerRef.current?.ownerDocument}>
+        <Portal ownerDocument={triggerRef.current?.ownerDocument} ownerRef={triggerRef} passive
+          surfaceRef={tooltipRef} onDismiss={hideTooltip}>
         <div
           ref={tooltipRef}
           id={tooltipId}

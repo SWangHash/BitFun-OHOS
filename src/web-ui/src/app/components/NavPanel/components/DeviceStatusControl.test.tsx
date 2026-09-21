@@ -15,6 +15,10 @@ const state = vi.hoisted(() => ({
   overview: null as DeviceInterconnectionOverview | null,
   refresh: vi.fn().mockResolvedValue(undefined),
   switchToLocal: vi.fn().mockResolvedValue('activated'),
+  switchToDevice: vi.fn().mockResolvedValue('activated'),
+  identity: { status: 'signed-out', me: null } as { status: string; me: unknown },
+  getDeviceInfo: vi.fn(),
+  accountListDevices: vi.fn(),
 }));
 
 vi.mock('./useDeviceInterconnectionOverview', () => ({
@@ -34,10 +38,25 @@ vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
   usePeerDeviceModeOptional: () => ({
     peerMode: { active: state.overview?.peerActive },
     switchToLocal: state.switchToLocal,
+    switchToDevice: state.switchToDevice,
   }),
 }));
+vi.mock('@/infrastructure/account-identity', () => ({
+  useAccountIdentity: () => state.identity,
+}));
+vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', async importOriginal => ({
+  ...await importOriginal<typeof import('@/infrastructure/api/service-api/RemoteConnectAPI')>(),
+  remoteConnectAPI: {
+    getDeviceInfo: state.getDeviceInfo,
+    accountListDevices: state.accountListDevices,
+  },
+}));
+vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({
+  api: { listen: () => () => {} },
+}));
+const notifications = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn() }));
 vi.mock('@/shared/notification-system', () => ({
-  useNotification: () => ({ success: vi.fn(), warning: vi.fn() }),
+  useNotification: () => notifications,
 }));
 
 function overview(overrides: Partial<DeviceInterconnectionOverviewInput> = {}) {
@@ -79,6 +98,9 @@ function element(testId: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  state.identity = { status: 'signed-out', me: null };
+  state.getDeviceInfo.mockReset();
+  state.accountListDevices.mockReset();
   state.overview = overview();
   container = document.createElement('div');
   document.body.append(container);
@@ -173,7 +195,7 @@ describe('device status card', () => {
     const previousRefreshes = state.refresh.mock.calls.length;
     act(() => retry?.click());
     expect(state.refresh).toHaveBeenCalledTimes(previousRefreshes + 1);
-    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    act(() => retry?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(document.activeElement).toBe(element('nav-footer-device-status'));
     onOpenChange.mockClear();
@@ -188,5 +210,31 @@ describe('device status card', () => {
     expect(element('nav-device-status-summary').querySelector('.bitfun-device-overview__device-name')?.textContent).toBe(name);
     expect(element('nav-device-status-summary').querySelector('[title]')?.getAttribute('title')).toBe(name);
     expect(element('nav-footer-device-status').getAttribute('aria-label')).toContain(name);
+  });
+
+  it('keeps an incompatible peer in the switch list but never connects to it', async () => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct', githubId: 42 } } };
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+    state.accountListDevices.mockResolvedValue([
+      { device_id: 'local', device_name: 'This computer', online: true },
+      { device_id: 'peer', device_name: 'Old build', online: true, compatible: false, device_client_version: '0.9.0' },
+    ]);
+    await act(async () => {
+      root.render(<DeviceStatusControl open onOpenChange={onOpenChange} onManageDevices={onManageDevices} />);
+    });
+
+    const next = document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.nextDevice"]');
+    expect(next).not.toBeNull();
+    await act(async () => { next!.click(); });
+
+    // The peer stays visible in the carousel with its reason instead of a connect action.
+    const notice = document.querySelector('[data-testid="nav-device-status-incompatible"]');
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent).toContain('deviceOverview.deviceClientIncompatibleWithVersion');
+    expect(document.querySelector('.bitfun-device-overview__device-name')?.textContent).toBeDefined();
+    expect(Array.from(document.querySelectorAll('button')).some(
+      button => button.textContent === 'deviceOverview.connectDevice',
+    )).toBe(false);
+    expect(state.switchToDevice).not.toHaveBeenCalled();
   });
 });

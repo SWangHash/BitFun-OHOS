@@ -1,5 +1,6 @@
 import type { ContextItem, SessionReferenceContext } from '@/shared/types/context';
 import type { TurnRailCapsulePreview } from '@/shared/types/session-history';
+import { excerptText, formatConversationExcerpt, isConversationExcerpt, isValidConversationExcerpt } from '@/shared/utils/conversationExcerpt';
 
 export const COMPOSER_PRESENTATION_VERSION = 1;
 
@@ -31,6 +32,7 @@ const CONTEXT_TYPES = new Set<ContextItem['type']>([
   'file',
   'directory',
   'session-reference',
+  'conversation-excerpt',
   'code-snippet',
   'pull-request',
   'mermaid-node',
@@ -149,6 +151,7 @@ export function composerPresentationToAccessibleText(
       if (segment.kind === 'inline-token') {
         return `[${segment.tokenType === 'skill' ? 'Skill' : 'Widget'}: ${segment.label}]`;
       }
+      if (isConversationExcerpt(segment.context)) return '\n\n' + formatConversationExcerpt(segment.context);
       const type = segment.context.type === 'session-reference'
         ? 'Session reference'
         : 'Context';
@@ -186,11 +189,30 @@ function isContextLike(value: unknown): value is ContextItem {
   }
 
   const context = value as Record<string, unknown>;
+  if (context.type === 'conversation-excerpt') return isValidConversationExcerpt(context);
   return (
     typeof context.id === 'string' &&
     typeof context.type === 'string' &&
     CONTEXT_TYPES.has(context.type as ContextItem['type'])
   );
+}
+
+/** Off-editor annotations share the same persisted presentation as inline attachments. */
+export function withConversationExcerpts(
+  presentation: ComposerPresentation | null | undefined,
+  contexts: ContextItem[],
+  text = '',
+): ComposerPresentation {
+  const segments = (presentation?.segments ?? [{ kind: 'text' as const, text }])
+    .filter(segment => segment.kind !== 'context' || !isConversationExcerpt(segment.context));
+  if (!segments.length && text.trim()) segments.push({ kind: 'text', text });
+  return { version: COMPOSER_PRESENTATION_VERSION, segments: [
+    ...segments,
+    ...contexts.filter(isConversationExcerpt).map(context => ({
+      kind: 'context' as const, context, tag: '',
+      label: context.source.sessionName, title: excerptText(context),
+    })),
+  ] };
 }
 
 /**

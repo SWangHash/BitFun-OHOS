@@ -1,6 +1,7 @@
  
 
 import React from 'react';
+import { Icon } from '@bitfun/ui';
 import { FileIcon, Code, Network, Code2 as Code2Icon } from 'lucide-react';
 import { contextRegistry } from '../../services/ContextRegistry';
 import { 
@@ -31,12 +32,29 @@ import {
 import { i18nService } from '@/infrastructure/i18n';
 import { APPEARANCE_DOMAIN_TOKENS } from '@/infrastructure/appearance/appearanceDomainTokens';
 import { createLogger } from '@/shared/utils/logger';
+import { excerptText, formatConversationExcerpt, isValidConversationExcerpt } from '@/shared/utils/conversationExcerpt';
 
 const log = createLogger('ContextRegistry');
 
  
 export function registerDefaultContextTypes(): void {
   let registeredCount = 0;
+  contextRegistry.register({
+    type: 'conversation-excerpt',
+    displayName: i18nService.t('flow-chat:selection.annotation'),
+    icon: React.createElement(Icon, { name: 'edit', size: 'sm' }),
+    color: 'var(--bitfun-color-content-secondary)',
+    category: 'reference',
+    transformer: { type: 'conversation-excerpt', transform: formatConversationExcerpt },
+    validator: {
+      type: 'conversation-excerpt',
+      validate: async context => ({ valid: isValidConversationExcerpt(context) }),
+      quickValidate: context => ({ valid: isValidConversationExcerpt(context) }),
+    },
+    renderer: { type: 'conversation-excerpt', render: context => React.createElement('span', null, excerptText(context)) },
+    config: { cacheable: false, priority: 7 },
+  });
+  registeredCount++;
   
   try {
     

@@ -1,7 +1,7 @@
 //! App Server management adapter over the existing product owners.
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
@@ -117,9 +117,9 @@ impl AppManagementService {
 
     async fn ensure_external_source_subscription(
         &self,
-        workspace: &Path,
+        workspace: &str,
     ) -> AppManagementResult<()> {
-        let workspace_path = workspace.to_string_lossy().to_string();
+        let workspace_path = workspace.to_owned();
         {
             let mut subscriptions = self
                 .external_source_subscriptions
@@ -354,7 +354,7 @@ async fn external_source_preferences() -> AppManagementResult<ExternalSourceConf
 }
 
 async fn external_source_snapshot_response(
-    workspace: &Path,
+    workspace: &str,
     force_refresh: bool,
 ) -> AppManagementResult<ExternalSourceSnapshotResponse> {
     let surface = bitfun_core::external_sources::get_external_source_control_snapshot(
@@ -851,10 +851,16 @@ impl AppManagementService {
         &self,
         request: NativeHookOverviewRequest,
     ) -> AppManagementResult<NativeHookOverviewResponse> {
-        let workspace = Path::new(&request.workspace_path);
-        let overview = bitfun_core::native_hooks::overview(Some(workspace)).await;
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let workspace = record.id.as_str();
+        let overview = bitfun_core::native_hooks::overview(Some(workspace))
+            .await
+            .map_err(AppManagementError::invalid_request)?;
         Ok(NativeHookOverviewResponse(project_native_hook_overview(
-            overview, workspace,
+            overview,
+            &record.root_path,
         )))
     }
 
@@ -863,7 +869,14 @@ impl AppManagementService {
         request: ExternalHookSnapshotRequest,
     ) -> AppManagementResult<ExternalHookSnapshotResponse> {
         bitfun_core::external_hook_import::external_hook_import_snapshot(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             request.refresh_updates,
         )
         .await
@@ -876,7 +889,14 @@ impl AppManagementService {
         request: ExternalHookPlanRequest,
     ) -> AppManagementResult<ExternalHookPlanResponse> {
         bitfun_core::external_hook_import::plan_external_hook_import(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             request.source,
         )
         .await
@@ -890,7 +910,14 @@ impl AppManagementService {
     ) -> AppManagementResult<ExternalHookApplyResponse> {
         validate_external_operation(&request.operation_id)?;
         bitfun_core::external_hook_import::apply_external_hook_import(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             request.import_request,
         )
         .await
@@ -904,7 +931,14 @@ impl AppManagementService {
     ) -> AppManagementResult<ExternalHookMutationResponse> {
         validate_external_operation(&request.operation_id)?;
         bitfun_core::external_hook_import::mutate_external_hook_import(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             request.mutation,
         )
         .await
@@ -916,7 +950,10 @@ impl AppManagementService {
         &self,
         request: ExternalSourceSnapshotRequest,
     ) -> AppManagementResult<ExternalSourceSnapshotResponse> {
-        let workspace = Path::new(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let workspace = record.id.as_str();
         self.ensure_external_source_subscription(workspace).await?;
         external_source_snapshot_response(workspace, request.force_refresh).await
     }
@@ -929,7 +966,10 @@ impl AppManagementService {
             .request
             .validate()
             .map_err(AppManagementError::invalid_request)?;
-        let workspace = Path::new(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let workspace = record.id.as_str();
         let surface = bitfun_core::external_sources::apply_external_source_control_action(
             Some(workspace),
             request.request,
@@ -947,7 +987,10 @@ impl AppManagementService {
         request: ExternalSourceReviewRequest,
     ) -> AppManagementResult<ExternalSourceReviewResponse> {
         validate_external_operation(&request.operation_id)?;
-        let workspace = Path::new(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let workspace = record.id.as_str();
         let operation_id = request.operation_id.clone();
         let result = match request.action {
             ExternalSourceReviewAction::Refresh => {
@@ -1059,7 +1102,14 @@ impl AppManagementService {
         let operation_id = request.operation_id.clone();
         let conflicts =
             bitfun_core::external_sources::set_native_prompt_command_conflict_choice(
-                Some(Path::new(&request.workspace_path)),
+                Some(
+                    &resolve_management_workspace(
+                        request.workspace_id.as_deref(),
+                        &request.workspace_path,
+                    )
+                    .await?
+                    .id,
+                ),
                 request.native_commands,
                 &request.selected_candidate_id,
                 request.expected_preference_revision,
@@ -1079,7 +1129,14 @@ impl AppManagementService {
         validate_external_operation(&request.operation_id)?;
         let operation_id = request.operation_id.clone();
         bitfun_core::external_sources::expand_external_prompt_command(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             &request.command_name,
             &request.arguments,
             request.native_commands,
@@ -1098,11 +1155,25 @@ impl AppManagementService {
         &self,
         request: ListAgentModesRequest,
     ) -> AppManagementResult<ListAgentModesResponse> {
-        let workspace = request.workspace_path.map(PathBuf::from);
-        if request.include_external {
+        let record = if request.workspace_id.is_some() || request.workspace_path.is_some() {
+            Some(
+                resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    request.workspace_path.as_deref().unwrap_or_default(),
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+        let include_external = request.include_external
+            && record.as_ref().is_some_and(|record| {
+                record.workspace_kind != bitfun_core::service::workspace::WorkspaceKind::Remote
+            });
+        if include_external {
             if let Err(error) =
                 bitfun_core::external_sources::ensure_external_source_workspace_snapshot(
-                    workspace.as_deref(),
+                    record.as_ref().map(|record| record.id.as_str()),
                 )
                 .await
             {
@@ -1110,7 +1181,10 @@ impl AppManagementService {
             }
         }
         let modes = bitfun_core::agentic::agents::get_agent_registry()
-            .get_modes_info_for_workspace(workspace.as_deref(), request.include_external)
+            .get_modes_info_for_workspace(
+                record.as_ref().map(|record| record.id.as_str()),
+                include_external,
+            )
             .await
             .into_iter()
             .map(|mode| AgentModeSummary {
@@ -1243,12 +1317,27 @@ impl AppManagementService {
         &self,
         request: ListSkillsRequest,
     ) -> AppManagementResult<ListSkillsResponse> {
-        let workspace = PathBuf::from(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let remote =
+            record.workspace_kind == bitfun_core::service::workspace::WorkspaceKind::Remote;
+        if remote {
+            return Err(AppManagementError::invalid_request(
+                "This management operation is unsupported for remote workspaces",
+            ));
+        }
+        let workspace = bitfun_core::agentic::workspace::WorkspaceBinding::resolve(&record.id)
+            .await
+            .map_err(core_error)?;
         let registry =
             bitfun_core::agentic::tools::implementations::skills::get_skill_registry();
         let skills = if request.manageable {
             registry
-                .get_mode_skill_infos_for_workspace(Some(&workspace), &request.mode_id)
+                .get_mode_skill_infos_for_workspace(
+                    bitfun_core::agentic::tools::implementations::skills::mode_overrides::SkillPolicyWorkspace::from_binding(&workspace),
+                    &request.mode_id,
+                )
                 .await
                 .into_iter()
                 .map(skill_from_mode_info)
@@ -1268,7 +1357,16 @@ impl AppManagementService {
         &self,
         request: SetSkillEnabledRequest,
     ) -> AppManagementResult<SetSkillEnabledResponse> {
-        let workspace = PathBuf::from(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let remote =
+            record.workspace_kind == bitfun_core::service::workspace::WorkspaceKind::Remote;
+        if remote {
+            return Err(AppManagementError::invalid_request(
+                "This management operation is unsupported for remote workspaces",
+            ));
+        }
         match request.level.as_str() {
             "user" => {
                 let _ = bitfun_core::agentic::tools::implementations::skills::mode_overrides::set_user_mode_skill_state(
@@ -1281,7 +1379,7 @@ impl AppManagementService {
                 .map_err(core_error)?;
             }
             "project" => {
-                let mut document = bitfun_core::agentic::tools::implementations::skills::mode_overrides::load_project_mode_skills_document_local(&workspace)
+                let mut document = bitfun_core::agentic::tools::implementations::skills::mode_overrides::load_project_mode_skills_document_local(&record.root_path)
                     .await
                     .map_err(core_error)?;
                 bitfun_core::agentic::tools::implementations::skills::mode_overrides::set_mode_skill_disabled_in_document(
@@ -1292,7 +1390,7 @@ impl AppManagementService {
                 )
                 .map_err(core_error)?;
                 bitfun_core::agentic::tools::implementations::skills::mode_overrides::save_project_mode_skills_document_local(
-                    &workspace,
+                    &record.root_path,
                     &document,
                 )
                 .await
@@ -1311,7 +1409,11 @@ impl AppManagementService {
         &self,
         request: ListSubagentsRequest,
     ) -> AppManagementResult<ListSubagentsResponse> {
-        let workspace = PathBuf::from(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let remote =
+            record.workspace_kind == bitfun_core::service::workspace::WorkspaceKind::Remote;
         let scope = if request.management {
             bitfun_core::agentic::agents::SubagentListScope::RegistryManagement
         } else {
@@ -1320,10 +1422,10 @@ impl AppManagementService {
         let values = bitfun_core::agentic::agents::get_agent_registry()
             .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
                 parent_agent_type: Some(&request.parent_mode_id),
-                workspace_root: Some(&workspace),
+                workspace_id: (!remote).then_some(record.id.as_str()),
                 list_scope: scope,
                 include_disabled: request.management,
-                external_sources_supported: true,
+                external_sources_supported: !remote,
             })
             .await;
         let has_external = values.iter().any(|info| {
@@ -1347,13 +1449,22 @@ impl AppManagementService {
         &self,
         request: SetSubagentEnabledRequest,
     ) -> AppManagementResult<SetSubagentEnabledResponse> {
-        let workspace = PathBuf::from(&request.workspace_path);
+        let record =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
+        let remote =
+            record.workspace_kind == bitfun_core::service::workspace::WorkspaceKind::Remote;
+        if remote {
+            return Err(AppManagementError::invalid_request(
+                "This management operation is unsupported for remote workspaces",
+            ));
+        }
         bitfun_core::agentic::agents::get_agent_registry()
             .update_subagent_override(
                 &request.parent_mode_id,
                 &request.subagent_id,
                 request.enabled,
-                Some(&workspace),
+                Some(&record.id),
             )
             .await
             .map_err(core_error)?;
@@ -1368,9 +1479,11 @@ impl AppManagementService {
             .mcp
             .as_ref()
             .ok_or_else(|| AppManagementError::unsupported("The Host MCP owner is unavailable"))?;
-        let workspace = PathBuf::from(request.workspace_path);
+        let workspace =
+            resolve_management_workspace(request.workspace_id.as_deref(), &request.workspace_path)
+                .await?;
         let external =
-            bitfun_core::external_sources::external_source_snapshot(Some(&workspace), false)
+            bitfun_core::external_sources::external_source_snapshot(Some(&workspace.id), false)
                 .await
                 .map_err(|error| AppManagementError::internal(sanitize_management_error(error)))?;
         let tool_registry = bitfun_core::agentic::tools::registry::get_global_tool_registry();
@@ -1558,7 +1671,14 @@ impl AppManagementService {
         request: ExternalMcpDecisionRequest,
     ) -> AppManagementResult<ExternalMcpDecisionResponse> {
         bitfun_core::external_sources::set_external_mcp_server_decision(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             &request.candidate_id,
             &request.decision_key,
             request.approved,
@@ -1575,7 +1695,14 @@ impl AppManagementService {
         request: McpConflictChoiceRequest,
     ) -> AppManagementResult<McpConflictChoiceResponse> {
         bitfun_core::external_sources::choose_external_mcp_conflict(
-            Some(Path::new(&request.workspace_path)),
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
             &request.conflict_key,
             &request.candidate_id,
             request.approve_external,
@@ -1605,6 +1732,13 @@ fn project_account_snapshot(
             .map(|device| AccountDevice {
                 device_id: device.device_id,
                 device_name: device.device_name,
+                device_alias: device.device_alias,
+                device_model: device.device_model,
+                device_os: device.device_os,
+                device_os_version: device.device_os_version,
+                device_client_version: device.device_client_version,
+                device_client_protocol: device.device_client_protocol,
+                compatible: device.compatible,
                 online: device.online,
             })
             .collect(),
@@ -1661,11 +1795,13 @@ fn bounded_error(message: String) -> String {
 mod tests {
     use super::*;
     use crate::AppManagementErrorKind;
+    use std::path::PathBuf;
 
     fn native_overview_with_sensitive_paths() -> bitfun_core::native_hooks::NativeHookOverview {
         bitfun_core::native_hooks::NativeHookOverview {
             enabled: true,
             project_hooks_enabled: true,
+            remote_workspace_unsupported: false,
             files: vec![
                 bitfun_core::native_hooks::NativeHookFileView {
                     scope: "user",
@@ -1889,4 +2025,18 @@ mod tests {
             assert!(!detail.contains(secret), "detail leaked {secret}");
         }
     }
+}
+
+/// Old wire references are converted at ingress, then only the record ID is used.
+async fn resolve_management_workspace(
+    workspace_id: Option<&str>,
+    legacy_path: &str,
+) -> AppManagementResult<bitfun_core::service::workspace::WorkspaceInfo> {
+    let service = bitfun_core::service::workspace::get_global_workspace_service()
+        .ok_or_else(|| AppManagementError::invalid_request("Workspace service is unavailable"))?;
+    service
+        .resolve_legacy_workspace_reference(workspace_id, legacy_path, None, None)
+        .await
+        .map_err(|error| AppManagementError::invalid_request(error.to_string()))?
+        .ok_or_else(|| AppManagementError::invalid_request("Unknown workspace reference"))
 }

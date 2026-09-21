@@ -15,11 +15,13 @@ export class MobileDesignColors {
   static readonly transparent: MobileColorPair = new MobileColorPair("#00000000", "#00000000");
   static readonly pageBg: MobileColorPair = new MobileColorPair("#FFFFFF", "#151514");
   static readonly pageBgFade: MobileColorPair = new MobileColorPair("#00FFFFFF", "#00151514");
+  static readonly pageBgOverlay: MobileColorPair = new MobileColorPair("#B8FFFFFF", "#B8151514");
   static readonly ink: MobileColorPair = new MobileColorPair("#171717", "#F4F3EF");
   static readonly muted: MobileColorPair = new MobileColorPair("#706F6A", "#AAA8A0");
   static readonly subtle: MobileColorPair = new MobileColorPair("#A5A39B", "#77756E");
   static readonly line: MobileColorPair = new MobileColorPair("#E9E7E2", "#363531");
   static readonly card: MobileColorPair = new MobileColorPair("#FFFFFF", "#252522");
+  static readonly cardOverlay: MobileColorPair = new MobileColorPair("#CCFFFFFF", "#CC252522");
   static readonly accent: MobileColorPair = new MobileColorPair("#111111", "#5B5954");
   static readonly fileLink: MobileColorPair = new MobileColorPair("#2563EB", "#60A5FA");
   static readonly primaryAction: MobileColorPair = new MobileColorPair("#111111", "#454540");
@@ -59,6 +61,7 @@ export class MobileDesignColors {
   static readonly welcomeButton: MobileColorPair = new MobileColorPair("#FFFFFF", "#FFFFFF");
   static readonly welcomeButtonLabel: MobileColorPair = new MobileColorPair("#171917", "#171917");
   static readonly welcomeSecondary: MobileColorPair = new MobileColorPair("#B9BCB9", "#B9BCB9");
+  static readonly statusWarning: MobileColorPair = new MobileColorPair("#FF8C00", "#FF8C00");
 }
 
 export class MobileTypographyToken {
@@ -100,6 +103,8 @@ export class MobileDesignGeometry {
   static readonly contentGutter: number = 16;
   static readonly connectionStripHeight: number = 48;
   static readonly timelineTopPadding: number = 22;
+  static readonly conversationOverlaySideInset: number = 16;
+  static readonly conversationEdgeFadeHeight: number = 28;
   static readonly messageSpacing: number = 18;
   static readonly messageBubbleMaxWidth: number = 276;
   static readonly messageBubbleHorizontalPadding: number = 14;
@@ -169,6 +174,11 @@ export class MobileDesignGeometry {
   static readonly recentHomeTitleSize: number = 25;
   static readonly recentHomeMaxWidth: number = 560;
   static readonly recentHomeRowPadding: number = 18;
+  static readonly approvalCardRadius: number = 12;
+  static readonly approvalCardPadding: number = 12;
+  static readonly approvalCardGap: number = 8;
+  static readonly approvalActionRadius: number = 8;
+  static readonly approvalActionHeight: number = 36;
 }
 
 export class MobileDesignBreakpoints {

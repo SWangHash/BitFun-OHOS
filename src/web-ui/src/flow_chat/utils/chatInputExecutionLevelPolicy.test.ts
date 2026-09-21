@@ -89,6 +89,16 @@ describe('chatInputExecutionLevelPolicy', () => {
       },
       owner: 'parent-session',
     },
+    {
+      label: 'unsubmitted side draft',
+      params: {
+        isAssistantWorkspace: false,
+        isAcpTargetSession: false,
+        isSubagentInputTarget: false,
+        isBtwDraftTarget: true,
+      },
+      owner: 'parent-session',
+    },
   ] as const)('does not submit a composer execution-level selection for $label', ({ params, owner }) => {
     const policy = resolveChatInputExecutionLevelPolicy(params);
 

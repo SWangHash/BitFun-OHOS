@@ -31,6 +31,8 @@ export interface MenuPopoverProps extends Omit<MenuProps, "children"> {
   open: boolean;
   onClose: () => void;
   anchorRef?: RefObject<HTMLElement | null>;
+  /** Logical owner for coordinate menus rendered outside their source tree. */
+  ownerRef?: RefObject<HTMLElement | null>;
   position?: { x: number; y: number };
   placement?: LayerPlacement;
   /** Stable wrappers must forward all props (and refs for root/item/separator). */
@@ -54,7 +56,7 @@ function ownItems(menu: HTMLElement) {
 }
 
 /** Anchored/coordinate menu with nested navigation, safe pointer corridors and focus return. */
-export function MenuPopover({ items, open, onClose, anchorRef, position, placement = "bottom", autoFocusFirstItem = true, ...props }: MenuPopoverProps) {
+export function MenuPopover({ items, open, onClose, anchorRef, ownerRef, position, placement = "bottom", autoFocusFirstItem = true, ...props }: MenuPopoverProps) {
   const markerRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const treeId = useId();
@@ -100,7 +102,7 @@ export function MenuPopover({ items, open, onClose, anchorRef, position, placeme
   return (
     <>
       <span ref={markerRef} hidden />
-      <Portal ownerDocument={markerRef.current?.ownerDocument}>{content}</Portal>
+      <Portal ownerDocument={markerRef.current?.ownerDocument} ownerRef={ownerRef ?? anchorRef} open={open}>{content}</Portal>
     </>
   );
 }
@@ -203,7 +205,7 @@ function MenuLevel({ items, open, phase, treeId, onClose, onBack, anchorRef, pos
     <MenuSurface {...props} ref={node => { (menuRef as { current: HTMLDivElement | null }).current = node; }} className={classNames(styles.popup, className)} autoFocusFirstItem={open && autoFocusFirstItem && Boolean(layout)} tabIndex={-1}
       style={{ ...layout?.style, ...style, visibility: layout ? undefined : "hidden" }} data-bitfun-native-webview-occlusion data-bitfun-menu-tree={treeId} data-placement={layout?.placement ?? placement} data-state={phase}
       aria-hidden={!open || undefined} {...(!open ? { inert: "" } : {})} onContextMenu={event => event.preventDefault()}>
-      {items.map(item => item.separator ? <Separator key={item.id} /> : <Item key={item.id} data-menu-id={item.id} leading={item.icon ? <Leading className={styles.icon}>{item.icon}</Leading> : undefined} shortcut={item.shortcut ? <Shortcut>{item.shortcut}</Shortcut> : undefined} tone={item.tone} role={item.role} checked={item.checked}
+      {items.map(item => item.separator ? <Separator key={item.id} /> : <Item key={item.id} data-menu-id={item.id} leading={item.icon ? <Leading className={styles.icon} data-bitfun-icon-slot="true">{item.icon}</Leading> : undefined} shortcut={item.shortcut ? <Shortcut>{item.shortcut}</Shortcut> : undefined} tone={item.tone} role={item.role} checked={item.checked}
         disabled={item.disabled} aria-disabled={item.disabled || undefined} aria-haspopup={item.submenu?.length ? "menu" : undefined} aria-expanded={item.submenu?.length ? activeEntry?.id === item.id : undefined}
         aria-controls={activeEntry?.id === item.id ? submenuId : undefined} metadata={item.submenu?.length ? <Arrow className={styles.submenuArrow}><Icon name="chevron-right" size="sm" /></Arrow> : undefined}
         onClick={event => { event.stopPropagation(); if (item.submenu?.length) openSubmenu(item, event.currentTarget, true); else activate(item); }}
@@ -213,6 +215,10 @@ function MenuLevel({ items, open, phase, treeId, onClose, onBack, anchorRef, pos
         <Label>{item.label}</Label>
       </Item>)}
     </MenuSurface>
-    {submenu && <Portal ownerDocument={menuRef.current?.ownerDocument}>{submenu}</Portal>}
+    {submenu && <Portal ownerDocument={menuRef.current?.ownerDocument} ownerRef={menuRef} open={open}
+      surfaceRef={submenuRef} dismissOnPointerOutside onDismiss={reason => {
+        if (reason === "escape-key") { intent.closeNow(); submenuAnchor.current?.focus(); }
+        else onClose();
+      }}>{submenu}</Portal>}
   </>;
 }

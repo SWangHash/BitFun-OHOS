@@ -28,15 +28,6 @@
       "owner": "src/web-ui/src/infrastructure/appearance/builtins/buildBuiltinAppearance.ts",
       "reason": "The first value is the light xterm blue and the second is the light workbench link hover. They belong to different renderer and document interaction semantics.",
       "reevaluateWhen": "Reevaluate only when terminal ANSI and workbench link roles share a reviewed palette contract."
-    },
-    {
-      "root": "src/web-ui",
-      "domain": "appearanceProjection",
-      "key": "rgba(255, 255, 255, 0.12) <-> rgba(255, 255, 255, 0.15)",
-      "decision": "keep",
-      "owner": "src/web-ui/src/infrastructure/appearance/builtins/buildBuiltinAppearance.ts",
-      "reason": "The white overlay ladder separates subtle and stronger elevation states in dark Appearance packages; both stops are intentional adjacent-state values.",
-      "reevaluateWhen": "Reevaluate when the dark Appearance overlay ladder is redesigned with focused surface-state screenshots."
     }
   ]
 }

@@ -4,20 +4,26 @@
  */
 @use '../../flat-markdown-surfaces' as flatMarkdownSurfaces;
 @use '../../markdown-typography' as markdownTypography;
+@use '../../transcript-layout' as transcriptLayout;
 
 .virtual-item-wrapper {
   @include flatMarkdownSurfaces.apply;
   @include markdownTypography.apply;
+  @include transcriptLayout.reading-column;
 
-  width: 100%;
+  // Keep descendant margins inside the border box measured by the virtualizer.
+  // Escaped margins otherwise disappear when a row is replaced by virtual padding.
+  // Unlike overflow: hidden, this preserves outlying decorations and controls.
+  display: flow-root;
+
   /*
    * Single reading column shared by every item type (model rounds, explore
    * groups, user messages, notices). Matches ChatInput's 900px so headers,
-   * `>` collapse rows, and bubbles all sit on the same leading edge.
+   * `>` collapse rows, and message text all sit on the same leading edge.
+   * transcript-layout owns the shared content inset; user-bubble decoration
+   * extends into that gutter without shifting the reading column.
    */
-  max-width: 900px;
-  margin: 0 auto;
-  box-sizing: border-box;
+  margin-block: 0;
   min-height: 1px;
   padding: 0;
   position: relative;
@@ -82,10 +88,6 @@
         [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='root'][data-bitfun-expanded-shell='false']
     ) {
     margin-bottom: 0;
-  }
-
-  @media (max-width: 768px) {
-    max-width: 100%;
   }
 
   /*

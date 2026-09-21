@@ -50,7 +50,7 @@ const NotificationPresence: React.FC<NotificationPresenceProps> = ({ notificatio
   );
 };
 
-export const NotificationContainer: React.FC = () => {
+export const NotificationContainer: React.FC<React.PropsWithChildren> = ({ children }) => {
   const activeNotifications = useActiveNotifications();
 
   
@@ -114,7 +114,7 @@ export const NotificationContainer: React.FC = () => {
     exitTimersRef.current.clear();
   }, []);
 
-  if (presentedNotifications.length === 0) {
+  if (presentedNotifications.length === 0 && !children) {
     return null;
   }
 
@@ -128,6 +128,7 @@ export const NotificationContainer: React.FC = () => {
       className="notification-container__viewport"
       scrollbarVisibility="hidden"
     >
+      {children}
       {presentedNotifications.map((notification) => {
         const isExiting = !visibleIds.has(notification.id);
 

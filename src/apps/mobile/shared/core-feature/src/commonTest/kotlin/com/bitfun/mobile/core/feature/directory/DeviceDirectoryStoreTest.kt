@@ -34,6 +34,26 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceDirectoryStoreTest {
     @Test
+    fun workspaceDisclosureSurvivesRefreshAndOfflineRoundTrip() = runTest {
+        val store = DeviceDirectoryStore.create(this, FakeDeviceStoreFactory(mutableMapOf("a" to FakeDeviceTransport("a"))))
+        store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true))))
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
+        advanceUntilIdle()
+        store.dispatch(DeviceDirectoryIntent.SetWorkspaceExpanded("a", "/repo-a", true))
+        advanceUntilIdle()
+        for (online in listOf(true, false, true)) {
+            store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", online))))
+            val entry = store.state.value.device("a")!!
+            assertTrue(entry.workspaceDirectory.single().expanded)
+        }
+        store.dispatch(DeviceDirectoryIntent.SetWorkspaceExpanded("a", "/repo-a", false))
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
+        advanceUntilIdle()
+        assertFalse(store.state.value.device("a")!!.workspaceDirectory.single().expanded)
+        store.stop()
+    }
+
+    @Test
     fun devicesLoadIndependentlyAndOneFailureDoesNotClearOthers() = runTest {
         val transports = mutableMapOf(
             "a" to FakeDeviceTransport("a"),
@@ -77,6 +97,68 @@ class DeviceDirectoryStoreTest {
     }
 
     @Test
+    fun authoritativeCloseRetainsSessionsAndCannotBeUndoneByOfflineCacheHydration() = runTest {
+        val transport = FakeDeviceTransport("a")
+        val history = MemoryDirectoryWorkspaces()
+        val cache = MemoryDirectorySessions()
+        val store = DeviceDirectoryStore.create(this, CachedDeviceStoreFactory(transport, cache, history))
+        store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true))))
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
+        advanceUntilIdle()
+        store.dispatch(DeviceDirectoryIntent.SetWorkspaceExpanded("a", "/repo-a", true))
+        advanceUntilIdle()
+        assertEquals(listOf("s-a"), store.state.value.device("a")!!.sessions.map { it.id })
+        transport.openedJson = "[]"
+        transport.assistantJson = """[{"path":"/assistant","name":"Assistant"}]"""
+        store.dispatch(DeviceDirectoryIntent.Retry("a"))
+        advanceUntilIdle()
+        val ready = store.state.value.device("a")!!
+        assertTrue(ready.workspaces.isEmpty())
+        assertEquals("OPENED", ready.catalogSource?.name)
+        assertEquals(listOf("/repo-a"), ready.recentWorkspaces.map { it.path })
+        assertEquals(listOf("s-a"), ready.sessions.map { it.id })
+        assertTrue(history.byDevice.getValue("a").any { it.path == "/repo-a" })
+        store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", false))))
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
+        assertTrue(store.state.value.device("a")!!.workspaces.isEmpty())
+        assertEquals(listOf("s-a"), store.state.value.device("a")!!.sessions.map { it.id })
+        store.stop()
+    }
+
+    @Test
+    fun samePathSshDirectoriesLoadIndependentlyAndRefreshOnlyTheirOwnSessions() = runTest {
+        val transport = FakeDeviceTransport("a")
+        transport.openedJson = """[{"path":"/shared","remote_connection_id":"ssh-a","remote_ssh_host":"a"},{"path":"/shared","remote_connection_id":"ssh-b","remote_ssh_host":"b"}]"""
+        transport.sessionJsonByConnection["ssh-a"] = """[{"id":"session-a","agent_type":"code"}]"""
+        transport.sessionJsonByConnection["ssh-b"] = """[{"id":"session-b","agent_type":"code"}]"""
+        val sessions = MemoryDirectorySessions()
+        val store = DeviceDirectoryStore.create(this, CachedDeviceStoreFactory(transport, sessions, MemoryDirectoryWorkspaces()))
+        store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true))))
+        store.dispatch(DeviceDirectoryIntent.Load("a")); advanceUntilIdle()
+        val gateA = CompletableDeferred<Unit>(); val gateB = CompletableDeferred<Unit>()
+        transport.sessionGateByConnection["ssh-a"] = gateA
+        transport.sessionGateByConnection["ssh-b"] = gateB
+        store.dispatch(DeviceDirectoryIntent.SetWorkspaceExpanded("a", "/shared", true, "ssh-a", "a"))
+        store.dispatch(DeviceDirectoryIntent.SetWorkspaceExpanded("a", "/shared", true, "ssh-b", "b"))
+        runCurrent()
+        assertEquals(2, transport.commands.count { it.cmd == "list_sessions" })
+        gateB.complete(Unit); runCurrent()
+        assertEquals(WorkspaceDirectoryStatus.READY, store.state.value.device("a")!!.workspace("/shared", "ssh-b", "b")!!.status)
+        assertEquals(WorkspaceDirectoryStatus.LOADING, store.state.value.device("a")!!.workspace("/shared", "ssh-a", "a")!!.status)
+        gateA.complete(Unit); advanceUntilIdle()
+        val ready = store.state.value.device("a")!!
+        assertEquals(listOf("session-a"), ready.sessionsForWorkspace("/shared", "ssh-a", "a").map { it.id })
+        assertEquals(listOf("session-b"), ready.sessionsForWorkspace("/shared", "ssh-b", "b").map { it.id })
+        assertTrue(ready.sessionsForWorkspace("/shared", null, null).isEmpty())
+        assertEquals(setOf("ssh-a", "ssh-b"), sessions.byDevice.getValue("a").map { it.workspaceIdentity?.remoteConnectionId }.toSet())
+        transport.sessionJsonByConnection["ssh-a"] = "[]"
+        store.dispatch(DeviceDirectoryIntent.RetryWorkspace("a", "/shared", "ssh-a", "a")); advanceUntilIdle()
+        assertEquals(listOf("session-b"), store.state.value.device("a")!!.sessions.map { it.id })
+        assertEquals("a", transport.commands.last { it.cmd == "list_sessions" }.remoteSshHost)
+        store.stop()
+    }
+
+    @Test
     fun duplicateLoadCollapsesToOneFetch() = runTest {
         val transport = FakeDeviceTransport("a")
         val store = DeviceDirectoryStore.create(this, FakeDeviceStoreFactory(mutableMapOf("a" to transport)))
@@ -95,30 +177,25 @@ class DeviceDirectoryStoreTest {
     }
 
     @Test
-    fun expandPreservesCachedDataWithoutRefetching() = runTest {
+    fun loadingReadyDirectoryPreservesDataWithoutRefetching() = runTest {
         val transport = FakeDeviceTransport("a")
         val store = DeviceDirectoryStore.create(this, FakeDeviceStoreFactory(mutableMapOf("a" to transport)))
 
         store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true))))
-        store.dispatch(DeviceDirectoryIntent.Expand("a"))
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
         advanceUntilIdle()
 
         val first = store.state.value.device("a")!!
-        assertTrue(first.expanded)
         assertEquals(DeviceDirectoryStatus.READY, first.status)
         assertTrue(first.sessions.isEmpty())
         val listSessionsBefore = transport.commands.count { it.cmd == "list_sessions" }
         assertEquals(0, listSessionsBefore)
 
-        store.dispatch(DeviceDirectoryIntent.Collapse("a"))
-        assertFalse(store.state.value.device("a")!!.expanded)
-
-        // Re-expanding a ready device keeps the cache instead of re-fetching.
-        store.dispatch(DeviceDirectoryIntent.Expand("a"))
+        // Revisiting a ready device keeps its data instead of re-fetching.
+        store.dispatch(DeviceDirectoryIntent.Load("a"))
         advanceUntilIdle()
 
         val again = store.state.value.device("a")!!
-        assertTrue(again.expanded)
         assertEquals(DeviceDirectoryStatus.READY, again.status)
         assertTrue(again.sessions.isEmpty())
         assertEquals(listSessionsBefore, transport.commands.count { it.cmd == "list_sessions" })
@@ -243,8 +320,8 @@ class DeviceDirectoryStoreTest {
         advanceUntilIdle()
 
         val workspaces = store.state.value.device("a")!!.workspaces
-        assertEquals(listOf("/repo-a", "/assistant-a"), workspaces.map { it.path })
-        assertEquals("assistant", workspaces.last().kind)
+        assertEquals(listOf("/assistant-a", "/repo-a"), workspaces.map { it.path })
+        assertEquals("assistant", workspaces.first().kind)
     }
 
     @Test
@@ -278,6 +355,7 @@ class DeviceDirectoryStoreTest {
     @Test
     fun workspaceFailureKeepsSiblingSessionsAndCanRetry() = runTest {
         val transport = FakeDeviceTransport("a")
+        transport.extraWorkspaces = """,{"path":"/other","name":"Other","workspace_kind":"normal"}"""
         val store = DeviceDirectoryStore.create(this, FakeDeviceStoreFactory(mutableMapOf("a" to transport)))
         store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true))))
         store.dispatch(DeviceDirectoryIntent.Load("a"))
@@ -319,6 +397,7 @@ class DeviceDirectoryStoreTest {
             "a" to FakeDeviceTransport("a"),
             "b" to FakeDeviceTransport("b"),
         )
+        transports.getValue("a").extraWorkspaces = """,{"path":"/assistant-not-current","name":"Assistant","workspace_kind":"normal"}"""
         val store = DeviceDirectoryStore.create(this, FakeDeviceStoreFactory(transports))
         store.dispatch(DeviceDirectoryIntent.Sync(listOf(DeviceDirectoryDevice("a", true), DeviceDirectoryDevice("b", true))))
         store.dispatch(DeviceDirectoryIntent.Load("a"))
@@ -456,7 +535,7 @@ class DeviceDirectoryStoreTest {
     }
 
     @Test
-    fun legacySessionCacheInfersWorkspaceCatalogAfterUpgrade() = runTest {
+    fun legacySessionCacheIsRetainedWithoutInventingOpenedWorkspaces() = runTest {
         val transport = FakeDeviceTransport("a")
         val cachedSessions = MemoryDirectorySessions().apply {
             byDevice["a"] = listOf(
@@ -477,9 +556,8 @@ class DeviceDirectoryStoreTest {
 
         val cached = store.state.value.device("a")!!
         assertEquals(DeviceDirectoryStatus.CACHED, cached.status)
-        assertEquals(listOf("/legacy/repo/"), cached.workspaces.map { it.path })
-        assertEquals("Legacy repo", cached.workspaces.single().name)
-        assertEquals(WorkspaceDirectoryStatus.READY, cached.workspace("/legacy/repo")?.status)
+        assertTrue(cached.workspaces.isEmpty())
+        assertEquals(listOf("legacy-session"), cached.sessions.map { it.id })
     }
 }
 
@@ -506,9 +584,13 @@ private class FakeDeviceTransport(private val deviceId: String) : RemoteCommandT
     var workspaceFailure: RelayFailure? = null
     var sessionGate: CompletableDeferred<Unit>? = null
     var workspaceGate: CompletableDeferred<Unit>? = null
+    val sessionJsonByConnection = mutableMapOf<String, String>()
+    val sessionGateByConnection = mutableMapOf<String, CompletableDeferred<Unit>>()
     var sessionJson: String =
         """[{"id":"s-$deviceId","title":"Session $deviceId","agent_type":"code"}]"""
     var assistantJson: String = "[]"
+    var openedJson: String = "null"
+    var extraWorkspaces: String = ""
 
     override suspend fun <T : CommandStatus> send(
         deserializer: DeserializationStrategy<T>,
@@ -520,7 +602,7 @@ private class FakeDeviceTransport(private val deviceId: String) : RemoteCommandT
             "list_recent_workspaces" -> {
                 workspaceFailure?.let { throw RelayTransportException(it) }
                 workspaceGate?.await()
-                """{"resp":"ok","workspaces":[{"path":"/repo-$deviceId","name":"Repo $deviceId","last_opened":"2026-08-09","workspace_kind":"local"}]}"""
+                """{"resp":"ok","workspaces":[{"path":"/repo-$deviceId","name":"Repo $deviceId","last_opened":"2026-08-09","workspace_kind":"local"}$extraWorkspaces],"opened_workspaces":$openedJson}"""
             }
             "list_assistants" -> """{"resp":"ok","assistants":$assistantJson}"""
             "get_workspace_info" ->
@@ -528,7 +610,9 @@ private class FakeDeviceTransport(private val deviceId: String) : RemoteCommandT
             "list_sessions" -> {
                 sessionFailure?.let { throw RelayTransportException(it) }
                 sessionGate?.await()
-                """{"resp":"ok","has_more":false,"sessions":$sessionJson}"""
+                sessionGateByConnection[command.remoteConnectionId]?.await()
+                val selectedJson = sessionJsonByConnection[command.remoteConnectionId] ?: sessionJson
+                """{"resp":"ok","has_more":false,"sessions":$selectedJson}"""
             }
             "get_model_catalog" -> """{"resp":"ok"}"""
             else -> error("Unexpected command ${command.cmd}")

@@ -188,7 +188,7 @@ async fn send_with_retry_within_budget(
     unreachable!("relay HTTP retry loop always returns")
 }
 
-fn is_transient_status(status: StatusCode) -> bool {
+pub(crate) fn is_transient_status(status: StatusCode) -> bool {
     matches!(
         status,
         StatusCode::REQUEST_TIMEOUT

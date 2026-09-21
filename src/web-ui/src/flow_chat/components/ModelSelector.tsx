@@ -128,6 +128,8 @@ interface ModelSelectorProps {
   persistSharedModeDefault?: boolean;
   /** Whether lifecycle ownership currently prevents Session setting changes. */
   disabled?: boolean;
+  /** Why the owning composer temporarily prevents setting changes. */
+  disabledReason?: string;
   /** Compact trigger treatment supplied by the owning composer. */
   reasoningTriggerPresentation?: 'meter' | 'label';
 }
@@ -331,6 +333,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   modeDefaultModelId,
   persistSharedModeDefault = true,
   disabled = false,
+  disabledReason,
   reasoningTriggerPresentation = 'meter',
 }) => {
   const { t } = useTranslation('flow-chat');
@@ -1847,7 +1850,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       data-bitfun-state={[displayedAvailability.status, dropdownOpen && 'open'].filter(Boolean).join(' ')}
     >
       {showModelTrigger && (
-      <Tooltip content={tooltipContent} disabled={dropdownOpen}>
+      <Tooltip content={disabledReason || tooltipContent} disabled={dropdownOpen}>
         <button data-overflow-trigger
           ref={triggerRef}
           data-testid="chat-model-selector-btn"

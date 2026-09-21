@@ -63,7 +63,7 @@ resolver = "2"
 
 # Shared package metadata 鈥?single source of truth for version
 [workspace.package]
-version = "1.0.0" # x-release-please-version
+version = "2.0.0" # x-release-please-version
 authors = ["BitFun Team"]
 edition = "2021"
 

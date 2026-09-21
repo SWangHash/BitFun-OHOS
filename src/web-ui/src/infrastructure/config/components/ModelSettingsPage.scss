@@ -2097,7 +2097,7 @@
     }
   }
 
-  &__cli-account {
+  &__cli-account.bitfun-config-page-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
@@ -2211,10 +2211,27 @@
     }
   }
 
-  @container config-panel (max-width: 760px) {
-    &__cli-account {
+  @container config-panel (max-width: 520px) {
+    &__cli-account.bitfun-config-page-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--bitfun-space-4);
+
+      .bitfun-config-page-row__control {
+        justify-content: flex-end;
+      }
+    }
+
+    &__subscription-login-actions {
+      justify-content: flex-start;
+    }
+  }
+
+  @container config-panel (max-width: 360px) {
+    &__cli-account.bitfun-config-page-row {
       grid-template-columns: minmax(0, 1fr);
       align-items: flex-start;
+      gap: var(--bitfun-space-2);
 
       .bitfun-config-page-row__control {
         justify-content: flex-start;
@@ -2224,10 +2241,6 @@
     &__cli-actions {
       justify-content: flex-start;
       flex-wrap: wrap;
-    }
-
-    &__subscription-login-actions {
-      justify-content: flex-start;
     }
   }
 }

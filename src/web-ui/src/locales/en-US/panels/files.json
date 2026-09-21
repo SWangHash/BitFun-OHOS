@@ -8,6 +8,8 @@
     "modeContent": "Text",
     "limitReachedFiles": "Showing the first {{count}} file matches. Refine the query to narrow the result set.",
     "limitReachedContent": "Showing the first {{count}} content matches. Refine the query to narrow the result set.",
+    "limitReachedFilesCompact": "File limit {{count}}",
+    "limitReachedContentCompact": "Content limit {{count}}",
     "backendSummary": "{{candidateDocs}} candidate docs, {{matchedLines}} matched lines, {{matchedOccurrences}} matched occurrences.",
     "backend": {
       "indexed": "Indexed",

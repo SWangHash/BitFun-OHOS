@@ -81,8 +81,7 @@ internal fun ConversationHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(
-                    if (hasSubtitle) MobileDesignGeometry.ConversationHeaderHeight
-                    else MobileDesignGeometry.ConversationHeaderCompactHeight,
+                    MobileDesignGeometry.ConversationHeaderHeight,
                 )
                 .padding(horizontal = MobileDesignGeometry.ContentGutter, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

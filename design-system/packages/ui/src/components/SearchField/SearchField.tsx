@@ -23,6 +23,8 @@ export interface SearchFieldProps
   shortcut?: ReactNode;
   /** Custom inline content before the clear action, e.g. match counts or a busy indicator. */
   trailing?: ReactNode;
+  /** Terminal xs IconButton(s), after shortcut content, with an inset matching the input row's vertical clearance. */
+  trailingAction?: ReactNode;
 }
 
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(function SearchField({
@@ -37,6 +39,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
   readOnly,
   shortcut,
   trailing,
+  trailingAction,
   variant = "default",
   ...props
 }, ref) {
@@ -66,12 +69,14 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
   const shortcutHint = shortcut === undefined ? undefined : (
     <span aria-hidden="true" className={styles.shortcut}>{shortcut}</span>
   );
-  const trailingContent = trailing === undefined && shortcutHint === undefined && clearAction === undefined
+  const hasTrailingAction = (trailingAction != null && trailingAction !== false) || clearAction !== undefined;
+  const trailingContent = trailing === undefined && shortcutHint === undefined && !hasTrailingAction
     ? undefined
     : (
         <>
           {trailing}
           {shortcutHint}
+          {trailingAction}
           {clearAction}
         </>
       );
@@ -80,7 +85,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
     <span className={classNames(styles.root, className)} data-bitfun-component="search-field" data-variant={variant}>
       <Input
         {...props}
-        className={styles.field}
+        className={classNames(styles.field, hasTrailingAction && styles.fieldWithAction)}
         disabled={disabled}
         leading={leadingIcon === undefined ? undefined : (
           <span aria-hidden="true" className={styles.icon} data-bitfun-part="icon">{leadingIcon}</span>

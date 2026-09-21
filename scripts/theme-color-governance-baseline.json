@@ -171,7 +171,7 @@
       "max": 0
     },
     "colorDomainNearPairs.nearTotal": {
-      "max": 4
+      "max": 3
     },
     "colorDomainNearPairs.themePreset.indistinguishableTotal": {
       "max": 0
@@ -324,7 +324,7 @@
       "max": 0
     },
     "colorDomainNearPairs.appearanceProjection.nearTotal": {
-      "max": 2
+      "max": 1
     },
     "colorDomainNearPairs.appearanceDomain.indistinguishableTotal": {
       "max": 0
@@ -336,7 +336,7 @@
       "max": 93
     },
     "colorDomainScopes.appearanceProjection.uniqueColors": {
-      "max": 61
+      "max": 60
     },
     "colorDomainScopes.appearanceDomain.occurrences": {
       "max": 0

@@ -3,9 +3,10 @@ use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::agentic::tools::miniapp_context_runtime::{
     is_virtual_context_path, requires_virtual_context_path, virtual_context_files_for_search,
 };
+use crate::agentic::tools::parse_u64_value;
 use crate::agentic::tools::ToolPathOperation;
 use crate::service::search::{
-    get_global_workspace_search_service, remote_workspace_search_service_for_path,
+    get_global_workspace_search_service, remote_workspace_search_service_for_workspace,
     workspace_search_feature_enabled, workspace_search_runtime_available, ContentSearchOutputMode,
     ContentSearchRequest, WorkspaceSearchHit, WorkspaceSearchLine,
 };
@@ -64,7 +65,7 @@ impl GrepTool {
     fn explicit_head_limit(input: &Value) -> Option<Option<usize>> {
         input
             .get("head_limit")
-            .and_then(|v| v.as_u64())
+            .and_then(parse_u64_value)
             .map(|value| {
                 if value == 0 {
                     None
@@ -112,7 +113,7 @@ impl GrepTool {
     fn resolve_offset(input: &Value) -> usize {
         input
             .get("offset")
-            .and_then(|v| v.as_u64())
+            .and_then(parse_u64_value)
             .map(|value| value as usize)
             .unwrap_or(0)
     }
@@ -207,10 +208,16 @@ impl GrepTool {
         let context_c = input
             .get("context")
             .or_else(|| input.get("-C"))
-            .and_then(|v| v.as_u64())
+            .and_then(parse_u64_value)
             .map(|v| v as usize);
-        let before_context = input.get("-B").and_then(|v| v.as_u64()).map(|v| v as usize);
-        let after_context = input.get("-A").and_then(|v| v.as_u64()).map(|v| v as usize);
+        let before_context = input
+            .get("-B")
+            .and_then(parse_u64_value)
+            .map(|v| v as usize);
+        let after_context = input
+            .get("-A")
+            .and_then(parse_u64_value)
+            .map(|v| v as usize);
         let head_limit = Self::resolve_head_limit(input);
         let offset = Self::resolve_offset(input);
         let glob_patterns = Self::parse_glob_patterns(input.get("glob").and_then(|v| v.as_str()));
@@ -266,7 +273,7 @@ impl GrepTool {
         ["-A", "-B", "-C", "context"]
             .iter()
             .filter_map(|key| input.get(*key))
-            .filter_map(|value| value.as_u64())
+            .filter_map(parse_u64_value)
             .any(|lines| lines > 0)
     }
 
@@ -659,16 +666,11 @@ Usage:
                         .as_ref()
                         .map(|path| path.to_string_lossy().to_string())
                         .unwrap_or_else(|| request.repo_root.to_string_lossy().to_string());
-                    let repo_root = request.repo_root.to_string_lossy().to_string();
-                    let preferred_connection_id = context
-                        .workspace
-                        .as_ref()
-                        .and_then(|workspace| workspace.connection_id())
-                        .map(str::to_string);
-                    let search_service =
-                        remote_workspace_search_service_for_path(&repo_root, preferred_connection_id)
-                            .await
-                            .map_err(BitFunError::tool)?;
+                    let workspace_id = context.workspace.as_ref()
+                        .and_then(|workspace| workspace.workspace_id.as_deref())
+                        .ok_or_else(|| BitFunError::tool("Remote search requires a workspace ID"))?;
+                    let search_service = remote_workspace_search_service_for_workspace(workspace_id)
+                        .await.map_err(BitFunError::tool)?;
                     let search_started_at = Instant::now();
                     let search_result = search_service
                         .search_content(request)

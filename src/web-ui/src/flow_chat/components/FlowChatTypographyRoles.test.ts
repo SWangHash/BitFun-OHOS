@@ -45,6 +45,20 @@ function expectRole(source: string, selector: string, role: string): void {
 }
 
 describe('FlowChat semantic typography roles', () => {
+  it('uses 90% black for standard light-theme answer copy only', () => {
+    const flowTextBlock = readSource('./FlowTextBlock.scss');
+
+    expect(flowTextBlock).toContain(
+      ":root[data-color-scheme='light'][data-contrast='standard'] & .markdown-renderer",
+    );
+    expect(flowTextBlock).toContain(
+      ":root[data-color-scheme='light'][data-contrast='standard'] & .text-content",
+    );
+    expect(flowTextBlock).toContain(
+      'color-mix(in srgb, var(--bitfun-color-content-on-light) 90%, transparent)',
+    );
+  });
+
   it('consumes public semantic roles without a parallel Sass or Appearance ladder', () => {
     const stylesheets = [
       readSource('./ChatInput.scss'),

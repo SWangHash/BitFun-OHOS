@@ -16,6 +16,13 @@
       "primaryBackgroundHover": { "$type": "color", "$value": "rgba(0, 0, 0, 0.60)" },
       "primaryBackgroundPressed": { "$type": "color", "$value": "rgba(0, 0, 0, 0.90)" },
       "primaryContentDisabled": { "$type": "color", "$value": "rgba(0, 0, 0, 0.20)" }
+    },
+    "empty": {
+      "media": {
+        "$description": "Opaque low-emphasis color for decorative empty-state artwork, matching muted content at 35% over the tertiary empty-state surface without alpha accumulation.",
+        "$type": "color",
+        "$value": "color-mix(in srgb, {color.content.muted} 35%, {color.surface.tertiary})"
+      }
     }
   },
   "color": {
@@ -71,8 +78,8 @@
       "background": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" }
     },
     "scrollbar": {
-      "thumb": { "$type": "color", "$value": "{color.action.neutral.surfacePressed}" },
-      "thumbHover": { "$type": "color", "$value": "{color.action.neutral.surfacePressed}" }
+      "thumb": { "$type": "color", "$value": "rgba(0, 0, 0, 0.20)" },
+      "thumbHover": { "$type": "color", "$value": "rgba(0, 0, 0, 0.30)" }
     },
     "content": {
       "caption": { "$description": "Menu and navigation group captions; carries final opacity without attenuating primary text again.", "$type": "color", "$value": "rgba(0, 0, 0, 0.40)" },

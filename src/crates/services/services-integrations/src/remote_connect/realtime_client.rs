@@ -7,8 +7,17 @@ use sioc::prelude::*;
 use std::time::Duration;
 
 /// Authentication payload shared by all Rust hosts and controllers.
+///
+/// Every (re)connect carries the build string and control-contract protocol
+/// number so the Relay can gate compatibility instead of treating this device
+/// as legacy.
 pub fn account_auth_payload(token: &str, machine: bool) -> Value {
-    json!({"token": token, "clientType": if machine { "machine-scoped" } else { "user-scoped" }})
+    json!({
+        "token": token,
+        "clientType": if machine { "machine-scoped" } else { "user-scoped" },
+        "clientVersion": bitfun_product_domains::account::client_version(),
+        "clientProtocol": bitfun_product_domains::account::CLIENT_PROTOCOL_VERSION,
+    })
 }
 
 #[derive(Debug, AckType, SerializePayload, DeserializePayload)]

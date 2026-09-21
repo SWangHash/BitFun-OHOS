@@ -75,6 +75,85 @@ test('1.0.0-beta manifest keeps the updater URL separate from the manual install
   assert.equal(verified.status, 0, verified.stderr);
 });
 
+test('manifest declares the signed macOS .dmg installers next to the .app.tar.gz updater packages', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-latest-dmg-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const updater = path.join(temp, 'updater');
+  const manual = path.join(temp, 'manual');
+  // The signing step leaves the .dmg files in the per-runner subdirectories the
+  // build artifacts were downloaded into, so the generator has to find them by
+  // name rather than at a fixed path.
+  const installers = path.join(temp, 'release-assets', 'macos-arm64');
+  const out = path.join(temp, 'latest-v1.json');
+  fs.mkdirSync(updater, { recursive: true });
+  fs.mkdirSync(manual, { recursive: true });
+  fs.mkdirSync(installers, { recursive: true });
+
+  for (const arch of ['aarch64', 'x86_64']) {
+    const updaterName = `BitFun_1.2.3_darwin-${arch}.app.tar.gz`;
+    fs.writeFileSync(path.join(updater, updaterName), 'updater payload');
+    fs.writeFileSync(path.join(updater, `${updaterName}.sig`), 'inline-updater-signature');
+  }
+  const windowsUpdaterName = 'BitFun_1.2.3_windows-x86_64-setup.exe';
+  fs.writeFileSync(path.join(updater, windowsUpdaterName), 'setup');
+  fs.writeFileSync(path.join(updater, `${windowsUpdaterName}.sig`), 'inline-updater-signature');
+  const windowsInstallerName = 'BitFun_1.2.3_windows-x86_64-installer.exe';
+  fs.writeFileSync(path.join(manual, windowsInstallerName), 'installer');
+  fs.writeFileSync(path.join(manual, `${windowsInstallerName}.sig`), 'detached-signature');
+  for (const arch of ['aarch64', 'x64']) {
+    fs.writeFileSync(path.join(installers, `BitFun_1.2.3_${arch}.dmg`), 'disk image');
+    fs.writeFileSync(path.join(installers, `BitFun_1.2.3_${arch}.dmg.sig`), 'detached-signature');
+  }
+
+  const generatorArgs = [
+    '--assets-dir', updater,
+    '--manual-assets-dir', manual,
+    '--installer-assets-dir', path.join(temp, 'release-assets'),
+    '--version', '1.2.3',
+    '--tag', 'v1.2.3',
+    '--repo', 'GCWing/BitFun',
+    '--out', out,
+    '--required-platforms', 'darwin-aarch64,darwin-x86_64,windows-x86_64',
+  ];
+  const generated = run('scripts/generate-tauri-latest-json.mjs', generatorArgs);
+  assert.equal(generated.status, 0, generated.stderr);
+
+  const manifest = JSON.parse(fs.readFileSync(out, 'utf8'));
+  // The updater must keep consuming the .app.tar.gz; manual_installers is an
+  // addition for humans, not a replacement.
+  assert.match(manifest.platforms['darwin-aarch64'].url, /_darwin-aarch64\.app\.tar\.gz$/);
+  assert.match(manifest.platforms['darwin-x86_64'].url, /_darwin-x86_64\.app\.tar\.gz$/);
+  assert.equal(
+    manifest.manual_installers['darwin-aarch64'].url,
+    'https://github.com/GCWing/BitFun/releases/download/v1.2.3/BitFun_1.2.3_aarch64.dmg'
+  );
+  assert.equal(
+    manifest.manual_installers['darwin-x86_64'].url,
+    'https://github.com/GCWing/BitFun/releases/download/v1.2.3/BitFun_1.2.3_x64.dmg'
+  );
+  assert.match(manifest.manual_installers['windows-x86_64'].url, /-installer\.exe$/);
+
+  const verified = run('scripts/verify-tauri-latest-json.mjs', [
+    '--manifest', out,
+    '--version', '1.2.3',
+    '--required-platforms', 'darwin-aarch64,darwin-x86_64,windows-x86_64',
+    '--required-manual-platforms', 'windows-x86_64,darwin-aarch64,darwin-x86_64',
+  ]);
+  assert.equal(verified.status, 0, verified.stderr);
+
+  // An unsigned .dmg must fail the release rather than publish a manifest whose
+  // signature URL 404s.
+  fs.unlinkSync(path.join(installers, 'BitFun_1.2.3_x64.dmg.sig'));
+  const unsigned = run('scripts/generate-tauri-latest-json.mjs', generatorArgs);
+  assert.notEqual(unsigned.status, 0);
+  assert.match(unsigned.stderr, /Missing signed manual installer pair/);
+
+  fs.unlinkSync(path.join(installers, 'BitFun_1.2.3_x64.dmg'));
+  const absent = run('scripts/generate-tauri-latest-json.mjs', generatorArgs);
+  assert.notEqual(absent.status, 0);
+  assert.match(absent.stderr, /Missing macOS installer BitFun_1\.2\.3_x64\.dmg/);
+});
+
 test('stages GitHub release assets in a flat directory', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-release-assets-'));
   const first = path.join(temp, 'updater', 'latest.json');

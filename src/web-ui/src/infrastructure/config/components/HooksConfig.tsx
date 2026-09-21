@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogBody,
   DialogClose,
+  DialogFooter,
   DialogHeader,
   DialogHeading,
   DialogTitle,
@@ -98,7 +99,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
       configManager.getConfig<Partial<AgentHooksConfigShape>>('app.hooks'),
       remoteWorkspace
         ? Promise.resolve(null)
-        : externalHooksAPI.getImportSnapshot(workspacePath || undefined, false),
+        : externalHooksAPI.getImportSnapshot(workspace?.id, false),
     ]);
     if (!mountedRef.current || sequence !== requestSequence.current) return;
     if (configResult.status === 'fulfilled') {
@@ -115,7 +116,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
       setImportError(t('imports.loadFailed'));
     }
     setLoading(false);
-  }, [remoteWorkspace, t, workspacePath]);
+  }, [remoteWorkspace, t, workspace?.id]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -133,7 +134,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     setImportError(null);
     try {
       const snapshot = await externalHooksAPI.getImportSnapshot(
-        workspacePath || undefined,
+        workspace?.id,
         true,
       );
       if (mountedRef.current && sequence === requestSequence.current) {
@@ -148,7 +149,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
         setImportLoading(false);
       }
     }
-  }, [remoteWorkspace, t, workspacePath]);
+  }, [remoteWorkspace, t, workspace?.id]);
 
   const updateConfig = useCallback(
     async <K extends keyof AgentHooksConfigShape>(key: K, value: AgentHooksConfigShape[K]) => {
@@ -183,7 +184,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     setBusyKey(key);
     setPlanNotice(null);
     try {
-      const plan = await externalHooksAPI.planImport(workspacePath || undefined, source.key);
+      const plan = await externalHooksAPI.planImport(workspace?.id, source.key);
       if (!mountedRef.current) return;
       setReviewPlan(plan);
     } catch (error) {
@@ -193,14 +194,14 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     } finally {
       if (mountedRef.current) setBusyKey(null);
     }
-  }, [notifyError, t, workspacePath]);
+  }, [notifyError, t, workspace?.id]);
 
   const applyReviewedPlan = useCallback(async () => {
     if (!reviewPlan) return;
     setBusyKey('apply');
     try {
       const result = await externalHooksAPI.applyImport(
-        workspacePath || undefined,
+        workspace?.id,
         reviewPlan,
       );
       if (!mountedRef.current) return;
@@ -230,7 +231,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     } finally {
       if (mountedRef.current) setBusyKey(null);
     }
-  }, [config.enabled, notifyError, notifySuccess, reviewPlan, t, workspacePath]);
+  }, [config.enabled, notifyError, notifySuccess, reviewPlan, t, workspace?.id]);
 
   const mutateImport = useCallback(async (
     action: ExternalHookImportMutation,
@@ -254,14 +255,14 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
       let next: ExternalHookImportSnapshot;
       try {
         next = await externalHooksAPI.mutateImport(
-          workspacePath || undefined,
+          workspace?.id,
           authoritative.revision,
           action,
         );
       } catch (error) {
         if ((error as { code?: string })?.code !== 'stale_revision') throw error;
         const refreshed = await externalHooksAPI.getImportSnapshot(
-          workspacePath || undefined,
+          workspace?.id,
           false,
         );
         if (!mountedRef.current) return;
@@ -281,7 +282,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     } finally {
       if (mountedRef.current) setBusyKey(null);
     }
-  }, [importSnapshot, notifyError, notifySuccess, t, workspacePath]);
+  }, [importSnapshot, notifyError, notifySuccess, t, workspace?.id]);
 
   const confirmMutation = useCallback(() => {
     if (!confirmation) return;
@@ -519,7 +520,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
           </DialogHeading>
           <DialogClose />
         </DialogHeader>
-        <DialogBody inset="none">
+        <DialogBody>
         {reviewPlan ? (
           <div>
             {planNotice ? <p role="status">{planNotice}</p> : null}
@@ -548,6 +549,11 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                 {t('imports.skipped', { reason: skipped.reasonCode, count: skipped.count })}
               </p>
             ))}
+          </div>
+        ) : null}
+        </DialogBody>
+        {reviewPlan ? (
+          <DialogFooter separator>
             <Button
               variant="fill"
               disabled={busyKey === 'apply'}
@@ -565,9 +571,8 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
             >
               {t(reviewUpdatesExistingImport ? 'imports.confirmUpdate' : 'imports.confirm')}
             </Button>
-          </div>
+          </DialogFooter>
         ) : null}
-              </DialogBody>
       </Dialog>
 
       <ConfirmDialog

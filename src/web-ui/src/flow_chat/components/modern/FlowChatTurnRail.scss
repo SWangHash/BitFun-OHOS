@@ -1,10 +1,12 @@
+@use '../../transcript-layout' as transcriptLayout;
+
 .flowchat-turn-rail {
   position: absolute;
-  left: 4px;
+  left: transcriptLayout.$turn-rail-offset;
   top: 20%;
   bottom: 20%;
   z-index: 8;
-  width: 30px;
+  width: transcriptLayout.$turn-rail-width;
   display: flex;
   align-items: center;
   pointer-events: none;

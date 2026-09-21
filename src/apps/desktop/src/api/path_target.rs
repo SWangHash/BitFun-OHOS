@@ -8,17 +8,21 @@ use bitfun_core::agentic::tools::workspace_paths::{
 use bitfun_core::infrastructure::get_path_manager_arc;
 use bitfun_core::infrastructure::FileOperationOptions;
 use bitfun_core::service::remote_ssh::workspace_state::remote_workspace_runtime_root;
-use bitfun_core::service::remote_ssh::{
-    get_remote_workspace_manager, normalize_remote_workspace_path, RemoteWorkspaceEntry,
-};
+use bitfun_core::service::remote_ssh::{normalize_remote_workspace_path, RemoteWorkspaceEntry};
 use bitfun_core::service::workspace::{WorkspaceInfo, WorkspaceKind};
 use serde::Serialize;
-use std::io::Read;
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+/// Resolved file routing identity, independent of workspace registration.
 #[derive(Debug, Clone)]
-pub enum DesktopPathTarget {
+pub struct RemotePathConnection {
+    pub connection_id: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum DesktopPathTarget<T = RemotePathConnection> {
     Local {
         requested_path: String,
         resolved_path: PathBuf,
@@ -26,7 +30,7 @@ pub enum DesktopPathTarget {
     },
     Remote {
         requested_path: String,
-        entry: RemoteWorkspaceEntry,
+        entry: T,
     },
 }
 
@@ -82,28 +86,36 @@ fn runtime_root_for_workspace_info(workspace: &WorkspaceInfo) -> Result<PathBuf,
 async fn resolve_runtime_artifact_path(
     app_state: &AppState,
     raw_path: &str,
+    workspace_id: Option<&str>,
 ) -> Result<Option<PathBuf>, String> {
     if !is_bitfun_runtime_uri(raw_path) {
         return Ok(None);
     }
 
     let parsed = parse_bitfun_runtime_uri(raw_path).map_err(|e| e.to_string())?;
-    let workspace = if parsed.workspace_scope == "current" {
-        app_state.workspace_service.get_current_workspace().await
+    let id = if parsed.workspace_scope == "current" {
+        match workspace_id {
+            Some(id) => id.to_owned(),
+            None => {
+                app_state
+                    .workspace_service
+                    .get_current_workspace()
+                    .await
+                    .ok_or("Runtime URI has no selected workspace")?
+                    .id
+            }
+        }
     } else {
-        app_state
-            .workspace_service
-            .list_workspace_infos()
-            .await
-            .into_iter()
-            .find(|workspace| workspace.id == parsed.workspace_scope)
-    }
-    .ok_or_else(|| {
-        format!(
-            "Unable to resolve runtime URI scope '{}'",
-            parsed.workspace_scope
-        )
-    })?;
+        if workspace_id.is_some_and(|id| id != parsed.workspace_scope) {
+            return Err("Runtime URI belongs to a different workspace ID".into());
+        }
+        parsed.workspace_scope.to_owned()
+    };
+    let workspace = app_state
+        .workspace_service
+        .require_workspace(&id)
+        .await
+        .map_err(|error| error.to_string())?;
 
     let mut resolved = runtime_root_for_workspace_info(&workspace)?;
     for segment in parsed.relative_path.split('/') {
@@ -113,41 +125,15 @@ async fn resolve_runtime_artifact_path(
     Ok(Some(resolved))
 }
 
-async fn lookup_remote_entry_for_path(
-    app_state: &AppState,
-    path: &str,
-    request_preferred: Option<&str>,
-) -> Option<RemoteWorkspaceEntry> {
-    if should_force_local_assistant_path(path, request_preferred) {
-        return None;
-    }
-
-    let manager = get_remote_workspace_manager()?;
-    if let Some(connection_id) = request_preferred {
-        return manager.lookup_scoped_connection(path, connection_id).await;
-    }
-
-    let legacy = app_state
-        .get_remote_workspace_async()
-        .await
-        .map(|workspace| workspace.connection_id);
-    manager.lookup_connection(path, legacy.as_deref()).await
-}
-
-fn should_force_local_assistant_path(
-    path: &str,
-    explicit_remote_connection_id: Option<&str>,
-) -> bool {
-    explicit_remote_connection_id.is_none()
-        && get_path_manager_arc().is_local_assistant_workspace_path(path)
-}
-
 pub async fn resolve_desktop_path_target(
     app_state: &AppState,
     raw_path: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<DesktopPathTarget, String> {
-    if let Some(resolved_path) = resolve_runtime_artifact_path(app_state, raw_path).await? {
+    if let Some(resolved_path) =
+        resolve_runtime_artifact_path(app_state, raw_path, workspace_id).await?
+    {
         return Ok(DesktopPathTarget::Local {
             requested_path: raw_path.to_string(),
             resolved_path,
@@ -155,31 +141,30 @@ pub async fn resolve_desktop_path_target(
         });
     }
 
-    if preferred_remote_connection_id == Some("") {
-        return Ok(DesktopPathTarget::Local {
-            requested_path: raw_path.to_string(),
-            resolved_path: PathBuf::from(raw_path),
-            is_runtime_artifact: false,
-        });
-    }
-
-    let explicit_connection_id = preferred_remote_connection_id
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    if let Some(entry) =
-        lookup_remote_entry_for_path(app_state, raw_path, explicit_connection_id).await
-    {
+    let connection = match workspace_id {
+        Some(id) => app_state
+            .workspace_service
+            .require_workspace(id)
+            .await
+            .map_err(|error| error.to_string())?
+            .filesystem_connection_id()?
+            .map(str::to_owned),
+        None => app_state
+            .workspace_service
+            .upgrade_legacy_file_connection(raw_path, None, preferred_remote_connection_id)
+            .await
+            .map_err(|error| error.to_string())?,
+    };
+    if let Some(id) = connection {
+        let connection_id =
+            bitfun_core::service::filesystem::path_operations::resolve_explicit_path_connection(
+                raw_path, &id,
+            )
+            .await?;
         return Ok(DesktopPathTarget::Remote {
             requested_path: raw_path.to_string(),
-            entry,
+            entry: RemotePathConnection { connection_id },
         });
-    }
-
-    if let Some(connection_id) = explicit_connection_id {
-        return Err(format!(
-            "Remote workspace connection '{}' is unavailable or does not own path '{}'; local filesystem fallback was not attempted",
-            connection_id, raw_path
-        ));
     }
 
     Ok(DesktopPathTarget::Local {
@@ -187,6 +172,47 @@ pub async fn resolve_desktop_path_target(
         resolved_path: PathBuf::from(raw_path),
         is_runtime_artifact: false,
     })
+}
+
+/// Search selects the registered workspace by ID; the root is only an IO operand.
+pub async fn resolve_desktop_workspace_target(
+    app_state: &AppState,
+    workspace_id: &str,
+) -> Result<DesktopPathTarget<RemoteWorkspaceEntry>, String> {
+    let workspace = app_state
+        .workspace_service
+        .require_workspace(workspace_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    workspace_path_target(&workspace)
+}
+
+fn workspace_path_target(
+    workspace: &WorkspaceInfo,
+) -> Result<DesktopPathTarget<RemoteWorkspaceEntry>, String> {
+    let requested_path = workspace.root_path.to_string_lossy().into_owned();
+    match workspace.filesystem_connection_id()? {
+        None => Ok(DesktopPathTarget::Local {
+            requested_path,
+            resolved_path: workspace.root_path.clone(),
+            is_runtime_artifact: false,
+        }),
+        Some(connection_id) => Ok(DesktopPathTarget::Remote {
+            requested_path: requested_path.clone(),
+            entry: RemoteWorkspaceEntry {
+                connection_id: connection_id.to_owned(),
+                connection_name: workspace.name.clone(),
+                ssh_host: workspace
+                    .metadata
+                    .get("sshHost")
+                    .and_then(|value| value.as_str())
+                    .filter(|value| !value.is_empty())
+                    .ok_or("Remote workspace is missing SSH host metadata")?
+                    .to_owned(),
+                remote_root: normalize_remote_workspace_path(&requested_path),
+            },
+        }),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -277,74 +303,29 @@ pub fn stat_local_path_metadata(
     })
 }
 
-pub async fn read_text_file_prefix(
-    app_state: &AppState,
-    raw_path: &str,
-    max_bytes: usize,
-    preferred_remote_connection_id: Option<&str>,
-) -> Result<String, String> {
-    let target =
-        resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await?;
-    let bytes = match &target {
-        DesktopPathTarget::Local { resolved_path, .. } => {
-            let path = resolved_path.clone();
-            tokio::task::spawn_blocking(move || {
-                let file = std::fs::File::open(&path)
-                    .map_err(|e| format!("Failed to open '{}': {}", path.display(), e))?;
-                let mut bytes = Vec::with_capacity(max_bytes.min(1024 * 1024));
-                file.take(max_bytes as u64)
-                    .read_to_end(&mut bytes)
-                    .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
-                Ok::<_, String>(bytes)
-            })
-            .await
-            .map_err(|e| e.to_string())??
-        }
-        DesktopPathTarget::Remote { .. } => {
-            return Err("Large-file preview is not supported for remote workspaces".to_string());
-        }
-    };
-
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
-}
-
-pub async fn read_binary_file(app_state: &AppState, raw_path: &str) -> Result<Vec<u8>, String> {
-    let target = resolve_desktop_path_target(app_state, raw_path, None).await?;
-    let DesktopPathTarget::Local { resolved_path, .. } = target else {
-        return Err("Binary file transfer is not supported for remote workspaces".to_string());
-    };
-
-    let path = resolved_path.clone();
-    tokio::task::spawn_blocking(move || {
-        std::fs::read(&path).map_err(|e| format!("Failed to read '{}': {}", path.display(), e))
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 pub async fn read_text_file(
     app_state: &AppState,
     raw_path: &str,
     encoding: Option<&str>,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<String, String> {
-    let target =
-        resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await?;
+    let target = resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?;
     match &target {
         DesktopPathTarget::Local { resolved_path, .. } => {
-            if encoding.is_some_and(|value| {
-                value.eq_ignore_ascii_case("base64") || value.eq_ignore_ascii_case("text-preview")
-            }) {
+            if encoding.is_some_and(|value| value.eq_ignore_ascii_case("base64")) {
                 let bytes = app_state
                     .filesystem_service
                     .read_file_bytes(&resolved_path.to_string_lossy())
                     .await
                     .map_err(|e| format!("Failed to read file content: {}", e))?;
-
-                if encoding.is_some_and(|value| value.eq_ignore_ascii_case("base64")) {
-                    return Ok(BASE64.encode(bytes));
-                }
-                return Ok(String::from_utf8_lossy(&bytes).into_owned());
+                return Ok(BASE64.encode(bytes));
             }
 
             let result = app_state
@@ -371,13 +352,55 @@ pub async fn read_text_file(
     }
 }
 
+pub async fn read_text_file_prefix(
+    app_state: &AppState,
+    raw_path: &str,
+    max_bytes: usize,
+    preferred_remote_connection_id: Option<&str>,
+) -> Result<String, String> {
+    let target =
+        resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id, None)
+            .await?;
+    let bytes = match &target {
+        DesktopPathTarget::Local { resolved_path, .. } => {
+            let path = resolved_path.clone();
+            tokio::task::spawn_blocking(move || {
+                let file = std::fs::File::open(&path)
+                    .map_err(|e| format!("Failed to open '{}': {}", path.display(), e))?;
+                let mut bytes = Vec::with_capacity(max_bytes.min(1024 * 1024));
+                file.take(max_bytes as u64)
+                    .read_to_end(&mut bytes)
+                    .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
+                Ok::<_, String>(bytes)
+            })
+            .await
+            .map_err(|e| e.to_string())??
+        }
+        DesktopPathTarget::Remote { .. } => {
+            return Err("Large-file preview is not supported for remote workspaces".to_string());
+        }
+    };
+
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+pub async fn read_binary_file(app_state: &AppState, raw_path: &str) -> Result<Vec<u8>, String> {
+    let target = resolve_desktop_path_target(app_state, raw_path, None, None).await?;
+    let DesktopPathTarget::Local { resolved_path, .. } = target else {
+        return Err("Binary file transfer is not supported for remote workspaces".to_string());
+    };
+
+    let path = resolved_path.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::read(&path).map_err(|e| format!("Failed to read '{}': {}", path.display(), e))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn encode_remote_file_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<String, String> {
     if encoding.is_some_and(|value| value.eq_ignore_ascii_case("base64")) {
         return Ok(BASE64.encode(bytes));
-    }
-
-    if encoding.is_some_and(|value| value.eq_ignore_ascii_case("text-preview")) {
-        return Ok(String::from_utf8_lossy(&bytes).into_owned());
     }
 
     String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8: {}", e))
@@ -388,8 +411,16 @@ pub async fn write_text_file(
     raw_path: &str,
     content: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => {
             let options = FileOperationOptions {
                 backup_on_overwrite: false,
@@ -418,8 +449,20 @@ pub async fn write_text_file(
     }
 }
 
-pub async fn path_exists(app_state: &AppState, raw_path: &str) -> Result<bool, String> {
-    match resolve_desktop_path_target(app_state, raw_path, None).await? {
+pub async fn path_exists(
+    app_state: &AppState,
+    raw_path: &str,
+    preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<bool, String> {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => Ok(resolved_path.exists()),
         DesktopPathTarget::Remote {
             requested_path,
@@ -440,8 +483,17 @@ pub async fn path_exists(app_state: &AppState, raw_path: &str) -> Result<bool, S
 pub async fn get_path_metadata(
     app_state: &AppState,
     raw_path: &str,
+    preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<serde_json::Value, String> {
-    match resolve_desktop_path_target(app_state, raw_path, None).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local {
             requested_path,
             resolved_path,
@@ -496,8 +548,16 @@ pub async fn rename_path(
     old_path: &str,
     new_path: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, old_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        old_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local {
             resolved_path: old_resolved_path,
             ..
@@ -506,6 +566,7 @@ pub async fn rename_path(
                 app_state,
                 new_path,
                 preferred_remote_connection_id,
+                workspace_id,
             )
             .await?
             {
@@ -544,8 +605,16 @@ pub async fn delete_file(
     app_state: &AppState,
     raw_path: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => app_state
             .filesystem_service
             .delete_file(&resolved_path.to_string_lossy())
@@ -572,8 +641,16 @@ pub async fn delete_directory(
     raw_path: &str,
     recursive: bool,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => app_state
             .filesystem_service
             .delete_directory(&resolved_path.to_string_lossy(), recursive)
@@ -606,16 +683,18 @@ pub async fn create_empty_file(
     app_state: &AppState,
     raw_path: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => {
-            if resolved_path.exists() {
-                return Err("Path already exists".to_string());
-            }
-            let options = FileOperationOptions {
-                backup_on_overwrite: false,
-                ..FileOperationOptions::default()
-            };
+            let options = FileOperationOptions::default();
             app_state
                 .filesystem_service
                 .write_file_with_options(&resolved_path.to_string_lossy(), "", options)
@@ -631,13 +710,6 @@ pub async fn create_empty_file(
                 .get_remote_file_service_async()
                 .await
                 .map_err(|e| format!("Remote file service not available: {}", e))?;
-            if remote_fs
-                .exists(&entry.connection_id, &requested_path)
-                .await
-                .map_err(|e| format!("Failed to check remote path: {}", e))?
-            {
-                return Err("Path already exists".to_string());
-            }
             remote_fs
                 .write_file(&entry.connection_id, &requested_path, b"")
                 .await
@@ -650,8 +722,16 @@ pub async fn create_directory(
     app_state: &AppState,
     raw_path: &str,
     preferred_remote_connection_id: Option<&str>,
+    workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    match resolve_desktop_path_target(app_state, raw_path, preferred_remote_connection_id).await? {
+    match resolve_desktop_path_target(
+        app_state,
+        raw_path,
+        preferred_remote_connection_id,
+        workspace_id,
+    )
+    .await?
+    {
         DesktopPathTarget::Local { resolved_path, .. } => app_state
             .filesystem_service
             .create_directory(&resolved_path.to_string_lossy())
@@ -665,13 +745,6 @@ pub async fn create_directory(
                 .get_remote_file_service_async()
                 .await
                 .map_err(|e| format!("Remote file service not available: {}", e))?;
-            if remote_fs
-                .exists(&entry.connection_id, &requested_path)
-                .await
-                .map_err(|e| format!("Failed to check remote path: {}", e))?
-            {
-                return Err("Path already exists".to_string());
-            }
             remote_fs
                 .create_dir_all(&entry.connection_id, &requested_path)
                 .await
@@ -682,9 +755,33 @@ pub async fn create_directory(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        encode_remote_file_bytes, get_path_manager_arc, should_force_local_assistant_path,
-    };
+    use super::encode_remote_file_bytes;
+
+    #[test]
+    fn workspace_search_target_uses_record_kind_even_for_identical_roots() {
+        let mut record: super::WorkspaceInfo = serde_json::from_value(serde_json::json!({
+            "id": "local-id", "name": "Workspace", "rootPath": "/same/repo",
+            "workspaceType": "Other", "workspaceKind": "normal", "status": "Inactive",
+            "languages": [], "openedAt": "2026-09-16T00:00:00Z", "lastAccessed": "2026-09-16T00:00:00Z",
+            "description": null, "tags": [], "statistics": null,
+            "metadata": { "sshHost": "localhost", "connectionId": "saved-ssh" }
+        })).unwrap();
+        assert!(matches!(
+            super::workspace_path_target(&record).unwrap(),
+            super::DesktopPathTarget::Local { .. }
+        ));
+        record.id = "remote-id".into();
+        record.workspace_kind = super::WorkspaceKind::Remote;
+        match super::workspace_path_target(&record).unwrap() {
+            super::DesktopPathTarget::Remote { entry, .. } => {
+                assert_eq!(entry.connection_id, "saved-ssh");
+                assert_eq!(entry.remote_root, "/same/repo");
+            }
+            _ => panic!("remote workspace must remain remote"),
+        }
+        record.metadata.remove("connectionId");
+        assert!(super::workspace_path_target(&record).is_err());
+    }
 
     #[test]
     fn remote_file_bytes_support_explicit_base64_encoding() {
@@ -705,20 +802,21 @@ mod tests {
     }
 
     #[test]
-    fn local_assistant_path_ignores_legacy_remote_fallback_without_explicit_hint() {
-        let assistant_path = get_path_manager_arc()
-            .assistant_workspace_dir("path-target-local-save", None)
-            .to_string_lossy()
-            .to_string();
-
-        assert!(should_force_local_assistant_path(&assistant_path, None));
-        assert!(!should_force_local_assistant_path(
-            &assistant_path,
-            Some("explicit-remote-connection")
+    fn assistant_kind_controls_io_even_with_a_saved_ssh_projection() {
+        let mut record: super::WorkspaceInfo = serde_json::from_value(serde_json::json!({
+            "id":"assistant-id", "name":"Assistant", "rootPath":"/same/root", "tags":[],
+            "workspaceType":"Other", "workspaceKind":"assistant", "status":"Inactive",
+            "languages":[], "openedAt":"2026-09-16T00:00:00Z", "lastAccessed":"2026-09-16T00:00:00Z",
+            "metadata":{"connectionId":"stale-ssh","sshHost":"remote-host"}
+        })).unwrap();
+        assert!(matches!(
+            super::workspace_path_target(&record).unwrap(),
+            super::DesktopPathTarget::Local { .. }
         ));
-        assert!(!should_force_local_assistant_path(
-            "/tmp/regular-project",
-            None
+        record.workspace_kind = super::WorkspaceKind::Remote;
+        assert!(matches!(
+            super::workspace_path_target(&record).unwrap(),
+            super::DesktopPathTarget::Remote { .. }
         ));
     }
 }

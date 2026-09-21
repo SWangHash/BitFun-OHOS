@@ -38,3 +38,9 @@ xcrun --sdk macosx swiftc \
 "$OUTPUT_DIR/mobile-process-group-tests"
 
 printf '%s\n' 'iOS pure Swift focused tests passed.'
+
+xcrun --sdk macosx swiftc \
+  "$IOS_DIR/BitFun/Infrastructure/StartupRevealPreference.swift" \
+  "$SCRIPT_DIR/StartupRevealPreferenceTests.swift" \
+  -o "$OUTPUT_DIR/startup-reveal-preference-tests"
+"$OUTPUT_DIR/startup-reveal-preference-tests"

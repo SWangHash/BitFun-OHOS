@@ -4,6 +4,7 @@ import { bitFunLightPalette } from './light';
 import {
   createAccentScale,
   createSecondaryAccentScale,
+  overlayBlack,
   STATIC_BLACK,
   STATIC_WHITE,
 } from './paletteHelpers';
@@ -55,8 +56,8 @@ export const bitFunMonochromePalette: AppearancePalette = {
     element: content.colors.element,
     git: content.colors.git,
     scrollbar: {
-      thumb: content.colors.border.base,
-      thumbHover: content.colors.border.strong,
+      thumb: overlayBlack(0.2),
+      thumbHover: overlayBlack(0.3),
     },
     chrome: {
       type: chrome.type,

@@ -18,6 +18,10 @@ export interface FlowChatFocusItemRequest {
   turnIndex?: number;
   itemId?: string;
   source?: FlowChatFocusItemSource;
+  excerpt?: import('@/shared/types/context').ConversationExcerptContext;
+  embedded?: boolean;
+  surfaceEpoch?: number;
+  onUnavailable?: () => void;
 }
 
 /**

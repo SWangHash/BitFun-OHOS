@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Composer, ComposerToolbar, IconButton, Icon } from '@bitfun/ui';
 import { useImeOwnedKeyGuard } from '@/flow_chat/hooks/useImeOwnedKeyGuard';
 import type { ContextItem } from '@/shared/types/context';
+import { ConversationExcerptAttachments } from '../../selection/ConversationExcerptAttachments';
 import { ChatContextPicker } from '../ChatContextPicker';
 import {
   RichTextInput,
@@ -10,9 +11,15 @@ import {
   type RichTextInputElement,
 } from '../RichTextInput';
 import {
+  COMPOSER_PRESENTATION_VERSION,
   composerPresentationContexts,
+  withConversationExcerpts,
   type ComposerPresentation,
 } from '../../utils/composerPresentation';
+import { getMcpPromptReferenceMatches } from '../../utils/mcpPromptReference';
+import { getSkillPromptReferenceMatches } from '../../utils/skillPromptReference';
+import { getAdditionalModePromptReferenceMatches } from '../../utils/additionalModePromptReference';
+import { getWidgetPromptReferenceMatches } from '@/tools/generative-widget/widgetPromptReference';
 
 interface UserMessageEditComposerProps {
   value: string;
@@ -30,9 +37,14 @@ interface UserMessageEditComposerProps {
   excludeSessionId?: string;
 }
 
-type RichUserMessageEditComposerProps = Omit<UserMessageEditComposerProps, 'presentation'> & {
-  presentation: ComposerPresentation;
-};
+type RichUserMessageEditComposerProps = UserMessageEditComposerProps;
+
+function hasEditableInlineReference(value: string): boolean {
+  return getMcpPromptReferenceMatches(value).length > 0
+    || getSkillPromptReferenceMatches(value).length > 0
+    || getWidgetPromptReferenceMatches(value).length > 0
+    || getAdditionalModePromptReferenceMatches(value).length > 0;
+}
 
 const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = ({
   value,
@@ -52,7 +64,7 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
   const editorRef = useRef<RichTextInputElement>(null);
   const contextPickerAnchorRef = useRef<HTMLDivElement>(null);
   const [contexts, setContexts] = useState<ContextItem[]>(() => (
-    composerPresentationContexts(presentation)
+    presentation ? composerPresentationContexts(presentation) : []
   ));
   const [contextTriggerState, setContextTriggerState] = useState<ContextTriggerState>({
     isActive: false,
@@ -62,17 +74,25 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
   const canSubmit = value.trim().length > 0 && !isSubmitting;
 
   useEffect(() => {
-    setContexts(composerPresentationContexts(presentation));
+    setContexts(presentation ? composerPresentationContexts(presentation) : []);
     const frame = requestAnimationFrame(() => {
-      editorRef.current?.restoreComposerPresentation?.(presentation);
+      if (presentation) {
+        editorRef.current?.restoreComposerPresentation?.(presentation);
+      }
       editorRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [presentation]);
 
   const capturePresentation = useCallback(() => (
-    editorRef.current?.getComposerPresentation?.() ?? presentation
-  ), [presentation]);
+    withConversationExcerpts(
+      editorRef.current?.getComposerPresentation?.()
+        ?? presentation
+        ?? { version: COMPOSER_PRESENTATION_VERSION, segments: [{ kind: 'text', text: value }] },
+      contexts,
+      value,
+    )
+  ), [contexts, presentation, value]);
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
@@ -117,6 +137,13 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
     });
   }, []);
 
+  const handleComposerMouseDown = useCallback((event: React.MouseEvent<HTMLFieldSetElement>) => {
+    if (isSubmitting) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, textarea, select, a, label, [contenteditable]')) return;
+    editorRef.current?.focus();
+  }, [isSubmitting]);
+
   return (
     <Composer
       className="user-message-edit-composer"
@@ -125,6 +152,7 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
       data-bitfun-mode="rich"
       data-bitfun-state={isSubmitting ? 'submitting' : undefined}
       disabled={isSubmitting}
+      onMouseDown={handleComposerMouseDown}
       toolbar={(
         <ComposerToolbar
           className="user-message-edit-composer__actions"
@@ -174,6 +202,9 @@ const RichUserMessageEditComposer: React.FC<RichUserMessageEditComposerProps> = 
         data-bitfun-product-component="user-message-edit-composer"
         data-bitfun-product-part="input"
       >
+        <ConversationExcerptAttachments contexts={contexts} onRemove={handleRemoveContext}
+          onUpdate={(id, comment) => setContexts(current => current.map(context =>
+            context.id === id && context.type === 'conversation-excerpt' ? { ...context, comment } : context))} />
         <RichTextInput
           ref={editorRef}
           value={value}
@@ -262,7 +293,14 @@ export const UserMessageEditComposer: React.FC<UserMessageEditComposerProps> = (
     }
   }, [handleSubmit, isImeOwnedKey, onCancel]);
 
-  if (presentation) {
+  const handleComposerMouseDown = useCallback((event: React.MouseEvent<HTMLFieldSetElement>) => {
+    if (isSubmitting) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, textarea, select, a, label, [contenteditable]')) return;
+    textareaRef.current?.focus();
+  }, [isSubmitting]);
+
+  if (presentation || hasEditableInlineReference(value)) {
     return (
       <RichUserMessageEditComposer
         value={value}
@@ -290,6 +328,7 @@ export const UserMessageEditComposer: React.FC<UserMessageEditComposerProps> = (
       data-bitfun-mode="plain"
       data-bitfun-state={isSubmitting ? 'submitting' : undefined}
       disabled={isSubmitting}
+      onMouseDown={handleComposerMouseDown}
       toolbar={(
         <ComposerToolbar
           className="user-message-edit-composer__actions"

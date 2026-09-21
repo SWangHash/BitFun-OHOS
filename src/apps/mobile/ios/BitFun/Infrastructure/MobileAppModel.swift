@@ -20,6 +20,8 @@ final class MobileAppModel: ObservableObject {
     @Published var remoteViewSettingsOpen = false
     @Published var remoteHasMore = false
     @Published var remoteHasMoreMessages = false
+    @Published var remoteHistoryLoading = false
+    @Published var remoteHistoryFailed = false
     @Published var permissionMailbox: PermissionMailboxUiState?
     @Published var remoteConversationLoading = false
     @Published var remotePermissionMode = "ASK"
@@ -77,10 +79,13 @@ final class MobileAppModel: ObservableObject {
     @Published var accountDeviceCount = 0
     @Published var accountDevices: [MobileAccountDevice] = []
     @Published var accountSelectedDeviceID: String?
+    @Published var accountDirectoryError: String?
     @Published var accountRefreshing = false
     @Published var deviceDirectory: [MobileDeviceDirectoryEntry] = []
     @Published var runtimeFiles: RuntimeFilesUiState?
+    let runtimeFileDraft = RuntimeFileDraftState()
     @Published var runtimeDirectoryPicker: RuntimeFilesUiState?
+    @Published var runtimeDeviceTools: DeviceToolsUiState?
     @Published var runtimeTerminal: RuntimeTerminalUiState?
     @Published var savedRuntimeConnections: [SavedRuntimeConnectionUiState] = []
     @Published var savedRuntimeConnectionsFailed = false
@@ -120,10 +125,12 @@ final class MobileAppModel: ObservableObject {
     var remoteCreateRequestDeviceKey: String?
     var committedRemoteCreate: CommittedRemoteCreate?
     var remoteLastAppliedAuthority: RemoteAuthorityScope?
-    var workspaceCatalog: [(path: String, name: String, selected: Bool, remoteConnectionId: String?)] = []
+    var remoteSidebarWorkspaceState: RemoteWorkspaceUiStateReady?
+    typealias WorkspaceCatalogEntry = (path: String, name: String, selected: Bool, remoteConnectionId: String?, remoteSshHost: String?, workspaceId: String?)
+    var workspaceCatalog: [WorkspaceCatalogEntry] = []
     var pendingRemoteWorkspaceCreate: (path: String, agentType: String)?
-    var pendingRemoteSessionRefreshWorkspacePath: String?
-    var pendingDirectoryWorkspace: (deviceKey: String, path: String, epoch: UInt64)?
+    var pendingRemoteSessionRefreshWorkspace: MobileWorkspaceScope?
+    var pendingDirectoryWorkspace: (deviceKey: String, path: String, epoch: UInt64, remoteConnectionId: String?, remoteSshHost: String?, workspaceId: String?)?
     var pendingDirectoryRemoteDraft: PendingDirectoryRemoteDraft?
     var pendingRemoteAssistantCreate = false
     var selectedRemoteWorkspaceKind = ""
@@ -273,6 +280,7 @@ final class MobileAppModel: ObservableObject {
         remoteSessions = []
         remoteWorkspaces = []
         workspaceCatalog = []
+        remoteSidebarWorkspaceState = nil
         remoteInitialSessionReady = false
         remoteInitialWorkspaceReady = false
         workspaceLoading = false
@@ -280,7 +288,7 @@ final class MobileAppModel: ObservableObject {
         workspaceSelectionBusy = false
         remoteCreateWorkspacePhase = .unavailable
         pendingRemoteWorkspaceCreate = nil
-        pendingRemoteSessionRefreshWorkspacePath = nil
+        pendingRemoteSessionRefreshWorkspace = nil
         pendingDirectoryRemoteDraft = nil
         pendingRemoteAssistantCreate = false
         selectedRemoteWorkspaceKind = ""
@@ -367,6 +375,7 @@ final class MobileAppModel: ObservableObject {
         remotePermissionFailure = nil
         sessionDetails = nil
         workspaceCatalog = []
+        remoteSidebarWorkspaceState = nil
         workspaceLoading = false
         workspaceLoadFailed = false
         workspaceSelectionBusy = false
@@ -375,7 +384,7 @@ final class MobileAppModel: ObservableObject {
         pendingDirectoryWorkspace = nil
         pendingDirectoryRemoteDraft = nil
         pendingRemoteWorkspaceCreate = nil
-        pendingRemoteSessionRefreshWorkspacePath = nil
+        pendingRemoteSessionRefreshWorkspace = nil
         pendingRemoteAssistantCreate = false
         selectedRemoteWorkspaceKind = ""
         selectedSessionID = ""
@@ -447,4 +456,25 @@ final class MobileAppModel: ObservableObject {
         }
     }
 
+}
+
+/// Presentation draft outlives temporary sheet reconstruction and scene transitions.
+@MainActor
+final class RuntimeFileDraftState: ObservableObject {
+    @Published var content = ""
+    private var identity: [String]?
+    private var savedContent: String?
+
+    func synchronize(identity: [String], savedContent: String) {
+        guard self.identity != identity || self.savedContent != savedContent else { return }
+        self.identity = identity
+        self.savedContent = savedContent
+        content = savedContent
+    }
+
+    func reset() {
+        identity = nil
+        savedContent = nil
+        content = ""
+    }
 }

@@ -362,6 +362,10 @@ test('website download manifest uses installer while updater manifest keeps setu
         url: 'https://bitfun.test/release/1.2.3/BitFun_1.2.3_windows-x86_64-installer.exe',
         signature_url: 'https://bitfun.test/release/1.2.3/BitFun_1.2.3_windows-x86_64-installer.exe.sig',
       },
+      'darwin-aarch64': {
+        url: 'https://bitfun.test/release/1.2.3/BitFun_1.2.3_aarch64.dmg',
+        signature_url: 'https://bitfun.test/release/1.2.3/BitFun_1.2.3_aarch64.dmg.sig',
+      },
     },
   };
   fs.writeFileSync(updaterPath, `${JSON.stringify(updater, null, 2)}\n`);
@@ -407,7 +411,11 @@ test('website download manifest uses installer while updater manifest keeps setu
   );
   assert.equal(
     website.platforms['darwin-aarch64'].url,
-    updater.platforms['darwin-aarch64'].url
+    'https://bitfun.test/release/1.2.3/BitFun_1.2.3_aarch64.dmg'
+  );
+  assert.equal(
+    website.platforms['darwin-aarch64'].signatureUrl,
+    'https://bitfun.test/release/1.2.3/BitFun_1.2.3_aarch64.dmg.sig'
   );
 });
 
@@ -431,19 +439,44 @@ test('stable Linux archives are mirrored before the much larger Desktop packages
   );
 });
 
-test('the mirror retains enough releases for older Desktop builds', () => {
+test('the mirror keeps only the two newest versions and skips an unchanged latest', () => {
   const syncScript = fs.readFileSync(
     path.join(repoRoot, 'scripts/bitfun-release-sync.sh'),
     'utf8'
   );
   const keep = /^KEEP_VERSIONS=(\d+)$/m.exec(syncScript);
   assert.ok(keep, 'KEEP_VERSIONS must be set');
-  // Dispatch confirms an exact release before installation; keep that version
-  // available long enough for a later click or retry to finish safely.
-  assert.ok(
-    Number(keep[1]) >= 4,
-    `KEEP_VERSIONS must retain several releases, got ${keep[1]}`
+  assert.equal(Number(keep[1]), 2);
+  assert.match(syncScript, /Already mirroring \$VERSION; nothing to fetch/);
+  assert.doesNotMatch(syncScript, /! -name '0\.2\.\*'/);
+});
+
+test('pruning keeps the two newest SemVer releases and drops a newer-looking beta', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bitfun-prune-'));
+  for (const name of ['0.2.19', '1.0.0-beta', '1.0.0', '1.0.1']) {
+    fs.mkdirSync(path.join(temp, name));
+  }
+  const result = spawnSync(
+    'bash',
+    ['-c', `
+      source "$SYNC_SCRIPT"
+      WEBSITE_RELEASE_DIR="$TEST_DIR"
+      KEEP_VERSIONS=2
+      PYTHON=python3
+      prune_old_versions
+    `],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SYNC_SCRIPT: path.join(repoRoot, 'scripts/bitfun-release-sync.sh'),
+        TEST_DIR: temp,
+      },
+    }
   );
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(fs.readdirSync(temp).sort(), ['1.0.0', '1.0.1']);
+  fs.rmSync(temp, { recursive: true, force: true });
 });
 
 test('bitfun sync lock and cron use the in-repo script, not a server-only copy', () => {

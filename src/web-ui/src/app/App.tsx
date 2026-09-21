@@ -4,6 +4,7 @@ import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';
 import { SSHRemoteProvider } from '../features/ssh-remote';
 import { ContextMenuRenderer } from '../shared/context-menu-system/components/ContextMenuRenderer';
 import { NotificationContainer, notificationService } from '../shared/notification-system';
+import { UpdateNotificationCard } from '@/infrastructure/update/UpdateNotificationCard';
 import { NotificationCenter } from '../shared/notification-system/components/NotificationCenter';
 import { AnnouncementProvider } from '../shared/announcement-system';
 import { ConfirmDialogRenderer } from '@/infrastructure/confirm-dialog';
@@ -99,7 +100,7 @@ const DEFERRED_TRAY_INIT_DELAY_MS = 1500;
 function App() {
   const { t } = useI18n('settings/application');
 
-  // Workspace loading state — drives splash exit timing
+  // Workspace loading state ??drives splash exit timing
   const { loading: workspaceLoading } = useWorkspaceContext();
   const peerSurfaceActive = usePeerDeviceModeOptional()?.peerMode.active ?? false;
 
@@ -957,7 +958,7 @@ function App() {
               <ContextMenuRenderer />
 
               {/* Notification system */}
-              <NotificationContainer />
+              <NotificationContainer><UpdateNotificationCard /></NotificationContainer>
               <NotificationCenter />
 
               {/* Confirm dialog */}

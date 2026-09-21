@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-acp"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "agent-client-protocol",
  "async-trait",
@@ -800,11 +800,11 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-content"
-version = "1.0.0"
+version = "2.0.0"
 
 [[package]]
 name = "bitfun-agent-runtime"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-agent-stream",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-runtime-ipc"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-events",
@@ -850,7 +850,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-stream"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -870,7 +870,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-tools"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-core-types",
@@ -883,14 +883,14 @@ dependencies = [
 
 [[package]]
 name = "bitfun-agent-workflows"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "regex",
 ]
 
 [[package]]
 name = "bitfun-ai-adapters"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-app-server"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-app-server-client"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-app-server-protocol"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "agent-client-protocol",
  "bitfun-core-types",
@@ -971,7 +971,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-claude-code-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -990,7 +990,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-cli"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -1048,7 +1048,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-codex-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -1065,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-config-contracts"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-core-types",
  "bitfun-product-domains",
@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-core"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1163,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-core-types"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-desktop"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -1280,7 +1280,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-dsh-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-plugin-runtime-client",
@@ -1301,7 +1301,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-events"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1315,7 +1315,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-external-sources"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "futures",
@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-legacy-migration"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -1347,7 +1347,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-legacy-migration-adapters"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bitfun-agent-runtime",
@@ -1371,7 +1371,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-matrix-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "futures",
  "log",
@@ -1387,7 +1387,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-miniapp-market-server"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1399,7 +1399,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-miniapp-market-service"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1432,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-opencode-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-plugin-runtime-client",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-opencode-plugin-host"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1491,7 +1491,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-pi-adapter"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-static-hook-support",
@@ -1503,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-plugin-runtime-client"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-runtime-ports",
@@ -1512,7 +1512,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-product-capabilities"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-agent-runtime",
@@ -1524,7 +1524,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-product-domains"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "dirs 6.0.0",
  "hex",
@@ -1590,7 +1590,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-runtime-ports"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1605,7 +1605,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-runtime-services"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1620,7 +1620,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-sdk-host"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "bitfun-agent-runtime",
@@ -1639,7 +1639,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-sdk-host-app"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1661,7 +1661,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-server"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -1687,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-services-core"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1733,7 +1733,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-services-integrations"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-skin-market-server"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1824,7 +1824,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-skin-market-service"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1854,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-static-hook-support"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bitfun-product-domains",
  "bitfun-services-core",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-tool-call-jsonrepair"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1875,11 +1875,11 @@ dependencies = [
 
 [[package]]
 name = "bitfun-tool-packs"
-version = "1.0.0"
+version = "2.0.0"
 
 [[package]]
 name = "bitfun-transport"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1893,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "bitfun-webdriver"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -11646,7 +11646,7 @@ dependencies = [
 
 [[package]]
 name = "terminal-core"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12084,7 +12084,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "tool-runtime"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anydoc",
  "bitfun-agent-tools",

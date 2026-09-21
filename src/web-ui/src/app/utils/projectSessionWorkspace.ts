@@ -20,12 +20,6 @@ export function findReusableEmptySessionId(
   requestedMode?: string
 ): string | null {
   const { sessions } = flowChatStore.getState();
-  const remoteConnectionId = isRemoteWorkspace(workspace)
-    ? workspace.connectionId
-    : undefined;
-  const remoteSshHost = isRemoteWorkspace(workspace)
-    ? workspace.sshHost
-    : undefined;
 
   const targetMode = normalizeDefaultSessionTitleMode(requestedMode);
 
@@ -44,14 +38,7 @@ export function findReusableEmptySessionId(
     if (session.historyState !== 'new') {
       continue;
     }
-    if (
-      !sessionBelongsToWorkspaceNavRow(
-        session,
-        workspace.rootPath,
-        remoteConnectionId,
-        remoteSshHost
-      )
-    ) {
+    if (!sessionBelongsToWorkspaceNavRow(session, workspace.id)) {
       continue;
     }
 
@@ -79,7 +66,7 @@ export function findReusableEmptySessionId(
 
 /**
  * Code / Cowork sessions belong to project (non-assistant) workspaces only.
- * Assistant “instances” use Claw sessions under their own storage.
+ * Assistant ??nstances??use Claw sessions under their own storage.
  */
 export function pickWorkspaceForProjectChatSession(
   currentWorkspace: WorkspaceInfo | null | undefined,
@@ -118,6 +105,9 @@ export function pickPrimaryAssistantWorkspace(
  */
 export function flowChatSessionConfigForWorkspace(workspace: WorkspaceInfo) {
   return {
+    // The workspace ID is the authoritative session owner; the path and SSH
+    // fields below are IO projections for hosts that still record them.
+    workspaceId: workspace.id,
     workspacePath: workspace.rootPath,
     ...(isRemoteWorkspace(workspace) && workspace.connectionId
       ? { remoteConnectionId: workspace.connectionId }

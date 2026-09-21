@@ -18,17 +18,60 @@ pub const RELAY_INBOUND_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 pub fn ensure_rustls_crypto_provider() {
     bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevicePresenceEntry {
     pub device_id: String,
     pub device_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_alias: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_os: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_os_version: Option<String>,
+    /// Build string the device last reported to the Relay. Absent for legacy
+    /// devices and for Relays that predate the field. Accepts the `client_*`
+    /// and camelCase spellings some Relays use.
+    #[serde(
+        default,
+        alias = "client_version",
+        alias = "clientVersion",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_client_version: Option<String>,
+    /// Control-contract protocol number the device last reported. Absent for
+    /// legacy devices and for Relays that predate the field.
+    #[serde(
+        default,
+        alias = "client_protocol",
+        alias = "clientProtocol",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_client_protocol: Option<u32>,
+    /// Relay-computed compatibility, present in presence only when the Relay
+    /// computes it. `None` means unknown and must be treated as compatible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compatible: Option<bool>,
+}
+
+impl DevicePresenceEntry {
+    /// Whether the Relay considers this device compatible with our control
+    /// contract.
+    ///
+    /// The Relay computes and exposes `compatible` only on `GET /api/devices`;
+    /// presence entries carry the raw `client_version`/`client_protocol` at
+    /// most, so this is normally `None`. A `Some(false)` value, when a Relay
+    /// does send one, means the pair must not be remote-controlled (a device
+    /// with no version, or a mismatched number). `None` means the Relay did not
+    /// judge here — treat it as compatible; do not read a missing flag as "the
+    /// device lacks a version".
+    pub fn is_compatible(&self) -> bool {
+        self.compatible.unwrap_or(true)
+    }
 }
 #[derive(Debug, Clone)]
 pub enum RelayEvent {
-    SessionUpdated {
-        relay_session_id: String,
-        message: serde_json::Value,
-    },
     Connected,
     Reconnected,
     Disconnected,
@@ -335,19 +378,9 @@ impl RelayClient {
                     true
                 }
             }
-            Incoming::Update(event) => {
-                if let Some(sid) = event.payload.0["body"]["sid"].as_str() {
-                    events
-                        .try_send(RelayEvent::SessionUpdated {
-                            relay_session_id: sid.to_owned(),
-                            message: event.payload.0["body"]["message"].clone(),
-                        })
-                        .is_ok()
-                } else {
-                    true
-                }
-            }
-            Incoming::AuthOk(_) | Incoming::Registered(_) => true,
+            // Relay-stored session updates are retired; an older relay may still
+            // emit them and they are ignored.
+            Incoming::Update(_) | Incoming::AuthOk(_) | Incoming::Registered(_) => true,
         }
     }
     pub async fn request_device(
@@ -449,6 +482,69 @@ fn reply_deadline(payload: &serde_json::Value) -> Instant {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn presence_metadata_and_legacy_round_trip() {
+        let legacy = serde_json::json!({"device_id":"id", "device_name":"technical"});
+        let entry: super::DevicePresenceEntry = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(serde_json::to_value(entry).unwrap(), legacy);
+        let extended = serde_json::json!({"device_id":"id", "device_name":"technical",
+            "device_alias":"Laptop", "device_model":"Mac14,7", "device_os":"macos", "device_os_version":"15"});
+        let entry: super::DevicePresenceEntry = serde_json::from_value(extended.clone()).unwrap();
+        assert_eq!(entry.device_name, "technical");
+        assert_eq!(serde_json::to_value(entry).unwrap(), extended);
+        let cleared: super::DevicePresenceEntry = serde_json::from_value(serde_json::json!({
+            "device_id":"id", "device_name":"technical", "device_alias":null,
+            "device_model":null, "device_os":null, "device_os_version":null, "future":true
+        }))
+        .unwrap();
+        assert!(cleared.device_alias.is_none());
+    }
+
+    #[test]
+    fn presence_client_compatibility_round_trips_and_legacy_stays_unknown() {
+        // Legacy presence carries no build fields and no `compatible` flag.
+        // Presence never judges compatibility, so a missing flag is unknown and
+        // treated as compatible; this is not the "device lacks a version" case,
+        // which the Relay reports as an explicit `compatible: false`.
+        let legacy: super::DevicePresenceEntry = serde_json::from_value(
+            serde_json::json!({"device_id":"id", "device_name":"technical"}),
+        )
+        .unwrap();
+        assert!(legacy.device_client_version.is_none());
+        assert!(legacy.device_client_protocol.is_none());
+        assert!(legacy.compatible.is_none());
+        assert!(legacy.is_compatible());
+
+        // A device that never reported a version is judged incompatible when the
+        // Relay does send `compatible: false` (raw build fields stay absent).
+        let unversioned: super::DevicePresenceEntry = serde_json::from_value(serde_json::json!({
+            "device_id":"id", "device_name":"technical", "compatible":false
+        }))
+        .unwrap();
+        assert!(unversioned.device_client_protocol.is_none());
+        assert!(!unversioned.is_compatible());
+
+        // A Relay that also includes the build fields carries them through.
+        let extended = serde_json::json!({
+            "device_id":"id", "device_name":"technical",
+            "device_client_version":"1.0.1", "device_client_protocol":2, "compatible":false
+        });
+        let entry: super::DevicePresenceEntry = serde_json::from_value(extended.clone()).unwrap();
+        assert_eq!(entry.device_client_version.as_deref(), Some("1.0.1"));
+        assert_eq!(entry.device_client_protocol, Some(2));
+        assert!(!entry.is_compatible());
+        assert_eq!(serde_json::to_value(&entry).unwrap(), extended);
+
+        // The `client_*` spellings some Relays use are accepted too.
+        let aliased: super::DevicePresenceEntry = serde_json::from_value(serde_json::json!({
+            "device_id":"id", "device_name":"technical",
+            "client_version":"1.0.1", "client_protocol":2
+        }))
+        .unwrap();
+        assert_eq!(aliased.device_client_version.as_deref(), Some("1.0.1"));
+        assert_eq!(aliased.device_client_protocol, Some(2));
+    }
+
     #[tokio::test]
     async fn base_endpoint_preserves_proxy_prefix_without_legacy_ws_conversion() {
         let (client, _events) = super::RelayClient::new();

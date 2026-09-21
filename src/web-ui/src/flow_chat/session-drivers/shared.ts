@@ -4,6 +4,23 @@
 
 import { generateTempTitle } from '../utils/titleUtils';
 import type { FlowChatContext } from '../services/flow-chat-manager/types';
+import type { SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import type { DialogTurn } from '../types/flow-chat';
+import { registerSubmittedMessage } from '../services/submittedMessagePresentation';
+
+/** Register send feedback before the synchronous optimistic projection can render. */
+export function addSubmittedDialogTurn(
+  context: FlowChatContext,
+  scope: SurfaceScope,
+  sessionId: string,
+  turn: DialogTurn,
+): void {
+  const session = context.flowChatStore.getState().sessions.get(sessionId);
+  if (session && !session.dialogTurns.some(existing => existing.id === turn.id)) {
+    registerSubmittedMessage(scope, sessionId, turn.id, turn.userMessage.id);
+  }
+  context.flowChatStore.addDialogTurn(sessionId, turn);
+}
 
 /**
  * Show a readable placeholder title immediately; the backend later confirms

@@ -297,13 +297,29 @@ impl LoginFormState {
                 let is_local = local_id == Some(d.device_id.as_str());
                 let status = if d.online { "online" } else { "offline" };
                 let badge = if is_local { " [this device]" } else { "" };
+                // A missing flag (older Relay) is unknown and shows nothing.
+                let compat = if d.is_compatible() {
+                    ""
+                } else {
+                    "  · incompatible"
+                };
                 device_lines.push(Line::from(Span::styled(
                     format!(
-                        "  {}{}  {}  · {}",
-                        d.device_name,
+                        "  {}{}  {}  · {}{}  {}",
+                        d.display_name(),
                         badge,
                         truncate_id(&d.device_id),
-                        status
+                        status,
+                        compat,
+                        [
+                            d.device_model.as_deref(),
+                            d.device_os.as_deref(),
+                            d.device_os_version.as_deref()
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join(" ")
                     ),
                     if d.online {
                         Style::default().fg(Color::White)
@@ -364,25 +380,19 @@ impl LoginFormState {
     }
 
     fn render_message(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        if let Some(ref err) = self.error {
-            frame.render_widget(
-                Paragraph::new(Line::from(Span::styled(
-                    err.as_str(),
-                    theme.style(StyleKind::Error),
-                )))
-                .alignment(Alignment::Center),
-                area,
-            );
+        // The error may carry a second guidance line; keep it on its own row.
+        let (message, style) = if let Some(ref err) = self.error {
+            (err.as_str(), theme.style(StyleKind::Error))
         } else if let Some(ref status) = self.status {
-            frame.render_widget(
-                Paragraph::new(Line::from(Span::styled(
-                    status.as_str(),
-                    theme.style(StyleKind::Info),
-                )))
-                .alignment(Alignment::Center),
-                area,
-            );
-        }
+            (status.as_str(), theme.style(StyleKind::Info))
+        } else {
+            return;
+        };
+        let lines: Vec<Line> = message
+            .lines()
+            .map(|line| Line::from(Span::styled(line.to_string(), style)))
+            .collect();
+        frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
     }
 
     fn render_hints(&self, frame: &mut Frame, area: Rect, hints: &str, theme: &Theme) {

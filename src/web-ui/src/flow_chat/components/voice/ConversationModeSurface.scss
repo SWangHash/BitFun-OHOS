@@ -1,3 +1,5 @@
+@use '../../markdown-typography' as markdownTypography;
+
 .bitfun-conversation-mode-surface {
   flex: 1;
   min-width: 0;
@@ -80,4 +82,149 @@
     transform: none;
   }
 
+}
+.bitfun-conversation-mode-surface__logo {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  mask: url('/brand/bitfun-mark.svg') center / contain no-repeat;
+  -webkit-mask: url('/brand/bitfun-mark.svg') center / contain no-repeat;
+}
+
+.bitfun-conversation-mode-surface--integrated {
+  --_conversation-header-overlap: calc(var(--bitfun-control-height-sm) + var(--bitfun-space-6));
+  position: relative;
+  container-type: size;
+  color: inherit;
+
+  &[data-bitfun-state='voice'] { --_conversation-header-overlap: 0px; }
+
+  // The identity stays on one axis; text records pass beneath its compact form.
+  .bitfun-conversation-mode-surface__body > [data-bitfun-part='identity'] {
+    z-index: 1;
+    isolation: isolate;
+    margin-block-end: calc(0px - var(--_conversation-header-overlap));
+    transition-property: block-size, margin-block-end;
+
+    &::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      pointer-events: none;
+      background: var(--bitfun-color-surface-raised);
+      // Keep mask coverage independent of translucent text colors; fade inside the lower edge.
+      -webkit-mask-image: linear-gradient(to bottom, var(--bitfun-color-content-on-light) calc(100% - var(--bitfun-space-1)), transparent);
+      mask-image: linear-gradient(to bottom, var(--bitfun-color-content-on-light) calc(100% - var(--bitfun-space-1)), transparent);
+      opacity: 0;
+      transition: opacity var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
+    }
+  }
+
+  &[data-bitfun-state='chat'] .bitfun-conversation-mode-surface__body:has(
+    > .bitfun-conversation-mode-surface__transcript[data-scrolled='true']
+  ) > [data-bitfun-part='identity']::before { opacity: 1; }
+
+  .bitfun-conversation-mode-surface__transcript {
+    padding-block-start: 0;
+    scroll-padding-block-start: calc(var(--_conversation-header-overlap) + var(--bitfun-space-3));
+
+    > [data-bitfun-part='entries'] {
+      padding-block-start: calc(var(--_conversation-header-overlap) + var(--bitfun-space-3));
+      transition: padding-block-start 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .bitfun-conversation-mode-surface__body > [data-bitfun-part='identity']::before {
+      background: color-mix(in srgb, var(--bitfun-color-surface-raised) 72%, transparent);
+      -webkit-backdrop-filter: var(--bitfun-effect-blur-medium) var(--bitfun-effect-blur-medium);
+      backdrop-filter: var(--bitfun-effect-blur-medium) var(--bitfun-effect-blur-medium);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .bitfun-conversation-mode-surface__body > [data-bitfun-part='identity']::before {
+      background: var(--bitfun-color-surface-raised);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bitfun-conversation-mode-surface__body > [data-bitfun-part='identity'],
+    .bitfun-conversation-mode-surface__body > [data-bitfun-part='identity']::before,
+    .bitfun-conversation-mode-surface__transcript > [data-bitfun-part='entries'] { transition: none; }
+  }
+}
+
+.bitfun-conversation-mode-surface__voice-header {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex: 0 0 auto;
+  opacity: 1;
+  visibility: inherit;
+  transition: grid-template-rows 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms, visibility 0s;
+
+  &[aria-hidden='true'] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 480ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms, visibility 0s 160ms;
+  }
+}
+.bitfun-conversation-mode-surface__voice-header-content { min-height: 0; overflow: hidden; }
+
+.bitfun-conversation-mode-surface__composer {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex: 0 0 auto;
+  opacity: 1;
+  visibility: inherit;
+  transition: grid-template-rows 480ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms, visibility 0s;
+
+  &[aria-hidden='true'] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms, visibility 0s 160ms;
+  }
+}
+.bitfun-conversation-mode-surface__composer-content { min-height: 0; overflow: hidden; }
+.bitfun-conversation-mode-surface__transcript {
+  .markdown-renderer { white-space: normal; }
+
+  &[data-bitfun-presentation='chat'] {
+    @include markdownTypography.apply;
+  }
+}
+
+.bitfun-conversation-mode-surface__transcript[data-bitfun-presentation='voice'] .markdown-renderer {
+  color: inherit;
+  font: inherit;
+  :is(p, h1, h2, h3, h4, h5, h6, strong, em, li) { color: inherit; }
+}
+.bitfun-conversation-mode-surface__history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bitfun-space-2);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  line-height: var(--bitfun-type-label-sm-line-height);
+}
+.bitfun-conversation-mode-surface__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bitfun-space-2);
+  margin-top: var(--bitfun-space-2);
+  img { display: block; max-width: 160px; max-height: 160px; object-fit: contain; border-radius: var(--bitfun-radius-base); }
+}
+.bitfun-conversation-mode-surface__image-preview { display: block; max-width: 100%; max-height: 75vh; object-fit: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .bitfun-conversation-mode-surface__voice-header,
+  .bitfun-conversation-mode-surface__voice-header[aria-hidden='true'],
+  .bitfun-conversation-mode-surface__composer,
+  .bitfun-conversation-mode-surface__composer[aria-hidden='true'] { transition: none; }
 }

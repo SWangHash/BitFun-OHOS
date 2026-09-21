@@ -290,4 +290,27 @@ describe('ContextMenu presence', () => {
     }
     expect(document.querySelector<HTMLElement>('[data-bitfun-product-part="submenuArrow"]')?.className).toBeTruthy();
   });
+
+  it('resolves every workspace terminal action icon', () => {
+    useContextMenuStore.setState({
+      visible: true,
+      position: { x: 20, y: 20 },
+      items: [
+        { id: 'stop', label: 'Stop', icon: 'Square' },
+        { id: 'configure', label: 'Save configuration', icon: 'Settings' },
+        { id: 'reveal-directory', label: 'Reveal working directory', icon: 'FolderOpen' },
+        { id: 'remove', label: 'Remove terminal', icon: 'Trash2', disabled: true },
+      ],
+    });
+
+    act(() => root.render(<ContextMenuRenderer />));
+
+    for (const id of ['stop', 'configure', 'reveal-directory', 'remove']) {
+      const item = document.querySelector(`[data-menu-id="${id}"]`)!;
+      expect(item.querySelector('svg')).not.toBeNull();
+      expect(item.querySelector('i')).toBeNull();
+    }
+    expect(document.querySelector('[data-menu-id="configure"] [data-bitfun-name="gear"]')).not.toBeNull();
+    expect(document.querySelector('[data-menu-id="remove"] [data-bitfun-name="delete"]')).not.toBeNull();
+  });
 });

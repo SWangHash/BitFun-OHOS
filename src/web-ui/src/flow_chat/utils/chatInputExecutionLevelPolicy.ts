@@ -37,12 +37,13 @@ export function resolveChatInputExecutionLevelPolicy(params: {
   sessionMode?: string | null;
   isAcpTargetSession: boolean;
   isSubagentInputTarget: boolean;
+  isBtwDraftTarget?: boolean;
 }): ChatInputExecutionLevelPolicy {
   if (params.isAcpTargetSession) {
     return { owner: 'acp-host', userConfigurable: false };
   }
 
-  if (params.isSubagentInputTarget) {
+  if (params.isSubagentInputTarget || params.isBtwDraftTarget) {
     return { owner: 'parent-session', userConfigurable: false };
   }
 

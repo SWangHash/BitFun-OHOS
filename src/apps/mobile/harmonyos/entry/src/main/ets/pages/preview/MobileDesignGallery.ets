@@ -1,4 +1,6 @@
+import { DeviceSelectorPreview } from './DeviceSelectorPreview';
 import { WelcomeHome } from '../components/WelcomeHome';
+import { InteractionMailboxPreview } from './InteractionMailboxPreview';
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import {
   MobilePreviewMessage,
@@ -31,8 +33,12 @@ struct MobileDesignGallery {
   }
 
   build() {
-    if (AppStorage.get<string>('scenarioId') === 'welcome-home') {
+    if ((AppStorage.get<string>('scenarioId') || '').startsWith('device-selector')) {
+      DeviceSelectorPreview()
+    } else if (AppStorage.get<string>('scenarioId') === 'welcome-home') {
       WelcomeHome()
+    } else if ((AppStorage.get<string>('scenarioId') || '').startsWith('interaction-mailbox')) {
+      InteractionMailboxPreview()
     } else {
       this.ConversationPreview()
     }

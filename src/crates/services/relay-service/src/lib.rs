@@ -22,6 +22,7 @@ pub mod db;
 pub mod page_data;
 pub mod page_execution;
 pub mod relay;
+mod retired_version;
 pub mod routes;
 
 pub use routes::api::AppState;
@@ -1167,6 +1168,9 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
         cors_allow_origins: Arc::new(cors_allow_origins.clone()),
         page_browser_auth: page_browser_auth.map(Arc::new),
     };
+    // Resolve retirement configuration at startup so its state is in the log
+    // before the first request can be refused.
+    retired_version::announce_policy();
 
     let router = Router::new()
         .route(
@@ -1220,7 +1224,13 @@ pub fn build_relay_router_with_page_data_origins_and_page_auth(
     router.layer(
         CorsLayer::new()
             .allow_origin(allow_origin)
-            .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
             .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
     )
 }

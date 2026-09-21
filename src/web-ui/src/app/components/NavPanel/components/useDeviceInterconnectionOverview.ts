@@ -1,3 +1,4 @@
+import { useDeviceDirectory, resolveDeviceName, resolveDeviceNameFrom } from '@/infrastructure/account/deviceDirectory';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAccountLoginState } from '@/infrastructure/account/useAccountLoginState';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
@@ -19,6 +20,7 @@ const TOPOLOGY_POLL_MS = 15_000;
 
 export function useDeviceInterconnectionOverview(fallbackLocalDeviceName: string, fallbackMobileDeviceName?: string) {
   const account = useAccountLoginState();
+  const directory = useDeviceDirectory();
   const peerContext = usePeerDeviceModeOptional();
   const dispatchJobs = useDispatchJobStore(state => state.jobs);
 
@@ -108,11 +110,11 @@ export function useDeviceInterconnectionOverview(fallbackLocalDeviceName: string
         target: {
           kind: 'device' as const,
           id: job.target.deviceId,
-          name: job.target.displayName,
+          name: resolveDeviceNameFrom(directory.devices, job.target.deviceId, job.target.displayName),
         },
       };
     })
-  ), [dispatchJobs]);
+  ), [dispatchJobs, directory]);
 
   const peer = useMemo(() => (
     peerContext?.peerMode.active
@@ -123,7 +125,7 @@ export function useDeviceInterconnectionOverview(fallbackLocalDeviceName: string
       : null
   ), [peerContext?.peerMode]);
 
-  const localDeviceName = localDevice?.device_name?.trim() || fallbackLocalDeviceName;
+  const localDeviceName = account.deviceName ?? (localDevice ? resolveDeviceName(localDevice.device_id, localDevice.device_name) : fallbackLocalDeviceName);
   const overview = useMemo(() => projectDeviceInterconnectionOverview({
     localDeviceName,
     fallbackMobileDeviceName,

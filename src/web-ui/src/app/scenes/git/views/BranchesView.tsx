@@ -3,13 +3,13 @@
  */
 
 import { OverflowText, Button, Icon, IconButton, SearchField, Tooltip, ScrollArea } from '@bitfun/ui';
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RotateCcw, FileText } from 'lucide-react';
 
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { gitService } from '@/tools/git/services';
-import { useGitOperations } from '@/tools/git/hooks';
+import { useGitOperations, useGitState } from '@/tools/git/hooks';
 import { useNotification } from '@/shared/notification-system';
 import { CreateBranchDialog } from '@/tools/git/components/CreateBranchDialog';
 import type { GitBranch as GitBranchType, GitCommit as GitCommitType, GitFileChange } from '@/tools/git/types/repository';
@@ -17,9 +17,10 @@ import './BranchesView.scss';
 
 interface BranchesViewProps {
   workspacePath?: string;
+  workspaceId?: string;
 }
 
-const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
+const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath, workspaceId }) => {
   const { t } = useTranslation('panels/git');
   const { t: tComponents } = useI18n('components');
   const notification = useNotification();
@@ -38,15 +39,44 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
   const [isResetting, setIsResetting] = useState(false);
 
   const { isOperating, checkoutBranch, createBranch, deleteBranch } = useGitOperations({
-    repositoryPath: workspacePath ?? '',
+    repositoryPath: { workspaceId: workspaceId ?? '', repositoryPath: workspacePath },
     autoRefresh: false,
   });
+
+  // Subscribe to the shared current branch. The list's "current" badge and
+  // highlight are derived from this single value rather than from the per-item
+  // flag returned by `git branch`, so a switch performed anywhere — including a
+  // manual switch that writes the shared state directly — moves the marker here
+  // without waiting for this view to re-read the repository.
+  const scope = { workspaceId: workspaceId ?? '', repositoryPath: workspacePath };
+  const { currentBranch: managerCurrentBranch } = useGitState({
+    repositoryPath: scope,
+    layers: ['basic'],
+    isActive: !!workspacePath,
+    refreshOnMount: true,
+    refreshOnActive: true,
+    participateInWindowFocusRefresh: true,
+    debugSource: 'branches_view',
+  });
+
+  // Fall back to the fetched list's own flag until the shared state carries a
+  // value, so the badge is not blank on first paint.
+  const effectiveCurrentBranch =
+    managerCurrentBranch ?? branches.find(b => b.current)?.name ?? null;
+  const displayBranches = useMemo(
+    () => branches.map(branch => (
+      branch.current === (branch.name === effectiveCurrentBranch)
+        ? branch
+        : { ...branch, current: branch.name === effectiveCurrentBranch }
+    )),
+    [branches, effectiveCurrentBranch],
+  );
 
   const loadBranches = useCallback(async () => {
     if (!workspacePath) return;
     setBranchLoading(true);
     try {
-      const result = await gitService.getBranches(workspacePath, true);
+      const result = await gitService.getBranches({ workspaceId: workspaceId ?? '', repositoryPath: workspacePath }, true);
       const list = Array.isArray(result) ? result : [];
       setBranches(list);
       if (list.length > 0 && !selectedBranchName) {
@@ -58,7 +88,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
     } finally {
       setBranchLoading(false);
     }
-  }, [selectedBranchName, workspacePath]);
+  }, [selectedBranchName, workspacePath, workspaceId]);
 
   const loadCommits = useCallback(
     async (branchRef: string | null) => {
@@ -68,7 +98,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
       }
       setCommitLoading(true);
       try {
-        const result = await gitService.getCommits(workspacePath, { maxCount: 50 });
+        const result = await gitService.getCommits({ workspaceId: workspaceId ?? '', repositoryPath: workspacePath }, { maxCount: 50 });
         const list = Array.isArray(result) ? result : [];
         setCommits([...list].reverse());
       } catch {
@@ -77,7 +107,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
         setCommitLoading(false);
       }
     },
-    [workspacePath]
+    [workspacePath, workspaceId]
   );
 
   useEffect(() => {
@@ -89,8 +119,8 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
   }, [selectedBranchName, loadCommits]);
 
   const filteredBranches = branchSearchQuery.trim()
-    ? branches.filter(b => (b.name ?? '').toLowerCase().includes(branchSearchQuery.toLowerCase()))
-    : branches;
+    ? displayBranches.filter(b => (b.name ?? '').toLowerCase().includes(branchSearchQuery.toLowerCase()))
+    : displayBranches;
 
   const filteredCommits = commitSearchQuery.trim()
     ? commits.filter(
@@ -180,7 +210,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
       if (!confirm(t('confirm.resetToCommit', { hash: hash.substring(0, 7) }))) return;
       setIsResetting(true);
       try {
-        const result = await gitService.resetToCommit(workspacePath, hash, 'mixed');
+        const result = await gitService.resetToCommit({ workspaceId: workspaceId ?? '', repositoryPath: workspacePath }, hash, 'mixed');
         if (result.success) {
           notification.success(t('notifications.resetSuccess', { hash: hash.substring(0, 7) }));
           loadBranches();
@@ -190,7 +220,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
         setIsResetting(false);
       }
     },
-    [workspacePath, notification, t, selectedBranchName, loadBranches, loadCommits]
+    [workspacePath, notification, t, selectedBranchName, loadBranches, loadCommits, workspaceId]
   );
 
   if (!workspacePath) {
@@ -226,7 +256,7 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath }) => {
               size="sm"
               variant="primary"
               leadingIcon={<Icon name="plus" size="sm" />}
-              onClick={() => handleCreateFrom(branches.find(b => b.current)?.name ?? selectedBranchName ?? '')}
+              onClick={() => handleCreateFrom(effectiveCurrentBranch ?? selectedBranchName ?? '')}
               title={t('dialog.createNewBranch.title')}
             >
               {t('dialog.createNewBranch.confirm')}

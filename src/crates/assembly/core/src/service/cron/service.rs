@@ -12,7 +12,9 @@ use crate::agentic::coordination::{
     ConversationCoordinator, DialogQueuePriority, DialogScheduler, DialogSubmissionPolicy,
     DialogTriggerSource,
 };
+use crate::agentic::agents::get_agent_registry;
 use crate::agentic::core::SessionConfig;
+use crate::agentic::session::session_manager::SessionManager;
 use crate::agentic::workspace::WorkspaceBinding;
 use crate::infrastructure::PathManager;
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
@@ -62,6 +64,21 @@ impl CronService {
                 )));
             }
 
+            // Upgrade persisted pre-ID targets once. Unavailable/ambiguous records
+            // stay on disk and fail explicitly when executed, never select a folder.
+            let old_target = job.target.clone();
+            match crate::service::workspace::legacy_compat::upgrade_legacy_cron_target(
+                job.target.clone(),
+            )
+            .await
+            {
+                Ok(target) => job.target = target,
+                Err(error) => warn!(
+                    "Unable to upgrade scheduled job workspace: job_id={}, error={}",
+                    job.id, error
+                ),
+            }
+            needs_save |= job.target != old_target;
             needs_save |= reconcile_loaded_job(&mut job, current_ms)?;
             jobs.insert(job.id.clone(), job);
         }
@@ -111,21 +128,14 @@ impl CronService {
 
     pub async fn list_jobs_filtered(
         &self,
-        workspace_path: Option<&str>,
         workspace_id: Option<&str>,
-        remote_connection_id: Option<&str>,
         session_id: Option<&str>,
         target_kind: Option<CronJobTargetKind>,
     ) -> Vec<CronJob> {
         let jobs = self.jobs.read().await;
         jobs.values()
             .filter(|job| {
-                let workspace_matches = matches_workspace_filter(
-                    job.workspace(),
-                    workspace_path,
-                    workspace_id,
-                    remote_connection_id,
-                );
+                let workspace_matches = matches_workspace_filter(job.workspace(), workspace_id);
                 let session_matches = session_id
                     .map(|session_id| job.session_id() == Some(session_id))
                     .unwrap_or(true);
@@ -459,15 +469,35 @@ impl CronService {
                 scheduled_at_ms = Some(pending_trigger_at_ms);
                 let (user_input, prepended_messages) =
                     format_scheduled_job_user_input(&job.payload.text, current_ms);
-                enqueue_input = Some(EnqueueInput {
+                let candidate = EnqueueInput {
                     job_id: job.id.clone(),
                     job_name: job.name.clone(),
                     turn_id,
                     target: job.target.clone(),
                     user_input,
                     prepended_messages,
-                });
-                should_attempt_enqueue = true;
+                };
+
+                // Resolve the model before any side effect: a workspace-launch
+                // target creates its session during enqueue submission, so a
+                // missing model configuration must be rejected here to keep the
+                // retry loop from creating a new session on every attempt.
+                match Self::preflight_model_available(&self.coordinator, &candidate).await {
+                    Ok(()) => {
+                        enqueue_input = Some(candidate);
+                        should_attempt_enqueue = true;
+                    }
+                    Err(error) => {
+                        job.state
+                            .mark_model_preflight_failed(current_ms, error.clone());
+                        job.updated_at_ms = current_ms;
+                        should_persist = true;
+                        warn!(
+                            "Scheduled job blocked before enqueue (no usable model): job_id={}, job_name={}, error={}",
+                            job.id, job.name.trim(), error
+                        );
+                    }
+                }
             }
         }
 
@@ -562,6 +592,71 @@ impl CronService {
         self.persist_jobs_locked(&jobs).await
     }
 
+    /// Mirror the execution engine's model resolution chain (explicit session
+    /// / launch model, then the agent default, then the global primary) and
+    /// reject the run before any side effect when nothing resolves to an
+    /// enabled model.
+    async fn preflight_model_available(
+        coordinator: &ConversationCoordinator,
+        enqueue_input: &EnqueueInput,
+    ) -> Result<(), String> {
+        let (explicit_model_id, agent_type, workspace_id) = match &enqueue_input.target {
+            CronJobTarget::Session {
+                session_id,
+                workspace,
+            } => {
+                let session = coordinator.get_session_manager().get_session(session_id);
+                (
+                    session.as_ref().and_then(|session| session.config.model_id.clone()),
+                    session
+                        .as_ref()
+                        .map(|session| session.agent_type.clone())
+                        .unwrap_or_default(),
+                    session
+                        .as_ref()
+                        .and_then(|session| session.config.workspace_id.clone())
+                        .or_else(|| workspace.workspace_id.clone()),
+                )
+            }
+            CronJobTarget::Workspace { workspace, launch } => (
+                launch.model_id.clone(),
+                launch.agent_type.clone(),
+                workspace.workspace_id.clone(),
+            ),
+        };
+
+        let Some(ai_config) = SessionManager::load_ai_config_for_model_resolution().await else {
+            return Err(
+                "AI configuration is unavailable; cannot resolve a model for the scheduled job"
+                    .to_string(),
+            );
+        };
+
+        let configured_model_id = match explicit_model_id
+            .map(|model_id| model_id.trim().to_string())
+            .filter(|model_id| !model_id.is_empty())
+        {
+            Some(model_id) => model_id,
+            None => get_agent_registry()
+                .get_model_id_for_agent(&agent_type, workspace_id.as_deref())
+                .await
+                .unwrap_or_else(|_| "primary".to_string()),
+        };
+
+        if ai_config
+            .resolve_model_selection(&configured_model_id)
+            .or_else(|| ai_config.resolve_model_selection("primary"))
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        Err(format!(
+            "No enabled model is configured: selector '{}' does not resolve to an enabled model",
+            configured_model_id
+        ))
+    }
+
     async fn submit_enqueue_input(&self, enqueue_input: &EnqueueInput) -> Result<(), String> {
         let resolved = self.resolve_enqueue_submission(enqueue_input).await?;
         self.runtime
@@ -574,6 +669,7 @@ impl CronService {
                 execution: Default::default(),
                 agent_type: resolved.agent_type,
                 workspace_path: Some(resolved.workspace_path),
+                workspace_id: resolved.workspace_id,
                 remote_connection_id: resolved.remote_connection_id,
                 remote_ssh_host: resolved.remote_ssh_host,
                 policy: scheduled_job_policy(),
@@ -591,7 +687,11 @@ impl CronService {
         &self,
         enqueue_input: &EnqueueInput,
     ) -> Result<ResolvedEnqueueSubmission, String> {
-        match &enqueue_input.target {
+        let target = self
+            .canonicalize_target(enqueue_input.target.clone())
+            .await
+            .map_err(|error| error.to_string())?;
+        match &target {
             CronJobTarget::Session {
                 session_id,
                 workspace,
@@ -604,6 +704,7 @@ impl CronService {
                     .unwrap_or_default();
                 Ok(ResolvedEnqueueSubmission {
                     session_id: session_id.clone(),
+                    workspace_id: workspace.workspace_id.clone(),
                     workspace_path: workspace.workspace_path.clone(),
                     remote_connection_id: workspace.remote_connection_id.clone(),
                     remote_ssh_host: workspace.remote_ssh_host.clone(),
@@ -639,6 +740,7 @@ impl CronService {
 
                 Ok(ResolvedEnqueueSubmission {
                     session_id: created.session_id,
+                    workspace_id: workspace.workspace_id.clone(),
                     workspace_path: workspace.workspace_path.clone(),
                     remote_connection_id: workspace.remote_connection_id.clone(),
                     remote_ssh_host: workspace.remote_ssh_host.clone(),
@@ -658,6 +760,16 @@ impl CronService {
         {
             *workspace =
                 Self::resolve_session_target_workspace_ref(&self.coordinator, session_id).await?;
+        } else {
+            // The only path reader is the temporary persisted/wire upgrade adapter.
+            target = crate::service::workspace::legacy_compat::upgrade_legacy_cron_target(target)
+                .await?;
+            if let CronJobTarget::Workspace { workspace, .. } = &mut target {
+                let id = workspace.workspace_id.as_deref().ok_or_else(|| {
+                    BitFunError::validation("Scheduled job workspace ID is required")
+                })?;
+                *workspace = workspace_ref_from_binding(&WorkspaceBinding::resolve(id).await?);
+            }
         }
 
         Ok(target)
@@ -808,10 +920,10 @@ fn materialize_workspace_ref(workspace: CronWorkspaceRef) -> CronWorkspaceRef {
             .workspace_id
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty()),
-        workspace_path: normalize_workspace_path_for_matching(&workspace.workspace_path),
+        workspace_path: normalize_workspace_io_path(&workspace.workspace_path),
         project_workspace_path: workspace
             .project_workspace_path
-            .map(|value| normalize_workspace_path_for_matching(&value))
+            .map(|value| normalize_workspace_io_path(&value))
             .filter(|value| !value.is_empty()),
         execution_target: workspace.execution_target,
         remote_connection_id: workspace
@@ -828,8 +940,8 @@ fn materialize_workspace_ref(workspace: CronWorkspaceRef) -> CronWorkspaceRef {
 fn workspace_ref_from_binding(binding: &WorkspaceBinding) -> CronWorkspaceRef {
     CronWorkspaceRef {
         workspace_id: binding.workspace_id.clone(),
-        workspace_path: normalize_workspace_path_for_matching(&binding.root_path_string()),
-        project_workspace_path: Some(normalize_workspace_path_for_matching(
+        workspace_path: normalize_workspace_io_path(&binding.root_path_string()),
+        project_workspace_path: Some(normalize_workspace_io_path(
             &binding.project_root_path_string(),
         )),
         execution_target: binding.execution_target.clone(),
@@ -892,30 +1004,13 @@ fn validate_workspace_ref(workspace: &CronWorkspaceRef) -> BitFunResult<()> {
     Ok(())
 }
 
-fn matches_workspace_filter(
-    workspace: &CronWorkspaceRef,
-    workspace_path: Option<&str>,
-    workspace_id: Option<&str>,
-    remote_connection_id: Option<&str>,
-) -> bool {
-    let normalized_job_workspace_path =
-        normalize_workspace_path_for_matching(&workspace.workspace_path);
-    let workspace_path_matches = workspace_path
-        .map(|value| normalized_job_workspace_path == normalize_workspace_path_for_matching(value))
-        .unwrap_or(true);
-    let workspace_id_matches = workspace_id
-        .map(|value| {
-            workspace.workspace_id.as_deref() == Some(value) || workspace.workspace_id.is_none()
-        })
-        .unwrap_or(true);
-    let remote_connection_matches = remote_connection_id
-        .map(|value| workspace.remote_connection_id.as_deref() == Some(value))
-        .unwrap_or(true);
-
-    workspace_path_matches && workspace_id_matches && remote_connection_matches
+fn matches_workspace_filter(workspace: &CronWorkspaceRef, workspace_id: Option<&str>) -> bool {
+    workspace_id
+        .map(|id| workspace.workspace_id.as_deref() == Some(id))
+        .unwrap_or(true)
 }
 
-fn normalize_workspace_path_for_matching(path: &str) -> String {
+fn normalize_workspace_io_path(path: &str) -> String {
     let mut normalized = path.trim().replace('\\', "/");
 
     if normalized.starts_with("file://") {
@@ -1014,6 +1109,7 @@ struct EnqueueInput {
 
 struct ResolvedEnqueueSubmission {
     session_id: String,
+    workspace_id: Option<String>,
     workspace_path: String,
     remote_connection_id: Option<String>,
     remote_ssh_host: Option<String>,
@@ -1094,7 +1190,7 @@ mod tests {
     }
 
     #[test]
-    fn matches_workspace_filter_tolerates_separator_differences() {
+    fn workspace_filter_uses_id_even_when_paths_differ() {
         let workspace = CronWorkspaceRef {
             workspace_id: Some("local_workspace".to_string()),
             workspace_path: r"C:\Users\wsp\.bitfun\personal_assistant\workspace".to_string(),
@@ -1106,14 +1202,16 @@ mod tests {
 
         assert!(matches_workspace_filter(
             &workspace,
-            Some("C:/Users/wsp/.bitfun/personal_assistant/workspace"),
-            Some("local_workspace"),
-            None,
+            Some("local_workspace")
+        ));
+        assert!(!matches_workspace_filter(
+            &workspace,
+            Some("another-workspace")
         ));
     }
 
     #[test]
-    fn matches_workspace_filter_normalizes_remote_like_paths() {
+    fn workspace_filter_never_matches_an_unmigrated_record_by_path() {
         let workspace = CronWorkspaceRef {
             workspace_id: None,
             workspace_path: "/home/wsp/projects/test/".to_string(),
@@ -1123,12 +1221,11 @@ mod tests {
             remote_ssh_host: Some("host-1".to_string()),
         };
 
-        assert!(matches_workspace_filter(
+        assert!(!matches_workspace_filter(
             &workspace,
-            Some(r"\home\wsp\projects\test"),
-            None,
-            Some("ssh-1"),
+            Some("remote-workspace")
         ));
+        assert!(matches_workspace_filter(&workspace, None));
     }
 
     #[test]

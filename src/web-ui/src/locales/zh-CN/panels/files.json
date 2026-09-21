@@ -8,6 +8,8 @@
     "modeContent": "内容",
     "limitReachedFiles": "当前仅显示前 {{count}} 个文件匹配结果，请继续缩小查询范围。",
     "limitReachedContent": "当前仅显示前 {{count}} 个内容匹配结果，请继续缩小查询范围。",
+    "limitReachedFilesCompact": "文件上限 {{count}} 个",
+    "limitReachedContentCompact": "内容上限 {{count}} 处",
     "backendSummary": "候选文档 {{candidateDocs}} 个，命中行 {{matchedLines}} 行，命中片段 {{matchedOccurrences}} 个。",
     "backend": {
       "indexed": "索引命中",

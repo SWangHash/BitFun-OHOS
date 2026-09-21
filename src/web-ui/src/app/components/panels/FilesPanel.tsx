@@ -135,10 +135,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const { workspace: activeWorkspace } = useCurrentWorkspace();
   const currentWorkspace = targetWorkspace === undefined ? activeWorkspace : targetWorkspace;
   const surface = getActiveSurfaceScope();
+  // Identity is (surface, workspace ID). The path and connection are IO
+  // projections that downstream openers still record for legacy tab data.
+  const currentWorkspaceId = currentWorkspace?.id;
   const resourceScope = useMemo(() => ({
-    surfaceId: surface.surfaceId, workspaceId: currentWorkspace?.id,
+    surfaceId: surface.surfaceId, workspaceId: currentWorkspaceId,
     workspacePath, remoteConnectionId: currentWorkspace?.connectionId,
-  }), [surface.surfaceId, currentWorkspace?.id, currentWorkspace?.connectionId, workspacePath]);
+  }), [surface.surfaceId, currentWorkspaceId, currentWorkspace?.connectionId, workspacePath]);
   
   const panelRef = useRef<HTMLDivElement>(null);
   const navigationRequestRef = useRef(0);
@@ -147,15 +150,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     navigationRequestRef.current += 1;
     setRevealTarget(undefined);
     return () => { navigationRequestRef.current += 1; };
-  }, [workspacePath, currentWorkspace?.id, currentWorkspace?.connectionId]);
+  }, [currentWorkspaceId]);
   const lastFocusRefreshAtRef = useRef<number>(0);
   const [internalViewMode, setInternalViewMode] = useState<'tree' | 'search'>('tree');
   const viewMode = externalViewMode !== undefined ? externalViewMode : internalViewMode;
   const isRemoteCurrentWorkspace = Boolean(
-    workspacePath
-    && currentWorkspace
-    && pathsEquivalentFs(currentWorkspace.rootPath, workspacePath)
-    && isRemoteWorkspace(currentWorkspace)
+    currentWorkspace && isRemoteWorkspace(currentWorkspace)
   );
   const {
     query: searchQuery,
@@ -174,8 +174,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     setSearchOptions,
     clearSearch,
   } = useExplorerSearch({
-    workspacePath,
-    remoteConnectionId: currentWorkspace?.connectionId,
+    workspaceId: currentWorkspace?.id,
     stateKey: searchStateKey,
     initialMode: 'content',
     filenameSearchDebounce: 300,
@@ -263,10 +262,10 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const searchLimitNotice =
     searchMode === 'content'
       ? contentTruncated
-        ? t('search.limitReachedContent', { count: contentLimit })
+        ? t('search.limitReachedContentCompact', { count: contentLimit })
         : null
       : filenameTruncated
-        ? t('search.limitReachedFiles', { count: filenameLimit })
+        ? t('search.limitReachedFilesCompact', { count: filenameLimit })
         : null;
   const contentSearchBackendLabel = contentSearchMetadata
     ? t(`search.backend.${contentSearchMetadata.backend}`, {
@@ -290,6 +289,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     expandFolderEnsure,
     removePath,
   } = useFileSystem({
+    workspaceId: currentWorkspace?.id,
     rootPath: workspacePath,
     remoteConnectionId: currentWorkspace?.connectionId,
     autoLoad: true,
@@ -302,12 +302,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     expandFolderLazy(path);
   }, [expandFolderLazy]);
 
-  const prevWorkspacePathRef = useRef<string | undefined>(workspacePath);
+  const prevWorkspaceIdRef = useRef<string | undefined>(currentWorkspace?.id);
   useEffect(() => {
-    if (prevWorkspacePathRef.current !== undefined && prevWorkspacePathRef.current !== workspacePath) {
-      log.debug('Workspace path changed, clearing local state', {
-        from: prevWorkspacePathRef.current,
-        to: workspacePath
+    if (prevWorkspaceIdRef.current !== undefined && prevWorkspaceIdRef.current !== currentWorkspace?.id) {
+      log.debug('Workspace ID changed, clearing local state', {
+        from: prevWorkspaceIdRef.current,
+        to: currentWorkspace?.id
       });
       
       clearSearch();
@@ -323,8 +323,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         setInternalViewMode('tree');
       }
     }
-    prevWorkspacePathRef.current = workspacePath;
-  }, [workspacePath, clearSearch, onViewModeChange]);
+    prevWorkspaceIdRef.current = currentWorkspace?.id;
+  }, [currentWorkspace?.id, clearSearch, onViewModeChange]);
 
   const normalizePathForCurrentWorkspace = useCallback(
     (path: string) =>
@@ -341,7 +341,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
     if (fileSize === undefined || fileSize === null) {
       try {
-        const metadata = await workspaceAPI.getFileMetadata(filePath, currentWorkspace?.connectionId);
+        if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+        const metadata = await workspaceAPI.getWorkspaceFileMetadata(currentWorkspaceId, filePath);
         fileSize = metadata.size;
       } catch (error) {
         log.warn('Failed to get file metadata for size check, opening anyway', { filePath, error: String(error) });
@@ -361,7 +362,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         cancelText: t('dialog.largeFile.cancel'),
       },
     );
-  }, [t, currentWorkspace?.connectionId]);
+  }, [t, currentWorkspaceId]);
 
   const handleOpenFile = useCallback((data: { path: string; line?: number; column?: number }) => {
     log.info('Opening file', { path: data.path, line: data.line, column: data.column });
@@ -403,7 +404,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     );
     
     try {
-      await workspaceAPI.createFile(filePath, currentWorkspace?.connectionId);
+      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+      await workspaceAPI.createWorkspaceFile(currentWorkspaceId, filePath);
       log.info('File created', { path: filePath });
       handleInputDialogClose();
       loadFileTree(workspacePath || '', true);
@@ -411,7 +413,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       log.error('Failed to create file', error);
       notification.error(t('notifications.createFileFailed', { error: String(error) }));
     }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace]);
+  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace, currentWorkspaceId]);
 
   const handleNewFolder = useCallback((data: { parentPath: string }) => {
     setInputDialog({
@@ -429,7 +431,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     );
     
     try {
-      await workspaceAPI.createDirectory(folderPath, currentWorkspace?.connectionId);
+      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+      await workspaceAPI.createWorkspaceDirectory(currentWorkspaceId, folderPath);
       log.info('Directory created', { path: folderPath });
       handleInputDialogClose();
       loadFileTree(workspacePath || '', true);
@@ -437,7 +440,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       log.error('Failed to create directory', error);
       notification.error(t('notifications.createFolderFailed', { error: String(error) }));
     }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace]);
+  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace, currentWorkspaceId]);
 
   const handleInputDialogConfirm = useCallback((value: string) => {
     if (inputDialog.type === 'newFile') {
@@ -463,7 +466,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     const newPath = replaceBasename(normalizedOld, newName.trim());
 
     try {
-      await workspaceAPI.renameFile(normalizedOld, newPath, currentWorkspace?.connectionId);
+      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+      await workspaceAPI.renameWorkspaceFile(currentWorkspaceId, normalizedOld, newPath);
       log.info('File renamed', { oldPath: normalizedOld, newPath });
       setRenamingPath(null);
       removePath(normalizedOld);
@@ -473,7 +477,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       notification.error(t('notifications.renameFailed', { error: String(error) }));
       setRenamingPath(null);
     }
-  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspace]);
+  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspaceId]);
 
   const handleCancelRename = useCallback(() => {
     setRenamingPath(null);
@@ -483,10 +487,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     const normalizedPath = normalizePathForCurrentWorkspace(data.path);
 
     try {
+      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
       if (data.isDirectory) {
-        await workspaceAPI.deleteDirectory(normalizedPath, true, currentWorkspace?.connectionId);
+        await workspaceAPI.deleteWorkspaceDirectory(currentWorkspaceId, normalizedPath, true);
       } else {
-        await workspaceAPI.deleteFile(normalizedPath, currentWorkspace?.connectionId);
+        await workspaceAPI.deleteWorkspaceFile(currentWorkspaceId, normalizedPath);
       }
       log.info('File deleted', { path: normalizedPath, isDirectory: data.isDirectory });
       removePath(normalizedPath);
@@ -495,7 +500,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       log.error('Failed to delete file', error);
       notification.error(t('notifications.deleteFailed', { error: String(error) }));
     }
-  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspace]);
+  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspaceId]);
 
   const handleFileDownload = useCallback(
     async (data: { path: string; isDirectory?: boolean }) => {
@@ -523,9 +528,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
   const handleCompress = useCallback(
     async (data: { path: string; isDirectory?: boolean }) => {
-      const remoteCid = currentWorkspace?.connectionId;
       try {
-        await workspaceAPI.compressPath(data.path, data.isDirectory ?? false, remoteCid);
+        if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+        await workspaceAPI.compressWorkspacePath(currentWorkspaceId, data.path);
         notification.success(
           t('archive.compressSuccess', { name: data.path.split(/[/\\]/).pop() || '' }),
         );
@@ -536,14 +541,14 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         notification.error(t('archive.compressFailed', { error: reason }));
       }
     },
-    [notification, t, loadFileTree, currentWorkspace?.connectionId],
+    [notification, t, loadFileTree, currentWorkspaceId],
   );
 
   const handleDecompress = useCallback(
     async (data: { path: string }) => {
-      const remoteCid = currentWorkspace?.connectionId;
       try {
-        await workspaceAPI.decompressPath(data.path, remoteCid);
+        if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
+        await workspaceAPI.decompressWorkspacePath(currentWorkspaceId, data.path);
         notification.success(
           t('archive.decompressSuccess', { name: data.path.split(/[/\\]/).pop() || '' }),
         );
@@ -554,7 +559,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         notification.error(t('archive.decompressFailed', { error: reason }));
       }
     },
-    [notification, t, loadFileTree, currentWorkspace?.connectionId],
+    [notification, t, loadFileTree, currentWorkspaceId],
   );
 
   const handleFileTreeRefresh = useCallback(() => {
@@ -752,7 +757,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       return !!el && !!panelRef.current && panelRef.current.contains(el);
     };
 
-    // DOM paste event — System menu mode path.
+    // DOM paste event ??System menu mode path.
     const handleDomPaste = (e: ClipboardEvent) => {
       if (!isPanelFocused()) return;
       const target = e.target as HTMLElement | null;
@@ -765,7 +770,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     };
     document.addEventListener('paste', handleDomPaste, true);
 
-    // Tauri menu event — Renderer menu mode path.
+    // Tauri menu event ??Renderer menu mode path.
     let unlistenTauri: (() => void) | null = null;
     let cancelled = false;
     if (typeof window !== 'undefined' && '__TAURI__' in window) {
@@ -783,7 +788,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           }
           unlistenTauri = unsubscribe;
         } catch {
-          // Non-Tauri environment or event module unavailable — ignore.
+          // Non-Tauri environment or event module unavailable ??ignore.
         }
       })();
     }
@@ -1008,8 +1013,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   }, [onExplorerToolbarApi]);
 
   return (
-    <div data-overflow-trigger
-      data-bitfun-component="files-panel"
+    <div data-bitfun-component="files-panel"
       data-bitfun-part="root"
       ref={panelRef}
       data-resource-surface={resourceScope.surfaceId}
@@ -1103,6 +1107,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         <div
           className={`bitfun-files-panel__main-content${
             fileDropHighlight ? ' bitfun-files-panel__main-content--drop-target' : ''
+          }${
+            viewMode === 'search' ? ' bitfun-files-panel__main-content--search' : ''
           }`}
           data-bitfun-component="files-panel"
           data-bitfun-part="main"
@@ -1117,12 +1123,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         ) : viewMode === 'search' ? (
           searchQuery ? (
             <div className="bitfun-files-panel__search-content">
-              {searchLimitNotice && (
-                <div className="bitfun-files-panel__search-limit-notice">
-                  <span>{searchLimitNotice}</span>
-                </div>
-              )}
-
               {showContentSearchMetadata && contentSearchMetadata && (
                 <div className="bitfun-files-panel__search-backend">
                   <div className="bitfun-files-panel__search-backend-badges">
@@ -1141,7 +1141,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                     ) : null}
                     {contentSearchMetadata.workspaceProbePending ? (
                       // Neutral, not warning: the reconcile clears itself and the results are still
-                      // usable — they just describe the worktree from a moment ago.
+                      // usable ??they just describe the worktree from a moment ago.
                       <StatusPill tone="neutral">
                         {t('search.index.badges.probePending')}
                       </StatusPill>
@@ -1159,7 +1159,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
               {searchError && (
                 <div className="bitfun-files-panel__error" data-bitfun-component="files-panel" data-bitfun-part="error">
-                  <p>❌ {searchError}</p>
+                  <p>??{searchError}</p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1175,6 +1175,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                   resourceScope={resourceScope}
                   results={searchResults}
                   searchQuery={searchQuery}
+                  limitNotice={searchLimitNotice}
                   onFileSelect={handleSearchResultSelect}
                   onFolderNavigate={handleSearchFolderNavigate}
                   workspacePath={workspacePath}
@@ -1206,7 +1207,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
             </div>
           ) : error ? (
             <div className="bitfun-files-panel__error" data-bitfun-component="files-panel" data-bitfun-part="error">
-              <p>❌ {error}</p>
+              <p>??{error}</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -1217,7 +1218,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
             </div>
           ) : (
             <FileExplorer
-              key={workspacePath || 'no-workspace'}
+              key={currentWorkspaceId || 'no-workspace'}
               fileTree={fileTree}
               selectedFile={selectedFile}
               revealTarget={revealTarget}
@@ -1251,7 +1252,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                   {tp.phase === 'download'
                     ? t('transfer.downloading')
                     : t('transfer.uploading')}
-                  {tp.label ? ` — ${tp.label}` : ''}
+                  {tp.label ? ` ??${tp.label}` : ''}
                 </OverflowText>
                 {!tp.indeterminate &&
                 tp.bytesTotal &&
@@ -1265,7 +1266,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                       ),
                     )}
                     %
-                    {tp.speed ? ` · ${formatSpeed(tp.speed)}` : ''}
+                    {tp.speed ? ` ? ${formatSpeed(tp.speed)}` : ''}
                   </span>
                 ) : null}
               </div>

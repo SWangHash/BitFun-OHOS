@@ -1,5 +1,6 @@
 import { toB64 } from './E2EEncryption';
 import { x25519 } from '@noble/curves/ed25519.js';
+import { CLIENT_PROTOCOL_VERSION, CLIENT_VERSION } from '../../../shared/relay-transport/ClientBuild';
 
 import { pairingRelayUrl } from './pairingLink';
 export interface CloudAccountSession { token: string; userId: string; masterKey: Uint8Array; }
@@ -14,6 +15,33 @@ export class CloudAccountRequestError extends Error {
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+/** The request never reached the relay, or its answer never came back. */
+export class CloudAccountTransportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CloudAccountTransportError';
+  }
+}
+
+/**
+ * Whether a failed sign-in poll should be tried again inside the window.
+ *
+ * Retry what the next tick could plausibly get past: a transport failure, and
+ * a relay that is rate limiting or briefly unavailable. Stop for anything the
+ * relay meant — a rejected transaction stays rejected however long the browser
+ * keeps asking.
+ *
+ * Kept in step with `harmonyos/.../CloudAccountClient.ets` and
+ * `shared/core-feature/.../AccountStore.kt`, which carry the same decision.
+ */
+export function retryableAuthorizationPollError(error: unknown): boolean {
+  if (error instanceof CloudAccountTransportError) return true;
+  if (error instanceof CloudAccountRequestError) {
+    return error.status === 429 || (error.status >= 500 && error.status < 600);
+  }
+  return false;
 }
 
 export function generateRequestId(): string {
@@ -59,11 +87,16 @@ async function requestJson<T>(
           : null,
       );
     }
-    if (!parsed) throw new Error('Relay returned an empty account response.');
+    if (!parsed) throw new CloudAccountTransportError('Relay returned an empty account response.');
     return parsed as T;
   } catch (error: unknown) {
     if ((error as { name?: string })?.name === 'AbortError') {
-      throw new Error('Account request timed out.');
+      throw new CloudAccountTransportError('Account request timed out.');
+    }
+    // fetch() rejects with a TypeError for every connection-level failure:
+    // offline, DNS, TLS, a dropped socket mid-body.
+    if (error instanceof TypeError) {
+      throw new CloudAccountTransportError('Could not reach the account service.');
     }
     throw error;
   } finally {
@@ -94,17 +127,34 @@ export class CloudAccountClient {
     if (url.origin === 'https://auth.bitfun.com') url.searchParams.set('locale', (typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'));
     if (signal.aborted) throw new Error('Sign-in cancelled.');
     popup.location.href = url.href;
+    let lastTransient: Error | null = null;
     while (!signal.aborted && Date.now() < start.expiresAt * 1000) {
       await new Promise<void>((resolve) => setTimeout(resolve, Math.min(30, Math.max(1, start.pollIntervalSeconds)) * 1000));
       if (signal.aborted) break;
-      const result = await requestJson<{ status: string; tokens?: { accessToken: string } }>(
-        this.relayUrl, '/api/auth/github/poll', {
-          transactionId: start.transactionId, transactionSecret: start.transactionSecret,
-        },
-      );
+      let result: { status: string; tokens?: { accessToken: string } };
+      try {
+        result = await requestJson<{ status: string; tokens?: { accessToken: string } }>(
+          this.relayUrl, '/api/auth/github/poll', {
+            transactionId: start.transactionId, transactionSecret: start.transactionSecret,
+          },
+        );
+      } catch (cause) {
+        // The poll window spans the minutes the user spends in the popup, which
+        // on a phone browser is exactly when the tab is backgrounded, the radio
+        // sleeps, or the network hops. Ending the sign-in on the first hiccup
+        // would send them back to the start for something the next tick fixes
+        // by itself, so only a refusal the relay actually means stops the loop.
+        if (!retryableAuthorizationPollError(cause)) throw cause;
+        lastTransient = cause as Error;
+        continue;
+      }
+      lastTransient = null;
       if (result.status === 'authorized' && result.tokens?.accessToken) return result.tokens.accessToken;
       if (result.status === 'expired' || result.status === 'denied') break;
     }
+    // A window that ran out while every poll was failing is a network problem,
+    // not a rejected sign-in: report the one the user can act on.
+    if (!signal.aborted && lastTransient) throw lastTransient;
     throw new Error(signal.aborted ? 'Sign-in cancelled.' : 'Sign-in expired. Try again.');
   }
 
@@ -117,6 +167,9 @@ export class CloudAccountClient {
       const auth = await requestJson<{ token: string; user_id: string }>(this.relayUrl, '/api/auth/login', {
         access_token: accessToken, device_id: deviceId, device_name: 'Mobile Browser',
         device_kind: 'mobile', public_key: toB64(keys.publicKey), request_id: generateRequestId(),
+        // Report the build so the Relay can gate control compatibility instead
+        // of treating this browser controller as a legacy client.
+        clientVersion: CLIENT_VERSION, clientProtocol: CLIENT_PROTOCOL_VERSION,
       });
       if (!auth.token?.trim() || !auth.user_id?.trim()) throw new Error('Invalid account identity.');
       return { token: auth.token, userId: auth.user_id, masterKey: keys.privateKey };

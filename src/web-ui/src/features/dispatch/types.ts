@@ -53,6 +53,8 @@ export interface DispatchTargetOption {
   displayName: string;
   description?: string;
   online?: boolean;
+  /** Relay-confirmed client incompatibility; `true` blocks device dispatch. */
+  incompatible?: boolean;
 }
 
 export interface DispatchCliRelease {

@@ -12,6 +12,7 @@ import { setRecentReasoningPreset } from '../utils/reasoningPresets';
 import {
   shouldIncludeInternalModelSession,
   shouldSyncSessionModelSelection,
+  isBtwSessionDraft,
 } from '../utils/modelSelectionTarget';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -193,6 +194,16 @@ describe('ModelSelector external transport reuse', () => {
     expect(shouldSyncSessionModelSelection(miniAppSession)).toBe(true);
     expect(shouldIncludeInternalModelSession(miniAppSession)).toBe(true);
     expect(shouldSyncSessionModelSelection({ isTransient: true })).toBe(false);
+  });
+
+  it('defers only unsubmitted side-draft model updates until the parent is forked', () => {
+    const draft = { sessionKind: 'btw', dialogTurns: [] };
+    expect(isBtwSessionDraft(draft)).toBe(true);
+    expect(shouldSyncSessionModelSelection(draft)).toBe(false);
+    expect(shouldSyncSessionModelSelection({ ...draft, isHistorical: true })).toBe(true);
+    expect(shouldSyncSessionModelSelection({ ...draft, lastSubmittedMode: 'Standard' })).toBe(true);
+    expect(shouldSyncSessionModelSelection({ ...draft, dialogTurns: [{}] })).toBe(true);
+    expect(shouldSyncSessionModelSelection({ ...draft, sessionKind: 'review' })).toBe(true);
   });
 
   it('updates an agent-backed transient session when its model and reasoning change', async () => {

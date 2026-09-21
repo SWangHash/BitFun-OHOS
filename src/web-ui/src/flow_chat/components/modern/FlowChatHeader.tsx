@@ -5,9 +5,8 @@
  */
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { Keyboard, Square } from 'lucide-react';
-import { OverflowText, Icon, IconButton, Menu, MenuItem, SearchField, Switch, Tooltip } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, IconButton, Menu, MenuItem, SearchField, Switch, Tooltip } from '@bitfun/ui';
 import { SceneChromeContribution } from '@/app/components/SceneTopBar/SceneChrome';
 import { useSceneChromeContext } from '@/app/components/SceneTopBar/sceneChromeContext';
 import { useTranslation } from 'react-i18next';
@@ -113,6 +112,10 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
 }) => {
   const { t } = useTranslation('flow-chat');
   const { currentWorkspace } = useWorkspaceContext();
+  // Callbacks key on the workspace record's identifying facts, not the context
+  // object, so a provider re-render cannot restart pull-request loading.
+  const currentWorkspaceId = currentWorkspace?.id;
+  const currentWorkspaceRootPath = currentWorkspace?.rootPath;
   const sceneChrome = useSceneChromeContext();
   const isSceneChromeActive = sceneChrome?.activeSceneId === 'session';
   const [isSessionOverviewOpen, setIsSessionOverviewOpen] = useState(false);
@@ -200,9 +203,10 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   const loadPullRequestOverview = useCallback(async () => {
     const requestId = pullRequestOverviewRequestRef.current + 1;
     pullRequestOverviewRequestRef.current = requestId;
-    const repositoryPath = currentWorkspace?.rootPath;
+    const workspaceId = currentWorkspaceId;
+    const repositoryPath = currentWorkspaceRootPath;
 
-    if (!repositoryPath) {
+    if (!workspaceId || !repositoryPath) {
       setPullRequestOverview({ status: 'no-workspace', items: [], totalCount: 0 });
       return;
     }
@@ -210,7 +214,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
     setPullRequestOverview({ status: 'loading', items: [], totalCount: 0 });
 
     try {
-      const isGitRepository = await gitAPI.isGitRepository(repositoryPath);
+      const isGitRepository = await gitAPI.isGitRepository({ workspaceId });
       if (pullRequestOverviewRequestRef.current !== requestId) return;
       if (!isGitRepository) {
         setPullRequestOverview({ status: 'not-git', items: [], totalCount: 0 });
@@ -218,7 +222,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       }
 
       const snapshot = await reviewPlatformAPI.getWorkspaceSnapshot(
-        repositoryPath,
+        { workspaceId, repositoryPath },
         null,
         1,
         PULL_REQUEST_OVERVIEW_LIMIT,
@@ -234,7 +238,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       if (pullRequestOverviewRequestRef.current !== requestId) return;
       setPullRequestOverview({ status: 'error', items: [], totalCount: 0 });
     }
-  }, [currentWorkspace?.rootPath]);
+  }, [currentWorkspaceId, currentWorkspaceRootPath]);
 
   useEffect(() => {
     if (!isSessionOverviewOpen) return undefined;
@@ -256,6 +260,8 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   }, []);
 
   useEffect(() => {
+    let removeOverlayMousedown0: (() => void) | undefined;
+    let removeOverlayKeydown1: (() => void) | undefined;
     if (!isSessionOverviewOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -278,12 +284,12 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
+    removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      removeOverlayMousedown0?.();
+      removeOverlayKeydown1?.();
     };
   }, [closeSessionOverview, isSessionOverviewOpen]);
 
@@ -382,20 +388,23 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   };
 
   const handleOpenPullRequests = useCallback(() => {
-    createReviewPlatformTab(currentWorkspace?.rootPath);
+    if (!currentWorkspaceId) return;
+    createReviewPlatformTab(currentWorkspaceId, currentWorkspaceRootPath);
     closeSessionOverview(false);
-  }, [closeSessionOverview, currentWorkspace?.rootPath]);
+  }, [closeSessionOverview, currentWorkspaceId, currentWorkspaceRootPath]);
 
   const handleOpenPullRequest = useCallback((pullRequest: ReviewPlatformPullRequest) => {
+    if (!currentWorkspaceId) return;
     createReviewPlatformPullRequestDetailTab({
-      workspacePath: currentWorkspace?.rootPath,
+      workspaceId: currentWorkspaceId,
+      workspacePath: currentWorkspaceRootPath,
       remoteId: pullRequest.providerId ?? undefined,
       pullRequestId: pullRequest.id,
       pullRequestUrl: pullRequest.webUrl,
       title: `#${pullRequest.number} ${pullRequest.title}`,
     });
     closeSessionOverview(false);
-  }, [closeSessionOverview, currentWorkspace?.rootPath]);
+  }, [closeSessionOverview, currentWorkspaceId, currentWorkspaceRootPath]);
 
   const handleCommandSectionMenuToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -487,7 +496,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
             icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
           />
         </Tooltip>
-        {openBackgroundCommandMenuId === command.execSessionKey && backgroundCommandMenuPosition ? createPortal(
+        {openBackgroundCommandMenuId === command.execSessionKey && backgroundCommandMenuPosition ? createOverlayPortal(
           <Menu
             ref={backgroundCommandMenuRef}
             className="flowchat-header__background-command-menu flowchat-header__background-command-menu--portal"
@@ -638,7 +647,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                   </span>
                 </>
               ) : undefined}
-              trailing={
+              trailingAction={
                 <span
                   className="flowchat-header__search-controls"
                   data-bitfun-component="flow-chat-header"
@@ -719,7 +728,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
             />
           </Tooltip>
 
-          {isSessionOverviewOpen && createPortal(
+          {isSessionOverviewOpen && createOverlayPortal(
             <div
               ref={sessionOverviewPanelRef}
               className="flowchat-header__session-overview-panel"
@@ -775,7 +784,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                   {sessionId ? (
                     <SessionTreePopover
                       sessionId={sessionId}
-                      fallbackWorkspacePath={currentWorkspace?.rootPath}
+                      fallbackWorkspaceId={currentWorkspaceId}
                       onSelectSession={onOpenSessionTreeSession}
                       hasActiveDescendants={hasActiveSessionTreeDescendants}
                       onCancelSession={onCancelSessionTreeSession}
@@ -830,7 +839,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                           />
                         </Tooltip>
                       ) : null}
-                      {isBackgroundCommandSectionMenuOpen && backgroundCommandMenuPosition ? createPortal(
+                      {isBackgroundCommandSectionMenuOpen && backgroundCommandMenuPosition ? createOverlayPortal(
                         <Menu
                           ref={backgroundCommandMenuRef}
                           className="flowchat-header__background-command-menu flowchat-header__background-command-menu--portal"

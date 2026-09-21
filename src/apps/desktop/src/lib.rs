@@ -90,8 +90,8 @@ use api::external_sources_api::*;
 use api::git_agent_api::*;
 use api::git_api::*;
 use api::i18n_api::*;
-use api::mcp_api::*;
 use api::matrix_skill_api::*;
+use api::mcp_api::*;
 use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
@@ -365,18 +365,18 @@ pub(crate) fn save_main_window_state(app: &tauri::AppHandle, reason: &str) {
     {
         if MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst) {
             log::debug!(
-            "Skipped saving transient main window geometry: reason={}",
-            reason
-        );
+                "Skipped saving transient main window geometry: reason={}",
+                reason
+            );
             return;
         }
 
         if let Err(error) = persist_main_window_state(app, reason) {
             log::warn!(
-            "Failed to save main window state: reason={}, error={}",
-            reason,
-            error
-        );
+                "Failed to save main window state: reason={}, error={}",
+                reason,
+                error
+            );
         }
     }
 }
@@ -386,33 +386,38 @@ pub(crate) fn set_main_window_transient_geometry(
     transient: bool,
 ) -> Result<(), String> {
     #[cfg(target_env = "ohos")]
-    { let _ = (app, transient); return Ok(()); }
+    {
+        let _ = (app, transient);
+        return Ok(());
+    }
     #[cfg(not(target_env = "ohos"))]
     {
-    if transient {
-        if MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst) {
+        if transient {
+            if MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+
+            // Capture the latest normal bounds before toolbar mode starts resizing
+            // the shared native window.
+            persist_main_window_state(app, "transient_geometry_enter_capture").map_err(
+                |error| {
+                    format!(
+                        "Failed to save main window state before transient geometry: {}",
+                        error
+                    )
+                },
+            )?;
+            MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.store(true, Ordering::SeqCst);
             return Ok(());
         }
 
-        // Capture the latest normal bounds before toolbar mode starts resizing
-        // the shared native window.
-        persist_main_window_state(app, "transient_geometry_enter_capture").map_err(|error| {
+        MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.store(false, Ordering::SeqCst);
+        persist_main_window_state(app, "transient_geometry_exit_persist").map_err(|error| {
             format!(
-                "Failed to save main window state before transient geometry: {}",
+                "Failed to save restored main window state after transient geometry: {}",
                 error
             )
-        })?;
-        MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.store(true, Ordering::SeqCst);
-        return Ok(());
-    }
-
-    MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.store(false, Ordering::SeqCst);
-    persist_main_window_state(app, "transient_geometry_exit_persist").map_err(|error| {
-        format!(
-            "Failed to save restored main window state after transient geometry: {}",
-            error
-        )
-    })
+        })
     }
 }
 
@@ -689,9 +694,8 @@ pub async fn _run() {
         use bitfun_core::infrastructure::subscription_auth::set_subscription_credential_vault;
         use std::sync::Arc;
 
-        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> = Arc::new(
-            api::ohos::secure_credentials::OhosSecureCredentialVault::new(),
-        );
+        let vault: Arc<dyn bitfun_services_core::secure_credentials::SecureCredentialVault> =
+            Arc::new(api::ohos::secure_credentials::OhosSecureCredentialVault::new());
         // Subscription auth shares the global injection seam; market and
         // account identity credential storage read the same vault through
         // the account_identity override.
@@ -2540,8 +2544,8 @@ async fn deliver_event_to_webview(
         attach_session_event_cursor(&mut projected.payload, cursor);
     }
 
-    if let (Some(publisher), Some(session_id)) = (
-        api::remote_connect_api::session_publisher().await,
+    if let (Some(hub), Some(session_id)) = (
+        api::remote_connect_api::host_stream_hub().await,
         projected
             .payload
             .get("sessionId")
@@ -2563,12 +2567,12 @@ async fn deliver_event_to_webview(
                     .and_then(serde_json::Value::as_str)
                 {
                     bitfun_core::service::remote_connect::synchronize_session_record_turn(
-                        &publisher, session_id, turn,
+                        &hub, session_id, turn,
                     )
                     .await
                 } else if name == "agentic://session-history-changed" {
                     bitfun_core::service::remote_connect::synchronize_session_records(
-                        &publisher, session_id,
+                        &hub, session_id,
                     )
                     .await
                 } else {
@@ -2577,11 +2581,11 @@ async fn deliver_event_to_webview(
             }
             .await
             {
-                log::error!("Unable to synchronize durable session records: {error}");
+                log::error!("Unable to synchronize host session records: {error}");
             }
         }
         if policy.persist_control {
-            if let Err(error) = publisher
+            if let Err(error) = hub
                 .append(
                     session_id.to_owned(),
                     projected.event_name.clone(),
@@ -2589,7 +2593,7 @@ async fn deliver_event_to_webview(
                 )
                 .await
             {
-                log::error!("Unable to persist session control event: {error}");
+                log::error!("Unable to publish session control event: {error}");
             }
         }
     }
@@ -2937,7 +2941,8 @@ fn spawn_workspace_search_feature_listener(app_handle: tauri::AppHandle) {
 
     let app_state: tauri::State<'_, api::AppState> = app_handle.state();
     let workspace_search_service = app_state.workspace_search_service.clone();
-    let workspace_path = app_state.workspace_path.clone();
+    let workspace_id = app_state.workspace_id.clone();
+    let workspace_service = app_state.workspace_service.clone();
 
     tauri::async_runtime::spawn(async move {
         let mut feature_enabled =
@@ -2978,14 +2983,17 @@ fn spawn_workspace_search_feature_listener(app_handle: tauri::AppHandle) {
                         continue;
                     }
 
-                    let current_workspace = workspace_path.read().await.clone();
+                    let selected_id = workspace_id.read().await.clone();
+                    let current_workspace = if let Some(id) = selected_id {
+                        workspace_service.get_workspace(&id).await
+                    } else {
+                        None
+                    };
                     if let Some(current_workspace) = current_workspace {
-                        let workspace_str = current_workspace.to_string_lossy().to_string();
-                        if !bitfun_core::service::remote_ssh::workspace_state::is_remote_path(
-                            workspace_str.trim(),
-                        )
-                        .await
+                        if current_workspace.workspace_kind
+                            != bitfun_core::service::workspace::WorkspaceKind::Remote
                         {
+                            let current_workspace = current_workspace.root_path;
                             match workspace_search_service.open_repo(&current_workspace).await {
                                 Ok(_) => {
                                     workspace_search_service.schedule_auto_index(

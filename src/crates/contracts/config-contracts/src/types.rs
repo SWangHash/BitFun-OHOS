@@ -659,7 +659,8 @@ pub struct MinimapConfig {
 pub struct TerminalConfig {
     /// Empty string means "auto-detect".
     pub default_shell: String,
-    /// Terminal panel placement in the session layout: "right" or "bottom".
+    /// Persisted for compatibility; the current terminal routing no longer honors this
+    /// setting after the workbench UI restructuring. Values remain "right" or "bottom".
     pub terminal_panel_position: String,
     pub font_size: u32,
     pub font_family: String,
@@ -1031,6 +1032,10 @@ pub struct AIConfig {
     #[serde(default = "default_tool_execution_timeout")]
     pub tool_execution_timeout_secs: Option<u64>,
 
+    /// Unattended question timeout; null or zero waits indefinitely.
+    #[serde(default = "default_user_question_timeout")]
+    pub user_question_timeout_secs: Option<u32>,
+
     /// Whether tools with deferred exposure load their schemas on demand.
     #[serde(default = "default_enable_deferred_tool_loading")]
     pub enable_deferred_tool_loading: bool,
@@ -1038,6 +1043,10 @@ pub struct AIConfig {
     /// Speculatively summarize context before automatic compression is required.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub enable_context_compression_prefetch: bool,
+
+    /// Enable the evaluation-oriented edit constraint guard.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub enable_edit_constraint_guard: bool,
 
     /// Allows broad JSON repair for non-Write tool arguments only after a
     /// provider confirms a normal tool-use completion.
@@ -1397,6 +1406,10 @@ fn default_true() -> bool {
     true
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 fn is_true(value: &bool) -> bool {
     *value
 }
@@ -1412,6 +1425,10 @@ fn default_stream_ttft_timeout() -> Option<u64> {
 }
 
 /// Default is no timeout (wait forever).
+fn default_user_question_timeout() -> Option<u32> {
+    Some(180)
+}
+
 fn default_tool_execution_timeout() -> Option<u64> {
     None
 }
@@ -1926,8 +1943,10 @@ impl Default for AIConfig {
             stream_idle_timeout_secs: default_stream_idle_timeout(),
             stream_ttft_timeout_secs: default_stream_ttft_timeout(),
             tool_execution_timeout_secs: default_tool_execution_timeout(),
+            user_question_timeout_secs: default_user_question_timeout(),
             enable_deferred_tool_loading: default_enable_deferred_tool_loading(),
             enable_context_compression_prefetch: true,
+            enable_edit_constraint_guard: false,
             allow_tool_json_repair: true,
             computer_use_enabled: false,
             browser_control_preferred_browser: String::new(),
@@ -2947,6 +2966,31 @@ mod tests {
     }
 
     #[test]
+    fn edit_constraint_guard_defaults_off_and_round_trips_explicit_opt_in() {
+        assert!(!AIConfig::default().enable_edit_constraint_guard);
+        let legacy: AIConfig =
+            serde_json::from_value(serde_json::json!({"max_rounds": 42})).unwrap();
+        assert!(!legacy.enable_edit_constraint_guard);
+        let payload = serde_json::to_value(&legacy).unwrap();
+        assert!(payload.get("enable_edit_constraint_guard").is_none());
+        let reloaded: AIConfig = serde_json::from_value(payload).unwrap();
+        assert!(!reloaded.enable_edit_constraint_guard);
+        assert_eq!(reloaded.max_rounds, 42);
+        for enabled in [false, true] {
+            let config: AIConfig = serde_json::from_value(serde_json::json!({
+                "enable_edit_constraint_guard": enabled
+            }))
+            .unwrap();
+            let payload = serde_json::to_value(config).unwrap();
+            if enabled {
+                assert_eq!(payload["enable_edit_constraint_guard"], true);
+            }
+            let reloaded: AIConfig = serde_json::from_value(payload).unwrap();
+            assert_eq!(reloaded.enable_edit_constraint_guard, enabled);
+        }
+    }
+
+    #[test]
     fn compression_prefetch_defaults_on_omits_default_and_preserves_opt_out() {
         let old: AIConfig = serde_json::from_value(serde_json::json!({"max_rounds": 42})).unwrap();
         assert!(old.enable_context_compression_prefetch);
@@ -3727,4 +3771,35 @@ fn reject_retired_config_fields(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod user_question_timeout_tests {
+    use super::AIConfig;
+    #[test]
+    fn legacy_defaults_and_unlimited_round_trip() {
+        let mut legacy = serde_json::to_value(AIConfig::default()).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("user_question_timeout_secs");
+        let config: AIConfig = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(config.user_question_timeout_secs, Some(180));
+        assert_eq!(
+            serde_json::to_value(&config).unwrap()["user_question_timeout_secs"],
+            180
+        );
+        for value in [
+            serde_json::Value::Null,
+            serde_json::json!(0),
+            serde_json::json!(60),
+        ] {
+            legacy["user_question_timeout_secs"] = value.clone();
+            let config: AIConfig = serde_json::from_value(legacy.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(config).unwrap()["user_question_timeout_secs"],
+                value
+            );
+        }
+    }
 }

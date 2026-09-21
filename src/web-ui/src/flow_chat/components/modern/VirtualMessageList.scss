@@ -36,7 +36,9 @@
     height: 100%;
     position: relative;
     z-index: 1; // Keep scroll content below overlays.
-    overflow-y: auto;
+    // Reserve the native scrollbar even when collapsed content fits. Some
+    // desktop WebViews do not reserve custom scrollbar space with gutter alone.
+    overflow-y: scroll;
     overflow-x: hidden;
     overflow-anchor: none;
     scrollbar-gutter: stable;

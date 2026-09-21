@@ -16,13 +16,11 @@ import {
   SettingsSheetKind
 } from '../policy/SettingsPlacementPolicy';
 import { AdaptiveSheetOptions } from './AdaptiveSheetOptions';
-import { STATUS_SUCCESS, INK, MUTED, SUBTLE } from './Theme';
+import { STATUS_SUCCESS, STATUS_DANGER, INK, MUTED, SUBTLE, SOFT, TRANSPARENT } from './Theme';
 import { SidebarDeviceGroup } from './SidebarDeviceGroup';
-import {
-  SidebarChevronIcon,
-  SidebarDeviceIcon
-} from './SidebarNavigationIcons';
+import { SidebarDeviceIcon } from './SidebarNavigationIcons';
 import { SidebarWorkspacePicker } from './SidebarWorkspacePicker';
+import { ConnectionStatusPresenter } from '../../services/ConnectionStatusPresenter';
 import { RemoteUiState } from '../../services/RemoteUiState';
 
 /**
@@ -43,6 +41,10 @@ export struct SidebarWorkspaceSection {
   @Param recentWorkspaces: RecentWorkspaceEntry[] = [];
   @Param workspaceName: string = '';
   @Param workspacePath: string = '';
+  @Param workspaceConnectionId: string = '';
+  @Param workspaceSshHost: string = '';
+  /** Stable record ID of the active workspace; empty for pre-ID hosts. */
+  @Param workspaceId: string = '';
   @Param workspaceKind: string = 'normal';
   @Param connectionState: string = 'idle';
   @Param controlTargetType: string = 'none';
@@ -56,13 +58,14 @@ export struct SidebarWorkspaceSection {
     SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SessionDetails);
   @Event onOpenSession: (session: RemoteSession) => void = (_session: RemoteSession) => {};
   @Event onSessionActions: (session: RemoteSession) => void = (_session: RemoteSession) => {};
-  @Event onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string) => void =
-    (_deviceId: string, _path: string, _agentType: string) => {};
-  @Event onOpenWorkspace: (deviceId: string, path: string, connectionId?: string) => void =
+  @Event onCreateInWorkspace: (deviceId: string, path: string, agentType: string, connectionId?: string, sshHost?: string,
+    workspaceId?: string) => void = (_deviceId: string, _path: string, _agentType: string) => {};
+  @Event onOpenWorkspace: (deviceId: string, path: string, connectionId?: string, sshHost?: string, workspaceId?: string) => void =
     (_deviceId: string, _path: string) => {};
-  @Event onExpandWorkspace: (deviceId: string, path: string) => Promise<void> =
-    async (_deviceId: string, _path: string) => {};
+  @Event onExpandWorkspace: (deviceId: string, path: string, remoteConnectionId?: string, remoteSshHost?: string,
+    workspaceId?: string) => Promise<void> = async (_deviceId: string, _path: string) => {};
   @Event onSelectDevice: (deviceId: string) => void = (_deviceId: string) => {};
+  @Event onReconnect: () => void = () => {};
   @Event onRetryDevice: (deviceId: string) => void = (_deviceId: string) => {};
   @Event onAddWorkspace: (deviceId: string) => void = (_deviceId: string) => {};
   @Event onRefreshDevices: () => Promise<void> = async () => {};
@@ -70,12 +73,19 @@ export struct SidebarWorkspaceSection {
   @Local visibleDeviceCount: number = SidebarDirectoryPreviewPolicy.PREVIEW_COUNT;
   @Local showWorkspacePicker: boolean = false;
   @Local workspacePickerDeviceId: string = '';
-  @Local refreshingDevices: boolean = false;
   private readonly transientEntry: DeviceDirectoryEntry = emptyDeviceDirectoryEntry('', '', false);
 
   build() {
     Column() {
       this.DeviceSectionHeader()
+      if (this.directoryState.refreshError.length > 0) {
+        Text(this.directoryState.refreshError)
+          .fontSize(MobileDesignTypography.bodySmall.size)
+          .fontColor(STATUS_DANGER)
+          .width('100%')
+          .padding({ top: 4, bottom: 8 })
+          .onClick(() => { void this.onRefreshDevices(); })
+      }
       Row() {}.height(0)
         .bindSheet($$this.workspaceTools.visible, this.WorkspaceTools(), { height: SheetSize.LARGE, onWillDismiss: (action: DismissSheetAction): void => {
           if (this.workspaceTools.dirty) this.onWorkspaceTools({ type: 'close' });
@@ -98,7 +108,7 @@ export struct SidebarWorkspaceSection {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .margin({ top: 18 })
+    .margin({ top: 10 })
     .bindSheet($$this.showWorkspacePicker, this.WorkspacePicker(), this.workspacePickerSheetOptions())
   }
 
@@ -117,7 +127,7 @@ export struct SidebarWorkspaceSection {
         .fontColor(MUTED)
       Blank()
       Stack({ alignContent: Alignment.Center }) {
-        if (this.refreshingDevices) {
+        if (this.directoryState.refreshing) {
           LoadingProgress()
             .width(18)
             .height(18)
@@ -131,23 +141,12 @@ export struct SidebarWorkspaceSection {
       }
       .width(34)
       .height(38)
-      .enabled(!this.refreshingDevices)
+      .enabled(!this.directoryState.refreshing)
       .accessibilityText(RemoteI18n.t('common.refresh'))
       .onClick(() => {
-        void this.refreshDevices();
+        void this.onRefreshDevices();
       })
-      Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph($r('sys.symbol.plus'))
-          .fontSize(20)
-          .fontWeight(FontWeight.Medium)
-          .fontColor([INK])
-      }
-      .width(34)
-      .height(38)
-      .accessibilityText(RemoteI18n.t('sidebar.addConnection'))
-      .onClick(() => {
-        this.onAddDevice();
-      })
+
     }
     .width('100%')
     .height(42)
@@ -160,16 +159,17 @@ export struct SidebarWorkspaceSection {
       SidebarDeviceIcon({
         deviceName: entry.deviceName,
         iconSize: 24,
-        tint: entry.online ? INK : SUBTLE
+        tint: INK
       })
         .hitTestBehavior(HitTestMode.None)
       Text(entry.deviceName)
-        .fontSize(MobileDesignTypography.titleSmall.size)
-        .fontWeight(this.isSelected(entry) ? FontWeight.Medium : FontWeight.Regular)
-        .fontColor(entry.online ? INK : SUBTLE)
+        .fontSize(MobileDesignTypography.bodyMedium.size)
+        .fontWeight(this.isSelected(entry) ? FontWeight.Bold : FontWeight.Regular)
+        .fontColor(INK)
         .layoutWeight(1)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .wordBreak(WordBreak.BREAK_ALL)
         .hitTestBehavior(HitTestMode.None)
       if (entry.status === 'loading') {
         LoadingProgress()
@@ -181,35 +181,39 @@ export struct SidebarWorkspaceSection {
         Text('')
           .width(8)
           .height(8)
-          .backgroundColor(entry.online ? STATUS_SUCCESS : SUBTLE)
+          .backgroundColor(this.deviceHealthColor(entry))
           .borderRadius(4)
           .hitTestBehavior(HitTestMode.None)
       }
-      Stack({ alignContent: Alignment.Center }) {
-        SidebarChevronIcon({
-          expanded: this.isSelected(entry),
-          iconSize: 14,
-          tint: entry.online ? INK : SUBTLE
-        })
-          .hitTestBehavior(HitTestMode.None)
-      }
-      .width(20)
-      .height(24)
-      .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .height(52)
     .padding({ left: 8, right: 4 })
     .alignItems(VerticalAlign.Center)
-    .opacity(entry.online ? 1 : 0.58)
-    .accessibilityText(`${entry.deviceName}, ${RemoteI18n.t(entry.online ?
-      'sidebar.deviceOnline' : 'sidebar.deviceOffline')}`)
-    .enabled(this.canUseDevice(entry))
+    .backgroundColor(this.isSelected(entry) ? SOFT : TRANSPARENT)
+    .borderRadius(10)
+    .accessibilityText(`${entry.deviceName}, ${this.isActiveDevice(entry.deviceId) ? ConnectionStatusPresenter.label(this.connectionState) :
+      RemoteI18n.t(entry.online ? 'sidebar.deviceOnline' : 'sidebar.deviceOffline')}`)
+    .enabled(this.canUseDevice(entry) || this.canRetryDevice(entry))
     .onClick(() => {
-      if (this.canUseDevice(entry)) {
+      if (this.canRetryDevice(entry)) {
+        this.onReconnect();
+      } else if (this.canUseDevice(entry)) {
         this.onSelectDevice(entry.deviceId);
       }
     })
+  }
+
+  private canRetryDevice(entry: DeviceDirectoryEntry): boolean {
+    return this.isActiveDevice(entry.deviceId) &&
+      (this.connectionState === 'failed' || this.connectionState === 'disconnected');
+  }
+
+  private deviceHealthColor(entry: DeviceDirectoryEntry): ResourceColor {
+    if (!this.isActiveDevice(entry.deviceId)) return entry.online ? STATUS_SUCCESS : SUBTLE;
+    if (this.connectionState === 'connected') return STATUS_SUCCESS;
+    if (this.connectionState === 'failed' || this.connectionState === 'disconnected') return STATUS_DANGER;
+    return MUTED;
   }
 
   @Builder
@@ -241,6 +245,12 @@ export struct SidebarWorkspaceSection {
       .margin({ top: 16 })
       .alignItems(VerticalAlign.Center)
 
+      if (entry.catalogSource === 'recent') {
+        Text(RemoteI18n.t('sidebar.legacyWorkspaceCatalog'))
+          .fontSize(MobileDesignTypography.bodySmall.size)
+          .fontColor(MUTED)
+          .padding({ left: 10, right: 10, bottom: 4 })
+      }
       SidebarDeviceGroup({
         onWorkspaceTools: this.onWorkspaceTools,
         device: entry,
@@ -249,11 +259,13 @@ export struct SidebarWorkspaceSection {
         recentWorkspaces: this.workspacesForDevice(entry),
         workspaceName: this.liveWorkspaceName(entry),
         workspacePath: this.liveWorkspacePath(entry),
+        workspaceConnectionId: this.isActiveDevice(entry.deviceId) ? this.workspaceConnectionId : '',
+        workspaceSshHost: this.isActiveDevice(entry.deviceId) ? this.workspaceSshHost : '',
+        workspaceId: this.isActiveDevice(entry.deviceId) ? this.workspaceId : '',
         workspaceKind: this.liveWorkspaceKind(entry),
         selectedSessionId: this.selectedSessionIdFor(entry),
         runningSessionId: this.isActiveDevice(entry.deviceId) ? this.runningSessionId : '',
         query: this.query,
-        showHeader: false,
         isActive: this.isActiveDevice(entry.deviceId),
         supportsHarnessProfiles: this.supportsHarnessProfiles,
         onRetry: () => {
@@ -263,17 +275,18 @@ export struct SidebarWorkspaceSection {
         },
         onOpenSession: this.onOpenSession,
         onSessionActions: this.onSessionActions,
-        onCreateInWorkspace: (path: string, agentType: string, connectionId?: string) => {
-          this.onCreateInWorkspace(entry.deviceId, path, agentType, connectionId);
+        onCreateInWorkspace: (path: string, agentType: string, connectionId?: string, sshHost?: string, workspaceId?: string) => {
+          this.onCreateInWorkspace(entry.deviceId, path, agentType, connectionId, sshHost, workspaceId);
         },
-        onOpenWorkspace: (path: string) => {
-          this.onOpenWorkspace(entry.deviceId, path);
+        onOpenWorkspace: (path: string, connectionId?: string, sshHost?: string, workspaceId?: string) => {
+          this.onOpenWorkspace(entry.deviceId, path, connectionId, sshHost, workspaceId);
         },
-        onExpandWorkspace: async (path: string): Promise<void> => {
-          await this.onExpandWorkspace(entry.deviceId, path);
+        onExpandWorkspace: async (path: string, remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string): Promise<void> => {
+          await this.onExpandWorkspace(entry.deviceId, path, remoteConnectionId, remoteSshHost, workspaceId);
         },
-        onWorkspaceExpandedChange: (path: string, expanded: boolean): void => {
-          this.directoryState.setWorkspaceExpanded(entry.deviceId, path, expanded);
+        onWorkspaceExpandedChange: (path: string, expanded: boolean, remoteConnectionId?: string, remoteSshHost?: string,
+          workspaceId?: string): void => {
+          this.directoryState.setWorkspaceExpanded(entry.deviceId, path, expanded, remoteConnectionId, remoteSshHost, workspaceId);
         }
       })
     }
@@ -324,17 +337,22 @@ export struct SidebarWorkspaceSection {
       onBrowse: this.onWorkspaceTools,
       deviceName: this.workspacePickerDevice().deviceName,
       savedConnections: this.workspacePickerDevice().deviceId === this.savedConnectionsTargetId ? this.savedConnections : [],
-      workspaces: this.workspacesForDevice(this.workspacePickerDevice()),
+      workspaces: this.workspacePickerDevice().catalogSource.length > 0 ?
+        this.workspacePickerDevice().recentWorkspaces : this.workspacesForDevice(this.workspacePickerDevice()),
       selectedWorkspacePath: this.isActiveDevice(this.workspacePickerDevice().deviceId) ?
         this.workspacePath : '',
+      selectedWorkspaceId: this.isActiveDevice(this.workspacePickerDevice().deviceId) ? this.workspaceId : '',
+      selectedWorkspaceConnectionId: this.isActiveDevice(this.workspacePickerDevice().deviceId) ?
+        this.workspaceConnectionId : '',
+      selectedWorkspaceSshHost: this.isActiveDevice(this.workspacePickerDevice().deviceId) ? this.workspaceSshHost : '',
       loading: this.workspacePickerDevice().status === 'loading',
       onClose: () => {
         this.showWorkspacePicker = false;
       },
-      onSelectWorkspace: (path: string, connectionId?: string) => {
+      onSelectWorkspace: (path: string, connectionId?: string, sshHost?: string, workspaceId?: string) => {
         const deviceId = this.workspacePickerDeviceId;
         this.showWorkspacePicker = false;
-        this.onOpenWorkspace(deviceId, path, connectionId);
+        this.onOpenWorkspace(deviceId, path, connectionId, sshHost, workspaceId);
       }
     })
   }
@@ -420,7 +438,7 @@ export struct SidebarWorkspaceSection {
   }
 
   private workspacesForDevice(entry: DeviceDirectoryEntry): RecentWorkspaceEntry[] {
-    return this.usesLiveDirectory(entry) ? this.recentWorkspaces : entry.workspaces;
+    return entry.workspaces;
   }
 
   private selectedSessionIdFor(entry: DeviceDirectoryEntry): string {
@@ -446,28 +464,6 @@ export struct SidebarWorkspaceSection {
     return entry.online || (this.isActiveDevice(entry.deviceId) && this.isConnected());
   }
 
-  private async refreshDevices(): Promise<void> {
-    if (this.refreshingDevices) {
-      return;
-    }
-    this.refreshingDevices = true;
-    const startedAt = Date.now();
-    try {
-      await this.onRefreshDevices();
-    } finally {
-      const remainingMs = 360 - (Date.now() - startedAt);
-      if (remainingMs > 0) {
-        await this.delay(remainingMs);
-      }
-      this.refreshingDevices = false;
-    }
-  }
-
-  private delay(durationMs: number): Promise<void> {
-    return new Promise<void>((resolve: () => void): void => {
-      setTimeout(resolve, durationMs);
-    });
-  }
 
   private isConnected(): boolean {
     return this.connectionState === 'connected' || this.connectionState === 'reconnecting';

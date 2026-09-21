@@ -83,7 +83,7 @@ test("Icon mask assets are color-agnostic", async () => {
   const assetDirectory = new URL("../src/components/Icon/assets/", import.meta.url);
   const assetNames = (await readdir(assetDirectory)).filter((name) => name.endsWith(".svg"));
 
-  assert.deepEqual(assetNames.sort(), ["creative.svg", "git.svg", "minimal.svg", "standard.svg", "ultimate.svg"]);
+  assert.deepEqual(assetNames.sort(), ["creative.svg", "git.svg", "minimal.svg", "standard.svg", "thinking.svg", "ultimate.svg"]);
   for (const assetName of assetNames) {
     const source = await readFile(new URL(assetName, assetDirectory), "utf8");
     assert.match(source, /(?:fill|stroke)="currentColor"/i, `${assetName} must use currentColor`);
@@ -98,8 +98,8 @@ test("Icon mask assets are color-agnostic", async () => {
 test("Icon preserves all reviewed asset geometry and opacity", async () => {
   const assets = new URL("../src/components/Icon/assets/", import.meta.url);
   const fingerprints = JSON.parse(await readFile(new URL("fixtures/icon-assets.json", import.meta.url), "utf8"));
-  assert.equal(fingerprints.length, 5);
-  assert.equal(new Set(fingerprints.map(entry => entry.node)).size, 5);
+  assert.equal(fingerprints.length, 6);
+  assert.equal(new Set(fingerprints.map(entry => entry.node)).size, 6);
   assert.deepEqual((await readdir(assets)).filter(name => name.endsWith(".svg")).sort(), fingerprints.map(entry => entry.asset).sort());
   for (const entry of fingerprints) {
     const source = (await readFile(new URL(entry.asset, assets), "utf8")).replaceAll("\r\n", "\n").trim();
@@ -118,8 +118,8 @@ test("compatibility aliases share canonical Lucide geometry", () => {
   assert.ok(!canonicalIconNames.includes("turn"));
 });
 
-test("every general-purpose named icon renders Lucide and only the five exceptions use masks", () => {
-  const preserved = new Set(["minimal", "standard", "ultimate", "creative", "git"]);
+test("every general-purpose named icon renders Lucide and only the reviewed exceptions use masks", () => {
+  const preserved = new Set(["minimal", "standard", "ultimate", "creative", "git", "thinking"]);
   for (const name of iconNames) {
     const markup = renderToStaticMarkup(createElement(Icon, { name }));
     if (preserved.has(name)) {
