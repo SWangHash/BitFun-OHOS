@@ -8,6 +8,7 @@ import {
 import { classifyReviewTargetFromFiles } from '@/shared/services/reviewTargetClassifier';
 import { TauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 
+const mockGetOpenedWorkspaces = vi.fn();
 const mockGitGetStatus = vi.fn();
 const mockGitGetChangedFiles = vi.fn();
 const mockGitGetDiff = vi.fn();
@@ -16,6 +17,7 @@ const mockWorkspaceReadFile = vi.fn();
 const mockWorkspaceGetFileMetadata = vi.fn();
 
 vi.mock('@/infrastructure/api', () => ({
+  globalAPI: { getOpenedWorkspaces: () => mockGetOpenedWorkspaces() },
   gitAPI: {
     getStatus: (...args: any[]) => mockGitGetStatus(...args),
     getChangedFiles: (...args: any[]) => mockGitGetChangedFiles(...args),
@@ -31,6 +33,7 @@ vi.mock('@/infrastructure/api', () => ({
 describe('Deep Review target resolver', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockGetOpenedWorkspaces.mockResolvedValue([]);
     mockGitGetStatus.mockResolvedValue({
       staged: [],
       unstaged: [],
@@ -53,6 +56,84 @@ describe('Deep Review target resolver', () => {
       isFile: true,
       size: 1024,
     });
+  });
+
+  it('rejects another named workspace before collecting current workspace files', async () => {
+    mockGetOpenedWorkspaces.mockResolvedValue([
+      { name: 'Other workspace', rootPath: '/other' },
+    ]);
+    for (const focus of ['Other workspace', '"Other workspace" src/', 'Other workspace focus on auth']) {
+      const result = await resolveSlashCommandReviewTarget(focus, '/current');
+      expect(result.targetEvidence.limitations).toContain('review_workspace_mismatch');
+      expect(result.target.files).toEqual([]);
+    }
+    expect(mockGitGetStatus).not.toHaveBeenCalled();
+    expect(mockGitGetDiff).not.toHaveBeenCalled();
+  });
+
+  it('keeps workspace names bound to their connection and rejects duplicate names', async () => {
+    for (const workspaces of [
+      [{ name: 'Project', rootPath: '/current', connectionId: 'ssh-other' }],
+      [
+        { name: 'Project', rootPath: '/current' },
+        { name: 'Project', rootPath: '/other' },
+      ],
+    ]) {
+      mockGetOpenedWorkspaces.mockResolvedValue(workspaces);
+      const result = await resolveSlashCommandReviewTarget('Project', '/current');
+      expect(result.targetEvidence.limitations).toContain('review_workspace_mismatch');
+    }
+    expect(mockGitGetStatus).not.toHaveBeenCalled();
+  });
+
+  it('strips the current workspace name before resolving its explicit file scope', async () => {
+    mockGetOpenedWorkspaces.mockResolvedValue([
+      { name: 'Project', rootPath: '/other' },
+      { name: 'Project Two', rootPath: '/current' },
+    ]);
+    const result = await resolveSlashCommandReviewTarget('"Project Two" src/', '/current');
+    expect(mockGitGetStatus).toHaveBeenCalledWith('/current', 'review_explicit_scope_snapshot');
+    expect(result.targetEvidence.limitations).toContain('explicit_file_scope_has_no_workspace_changes');
+  });
+
+  it('compares named Windows workspace roots using Windows path semantics', async () => {
+    mockGetOpenedWorkspaces.mockResolvedValue([{ name: 'Project', rootPath: 'D:/Repo/' }]);
+    const result = await resolveSlashCommandReviewTarget('Project', 'd:/repo');
+    expect(result.targetEvidence.limitations).not.toContain('review_workspace_mismatch');
+    expect(mockGitGetStatus).toHaveBeenCalledWith('d:/repo', 'deep_review_target_resolver');
+  });
+
+  it('does not fall back to current workspace files when workspace lookup fails', async () => {
+    mockGetOpenedWorkspaces.mockRejectedValue(new Error('workspace lookup failed'));
+    await expect(resolveSlashCommandReviewTarget('Other workspace', '/current'))
+      .rejects.toThrow('workspace lookup failed');
+    expect(mockGitGetStatus).not.toHaveBeenCalled();
+  });
+
+  it('reviews pending deletions but drops them once the live workspace is clean', async () => {
+    const cleanStatus = {
+      staged: [], unstaged: [], untracked: [], conflicts: [],
+      current_branch: 'main', ahead: 0, behind: 0,
+    };
+    mockGitGetStatus.mockResolvedValue({
+      ...cleanStatus,
+      unstaged: [{ path: 'removed.py', status: 'deleted' }],
+    });
+    mockGitGetChangedFiles.mockResolvedValue([{ path: 'removed.py', status: 'deleted' }]);
+    mockGitGetDiff.mockResolvedValue('--- a/removed.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n');
+
+    const pending = await resolveSlashCommandReviewTarget('', '/current');
+    expect(pending.targetEvidence.files).toEqual([
+      expect.objectContaining({ path: 'removed.py', status: 'deleted' }),
+    ]);
+    expect(mockWorkspaceReadFile).not.toHaveBeenCalled();
+
+    mockGitGetStatus.mockResolvedValue(cleanStatus);
+    mockGitGetChangedFiles.mockResolvedValue([]);
+    mockGitGetDiff.mockResolvedValue('');
+    const committed = await resolveSlashCommandReviewTarget('', '/current');
+    expect(committed.target.files).toEqual([]);
+    expect(committed.targetEvidence.files).toEqual([]);
   });
 
   it('counts changed lines from unified diff without headers', () => {
