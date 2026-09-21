@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { OverflowText, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
-import { FilePlus, FolderPlus } from 'lucide-react';
+import { FilePlus, FolderPlus, ChevronsDownUp } from 'lucide-react';
 import { VirtualFileTree } from './VirtualFileTree';
 import { FileExplorerProps, FileSystemNode, FlatFileNode } from '../types';
 import { flattenFileTree } from '../utils/treeFlattening';
@@ -65,6 +65,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onNewFile,
   onNewFolder,
   onRefresh,
+  onCollapseAll,
   hideToolbar = false,
 }) => {
   const { t } = useI18n('tools');
@@ -351,6 +352,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 aria-label={t('fileTree.refresh')}
                 icon={<Icon name="refresh" size="lg" />}
                 onClick={handleRefresh}
+              />
+            </Tooltip>
+          )}
+          {onCollapseAll && (
+            <Tooltip content={t('fileTree.collapse')} placement="bottom">
+              <IconButton
+                size="sm"
+                aria-label={t('fileTree.collapse')}
+                icon={<ChevronsDownUp />}
+                onClick={onCollapseAll}
               />
             </Tooltip>
           )}
