@@ -240,7 +240,7 @@ const FlowChatListHeader = forwardRef<HTMLDivElement, {
   previousHistoryBoundaryStatusNode: React.ReactNode;
 }>(({ previousHistoryBoundaryStatusNode }, ref) => (
   <div ref={ref} className="message-list-header-block">
-    <FlowChatOpeningBoundary
+    <div
       className="message-list-header"
       data-bitfun-component="virtual-message-list"
       data-bitfun-part="header"
@@ -706,6 +706,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     scrollToContentEnd,
     revealNewTurnTail,
     isOpeningViewport,
+    onOpeningOffset: virtualizer.syncViewportOffset,
     viewportOwner,
     viewportId,
   });
@@ -2610,7 +2611,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   }
 
   return (
-    <div
+    <FlowChatOpeningBoundary
       data-bitfun-component="virtual-message-list"
       data-bitfun-part="root"
       className="virtual-message-list"
