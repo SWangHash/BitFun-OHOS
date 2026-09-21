@@ -27,7 +27,10 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
-import { confirmCriticalOperationExit } from '@/shared/services/criticalOperationExitGuard';
+import {
+  confirmCriticalOperationExit,
+  setMainWindowCloseRequestInProgress,
+} from '@/shared/services/criticalOperationExitGuard';
 import { createLogger } from '@/shared/utils/logger';
 import { DailyAppUpdateGate } from '@/infrastructure/update';
 import { useI18n } from '@/infrastructure/i18n';
@@ -455,6 +458,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         unlistenFn = await listen('bitfun_main_window_close_requested', async () => {
           if (handlingClose) return;
           handlingClose = true;
+          setMainWindowCloseRequestInProgress(true);
 
           if (isMacOS) {
             // macOS always hides to keep the app alive in the dock.
@@ -462,8 +466,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
               await api.invoke('hide_main_window_after_close_request');
             } catch (error) {
               log.error('Failed to hide main window after close request', error);
+            } finally {
+              setMainWindowCloseRequestInProgress(false);
+              handlingClose = false;
             }
-            handlingClose = false;
             return;
           }
 
@@ -501,6 +507,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
               await quitIfAllowed();
             } catch { /* ignore */ }
           } finally {
+            setMainWindowCloseRequestInProgress(false);
             handlingClose = false;
           }
         });
