@@ -524,7 +524,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       ) : null}
 
       <div
-        className="flowchat-header__actions"
+        className={`flowchat-header__actions${isSearchOpen ? ' flowchat-header__actions--searching' : ''}`}
         ref={rightActionsRef}
         data-bf-component="flow-chat-header"
         data-bf-part="actions"

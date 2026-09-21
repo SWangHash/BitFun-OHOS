@@ -116,7 +116,8 @@
     display: flex;
     align-items: center;
     gap: $size-gap-1;
-    min-width: min(320px, 38vw);
+    width: min(320px, 38vw);
+    min-width: 0;
     max-width: min(420px, 42vw);
   }
 
@@ -492,6 +493,11 @@
     gap: $size-gap-1;
     flex-shrink: 0;
 
+    &--searching {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
     &--left {
       margin-right: $size-gap-2;
       overflow: visible;
@@ -500,7 +506,7 @@
 
   @media (max-width: 900px) {
     &__search {
-      min-width: min(220px, 52vw);
+      width: min(220px, 52vw);
       max-width: min(300px, 56vw);
     }
   }
