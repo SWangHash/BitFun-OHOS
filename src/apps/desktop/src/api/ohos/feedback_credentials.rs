@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use bitfun_services_integrations::anonymous_auth::AnonymousCredentialStore;
 use bitfun_services_integrations::feedback::FeedbackCredentialStore;
 use serde::{Deserialize, Serialize};
 
@@ -80,5 +81,16 @@ impl FeedbackCredentialStore for OhosFeedbackCredentialStore {
             "OpenHarmony secure credential store failed: code={}",
             response.code.as_deref().unwrap_or("UNKNOWN")
         ))
+    }
+}
+
+#[async_trait]
+impl AnonymousCredentialStore for OhosFeedbackCredentialStore {
+    async fn load(&self) -> Result<Option<String>> {
+        FeedbackCredentialStore::load(self).await
+    }
+
+    async fn store(&self, value: &str) -> Result<()> {
+        FeedbackCredentialStore::store(self, value).await
     }
 }

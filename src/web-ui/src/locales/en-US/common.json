@@ -39,6 +39,7 @@
     "newProject": "New Project",
     "goHome": "Go Home",
     "about": "About",
+    "feedback": "Feedback",
     "openMenu": "Open Menu",
     "closeMenu": "Close Menu",
     "selectProjectDirectory": "Select a project directory to open",
@@ -61,7 +62,163 @@
     "recentWorkspaces": "Recent Projects",
     "noRecentWorkspaces": "No Recent Projects",
     "noWorkspaceOpen": "Select Workspace",
-    "remoteConnectRequiresWorkspace": "Open a workspace before using remote control."
+    "remoteConnectRequiresWorkspace": "Open a workspace before using remote control.",
+    "moreOptionsAttention": "More options, unread attention available"
+  },
+  "privacy": {
+    "title": "Privacy Statement",
+    "effectiveAt": "Effective {{date}}",
+    "updatedAt": "Updated {{date}}",
+    "materialChange": "Material change; renewed consent required",
+    "editorialChange": "Editorial update; existing consent remains valid",
+    "updated": "Updated",
+    "aboutEntryUpdated": "About, Privacy Statement update available",
+    "fullMode": "Full mode",
+    "fullModeDescription": "Feedback and related data collection are enabled.",
+    "notAcceptedMode": "Consent not accepted",
+    "notAcceptedModeDescription": "Product features remain available; feedback collection and background feedback requests stay disabled.",
+    "consentCheckbox": "I have read and agree to the Privacy Statement",
+    "enableFull": "Agree",
+    "retryFullMode": "Retry enabling feedback",
+    "acceptSaveFailed": "Consent could not be saved. Not-accepted rules remain in effect.",
+    "applyFailed": "Consent was saved, but feedback collection could not be enabled. Not-accepted rules remain in effect and you can retry directly.",
+    "withdraw": "Withdraw consent",
+    "withdrawConfirmTitle": "Withdraw privacy consent?",
+    "withdrawConfirmMessage": "The app immediately stops new feedback collection and uploads without exiting, restarting, or deleting projects, sessions, settings, or feedback access. Requests that already reached the service cannot be recalled.",
+    "withdrawConfirmAction": "Withdraw consent",
+    "withdrawFailed": "The not-accepted state could not be saved. Collection remains disabled for this run; try again.",
+    "markViewedFailed": "The viewed state could not be saved, so Updated may appear again.",
+    "cancel": "Cancel",
+    "gateIntro": "Review the Privacy Statement and choose how to continue.",
+    "gateAgree": "Agree and continue",
+    "gateDisagree": "Disagree and continue",
+    "gateLoading": "Validating Privacy Statement",
+    "gateLoadError": "The Privacy Statement could not be loaded",
+    "gateResourceErrorHint": "Retry, or close this view and continue with local features. Agreement is unavailable and data collection remains off.",
+    "gateRetry": "Retry",
+    "gateCloseAndContinue": "Close and continue",
+    "gateSaveFailed": "Your choice was not saved. Data collection remains off. Try again.",
+    "gateReleaseBlocked": "The bundled Privacy Statement has not completed release review, so full mode is unavailable."
+  },
+  "feedback": {
+    "views": {
+      "create": "Submit feedback",
+      "inbox": "Feedback records"
+    },
+    "category": "Category",
+    "categoryPlaceholder": "Select a category",
+    "content": "Feedback",
+    "contentPlaceholder": "Describe the problem, suggestion, or question",
+    "contentTruncated": "Only the first 2000 characters were kept",
+    "categories": {
+      "runtimeError": "Runtime error",
+      "featureRequest": "Feature request",
+      "usageQuestion": "Usage question",
+      "other": "Other"
+    },
+    "correlation": {
+      "label": "Link the current session",
+      "description": "Send an irreversible hash of the current session to help locate this feedback.",
+      "unavailable": "There is no current session to link."
+    },
+    "privacyConsent": "I have read and agree to the Privacy Statement",
+    "privacyConsentPrefix": "I have read and agree to the ",
+    "privacyStatement": "Privacy Statement",
+    "privacyConsentSuffix": "",
+    "actions": {
+      "cancel": "Cancel",
+      "submit": "Submit feedback",
+      "retry": "Retry submission",
+      "gitcode": "Open GitCode"
+    },
+    "complete": {
+      "title": "Feedback submitted",
+      "description": "The feedback access credential was saved securely."
+    },
+    "inbox": {
+      "title": "Feedback records",
+      "count": "{{count}} records",
+      "refresh": "Refresh",
+      "loading": "Loading feedback records...",
+      "emptyTitle": "No feedback records",
+      "emptyDescription": "Submitted feedback will appear here.",
+      "loadMore": "Load more",
+      "updated": "Updated {{time}}",
+      "newReply": "New reply",
+      "entryUnread": "Feedback, new reply available",
+      "selectRecord": "Select a feedback record",
+      "detailTitle": "Feedback details",
+      "back": "Back to feedback records",
+      "reference": "Feedback reference",
+      "inaccessibleTitle": "This conversation is unavailable",
+      "inaccessibleDescription": "Its saved access credential is missing or no longer valid.",
+      "accessUnavailable": "Saved feedback access is unavailable. Existing summaries are retained.",
+      "refreshFailed": "Feedback records could not be refreshed. Existing records are retained.",
+      "status": {
+        "submitted": "Submitted",
+        "inProgress": "In progress",
+        "waitingUser": "Waiting for you",
+        "resolved": "Resolved"
+      }
+    },
+    "conversation": {
+      "messages": "Conversation",
+      "refresh": "Refresh conversation",
+      "loading": "Loading conversation...",
+      "loadingEarlier": "Loading earlier messages...",
+      "empty": "This conversation has no messages.",
+      "admin": "Support",
+      "you": "You",
+      "syncFailed": "New messages could not be synchronized. Existing messages are retained.",
+      "cacheFailed": "The encrypted message cache could not be updated. Try again.",
+      "ackFailed": "Read status could not be updated. The unread marker is retained.",
+      "resolvedReadonly": "This conversation is resolved and read-only."
+    },
+    "reply": {
+      "input": "Reply",
+      "placeholder": "Write a reply to this feedback",
+      "send": "Send reply",
+      "retry": "Retry sending",
+      "consentTitle": "Accept before sending",
+      "consentPrefix": "You need to accept the ",
+      "consentSuffix": " before sending a reply.",
+      "consentConfirm": "Accept and send",
+      "consentSaveFailed": "Privacy consent could not be saved, so the reply was not sent. Retry or cancel.",
+      "privacySaveFailed": "Privacy consent could not be saved, so the reply was not sent. Privacy-not-accepted rules remain active.",
+      "resolved": "This conversation is resolved and cannot receive replies.",
+      "rateLimited": "Too many replies. Try again in {{seconds}} seconds.",
+      "timeout": "The feedback service timed out. Your reply is retained.",
+      "network": "The feedback service is unreachable. Your reply is retained.",
+      "failed": "Reply failed ({{code}}). Your draft is retained.",
+      "discardTitle": "Discard reply?",
+      "discardMessage": "This reply has not been sent and will not be kept after leaving the conversation.",
+      "discardConfirm": "Discard reply",
+      "continueEditing": "Continue editing"
+    },
+    "exit": {
+      "title": "Feedback is still submitting",
+      "message": "Continue waiting to preserve the result. Exiting anyway cannot guarantee cancellation of a request already sent.",
+      "quit": "Exit anyway",
+      "wait": "Continue waiting"
+    },
+    "discard": {
+      "title": "Discard this feedback?",
+      "message": "The category, content, related-session option, or privacy selection has not been submitted and will not be kept.",
+      "confirm": "Discard feedback",
+      "continue": "Continue editing"
+    },
+    "errors": {
+      "contentRequired": "Enter feedback content",
+      "privacySave": "Privacy consent could not be saved, so the feedback was not sent. Privacy-not-accepted rules remain active.",
+      "capabilitySave": "The service received the feedback, but its access credential could not be saved securely. Retry without editing the content.",
+      "rateLimited": "Too many submissions. Try again in {{seconds}} seconds.",
+      "quotaExceeded": "The feedback submission limit has been reached. Try again later.",
+      "notConfigured": "This build has no production feedback service configured. GitCode remains available.",
+      "timeout": "The feedback service timed out. Try again.",
+      "network": "The feedback service is currently unreachable. Check the network and try again.",
+      "gitcode": "GitCode could not be opened. Try again; the form remains unchanged.",
+      "generic": "Feedback submission failed ({{code}}). Try again or use GitCode."
+    }
   },
   "nav": {
     "aria": {
@@ -1132,6 +1289,8 @@
     "githubStarTitle": "Enjoying BitFun?",
     "githubStarDescription": "Star us on GitHub to help more people discover it.",
     "githubStarAction": "Star on GitHub",
+    "privacyStatement": "Privacy Statement",
+    "userAgreement": "Privacy Agreement",
     "updateSectionTitle": "App updates",
     "updateSectionHint": "Keep BitFun up to date for the latest fixes and features."
   },

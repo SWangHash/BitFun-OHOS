@@ -10,13 +10,19 @@ use bitfun_ai_adapters::{
 use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
 use std::sync::Arc;
 
+#[derive(Debug)]
+pub(super) struct CompressionSummary {
+    pub text: String,
+    pub usage: Option<bitfun_ai_adapters::GeminiUsage>,
+}
+
 pub(super) async fn request_summary(
     client: Arc<AIClient>,
     messages: Vec<Message>,
     tools: Option<Vec<ToolDefinition>>,
     context: &ModelRequestContext,
     trace: Option<ModelExchangeTraceConfig>,
-) -> BitFunResult<String> {
+) -> BitFunResult<CompressionSummary> {
     request_summary_with(|| {
         client.send_message_once_with_trace_and_request_context(
             messages.clone(),
@@ -28,7 +34,7 @@ pub(super) async fn request_summary(
     .await
 }
 
-async fn request_summary_with<F, Fut>(mut request: F) -> BitFunResult<String>
+async fn request_summary_with<F, Fut>(mut request: F) -> BitFunResult<CompressionSummary>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = anyhow::Result<bitfun_ai_adapters::GeminiResponse>>,
@@ -45,7 +51,10 @@ where
                 } else if let Some(summary) =
                     ContextCompressor::normalize_model_summary_output(&response.text)
                 {
-                    return Ok(summary);
+                    return Ok(CompressionSummary {
+                        text: summary,
+                        usage: response.usage,
+                    });
                 } else {
                     AiProviderError::classified(
                         "Compression request returned an empty summary".to_string(),
@@ -168,7 +177,32 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(requests, 10);
-        assert_eq!(summary, "Recovered");
+        assert_eq!(summary.text, "Recovered");
+    }
+
+    #[tokio::test]
+    async fn compression_summary_preserves_model_usage() {
+        let summary = request_summary_with(|| {
+            let mut response = empty().unwrap();
+            response.text = "Summary".into();
+            response.usage = Some(bitfun_ai_adapters::GeminiUsage {
+                prompt_token_count: 21,
+                candidates_token_count: 8,
+                total_token_count: 29,
+                reasoning_token_count: Some(3),
+                cached_content_token_count: Some(5),
+                cache_creation_token_count: Some(2),
+            });
+            std::future::ready(Ok(response))
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(summary.text, "Summary");
+        let usage = summary.usage.expect("model usage should be retained");
+        assert_eq!(usage.prompt_token_count, 21);
+        assert_eq!(usage.total_token_count, 29);
+        assert_eq!(usage.cache_creation_token_count, Some(2));
     }
 
     #[tokio::test(start_paused = true)]
@@ -254,7 +288,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(summary, "Recovered");
+        assert_eq!(summary.text, "Recovered");
         let requests = server.requests.lock().unwrap();
         assert_eq!(requests.len(), 3);
         assert_eq!(requests[0], requests[1]);

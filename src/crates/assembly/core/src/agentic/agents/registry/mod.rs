@@ -155,6 +155,21 @@ impl AgentRegistry {
             .map(|entry| entry.agent)
     }
 
+    pub(crate) fn observability_mode_class(
+        &self,
+        agent_type: &str,
+        workspace_root: Option<&Path>,
+    ) -> bitfun_observability::domains::AgentModeClass {
+        let Some(entry) = self.find_agent_entry(agent_type, workspace_root) else {
+            return bitfun_observability::domains::AgentModeClass::Other;
+        };
+        crate::agentic::observability::agent_mode_class(
+            entry.category,
+            entry.source,
+            self::types::is_review_agent_entry(&entry),
+        )
+    }
+
     /// Resolve the effective non-external definition that an external route
     /// displaces. Plugin generations use this immutable baseline instead of
     /// accidentally inheriting a previous external generation.

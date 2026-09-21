@@ -2,7 +2,7 @@ use crate::agentic::session::revert::{SessionRevertState, SessionWorkspaceCheckp
 use crate::service::snapshot::snapshot_system::FileSnapshotSystem;
 use crate::service::snapshot::types::{
     DiffSummary, FileOperation, OperationType, SessionFileDiffStats, SnapshotError, SnapshotResult,
-    ToolContext,
+    ToolContext, TurnDiffAggregate,
 };
 use crate::service::workspace_runtime::WorkspaceRuntimeContext;
 use log::{debug, info, warn};
@@ -431,6 +431,32 @@ impl SnapshotCore {
                 .filter(|op| operation_is_completed_for_session_file(op))
                 .map(|op| op.file_path.clone()),
         )
+    }
+
+    pub fn turn_diff_aggregate(&self, session_id: &str, turn_index: usize) -> TurnDiffAggregate {
+        let Some(session) = self.sessions.get(session_id) else {
+            return TurnDiffAggregate::default();
+        };
+        let Some(turn) = session.turns.get(&turn_index) else {
+            return TurnDiffAggregate::default();
+        };
+        let completed = turn
+            .operations
+            .iter()
+            .filter(|operation| operation_is_completed_for_session_file(operation));
+        let mut files = HashSet::new();
+        let mut aggregate = TurnDiffAggregate::default();
+        for operation in completed {
+            files.insert(operation.file_path.clone());
+            aggregate.lines_added = aggregate
+                .lines_added
+                .saturating_add(operation.diff_summary.lines_added);
+            aggregate.lines_removed = aggregate
+                .lines_removed
+                .saturating_add(operation.diff_summary.lines_removed);
+        }
+        aggregate.modified_file_count = files.len();
+        aggregate
     }
 
     pub fn get_session_files(&self, session_id: &str) -> Vec<PathBuf> {
@@ -1779,6 +1805,87 @@ mod tests {
             .unwrap();
         assert_eq!(stats.lines_added, 0);
         assert_eq!(stats.lines_removed, 0);
+    }
+
+    #[tokio::test]
+    async fn turn_diff_aggregate_deduplicates_files_and_sums_completed_operations() {
+        let mut runtime = make_test_runtime("turn_diff_aggregate").await;
+        let first = runtime.workspace.join("src/first.rs");
+        let second = runtime.workspace.join("src/second.rs");
+        fs::create_dir_all(first.parent().unwrap()).unwrap();
+        tokio::fs::write(&first, "base\n").await.unwrap();
+        tokio::fs::write(&second, "one\ntwo\n").await.unwrap();
+
+        let first_operation = runtime
+            .core
+            .start_file_operation(
+                "session-1",
+                2,
+                first.clone(),
+                OperationType::Modify,
+                "Edit".to_string(),
+                json!({}),
+                None,
+            )
+            .await
+            .unwrap();
+        tokio::fs::write(&first, "base\nadded\n").await.unwrap();
+        runtime
+            .core
+            .complete_file_operation("session-1", &first_operation, 1)
+            .await
+            .unwrap();
+
+        let repeated_operation = runtime
+            .core
+            .start_file_operation(
+                "session-1",
+                2,
+                first.clone(),
+                OperationType::Modify,
+                "Edit".to_string(),
+                json!({}),
+                None,
+            )
+            .await
+            .unwrap();
+        tokio::fs::write(&first, "base\nadded\nagain\n")
+            .await
+            .unwrap();
+        runtime
+            .core
+            .complete_file_operation("session-1", &repeated_operation, 1)
+            .await
+            .unwrap();
+
+        let second_operation = runtime
+            .core
+            .start_file_operation(
+                "session-1",
+                2,
+                second.clone(),
+                OperationType::Modify,
+                "Edit".to_string(),
+                json!({}),
+                None,
+            )
+            .await
+            .unwrap();
+        tokio::fs::write(&second, "one\n").await.unwrap();
+        runtime
+            .core
+            .complete_file_operation("session-1", &second_operation, 1)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            runtime.core.turn_diff_aggregate("session-1", 2),
+            TurnDiffAggregate {
+                modified_file_count: 2,
+                lines_added: 2,
+                lines_removed: 1,
+            }
+        );
     }
 
     #[tokio::test]

@@ -1,0 +1,16 @@
+[package]
+name = "bitfun-observability"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Portable, privacy-gated observability contracts for BitFun"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

@@ -5,10 +5,10 @@
 use super::types::ToolTask;
 use crate::agentic::core::ToolExecutionState;
 use crate::agentic::events::AgenticEvent;
-use dashmap::DashMap;
-use log::debug;
 use bitfun_agent_stream::StreamEventSink;
 use bitfun_agent_tools::ValidationResult;
+use dashmap::DashMap;
+use log::debug;
 use std::sync::Arc;
 use tool_runtime::pipeline::{
     count_tool_states, tool_state_event_data, ToolStateEventFacts, ToolStateEventKind,
@@ -90,6 +90,28 @@ impl ToolStateManager {
     /// Get task
     pub fn get_task(&self, tool_id: &str) -> Option<ToolTask> {
         self.tasks.get(tool_id).map(|t| t.clone())
+    }
+
+    pub fn set_observation_context(
+        &self,
+        tool_id: &str,
+        context: Option<bitfun_observability::ObservationContext>,
+    ) -> bool {
+        if let Some(mut task) = self.tasks.get_mut(tool_id) {
+            task.context.observation_context = context;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn set_telemetry_parallel(&self, tool_id: &str, parallel: bool) -> bool {
+        if let Some(mut task) = self.tasks.get_mut(tool_id) {
+            task.telemetry_parallel = parallel;
+            true
+        } else {
+            false
+        }
     }
 
     /// Apply a PreToolUse `updatedInput` proposal and preserve any rejection
@@ -345,6 +367,7 @@ mod tests {
                 round_id: "round-1".to_string(),
                 attempt_id: None,
                 attempt_index: None,
+                observation_context: None,
                 agent_type: "Standard".to_string(),
                 workspace: None,
                 primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),

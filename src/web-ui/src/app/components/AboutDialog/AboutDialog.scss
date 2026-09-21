@@ -194,6 +194,11 @@
 .bitfun-about-dialog__update-card-actions {
   display: flex;
   align-items: center;
+  gap: var(--bitfun-space-3);
+}
+
+.bitfun-about-dialog__update-card-actions--standalone {
+  margin-top: var(--bitfun-space-5);
 }
 
 .bitfun-about-dialog__update-feedback {
@@ -292,6 +297,12 @@
   flex-direction: column;
   gap: var(--bitfun-space-6);
   padding: 0 var(--bitfun-space-8) var(--bitfun-space-6);
+}
+
+.bitfun-about-dialog__privacy-updated {
+  margin-left: var(--bitfun-space-2);
+  color: var(--bitfun-color-status-warning-content);
+  font-size: var(--bitfun-type-meta-font-size);
 }
 
 .bitfun-about-dialog__copyright {

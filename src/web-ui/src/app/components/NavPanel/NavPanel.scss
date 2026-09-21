@@ -1547,6 +1547,34 @@ $_section-header-height: 22px;
   }
 }
 
+.bitfun-nav-panel__footer-settings-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bitfun-control-icon-size-md);
+  height: var(--bitfun-control-icon-size-md);
+}
+
+.bitfun-nav-panel__footer-more-unread {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--bitfun-color-surface-default);
+  border-radius: 50%;
+  background: var(--bitfun-color-status-warning-content);
+}
+
+.bitfun-nav-panel__footer-menu-unread {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bitfun-color-status-warning-content);
+}
+
 // Footer icon buttons: default icon fades to alternate on hover / focus-visible
 .bitfun-nav-panel__footer-btn-icon-swap {
   position: relative;

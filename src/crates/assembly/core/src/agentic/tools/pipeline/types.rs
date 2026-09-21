@@ -88,6 +88,7 @@ pub struct ToolExecutionContext {
     pub round_id: String,
     pub attempt_id: Option<String>,
     pub attempt_index: Option<u32>,
+    pub observation_context: Option<bitfun_observability::ObservationContext>,
     pub agent_type: String,
     pub workspace: Option<WorkspaceBinding>,
     pub primary_model_facts: PrimaryModelFacts,
@@ -117,6 +118,8 @@ pub struct ToolTask {
     /// Position of this call in the model's tool-call array for the current
     /// round. Permission requests inherit this value as their order key.
     pub tool_call_order: u32,
+    /// Whether this invocation is actually scheduled in a concurrent batch.
+    pub(crate) telemetry_parallel: bool,
     pub invocation: ResolvedToolInvocation,
     /// Effective arguments before any Native PreToolUse hook rewrite. This
     /// remains immutable so validation and audit can compare both inputs.
@@ -160,6 +163,7 @@ impl ToolTask {
         Self {
             tool_call,
             tool_call_order: 0,
+            telemetry_parallel: false,
             invocation,
             original_effective_arguments,
             input_rewrite_rejection: None,

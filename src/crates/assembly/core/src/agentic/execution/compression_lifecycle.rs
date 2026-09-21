@@ -40,17 +40,20 @@ impl ExecutionEngine {
             },
         );
         let candidate = job.run().await?;
-        self.context_compressor
+        let model_usage = candidate.usage;
+        let mut result = self
+            .context_compressor
             .compress_plan_with_contract(
                 session_id,
                 candidate.plan,
                 compression_contract,
                 candidate.summary,
-            )
-            .map(Some)
+            )?;
+        result.model_usage = model_usage;
+        Ok(Some(result))
     }
 
-    /// Compress context, will emit compression events (Started, Completed, and Failed)
+    /// Compress context and record the authoritative terminal outcome.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn compress_messages(
         &self,
@@ -70,13 +73,141 @@ impl ExecutionEngine {
         workspace: Option<&WorkspaceBinding>,
         workspace_services: Option<&crate::agentic::workspace::WorkspaceServices>,
         prefetch: Option<PrefetchedCompression>,
-    ) -> BitFunResult<Option<(usize, Vec<Message>)>> {
+        observation_context: Option<bitfun_observability::ObservationContext>,
+    ) -> BitFunResult<
+        Option<(
+            usize,
+            Vec<Message>,
+            Option<crate::util::types::ai::GeminiUsage>,
+        )>,
+    > {
+        let turns_since_last_compression = self
+            .session_manager
+            .get_session(session_id)
+            .and_then(|session| session.compression_state.last_compression_turn_index)
+            .map(|last_turn_index| {
+                self.session_manager
+                    .get_turn_count(session_id)
+                    .saturating_sub(1)
+                    .saturating_sub(last_turn_index) as u64
+            });
+        let trace_observation_context = observation_context.clone();
+        let observation = start_compression(
+            &self.telemetry,
+            CompressionStartFacts {
+                trigger: compression_trigger_class(trigger),
+                threshold_tokens: Some(before_pressure.input_limit as u64),
+                turns_since_last_compression,
+            },
+            observation_context,
+        );
+        let result = self
+            .compress_messages_impl(
+                session_id,
+                dialog_turn_id,
+                trigger,
+                runtime_messages,
+                before_pressure,
+                context_window,
+                ai_client,
+                model_request_context,
+                tool_definitions,
+                system_prompt_message,
+                prepended_prompt_reminders,
+                primary_supports_image_understanding,
+                compression_contract_limit,
+                workspace,
+                workspace_services,
+                prefetch,
+                trace_observation_context,
+            )
+            .await;
+        let finish = match &result {
+            Ok(Some((tokens_after, _, model_usage))) => CompressionFinishFacts {
+                completion: CompletionFacts::completed(),
+                source: Some(CompressionSource::Model),
+                has_summary: Some(true),
+                tokens_before: Some(before_pressure.total_tokens as u64),
+                tokens_after_estimate: Some(*tokens_after as u64),
+                input_tokens: model_usage
+                    .as_ref()
+                    .map(|usage| usage.prompt_token_count as u64),
+                output_tokens: model_usage
+                    .as_ref()
+                    .map(|usage| usage.candidates_token_count as u64),
+                total_tokens: model_usage
+                    .as_ref()
+                    .map(|usage| usage.total_token_count as u64),
+                cache_read_tokens: model_usage
+                    .as_ref()
+                    .and_then(|usage| usage.cached_content_token_count)
+                    .map(u64::from),
+                cache_creation_tokens: model_usage
+                    .as_ref()
+                    .and_then(|usage| usage.cache_creation_token_count)
+                    .map(u64::from),
+            },
+            Ok(None) => CompressionFinishFacts {
+                completion: CompletionFacts::completed(),
+                source: Some(CompressionSource::None),
+                has_summary: Some(false),
+                tokens_before: Some(before_pressure.total_tokens as u64),
+                tokens_after_estimate: Some(before_pressure.total_tokens as u64),
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cache_read_tokens: None,
+                cache_creation_tokens: None,
+            },
+            Err(error) => CompressionFinishFacts {
+                completion: completion_from_error(error),
+                source: None,
+                has_summary: None,
+                tokens_before: Some(before_pressure.total_tokens as u64),
+                tokens_after_estimate: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cache_read_tokens: None,
+                cache_creation_tokens: None,
+            },
+        };
+        observation.finish(finish);
+        result
+    }
+
+    /// Formal automatic compression lifecycle with hooks, events, and commit fencing.
+    #[allow(clippy::too_many_arguments)]
+    async fn compress_messages_impl(
+        &self,
+        session_id: &str,
+        dialog_turn_id: &str,
+        trigger: &str,
+        runtime_messages: Vec<Message>,
+        before_pressure: TokenPressureSnapshot,
+        context_window: usize,
+        ai_client: Arc<crate::infrastructure::ai::AIClient>,
+        model_request_context: &ModelRequestContext,
+        tool_definitions: &Option<Vec<ToolDefinition>>,
+        system_prompt_message: Message,
+        prepended_prompt_reminders: &PrependedPromptReminders,
+        primary_supports_image_understanding: bool,
+        compression_contract_limit: usize,
+        workspace: Option<&WorkspaceBinding>,
+        workspace_services: Option<&crate::agentic::workspace::WorkspaceServices>,
+        prefetch: Option<PrefetchedCompression>,
+        observation_context: Option<bitfun_observability::ObservationContext>,
+    ) -> BitFunResult<
+        Option<(
+            usize,
+            Vec<Message>,
+            Option<crate::util::types::ai::GeminiUsage>,
+        )>,
+    > {
         let mut session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!("Session not found: {}", session_id))
-            })?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
 
         // Record start time
         let start_time = std::time::Instant::now();
@@ -155,6 +286,8 @@ impl ExecutionEngine {
                     trigger: Some(trigger),
                 },
                 ai_client.as_ref(),
+                &self.telemetry,
+                observation_context.clone(),
             )
             .await;
             let candidate = match claim {
@@ -259,6 +392,7 @@ impl ExecutionEngine {
                                         contract.clone(),
                                         candidate.summary.clone(),
                                     )?;
+                                result.model_usage = candidate.usage.clone();
                                 if let Some(reference) = transcript.as_ref() {
                                     self.context_compressor.append_transcript_reference(
                                         &mut result,
@@ -349,10 +483,15 @@ impl ExecutionEngine {
                         "context_compression_applied",
                     )
                     .await;
+                let model_usage = compression_result.model_usage.clone();
                 let mut new_messages = vec![system_prompt_message];
                 new_messages.extend(compression_result.messages);
                 // Update session compression state
-                session.compression_state.increment_compression_count();
+                session.compression_state.increment_compression_count_at(
+                    self.session_manager
+                        .get_turn_count(session_id)
+                        .saturating_sub(1),
+                );
 
                 // Update session state
                 let _ = self
@@ -449,7 +588,7 @@ impl ExecutionEngine {
                 })
                 .await;
 
-                Ok(Some((compressed_tokens, new_messages)))
+                Ok(Some((compressed_tokens, new_messages, model_usage)))
             }
             Ok(None) => Ok(None),
             Err(e) => {

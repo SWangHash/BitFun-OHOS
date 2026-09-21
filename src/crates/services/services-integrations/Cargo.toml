@@ -97,6 +97,17 @@ zbus-secret-service-keyring-store = { workspace = true, optional = true }
 
 [features]
 default = []
+anonymous-auth = [
+    "anyhow",
+    "async-trait",
+    "chrono",
+    "bitfun-services-core/tls-provider",
+    "reqwest",
+    "reqwest/json",
+    "reqwest/rustls-no-provider",
+    "tokio/sync",
+    "uuid",
+]
 # Derive `ts_rs::TS` on wire types (git/* today). Types that live behind a
 # feature group (e.g. `git`) only derive `TS` when that group is also enabled;
 # app-server's `ts` feature enables `product-full` which pulls `git`.
@@ -129,15 +140,22 @@ privacy = [
     "tokio/fs",
 ]
 feedback = [
+    "anonymous-auth",
     "aes-gcm",
     "anyhow",
     "async-trait",
     "base64",
     "chrono",
     "dep:bitfun-product-domains",
+    "bitfun-services-core/tls-provider",
     "rand",
     "reqwest",
+    "reqwest/json",
+    "reqwest/query",
+    "reqwest/rustls-no-provider",
     "sha2",
+    "tokio/fs",
+    "tokio/sync",
     "uuid",
 ]
 debug-log = ["anyhow", "chrono", "reqwest", "reqwest/json", "reqwest/rustls", "tokio/rt", "uuid"]

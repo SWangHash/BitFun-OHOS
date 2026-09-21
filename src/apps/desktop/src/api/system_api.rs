@@ -1273,6 +1273,7 @@ pub async fn send_system_notification(
 /// app is minimized. On non-OHOS hosts the window-state query returns an error
 /// (no ArkTS function registered) and this no-ops, matching the stub
 /// `send_system_notification` Tauri path.
+#[cfg(target_env = "ohos")]
 pub async fn notify_system_error_if_minimized(error: &str) {
     let Ok(minimized) = crate::api::ohos::window::window_is_minimized().await else {
         return;
@@ -1290,6 +1291,9 @@ pub async fn notify_system_error_if_minimized(error: &str) {
         log::warn!("Failed to send system-error notification: {e}");
     }
 }
+
+#[cfg(not(target_env = "ohos"))]
+pub async fn notify_system_error_if_minimized(_error: &str) {}
 
 #[cfg(test)]
 mod tests {

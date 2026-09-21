@@ -1,0 +1,57 @@
+[package]
+name = "bitfun-observability-otel"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Concrete OpenTelemetry and OTLP runtime for BitFun"
+
+[dependencies]
+bitfun-observability = { path = "../../execution/observability" }
+bitfun-services-core = { path = "../services-core", features = ["tls-provider"] }
+async-trait = { workspace = true }
+flate2 = { workspace = true }
+fs2 = { workspace = true }
+futures = { workspace = true, features = ["executor"] }
+hex = { workspace = true }
+hmac = { workspace = true }
+log = { workspace = true }
+opentelemetry = { workspace = true, features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { workspace = true, features = ["trace", "metrics", "logs"] }
+opentelemetry-otlp = { workspace = true, features = [
+    "trace",
+    "metrics",
+    "logs",
+    "http-proto",
+    "gzip-http",
+] }
+opentelemetry-http = { workspace = true }
+opentelemetry-proto = { workspace = true, features = ["gen-tonic-messages", "trace", "metrics", "logs"] }
+prost = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+rustls = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
+url = { workspace = true }
+uuid = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { workspace = true }
+keyring-core = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring-core = { workspace = true }
+windows-native-keyring-store = { workspace = true }
+
+[target.'cfg(all(unix, not(target_env = "ohos"), not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+keyring-core = { workspace = true }
+zbus-secret-service-keyring-store = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

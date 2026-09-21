@@ -120,7 +120,13 @@ async fn apply_prefetch(
     server: &RetryTestServer,
     messages: &[Message],
     prefetch: Option<PrefetchedCompression>,
-) -> BitFunResult<Option<(usize, Vec<Message>)>> {
+) -> BitFunResult<
+    Option<(
+        usize,
+        Vec<Message>,
+        Option<crate::util::types::ai::GeminiUsage>,
+    )>,
+> {
     let pressure = ExecutionEngine::estimate_auto_compression_pressure(
         messages,
         None,
@@ -146,6 +152,7 @@ async fn apply_prefetch(
             None,
             None,
             prefetch,
+            None,
         )
         .await
 }
@@ -324,7 +331,7 @@ async fn compression_prefetch_oversized_latest_tail_starts_fresh_blocking_plan()
         "New large tool evidence ".repeat(100_000),
     ));
     let session = prefetch_session(&engine, temp.path(), &messages).await;
-    let (_, result) = apply_prefetch(&engine, &session, &server, &messages, Some(work))
+    let (_, result, _) = apply_prefetch(&engine, &session, &server, &messages, Some(work))
         .await
         .unwrap()
         .unwrap();
@@ -460,7 +467,7 @@ async fn compression_prefetch_commit_includes_append_during_formal_wait() {
         apply_prefetch(&engine, &session, &server, &messages, Some(work)),
         append
     );
-    let (_, result) = result.unwrap().unwrap();
+    let (_, result, _) = result.unwrap().unwrap();
     assert!(result.iter().any(|message| message.id == new.id));
     let stored = engine
         .session_manager
@@ -597,6 +604,7 @@ async fn compression_failure_preserves_context_and_success_count() {
             &PrependedPromptReminders::default(),
             false,
             10_000,
+            None,
             None,
             None,
             None,

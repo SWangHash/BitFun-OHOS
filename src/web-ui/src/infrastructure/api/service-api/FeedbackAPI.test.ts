@@ -52,6 +52,31 @@ describe('FeedbackAPI', () => {
     expect(feedbackInsertText('a'.repeat(2_000), 0, 10, '😀')).toBe('😀');
   });
 
+  it('keeps ordinary and limit-truncated paste in the browser native edit transaction', async () => {
+    const { feedbackContentLength, planFeedbackPaste } = await import('./FeedbackAPI');
+
+    const ordinary = planFeedbackPaste('abc', 3, 3, '中文');
+    expect(ordinary).toEqual({
+      acceptedText: '中文',
+      nativeMaxLength: 5,
+      useNativePaste: true,
+    });
+
+    const limited = planFeedbackPaste('中'.repeat(1_999), 1_999, 1_999, '中文尾部');
+    expect(feedbackContentLength(limited.acceptedText)).toBe(1);
+    expect(limited.nativeMaxLength).toBe(2_000);
+    expect(limited.useNativePaste).toBe(true);
+
+    const rejected = planFeedbackPaste('中'.repeat(2_000), 2_000, 2_000, '继续粘贴');
+    expect(rejected.acceptedText).toBe('');
+    expect(rejected.nativeMaxLength).toBe(2_000);
+    expect(rejected.useNativePaste).toBe(true);
+
+    const normalized = planFeedbackPaste('', 0, 0, '   feedback');
+    expect(normalized.acceptedText).toBe('feedback');
+    expect(normalized.useNativePaste).toBe(false);
+  });
+
   it('maps Inbox paging to a structured request with a fixed default page size', async () => {
     const { feedbackAPI } = await import('./FeedbackAPI');
     invokeMock.mockResolvedValue({ items: [], hasMore: false });

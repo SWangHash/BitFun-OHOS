@@ -20,6 +20,7 @@ struct CompressionSummaryArtifact {
 #[derive(Debug, Clone)]
 pub struct CompressionResult {
     pub messages: Vec<Message>,
+    pub model_usage: Option<crate::util::types::ai::GeminiUsage>,
 }
 
 #[derive(Debug, Clone)]
@@ -434,7 +435,10 @@ impl ContextCompressor {
             session_id,
             messages.len()
         );
-        Ok(CompressionResult { messages })
+        Ok(CompressionResult {
+            messages,
+            model_usage: None,
+        })
     }
 
     fn append_current_turn_todo_checkpoint(

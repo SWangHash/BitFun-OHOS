@@ -651,6 +651,8 @@ fn gemini_response_to_trace(response: &GeminiResponse) -> ModelExchangeResponseT
             .as_ref()
             .and_then(|usage| serde_json::to_value(usage).ok()),
         provider_metadata: response.provider_metadata.clone(),
+        finish_reason: response.finish_reason.clone(),
+        ttft_ms: None,
         partial_recovery_reason: None,
         error: None,
     }

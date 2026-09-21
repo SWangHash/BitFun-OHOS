@@ -140,9 +140,11 @@ function isProcMacroPackage(pkg) {
 
 const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['account-identity', ['rt', 'sync']],
+  ['anonymous-auth', ['sync']],
   ['announcement', ['fs', 'sync']],
   ['models-dev', ['fs', 'sync', 'time']],
   ['browser-control', ['time']],
+  ['feedback', ['fs', 'sync']],
   ['canvas-runtime', ['fs']],
   ['deep-research', []],
   ['git', ['fs', 'io-util', 'macros', 'rt', 'time']],
@@ -326,6 +328,11 @@ const REQWEST_PACKAGE_PROFILES = new Map([
   }],
   ['bitfun-cli', {
     dependencyFeatures: ['http2', 'rustls-no-provider', 'stream'],
+    optional: false,
+    tlsProviderDependency: 'bitfun-services-core',
+  }],
+  ['bitfun-observability-otel', {
+    dependencyFeatures: ['rustls-no-provider'],
     optional: false,
     tlsProviderDependency: 'bitfun-services-core',
   }],
@@ -1057,8 +1064,10 @@ export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
   const ownerFeatures = new Set(servicesReqwestOwnerFeatures);
   const ownerFeatureReferences = new Map([
     ['account-identity', ['reqwest/json']],
+    ['anonymous-auth', ['reqwest/json']],
     ['announcement', ['reqwest/json']],
     ['browser-control', ['reqwest/json']],
+    ['feedback', ['reqwest/json', 'reqwest/query']],
     ['mcp', ['reqwest/json', 'reqwest/stream']],
     ['miniapp-market', ['reqwest/json', 'reqwest/query', 'reqwest/stream']],
     ['miniapp-runtime', ['reqwest/stream']],

@@ -2,6 +2,7 @@
 //!
 //! Executes complete dialog turns, managing loops of multiple model rounds
 
+use super::super::observability::{completion_from_error, finish_reason_class, turn_trigger};
 use super::model_exchange_trace::{
     prepare_model_exchange_trace_for_workspace, ModelExchangeTraceOperation,
 };
@@ -66,14 +67,22 @@ use crate::util::token_counter::TokenCounter;
 use crate::util::types::Message as AIMessage;
 use crate::util::types::ToolDefinition;
 use crate::util::{elapsed_ms_u64, truncate_at_char_boundary};
-use dashmap::DashMap;
-use log::{debug, error, info, trace, warn};
 use bitfun_agent_runtime::output_surface::TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY;
 use bitfun_agent_runtime::permission::PERMISSION_MODE_CONTEXT_KEY;
 use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
 use bitfun_ai_adapters::ModelExchangeTraceConfig;
 use bitfun_core_types::{ModelRequestContext, SessionModelBindingPolicy};
+use bitfun_observability::domains::{
+    start_compression, start_turn_with_relation_and_content_facts, CompletionFacts,
+    CompressionFinishFacts, CompressionSource, CompressionStartFacts, CompressionTrigger,
+    TurnFinishFacts, TurnStartFacts,
+};
+use bitfun_observability::{
+    DebugContentField, DebugCorrelation, DebugTelemetryRecord, DebugTurnRecord, Telemetry,
+};
 use bitfun_runtime_ports::{resolve_permission_mode, PermissionMode, PermissionModeLayers};
+use dashmap::DashMap;
+use log::{debug, error, info, trace, warn};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -89,6 +98,24 @@ fn initial_round_index(context: &std::collections::HashMap<String, String>) -> u
         .get("initial_round_index")
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(0)
+}
+
+fn compression_trigger_class(trigger: &str) -> CompressionTrigger {
+    match trigger {
+        "auto" | "threshold" => CompressionTrigger::Threshold,
+        "context_overflow" | "context_overflow_recovery" => CompressionTrigger::ContextOverflow,
+        "manual" | "compact" => CompressionTrigger::Manual,
+        "recovery" => CompressionTrigger::Recovery,
+        _ => CompressionTrigger::Other,
+    }
+}
+
+fn compression_source_class(source: &str) -> CompressionSource {
+    match source {
+        "model" => CompressionSource::Model,
+        "local_fallback" => CompressionSource::LocalFallback,
+        _ => CompressionSource::None,
+    }
 }
 use tool_runtime::context::PrimaryModelFacts;
 
@@ -199,6 +226,7 @@ pub struct ContextCompactionOutcome {
     pub has_summary: bool,
     pub summary_source: String,
     pub applied: bool,
+    pub model_usage: Option<crate::util::types::ai::GeminiUsage>,
 }
 
 const MANUAL_COMPACTION_PLANNING: u8 = 0;
@@ -271,8 +299,7 @@ pub(crate) async fn prepare_compression_cancellable<T>(
 
 fn compression_plan_error(error: BitFunError, plan: usize) -> BitFunError {
     match error {
-        BitFunError::AIProvider(mut error)
-        | BitFunError::RecoverableContextOverflow(mut error) => {
+        BitFunError::AIProvider(mut error) | BitFunError::RecoverableContextOverflow(mut error) => {
             error.message = format!(
                 "Context compression failed on plan {plan}: {}",
                 error.message
@@ -550,6 +577,12 @@ struct CompressionTriggerBudget {
     safety_reserve_tokens: usize,
 }
 
+struct ResolvedPrimaryModelContext {
+    runtime: PrimaryModelFacts,
+    model_class: bitfun_observability::domains::ModelClass,
+    auth_class: Option<bitfun_observability::domains::InferenceAuthClass>,
+}
+
 // Fields are declared in reverse parameter order so dropping an unconsumed
 // input preserves the previous function-parameter drop order. Call sites keep
 // struct literal fields in the original evaluation order.
@@ -571,9 +604,13 @@ struct FinalizeRoundInput<'a> {
     messages: &'a [Message],
     prepended_reminders: &'a [&'a str],
     primary_model_facts: &'a PrimaryModelFacts,
+    observability_model_class: bitfun_observability::domains::ModelClass,
+    observability_auth_class: Option<bitfun_observability::domains::InferenceAuthClass>,
     model_request_context: &'a ModelRequestContext,
     execution_context_vars: &'a HashMap<String, String>,
     round_group_id: Option<String>,
+    observation_context: Option<bitfun_observability::ObservationContext>,
+    turn_started_at: std::time::Instant,
     round_number: usize,
     agent_type: String,
     context: &'a ExecutionContext,
@@ -608,6 +645,7 @@ pub struct ExecutionEngine {
     context_compressor: Arc<ContextCompressor>,
     config: ExecutionEngineConfig,
     generation_messages: DashMap<(String, String), Vec<Message>>,
+    telemetry: Telemetry,
 }
 
 // QtMigration intake gate: only requests classified as `app_migration` by the
@@ -706,7 +744,13 @@ impl ExecutionEngine {
             context_compressor,
             config,
             generation_messages: DashMap::new(),
+            telemetry: Telemetry::noop(),
         }
+    }
+
+    pub fn with_telemetry(mut self, telemetry: Telemetry) -> Self {
+        self.telemetry = telemetry;
+        self
     }
 
     fn remember_generation_message(&self, session_id: &str, turn_id: &str, message: &Message) {
@@ -1406,7 +1450,7 @@ impl ExecutionEngine {
         ai_client_model: &str,
         ai_client_api_format: &str,
         unavailable_log_message: &str,
-    ) -> PrimaryModelFacts {
+    ) -> ResolvedPrimaryModelContext {
         let config_service = get_global_config_service().await.ok();
         if let Some(service) = config_service {
             let ai_config: crate::service::config::types::AIConfig =
@@ -1431,10 +1475,39 @@ impl ExecutionEngine {
                     || matches!(m.category, ModelCategory::Multimodal)
             });
 
-            PrimaryModelFacts::new(resolved_id, ai_client_model, ai_client_api_format, supports)
+            let (model_class, auth_class) = model_cfg
+                .map(|model| {
+                    let (_, model_class, _, auth_class) =
+                        crate::agentic::observability::inference_classes(
+                            ai_client_api_format,
+                            Some(&model.category),
+                            Some(&model.auth),
+                        );
+                    (model_class, auth_class)
+                })
+                .unwrap_or((bitfun_observability::domains::ModelClass::Other, None));
+            ResolvedPrimaryModelContext {
+                runtime: PrimaryModelFacts::new(
+                    resolved_id,
+                    ai_client_model,
+                    ai_client_api_format,
+                    supports,
+                ),
+                model_class,
+                auth_class,
+            }
         } else {
             warn!("{}", unavailable_log_message);
-            PrimaryModelFacts::new(model_id, ai_client_model, ai_client_api_format, false)
+            ResolvedPrimaryModelContext {
+                runtime: PrimaryModelFacts::new(
+                    model_id,
+                    ai_client_model,
+                    ai_client_api_format,
+                    false,
+                ),
+                model_class: bitfun_observability::domains::ModelClass::Other,
+                auth_class: None,
+            }
         }
     }
 
@@ -2027,10 +2100,7 @@ impl ExecutionEngine {
             .collect()
     }
 
-    async fn run_finalize_round(
-        &self,
-        input: FinalizeRoundInput<'_>,
-    ) -> BitFunResult<RoundResult> {
+    async fn run_finalize_round(&self, input: FinalizeRoundInput<'_>) -> BitFunResult<RoundResult> {
         // Keep the original tool definitions attached to the finalize request
         // even though finalize forbids tool execution at runtime. Dropping the
         // tools here would change the provider request shape, which breaks
@@ -2070,6 +2140,8 @@ impl ExecutionEngine {
             dialog_turn_id: input.context.dialog_turn_id.clone(),
             turn_index: input.context.turn_index,
             round_number: input.round_number,
+            turn_started_at: input.turn_started_at,
+            observation_context: input.observation_context,
             round_group_id: input.round_group_id,
             workspace: input.context.workspace.clone(),
             model_exchange_trace_dir,
@@ -2080,6 +2152,8 @@ impl ExecutionEngine {
             effective_model_name: input.ai_client.config.model.clone(),
             model_request_context: input.model_request_context.clone(),
             primary_model_facts: input.primary_model_facts.clone(),
+            observability_model_class: input.observability_model_class,
+            observability_auth_class: input.observability_auth_class,
             agent_type: input.agent_type,
             context_vars: round_context_vars,
             permission_constraints: input.permission_constraints,
@@ -2436,7 +2510,7 @@ impl ExecutionEngine {
             &context.context,
         );
 
-        let primary_model_facts = Self::resolve_primary_model_context(
+        let resolved_primary_model_context = Self::resolve_primary_model_context(
             &model_id,
             session.config.model_binding_policy,
             &ai_client.config.model,
@@ -2444,6 +2518,7 @@ impl ExecutionEngine {
             "Config service unavailable, assuming compression model is text-only for image input gating",
         )
         .await;
+        let primary_model_facts = resolved_primary_model_context.runtime;
         let resolved_primary_model_id = primary_model_facts.model_id.clone();
         let primary_supports_image_understanding = primary_model_facts.supports_image_inputs;
 
@@ -2583,12 +2658,100 @@ impl ExecutionEngine {
         cancellation_token: CancellationToken,
         commit_gate: Arc<ManualCompactionCommitGate>,
     ) -> BitFunResult<ContextCompactionOutcome> {
+        let turns_since_last_compression = self
+            .session_manager
+            .get_session(&session_id)
+            .and_then(|session| session.compression_state.last_compression_turn_index)
+            .map(|last_turn_index| {
+                self.session_manager
+                    .get_turn_count(&session_id)
+                    .saturating_sub(1)
+                    .saturating_sub(last_turn_index) as u64
+            });
+        let observation = start_compression(
+            &self.telemetry,
+            CompressionStartFacts {
+                trigger: compression_trigger_class(trigger),
+                threshold_tokens: None,
+                turns_since_last_compression,
+            },
+            None,
+        );
+        let result = self
+            .compact_session_context_impl(
+                session_id,
+                dialog_turn_id,
+                compression_id,
+                context,
+                messages,
+                trigger,
+                cancellation_token,
+                commit_gate,
+            )
+            .await;
+        let finish = match &result {
+            Ok(outcome) => CompressionFinishFacts {
+                completion: CompletionFacts::completed(),
+                source: Some(compression_source_class(&outcome.summary_source)),
+                has_summary: Some(outcome.has_summary),
+                tokens_before: Some(outcome.tokens_before as u64),
+                tokens_after_estimate: Some(outcome.tokens_after as u64),
+                input_tokens: outcome
+                    .model_usage
+                    .as_ref()
+                    .map(|usage| usage.prompt_token_count as u64),
+                output_tokens: outcome
+                    .model_usage
+                    .as_ref()
+                    .map(|usage| usage.candidates_token_count as u64),
+                total_tokens: outcome
+                    .model_usage
+                    .as_ref()
+                    .map(|usage| usage.total_token_count as u64),
+                cache_read_tokens: outcome
+                    .model_usage
+                    .as_ref()
+                    .and_then(|usage| usage.cached_content_token_count)
+                    .map(u64::from),
+                cache_creation_tokens: outcome
+                    .model_usage
+                    .as_ref()
+                    .and_then(|usage| usage.cache_creation_token_count)
+                    .map(u64::from),
+            },
+            Err(error) => CompressionFinishFacts {
+                completion: completion_from_error(error),
+                source: None,
+                has_summary: None,
+                tokens_before: None,
+                tokens_after_estimate: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cache_read_tokens: None,
+                cache_creation_tokens: None,
+            },
+        };
+        observation.finish(finish);
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn compact_session_context_impl(
+        &self,
+        session_id: String,
+        dialog_turn_id: String,
+        compression_id: String,
+        context: ExecutionContext,
+        messages: Vec<Message>,
+        trigger: &str,
+        cancellation_token: CancellationToken,
+        commit_gate: Arc<ManualCompactionCommitGate>,
+    ) -> BitFunResult<ContextCompactionOutcome> {
         let mut session = self
             .session_manager
             .get_session(&session_id)
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!("Session not found: {}", session_id))
-            })?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
         let start_time = std::time::Instant::now();
         let preparation = prepare_compression_cancellable(&cancellation_token, async {
             let scaffold = self
@@ -2654,6 +2817,8 @@ impl ExecutionEngine {
                     trigger: Some(trigger),
                 },
                 scaffold.ai_client.as_ref(),
+                &self.telemetry,
+                None,
             )
             .await;
             let mut planned_result = self
@@ -2736,6 +2901,7 @@ impl ExecutionEngine {
         };
         match planned_result {
             Ok(Some(compression_result)) => {
+                let model_usage = compression_result.model_usage.clone();
                 let compressed_messages = compression_result.messages;
                 self.session_manager
                     .replace_context_messages(&session_id, compressed_messages.clone())
@@ -2758,7 +2924,11 @@ impl ExecutionEngine {
                     )
                     .await;
 
-                session.compression_state.increment_compression_count();
+                session.compression_state.increment_compression_count_at(
+                    self.session_manager
+                        .get_turn_count(&session_id)
+                        .saturating_sub(1),
+                );
                 let compression_count = session.compression_state.compression_count;
                 let _ = self
                     .session_manager
@@ -2845,6 +3015,7 @@ impl ExecutionEngine {
                     has_summary: true,
                     summary_source: "model".to_string(),
                     applied: true,
+                    model_usage,
                 })
             }
             Ok(None) => {
@@ -2886,6 +3057,7 @@ impl ExecutionEngine {
                     has_summary: false,
                     summary_source: "none".to_string(),
                     applied: false,
+                    model_usage: None,
                 })
             }
             Err(err) => {
@@ -2917,12 +3089,126 @@ impl ExecutionEngine {
         let dialog_turn_id = context.dialog_turn_id.clone();
         self.generation_messages
             .remove(&(context.session_id.clone(), dialog_turn_id.clone()));
+        let is_subagent = context.subagent_parent_info.is_some();
+        let is_remote = context
+            .workspace
+            .as_ref()
+            .is_some_and(|workspace| workspace.is_remote());
+        let agent_registry = get_agent_registry();
+        agent_registry
+            .load_custom_agents(
+                context
+                    .workspace
+                    .as_ref()
+                    .map(|workspace| workspace.root_path()),
+            )
+            .await;
+        let mode_class = agent_registry.observability_mode_class(
+            &agent_type,
+            context
+                .workspace
+                .as_ref()
+                .map(|workspace| workspace.root_path()),
+        );
+        let debug_enabled = self.telemetry.is_debug_enabled();
+        let (user_content_length, user_content) = {
+            let content = initial_messages
+                .iter()
+                .filter(|message| message.is_actual_user_message())
+                .filter_map(|message| match &message.content {
+                    MessageContent::Text(text)
+                    | MessageContent::Multimodal { text, .. }
+                    | MessageContent::Mixed { text, .. } => Some(text.as_str()),
+                    MessageContent::ToolResult { .. } => None,
+                })
+                .last();
+            (
+                content.map(|content| content.len() as u64),
+                debug_enabled.then(|| content.map(str::to_owned)).flatten(),
+            )
+        };
+        let turn_observation = start_turn_with_relation_and_content_facts(
+            &self.telemetry,
+            TurnStartFacts {
+                mode_class,
+                trigger: turn_trigger(is_subagent, is_remote),
+                remote: is_remote,
+                subagent: is_subagent,
+            },
+            context.observation_relation.clone(),
+            Some(context.turn_index as u64),
+            user_content_length,
+        );
+        let turn_context = turn_observation.context();
+        let debug_turn = debug_enabled.then(|| {
+            let correlation = DebugCorrelation {
+                session_id: Some(context.session_id.clone()),
+                turn_id: Some(dialog_turn_id.clone()),
+                parent_session_id: context
+                    .subagent_parent_info
+                    .as_ref()
+                    .map(|parent| parent.session_id.clone()),
+                parent_turn_id: context
+                    .subagent_parent_info
+                    .as_ref()
+                    .map(|parent| parent.dialog_turn_id.clone()),
+                parent_tool_call_id: context
+                    .subagent_parent_info
+                    .as_ref()
+                    .map(|parent| parent.tool_call_id.clone()),
+                ..Default::default()
+            };
+            let workspace_path = context
+                .workspace
+                .as_ref()
+                .map(WorkspaceBinding::root_path_string);
+            let repository = context
+                .workspace
+                .as_ref()
+                .map(WorkspaceBinding::project_root_path_string);
+            let branch = context
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.execution_target.as_ref())
+                .and_then(|target| target.branch.clone());
+            let base_commit = context
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.execution_target.as_ref())
+                .and_then(|target| target.base_commit.clone());
+            (correlation, workspace_path, repository, branch, base_commit)
+        });
+        if let Some((correlation, workspace_path, repository, branch, base_commit)) =
+            debug_turn.as_ref()
+        {
+            self.telemetry.record_debug_lazy(
+                || {
+                    DebugTelemetryRecord::TurnInput(DebugTurnRecord {
+                        correlation: correlation.clone(),
+                        content: user_content.clone().map(DebugContentField::text),
+                        modified_file_paths: None,
+                        modified_file_paths_original_count: None,
+                        workspace_path: workspace_path.clone(),
+                        repository: repository.clone(),
+                        branch: branch.clone(),
+                        base_commit: base_commit.clone(),
+                    })
+                },
+                turn_context.clone(),
+            );
+        }
 
         info!("Starting dialog turn: dialog_turn_id={}", dialog_turn_id);
 
         // Execute actual logic
         let result = self
-            .execute_dialog_turn_impl(agent_type, initial_messages, context, start_time)
+            .execute_dialog_turn_impl(
+                agent_type,
+                initial_messages,
+                context,
+                start_time,
+                turn_context.clone(),
+            )
             .await;
 
         // Cleanup cancellation token
@@ -2934,6 +3220,90 @@ impl ExecutionEngine {
             dialog_turn_id
         );
 
+        let turn_completion = match &result {
+            Ok(value) if value.success => CompletionFacts::completed(),
+            Ok(value) if value.finish_reason == FinishReason::Cancelled => {
+                CompletionFacts::cancelled()
+            }
+            Ok(_) => CompletionFacts::failed(bitfun_observability::domains::SafeErrorType::Other),
+            Err(error) => completion_from_error(error),
+        };
+        let finish_facts = TurnFinishFacts {
+            completion: turn_completion,
+            finish_reason: result
+                .as_ref()
+                .ok()
+                .map(|value| finish_reason_class(value.effective_finish_reason.as_str())),
+            round_count: result.as_ref().ok().map(|value| value.total_rounds as u64),
+            tool_count: result.as_ref().ok().map(|value| value.total_tools as u64),
+            first_result_ms: result.as_ref().ok().and_then(|value| value.first_result_ms),
+            modified_file_count: result
+                .as_ref()
+                .ok()
+                .and_then(|value| value.modified_file_count),
+            added_lines: result.as_ref().ok().and_then(|value| value.added_lines),
+            deleted_lines: result.as_ref().ok().and_then(|value| value.deleted_lines),
+        };
+        let result_content_length =
+            result
+                .as_ref()
+                .ok()
+                .map(|value| match &value.final_message.content {
+                    MessageContent::Text(text) | MessageContent::Multimodal { text, .. } => {
+                        text.len() as u64
+                    }
+                    MessageContent::Mixed { text, .. } => text.len() as u64,
+                    MessageContent::ToolResult { result, .. } => result.to_string().len() as u64,
+                });
+        turn_observation.finish_with_output_length(finish_facts, result_content_length);
+        if let Some((correlation, workspace_path, repository, branch, base_commit)) = debug_turn {
+            let result_content =
+                result
+                    .as_ref()
+                    .ok()
+                    .map(|result| match &result.final_message.content {
+                        MessageContent::Text(text)
+                        | MessageContent::Multimodal { text, .. }
+                        | MessageContent::Mixed { text, .. } => text.clone(),
+                        MessageContent::ToolResult { result, .. } => result.to_string(),
+                    });
+            let modified_file_paths_original_count = result
+                .as_ref()
+                .ok()
+                .and_then(|result| result.modified_file_paths.as_ref())
+                .map(|paths| paths.len().min(u64::MAX as usize) as u64);
+            let modified_file_paths = result
+                .as_ref()
+                .ok()
+                .and_then(|result| result.modified_file_paths.clone())
+                .map(|paths| {
+                    const MAX_DEBUG_MODIFIED_PATHS: usize = 2048;
+                    let mut field = DebugContentField::value(serde_json::json!(paths));
+                    if let serde_json::Value::Array(paths) = &mut field.value {
+                        if paths.len() > MAX_DEBUG_MODIFIED_PATHS {
+                            paths.truncate(MAX_DEBUG_MODIFIED_PATHS);
+                            field.truncated = true;
+                        }
+                    }
+                    field
+                });
+            self.telemetry.record_debug_lazy(
+                || {
+                    DebugTelemetryRecord::TurnResult(DebugTurnRecord {
+                        correlation,
+                        content: result_content.map(DebugContentField::text),
+                        modified_file_paths,
+                        modified_file_paths_original_count,
+                        workspace_path,
+                        repository,
+                        branch,
+                        base_commit,
+                    })
+                },
+                turn_context,
+            );
+        }
+
         result
     }
 
@@ -2944,6 +3314,7 @@ impl ExecutionEngine {
         initial_messages: Vec<Message>,
         mut context: ExecutionContext,
         start_time: std::time::Instant,
+        observation_context: Option<bitfun_observability::ObservationContext>,
     ) -> BitFunResult<ExecutionResult> {
         let dialog_turn_id = context.dialog_turn_id.clone();
         let initial_count = initial_messages.len();
@@ -3250,7 +3621,7 @@ impl ExecutionEngine {
         );
 
         // Primary model vision capability (tools + system prompt appendix; also used below for API message stripping).
-        let primary_model_facts = Self::resolve_primary_model_context(
+        let resolved_primary_model_context = Self::resolve_primary_model_context(
             &model_id,
             session.config.model_binding_policy,
             &ai_client.config.model,
@@ -3258,6 +3629,9 @@ impl ExecutionEngine {
             "Config service unavailable, assuming primary model is text-only for image input gating",
         )
         .await;
+        let primary_model_facts = resolved_primary_model_context.runtime;
+        let observability_model_class = resolved_primary_model_context.model_class;
+        let observability_auth_class = resolved_primary_model_context.auth_class;
         let resolved_primary_model_id = primary_model_facts.model_id.clone();
         let primary_supports_image_understanding = primary_model_facts.supports_image_inputs;
 
@@ -3424,6 +3798,7 @@ impl ExecutionEngine {
         let mut round_index = initial_round_index(&context.context);
         let mut completed_rounds = 0usize;
         let mut total_tools = 0;
+        let mut first_result_ms = None;
         let mut last_partial_recovery_reason: Option<String> = None;
         let mut finalization_reason: Option<&'static str> = None;
         let mut main_context_overflow_recoveries = 0usize;
@@ -3677,6 +4052,8 @@ impl ExecutionEngine {
                             trigger: Some("prefetch"),
                         },
                         ai_client.as_ref(),
+                        &self.telemetry,
+                        observation_context.clone(),
                     )
                     .await;
                     let job = CompressionJob::new(
@@ -3746,10 +4123,11 @@ impl ExecutionEngine {
                         context.workspace.as_ref(),
                         context.workspace_services.as_ref(),
                         compression_prefetch.take(),
+                        observation_context.clone(),
                     )
                     .await
                 {
-                    Ok(Some((compressed_tokens, compressed_messages))) => {
+                    Ok(Some((compressed_tokens, compressed_messages, _))) => {
                         info!(
                             "Round {} compression completed: messages {} -> {}, tokens {} -> {}",
                             round_index,
@@ -3878,6 +4256,8 @@ impl ExecutionEngine {
                 dialog_turn_id: context.dialog_turn_id.clone(),
                 turn_index: context.turn_index,
                 round_number: round_index,
+                turn_started_at: start_time,
+                observation_context: observation_context.clone(),
                 round_group_id: None,
                 workspace: context.workspace.clone(),
                 model_exchange_trace_dir,
@@ -3888,6 +4268,8 @@ impl ExecutionEngine {
                 effective_model_name: ai_client.config.model.clone(),
                 model_request_context: model_request_context.clone(),
                 primary_model_facts: primary_model_facts.clone(),
+                observability_model_class,
+                observability_auth_class,
                 agent_type: agent_type.clone(),
                 context_vars: round_context_vars,
                 permission_constraints: tool_policy.permission_constraints.clone(),
@@ -3991,10 +4373,11 @@ impl ExecutionEngine {
                             context.workspace.as_ref(),
                             context.workspace_services.as_ref(),
                             compression_prefetch.take(),
+                            observation_context.clone(),
                         )
                         .await
                     {
-                        Ok(Some((compressed_tokens, compressed_messages))) => {
+                        Ok(Some((compressed_tokens, compressed_messages, _))) => {
                             info!(
                                 "Context-overflow recovery compression completed: session_id={}, turn_id={}, round_index={}, recovery={}, messages {} -> {}, tokens {} -> {}",
                                 context.session_id,
@@ -4010,9 +4393,7 @@ impl ExecutionEngine {
                                 .round_executor
                                 .is_dialog_turn_cancelled(&dialog_turn_id)
                             {
-                                return Err(BitFunError::Cancelled(
-                                    "Dialog cancelled".to_string(),
-                                ));
+                                return Err(BitFunError::Cancelled("Dialog cancelled".to_string()));
                             }
                             messages = compressed_messages;
                             turn_prompt_scaffold = self
@@ -4073,6 +4454,9 @@ impl ExecutionEngine {
                 round_result.tool_calls.len()
             );
             completed_rounds += 1;
+            if first_result_ms.is_none() {
+                first_result_ms = round_result.first_result_ms;
+            }
 
             // Save the last token usage statistics (update each time, keep the last one)
             if let Some(ref usage) = round_result.usage {
@@ -4682,8 +5066,12 @@ impl ExecutionEngine {
                         agent_type: agent_type.clone(),
                         round_number: completed_rounds,
                         round_group_id: finalize_round_group_id.clone(),
+                        observation_context: observation_context.clone(),
+                        turn_started_at: start_time,
                         execution_context_vars: &execution_context_vars,
                         primary_model_facts: &primary_model_facts,
+                        observability_model_class,
+                        observability_auth_class,
                         model_request_context: &model_request_context,
                         prepended_reminders: &finalize_prepended_reminders,
                         messages: &messages,
@@ -4692,6 +5080,9 @@ impl ExecutionEngine {
                         context_window,
                     })
                     .await?;
+                if first_result_ms.is_none() {
+                    first_result_ms = final_round_result.first_result_ms;
+                }
 
                 let mut accepted = final_round_result.had_assistant_text
                     && !Self::assistant_has_tool_calls(&final_round_result.assistant_message);
@@ -4714,8 +5105,12 @@ impl ExecutionEngine {
                             agent_type: agent_type.clone(),
                             round_number: completed_rounds,
                             round_group_id: finalize_round_group_id.clone(),
+                            observation_context: observation_context.clone(),
+                            turn_started_at: start_time,
                             execution_context_vars: &execution_context_vars,
                             primary_model_facts: &primary_model_facts,
+                            observability_model_class,
+                            observability_auth_class,
                             model_request_context: &model_request_context,
                             prepended_reminders: &finalize_prepended_reminders,
                             messages: &messages,
@@ -4724,6 +5119,9 @@ impl ExecutionEngine {
                             context_window,
                         })
                         .await?;
+                    if first_result_ms.is_none() {
+                        first_result_ms = retry_result.first_result_ms;
+                    }
                     if !retry_result.had_assistant_text
                         || Self::assistant_has_tool_calls(&retry_result.assistant_message)
                     {
@@ -4796,6 +5194,45 @@ impl ExecutionEngine {
 
         let duration_ms = elapsed_ms_u64(start_time);
 
+        let (turn_diff, modified_file_paths) = if let Some(workspace) = context.workspace.as_ref() {
+            if let Some(manager) =
+                crate::service::snapshot::manager::get_snapshot_manager_for_workspace(
+                    workspace.root_path(),
+                )
+            {
+                let turn_diff = manager
+                    .turn_diff_aggregate(&context.session_id, context.turn_index)
+                    .await
+                    .ok();
+                let modified_file_paths = manager
+                    .get_turn_files(&context.session_id, context.turn_index)
+                    .await
+                    .ok()
+                    .map(|paths| {
+                        let mut paths = paths
+                            .into_iter()
+                            .map(|path| {
+                                path.strip_prefix(workspace.root_path())
+                                    .unwrap_or(&path)
+                                    .to_string_lossy()
+                                    .into_owned()
+                            })
+                            .collect::<Vec<_>>();
+                        paths.sort();
+                        paths.dedup();
+                        paths
+                    });
+                (turn_diff, modified_file_paths)
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+        let modified_file_count = turn_diff.map(|aggregate| aggregate.modified_file_count as u64);
+        let added_lines = turn_diff.map(|aggregate| aggregate.lines_added as u64);
+        let deleted_lines = turn_diff.map(|aggregate| aggregate.lines_removed as u64);
+
         info!(
             "Dialog turn loop completed: turn={}, rounds={}, total_tools={}, reason={}",
             context.dialog_turn_id, completed_rounds, total_tools, effective_finish_reason
@@ -4865,7 +5302,7 @@ impl ExecutionEngine {
         }
 
         // Print dialog turn token statistics (from model's last returned usage)
-        if let Some(usage) = last_usage {
+        if let Some(ref usage) = last_usage {
             info!(
                 "Dialog turn completed - Token stats: turn_id={}, rounds={}, tools={}, duration={}ms, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                 context.dialog_turn_id,
@@ -4909,6 +5346,12 @@ impl ExecutionEngine {
             partial_recovery_reason: last_partial_recovery_reason,
             effective_finish_reason: effective_finish_reason.to_string(),
             has_final_response,
+            last_token_usage: last_usage,
+            first_result_ms,
+            modified_file_count,
+            modified_file_paths,
+            added_lines,
+            deleted_lines,
         })
     }
 
@@ -5005,8 +5448,7 @@ mod tests {
     #[tokio::test]
     async fn image_inputs_keep_pixels_for_native_models_and_tool_paths_for_text_models() {
         let mut image = crate::agentic::image_analysis::attachments::test_image();
-        image.image_path =
-            Some("bitfun://runtime/current/attachments/images/example.png".into());
+        image.image_path = Some("bitfun://runtime/current/attachments/images/example.png".into());
         let messages = vec![
             Message::user_multimodal("Read this screenshot".into(), vec![image.clone()])
                 .with_turn_id("turn".into()),
@@ -5657,6 +6099,7 @@ mod tests {
             session_id: "session".to_string(),
             dialog_turn_id: "turn".to_string(),
             turn_index: 0,
+            observation_relation: bitfun_observability::TraceRelation::Root,
             agent_type: "Standard".to_string(),
             workspace: Some(workspace),
             context: HashMap::new(),
@@ -5790,9 +6233,20 @@ mod tests {
             finish_reason: crate::agentic::execution::types::FinishReason::Complete,
             usage: None,
             provider_metadata: None,
+            provider_finish_reason: None,
+            reasoning_content_present: false,
+            has_effective_output: true,
+            response_output_length: 0,
+            response_reasoning_length: 0,
+            response_output_line_count: 0,
+            first_chunk_ms: None,
+            first_visible_output_ms: None,
             partial_recovery_reason: None,
             had_assistant_text: false,
             had_thinking_content: false,
+            reasoning_first_ms: None,
+            reasoning_duration_ms: None,
+            first_result_ms: None,
         }
     }
 
@@ -6235,6 +6689,7 @@ mod tests {
             session_id: "session".to_string(),
             dialog_turn_id: "turn".to_string(),
             turn_index: 0,
+            observation_relation: bitfun_observability::TraceRelation::Root,
             agent_type: "Standard".to_string(),
             workspace: None,
             context: HashMap::new(),

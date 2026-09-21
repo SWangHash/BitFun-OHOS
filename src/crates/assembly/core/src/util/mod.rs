@@ -10,6 +10,7 @@ pub use bitfun_services_core::process_manager;
 pub mod timing;
 pub mod token_counter;
 pub mod types;
+#[cfg(target_env = "ohos")]
 pub mod register_arkts_function;
 pub use errors::*;
 #[cfg(feature = "workspace-runtime")]
@@ -21,6 +22,7 @@ pub use process_manager::*;
 pub use timing::*;
 pub use token_counter::*;
 pub use types::*;
+#[cfg(target_env = "ohos")]
 pub use register_arkts_function::*;
 pub fn truncate_at_char_boundary(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {

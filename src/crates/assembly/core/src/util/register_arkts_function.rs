@@ -181,6 +181,32 @@ pub fn emit_speech_transcription(session_id: String, text: String, is_final: boo
     });
 }
 
+/// Waits until the ArkTS side has registered `function_name` via
+/// `RustModule.registerArktsFunction`, polling the registry until the name
+/// appears or `timeout` elapses. Returns `true` once the function is callable
+/// (e.g. through [`call_arkts_string_function`]) and `false` on timeout.
+///
+/// ArkTS registers bridge functions from `EntryAbility` on the UI thread, which
+/// can happen after Rust-side consumers (such as the telemetry authorizer's
+/// anonymous-auth credential store needing `feedback_secure_credentials`)
+/// start issuing calls. Waiting here keeps those early calls from failing with
+/// a "has not registered" error.
+pub async fn wait_for_arkts_function(function_name: &str, timeout: std::time::Duration) -> bool {
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if JS_THREADSAFE_FUNCTION.read().contains_key(function_name) {
+            return true;
+        }
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            log::warn!("ArkTS function {function_name} was not registered within {timeout:?}");
+            return false;
+        }
+        tokio::time::sleep(POLL_INTERVAL.min(deadline - now)).await;
+    }
+}
+
 pub async fn call_arkts_string_function(
     function_name: &str,
     input: String,
@@ -364,5 +390,22 @@ pub async fn ohos_speech_call(name: &str, json: &str) -> Result<String, String> 
             );
             Err(err.to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wait_for_arkts_function;
+    use std::time::Duration;
+
+    // The registered path cannot be unit-tested because constructing a
+    // `ThreadsafeFunction` requires a live napi Env; cover the deadline
+    // behavior instead (returns promptly instead of hanging).
+    #[tokio::test]
+    async fn wait_for_arkts_function_returns_false_on_timeout() {
+        assert!(
+            !wait_for_arkts_function("wait_for_arkts_test_missing", Duration::from_millis(50),)
+                .await
+        );
     }
 }

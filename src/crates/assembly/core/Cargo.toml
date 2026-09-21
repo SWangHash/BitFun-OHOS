@@ -13,8 +13,6 @@ crate-type = ["rlib"]
 # Inherit shared dependencies from workspace
 tokio = { workspace = true, features = ["fs", "sync"] }
 tokio-util = { workspace = true, optional = true }
-napi-ohos = { workspace = true }
-napi-derive-ohos = { workspace = true }
 tokio-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true, optional = true }
@@ -76,6 +74,7 @@ bitfun-agent-content = { path = "../agent-content", optional = true }
 # Agent runtime owner contracts
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
 bitfun-agent-workflows = { path = "../../execution/agent-workflows", optional = true }
+bitfun-observability = { path = "../../execution/observability" }
 
 # Product capability pack contracts
 bitfun-product-capabilities = { path = "../product-capabilities", optional = true }
@@ -134,6 +133,11 @@ bitfun-opencode-plugin-host = { path = "../../adapters/opencode-plugin-host", op
 bitfun-claude-code-adapter = { path = "../../adapters/claude-code-adapter", optional = true }
 bitfun-codex-adapter = { path = "../../adapters/codex-adapter", optional = true }
 bitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client", optional = true }
+
+[target.'cfg(target_env = "ohos")'.dependencies]
+# ArkTS bridge only links against the OHOS Node-API runtime.
+napi-ohos = { workspace = true }
+napi-derive-ohos = { workspace = true }
 
 [features]
 # Full product runtime compatibility set. Product entrypoints with a narrower

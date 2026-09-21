@@ -67,7 +67,10 @@ pub use qr_generator::QrGenerator;
 pub use relay_client::ensure_rustls_crypto_provider;
 pub use relay_client::RelayClient;
 pub use remote_server::RemoteServer;
-
+#[cfg(target_env = "ohos")]
+use crate::util::JS_THREADSAFE_FUNCTION;
+#[cfg(target_env = "ohos")]
+use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 use anyhow::Result;
 use embedded_relay_host::EmbeddedRelayHost;
 use log::{info, warn};
@@ -335,6 +338,8 @@ impl RemoteConnectService {
             anyhow::bail!("Relay endpoint changed; start the connection again");
         }
         let qr_url = QrGenerator::build_device_url(&relay_url, &device_id)?;
+        #[cfg(target_env = "ohos")]
+        let _ = send_remote_url(qr_url.clone());
         Ok(ConnectionResult {
             method,
             qr_data: Some(QrGenerator::generate_png_base64_from_url(&qr_url)?),
@@ -782,6 +787,8 @@ impl RemoteConnectService {
         *self.active_method.write().await = None;
         *self.prepared_relay_url.write().await = None;
         self.embedded_relay_host.stop().await;
+        #[cfg(target_env = "ohos")]
+        let _ = send_remote_url(String::new());
     }
 
     /// Stop all bot connections.
@@ -1078,6 +1085,76 @@ impl RemoteConnectService {
     /// Current online devices in the account (presence list).
     pub async fn online_devices(&self) -> Vec<relay_client::DevicePresenceEntry> {
         self.online_devices.read().await.clone()
+    }
+}
+
+#[cfg(target_env = "ohos")]
+fn send_remote_url(args: String) -> Result<String, String> {
+    use parking_lot::Mutex;
+
+    let result = Ok(args);
+    let results = Arc::new(Mutex::new(String::default()));
+    match JS_THREADSAFE_FUNCTION.write().get("send_remote_url") {
+        None => {
+            log::error!("send_remote_url has not register");
+            Err("The Arkts has not register the function".to_owned())
+        }
+        Some(function) => {
+            function.call_with_return_value(
+                result,
+                ThreadsafeFunctionCallMode::Blocking,
+                move |result, _| {
+                    match result {
+                        Ok(_) => {
+                            log::info!("send_remote_url successfully");
+                        }
+                        Err(err) => {
+                            log::error!("send_remote_url failed with error: {}", err);
+                        }
+                    }
+                    Ok(())
+                },
+            );
+            let res = results.lock().to_string();
+            Ok(res)
+        }
+    }
+}
+#[cfg(target_env = "ohos")]
+pub fn send_remote_dialog_status(is_open: bool) -> Result<String, String> {
+    use parking_lot::Mutex;
+    let args = if is_open {
+        "is_open".to_owned()
+    }
+    else {
+        String::new()
+    };
+    let result = Ok(args);
+    let results = Arc::new(Mutex::new(String::default()));
+    match JS_THREADSAFE_FUNCTION.write().get("send_remote_dialog_status") {
+        None => {
+            log::error!("send_remote_dialog_status has not register");
+            Err("The Arkts has not register the function".to_owned())
+        }
+        Some(function) => {
+            function.call_with_return_value(
+                result,
+                ThreadsafeFunctionCallMode::Blocking,
+                move |result, _| {
+                    match result {
+                        Ok(_) => {
+                            log::info!("send_remote_dialog_status successfully");
+                        }
+                        Err(err) => {
+                            log::error!("send_remote_dialog_status failed with error: {}", err);
+                        }
+                    }
+                    Ok(())
+                },
+            );
+            let res = results.lock().to_string();
+            Ok(res)
+        }
     }
 }
 

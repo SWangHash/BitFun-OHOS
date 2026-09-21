@@ -1705,6 +1705,7 @@ mod task_context_tests {
                 round_id: "round_1".to_string(),
                 attempt_id: None,
                 attempt_index: None,
+                observation_context: None,
                 agent_type: "agent".to_string(),
                 workspace: None,
                 primary_model_facts: PrimaryModelFacts::new(

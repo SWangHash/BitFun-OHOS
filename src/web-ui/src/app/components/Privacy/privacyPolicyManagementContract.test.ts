@@ -14,7 +14,7 @@ describe('OpenHarmony privacy policy management contract', () => {
     expect(dialog).toContain("t('privacy.withdraw')");
     expect(dialog).toContain("t('privacy.enableFull')");
     expect(dialog).toContain("variant === 'about'");
-    expect(about).toContain("setSubDialog('privacy')");
+    expect(about).toContain('setPrivacyDialogOpen(true)');
     expect(about).toContain('privacyStatus.hasUnreadUpdate');
   });
 
@@ -42,7 +42,7 @@ describe('OpenHarmony privacy policy management contract', () => {
     expect(dialog).toContain('onModeChangeComplete?: () => void');
     expect(dialog.match(/onModeChangeComplete\?\.\(\)/g)).toHaveLength(3);
     expect(about).toContain('const closeAfterPrivacyModeChange = useCallback');
-    expect(about).toContain('setSubDialog(null);\n    onClose();');
+    expect(about).toContain('setPrivacyDialogOpen(false);\n    onClose();');
     expect(about).toContain('onModeChangeComplete={closeAfterPrivacyModeChange}');
   });
 

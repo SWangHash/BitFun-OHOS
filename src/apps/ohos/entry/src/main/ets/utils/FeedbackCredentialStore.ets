@@ -34,12 +34,18 @@ interface CredentialResponse {
 interface StoredCredentialPayload {
   enroll_key?: string;
   refresh_token?: string;
+  enroll_idempotency_key?: string;
+  refresh_idempotency_key?: string;
+  anonymous_id?: string;
   capabilities?: Record<string, string>;
 }
 
 interface CoreCredentialPayload {
   enroll_key: string;
   refresh_token?: string;
+  enroll_idempotency_key?: string;
+  refresh_idempotency_key?: string;
+  anonymous_id?: string;
 }
 
 interface StoredCapabilityMetadata {
@@ -135,6 +141,15 @@ export class FeedbackCredentialStore {
     };
     if (payload.refresh_token !== undefined) {
       core.refresh_token = payload.refresh_token;
+    }
+    if (payload.enroll_idempotency_key !== undefined) {
+      core.enroll_idempotency_key = payload.enroll_idempotency_key;
+    }
+    if (payload.refresh_idempotency_key !== undefined) {
+      core.refresh_idempotency_key = payload.refresh_idempotency_key;
+    }
+    if (payload.anonymous_id !== undefined) {
+      core.anonymous_id = payload.anonymous_id;
     }
     await this.upsertAsset(this.coreAlias, JSON.stringify(core));
   }

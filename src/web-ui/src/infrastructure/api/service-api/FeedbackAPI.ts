@@ -2,6 +2,7 @@ import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { api } from './ApiClient';
 
 export const FEEDBACK_CONTENT_MAX_CHARS = 2_000;
+export const FEEDBACK_INBOX_PAGE_SIZE = 20;
 
 export type FeedbackCategory = 'runtime_error' | 'feature_request' | 'usage_question' | 'other';
 export type FeedbackStatus = 'submitted' | 'in_progress' | 'waiting_user' | 'resolved';
@@ -112,7 +113,7 @@ export class FeedbackAPI {
   ): Promise<FeedbackInboxPage> {
     return this.invoke<FeedbackInboxPage>('list_feedback', {
       cursor: input.cursor,
-      pageSize: input.pageSize ?? 20,
+      pageSize: input.pageSize ?? FEEDBACK_INBOX_PAGE_SIZE,
       userInitiated: options.userInitiated,
     });
   }
@@ -199,6 +200,42 @@ export function truncateFeedbackContent(value: string): string {
 
 export function feedbackContentLength(value: string): number {
   return Array.from(value).length;
+}
+
+export interface FeedbackPastePlan {
+  acceptedText: string;
+  nativeMaxLength: number;
+  useNativePaste: boolean;
+}
+
+/**
+ * Plans a paste without taking over the browser's native edit transaction.
+ * Native paste preserves undo, caret movement, and textarea tail scrolling;
+ * only leading-whitespace normalization still needs a manual insertion.
+ */
+export function planFeedbackPaste(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertedText: string,
+): FeedbackPastePlan {
+  const acceptedText = feedbackInsertText(
+    value,
+    selectionStart,
+    selectionEnd,
+    insertedText,
+  );
+  const normalizedText = selectionStart === 0
+    ? insertedText.replace(/^\s+/, '')
+    : insertedText;
+  const finalValue = value.slice(0, selectionStart)
+    + acceptedText
+    + value.slice(selectionEnd);
+  return {
+    acceptedText,
+    nativeMaxLength: finalValue.length,
+    useNativePaste: normalizedText === insertedText,
+  };
 }
 
 /**

@@ -17,6 +17,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tool_runtime::context::PrimaryModelFacts;
 
@@ -26,6 +27,7 @@ pub struct ExecutionContext {
     pub session_id: String,
     pub dialog_turn_id: String,
     pub turn_index: usize,
+    pub observation_relation: bitfun_observability::TraceRelation,
     pub agent_type: String,
     pub workspace: Option<WorkspaceBinding>,
     pub context: HashMap<String, String>,
@@ -62,6 +64,9 @@ pub struct RoundContext {
     pub dialog_turn_id: String,
     pub turn_index: usize,
     pub round_number: usize,
+    /// Monotonic start of the owning Turn, used only for safe latency facts.
+    pub turn_started_at: Instant,
+    pub observation_context: Option<bitfun_observability::ObservationContext>,
     pub round_group_id: Option<String>,
     pub workspace: Option<WorkspaceBinding>,
     pub model_exchange_trace_dir: Option<PathBuf>,
@@ -75,6 +80,8 @@ pub struct RoundContext {
     /// Provider-neutral request-scoped facts resolved by the runtime owner.
     pub model_request_context: ModelRequestContext,
     pub primary_model_facts: PrimaryModelFacts,
+    pub observability_model_class: bitfun_observability::domains::ModelClass,
+    pub observability_auth_class: Option<bitfun_observability::domains::InferenceAuthClass>,
     pub agent_type: String,
     pub context_vars: HashMap<String, String>,
     pub permission_constraints: PermissionConstraintLayer,
@@ -105,6 +112,14 @@ pub struct RoundResult {
     pub usage: Option<crate::util::types::ai::GeminiUsage>,
     /// Provider-specific metadata returned by the model.
     pub provider_metadata: Option<Value>,
+    pub provider_finish_reason: Option<String>,
+    pub reasoning_content_present: bool,
+    pub has_effective_output: bool,
+    pub response_output_length: u64,
+    pub response_reasoning_length: u64,
+    pub response_output_line_count: u64,
+    pub first_chunk_ms: Option<u64>,
+    pub first_visible_output_ms: Option<u64>,
     /// When set, this round's stream was partially recovered (aborted mid-way
     /// but some output was already received). Contains a human-readable reason.
     pub partial_recovery_reason: Option<String>,
@@ -116,6 +131,10 @@ pub struct RoundResult {
     /// True when the model emitted any non-empty thinking / reasoning content
     /// in this round.
     pub had_thinking_content: bool,
+    pub reasoning_first_ms: Option<u64>,
+    pub reasoning_duration_ms: Option<u64>,
+    /// Turn start to the first non-empty user-visible assistant output.
+    pub first_result_ms: Option<u64>,
 }
 
 /// Execution result
@@ -134,6 +153,12 @@ pub struct ExecutionResult {
     pub partial_recovery_reason: Option<String>,
     pub effective_finish_reason: String,
     pub has_final_response: bool,
+    pub last_token_usage: Option<crate::util::types::ai::GeminiUsage>,
+    pub first_result_ms: Option<u64>,
+    pub modified_file_count: Option<u64>,
+    pub modified_file_paths: Option<Vec<String>>,
+    pub added_lines: Option<u64>,
+    pub deleted_lines: Option<u64>,
 }
 
 pub(crate) const CANCEL_LIFECYCLE_OWNER_CONTEXT_KEY: &str = "cancel_lifecycle_owner";

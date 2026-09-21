@@ -29,8 +29,12 @@ use crate::agentic::round_preempt::{DialogRoundInjectionSource, SessionRoundInje
 use crate::agentic::session::session_store_port::CoreSessionStorePort;
 use crate::agentic::session::SessionManager;
 use crate::util::errors::{BitFunError, BitFunResult};
-use log::{debug, info, warn};
+use bitfun_observability::domains::{
+    record_image_attachments, ImageAttachmentFacts, ImageAttachmentOutcome,
+};
+use bitfun_observability::Telemetry;
 use bitfun_runtime_ports::{ThreadGoal, MAX_THREAD_GOAL_AUTO_CONTINUATIONS};
+use log::{debug, info, warn};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
@@ -321,6 +325,7 @@ impl DialogRoundInjectionSource for SchedulerRoundInjectionSource {
 pub struct DialogScheduler {
     coordinator: Arc<ConversationCoordinator>,
     session_manager: Arc<SessionManager>,
+    telemetry: Telemetry,
     /// Per-session priority message queues.
     queues: Arc<DialogTurnQueue<QueuedTurn>>,
     /// Serializes submit, dispatch, and targeted cancellation for one session.
@@ -443,9 +448,11 @@ impl DialogScheduler {
             buffer: round_injection_buffer.clone(),
         });
 
+        let telemetry = coordinator.telemetry();
         let scheduler = Arc::new(Self {
             coordinator,
             session_manager,
+            telemetry,
             queues: Arc::new(DialogTurnQueue::default()),
             session_operation_locks: KeyedAsyncLock::default(),
             active_turns: Arc::new(ActiveDialogTurnStore::default()),
@@ -461,7 +468,7 @@ impl DialogScheduler {
         });
 
         let scheduler_for_handler = Arc::clone(&scheduler);
-         tauri::async_runtime::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             scheduler_for_handler.run_outcome_handler(outcome_rx).await;
         });
 
@@ -1161,9 +1168,24 @@ impl DialogScheduler {
         queued_turn: QueuedTurn,
         reject_if_busy: bool,
     ) -> Result<DialogSubmitOutcome, SchedulerSubmitError> {
+        let attachment_facts = queued_turn
+            .image_contexts
+            .as_deref()
+            .filter(|images| !images.is_empty())
+            .map(image_attachment_facts);
         let _operation_guard = self.lock_session_operation(&session_id).await;
-        self.submit_queued_turn_locked(session_id, resolved_turn_id, queued_turn, reject_if_busy)
-            .await
+        let result = self
+            .submit_queued_turn_locked(session_id, resolved_turn_id, queued_turn, reject_if_busy)
+            .await;
+        if let Some(mut facts) = attachment_facts {
+            facts.outcome = if result.is_ok() {
+                ImageAttachmentOutcome::Accepted
+            } else {
+                ImageAttachmentOutcome::Rejected
+            };
+            record_image_attachments(&self.telemetry, facts);
+        }
+        result
     }
 
     async fn submit_queued_turn_locked(
@@ -1713,8 +1735,7 @@ impl DialogScheduler {
         requested_storage_path: &std::path::Path,
         wait_timeout: Duration,
     ) -> BitFunResult<SessionMaintenancePermit> {
-        bitfun_core_types::validate_session_id(session_id)
-            .map_err(BitFunError::Validation)?;
+        bitfun_core_types::validate_session_id(session_id).map_err(BitFunError::Validation)?;
         let operation_guard = self.lock_session_operation(session_id).await;
         self.session_manager
             .validate_session_storage_path_binding(session_id, requested_storage_path)?;
@@ -1859,7 +1880,7 @@ impl DialogScheduler {
                 }
                 QueuedTurnExecution::HiddenSubagent(execution) => {
                     let coordinator = self.coordinator.clone();
-                     tauri::async_runtime::spawn(async move {
+                    tauri::async_runtime::spawn(async move {
                         coordinator
                             .cleanup_prepared_hidden_subagent_session_if_unsubmitted(
                                 &execution.request,
@@ -2155,7 +2176,7 @@ impl DialogScheduler {
         let queue_cancel_token_for_bridge = queue_cancel_token.clone();
         let execution_cancel_token_for_bridge = execution_cancel_token.clone();
         let cancel_bridge_handle = match parent_cancel_token {
-            Some(parent_cancel_token) =>  tauri::async_runtime::spawn(async move {
+            Some(parent_cancel_token) => tauri::async_runtime::spawn(async move {
                 tokio::select! {
                     _ = parent_cancel_token.cancelled() => {
                         execution_cancel_token_for_bridge.cancel();
@@ -2165,7 +2186,7 @@ impl DialogScheduler {
                     }
                 }
             }),
-            None =>  tauri::async_runtime::spawn(async move {
+            None => tauri::async_runtime::spawn(async move {
                 queue_cancel_token_for_bridge.cancelled().await;
                 execution_cancel_token_for_bridge.cancel();
             }),
@@ -2191,7 +2212,7 @@ impl DialogScheduler {
         self.active_internal_turns
             .insert(session_id.to_string(), ActiveInternalTurn::HiddenSubagent);
 
-         tauri::async_runtime::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             let outcome = coordinator
                 .execute_prepared_hidden_subagent(
                     request,
@@ -2580,6 +2601,81 @@ fn metadata_string(
         .and_then(|value| value.as_str())
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn image_metadata_u64(metadata: Option<&serde_json::Value>, keys: &[&str]) -> Option<u64> {
+    let object = metadata?.as_object()?;
+    keys.iter()
+        .find_map(|key| object.get(*key).and_then(serde_json::Value::as_u64))
+}
+
+fn image_attachment_facts(images: &[ImageContextData]) -> ImageAttachmentFacts {
+    let mut size_known_count = 0u64;
+    let mut dimensions_known_count = 0u64;
+    let mut total_size_bytes = 0u64;
+    let mut max_size_bytes = None;
+    let mut max_width = None;
+    let mut max_height = None;
+    let mut has_png = false;
+    let mut has_jpeg = false;
+    let mut has_webp = false;
+    let mut has_gif = false;
+    let mut has_other = false;
+
+    for image in images {
+        let size = image_metadata_u64(
+            image.metadata.as_ref(),
+            &["file_size", "fileSize", "size_bytes", "sizeBytes"],
+        );
+        if let Some(size) = size {
+            size_known_count = size_known_count.saturating_add(1);
+            total_size_bytes = total_size_bytes.saturating_add(size);
+            max_size_bytes = Some(max_size_bytes.map_or(size, |current: u64| current.max(size)));
+        }
+        let width = image_metadata_u64(image.metadata.as_ref(), &["width"]);
+        let height = image_metadata_u64(image.metadata.as_ref(), &["height"]);
+        if width.is_some() && height.is_some() {
+            dimensions_known_count = dimensions_known_count.saturating_add(1);
+        }
+        if let Some(width) = width {
+            max_width = Some(max_width.map_or(width, |current: u64| current.max(width)));
+        }
+        if let Some(height) = height {
+            max_height = Some(max_height.map_or(height, |current: u64| current.max(height)));
+        }
+
+        match image
+            .mime_type
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "image/png" => has_png = true,
+            "image/jpeg" | "image/jpg" => has_jpeg = true,
+            "image/webp" => has_webp = true,
+            "image/gif" => has_gif = true,
+            _ => has_other = true,
+        }
+    }
+
+    ImageAttachmentFacts {
+        outcome: ImageAttachmentOutcome::Accepted,
+        count: images.len().min(u64::MAX as usize) as u64,
+        size_known_count,
+        dimensions_known_count,
+        total_size_bytes: (size_known_count > 0).then_some(total_size_bytes),
+        max_size_bytes,
+        max_width,
+        max_height,
+        has_png,
+        has_jpeg,
+        has_webp,
+        has_gif,
+        has_other,
+    }
 }
 
 fn mime_type_from_data_url(data_url: &str) -> Option<String> {
@@ -4007,11 +4103,10 @@ mod tests {
                 output_schema: None,
                 original_message: Some("/review".to_string()),
                 turn_id: Some("delegated-turn".to_string()),
-                execution:
-                    bitfun_runtime_ports::AgentDialogTurnExecution::FreshExternalSubagent {
-                        ecosystem_id: "opencode".to_string(),
-                        logical_id: "reviewer".to_string(),
-                    },
+                execution: bitfun_runtime_ports::AgentDialogTurnExecution::FreshExternalSubagent {
+                    ecosystem_id: "opencode".to_string(),
+                    logical_id: "reviewer".to_string(),
+                },
                 agent_type: "Standard".to_string(),
                 workspace_path: None,
                 workspace_id: None,
@@ -4098,11 +4193,10 @@ mod tests {
                 output_schema: None,
                 original_message: Some("/review".to_string()),
                 turn_id: Some("delegated-turn".to_string()),
-                execution:
-                    bitfun_runtime_ports::AgentDialogTurnExecution::FreshExternalSubagent {
-                        ecosystem_id: "opencode".to_string(),
-                        logical_id: "reviewer".to_string(),
-                    },
+                execution: bitfun_runtime_ports::AgentDialogTurnExecution::FreshExternalSubagent {
+                    ecosystem_id: "opencode".to_string(),
+                    logical_id: "reviewer".to_string(),
+                },
                 agent_type: "Standard".to_string(),
                 workspace_path: None,
                 workspace_id: None,
@@ -4825,6 +4919,48 @@ mod tests {
                 .and_then(|value| value.get("name")),
             Some(&serde_json::json!("clip.jpg"))
         );
+    }
+
+    #[test]
+    fn image_attachment_facts_aggregate_only_bounded_metadata() {
+        let images = vec![
+            ImageContextData {
+                id: "image-1".to_string(),
+                image_path: Some("/sensitive/one.png".to_string()),
+                data_url: None,
+                mime_type: "image/png".to_string(),
+                metadata: Some(serde_json::json!({
+                    "fileSize": 10,
+                    "width": 320,
+                    "height": 200,
+                    "name": "one.png"
+                })),
+            },
+            ImageContextData {
+                id: "image-2".to_string(),
+                image_path: None,
+                data_url: Some("data:image/webp;base64,secret".to_string()),
+                mime_type: "image/webp; charset=binary".to_string(),
+                metadata: Some(serde_json::json!({
+                    "size_bytes": 25,
+                    "width": 640
+                })),
+            },
+        ];
+
+        let facts = image_attachment_facts(&images);
+
+        assert_eq!(facts.outcome, ImageAttachmentOutcome::Accepted);
+        assert_eq!(facts.count, 2);
+        assert_eq!(facts.size_known_count, 2);
+        assert_eq!(facts.dimensions_known_count, 1);
+        assert_eq!(facts.total_size_bytes, Some(35));
+        assert_eq!(facts.max_size_bytes, Some(25));
+        assert_eq!(facts.max_width, Some(640));
+        assert_eq!(facts.max_height, Some(200));
+        assert!(facts.has_png);
+        assert!(facts.has_webp);
+        assert!(!facts.has_other);
     }
 
     #[test]

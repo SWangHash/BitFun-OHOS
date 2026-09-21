@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ExternalLink, List, Send, SquarePen } from 'lucide-react';
 import {
+  Alert,
   Button,
   Checkbox,
   ConfirmDialog,
@@ -20,15 +21,21 @@ import {
   feedbackAPI,
   FeedbackApiError,
   FEEDBACK_CONTENT_MAX_CHARS,
+  FEEDBACK_INBOX_PAGE_SIZE,
   feedbackContentLength,
   feedbackInsertText,
+  planFeedbackPaste,
   systemAPI,
   truncateFeedbackContent,
   type FeedbackCategory,
 } from '@/infrastructure/api';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { createLogger } from '@/shared/utils/logger';
-import { registerCriticalOperationExitGuard } from '@/shared/services/criticalOperationExitGuard';
+import {
+  isMainWindowCloseRequestInProgress,
+  registerCriticalOperationExitGuard,
+  subscribeMainWindowCloseRequest,
+} from '@/shared/services/criticalOperationExitGuard';
 import { confirmDialog } from '@/infrastructure/confirm-dialog/confirmDialogService';
 import { FeedbackInboxView } from './FeedbackInboxView';
 import { PrivacyStatementLink } from './PrivacyStatementLink';
@@ -59,10 +66,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   const { t } = useI18n('common');
   const { status, accept } = usePrivacy();
   const containerRef = useRef<HTMLDivElement>(null);
+  const nativePasteTruncatedRef = useRef(false);
   const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const refreshInbox = useFeedbackInboxStore(state => state.refresh);
   const [activeView, setActiveView] = useState<'create' | 'inbox'>('create');
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+  const [inboxVisibleCount, setInboxVisibleCount] = useState(FEEDBACK_INBOX_PAGE_SIZE);
   const [wideLayout, setWideLayout] = useState(false);
   const [category, setCategory] = useState<FeedbackCategory | ''>('');
   const [content, setContent] = useState('');
@@ -116,6 +125,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
     }));
   }, [replyState.sending, submitting, t]);
 
+  useEffect(() => subscribeMainWindowCloseRequest(inProgress => {
+    if (!inProgress) return;
+    setShowDiscardConfirm(false);
+    setPendingReplyExit(null);
+  }), []);
+
   useEffect(() => {
     if (retryWaitSeconds <= 0) return;
     const timer = window.setInterval(() => {
@@ -149,6 +164,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   }, [isOpen]);
 
   const reset = useCallback(() => {
+    nativePasteTruncatedRef.current = false;
     setCategory('');
     setContent('');
     setIncludeCorrelation(false);
@@ -162,6 +178,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
     setCompleted(false);
     setActiveView('create');
     setSelectedFeedbackId(null);
+    setInboxVisibleCount(FEEDBACK_INBOX_PAGE_SIZE);
     setReplyState({ hasDraft: false, sending: false });
     setReplyResetVersion(current => current + 1);
     setPendingReplyExit(null);
@@ -173,6 +190,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   }, [onClose, reset]);
 
   const requestClose = useCallback(() => {
+    if (isMainWindowCloseRequestInProgress()) return;
     if (submitting || replyState.sending) return;
     if (activeView === 'inbox' && replyState.hasDraft) {
       setPendingReplyExit({ kind: 'close' });
@@ -192,7 +210,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
       return;
     }
     const truncated = truncateFeedbackContent(value);
-    setWasTruncated(Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS);
+    const nativePasteTruncated = nativePasteTruncatedRef.current;
+    nativePasteTruncatedRef.current = false;
+    setWasTruncated(
+      nativePasteTruncated
+      || Array.from(value.replace(/^\s+/, '')).length > FEEDBACK_CONTENT_MAX_CHARS,
+    );
     setContent(truncated);
     setSubmitError(null);
   };
@@ -217,17 +240,38 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
 
   const handleContentPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = event.currentTarget;
-    if (
-      textarea.selectionStart === textarea.selectionEnd
-      && feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS
-    ) {
-      armRejectedInsertionCaret(textarea);
-      // Let the native maxLength gate reject the paste without creating a
-      // JavaScript edit boundary in the browser's undo history.
+    const insertedText = event.clipboardData.getData('text/plain');
+    const plan = planFeedbackPaste(
+      textarea.value,
+      textarea.selectionStart,
+      textarea.selectionEnd,
+      insertedText,
+    );
+    if (!plan.acceptedText && insertedText) {
+      nativePasteTruncatedRef.current = false;
+      setWasTruncated(true);
+      event.preventDefault();
+      return;
+    }
+    if (plan.useNativePaste) {
+      nativePasteTruncatedRef.current = plan.acceptedText !== insertedText;
+      textarea.maxLength = plan.nativeMaxLength;
+      requestAnimationFrame(() => {
+        if (!textarea.isConnected) {
+          nativePasteTruncatedRef.current = false;
+          return;
+        }
+        if (feedbackContentLength(textarea.value) >= FEEDBACK_CONTENT_MAX_CHARS) {
+          textarea.maxLength = textarea.value.length;
+        } else {
+          textarea.removeAttribute('maxlength');
+        }
+        nativePasteTruncatedRef.current = false;
+      });
       return;
     }
     event.preventDefault();
-    applyFeedbackInsertion(textarea, event.clipboardData.getData('text/plain'));
+    applyFeedbackInsertion(textarea, insertedText);
   };
 
   const handleContentKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -424,8 +468,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
         onOpenChange={(_open, reason) => {
           if (reason === 'close-button' || reason === 'escape-key' || reason === 'pointer-outside') requestClose();
         }}
-        size="2xl"
-        className="bitfun-feedback__modal-content"
+        size={completed ? 'sm' : '2xl'}
+        className={`bitfun-feedback__modal-content${completed ? ' is-complete' : ''}`}
         closeOnEscape={!submitting && !replyState.sending}
         closeOnPointerOutside={!submitting && !replyState.sending}
         data-testid="feedback-dialog"
@@ -486,8 +530,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
             </div>
             <div className="bitfun-feedback__content-field">
               <Textarea
+                className="bitfun-feedback__content-input"
                 label={t('feedback.content')}
+                layout="fill"
                 required
+                resize="none"
+                rows={8}
                 value={content}
                 maxLength={contentNativeMaxLength}
                 disabled={submitting}
@@ -544,14 +592,20 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </span>
             </div>
             {submitErrorMessage ? (
-              <div className="bitfun-feedback__error" role="alert">
-                {submitErrorMessage}
-              </div>
+              <Alert
+                className="bitfun-feedback__error"
+                tone="error"
+                message={submitErrorMessage}
+                showIcon
+              />
             ) : null}
             {gitCodeError ? (
-              <div className="bitfun-feedback__error" role="alert">
-                {t('feedback.errors.gitcode')}
-              </div>
+              <Alert
+                className="bitfun-feedback__error"
+                tone="error"
+                message={t('feedback.errors.gitcode')}
+                showIcon
+              />
             ) : null}
             <div className="bitfun-feedback__actions" data-bitfun-component="feedback-dialog" data-bitfun-part="actions">
               <Button type="button" variant="text" leadingIcon={<ExternalLink size={15} aria-hidden="true" />} onClick={openGitCode}>
@@ -586,6 +640,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 wide={wideLayout}
                 selectedId={selectedFeedbackId}
                 onSelect={selectFeedback}
+                visibleCount={inboxVisibleCount}
+                onVisibleCountChange={setInboxVisibleCount}
                 replySending={replyState.sending}
                 resetDraftVersion={replyResetVersion}
                 onReplyStateChange={updateReplyState}

@@ -550,6 +550,16 @@ impl SnapshotService {
             .await
     }
 
+    pub async fn turn_diff_aggregate(
+        &self,
+        session_id: &str,
+        turn_index: usize,
+    ) -> SnapshotResult<crate::service::snapshot::types::TurnDiffAggregate> {
+        self.ensure_initialized().await?;
+        let snapshot_core = self.snapshot_core.read().await;
+        Ok(snapshot_core.turn_diff_aggregate(session_id, turn_index))
+    }
+
     pub async fn get_turn_files_before(
         &self,
         session_id: &str,

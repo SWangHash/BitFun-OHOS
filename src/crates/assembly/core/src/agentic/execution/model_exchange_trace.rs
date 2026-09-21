@@ -13,6 +13,10 @@ use bitfun_ai_adapters::{
     ModelExchangeRequestAttempt, ModelExchangeRequestTraceHandle, ModelExchangeResponseTrace,
     ModelExchangeRoundAttempt, ModelExchangeTraceConfig, ModelExchangeTraceSink,
 };
+use bitfun_observability::{
+    DebugContentField, DebugCorrelation, DebugInferenceRecord, DebugTelemetryRecord,
+    ObservationContext, Telemetry,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -101,7 +105,7 @@ impl ModelExchangeTracePolicy {
 
 #[derive(Debug)]
 struct WorkspaceModelExchangeTraceSink {
-    trace_session_dir: PathBuf,
+    trace_session_dir: Option<PathBuf>,
     policy: ModelExchangeTracePolicy,
     session_id: String,
     turn_id: String,
@@ -112,6 +116,9 @@ struct WorkspaceModelExchangeTraceSink {
     api_format: String,
     model_id: String,
     trace_paths: DashMap<String, PathBuf>,
+    telemetry: Telemetry,
+    observation_context: Option<ObservationContext>,
+    local_enabled: bool,
 }
 
 // Reverse declaration order preserves the previous function-parameter drop
@@ -126,7 +133,72 @@ struct WorkspaceModelExchangeTraceInput {
     turn_id: String,
     session_id: String,
     policy: ModelExchangeTracePolicy,
-    trace_session_dir: PathBuf,
+    trace_session_dir: Option<PathBuf>,
+    telemetry: Telemetry,
+    observation_context: Option<ObservationContext>,
+    local_enabled: bool,
+}
+
+#[derive(Default)]
+struct DebugRequestParts {
+    system_prompt: Option<String>,
+    tool_definitions: Option<Value>,
+    context: Option<Value>,
+    reminders: Option<Value>,
+}
+
+fn debug_request_parts(request: Option<&Value>) -> DebugRequestParts {
+    let Some(request) = request else {
+        return DebugRequestParts::default();
+    };
+    let envelope = request
+        .get("request")
+        .filter(|nested| nested.is_object())
+        .unwrap_or(request);
+    let system_prompt = ["instructions", "system", "systemInstruction"]
+        .into_iter()
+        .find_map(|key| envelope.get(key))
+        .map(debug_value_text);
+    let tool_definitions = envelope.get("tools").cloned();
+    let context = ["messages", "input", "contents"]
+        .into_iter()
+        .find_map(|key| envelope.get(key).cloned());
+    let mut reminders = Vec::new();
+    if let Some(context) = context.as_ref() {
+        collect_system_reminders(context, &mut reminders);
+    }
+    DebugRequestParts {
+        system_prompt,
+        tool_definitions,
+        context,
+        reminders: (!reminders.is_empty()).then(|| Value::Array(reminders)),
+    }
+}
+
+fn debug_value_text(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+fn collect_system_reminders(value: &Value, reminders: &mut Vec<Value>) {
+    match value {
+        Value::String(text) if text.contains("<system_reminder>") => {
+            reminders.push(Value::String(text.clone()));
+        }
+        Value::Array(values) => {
+            for value in values {
+                collect_system_reminders(value, reminders);
+            }
+        }
+        Value::Object(values) => {
+            for value in values.values() {
+                collect_system_reminders(value, reminders);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+    }
 }
 
 impl WorkspaceModelExchangeTraceSink {
@@ -143,11 +215,18 @@ impl WorkspaceModelExchangeTraceSink {
             api_format: input.api_format,
             model_id: input.model_id,
             trace_paths: DashMap::new(),
+            telemetry: input.telemetry,
+            observation_context: input.observation_context,
+            local_enabled: input.local_enabled,
         }
     }
 
     async fn allocate_sequence(&self) -> Result<u64, String> {
-        let key = self.trace_session_dir.to_string_lossy().to_string();
+        let trace_session_dir = self
+            .trace_session_dir
+            .as_deref()
+            .ok_or_else(|| "local model exchange trace is disabled".to_string())?;
+        let key = trace_session_dir.to_string_lossy().to_string();
         let allocator = sequence_allocators()
             .entry(key)
             .or_insert_with(|| Arc::new(Mutex::new(None)))
@@ -156,7 +235,7 @@ impl WorkspaceModelExchangeTraceSink {
         let current = match *guard {
             Some(value) => value,
             None => {
-                let detected = detect_last_sequence(&self.trace_session_dir).await?;
+                let detected = detect_last_sequence(trace_session_dir).await?;
                 *guard = Some(detected);
                 detected
             }
@@ -168,6 +247,8 @@ impl WorkspaceModelExchangeTraceSink {
 
     fn trace_path(&self, sequence: u64) -> PathBuf {
         self.trace_session_dir
+            .as_deref()
+            .expect("trace path is used only when local tracing is enabled")
             .join(format!("request-{:06}.json", sequence))
     }
 
@@ -248,6 +329,8 @@ impl WorkspaceModelExchangeTraceSink {
                 .capture_provider_metadata
                 .then(|| response.provider_metadata.clone())
                 .flatten(),
+            finish_reason: response.finish_reason.clone(),
+            ttft_ms: response.ttft_ms,
             partial_recovery_reason: response.partial_recovery_reason.clone(),
             error: response.error.clone(),
         }
@@ -260,6 +343,54 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
         &self,
         attempt: &ModelExchangeRequestAttempt,
     ) -> Option<ModelExchangeRequestTraceHandle> {
+        let correlation_id = attempt
+            .round_attempt
+            .as_ref()
+            .map(|round_attempt| {
+                format!(
+                    "{}:transport:{}",
+                    round_attempt.attempt_id, attempt.attempt_number
+                )
+            })
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        self.telemetry.record_debug_lazy(
+            || {
+                let request_parts = debug_request_parts(attempt.request_body.as_ref());
+                DebugTelemetryRecord::InferenceRequest(DebugInferenceRecord {
+                    correlation: DebugCorrelation {
+                        session_id: Some(self.session_id.clone()),
+                        turn_id: Some(self.turn_id.clone()),
+                        round_id: (self.operation_kind == "model_round")
+                            .then(|| self.operation_id.clone()),
+                        inference_id: Some(correlation_id.clone()),
+                        ..Default::default()
+                    },
+                    provider: Some(self.provider.clone()),
+                    model: Some(self.model_id.clone()),
+                    request_url: Some(attempt.request_url.clone()),
+                    request: attempt.request_body.clone().map(DebugContentField::value),
+                    response: None,
+                    system_prompt: request_parts.system_prompt.map(DebugContentField::text),
+                    tool_definitions: request_parts.tool_definitions.map(DebugContentField::value),
+                    context: request_parts.context.map(DebugContentField::value),
+                    reminders: request_parts.reminders.map(DebugContentField::value),
+                    answer: None,
+                    reasoning: None,
+                    provider_metadata: None,
+                    error: None,
+                })
+            },
+            self.observation_context.clone(),
+        );
+        let trace_id = Uuid::new_v4().to_string();
+        let trace_handle = || ModelExchangeRequestTraceHandle {
+            trace_id: trace_id.clone(),
+            correlation_id: Some(correlation_id.clone()),
+            attempt_number: Some(attempt.attempt_number),
+        };
+        if !self.local_enabled {
+            return Some(trace_handle());
+        }
         let sequence = match self.allocate_sequence().await {
             Ok(value) => value,
             Err(error) => {
@@ -267,11 +398,12 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
                     "Model exchange trace sequence allocation failed: session_id={}, error={}",
                     self.session_id, error
                 );
-                return None;
+                // The lifecycle handle also correlates Debug telemetry. A local
+                // diagnostics failure must not suppress the terminal record.
+                return Some(trace_handle());
             }
         };
 
-        let trace_id = Uuid::new_v4().to_string();
         let path = self.trace_path(sequence);
         let record = ModelExchangeTraceRecord {
             version: TRACE_LAYOUT_VERSION,
@@ -301,11 +433,11 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
                 "Model exchange trace write failed: session_id={}, trace_id={}, error={}",
                 self.session_id, trace_id, error
             );
-            return None;
+            return Some(trace_handle());
         }
 
         self.trace_paths.insert(trace_id.clone(), path);
-        Some(ModelExchangeRequestTraceHandle { trace_id })
+        Some(trace_handle())
     }
 
     async fn request_attempt_failed(
@@ -313,6 +445,34 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
         handle: Option<&ModelExchangeRequestTraceHandle>,
         error: &str,
     ) {
+        self.telemetry.record_debug_lazy(
+            || {
+                DebugTelemetryRecord::InferenceAttempt(DebugInferenceRecord {
+                    correlation: DebugCorrelation {
+                        session_id: Some(self.session_id.clone()),
+                        turn_id: Some(self.turn_id.clone()),
+                        round_id: (self.operation_kind == "model_round")
+                            .then(|| self.operation_id.clone()),
+                        inference_id: handle.and_then(|handle| handle.correlation_id.clone()),
+                        ..Default::default()
+                    },
+                    provider: Some(self.provider.clone()),
+                    model: Some(self.model_id.clone()),
+                    request_url: None,
+                    request: None,
+                    response: None,
+                    system_prompt: None,
+                    tool_definitions: None,
+                    context: None,
+                    reminders: None,
+                    answer: None,
+                    reasoning: None,
+                    provider_metadata: None,
+                    error: Some(DebugContentField::text(error)),
+                })
+            },
+            self.observation_context.clone(),
+        );
         let Some(handle) = handle else {
             return;
         };
@@ -327,6 +487,8 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
                     tool_calls: None,
                     usage: None,
                     provider_metadata: None,
+                    finish_reason: Some("error".to_string()),
+                    ttft_ms: None,
                     partial_recovery_reason: None,
                     error: Some(error.to_string()),
                 },
@@ -345,6 +507,39 @@ impl ModelExchangeTraceSink for WorkspaceModelExchangeTraceSink {
         handle: &ModelExchangeRequestTraceHandle,
         response: &ModelExchangeResponseTrace,
     ) {
+        self.telemetry.record_debug_lazy(
+            || {
+                DebugTelemetryRecord::InferenceResponse(DebugInferenceRecord {
+                    correlation: DebugCorrelation {
+                        session_id: Some(self.session_id.clone()),
+                        turn_id: Some(self.turn_id.clone()),
+                        round_id: (self.operation_kind == "model_round")
+                            .then(|| self.operation_id.clone()),
+                        inference_id: handle.correlation_id.clone(),
+                        ..Default::default()
+                    },
+                    provider: Some(self.provider.clone()),
+                    model: Some(self.model_id.clone()),
+                    request_url: None,
+                    request: None,
+                    response: serde_json::to_value(response)
+                        .ok()
+                        .map(DebugContentField::value),
+                    system_prompt: None,
+                    tool_definitions: None,
+                    context: None,
+                    reminders: None,
+                    answer: response.assistant_text.clone().map(DebugContentField::text),
+                    reasoning: response.thinking.clone().map(DebugContentField::text),
+                    provider_metadata: response
+                        .provider_metadata
+                        .clone()
+                        .map(DebugContentField::value),
+                    error: response.error.clone().map(DebugContentField::text),
+                })
+            },
+            self.observation_context.clone(),
+        );
         if let Err(error) = self.update_response(&handle.trace_id, response).await {
             warn!(
                 "Model exchange trace completion update failed: session_id={}, trace_id={}, error={}",
@@ -358,6 +553,7 @@ pub(super) async fn prepare_model_exchange_trace(
     context: &RoundContext,
     round_id: &str,
     ai_client: &AIClient,
+    telemetry: &Telemetry,
 ) -> Option<ModelExchangeTraceConfig> {
     prepare_model_exchange_trace_for_workspace(
         &context.session_id,
@@ -370,6 +566,8 @@ pub(super) async fn prepare_model_exchange_trace(
             trigger: None,
         },
         ai_client,
+        telemetry,
+        context.observation_context.clone(),
     )
     .await
 }
@@ -381,34 +579,63 @@ pub(super) async fn prepare_model_exchange_trace_for_workspace(
     model_exchange_trace_dir: Option<&Path>,
     operation: ModelExchangeTraceOperation<'_>,
     ai_client: &AIClient,
+    telemetry: &Telemetry,
+    observation_context: Option<ObservationContext>,
 ) -> Option<ModelExchangeTraceConfig> {
-    let policy = current_model_exchange_trace_policy().await?;
-
-    let Some(workspace) = workspace else {
-        debug!(
-            "Model exchange trace skipped because operation has no workspace: session_id={}, turn_id={}, operation_kind={}, operation_id={}",
-            session_id, turn_id, operation.kind, operation.id
-        );
+    let local_policy = current_model_exchange_trace_policy().await;
+    let debug_enabled =
+        telemetry.policy_snapshot().level() == bitfun_observability::TelemetryLevel::Debug;
+    if local_policy.is_none() && !debug_enabled {
         return None;
-    };
+    }
+    let policy = local_policy.unwrap_or(ModelExchangeTracePolicy {
+        mode: ModelExchangeTracingMode::Off,
+        capture_request_body: false,
+        capture_response_text: false,
+        capture_reasoning: false,
+        capture_tool_calls: false,
+        capture_usage: false,
+        capture_provider_metadata: false,
+    });
 
-    let trace_session_dir = match model_exchange_trace_dir {
-        Some(path) => path.to_path_buf(),
-        None => match get_workspace_runtime_service_arc()
-            .ensure_runtime_for_workspace_binding(workspace)
-            .await
-        {
-            Ok(result) => result.context.request_trace_session_dir(session_id),
-            Err(error) => {
-                warn!(
-                    "Model exchange trace skipped because runtime init failed: session_id={}, operation_kind={}, operation_id={}, error={}",
-                    session_id, operation.kind, operation.id, error
+    let trace_session_dir = if local_policy.is_some() {
+        match workspace {
+            Some(workspace) => Some(match model_exchange_trace_dir {
+                Some(path) => path.to_path_buf(),
+                None => match get_workspace_runtime_service_arc()
+                    .ensure_runtime_for_workspace_binding(workspace)
+                    .await
+                {
+                    Ok(result) => result.context.request_trace_session_dir(session_id),
+                    Err(error) => {
+                        warn!(
+                            "Local model exchange trace skipped because runtime init failed: session_id={}, operation_kind={}, operation_id={}, error={}",
+                            session_id, operation.kind, operation.id, error
+                        );
+                        if !debug_enabled {
+                            return None;
+                        }
+                        PathBuf::new()
+                    }
+                },
+            })
+            .filter(|path| !path.as_os_str().is_empty()),
+            None => {
+                debug!(
+                    "Local model exchange trace skipped because operation has no workspace: session_id={}, turn_id={}, operation_kind={}, operation_id={}",
+                    session_id, turn_id, operation.kind, operation.id
                 );
-                return None;
+                if !debug_enabled {
+                    return None;
+                }
+                None
             }
-        },
+        }
+    } else {
+        None
     };
 
+    let local_enabled = local_policy.is_some() && trace_session_dir.is_some();
     Some(ModelExchangeTraceConfig::new(
         Arc::new(WorkspaceModelExchangeTraceSink::new(
             WorkspaceModelExchangeTraceInput {
@@ -422,9 +649,12 @@ pub(super) async fn prepare_model_exchange_trace_for_workspace(
                 provider: ai_client.config.format.clone(),
                 api_format: ai_client.config.format.clone(),
                 model_id: ai_client.config.model.clone(),
+                telemetry: telemetry.clone(),
+                observation_context,
+                local_enabled,
             },
         )),
-        policy.capture_request_body,
+        policy.capture_request_body || debug_enabled,
     ))
 }
 
@@ -492,6 +722,7 @@ fn sequence_allocators() -> &'static DashMap<String, Arc<Mutex<Option<u64>>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitfun_observability::{InMemorySink, PolicySnapshot, TelemetryLevel};
 
     struct SequenceAllocatorCleanup(String);
 
@@ -507,7 +738,7 @@ mod tests {
         let _allocator_cleanup =
             SequenceAllocatorCleanup(directory.path().to_string_lossy().to_string());
         let sink = WorkspaceModelExchangeTraceSink::new(WorkspaceModelExchangeTraceInput {
-            trace_session_dir: directory.path().to_path_buf(),
+            trace_session_dir: Some(directory.path().to_path_buf()),
             policy: ModelExchangeTracePolicy {
                 mode: ModelExchangeTracingMode::Full,
                 capture_request_body: true,
@@ -525,6 +756,9 @@ mod tests {
             provider: "provider-format".to_string(),
             api_format: "api-format".to_string(),
             model_id: "model-identity".to_string(),
+            telemetry: Telemetry::noop(),
+            observation_context: None,
+            local_enabled: true,
         });
 
         let handle = sink
@@ -570,5 +804,117 @@ mod tests {
             record.request.body,
             Some(serde_json::json!({"request": "body"}))
         );
+    }
+
+    #[tokio::test]
+    async fn debug_model_exchange_emits_one_correlated_request_and_response() {
+        let memory = Arc::new(InMemorySink::default());
+        let telemetry =
+            Telemetry::build(PolicySnapshot::new(TelemetryLevel::Debug), memory.clone()).0;
+        let sink = WorkspaceModelExchangeTraceSink::new(WorkspaceModelExchangeTraceInput {
+            trace_session_dir: None,
+            policy: ModelExchangeTracePolicy {
+                mode: ModelExchangeTracingMode::Off,
+                capture_request_body: false,
+                capture_response_text: false,
+                capture_reasoning: false,
+                capture_tool_calls: false,
+                capture_usage: false,
+                capture_provider_metadata: false,
+            },
+            session_id: "session-debug".to_string(),
+            turn_id: "turn-debug".to_string(),
+            operation_kind: "model_round".to_string(),
+            operation_id: "round-debug".to_string(),
+            operation_trigger: None,
+            provider: "provider-debug".to_string(),
+            api_format: "api-debug".to_string(),
+            model_id: "model-debug".to_string(),
+            telemetry,
+            observation_context: None,
+            local_enabled: false,
+        });
+
+        let handle = sink
+            .request_attempt_started(&ModelExchangeRequestAttempt {
+                request_url: "https://example.invalid/model".to_string(),
+                request_body: Some(serde_json::json!({
+                    "instructions": "system prompt",
+                    "messages": [{
+                        "role": "user",
+                        "content": "<system_reminder>remember this</system_reminder>\nhello"
+                    }],
+                    "tools": [{"name": "Read"}]
+                })),
+                attempt_number: 2,
+                round_attempt: Some(ModelExchangeRoundAttempt {
+                    attempt_id: "round-debug:attempt:4".to_string(),
+                    attempt_index: 4,
+                }),
+            })
+            .await
+            .expect("Debug telemetry should retain a lifecycle handle");
+        sink.request_attempt_completed(
+            &handle,
+            &ModelExchangeResponseTrace {
+                kind: "message".to_string(),
+                assistant_text: Some("answer".to_string()),
+                thinking: Some("reasoning".to_string()),
+                tool_calls: None,
+                usage: Some(serde_json::json!({"input_tokens": 3, "output_tokens": 5})),
+                provider_metadata: None,
+                finish_reason: Some("stop".to_string()),
+                ttft_ms: Some(12),
+                partial_recovery_reason: None,
+                error: None,
+            },
+        )
+        .await;
+
+        let records = memory.debug_records();
+        assert_eq!(
+            records
+                .iter()
+                .filter(|record| record.event_name() == "bitfun.inference.request")
+                .count(),
+            2
+        );
+        assert_eq!(
+            records
+                .iter()
+                .filter(|record| record
+                    .body()
+                    .contains("\"record_type\":\"inference_request\""))
+                .count(),
+            1
+        );
+        assert_eq!(
+            records
+                .iter()
+                .filter(|record| record
+                    .body()
+                    .contains("\"record_type\":\"inference_response\""))
+                .count(),
+            1
+        );
+        let correlation_id = handle
+            .correlation_id
+            .as_deref()
+            .expect("correlation id should be assigned");
+        assert!(records
+            .iter()
+            .all(|record| record.body().contains(correlation_id)));
+        let request = records
+            .iter()
+            .find(|record| {
+                record.event_name() == "bitfun.inference.request"
+                    && record
+                        .body()
+                        .contains("\"record_type\":\"inference_request\"")
+            })
+            .expect("request record");
+        assert!(request.body().contains("system prompt"));
+        assert!(request.body().contains("remember this"));
+        assert!(request.body().contains("Read"));
     }
 }
