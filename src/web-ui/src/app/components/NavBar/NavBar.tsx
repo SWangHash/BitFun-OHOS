@@ -9,18 +9,14 @@
  * - WindowControls (minimize/maximize/close) replace the old TitleBar chrome.
  */
 
-import React, { useCallback, useMemo, useRef } from 'react';
-;
+import React, { useCallback, useMemo } from 'react';
 
 import { useNavSceneStore } from '../../stores/navSceneStore';
 import { useI18n } from '../../../infrastructure/i18n';
-import { createLogger } from '@/shared/utils/logger';
 import { isMacOSDesktopRuntime, supportsNativeWindowDragging } from '@/infrastructure/runtime';
-import { workspaceAPI } from '@/infrastructure/api';
+import { useWindowChromeDrag } from '@/app/hooks/useWindowChromeDrag';
 import './NavBar.scss';
 import { Icon, Tooltip } from '@bitfun/ui';
-
-const log = createLogger('NavBar');
 
 const INTERACTIVE_SELECTOR =
   'button, input, textarea, select, a, [role="button"], [contenteditable="true"], .window-controls, [role="menu"]';
@@ -28,6 +24,7 @@ const INTERACTIVE_SELECTOR =
 interface NavBarProps {
   className?: string;
   isCollapsed?: boolean;
+  isMaximized?: boolean;
   onExpandNav?: () => void;
   onMaximize?: () => void;
 }
@@ -35,6 +32,7 @@ interface NavBarProps {
 const NavBar: React.FC<NavBarProps> = ({
   className = '',
   isCollapsed = false,
+  isMaximized = false,
   onExpandNav,
   onMaximize,
 }) => {
@@ -49,29 +47,20 @@ const NavBar: React.FC<NavBarProps> = ({
   const goForward    = useNavSceneStore(s => s.goForward);
   const canGoBack    = showSceneNav && !!navSceneId;
   const canGoForward = !showSceneNav && !!navSceneId;
-  const lastMouseDownTimeRef = useRef<number>(0);
+  // Window drag starts on mousedown. While maximized, it is deferred until the
+  // pointer moves, because Windows restores a maximized window the moment a
+  // native drag begins — even for a plain click.
+  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
 
   const handleBarMouseDown = useCallback((e: React.MouseEvent) => {
     if (!canDragWindow) return;
-
-    const now = Date.now();
-    const timeSinceLastMouseDown = now - lastMouseDownTimeRef.current;
-    lastMouseDownTimeRef.current = now;
 
     if (e.button !== 0) return;
     const target = e.target as HTMLElement | null;
     if (!target) return;
     if (target.closest(INTERACTIVE_SELECTOR)) return;
-    if (timeSinceLastMouseDown < 500 && timeSinceLastMouseDown > 50) return;
-
-    void (async () => {
-      try {
-        await workspaceAPI.startWindowDragging();
-      } catch (error) {
-        log.debug('startDragging failed', error);
-      }
-    })();
-  }, [canDragWindow]);
+    handleChromeMouseDown(e);
+  }, [canDragWindow, handleChromeMouseDown]);
 
   const handleBarDoubleClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
