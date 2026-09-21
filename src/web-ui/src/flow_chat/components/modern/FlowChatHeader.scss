@@ -527,6 +527,11 @@
     gap: var(--bitfun-space-1);
     flex-shrink: 0;
 
+    &--searching {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
     &--left {
       margin-right: var(--bitfun-space-2);
       overflow: visible;
@@ -535,7 +540,7 @@
 
   @media (max-width: 900px) {
     &__search {
-      min-width: min(220px, 52vw);
+      width: min(220px, 52vw);
       max-width: min(300px, 56vw);
     }
   }
