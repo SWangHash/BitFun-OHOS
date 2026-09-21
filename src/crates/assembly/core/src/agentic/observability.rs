@@ -30,7 +30,7 @@ pub(crate) fn completion_from_error(error: &BitFunError) -> CompletionFacts {
         BitFunError::Configuration(_) | BitFunError::Deserialization(_) => {
             CompletionFacts::failed(SafeErrorType::InvalidRequest)
         }
-        BitFunError::Tool(_) | BitFunError::NotFound(_) => {
+        BitFunError::Tool(_) | BitFunError::ClassifiedTool { .. } | BitFunError::NotFound(_) => {
             CompletionFacts::failed(SafeErrorType::ToolValidation)
         }
         _ => CompletionFacts::failed(SafeErrorType::Other),
@@ -311,7 +311,7 @@ pub(crate) const fn inference_context_class() -> InferenceContextClass {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_core_types::errors::AiProviderError;
+    use bitfun_core_types::errors::{AiProviderError, ToolErrorDetail};
 
     #[test]
     fn typed_errors_map_to_precise_terminal_facts() {
@@ -342,6 +342,17 @@ mod tests {
             tool_failure_from_error(&BitFunError::Cancelled("opaque".to_string())).1,
             ToolFailureSource::Cancellation
         );
+
+        let classified = BitFunError::ClassifiedTool {
+            message: "opaque".to_string(),
+            detail: ToolErrorDetail {
+                code: "edit_no_change".to_string(),
+                kind: "guidance".to_string(),
+            },
+        };
+        let (completion, source) = tool_failure_from_error(&classified);
+        assert_eq!(completion.error_type(), Some(SafeErrorType::ToolValidation));
+        assert_eq!(source, ToolFailureSource::Validation);
     }
 
     #[test]

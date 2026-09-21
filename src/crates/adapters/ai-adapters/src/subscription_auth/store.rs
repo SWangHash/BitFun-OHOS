@@ -18,7 +18,6 @@ use std::time::Duration;
 
 const STORE_VERSION: u8 = 2;
 const CLEANUP_JOURNAL_VERSION: u8 = 1;
-#[cfg(not(target_os = "macos"))]
 const KEYRING_SERVICE: &str = "bitfun.bitfun.subscription-auth.v1";
 const STORE_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const PROVIDER_REFRESH_LOCK_TIMEOUT: Duration = Duration::from_secs(40);

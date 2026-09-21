@@ -754,7 +754,7 @@ pub async fn set_macos_edit_menu_mode(
             .get_config::<String>(Some("app.language"))
             .await
             .unwrap_or_else(|_| "zh-CN".to_string());
-        let menubar_mode = if state.workspace_path.read().await.is_some() {
+        let menubar_mode = if state.workspace_id.read().await.is_some() {
             crate::macos_menubar::MenubarMode::Workspace
         } else {
             crate::macos_menubar::MenubarMode::Startup
