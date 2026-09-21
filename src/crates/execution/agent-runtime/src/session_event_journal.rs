@@ -754,6 +754,10 @@ mod tests {
             success: Some(true),
             finish_reason: Some("stop".to_string()),
             has_final_response: Some(true),
+            first_result_ms: None,
+            modified_file_count: None,
+            added_lines: None,
+            deleted_lines: None,
         }
     }
 
