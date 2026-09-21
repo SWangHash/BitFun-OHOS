@@ -86,9 +86,6 @@ export const AgentCompanionInAppPet: React.FC = () => {
   const [enabled, setEnabled] = useState<boolean>(
     () => aiExperienceConfigService.getSettings().enable_agent_companion,
   );
-  const [displayMode, setDisplayMode] = useState<AIExperienceSettings['agent_companion_display_mode']>(
-    () => aiExperienceConfigService.getSettings().agent_companion_display_mode,
-  );
   const [petFrameSize, setPetFrameSize] = useState<{ width: number; height: number } | null>(null);
 
   const [typedOutputBySessionId, setTypedOutputBySessionId] = useState<Record<string, TypewriterOutputState>>({});
@@ -134,7 +131,6 @@ export const AgentCompanionInAppPet: React.FC = () => {
       setPet(settings.agent_companion_pet ?? null);
       setPetFrameSize(null);
       setEnabled(settings.enable_agent_companion);
-      setDisplayMode(settings.agent_companion_display_mode);
     };
 
     void aiExperienceConfigService.getSettingsAsync()
@@ -536,7 +532,10 @@ export const AgentCompanionInAppPet: React.FC = () => {
     setPetFrameSize(size);
   }, []);
 
-  if (!enabled || displayMode !== 'desktop') {
+  // The legacy `agent_companion_display_mode` setting was retired (the
+  // config service strips it), so the OHOS overlay is gated on the plain
+  // enable flag only.
+  if (!enabled) {
     return null;
   }
 
