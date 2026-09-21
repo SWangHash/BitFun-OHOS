@@ -4,6 +4,7 @@
 
 /* ========== @use rules must come first ========== */
 @use './global.scss';
+@use './appearance-token-compat.scss';
 @use './motion.scss';
 @use '../layout/AppLayout.scss';
 
