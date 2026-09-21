@@ -55,6 +55,7 @@
       "externalModifiedTitle": "磁碟上的檔案已變更",
       "externalModifiedDetail": "檢測到該檔案在磁碟上的版本（修改時間/大小）與目前編輯器所依據的版本不一致。您有未儲存的本地修改。若重新載入，本地未儲存內容將丟失。",
       "discardAndReload": "放棄修改並重新載入",
+      "overwriteSave": "覆蓋儲存",
       "keepLocalEdits": "保留本地編輯",
       "saveConflictTitle": "儲存衝突",
       "saveConflictDetail": "儲存前檢測到磁碟上的檔案已被其他程式修改。您可以選擇用目前編輯覆蓋磁碟，或放棄本地修改並從磁碟重新載入。",
