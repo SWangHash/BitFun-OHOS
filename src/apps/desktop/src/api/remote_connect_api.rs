@@ -318,11 +318,11 @@ async fn finish_device_routing_event_loop(owner: &DeviceRoutingOwner) {
     disconnect_peer_controllers("Peer device-routing stream closed").await;
 }
 
-pub(crate) async fn session_publisher(
-) -> Option<Arc<bitfun_core::service::remote_connect::session_log::SessionPublisher>> {
+pub(crate) async fn host_stream_hub(
+) -> Option<Arc<bitfun_core::service::remote_connect::host_stream::HostStreamHub>> {
     let service = get_service_holder().read().await;
     match service.as_ref() {
-        Some(service) => service.session_publisher().await,
+        Some(service) => service.host_stream_hub().await,
         None => None,
     }
 }
@@ -2497,6 +2497,13 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                         break 'routing_events;
                     }
                     log::info!("Device presence updated: {} online", devices.len());
+                    // Presence is authoritative for who can still receive stream
+                    // hints; a device that dropped off stops holding streams alive.
+                    if let Some(hub) = host_stream_hub().await {
+                        let online: Vec<String> =
+                            devices.iter().map(|d| d.device_id.clone()).collect();
+                        hub.retain_online(&online);
+                    }
                     // Offline presence does not revoke an account device or its
                     // permission mailbox. Reconnect resumes the same ownership.
                     if !device_routing_owner_is_current(&event_owner).await {
@@ -2648,27 +2655,20 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                                         // taking the write lease. Captured account
                                         // ownership cannot cross into its replacement.
                                         let _routing_effect = routing_effect;
-                                        let execution = if let RemoteCommand::GetSessionKey {
-                                            session_id,
-                                        } = &cmd
+                                        // Host streams are answered from this host's
+                                        // memory for the requesting device; every
+                                        // other command goes to the local dispatcher.
+                                        let hub = host_stream_hub().await;
+                                        let execution = match bitfun_core::service::remote_connect::handle_host_stream_command(
+                                            hub.as_ref(),
+                                            &source_device_id,
+                                            &cmd,
+                                        )
+                                        .await
                                         {
-                                            async {
-                                                let publisher=session_publisher().await.ok_or_else(||anyhow::anyhow!("Session publisher unavailable"))?;
-                                                if session_id != bitfun_core::service::remote_connect::session_log::HOST_CATALOG_ID && !session_id.starts_with("terminal-") {
-                                                    bitfun_core::service::remote_connect::synchronize_session_records(&publisher,session_id).await.map_err(anyhow::Error::msg)?;
-                                                }
-                                                let response_session=session_id.clone();
-                                                let session_id=session_id.clone();let account=rpc_session.user_id.clone();
-                                                let (relay_session_id,key)=tokio::task::spawn_blocking(move || -> anyhow::Result<(String,String)> {
-                                                    use bitfun_core::service::remote_connect::{DeviceIdentity,session_log::SessionLog};
-                                                    let device=DeviceIdentity::from_current_machine()?;
-                                                    let log=SessionLog::existing_for_host(&account,&device.device_id,&session_id)?;
-                                                    Ok((log.relay_session_id(),log.key_grant()?))
-                                                }).await??;
-                                                Ok(serde_json::json!({"resp":"session_key","session_id":response_session,"relay_session_id":relay_session_id,"key":key}))
-                                            }.await
-                                        } else {
-                                            execute_local_remote_command(&cmd).await
+                                            Some(response) => serde_json::to_value(response)
+                                                .map_err(anyhow::Error::from),
+                                            None => execute_local_remote_command(&cmd).await,
                                         };
                                         // Returning drops this reply only. The loop
                                         // re-checks ownership at the top of every
@@ -3470,7 +3470,7 @@ static SESSION_SUBSCRIPTIONS: OnceLock<
     std::sync::Mutex<
         std::collections::HashMap<
             String,
-            bitfun_core::service::remote_connect::session_subscriber::SessionSubscriber,
+            bitfun_core::service::remote_connect::host_stream_subscriber::HostStreamSubscriber,
         >,
     >,
 > = OnceLock::new();
@@ -3516,7 +3516,7 @@ pub async fn account_subscribe_session(request: SubscribeSessionRequest) -> Resu
     let error_source = source.clone();
     let error_session_id = request.session_id.clone();
     let subscriber =
-        bitfun_core::service::remote_connect::session_subscriber::SessionSubscriber::start(
+        bitfun_core::service::remote_connect::host_stream_subscriber::HostStreamSubscriber::start(
             session,
             relay,
             request.target_device_id,

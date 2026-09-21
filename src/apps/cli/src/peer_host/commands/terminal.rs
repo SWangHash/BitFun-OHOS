@@ -50,11 +50,11 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
     } else {
         None
     };
-    let publisher = state
+    let hub = state
         .account_routing
-        .session_publisher()
+        .host_stream_hub()
         .await
-        .ok_or("Account realtime publisher is unavailable")?;
+        .ok_or("Account host streams are unavailable")?;
     if let Some(connection) = connection {
         let services = bitfun_core::service::remote_ssh::workspace_state::ensure_saved_connection_services().await?;
         let ssh = services
@@ -97,7 +97,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
             )
             .await
             .map_err(|e| e.to_string())?;
-        publisher
+        hub
             .append(
                 format!("terminal-{id}"),
                 "terminal-created".into(),
@@ -108,7 +108,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
         let result = response(created.session);
         let mut rx = created.output_rx;
         tokio::spawn(async move {
-            let mut closed = publisher.subscribe_closed();
+            let mut closed = hub.subscribe_closed();
             loop {
                 if *closed.borrow() {
                     break;
@@ -127,7 +127,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
                 let Some(cursor) = manager.replay_cursor(&id).await else {
                     break;
                 };
-                if publisher
+                if hub
                     .append(
                         format!("terminal-{id}"),
                         "terminal-output".into(),
@@ -154,7 +154,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
         .create_session(create)
         .await
         .map_err(|e| e.to_string())?;
-    publisher
+    hub
         .append(
             format!("terminal-{id}"),
             "terminal-created".into(),
@@ -163,7 +163,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
         .await
         .map_err(|e| e.to_string())?;
     tokio::spawn(async move {
-        let mut closed = publisher.subscribe_closed();
+        let mut closed = hub.subscribe_closed();
         loop {
             if *closed.borrow() {
                 break;
@@ -178,7 +178,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
                 break;
             }
             let cursor = *rx.borrow_and_update();
-            if publisher
+            if hub
                 .append(
                     format!("terminal-{id}"),
                     "terminal-output".into(),

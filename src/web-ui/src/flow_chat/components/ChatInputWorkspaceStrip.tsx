@@ -792,7 +792,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         {showDispatchPicker && dispatchControl ? (
           <DispatchTargetPicker
             target={dispatchControl.target}
-            sourceWorkspaceId={workspaceId} sourceWorkspacePath={dispatchControl.sourceWorkspacePath}
+            sourceWorkspacePath={dispatchControl.sourceWorkspacePath}
             locked={dispatchPickerLocked}
             localWorktreeControl={showWorktreeToggle && worktreeControl ? {
               enabled: worktreeEnabled,

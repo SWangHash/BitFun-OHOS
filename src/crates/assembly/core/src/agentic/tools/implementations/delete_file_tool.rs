@@ -150,6 +150,7 @@ Important notes:
             crate::agentic::execution::edit_constraint_guard::check_delete(
                 context, "Delete", "delete", path, force,
             )
+            .await
         }
     }
 

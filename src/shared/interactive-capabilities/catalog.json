@@ -4004,6 +4004,169 @@
       "operations": []
     },
     {
+      "id": "feature.openharmony-devtooling",
+      "kind": "feature",
+      "categoryId": "workspace",
+      "titleZh": "鸿蒙开发工具链",
+      "titleEn": "HarmonyOS dev tooling",
+      "summaryZh": "让智能体构建鸿蒙工程、检查 ArkTS 与 C++ 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
+      "summaryEn": "Let agents build HarmonyOS projects, check ArkTS and C++ sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
+      "keywordsZh": [
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证"
+      ],
+      "keywordsEn": [
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "on-device debugging",
+        "device log",
+        "UI verification"
+      ],
+      "highlightsZh": [
+        "构建与静态检查一站式完成",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志"
+      ],
+      "highlightsEn": [
+        "One-pass build and static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs"
+      ],
+      "items": [
+        {
+          "id": "build-and-checks",
+          "titleZh": "构建鸿蒙工程并检查 ArkTS 与 C++ 源码",
+          "titleEn": "Build HarmonyOS projects and check ArkTS and C++ sources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "build_project",
+              "check_arkts_files",
+              "check_cpp_files"
+            ],
+            "workflowZh": [
+              "先用 build_project 触发构建，阅读失败输出，修复后重试，直到构建通过",
+              "提交前用 check_arkts_files 与 check_cpp_files 做静态检查，把问题按文件与行号汇报"
+            ],
+            "workflowEn": [
+              "Trigger the build with build_project, read failures, fix, and rerun until it passes",
+              "Run check_arkts_files and check_cpp_files before commits and report findings by file and line"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#build_project",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_arkts_files",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_cpp_files"
+          ]
+        },
+        {
+          "id": "run-and-logs",
+          "titleZh": "安装启动应用到真机并抓取 hdc 设备日志",
+          "titleEn": "Install and launch on a device and capture hdc logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "start_app",
+              "hdc_log"
+            ],
+            "workflowZh": [
+              "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+              "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来"
+            ],
+            "workflowEn": [
+              "Use start_app to install and launch on the target device and report device or package failures",
+              "Use hdc_log to filter and follow device logs, extracting errors relevant to the change"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#start_app",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#hdc_log"
+          ]
+        },
+        {
+          "id": "ui-verification",
+          "titleZh": "验证界面表现并保存截图与验证日志",
+          "titleEn": "Verify UI behavior and keep screenshots and verification logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "verify_ui",
+              "get_ui_verification_log",
+              "save_ui_screenshot"
+            ],
+            "workflowZh": [
+              "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+              "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核"
+            ],
+            "workflowEn": [
+              "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+              "Keep evidence with get_ui_verification_log and save_ui_screenshot so users can review it"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#verify_ui",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#get_ui_verification_log",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#save_ui_screenshot"
+          ]
+        },
+        {
+          "id": "knowledge-and-cwd",
+          "titleZh": "检索 ArkTS 知识并切换会话工作目录",
+          "titleEn": "Search ArkTS knowledge and switch the session working directory",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "arkts_knowledge_search",
+              "switch_cwd"
+            ],
+            "workflowZh": [
+              "用 arkts_knowledge_search 查询 ArkTS/API 资料，引用来源再写代码",
+              "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
+            ],
+            "workflowEn": [
+              "Use arkts_knowledge_search for ArkTS and API questions and cite the source before coding",
+              "Use switch_cwd when work spans modules and always state the current directory"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#arkts_knowledge_search",
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#switch_cwd"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "在鸿蒙工作区打开智能体会话",
+        "让智能体构建、检查并安装应用到设备",
+        "查看设备日志与 UI 验证结果"
+      ],
+      "stepsEn": [
+        "Open an agent session on a HarmonyOS workspace",
+        "Ask the agent to build, check, and install to the device",
+        "Review device logs and UI verification results"
+      ],
+      "agentExamplesZh": [
+        "构建这个鸿蒙工程并修复报错",
+        "把应用装到真机上，看看崩溃日志"
+      ],
+      "agentExamplesEn": [
+        "Build this HarmonyOS project and fix the errors",
+        "Install the app on the device and check the crash logs"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      },
+      "operations": []
+    },
+    {
       "id": "feature.remote-workspaces",
       "kind": "feature",
       "categoryId": "connect",

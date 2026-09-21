@@ -182,7 +182,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     && !workspaceIsRemote
     && workspace.workspaceKind === WorkspaceKind.Normal;
   const workspaceSearchIndex = useWorkspaceSearchIndex({
-    workspaceId: canShowSearchIndex ? workspace.id : undefined,
+    workspacePath: canShowSearchIndex ? workspace.rootPath : undefined,
     enabled: canShowSearchIndex,
     isRemote: workspaceIsRemote,
   });

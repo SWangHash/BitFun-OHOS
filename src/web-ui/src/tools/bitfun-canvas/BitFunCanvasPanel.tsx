@@ -45,6 +45,7 @@ export interface BitFunCanvasPanelProps {
   source?: string;
   status?: string;
   diagnostics?: BitFunCanvasDiagnostic[];
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -202,6 +203,7 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
   source,
   status,
   diagnostics = [],
+  workspaceId,
   workspacePath,
   remoteConnectionId,
   remoteSshHost,
@@ -315,12 +317,10 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
   }, [artifactReference]);
 
   const loadArtifactSnapshot = useCallback(async (reason: string) => {
-    if (!artifactReference) return null;
+    if (!artifactReference || !workspaceId) return null;
     const response = await canvasAPI.loadArtifact({
       artifactReference,
-      workspacePath,
-      remoteConnectionId,
-      remoteSshHost,
+      workspaceId,
     });
     const canvas = response.canvas ?? null;
     applyLoadedCanvas(canvas, reason);
@@ -334,12 +334,10 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
   ]);
 
   const loadState = useCallback(async () => {
-    if (!artifactReference) return null;
+    if (!artifactReference || !workspaceId) return null;
     const response = await canvasAPI.loadState({
       artifactReference,
-      workspacePath,
-      remoteConnectionId,
-      remoteSshHost,
+      workspaceId,
     });
     return response.state ?? null;
   }, [artifactReference, remoteConnectionId, remoteSshHost, workspacePath]);
@@ -440,7 +438,7 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
       message,
       stack ?? '',
     ].join('\u0000');
-    if (reportedRuntimeErrorsRef.current.has(dedupeKey)) return;
+    if (!workspaceId || reportedRuntimeErrorsRef.current.has(dedupeKey)) return;
     reportedRuntimeErrorsRef.current.add(dedupeKey);
     try {
       const response = await canvasAPI.reportRuntimeError({
@@ -453,9 +451,7 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
         line: typeof data.lineno === 'number' ? data.lineno : undefined,
         column: typeof data.colno === 'number' ? data.colno : undefined,
         componentStack: data.componentStack ? String(data.componentStack) : undefined,
-        workspacePath,
-        remoteConnectionId,
-        remoteSshHost,
+        workspaceId,
       });
       applyLoadedCanvas(response.canvas ?? null, 'runtime-error');
       void requestCanvasAutoRepair({
@@ -516,7 +512,7 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
       return;
     }
     const key = `${artifactReference}\u0000${sourceRevisionSeen}\u0000${runtimeVersion}\u0000${sdkVersion}`;
-    if (reportedReadyRevisionsRef.current.has(key)) return;
+    if (!workspaceId || reportedReadyRevisionsRef.current.has(key)) return;
     reportedReadyRevisionsRef.current.add(key);
     try {
       const response = await canvasAPI.reportRuntimeReady({
@@ -524,9 +520,7 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
         sourceRevisionSeen,
         runtimeVersion,
         sdkVersion,
-        workspacePath,
-        remoteConnectionId,
-        remoteSshHost,
+        workspaceId,
       });
       applyLoadedCanvas(response.canvas ?? null, 'runtime-ready');
     } catch (error) {
@@ -859,15 +853,21 @@ export const BitFunCanvasPanel: React.FC<BitFunCanvasPanelProps> = ({
             break;
           }
           case 'bitfun-canvas-save-state': {
+            if (!workspaceId) {
+              postToIframe({
+                type: 'bitfun-canvas-save-state-result',
+                requestId: message.requestId,
+                state: null,
+              });
+              break;
+            }
             const response = await canvasAPI.saveState({
               artifactReference,
               sourceRevisionSeen: message.sourceRevisionSeen,
               values: message.values ?? {},
               valueVersions: message.valueVersions ?? {},
               updatedAt: Date.now(),
-              workspacePath,
-              remoteConnectionId,
-              remoteSshHost,
+              workspaceId,
             });
             postToIframe({
               type: 'bitfun-canvas-save-state-result',

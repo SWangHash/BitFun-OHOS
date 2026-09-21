@@ -36,7 +36,7 @@ export function useSkillMarket({
 }: UseSkillMarketOptions) {
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
-  const { workspace, hasWorkspace, workspacePath, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
+  const { workspace, hasWorkspace, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
 
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);

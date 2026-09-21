@@ -22,6 +22,11 @@
     gap: var(--bitfun-space-1);
   }
 
+  .root:not([data-variant="embedded"]) .fieldWithAction {
+    /* End clearance mirrors the input row height so the trailing action stays inset. */
+    padding-inline-end: max(0px, calc((var(--bitfun-control-height-sm) - var(--bitfun-control-icon-button-xs-size)) / 2));
+  }
+
   .root .clear {
     /* The clear action is already composited inside Input's field surface. */
     --_icon-button-background: transparent;

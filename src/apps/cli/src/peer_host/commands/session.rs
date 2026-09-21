@@ -751,27 +751,39 @@ pub(crate) async fn get_available_modes(
     let workspace = super::external_sources::workspace_root(state, request)
         .await
         .map_err(|error| error.encode())?;
-    if let Some(workspace) = workspace.as_deref() {
+    let workspace_id = match optional_string(request, "workspaceId") {
+        Some(id) => Some(id),
+        None => match workspace.as_deref() {
+            Some(path) => {
+                let service = bitfun_core::service::workspace::get_global_workspace_service()
+                    .ok_or("Workspace service is unavailable")?;
+                service
+                    .resolve_legacy_workspace_reference(None, &path.to_string_lossy(), None, None)
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .map(|info| info.id)
+            }
+            None => None,
+        },
+    };
+    if let Some(id) = workspace_id.as_deref() {
         if let Err(error) = bitfun_core::plugin_host::ensure_configured_plugin_instance(
             crate::PLUGIN_HOST_LAUNCH_POLICY,
-            workspace.to_path_buf(),
-            workspace.to_path_buf(),
-            optional_string(request, "workspaceId"),
+            id,
         )
         .await
         {
             bitfun_core::plugin_host::report_configured_plugin_activation_failure(
                 "CLI Peer mode catalog",
-                Some(workspace),
+                workspace_id.as_deref(),
                 error,
             )
             .await;
         }
-        if let Err(error) =
-            bitfun_core::external_sources::ensure_external_source_workspace_snapshot(Some(
-                workspace,
-            ))
-            .await
+        if let Err(error) = bitfun_core::external_sources::ensure_external_source_workspace_snapshot(
+            workspace_id.as_deref(),
+        )
+        .await
         {
             tracing::warn!(
                 "Failed to initialize external agent sources for Peer mode catalog: {error}"
@@ -779,7 +791,7 @@ pub(crate) async fn get_available_modes(
         }
     }
     let mode_infos = get_agent_registry()
-        .get_modes_info_for_workspace(workspace.as_deref(), workspace.is_some())
+        .get_modes_info_for_workspace(workspace_id.as_deref(), workspace.is_some())
         .await;
     let dtos: Vec<Value> = mode_infos
         .into_iter()

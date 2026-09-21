@@ -20,12 +20,6 @@ export function findReusableEmptySessionId(
   requestedMode?: string
 ): string | null {
   const { sessions } = flowChatStore.getState();
-  const remoteConnectionId = isRemoteWorkspace(workspace)
-    ? workspace.connectionId
-    : undefined;
-  const remoteSshHost = isRemoteWorkspace(workspace)
-    ? workspace.sshHost
-    : undefined;
 
   const targetMode = normalizeDefaultSessionTitleMode(requestedMode);
 
@@ -44,14 +38,7 @@ export function findReusableEmptySessionId(
     if (session.historyState !== 'new') {
       continue;
     }
-    if (
-      !sessionBelongsToWorkspaceNavRow(
-        session,
-        workspace.rootPath,
-        remoteConnectionId,
-        remoteSshHost
-      )
-    ) {
+    if (!sessionBelongsToWorkspaceNavRow(session, workspace.id)) {
       continue;
     }
 

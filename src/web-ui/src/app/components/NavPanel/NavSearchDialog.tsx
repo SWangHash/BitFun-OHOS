@@ -93,11 +93,7 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
       try {
         const rows: Array<{ meta: SessionMetadata; workspace: WorkspaceInfo }> = [];
         for (const w of openedWorkspacesList) {
-          const list = await sessionAPI.listSessions(
-            w.rootPath,
-            w.connectionId ?? undefined,
-            w.sshHost ?? undefined
-          );
+          const list = await sessionAPI.listSessions(w.id);
           for (const meta of list) {
             rows.push({ meta, workspace: w });
           }

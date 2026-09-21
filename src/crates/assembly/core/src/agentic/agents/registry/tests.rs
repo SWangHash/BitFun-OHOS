@@ -1,4 +1,4 @@
-use super::support::merge_dynamic_mcp_tools;
+use super::support::{merge_dynamic_acp_tools, merge_dynamic_mcp_tools};
 use super::{AgentRegistry, ExternalSubagentRegistration, ExternalSubagentRoute};
 use crate::agentic::agents::definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 use crate::agentic::agents::registry::builtin::default_model_id_for_builtin_agent;
@@ -732,6 +732,44 @@ fn merge_dynamic_mcp_tools_appends_registered_mcp_tools_once() {
             "mcp__github__list_issues".to_string(),
         ]
     );
+}
+
+#[test]
+fn merge_dynamic_acp_tools_appends_registered_acp_subagents_once() {
+    let configured_tools = vec!["Read".to_string(), "Task".to_string()];
+    let registered_tool_names = vec![
+        "Read".to_string(),
+        "Task".to_string(),
+        "acp__codex__prompt".to_string(),
+        "acp__claude-code__prompt".to_string(),
+        "acp__codex__prompt".to_string(),
+    ];
+
+    let merged = merge_dynamic_acp_tools(configured_tools, &registered_tool_names);
+
+    assert_eq!(
+        merged,
+        vec![
+            "Read".to_string(),
+            "Task".to_string(),
+            "acp__codex__prompt".to_string(),
+            "acp__claude-code__prompt".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn merge_dynamic_acp_tools_ignores_other_tool_families() {
+    let configured_tools = vec!["Read".to_string()];
+    let registered_tool_names = vec![
+        "mcp__notion__notion-search".to_string(),
+        "PluginTool".to_string(),
+        "acptool__not__prefixed".to_string(),
+    ];
+
+    let merged = merge_dynamic_acp_tools(configured_tools.clone(), &registered_tool_names);
+
+    assert_eq!(merged, configured_tools);
 }
 
 #[test]

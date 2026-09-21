@@ -22,6 +22,7 @@ const LOAD_MORE_COUNT = 50;
 interface FileSearchResultsProps {
   results: FileSearchResultGroup[];
   searchQuery: string;
+  limitNotice?: string | null;
   onFileSelect: (filePath: string, fileName: string) => void;
   onFolderNavigate?: (folderPath: string, folderName: string) => void;
   workspacePath?: string;
@@ -234,7 +235,7 @@ const FileGroup = memo<FileGroupProps>(({
   return (
     <div className="bitfun-search-results__group">
       <div className="bitfun-search-results__file">
-        <button data-overflow-trigger
+        <button
           type="button"
           className="bitfun-search-results__file-main"
           onClick={() => onFileClick(target)}
@@ -252,10 +253,19 @@ const FileGroup = memo<FileGroupProps>(({
             )}
           </span>
           <span className="bitfun-search-results__file-info">
-            <span className="bitfun-search-results__file-name">
-                <OverflowText behavior="marquee"><HighlightedText text={group.name} query={searchQuery} /></OverflowText>
+            <span
+              className="bitfun-search-results__file-name"
+              data-overflow-trigger
+            >
+              <OverflowText behavior="marquee" marqueeTrigger="interaction">
+                <HighlightedText text={group.name} query={searchQuery} />
+              </OverflowText>
             </span>
-            <OverflowText className="bitfun-search-results__file-path">
+            <OverflowText
+              className="bitfun-search-results__file-path"
+              data-overflow-trigger
+              marqueeTrigger="interaction"
+            >
               {group.path}
             </OverflowText>
           </span>
@@ -271,14 +281,14 @@ const FileGroup = memo<FileGroupProps>(({
             }}
             title={isExpanded ? t('search.collapse') : t('search.expand')}
           >
+            <span className="bitfun-search-results__file-toggle-count">
+              {group.contentMatches.length}
+            </span>
             {isExpanded ? (
               <Icon name="chevron-down" size="xs" />
             ) : (
               <Icon name="chevron-right" size="xs" />
             )}
-            <span className="bitfun-search-results__file-toggle-count">
-              {group.contentMatches.length}
-            </span>
           </button>
         )}
       </div>
@@ -305,6 +315,7 @@ FileGroup.displayName = 'FileGroup';
 export const FileSearchResults: React.FC<FileSearchResultsProps> = ({
   results,
   searchQuery,
+  limitNotice,
   onFileSelect,
   onFolderNavigate,
   workspacePath,
@@ -343,12 +354,20 @@ export const FileSearchResults: React.FC<FileSearchResultsProps> = ({
     return results.slice(0, displayCount);
   }, [results, displayCount]);
 
-  const hasMore = displayCount < results.length;
   const totalMatches = useMemo(() => {
     return results.reduce((count, group) => {
       return count + (group.fileNameMatch ? 1 : 0) + group.contentMatches.length;
     }, 0);
   }, [results]);
+  const hasMore = displayCount < results.length;
+  const resultsSummary = t('search.resultsSummaryCompact', {
+    files: results.length,
+    matches: totalMatches,
+  });
+  const resultsShowing = hasMore
+    ? t('search.resultsShowingCompact', { count: displayCount })
+    : '';
+  const headerText = [limitNotice, resultsSummary, resultsShowing].filter(Boolean).join(' · ');
 
   const shouldDefaultExpand = results.length <= 100;
   
@@ -515,10 +534,15 @@ export const FileSearchResults: React.FC<FileSearchResultsProps> = ({
   return (
     <div className={`bitfun-search-results ${className}`} data-bitfun-component="file-system" data-bitfun-part="searchResults">
       <div className="bitfun-search-results__header" data-bitfun-component="file-system" data-bitfun-part="header">
-        <span className="bitfun-search-results__count">
-          {t('search.resultsSummary', { files: results.length, matches: totalMatches })}
-          {hasMore && <span className="bitfun-search-results__showing">{t('search.resultsShowing', { count: displayCount })}</span>}
-        </span>
+        <OverflowText
+          aria-label={headerText}
+          behavior="fade"
+          className="bitfun-search-results__count"
+          overflowStyle="ellipsis"
+          title={headerText}
+        >
+          {headerText}
+        </OverflowText>
       </div>
 
       <ScrollArea

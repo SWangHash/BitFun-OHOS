@@ -2540,8 +2540,8 @@ async fn deliver_event_to_webview(
         attach_session_event_cursor(&mut projected.payload, cursor);
     }
 
-    if let (Some(publisher), Some(session_id)) = (
-        api::remote_connect_api::session_publisher().await,
+    if let (Some(hub), Some(session_id)) = (
+        api::remote_connect_api::host_stream_hub().await,
         projected
             .payload
             .get("sessionId")
@@ -2563,12 +2563,12 @@ async fn deliver_event_to_webview(
                     .and_then(serde_json::Value::as_str)
                 {
                     bitfun_core::service::remote_connect::synchronize_session_record_turn(
-                        &publisher, session_id, turn,
+                        &hub, session_id, turn,
                     )
                     .await
                 } else if name == "agentic://session-history-changed" {
                     bitfun_core::service::remote_connect::synchronize_session_records(
-                        &publisher, session_id,
+                        &hub, session_id,
                     )
                     .await
                 } else {
@@ -2577,11 +2577,11 @@ async fn deliver_event_to_webview(
             }
             .await
             {
-                log::error!("Unable to synchronize durable session records: {error}");
+                log::error!("Unable to synchronize host session records: {error}");
             }
         }
         if policy.persist_control {
-            if let Err(error) = publisher
+            if let Err(error) = hub
                 .append(
                     session_id.to_owned(),
                     projected.event_name.clone(),
@@ -2589,7 +2589,7 @@ async fn deliver_event_to_webview(
                 )
                 .await
             {
-                log::error!("Unable to persist session control event: {error}");
+                log::error!("Unable to publish session control event: {error}");
             }
         }
     }

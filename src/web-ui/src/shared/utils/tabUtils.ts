@@ -32,6 +32,7 @@ interface CreateTerminalTabOptions {
 }
 
 export interface CreateReviewPlatformPullRequestDetailTabOptions {
+  workspaceId?: string;
   workspacePath?: string;
   remoteId?: string;
   pullRequestId?: string;
@@ -45,6 +46,7 @@ export interface OpenCanvasArtifactTabOptions {
   source?: string;
   status?: string;
   diagnostics?: unknown[];
+  workspaceId?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
@@ -88,6 +90,7 @@ export function openCanvasArtifactTab(options: OpenCanvasArtifactTabOptions): bo
       source: options.source,
       status: options.status,
       diagnostics: options.diagnostics,
+      workspaceId: options.workspaceId,
       workspacePath: options.workspacePath,
       remoteConnectionId: options.remoteConnectionId,
       remoteSshHost: options.remoteSshHost,
@@ -173,6 +176,7 @@ export function createDiffEditorTab(
   options?: {
     titleKind?: 'git-diff' | 'diff' | 'fix-preview';
     duplicateKeyPrefix?: 'git-diff' | 'diff' | 'fix-diff';
+    workspaceId?: string;
   }
 ): void {
   const titleKind = options?.titleKind ?? (repositoryPath ? 'git-diff' : 'fix-preview');
@@ -199,6 +203,7 @@ export function createDiffEditorTab(
       readOnly,
       repositoryPath,
       revealLine,
+      workspaceId: options?.workspaceId,
     },
     metadata: { filePath, repositoryPath, duplicateCheckKey: duplicateKey },
     checkDuplicate: true,
@@ -219,7 +224,8 @@ export function createGitDiffEditorTab(
   modifiedCode: string,
   repositoryPath: string,
   readOnly: boolean = false,
-  replaceExisting?: boolean
+  replaceExisting?: boolean,
+  workspaceId?: string
 ): void {
   createDiffEditorTab(
     filePath,
@@ -230,7 +236,8 @@ export function createGitDiffEditorTab(
     'git',
     repositoryPath,
     undefined,
-    replaceExisting
+    replaceExisting,
+    { workspaceId }
   );
 }
 
@@ -304,17 +311,17 @@ export function createConfigCenterTab(
   window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'settings' } }));
 }
 
-export function createReviewPlatformTab(workspacePath?: string): void {
+export function createReviewPlatformTab(workspaceId: string, workspacePath?: string): void {
   const detail = {
     type: 'review-platform',
     title: i18nService.getT()('common:tabs.pullRequests'),
-    data: { workspacePath },
+    data: { workspaceId, workspacePath },
     metadata: {
       workspacePath,
-      duplicateCheckKey: `review-platform:${workspacePath || 'current'}`,
+      duplicateCheckKey: `review-platform:${workspaceId}`,
     },
     checkDuplicate: true,
-    duplicateCheckKey: `review-platform:${workspacePath || 'current'}`,
+    duplicateCheckKey: `review-platform:${workspaceId}`,
     replaceExisting: true,
   };
 
@@ -369,12 +376,14 @@ export function createReviewPlatformPullRequestDetailTab(options: CreateReviewPl
     type: 'review-platform-pr-detail',
     title,
     data: {
+      workspaceId: options.workspaceId,
       workspacePath: options.workspacePath,
       remoteId: options.remoteId,
       pullRequestId: options.pullRequestId,
       pullRequestUrl: options.pullRequestUrl,
     },
     metadata: {
+      workspaceId: options.workspaceId,
       workspacePath: options.workspacePath,
       remoteId: options.remoteId,
       pullRequestId: options.pullRequestId,
