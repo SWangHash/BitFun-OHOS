@@ -63,11 +63,10 @@ use super::prompt::AcpPrompt;
 use super::remote_capability_store::RemoteAcpCapabilityStore;
 use super::remote_session::{preferred_resume_strategies, AcpRemoteSessionStrategy};
 use super::remote_shell::{remote_user_shell_command, render_remote_env_assignments, shell_escape};
-#[cfg(target_env = "ohos")]
-use super::requirements::probe_executable_with_environment;
 use super::requirements::{
     acp_requirement_spec, apply_command_environment, install_npm_cli_package,
-    install_remote_npm_cli_package, predownload_npm_adapter, probe_executable, probe_npm_adapter,
+    install_remote_npm_cli_package, predownload_npm_adapter, probe_configured_executable,
+    probe_executable, probe_npm_adapter, probe_remote_configured_executable,
     probe_remote_executable, probe_remote_npx_adapter, resolve_configured_command,
 };
 use super::session_options::{
@@ -377,6 +376,16 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
+            if let Some(config) = configs.get(&id) {
+                let config =
+                    apply_local_runtime_override(config.clone(), cfg!(target_env = "ohos"));
+                probes.push(configured_client_probe(
+                    &id,
+                    probe_configured_executable(&config),
+                ));
+                continue;
+            }
+
             #[cfg(target_env = "ohos")]
             if builtin_acp_client_preset(&id)
                 .map(|preset| preset.supports_ohos())
@@ -384,17 +393,6 @@ impl AcpClientService {
             {
                 let (_, probe) = probe_existing_managed_client(&id, &self.path_manager).await?;
                 probes.push(probe);
-                continue;
-            }
-
-            #[cfg(target_env = "ohos")]
-            if let Some(runtime_override) = configs
-                .get(&id)
-                .and_then(|config| config.local_override.as_ref())
-            {
-                probes.push(
-                    probe_local_runtime_override(&id, configs.get(&id), runtime_override).await,
-                );
                 continue;
             }
 
@@ -484,6 +482,13 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
+            if let Some(config) = config_file.acp_clients.get(&id) {
+                let tool =
+                    probe_remote_configured_executable(&ssh_manager, remote_connection_id, config)
+                        .await;
+                probes.push(configured_client_probe(&id, tool));
+                continue;
+            }
             let config = resolve_config_for_client(&config_file, &id, Some(remote_connection_id));
             let spec = acp_requirement_spec(&id, config.as_ref());
             let tool = probe_remote_executable(
@@ -2332,75 +2337,22 @@ fn managed_provisioning_failure(error: BitFunError, rollback_errors: Vec<String>
     ))
 }
 
-#[cfg(target_env = "ohos")]
-async fn probe_local_runtime_override(
+// Requirement discovery does not start the configured agent or claim an ACP handshake.
+fn configured_client_probe(
     client_id: &str,
-    config: Option<&AcpClientConfig>,
-    runtime_override: &super::config::AcpClientRuntimeOverride,
+    tool: super::config::AcpRequirementProbeItem,
 ) -> AcpClientRequirementProbe {
-    let working_directory = runtime_override
-        .env
-        .iter()
-        .find_map(|(key, value)| key.eq_ignore_ascii_case("HOME").then_some(Path::new(value)));
-    let spec = acp_requirement_spec(client_id, config);
-    let (tool, adapter) = if let Some(adapter_spec) = spec.adapter {
-        let tool = probe_executable_with_environment(
-            spec.tool_command,
-            Some(&runtime_override.env),
-            working_directory,
-        )
-        .await;
-        let mut adapter = probe_executable_with_environment(
-            &runtime_override.command,
-            Some(&runtime_override.env),
-            working_directory,
-        )
-        .await;
-        adapter.name = adapter_spec.package.to_string();
-        (tool, Some(adapter))
-    } else {
-        (
-            probe_executable_with_environment(
-                &runtime_override.command,
-                Some(&runtime_override.env),
-                working_directory,
-            )
-            .await,
-            None,
-        )
-    };
-    let runnable = tool.installed
-        && tool.error.is_none()
-        && adapter
-            .as_ref()
-            .map(|item| item.installed && item.error.is_none())
-            .unwrap_or(true);
-    let mut notes = Vec::new();
-    if !tool.installed || tool.error.is_some() {
-        notes.push(
-            tool.error
-                .clone()
-                .unwrap_or_else(|| format!("{} is not runnable", tool.name)),
-        );
-    }
-    if let Some(item) = adapter
-        .as_ref()
-        .filter(|item| !item.installed || item.error.is_some())
-    {
-        notes.push(
-            item.error
-                .clone()
-                .unwrap_or_else(|| format!("{} is not runnable", item.name)),
-        );
-    }
-
-    AcpClientRequirementProbe {
+    let runnable = tool.installed;
+    let notes = tool.error.iter().cloned().collect();
+    let mut probe = AcpClientRequirementProbe {
         id: client_id.to_string(),
         tool,
-        adapter,
+        adapter: None,
         runnable,
         notes,
-    }
+    };
+    check_bundled_profile_requirement(&mut probe);
+    probe
 }
 
 fn ensure_remote_client_supported(

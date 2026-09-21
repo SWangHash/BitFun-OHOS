@@ -51,6 +51,60 @@ pub(crate) fn acp_requirement_spec<'a>(
     }
 }
 
+/// Resolve the same command and PATH used to launch the configured process.
+/// Do not append --version: arbitrary ACP commands need not implement that flag.
+pub(crate) fn probe_configured_executable(config: &AcpClientConfig) -> AcpRequirementProbeItem {
+    let configured_path = configured_path_value(&config.env);
+    let path = if config.command.trim().is_empty() {
+        None
+    } else {
+        find_executable_with_path(&config.command, configured_path.as_deref())
+    };
+    let installed = path.is_some();
+    AcpRequirementProbeItem {
+        name: config.command.clone(),
+        installed,
+        version: None,
+        path: path.map(|path| path.to_string_lossy().into_owned()),
+        error: (!installed).then(|| "Configured ACP command could not be resolved".to_string()),
+    }
+}
+
+pub(crate) async fn probe_remote_configured_executable(
+    ssh_manager: &SSHConnectionManager,
+    connection_id: &str,
+    config: &AcpClientConfig,
+) -> AcpRequirementProbeItem {
+    let mut item = AcpRequirementProbeItem {
+        name: config.command.clone(),
+        installed: false,
+        version: None,
+        path: None,
+        error: None,
+    };
+    if config.command.trim().is_empty() {
+        item.error = Some("Configured ACP command is empty".to_string());
+        return item;
+    }
+    let env_prefix = render_remote_env_prefix(Some(&config.env));
+    let command = remote_user_shell_command(&format!(
+        "{env_prefix}command -v {}",
+        shell_escape(config.command.trim())
+    ));
+    match ssh_manager.execute_command(connection_id, &command).await {
+        Ok((stdout, _, 0)) if !stdout.trim().is_empty() => {
+            item.installed = true;
+            item.path = Some(stdout.trim().to_string());
+        }
+        Ok(_) => {
+            item.error =
+                Some("Configured ACP command could not be resolved on remote PATH".to_string())
+        }
+        Err(error) => item.error = Some(error.to_string()),
+    }
+    item
+}
+
 pub(crate) async fn probe_executable(command: &str) -> AcpRequirementProbeItem {
     probe_executable_with_path(command, None).await
 }
@@ -781,6 +835,19 @@ mod tests {
         std::fs::write(&executable, b"").expect("test executable should be written");
 
         let found = find_executable_with_path("bitfun-test-tool", Some(test_dir.as_os_str()));
+        let mut config: AcpClientConfig = serde_json::from_value(serde_json::json!({
+            "command": "bitfun-test-tool",
+            "env": { "PATH": test_dir.to_string_lossy() }
+        }))
+        .expect("configured command");
+        let probe = probe_configured_executable(&config);
+        assert!(probe.installed);
+        assert_eq!(probe.path.as_deref(), executable.to_str());
+        // The empty fixture is never executed: entry discovery must not impose --version.
+        config.command = "missing-bitfun-test-tool".to_string();
+        assert!(!probe_configured_executable(&config).installed);
+        config.command.clear();
+        assert!(!probe_configured_executable(&config).installed);
 
         let _ = std::fs::remove_dir_all(&test_dir);
         assert_eq!(found, Some(executable));

@@ -214,10 +214,6 @@ function normalizeConfigValue(value: unknown): {
 
     const item = rawConfig as Record<string, unknown>;
     const command = typeof item.command === 'string' ? item.command.trim() : '';
-    if (!command) {
-      continue;
-    }
-
     hasLegacyPermissionModes ||= item.permissionMode === 'reject_once';
     acpClients[id] = {
       name: typeof item.name === 'string' ? item.name : undefined,
@@ -239,7 +235,6 @@ function normalizeRuntimeOverride(value: unknown): AcpClientConfig['localOverrid
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const item = value as Record<string, unknown>;
   const command = typeof item.command === 'string' ? item.command.trim() : '';
-  if (!command) return undefined;
   return {
     command,
     args: Array.isArray(item.args) ? item.args.map(String) : [],
@@ -365,6 +360,7 @@ function getAgentRowStatus({
   probe?: AcpClientRequirementProbe;
 }): AgentRowStatus {
   if (probePending) return 'checking';
+  if (configured && probe?.runnable === false && !hasTransientProbeFailure(probe)) return 'invalid';
   if (toolInstalled === false) {
     if (configured && enabled && hasTransientProbeFailure(probe)) {
       return 'enabled';
