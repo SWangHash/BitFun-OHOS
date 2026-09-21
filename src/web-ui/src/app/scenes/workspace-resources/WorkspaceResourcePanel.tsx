@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
-import { FilePlus, FolderPlus, List, RotateCw } from 'lucide-react';
+import { ChevronsDownUp, FilePlus, FolderPlus, List, RotateCw } from 'lucide-react';
 import {
   Icon, IconButton, NavigationPanel, NavigationPanelBody, NavigationPanelContent,
   NavigationPanelHeader, OverflowText, StatusPill, Tooltip,
@@ -156,6 +156,7 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
                     {layout.fileView === 'tree' && toolbar && <>
                       <Tooltip content={tTools('fileTree.newFile')}><IconButton size="xs" aria-label={tTools('fileTree.newFile')} icon={<FilePlus />} onClick={toolbar.onNewFile} /></Tooltip>
                       <Tooltip content={tTools('fileTree.newFolder')}><IconButton size="xs" aria-label={tTools('fileTree.newFolder')} icon={<FolderPlus />} onClick={toolbar.onNewFolder} /></Tooltip>
+                      {toolbar.onCollapseAll && <Tooltip content={tTools('fileTree.collapse')}><IconButton size="xs" aria-label={tTools('fileTree.collapse')} icon={<ChevronsDownUp />} onClick={toolbar.onCollapseAll} /></Tooltip>}
                       <Tooltip content={tTools('fileTree.refresh')}><IconButton size="xs" aria-label={tTools('fileTree.refresh')} icon={<RotateCw />} onClick={toolbar.onRefresh} /></Tooltip>
                     </>}
                     <Tooltip content={layout.fileView === 'tree' ? tFiles('actions.switchToSearch') : tFiles('actions.switchToTree')}>

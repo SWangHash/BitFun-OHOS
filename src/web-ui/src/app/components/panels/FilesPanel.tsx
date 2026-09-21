@@ -707,7 +707,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         await loadFileTree(undefined, true);
 
         if (!pathsEquivalentFs(targetDirectory, workspacePath)) {
-          expandFolder(targetDirectory, true);
+          // The paste mutated this directory's children. expandFolder alone
+          // only re-resolves unresolved/stale nodes, so a directory with
+          // cached children would keep showing the old listing. Collapse and
+          // re-expand lazily to force a fresh resolve.
+          expandFolder(targetDirectory, false);
+          await expandFolderLazy(targetDirectory);
         }
       }
 
@@ -738,6 +743,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     notification,
     loadFileTree,
     expandFolder,
+    expandFolderLazy,
     findNode,
     t,
     createTransferProgress,
@@ -1044,6 +1050,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       onNewFile: handleExplorerToolbarNewFile,
       onNewFolder: handleExplorerToolbarNewFolder,
       onRefresh: handleExplorerToolbarRefresh,
+      onCollapseAll: collapseAll,
     };
   }, [
     workspacePath,
@@ -1051,6 +1058,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     handleExplorerToolbarNewFile,
     handleExplorerToolbarNewFolder,
     handleExplorerToolbarRefresh,
+    collapseAll,
   ]);
 
   useEffect(() => {

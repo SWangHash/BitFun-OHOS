@@ -64,6 +64,8 @@ export interface FileExplorerToolbarHandlers {
   onNewFile: () => void;
   onNewFolder: () => void;
   onRefresh: () => void;
+  /** Optional collapse-all handler; omitted when the host hides the tree. */
+  onCollapseAll?: () => void;
 }
 
 
