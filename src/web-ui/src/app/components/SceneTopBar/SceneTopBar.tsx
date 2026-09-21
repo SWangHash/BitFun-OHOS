@@ -2,14 +2,11 @@ import React, { useCallback } from 'react';
 import { Toolbar } from '@bitfun/ui';
 import { WindowControls } from '@/app/components/WindowControls';
 import { supportsNativeWindowDragging, usesHostWindowControls } from '@/infrastructure/runtime';
-import { workspaceAPI } from '@/infrastructure/api';
-import { createLogger } from '@/shared/utils/logger';
+import { useWindowChromeDrag } from '@/app/hooks/useWindowChromeDrag';
 import { useSceneStore } from '../../stores/sceneStore';
 import SceneBar from '../SceneBar/SceneBar';
 import { SceneChromeHost } from './SceneChrome';
 import './SceneTopBar.scss';
-
-const log = createLogger('SceneTopBar');
 
 const INTERACTIVE_SELECTOR =
   'button, input, textarea, select, a, [role="button"], [role="tab"], [role="menu"], [contenteditable]:not([contenteditable="false"]), [draggable="true"], .window-controls';
@@ -54,25 +51,17 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   // The OpenHarmony host paints its own minimize/maximize/close buttons in
   // this corner, so reserve the strip instead of drawing an overlapping set.
   const showHostWindowChromePlaceholder = usesHostWindowControls();
-  const lastMouseDownTimeRef = React.useRef(0);
+  // Window drag starts on mousedown. While maximized, it is deferred until the
+  // pointer moves, because Windows restores a maximized window the moment a
+  // native drag begins — even for a plain click.
+  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!canDragWindow || event.button !== 0 || event.detail > 1) return;
+    // Interactive descendants (tabs, buttons, inputs, ...) keep their own
+    // interactions; only plain chrome initiates the window drag.
     if (blocksWindowChromeInteraction(event, isSingleTab)) return;
-
-    const now = Date.now();
-    const timeSinceLastMouseDown = now - lastMouseDownTimeRef.current;
-    lastMouseDownTimeRef.current = now;
-    if (timeSinceLastMouseDown < 500 && timeSinceLastMouseDown > 50) return;
-
-    void (async () => {
-      try {
-        await workspaceAPI.startWindowDragging();
-      } catch (error) {
-        log.debug('startDragging failed', error);
-      }
-    })();
-  }, [canDragWindow, isSingleTab]);
+    handleChromeMouseDown(event);
+  }, [handleChromeMouseDown, isSingleTab]);
 
   const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canDragWindow || event.button !== 0 || blocksWindowChromeInteraction(event, isSingleTab)) return;

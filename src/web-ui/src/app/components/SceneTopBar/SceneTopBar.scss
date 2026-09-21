@@ -78,6 +78,14 @@
     flex: 0 0 auto;
     height: 100%;
     margin-inline-start: var(--bitfun-space-2);
+
+    // The host keeps its decor geometry compact (EntryAbility.ets
+    // OHOS_DECOR_BUTTON_STYLE: 3 x 28vp buttons + 2 x 8vp spacing +
+    // 6vp right margin); reserve roughly that footprint so in-app actions
+    // stay clear without leaving an oversized dead gap.
+    &--host {
+      width: 96px;
+    }
   }
 }
 

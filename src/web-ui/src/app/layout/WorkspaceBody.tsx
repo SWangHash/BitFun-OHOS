@@ -149,7 +149,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
       />
       {isNavCollapsed && (
         <div className="bitfun-workspace-body__collapsed-nav" data-bitfun-scene="workbench" data-bitfun-part="collapsedNav">
-          <NavBar isCollapsed onExpandNav={toggleLeftPanel} onMaximize={onMaximize} />
+          <NavBar isCollapsed onExpandNav={toggleLeftPanel} onMaximize={onMaximize} isMaximized={isMaximized} />
         </div>
       )}
 
@@ -163,7 +163,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
         data-bitfun-theme-scope="chrome"
         data-bitfun-state={isNavCollapsed ? 'collapsed' : undefined}
       >
-        <NavBar onExpandNav={toggleLeftPanel} onMaximize={onMaximize} />
+        <NavBar onExpandNav={toggleLeftPanel} onMaximize={onMaximize} isMaximized={isMaximized} />
         <NavPanel className="bitfun-workspace-body__nav-panel" />
         <div data-bitfun-creation-slot="sidebar-footer" />
       </div>

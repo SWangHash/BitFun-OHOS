@@ -38,6 +38,21 @@ import { FileShareRequest, FileShareService } from '../services/FileShareService
 
 const DOMAIN = 0x0000;
 
+// Native decor button geometry. The web-ui SceneTopBar reserves this width for
+// the host chrome corner (`bitfun-scene-top-bar__window-controls--host`); keep
+// the two sides in lockstep so in-app actions do not slide under the system
+// buttons and no dead gap appears between them.
+// DecorButtonStyle: buttonBackgroundSize 28vp x3 + spacingBetweenButtons 8vp
+// x2 + closeButtonRightMargin 6vp = 106vp; plus 2px safety slack => 108px.
+const OHOS_DECOR_BUTTON_STYLE: window.DecorButtonStyle = {
+  buttonBackgroundSize: 28,
+  spacingBetweenButtons: 8,
+  closeButtonRightMargin: 6,
+};
+// Decor bar height matching --bitfun-layout-toolbar-md-height (45px) so the
+// native buttons center on the same vertical axis as the web title bar.
+const OHOS_DECOR_HEIGHT = 45;
+
 interface SetAlwaysOnTopArg {
   isTopmost: boolean;
 }
@@ -229,7 +244,15 @@ export default class EntryAbility extends RustAbility {
       return '';
     });
     RustModule.registerArktsFunction('handle_max_window', async (err: Error, arg: string): Promise<string> => {
-      windowStage.getMainWindowSync().maximize();
+      try {
+        // EXIT_IMMERSIVE preserves the native caption buttons while entering
+        // the maximized state. The plain overload can switch the window into
+        // immersive mode, where buttons only appear on hover.
+        await windowStage.getMainWindowSync().maximize(window.MaximizePresentation.EXIT_IMMERSIVE);
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `maximize failed: ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('handle_restore_window', async (err: Error, arg: string): Promise<string> => {
@@ -377,18 +400,26 @@ export default class EntryAbility extends RustAbility {
       const req: SetDecorationsArg = JSON.parse(arg);
       const mainWin = windowStage.getMainWindowSync();
       try {
-        // Showing native title buttons makes HarmonyOS fall back to hover-only
-        // window decorations. Re-apply the same custom title-bar configuration
-        // used at startup after restoring the buttons.
+        // Keep the native caption strip visible when the system buttons are
+        // restored. Hiding it leaves the buttons in hover-only mode after a
+        // maximize/recover transition.
         await mainWin.setWindowTitleButtonVisible(
           req.visible,
           req.visible,
           req.visible,
         );
         if (req.visible) {
-          mainWin.setWindowDecorHeight(44);
+          mainWin.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
           mainWin.setWindowTitleMoveEnabled(false);
-          mainWin.setWindowDecorVisible(false);
+          mainWin.setWindowDecorVisible(true);
+          try {
+            // Tighten the native min/max/close cluster so it stays clear of the
+            // in-app trailing actions while keeping the corner reservation slim.
+            mainWin.setDecorButtonStyle(OHOS_DECOR_BUTTON_STYLE);
+          } catch (e) {
+            const be = e as BusinessError;
+            hilog.warn(DOMAIN, TAG, `setDecorButtonStyle failed: ${be.message}`);
+          }
         }
       } catch (e) {
         const be = e as BusinessError;
@@ -626,9 +657,17 @@ export default class EntryAbility extends RustAbility {
     });
     setTimeout(() => {
       windowStage.getMainWindow((err, data) => {
-        data.setWindowDecorHeight(38);
+        data.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
+        try {
+          // Match the same compact decor-button geometry applied when the
+          // in-app chrome is later restored (set_decorations_ohos).
+          data.setDecorButtonStyle(OHOS_DECOR_BUTTON_STYLE);
+        } catch (e) {
+          const be = e as BusinessError;
+          hilog.warn(DOMAIN, TAG, `setDecorButtonStyle failed: ${be.message}`);
+        }
       })
     }, 40)
     RustModule.registerArktsFunction('reveal_in_explorer', async (err: Error, arg: string): Promise<string> => {

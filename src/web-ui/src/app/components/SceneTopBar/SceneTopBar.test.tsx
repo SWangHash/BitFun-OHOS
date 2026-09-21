@@ -10,6 +10,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const sceneState = vi.hoisted(() => ({ openTabs: [{}] as unknown[], selectTab: vi.fn(), closeTab: vi.fn() }));
 const startDragging = vi.hoisted(() => vi.fn(async () => {}));
+const runtimeState = vi.hoisted(() => ({ usesHostWindowControls: false }));
 const stylesheet = readFileSync(
   resolve(process.cwd(), 'src/app/components/SceneTopBar/SceneTopBar.scss'),
   'utf8',
@@ -17,6 +18,13 @@ const stylesheet = readFileSync(
 
 vi.mock('@/app/components/WindowControls', () => ({ WindowControls: () => <button>Window controls</button> }));
 vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ startDragging }) }));
+vi.mock('@/infrastructure/runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/infrastructure/runtime')>();
+  return {
+    ...actual,
+    usesHostWindowControls: () => runtimeState.usesHostWindowControls,
+  };
+});
 vi.mock('../../stores/sceneStore', () => ({ useSceneStore: (selector: (state: typeof sceneState) => unknown) => selector(sceneState) }));
 vi.mock('../SceneBar/SceneBar', async () => {
   const { TabGroup } = await import('@bitfun/ui');
@@ -124,9 +132,9 @@ describe('SceneTopBar', () => {
       host.remove();
     });
 
-    function renderBar(tabCount = 1) {
+    function renderBar(tabCount = 1, isMaximized = false) {
       sceneState.openTabs = Array.from({ length: tabCount }, () => ({}));
-      act(() => root.render(<SceneTopBar onMinimize={vi.fn()} onMaximize={maximize} onClose={vi.fn()} />));
+      act(() => root.render(<SceneTopBar onMinimize={vi.fn()} onMaximize={maximize} onClose={vi.fn()} isMaximized={isMaximized} />));
       return host.querySelector<HTMLElement>('[data-bitfun-component="toolbar"]')!;
     }
 
@@ -141,6 +149,13 @@ describe('SceneTopBar', () => {
 
     function doubleClick(target: Element) {
       act(() => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2, cancelable: true })));
+    }
+
+    async function pointerMove(clientX: number, clientY: number) {
+      await act(async () => {
+        window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX, clientY }));
+        await vi.dynamicImportSettled();
+      });
     }
 
     it.each([0, 1, 2, 8])('allows dragging and maximizing empty chrome with %i open tabs', async tabCount => {
@@ -237,5 +252,64 @@ describe('SceneTopBar', () => {
       expect(startDragging).not.toHaveBeenCalled();
       expect(maximize).not.toHaveBeenCalled();
     });
+
+    it('keeps a plain click on maximized chrome inert instead of restoring the window', async () => {
+      const toolbar = renderBar(2, true);
+      await mouseDown(toolbar);
+      // No pointer movement: native drag must never start, so the maximized
+      // window is not restored by a bare toolbar click.
+      expect(startDragging).not.toHaveBeenCalled();
+      await mouseDown(toolbar, { detail: 1 });
+      expect(startDragging).not.toHaveBeenCalled();
+    });
+
+    it('starts dragging a maximized window only after the pointer crosses the movement threshold', async () => {
+      const toolbar = renderBar(2, true);
+      await mouseDown(toolbar);
+      await pointerMove(3, 3);
+      expect(startDragging).not.toHaveBeenCalled();
+      await pointerMove(7, 3);
+      expect(startDragging).toHaveBeenCalledOnce();
+      // Listeners are torn down after the drag starts; further movement must
+      // not start a second drag.
+      await pointerMove(30, 30);
+      expect(startDragging).toHaveBeenCalledOnce();
+    });
+
+    it('releases the pending maximized gesture on pointerup without dragging', async () => {
+      const toolbar = renderBar(2, true);
+      await mouseDown(toolbar);
+      act(() => window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
+      await pointerMove(20, 20);
+      expect(startDragging).not.toHaveBeenCalled();
+    });
+
+    it('still maximizes by double-click while maximized', async () => {
+      const toolbar = renderBar(2, true);
+      doubleClick(toolbar);
+      expect(maximize).toHaveBeenCalledOnce();
+      expect(startDragging).not.toHaveBeenCalled();
+    });
+  });
+
+  it('reserves the host chrome corner instead of in-app controls on the OpenHarmony host', () => {
+    runtimeState.usesHostWindowControls = true;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      // Mirrors the AppLayout OHOS wiring: maximize stays for the double-click
+      // gesture while minimize/close are withheld from the in-app chrome.
+      act(() => root.render(<SceneTopBar onMaximize={vi.fn()} />));
+      const toolbar = host.querySelector('[data-bitfun-component="toolbar"]')!;
+      expect(toolbar.querySelector('[data-bitfun-part="hostControls"]')).not.toBeNull();
+      expect(toolbar.querySelector('[data-bitfun-part="controls"]')).toBeNull();
+      expect(stylesheet).toContain('&--host');
+      expect(stylesheet).toContain('width: 96px;');
+    } finally {
+      runtimeState.usesHostWindowControls = false;
+      act(() => root.unmount());
+      host.remove();
+    }
   });
 });
