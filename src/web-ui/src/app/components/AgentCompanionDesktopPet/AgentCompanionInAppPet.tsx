@@ -581,9 +581,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
     <main
       className={`bitfun-agent-companion-window bitfun-agent-companion-inapp${isMenuOverlay ? ' bitfun-agent-companion-window--menu-open' : ''}${isPetOnlyMode ? ' bitfun-agent-companion-inapp--pet-only' : ''}`}
       onContextMenu={event => event.preventDefault()}
-      data-openbitfun-component="agent-companion-desktop-pet"
-      data-openbitfun-part="root"
-      data-openbitfun-host="inapp"
+      data-bitfun-component="agent-companion-desktop-pet"
+      data-bitfun-part="root"
+      data-bitfun-host="inapp"
     >
       {isMenuOverlay && (
         <div
@@ -620,9 +620,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
         <div
           ref={dockRef}
           className="bitfun-agent-companion-window__dock"
-          data-openbitfun-component="agent-companion-desktop-pet"
-          data-openbitfun-part="dock"
-          data-openbitfun-host="inapp"
+          data-bitfun-component="agent-companion-desktop-pet"
+          data-bitfun-part="dock"
+          data-bitfun-host="inapp"
         >
           {visibleTasks.length > 0 && (
             <div
@@ -630,9 +630,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
               className={`bitfun-agent-companion-window__bubbles${isSingleTask ? ' bitfun-agent-companion-window__bubbles--single' : ''}`}
               aria-live="polite"
               onDoubleClick={event => event.stopPropagation()}
-              data-openbitfun-component="agent-companion-desktop-pet"
-              data-openbitfun-part="bubbles"
-              data-openbitfun-host="inapp"
+              data-bitfun-component="agent-companion-desktop-pet"
+              data-bitfun-part="bubbles"
+              data-bitfun-host="inapp"
             >
               {displayTasks.map(task => {
                 const isComposingTask = overlay?.kind === 'composer'
@@ -643,17 +643,17 @@ export const AgentCompanionInAppPet: React.FC = () => {
                   <>
                     <span
                       className="bitfun-agent-companion-window__bubble-title"
-                      data-openbitfun-component="agent-companion-desktop-pet"
-                      data-openbitfun-part="bubbleTitle"
-                      data-openbitfun-host="inapp"
+                      data-bitfun-component="agent-companion-desktop-pet"
+                      data-bitfun-part="bubbleTitle"
+                      data-bitfun-host="inapp"
                     >
                       {task.title}
                     </span>
                     <span
                       className="bitfun-agent-companion-window__bubble-status"
-                      data-openbitfun-component="agent-companion-desktop-pet"
-                      data-openbitfun-part="bubbleStatus"
-                      data-openbitfun-host="inapp"
+                      data-bitfun-component="agent-companion-desktop-pet"
+                      data-bitfun-part="bubbleStatus"
+                      data-bitfun-host="inapp"
                     >
                       {t(task.labelKey, { defaultValue: task.defaultLabel })}
                     </span>
@@ -674,10 +674,10 @@ export const AgentCompanionInAppPet: React.FC = () => {
                             }
                           }}
                           className={`bitfun-agent-companion-window__bubble-output${isTyping ? ' bitfun-agent-companion-window__bubble-output--typing' : ''}`}
-                          data-openbitfun-component="agent-companion-desktop-pet"
-                          data-openbitfun-part="bubbleOutput"
-                          data-openbitfun-state={isTyping ? 'typing' : undefined}
-                          data-openbitfun-host="inapp"
+                          data-bitfun-component="agent-companion-desktop-pet"
+                          data-bitfun-part="bubbleOutput"
+                          data-bitfun-state={isTyping ? 'typing' : undefined}
+                          data-bitfun-host="inapp"
                         >
                           {visibleOutput}
                         </span>
@@ -696,9 +696,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
                     {isComposingTask ? (
                       <div
                         className={bubbleClassName}
-                        data-openbitfun-component="agent-companion-desktop-pet"
-                        data-openbitfun-part="bubble"
-                        data-openbitfun-host="inapp"
+                        data-bitfun-component="agent-companion-desktop-pet"
+                        data-bitfun-part="bubble"
+                        data-bitfun-host="inapp"
                       >
                         {bubbleBody}
                         <div className="bitfun-agent-companion-window__bubble-composer">
@@ -756,9 +756,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
                         type="button"
                         className={bubbleClassName}
                         onClick={() => void openTaskSession(task)}
-                        data-openbitfun-component="agent-companion-desktop-pet"
-                        data-openbitfun-part="bubble"
-                        data-openbitfun-host="inapp"
+                        data-bitfun-component="agent-companion-desktop-pet"
+                        data-bitfun-part="bubble"
+                        data-bitfun-host="inapp"
                       >
                         {bubbleBody}
                       </button>
@@ -800,10 +800,10 @@ export const AgentCompanionInAppPet: React.FC = () => {
             onPointerUp={onPetPointerUp}
             onPointerCancel={onPetPointerCancel}
             onContextMenu={onPetContextMenu}
-            data-openbitfun-component="agent-companion-desktop-pet"
-            data-openbitfun-part="hitbox"
-            data-openbitfun-state={hasAttentionTask ? 'attention' : undefined}
-            data-openbitfun-host="inapp"
+            data-bitfun-component="agent-companion-desktop-pet"
+            data-bitfun-part="hitbox"
+            data-bitfun-state={hasAttentionTask ? 'attention' : undefined}
+            data-bitfun-host="inapp"
           >
             <AgentCompanionPet
               mood={displayMood}
