@@ -664,8 +664,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
       targetDirectory = normalizeWorkspaceTargetDirectory(targetDirectory, currentWorkspace);
 
-      // Prefer the in-app tree clipboard (右键/快捷键 复制、剪切). The OS
-      // pasteboard stays the fallback for files copied in external managers.
+      // Prefer the in-app tree clipboard (context-menu / shortcut copy and
+      // cut). The OS pasteboard stays the fallback for files copied in
+      // external managers.
       const internalClipboard = getFileTreeClipboard();
       const result = internalClipboard
         ? await uploadLocalPathsToWorkspaceDirectory(

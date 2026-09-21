@@ -2,7 +2,7 @@
  * In-app clipboard for file-tree copy/cut/paste.
  *
  * The tree's paste previously relied solely on the OS pasteboard, which never
- * receives anything from an in-app "复制/剪切" action — the tree does not write
+ * receives anything from an in-app copy/cut action — the tree does not write
  * file URIs to the system pasteboard — so pasting right after copying inside
  * the tree always reported "no files in clipboard". This module-level store
  * gives the tree a first-class internal clipboard; the OS pasteboard remains
