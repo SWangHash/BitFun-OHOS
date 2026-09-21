@@ -6,6 +6,9 @@
 /* ========== Import design tokens ========== */
 /* ========== Global CSS variables ========== */
 :root {
+  /* Stacking layers for fixed overlay surfaces (image viewer fullscreen,
+   * chat overlays). Values sit above the .u-z-* utility scale. */
+  --bitfun-layer-fullscreen: 200;
 }
 
 /* ========== Global base styles ========== */

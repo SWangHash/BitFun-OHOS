@@ -13,6 +13,7 @@ import { createLogger } from '@/shared/utils/logger';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { formatBytes } from '@/shared/utils/format';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
@@ -159,19 +160,16 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     setRotation(prev => (prev + 90) % 360);
   }, []);
 
-  const handleDownload = useCallback(async () => {
-    try {
-      const name = fileName || filePath.split(/[/\\]/).pop() || 'image';
-      const link = document.createElement('a');
-      link.href = imageUrl;
-      link.download = name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      log.error('Failed to download image', err);
+  const handleDownload = useCallback(() => {
+    // Anchor-based downloads (href + download attribute) are silently dropped
+    // by some embedded WebViews (e.g. ArkWeb on HarmonyOS). Route through the
+    // shared workspace download pipeline instead, which owns native save
+    // dialogs and transfer progress on every host.
+    if (!filePath) {
+      return;
     }
-  }, [imageUrl, fileName, filePath]);
+    globalEventBus.emit('file:download', { path: filePath, isDirectory: false });
+  }, [filePath]);
 
   const handleToggleFullscreen = useCallback(() => {
     setIsFullscreen(prev => !prev);

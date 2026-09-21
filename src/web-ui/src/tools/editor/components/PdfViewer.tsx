@@ -409,9 +409,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
     }
   }, [documentFiles, filePath, t]);
 
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
   useEffect(() => {
-    if (isActiveTab && error && documentSession?.isCurrent()) setRetryKey(key => key + 1);
-  }, [documentSession, error, isActiveTab]);
+    // Retry on reactivation only. Putting `error` in the dependencies would
+    // re-trigger on every failure and loop forever whenever the failure
+    // message varies between attempts (matching the ImageViewer contract).
+    if (isActiveTab && errorRef.current && documentSession?.isCurrent()) setRetryKey(key => key + 1);
+  }, [documentSession, isActiveTab]);
 
   useEffect(() => {
     void loadDocument();
