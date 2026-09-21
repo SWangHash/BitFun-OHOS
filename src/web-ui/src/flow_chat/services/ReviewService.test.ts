@@ -556,6 +556,23 @@ describe('ReviewService', () => {
     )).rejects.toThrow('Remote workspace Review is not supported');
   });
 
+  it('blocks a workspace mismatch before creating a reviewer', async () => {
+    mocks.resolveSlashCommandReviewTarget.mockResolvedValue({
+      target: { source: 'workspace_diff', resolution: 'unknown', files: [], tags: [], warnings: [] },
+      changeStats: { fileCount: 0, lineCountSource: 'unknown' },
+      targetEvidence: {
+        source: 'workspace', completeness: 'unknown', files: [],
+        limitations: ['review_workspace_mismatch'],
+      },
+    });
+    await expect(prepareReviewLaunchFromSlashCommand('/review Other', '/current'))
+      .rejects.toMatchObject({
+        launchErrorMessageKey: 'deepReviewActionBar.launchError.workspaceMismatch',
+      });
+    expect(mocks.createBtwChildSession).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('blocks an empty confirmed workspace snapshot before spending reviewer capacity', async () => {
     const manifest = runManifest('normal');
     mocks.resolveSlashCommandReviewTarget.mockResolvedValue({
