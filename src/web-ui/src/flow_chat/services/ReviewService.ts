@@ -266,6 +266,12 @@ async function prepareFromResolvedTarget(params: {
       'The provider did not return an exact diff for any changed file in this pull request.',
     );
   }
+  if (params.targetEvidence.limitations.includes('review_workspace_mismatch')) {
+    throw reviewTargetError(
+      'Review uses the current session workspace. Switch to a session in the requested workspace and run /review there. Workspace names must be unique.',
+      'deepReviewActionBar.launchError.workspaceMismatch',
+    );
+  }
   if (params.targetEvidence.limitations.includes('remote_workspace_review_unavailable')) {
     throw reviewTargetError(
       'Remote workspace Review is not supported until bounded exact diff evidence is available. Use a local checkout.',
