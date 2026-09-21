@@ -54,8 +54,8 @@ export function AccountSignIn() {
     try {
       const result = await marketApi.verifyEmailCode(ticket, challenge, code);
       const target = new URL(result.redirectUrl, window.location.origin);
-      if (![window.location.origin, 'https://auth.bitfun.com', 'https://market.bitfun.com'].includes(target.origin)) throw new Error('Untrusted return URL');
-      if (target.origin === 'https://auth.bitfun.com' && target.pathname === '/complete') target.searchParams.set('locale', locale);
+      if (![window.location.origin, 'https://auth.openbitfun.com', 'https://market.openbitfun.com'].includes(target.origin)) throw new Error('Untrusted return URL');
+      if (target.origin === 'https://auth.openbitfun.com' && target.pathname === '/complete') target.searchParams.set('locale', locale);
       window.location.assign(target.href);
     } catch (cause) { showError(cause); setBusy(false); }
   }

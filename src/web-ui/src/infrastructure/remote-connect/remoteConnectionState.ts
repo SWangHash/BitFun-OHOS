@@ -1,7 +1,9 @@
 import type { ConnectionResult, RemoteConnectionMethod, RemoteConnectStatus } from '../api/service-api/RemoteConnectAPI';
 
 export type RemoteNetworkMethod = 'lan' | 'bitfun_server';
-export const OFFICIAL_RELAY_URL = 'https://remote.bitfun.com/v/1.0.1';
+// bitfun.com is not provisioned yet; keep classifying the live openbitfun.com
+// deployment as the official relay until the domain cutover.
+export const OFFICIAL_RELAY_URL = 'https://remote.openbitfun.com/v/1.0.1';
 
 export function remoteNetworkMethod(method: RemoteConnectionMethod | null | undefined): RemoteNetworkMethod | null {
   if (typeof method === 'object' && method !== null && 'lan' in method) return 'lan';

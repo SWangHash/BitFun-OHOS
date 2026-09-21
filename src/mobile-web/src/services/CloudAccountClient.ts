@@ -121,10 +121,10 @@ export class CloudAccountClient {
   async authorize(popup: Window, signal: AbortSignal): Promise<string> {
     const start = await requestJson<AuthStart>(this.relayUrl, '/api/auth/github/start?methods=all', {});
     const url = new URL(start.authorizationUrl);
-    if (!((url.origin === 'https://github.com' && url.pathname === '/login/oauth/authorize') || (url.origin === 'https://auth.bitfun.com' && url.pathname === '/sign-in')) || url.username || url.password) {
+    if (!((url.origin === 'https://github.com' && url.pathname === '/login/oauth/authorize') || (url.origin === 'https://auth.openbitfun.com' && url.pathname === '/sign-in')) || url.username || url.password) {
       throw new Error('Untrusted account authorization URL.');
     }
-    if (url.origin === 'https://auth.bitfun.com') url.searchParams.set('locale', (typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'));
+    if (url.origin === 'https://auth.openbitfun.com') url.searchParams.set('locale', (typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'));
     if (signal.aborted) throw new Error('Sign-in cancelled.');
     popup.location.href = url.href;
     let lastTransient: Error | null = null;

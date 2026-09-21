@@ -433,7 +433,7 @@ test('sign-in uses a separate popup, can cancel and reopen a closed window, and 
       await page.waitForFunction(() => typeof window.completeAuthFixture === 'function');
       await popupPage.setRequestInterception(true);
       popupPage.on('request', request => request.respond({ status: 200, contentType: 'text/html', body: '<h1>Authentication fixture</h1>' }));
-      await popupPage.goto('https://auth.bitfun.com/sign-in');
+      await popupPage.goto('https://auth.openbitfun.com/sign-in');
       assert.equal(await popupPage.evaluate(() => window.opener !== null), true);
       const parentSession = await page.target().createCDPSession();
       const popupSession = await target.createCDPSession();

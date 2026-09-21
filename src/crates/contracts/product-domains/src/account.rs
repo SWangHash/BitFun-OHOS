@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 /// Versioned hosted Relay deployment for the GitHub account/device-key protocol.
-pub const DEFAULT_RELAY_URL: &str = "https://remote.bitfun.com/v/1.0.2";
+/// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+/// deployment until the domain cutover.
+pub const DEFAULT_RELAY_URL: &str = "https://remote.openbitfun.com/v/1.0.2";
 
 /// Control-contract protocol number reported to the Relay alongside the build
 /// string when a device registers or opens its realtime connection.

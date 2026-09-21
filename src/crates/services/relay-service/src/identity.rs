@@ -5,7 +5,9 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 
-pub(crate) const IDENTITY_ME_URL: &str = "https://auth.bitfun.com/api/v1/me";
+// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+// deployment until the domain cutover.
+pub(crate) const IDENTITY_ME_URL: &str = "https://auth.openbitfun.com/api/v1/me";
 
 #[derive(Clone)]
 pub(crate) struct IdentityVerifier {

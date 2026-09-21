@@ -71,7 +71,7 @@ pub struct MarketListingSummary {
     pub tags: Vec<String>,
     pub owner: MarketUserSummary,
     pub latest_release: u32,
-    #[serde(rename = "minBitFunVersion")]
+    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
     pub min_bitfun_version: String,
     pub permissions: MiniAppPermissions,
     pub screenshot_urls: Vec<String>,
@@ -106,7 +106,7 @@ pub struct MarketRelease {
     pub release_id: String,
     pub listing_id: String,
     pub release_number: u32,
-    #[serde(rename = "minBitFunVersion")]
+    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub package_sha256: String,
@@ -151,7 +151,7 @@ pub struct MarketSubmission {
     pub icon: String,
     pub category: String,
     pub tags: Vec<String>,
-    #[serde(rename = "minBitFunVersion")]
+    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub license: MarketLicense,
@@ -183,7 +183,7 @@ pub struct MarketSubmissionDraftRequest {
     pub category: String,
     #[serde(default)]
     pub tags: Vec<String>,
-    #[serde(rename = "minBitFunVersion")]
+    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub license: MarketLicense,
@@ -364,5 +364,34 @@ mod tests {
 
         let error = serde_json::from_value::<MarketListingDetail>(listing).unwrap_err();
         assert!(error.to_string().contains("minBitFunVersion"));
+    }
+
+    #[test]
+    fn listing_contract_reads_the_renamed_upstream_version_field() {
+        let fixture = include_str!(
+            "../../../../../shared/miniapp-market-contract-fixtures/listing-detail.json"
+        );
+        let mut listing: serde_json::Value = serde_json::from_str(fixture).unwrap();
+        let value = listing
+            .as_object_mut()
+            .unwrap()
+            .remove("minBitFunVersion")
+            .unwrap();
+        listing
+            .as_object_mut()
+            .unwrap()
+            .insert("minOpenBitFunVersion".to_string(), value);
+        for release in listing["releases"].as_array_mut().unwrap() {
+            let value = release
+                .as_object_mut()
+                .unwrap()
+                .remove("minBitFunVersion")
+                .unwrap();
+            release["minOpenBitFunVersion"] = value;
+        }
+
+        let parsed: MarketListingDetail = serde_json::from_value(listing).unwrap();
+        assert_eq!(parsed.summary.min_bitfun_version, "1.0.0");
+        assert_eq!(parsed.releases[0].min_bitfun_version, "1.0.0");
     }
 }
