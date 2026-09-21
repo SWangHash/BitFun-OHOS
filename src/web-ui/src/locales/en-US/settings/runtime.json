@@ -149,6 +149,7 @@
       "macos": "This build still needs Accessibility permission in System Settings.",
       "windows": "Some protected windows or remote desktop environments may not be controllable.",
       "linux": "This desktop environment may not support full mouse, keyboard, or screen control.",
+      "ohos": "The first screen action asks whether to let BitFun capture the screen. If the prompt was dismissed or denied, allow BitFun screen capture under Settings, Privacy & security.",
       "generic": "Full desktop control is not available on this system."
     }
   },
