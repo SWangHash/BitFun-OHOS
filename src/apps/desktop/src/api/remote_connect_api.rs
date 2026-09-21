@@ -25,7 +25,6 @@ use bitfun_services_integrations::remote_connect::{
     deploy_page_version_on_relay, join_relay_url, list_pages_from_relay,
     publish_page_content_on_relay,
 };
-use futures::stream::{self, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -264,16 +263,8 @@ fn tag_peer_event_source(payload: serde_json::Value, source_device_id: &str) -> 
     }
 }
 
-fn emit_device_presence(devices: &[(String, String)]) {
-    let payload = serde_json::json!({
-        "devices": devices
-            .iter()
-            .map(|(id, name)| serde_json::json!({
-                "device_id": id,
-                "device_name": name,
-            }))
-            .collect::<Vec<_>>(),
-    });
+fn emit_device_presence(devices: &[OnlineDeviceInfo]) {
+    let payload = serde_json::json!({ "devices": devices });
     emit_account_event("account://device-presence", payload);
 }
 
@@ -318,6 +309,7 @@ async fn finish_device_routing_event_loop(owner: &DeviceRoutingOwner) {
     disconnect_peer_controllers("Peer device-routing stream closed").await;
 }
 
+/// Host streams served to controllers while this device's routing is alive.
 pub(crate) async fn host_stream_hub(
 ) -> Option<Arc<bitfun_core::service::remote_connect::host_stream::HostStreamHub>> {
     let service = get_service_holder().read().await;
@@ -327,17 +319,43 @@ pub(crate) async fn host_stream_hub(
     }
 }
 
+/// Delivers host stream hints as encrypted `DeviceEvent`s to the one device
+/// that subscribed. Only the stream id, epoch and cursor travel; the controller
+/// reads content back over RPC, so the relay forwards nothing it could store.
+struct DesktopHostStreamNotifier;
+
+impl bitfun_core::service::remote_connect::host_stream::HostStreamNotifier
+    for DesktopHostStreamNotifier
+{
+    fn notify(&self, target_device_id: &str, payload: serde_json::Value) {
+        send_peer_device_event_to(
+            target_device_id.to_owned(),
+            bitfun_core::service::remote_connect::host_stream::HOST_STREAM_CHANGED_EVENT.to_owned(),
+            payload,
+        );
+    }
+}
+
 /// Emit granular auto-sync progress for the account login / devices UI.
 pub fn fanout_peer_device_event(event: String, payload: serde_json::Value) {
     if crate::api::peer_host_invoke::attached_controllers().is_empty() {
         return;
     }
+    enqueue_peer_device_event(PeerEventTargets::AttachedControllers, event, payload);
+}
+
+/// Send one `DeviceEvent` to a specific account device, attached or not.
+fn send_peer_device_event_to(target_device_id: String, event: String, payload: serde_json::Value) {
+    enqueue_peer_device_event(PeerEventTargets::Device(target_device_id), event, payload);
+}
+
+fn enqueue_peer_device_event(targets: PeerEventTargets, event: String, payload: serde_json::Value) {
     let Some(routing_owner) = current_device_routing_owner_snapshot() else {
         return;
     };
     let tx = PEER_EVENT_FANOUT_TX.get_or_init(|| {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<PeerEventFanoutItem>();
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             while let Some(item) = rx.recv().await {
                 fanout_peer_device_event_once(item).await;
             }
@@ -346,6 +364,7 @@ pub fn fanout_peer_device_event(event: String, payload: serde_json::Value) {
     });
     if let Err(e) = tx.send(PeerEventFanoutItem {
         routing_owner,
+        targets,
         event,
         payload,
     }) {
@@ -353,8 +372,14 @@ pub fn fanout_peer_device_event(event: String, payload: serde_json::Value) {
     }
 }
 
+enum PeerEventTargets {
+    AttachedControllers,
+    Device(String),
+}
+
 struct PeerEventFanoutItem {
     routing_owner: DeviceRoutingOwner,
+    targets: PeerEventTargets,
     event: String,
     payload: serde_json::Value,
 }
@@ -375,7 +400,12 @@ async fn fanout_peer_device_event_current(item: PeerEventFanoutItem) {
     let Some(_routing_effect) = lock_current_device_routing(&item.routing_owner).await else {
         return;
     };
-    let targets = crate::api::peer_host_invoke::attached_controllers();
+    let targets = match &item.targets {
+        PeerEventTargets::AttachedControllers => {
+            crate::api::peer_host_invoke::attached_controllers()
+        }
+        PeerEventTargets::Device(device_id) => vec![device_id.clone()],
+    };
     if targets.is_empty() {
         return;
     }
@@ -453,6 +483,7 @@ fn should_fanout_peer_ui_event(event: &str) -> bool {
             | "backend-event-toolcallconfirmation"
             | "permission://event"
             | AI_MODEL_CATALOG_UPDATED_EVENT
+            | bitfun_core::service::workspace::WORKSPACE_CATALOG_CHANGED_EVENT
     )
 }
 
@@ -1263,7 +1294,7 @@ async fn register_delegated_identity_providers() {
 pub fn init_on_startup() {
     register_page_deploy_host();
     register_page_publish_host();
-    tauri::async_runtime::spawn(async {
+    tokio::spawn(async {
         let startup_generation = account_context_generation();
         // Restore persisted account session (if any) before anything else
         // so that device routing and bot delegation work on restart.
@@ -1274,7 +1305,9 @@ pub fn init_on_startup() {
                     Ok(url) => url,
                     Err(error) => {
                         log::warn!("Ignoring invalid persisted relay URL: {error}");
-                        session_store::clear_session();
+                        // Keep the record intact. A newer build, repaired
+                        // configuration, or explicit user action may recover
+                        // it; startup validation must never become data loss.
                         sync_account_login_capability(false);
                         if let Err(error) = ensure_service().await {
                             log::warn!("Remote connect startup init failed: {error}");
@@ -1282,14 +1315,21 @@ pub fn init_on_startup() {
                         return;
                     }
                 };
-                if bitfun_services_integrations::remote_connect::account::is_retired_official_relay(&relay_url) {
+                if bitfun_services_integrations::remote_connect::account::is_retired_official_relay(
+                    &relay_url,
+                ) {
                     if let Some(device_id) = loaded.device_id.as_deref() {
                         if let Err(error) = DeviceIdentity::adopt_account_device_id(device_id) {
                             log::warn!("Failed to adopt migrating account device id: {error}");
                             return;
                         }
                     }
-                    match login_account_on_relay_for_generation(bitfun_product_domains::account::DEFAULT_RELAY_URL.to_string(), Some(startup_generation)).await {
+                    match login_account_on_relay_for_generation(
+                        bitfun_product_domains::account::DEFAULT_RELAY_URL.to_string(),
+                        Some(startup_generation),
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             if let Err(error) = account_connect_devices_with_retry().await {
                                 log::warn!("New Relay routing failed: {error}");
@@ -1298,7 +1338,9 @@ pub fn init_on_startup() {
                         }
                         Err(error) => {
                             sync_account_login_capability(false);
-                            log::warn!("New Relay sign-in required; previous credential retained: {error}");
+                            log::warn!(
+                                "New Relay sign-in required; previous credential retained: {error}"
+                            );
                             if let Err(error) = ensure_service().await {
                                 log::warn!("Remote connect startup init failed: {error}");
                             }
@@ -1347,7 +1389,7 @@ pub fn init_on_startup() {
 
                 // Re-establish device routing WebSocket in the background.
                 // Uses the same Tauri command logic — fire and forget.
-                tauri::async_runtime::spawn(async {
+                tokio::spawn(async {
                     match account_connect_devices_with_retry().await {
                         Ok(_) => log::info!("Device routing restored on startup"),
                         Err(e) => log::warn!("Startup device connect failed: {e}"),
@@ -2311,8 +2353,10 @@ async fn clear_account_login_state(revoke_relay_token: bool) {
 
 #[tauri::command]
 pub async fn account_logout(app: tauri::AppHandle) -> Result<(), String> {
-    let mut identity = bitfun_services_integrations::account_identity::AccountIdentityClient::from_environment()
-        .await.map_err(|error| error.to_string())?;
+    let mut identity =
+        bitfun_services_integrations::account_identity::AccountIdentityClient::from_environment()
+            .await
+            .map_err(|error| error.to_string())?;
     identity.logout().await.map_err(|error| error.to_string())?;
     clear_account_login(true).await;
     super::account_identity_api::emit_identity_changed(&app, "signed-out");
@@ -2322,11 +2366,7 @@ pub async fn account_logout(app: tauri::AppHandle) -> Result<(), String> {
 
 // ── P2: Device routing commands ──────────────────────────────────────────
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-pub struct OnlineDeviceInfo {
-    pub device_id: String,
-    pub device_name: String,
-}
+pub use bitfun_core::service::remote_connect::relay_client::DevicePresenceEntry as OnlineDeviceInfo;
 
 const STARTUP_DEVICE_CONNECT_MAX_ATTEMPTS: usize = 5;
 
@@ -2406,7 +2446,12 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
     disconnect_peer_controllers("Device routing reconnecting").await;
 
     let (mut event_rx, auth_device_id, service_connection_id) = match service
-        .start_device_connection(&relay_url, &session.token, &device_name)
+        .start_device_connection(
+            &relay_url,
+            &session.token,
+            &device_name,
+            Arc::new(DesktopHostStreamNotifier),
+        )
         .await
     {
         Ok(result) => result,
@@ -2449,12 +2494,19 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
         log::warn!("Failed to persist AuthOk device_id into session: {e}");
     }
 
+    if let Err(error) = AccountClient::new()
+        .report_local_metadata(&relay_url, &session, &auth_device_id)
+        .await
+    {
+        log::warn!("Failed to report device metadata on connection: {error}");
+    }
+
     // Background task: consume events (presence / device messages / auth errors)
     // Note: AuthOk is consumed inside start_device_connection (adopt happens there).
     let event_relay_url = relay_url.clone();
     let event_session = session.clone();
     let event_owner = routing_owner.clone();
-    tauri::async_runtime::spawn(async move {
+    tokio::spawn(async move {
         use bitfun_core::service::remote_connect::relay_client::RelayEvent;
         'routing_events: while let Some(event) = event_rx.recv().await {
             if !device_routing_owner_is_current(&event_owner).await {
@@ -2486,14 +2538,7 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                     else {
                         break 'routing_events;
                     };
-                    let presence = devices
-                        .iter()
-                        .map(|device| OnlineDeviceInfo {
-                            device_id: device.device_id.clone(),
-                            device_name: device.device_name.clone(),
-                        })
-                        .collect();
-                    if !replace_device_presence_if_owner(&event_owner, presence) {
+                    if !replace_device_presence_if_owner(&event_owner, devices.clone()) {
                         break 'routing_events;
                     }
                     log::info!("Device presence updated: {} online", devices.len());
@@ -2509,11 +2554,7 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                     if !device_routing_owner_is_current(&event_owner).await {
                         break 'routing_events;
                     }
-                    let pairs: Vec<(String, String)> = devices
-                        .iter()
-                        .map(|d| (d.device_id.clone(), d.device_name.clone()))
-                        .collect();
-                    emit_device_presence(&pairs);
+                    emit_device_presence(&devices);
                 }
                 RelayEvent::DeviceMessageReceived {
                     source_device_id,
@@ -2545,6 +2586,15 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                                     // controller that is also running local work can route each
                                     // stream to the right device surface.
                                     log::debug!("DeviceEvent from {source_device_id}: {event}");
+                                    if event_session.deliver_device_event(
+                                        &source_device_id,
+                                        &event,
+                                        &payload,
+                                    ) {
+                                        // Host stream hints drive Rust subscribers; the
+                                        // webview only sees the records they read back.
+                                        continue;
+                                    }
                                     emit_account_event(
                                         &event,
                                         tag_peer_event_source(payload, &source_device_id),
@@ -2790,6 +2840,18 @@ pub async fn account_connect_devices() -> Result<Vec<OnlineDeviceInfo>, String> 
                     else {
                         break 'routing_events;
                     };
+                    if let Ok(identity) = current_device_identity() {
+                        if let Err(error) = AccountClient::new()
+                            .report_local_metadata(
+                                &event_relay_url,
+                                &event_session,
+                                &identity.device_id,
+                            )
+                            .await
+                        {
+                            log::warn!("Failed to report device metadata after reconnect: {error}");
+                        }
+                    }
                     log::info!("Device routing reconnected — AuthConnect re-sent by transport");
                 }
                 _ => {}
@@ -2871,6 +2933,13 @@ pub async fn account_execute_on_device(
 pub struct AccountDeviceInfo {
     pub device_id: String,
     pub device_name: String,
+    pub device_alias: Option<String>,
+    pub device_model: Option<String>,
+    pub device_os: Option<String>,
+    pub device_os_version: Option<String>,
+    pub device_client_version: Option<String>,
+    pub device_client_protocol: Option<u32>,
+    pub compatible: Option<bool>,
     pub online: bool,
     pub last_seen_at: Option<i64>,
 }
@@ -2898,10 +2967,55 @@ pub async fn account_list_devices() -> Result<Vec<AccountDeviceInfo>, String> {
         .map(|d| AccountDeviceInfo {
             device_id: d.device_id,
             device_name: d.device_name,
+            device_alias: d.device_alias,
+            device_model: d.device_model,
+            device_os: d.device_os,
+            device_os_version: d.device_os_version,
+            device_client_version: d.device_client_version,
+            device_client_protocol: d.device_client_protocol,
+            compatible: d.compatible,
             online: d.online,
             last_seen_at: d.last_seen_at,
         })
         .collect())
+}
+
+#[derive(Deserialize)]
+pub struct AccountUpdateDeviceAliasRequest {
+    pub device_id: String,
+    pub device_alias: Option<String>,
+}
+
+#[tauri::command]
+pub async fn account_update_device_alias(
+    request: AccountUpdateDeviceAliasRequest,
+) -> Result<(), String> {
+    let generation = account_context_generation();
+    let _operation = lock_account_operation(generation).await?;
+    let (session, relay_url) = read_account_context_for_generation(generation).await?;
+    AccountClient::new()
+        .update_device_alias(
+            &relay_url,
+            &session,
+            &request.device_id,
+            request.device_alias.as_deref(),
+        )
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn account_relay_capabilities() -> Result<Vec<String>, String> {
+    let generation = account_context_generation();
+    let (_, relay_url) = read_account_context_for_generation(generation).await?;
+    let capabilities = AccountClient::new()
+        .relay_capabilities(&relay_url)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !account_context_is_current(generation) {
+        return Err("account context changed".into());
+    }
+    Ok(capabilities)
 }
 
 /// Remove a device from the account.
@@ -3274,7 +3388,7 @@ mod sync_state_tests {
         for (method, endpoint) in [
             (
                 serde_json::json!("bitfun_server"),
-                "https://remote.bitfun.com/v/1.0.1",
+                "https://remote.bitfun.com/v/1.0.2",
             ),
             (
                 serde_json::json!({"lan":{"ip":"192.168.1.2"}}),
@@ -3405,6 +3519,7 @@ mod sync_state_tests {
             vec![OnlineDeviceInfo {
                 device_id: "a-device".to_string(),
                 device_name: "A".to_string(),
+                ..Default::default()
             }],
         ));
 
@@ -3414,6 +3529,7 @@ mod sync_state_tests {
             vec![OnlineDeviceInfo {
                 device_id: "late-a-device".to_string(),
                 device_name: "Late A".to_string(),
+                ..Default::default()
             }],
         ));
         assert!(!clear_device_routing_if_owner(&owner_a));
@@ -3440,10 +3556,21 @@ mod sync_state_tests {
             vec![OnlineDeviceInfo {
                 device_id: "current-device".to_string(),
                 device_name: "Current".to_string(),
+                device_alias: Some("My laptop".into()),
+                device_model: Some("Mac14,7".into()),
+                device_os: Some("macos".into()),
+                device_os_version: Some("15".into()),
+                ..Default::default()
             }],
         ));
 
-        assert!(device_presence_for_account(20, "token-current").is_some());
+        let presence = device_presence_for_account(20, "token-current").unwrap();
+        let payload = serde_json::json!({ "devices": presence });
+        assert_eq!(payload["devices"][0]["device_alias"], "My laptop");
+        assert_eq!(payload["devices"][0]["device_name"], "Current");
+        assert_eq!(payload["devices"][0]["device_model"], "Mac14,7");
+        assert_eq!(payload["devices"][0]["device_os"], "macos");
+        assert_eq!(payload["devices"][0]["device_os_version"], "15");
         assert!(device_presence_for_account(21, "token-current").is_none());
         assert!(device_presence_for_account(20, "token-replaced").is_none());
         clear_device_routing_state();
@@ -3463,6 +3590,12 @@ mod peer_event_tests {
     #[test]
     fn model_catalog_updates_are_fanned_out_to_peer_controllers() {
         assert!(should_fanout_peer_ui_event("ai://model-catalog-updated"));
+    }
+
+    #[test]
+    fn workspace_catalog_hints_are_fanned_out_to_peer_controllers() {
+        assert!(should_fanout_peer_ui_event("workspace-catalog-changed"));
+        assert!(!should_fanout_peer_ui_event("workspace-identity-changed"));
     }
 }
 

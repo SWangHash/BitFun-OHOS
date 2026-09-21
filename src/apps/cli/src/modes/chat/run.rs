@@ -117,6 +117,7 @@ fn context_compression_tool_event(
             ..
         } => Some(ToolEventData::Failed {
             identity: ToolEventIdentity::direct(compression_id, "ContextCompression"),
+            error_detail: None,
             error: error.clone(),
             duration_ms: None,
             queue_wait_ms: None,
@@ -360,8 +361,7 @@ impl ChatMode {
         let rt_handle = tokio::runtime::Handle::current();
         self.auto_approve_ask_default = tokio::task::block_in_place(|| {
             rt_handle.block_on(async {
-                let Ok(service) =
-                    bitfun_core::service::config::get_global_config_service().await
+                let Ok(service) = bitfun_core::service::config::get_global_config_service().await
                 else {
                     return false;
                 };
@@ -472,15 +472,15 @@ impl ChatMode {
             )));
         }
         let (initial_external_sources, updates) = tokio::task::block_in_place(|| {
-            let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+            let workspace = self.agent.workspace_id();
             let updates = if self.agent.is_remote_workspace() {
                 None
             } else {
                 rt_handle
                     .block_on(
-                        bitfun_core::external_sources::subscribe_external_source_updates(Some(
-                            &workspace,
-                        )),
+                        bitfun_core::external_sources::subscribe_external_source_updates(
+                            workspace.as_deref(),
+                        ),
                     )
                     .ok()
             };
@@ -494,7 +494,7 @@ impl ChatMode {
                     );
                 }
                 let snapshot = bitfun_core::external_sources::external_source_snapshot(
-                    Some(&workspace),
+                    workspace.as_deref(),
                     false,
                 )
                 .await
@@ -1054,10 +1054,7 @@ impl ChatMode {
                             Some(TranscriptTerminalOutcome::Failed(error)) => {
                                 self.refresh_workspace_git_status(&mut chat_state, &rt_handle);
                                 chat_view.set_status(Some(format!("Error: {error}")));
-                                self.emit_terminal_attention(
-                                    &mut terminal,
-                                    "BitFun turn failed",
-                                );
+                                self.emit_terminal_attention(&mut terminal, "BitFun turn failed");
                                 tracing::error!("Dialog turn failed: {error}");
                             }
                             Some(TranscriptTerminalOutcome::Cancelled) => {

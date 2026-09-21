@@ -7,17 +7,15 @@ use std::path::PathBuf;
 use tauri::State;
 
 use bitfun_agent_runtime::sdk::AgentUserAnswersRequest;
+use bitfun_core::agentic::tools::product_runtime::{build_tool_info, ToolInfoDto};
 use bitfun_core::agentic::{
     tools::framework::ToolUseContext,
     tools::{get_all_tools, get_readonly_tools},
     workspace::{local_workspace_services, remote_workspace_services},
     WorkspaceBinding,
 };
-use bitfun_core::agentic::tools::product_runtime::{build_tool_info, ToolInfoDto};
 use bitfun_core::product_runtime::CoreRuntimeServicesProvider;
-use bitfun_core::service::remote_ssh::workspace_state::{
-    get_remote_workspace_manager, lookup_remote_connection, workspace_session_identity,
-};
+use bitfun_core::service::remote_ssh::workspace_state::get_remote_workspace_manager;
 use bitfun_core::util::elapsed_ms_u64;
 
 use crate::runtime::DesktopRuntimeContext;
@@ -40,6 +38,10 @@ pub async fn get_chat_mcp_catalog(
 pub struct ToolExecutionRequest {
     pub tool_name: String,
     pub input: serde_json::Value,
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only old-client payload; converted once before tool execution.
+    #[serde(default)]
     pub workspace_path: Option<String>,
     pub context: Option<HashMap<String, String>>,
     pub safe_mode: Option<bool>,
@@ -72,6 +74,10 @@ pub struct ToolExecutionResponse {
 pub struct ToolValidationRequest {
     pub tool_name: String,
     pub input: serde_json::Value,
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Upgrade-only old-client payload; converted once before tool execution.
+    #[serde(default)]
     pub workspace_path: Option<String>,
 }
 
@@ -84,60 +90,64 @@ pub struct ToolValidationResponse {
     pub meta: Option<serde_json::Value>,
 }
 
-async fn build_tool_context(workspace_path: Option<&str>) -> ToolUseContext {
-    let normalized_workspace_path = workspace_path
-        .map(str::trim)
-        .filter(|path| !path.is_empty());
-
-    let workspace = match normalized_workspace_path {
-        Some(path) => {
-            if let Some(entry) = lookup_remote_connection(path).await {
-                let identity = workspace_session_identity(
-                    path,
-                    Some(&entry.connection_id),
-                    Some(&entry.ssh_host),
-                )
-                .unwrap_or_else(|| {
-                    bitfun_core::service::remote_ssh::workspace_state::WorkspaceSessionIdentity {
-                        hostname: entry.ssh_host.clone(),
-                        logical_workspace_path: entry.remote_root.clone(),
-                        remote_connection_id: Some(entry.connection_id.clone()),
-                    }
-                });
-                Some(WorkspaceBinding::new_remote(
-                    None,
-                    PathBuf::from(path),
-                    entry.connection_id,
-                    entry.connection_name,
-                    identity,
-                ))
-            } else {
-                Some(WorkspaceBinding::new(None, PathBuf::from(path)))
-            }
-        }
+/// Builds the tool context for a direct tool call. A remote workspace whose
+/// SSH provider cannot be built is an error: a context without workspace
+/// services would otherwise resolve remote paths against this machine.
+async fn build_tool_context(
+    workspace_id: Option<&str>,
+    legacy_path: Option<&str>,
+) -> Result<ToolUseContext, String> {
+    let id = if let Some(id) = workspace_id {
+        Some(id.to_owned())
+    } else if let Some(path) = legacy_path.filter(|path| !path.trim().is_empty()) {
+        let service = bitfun_core::service::workspace::get_global_workspace_service()
+            .ok_or_else(|| "Workspace service is unavailable".to_string())?;
+        let record = service
+            .resolve_legacy_workspace_reference(None, path, None, None)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Legacy workspace reference is unavailable".to_string())?;
+        Some(record.id)
+    } else {
+        None
+    };
+    let workspace = match id {
+        Some(id) => Some(
+            WorkspaceBinding::resolve(&id)
+                .await
+                .map_err(|error| error.to_string())?,
+        ),
         None => None,
     };
 
     let workspace_services = match workspace.as_ref() {
         Some(binding) if binding.is_remote() => {
-            let connection_id = binding.connection_id().map(str::to_string);
-            match (connection_id, get_remote_workspace_manager()) {
-                (Some(connection_id), Some(manager)) => {
-                    match (
-                        manager.get_file_service().await,
-                        manager.get_ssh_manager().await,
-                    ) {
-                        (Some(file_service), Some(ssh_manager)) => Some(remote_workspace_services(
-                            connection_id,
-                            file_service,
-                            ssh_manager,
-                            binding.root_path_string(),
-                        )),
-                        _ => None,
-                    }
-                }
-                _ => None,
-            }
+            let root = binding.root_path_string();
+            let unavailable = |reason: &str| {
+                format!(
+                    "Remote workspace services are unavailable for {root}: {reason}; no controller-local fallback was attempted"
+                )
+            };
+            let connection_id = binding
+                .connection_id()
+                .map(str::to_string)
+                .ok_or_else(|| unavailable("the workspace binding has no connection id"))?;
+            let manager = get_remote_workspace_manager()
+                .ok_or_else(|| unavailable("remote workspace state is not initialized"))?;
+            let file_service = manager
+                .get_file_service()
+                .await
+                .ok_or_else(|| unavailable("the remote file service is not available"))?;
+            let ssh_manager = manager
+                .get_ssh_manager()
+                .await
+                .ok_or_else(|| unavailable("the SSH connection manager is not available"))?;
+            Some(remote_workspace_services(
+                connection_id,
+                file_service,
+                ssh_manager,
+                root,
+            ))
         }
         Some(binding) => Some(local_workspace_services(binding.root_path_string())),
         None => None,
@@ -148,11 +158,11 @@ async fn build_tool_context(workspace_path: Option<&str>) -> ToolUseContext {
         .is_some_and(WorkspaceBinding::is_remote)
         .then(CoreRuntimeServicesProvider::remote_exec_port);
 
-    ToolUseContext::for_tool_listing_with_remote_exec_port(
+    Ok(ToolUseContext::for_tool_listing_with_remote_exec_port(
         workspace,
         workspace_services,
         remote_exec_port,
-    )
+    ))
 }
 
 fn has_explicit_workspace_path(workspace_path: Option<&str>) -> bool {
@@ -257,10 +267,17 @@ pub async fn validate_tool_input(
             ensure_workspace_requirement(
                 &request.tool_name,
                 &request.input,
-                request.workspace_path.as_deref(),
+                request
+                    .workspace_id
+                    .as_deref()
+                    .or(request.workspace_path.as_deref()),
             )?;
 
-            let context = build_tool_context(request.workspace_path.as_deref()).await;
+            let context = build_tool_context(
+                request.workspace_id.as_deref(),
+                request.workspace_path.as_deref(),
+            )
+            .await?;
 
             let validation_result = tool.validate_input(&request.input, Some(&context)).await;
 
@@ -288,10 +305,17 @@ pub async fn execute_tool(request: ToolExecutionRequest) -> Result<ToolExecution
             ensure_workspace_requirement(
                 &request.tool_name,
                 &request.input,
-                request.workspace_path.as_deref(),
+                request
+                    .workspace_id
+                    .as_deref()
+                    .or(request.workspace_path.as_deref()),
             )?;
 
-            let context = build_tool_context(request.workspace_path.as_deref()).await;
+            let context = build_tool_context(
+                request.workspace_id.as_deref(),
+                request.workspace_path.as_deref(),
+            )
+            .await?;
 
             let validation_result = tool.validate_input(&request.input, Some(&context)).await;
             if !validation_result.result {

@@ -30,8 +30,8 @@ use crate::config::CliConfig;
 /// - Model/Agent/Session/Skill/Subagent selector popups
 /// - Random tips
 use anyhow::{anyhow, Result};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use bitfun_product_domains::agent_catalog::{SkillSummary, SubagentSummary};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -1313,7 +1313,15 @@ impl StartupPage {
                 })
             }) {
                 Ok(_) => "Logged out.".to_string(),
-                Err(error) => format!("Logout failed: {error}"),
+                Err(error) => {
+                    tracing::warn!(
+                        "Logout failed: {}",
+                        crate::account::bounded_account_error(&error.to_string())
+                    );
+                    let (guidance, _) =
+                        crate::account_guidance::account_failure_guidance(&error.to_string());
+                    format!("Logout failed: {guidance}")
+                }
             },
         );
     }
@@ -1389,9 +1397,15 @@ impl StartupPage {
             Ok(snapshot) if snapshot.logged_in => self.open_account_panel(snapshot),
             Ok(_) => self.login_form.show(),
             Err(error) => {
+                tracing::warn!(
+                    "Failed to load account: {}",
+                    crate::account::bounded_account_error(&error.to_string())
+                );
                 self.login_form.show();
-                self.login_form
-                    .set_error(format!("Failed to load account: {error}"));
+                self.login_form.set_error(format!(
+                    "Failed to load account: {}",
+                    crate::account_guidance::account_failure_line(&error.to_string())
+                ));
             }
         }
     }
@@ -1430,7 +1444,16 @@ impl StartupPage {
                         self.status = Some(account_login_status_message(&login));
                         self.show_login_form();
                     }
-                    Err(error) => self.login_form.set_error(format!("Login failed: {error}")),
+                    Err(error) => {
+                        tracing::warn!(
+                            "Login failed: {}",
+                            crate::account::bounded_account_error(&error.to_string())
+                        );
+                        self.login_form.set_error(format!(
+                            "Login failed: {}",
+                            crate::account_guidance::account_failure_line(&error.to_string())
+                        ))
+                    }
                 }
             }
             LoginFormAction::Logout => {
@@ -1450,7 +1473,14 @@ impl StartupPage {
                         self.status = Some("Logged out.".to_string());
                     }
                     Err(e) => {
-                        self.login_form.set_error(format!("Logout failed: {e}"));
+                        tracing::warn!(
+                            "Logout failed: {}",
+                            crate::account::bounded_account_error(&e.to_string())
+                        );
+                        self.login_form.set_error(format!(
+                            "Logout failed: {}",
+                            crate::account_guidance::account_failure_line(&e.to_string())
+                        ));
                     }
                 }
             }
@@ -1942,7 +1972,13 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Skill management is unavailable for a Remote workspace")
                 }
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
+                let workspace =
+                    bitfun_core::agentic::workspace::WorkspaceBinding::resolve(&workspace_id)
+                        .await?;
                 let values =
                     bitfun_core::agentic::tools::implementations::skills::get_skill_registry()
                         .get_user_invocable_skills_for_workspace(
@@ -1993,10 +2029,19 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Skill management is unavailable for a Remote workspace")
                 }
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
+                let workspace =
+                    bitfun_core::agentic::workspace::WorkspaceBinding::resolve(&workspace_id)
+                        .await?;
                 let values =
                     bitfun_core::agentic::tools::implementations::skills::get_skill_registry()
-                        .get_mode_skill_infos_for_workspace(Some(&workspace), &self.agent_type)
+                        .get_mode_skill_infos_for_workspace(
+                            bitfun_core::agentic::tools::implementations::skills::mode_overrides::SkillPolicyWorkspace::from_binding(&workspace),
+                            &self.agent_type,
+                        )
                         .await;
                 Ok::<_, anyhow::Error>(
                     values
@@ -2106,18 +2151,18 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Subagent management is unavailable for a Remote workspace")
                 }
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
-                    .get_subagents_for_query(
-                        &bitfun_core::agentic::agents::SubagentQueryContext {
-                            parent_agent_type: Some(&self.agent_type),
-                            workspace_root: Some(&workspace),
-                            list_scope:
-                                bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
-                            include_disabled: false,
-                            external_sources_supported: true,
-                        },
-                    )
+                    .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
+                        parent_agent_type: Some(&self.agent_type),
+                        workspace_id: Some(&workspace_id),
+                        list_scope: bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
+                        include_disabled: false,
+                        external_sources_supported: true,
+                    })
                     .await;
                 Ok::<_, anyhow::Error>(
                     values
@@ -2162,11 +2207,14 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Subagent management is unavailable for a Remote workspace")
                 }
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
                     .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
                         parent_agent_type: Some(&self.agent_type),
-                        workspace_root: Some(&workspace),
+                        workspace_id: Some(&workspace_id),
                         list_scope:
                             bitfun_core::agentic::agents::SubagentListScope::RegistryManagement,
                         include_disabled: true,
@@ -2237,9 +2285,12 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Subagent management is unavailable for a Remote workspace")
                 }
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 bitfun_core::agentic::agents::get_agent_registry()
-                    .update_subagent_override(&mode_id, &subagent.id, enabled, Some(&workspace))
+                    .update_subagent_override(&mode_id, &subagent.id, enabled, Some(&workspace_id))
                     .await
                     .map_err(anyhow::Error::msg)
             })

@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
-use clap::ValueEnum;
 use bitfun_product_domains::external_sources::{
     ExternalMcpImportApplyOutcomeV1, ExternalMcpImportApplyRequestV1,
     ExternalMcpImportDispositionV1, ExternalMcpImportPlanV1, ExternalMcpImportSelectionV1,
     EXTERNAL_MCP_IMPORT_SCHEMA_V1,
 };
+use clap::ValueEnum;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -21,7 +21,11 @@ pub(crate) struct McpImportCommand {
 }
 
 pub(crate) async fn execute(command: McpImportCommand) -> Result<()> {
-    let workspace = std::env::current_dir().ok();
+    let workspace = Some(
+        crate::create_cli_local_workspace(&std::env::current_dir()?)
+            .await?
+            .id,
+    );
     let plan = bitfun_core::external_mcp_import::plan_external_mcp_import(workspace.clone())
         .await
         .map_err(operation_error)?;

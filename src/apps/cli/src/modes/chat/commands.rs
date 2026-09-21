@@ -612,10 +612,7 @@ impl ChatMode {
 
     fn handle_reload_invocation(
         &mut self,
-        target: std::result::Result<
-            bitfun_runtime_ports::AgentContextReloadTarget,
-            &'static str,
-        >,
+        target: std::result::Result<bitfun_runtime_ports::AgentContextReloadTarget, &'static str>,
         chat_view: &mut ChatView,
         chat_state: &mut ChatState,
         rt_handle: &tokio::runtime::Handle,
@@ -712,10 +709,10 @@ impl ChatMode {
             .unwrap_or(0);
         let persisted = tokio::task::block_in_place(|| {
             rt_handle.block_on(async {
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace = self.agent.workspace_id();
                 let conflicts =
                     bitfun_core::external_sources::set_native_prompt_command_conflict_choice(
-                        Some(&workspace),
+                        workspace.as_deref(),
                         native_commands,
                         candidate_id,
                         expected_preference_revision,
@@ -779,9 +776,9 @@ impl ChatMode {
                 .unwrap_or(0);
             let snapshot = tokio::task::block_in_place(|| {
                 rt_handle.block_on(async {
-                    let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                    let workspace = self.agent.workspace_id();
                     bitfun_core::external_sources::set_external_prompt_command_conflict_choice(
-                        Some(&workspace),
+                        workspace.as_deref(),
                         provider_conflict_key,
                         &projection.candidate_id,
                         expected_preference_revision,
@@ -900,9 +897,9 @@ impl ChatMode {
     ) -> Result<Option<ChatExitReason>> {
         let expanded = tokio::task::block_in_place(|| {
             rt_handle.block_on(async {
-                let workspace = std::path::PathBuf::from(self.agent.workspace_path_string());
+                let workspace = self.agent.workspace_id();
                 bitfun_core::external_sources::expand_external_prompt_command(
-                    Some(&workspace),
+                    workspace.as_deref(),
                     &invocation.command_name,
                     &invocation.arguments,
                     invocation.native_commands.clone(),
@@ -913,9 +910,7 @@ impl ChatMode {
                     shell_review_decision.as_ref(),
                 )
                 .await
-                .map_err(
-                    bitfun_core::external_sources::sanitize_external_source_operation_error,
-                )
+                .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)
             })
         });
         match expanded {
