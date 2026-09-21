@@ -66,6 +66,13 @@ pub struct DiffSummary {
     pub lines_modified: usize,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct TurnDiffAggregate {
+    pub modified_file_count: usize,
+    pub lines_added: usize,
+    pub lines_removed: usize,
+}
+
 /// Line-level diff stats for a session file (badge / toolbars), without full file contents.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

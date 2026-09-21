@@ -2057,7 +2057,7 @@ mod tests {
         block[..end]
             .lines()
             .map(str::trim)
-            .filter(|line| !line.is_empty() && !line.starts_with("//"))
+            .filter(|line| !line.is_empty() && !line.starts_with("//") && !line.starts_with("#["))
             .map(|line| {
                 let entry = line.trim_end_matches(',');
                 entry

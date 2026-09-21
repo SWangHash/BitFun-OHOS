@@ -8,9 +8,10 @@ use crate::util::errors::BitFunError;
 use bitfun_core_types::errors::ErrorCategory;
 use bitfun_observability::domains::{
     AgentModeClass, CompletionFacts, FinishReasonClass, InferenceAuthClass, InferenceContextClass,
-    InferenceProtocolClass, ModelClass, ProviderClass, SafeErrorType, StatusClass, ToolClass,
-    ToolKind, ToolSourceClass, TurnTrigger,
+    InferenceProtocolClass, ModelClass, ProgrammingLanguageClass, ProviderClass, SafeErrorType,
+    StatusClass, ToolClass, ToolFailureSource, ToolKind, ToolSourceClass, TurnTrigger,
 };
+use std::path::Path;
 
 pub(crate) fn completion_from_error(error: &BitFunError) -> CompletionFacts {
     match error {
@@ -34,6 +35,52 @@ pub(crate) fn completion_from_error(error: &BitFunError) -> CompletionFacts {
         }
         _ => CompletionFacts::failed(SafeErrorType::Other),
     }
+}
+
+pub(crate) fn tool_completion_from_error(error: &BitFunError) -> CompletionFacts {
+    match error {
+        BitFunError::Tool(_) | BitFunError::Validation(_) | BitFunError::NotFound(_) => {
+            CompletionFacts::failed(SafeErrorType::ToolValidation)
+        }
+        _ => completion_from_error(error),
+    }
+}
+
+pub(crate) fn tool_failure_from_error(error: &BitFunError) -> (CompletionFacts, ToolFailureSource) {
+    let completion = tool_completion_from_error(error);
+    let source = match error {
+        BitFunError::Tool(_) | BitFunError::Validation(_) | BitFunError::NotFound(_) => {
+            ToolFailureSource::Validation
+        }
+        BitFunError::Timeout(_) => ToolFailureSource::Timeout,
+        BitFunError::Cancelled(_) => ToolFailureSource::Cancellation,
+        BitFunError::AIProvider(provider) => match provider.category {
+            ErrorCategory::Permission => ToolFailureSource::Permission,
+            ErrorCategory::Timeout => ToolFailureSource::Timeout,
+            _ => ToolFailureSource::Provider,
+        },
+        BitFunError::RecoverableContextOverflow(_) | BitFunError::AIClient(_) => {
+            ToolFailureSource::Provider
+        }
+        BitFunError::Configuration(_)
+        | BitFunError::Deserialization(_)
+        | BitFunError::Serialization(_)
+        | BitFunError::Other(_)
+        | BitFunError::Semaphore(_)
+        | BitFunError::Service(_)
+        | BitFunError::Agent(_)
+        | BitFunError::Session(_)
+        | BitFunError::SessionInUse { .. }
+        | BitFunError::OutcomeUnknown(_)
+        | BitFunError::SessionCreateCleanupRequired { .. }
+        | BitFunError::Workspace(_)
+        | BitFunError::NotImplemented(_) => ToolFailureSource::Internal,
+        BitFunError::Io(_)
+        | BitFunError::Http(_)
+        | BitFunError::MCPError(_)
+        | BitFunError::ProcessError(_) => ToolFailureSource::Execution,
+    };
+    (completion, source)
 }
 
 pub(crate) fn retryable_error(error: &BitFunError) -> bool {
@@ -87,18 +134,23 @@ pub(crate) fn safe_error_category(category: &ErrorCategory) -> SafeErrorType {
     }
 }
 
-pub(crate) fn agent_mode_class(agent_type: &str) -> AgentModeClass {
-    let normalized = agent_type.to_ascii_lowercase();
-    if normalized.contains("review") {
-        AgentModeClass::Review
-    } else if normalized.contains("chat") {
-        AgentModeClass::Chat
-    } else if normalized.contains("goal") {
-        AgentModeClass::Goal
-    } else if normalized.is_empty() {
-        AgentModeClass::Other
-    } else {
-        AgentModeClass::Agentic
+pub(crate) fn agent_mode_class(
+    category: crate::agentic::agents::AgentCategory,
+    source: crate::agentic::agents::AgentSource,
+    is_review: bool,
+) -> AgentModeClass {
+    use crate::agentic::agents::{AgentCategory, AgentSource};
+
+    if source != AgentSource::Builtin {
+        return AgentModeClass::Custom;
+    }
+    if is_review {
+        return AgentModeClass::Review;
+    }
+    match category {
+        AgentCategory::Mode | AgentCategory::SubAgent | AgentCategory::Hidden => {
+            AgentModeClass::Agentic
+        }
     }
 }
 
@@ -119,6 +171,48 @@ pub(crate) fn model_class(category: Option<&ModelCategory>) -> ModelClass {
         Some(ModelCategory::GeneralChat) => ModelClass::GeneralReasoning,
         _ => ModelClass::Other,
     }
+}
+
+pub(crate) fn programming_language_class_from_path(path: &str) -> Option<ProgrammingLanguageClass> {
+    let path = Path::new(path);
+    if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+        match name.to_ascii_lowercase().as_str() {
+            "dockerfile" | "containerfile" => return Some(ProgrammingLanguageClass::Dockerfile),
+            "makefile" | "gnumakefile" => return Some(ProgrammingLanguageClass::Makefile),
+            "cargo.toml" | "cargo.lock" => return Some(ProgrammingLanguageClass::Rust),
+            _ => {}
+        }
+    }
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match extension.as_str() {
+        "ts" | "tsx" => ProgrammingLanguageClass::TypeScript,
+        "js" | "jsx" | "mjs" | "cjs" => ProgrammingLanguageClass::JavaScript,
+        "py" | "pyi" | "pyw" => ProgrammingLanguageClass::Python,
+        "rs" => ProgrammingLanguageClass::Rust,
+        "go" => ProgrammingLanguageClass::Go,
+        "java" => ProgrammingLanguageClass::Java,
+        "kt" | "kts" => ProgrammingLanguageClass::Kotlin,
+        "swift" => ProgrammingLanguageClass::Swift,
+        "cs" => ProgrammingLanguageClass::CSharp,
+        "cpp" | "cc" | "cxx" | "hpp" | "c" | "h" => ProgrammingLanguageClass::Cpp,
+        "rb" => ProgrammingLanguageClass::Ruby,
+        "php" => ProgrammingLanguageClass::Php,
+        "vue" => ProgrammingLanguageClass::Vue,
+        "svelte" => ProgrammingLanguageClass::Svelte,
+        "md" | "mdx" => ProgrammingLanguageClass::Markdown,
+        "json" | "jsonc" => ProgrammingLanguageClass::Json,
+        "yaml" | "yml" => ProgrammingLanguageClass::Yaml,
+        "toml" => ProgrammingLanguageClass::Toml,
+        "xml" => ProgrammingLanguageClass::Xml,
+        "html" | "htm" => ProgrammingLanguageClass::Html,
+        "css" | "scss" | "sass" | "less" => ProgrammingLanguageClass::Css,
+        "sh" | "bash" | "zsh" | "fish" => ProgrammingLanguageClass::Shell,
+        "ps1" => ProgrammingLanguageClass::PowerShell,
+        "sql" => ProgrammingLanguageClass::Sql,
+        "gradle" => ProgrammingLanguageClass::Gradle,
+        "properties" => ProgrammingLanguageClass::Properties,
+        _ => return None,
+    })
 }
 
 pub(crate) fn inference_classes(
@@ -167,18 +261,20 @@ pub(crate) fn finish_reason_class(value: &str) -> FinishReasonClass {
     }
 }
 
-pub(crate) fn tool_identity(tool_name: &str) -> (ToolClass, ToolSourceClass, ToolKind) {
+pub(crate) fn tool_identity(
+    tool_name: &str,
+    provider_kind: Option<&str>,
+) -> (ToolClass, ToolSourceClass, ToolKind) {
     let normalized = tool_name.to_ascii_lowercase();
-    let source = if normalized.starts_with("mcp__") || normalized == "mcp" {
-        ToolSourceClass::Mcp
-    } else if normalized.contains("plugin") || normalized.contains("opencode") {
-        ToolSourceClass::Plugin
-    } else if normalized.contains("external") {
-        ToolSourceClass::External
-    } else if normalized == "skill" {
-        ToolSourceClass::Skill
-    } else {
-        ToolSourceClass::BuiltIn
+    let source = match provider_kind.map(str::to_ascii_lowercase).as_deref() {
+        Some("mcp") => ToolSourceClass::Mcp,
+        Some("external_source" | "external") => ToolSourceClass::External,
+        Some("plugin" | "opencode" | "extension") => ToolSourceClass::Plugin,
+        Some("builtin" | "static") => ToolSourceClass::BuiltIn,
+        Some(_) => ToolSourceClass::Custom,
+        None if normalized == "skill" => ToolSourceClass::Skill,
+        None if normalized.starts_with("mcp__") || normalized == "mcp" => ToolSourceClass::Mcp,
+        None => ToolSourceClass::BuiltIn,
     };
     let kind = match normalized.as_str() {
         "read" | "write" | "edit" | "multiedit" | "glob" | "list" => ToolKind::Filesystem,
@@ -187,19 +283,115 @@ pub(crate) fn tool_identity(tool_name: &str) -> (ToolClass, ToolSourceClass, Too
         "git" | "gitstatus" | "gitdiff" => ToolKind::Git,
         "browser" | "webfetch" | "webdriver" => ToolKind::Browser,
         "computeruse" | "computer_use" => ToolKind::ComputerUse,
-        "mcp" => ToolKind::Protocol,
+        "mcp" | "calldeferredtool" | "gettoolspec" => ToolKind::Protocol,
         "task" | "subagent" | "createsubagent" => ToolKind::Task,
-        _ if source == ToolSourceClass::Mcp => ToolKind::Protocol,
         _ => ToolKind::Other,
     };
-    let class = if matches!(source, ToolSourceClass::BuiltIn | ToolSourceClass::Skill) {
-        ToolClass::BuiltIn
+    let kind = if source == ToolSourceClass::Mcp && kind == ToolKind::Other {
+        ToolKind::Protocol
     } else {
-        ToolClass::Custom
+        kind
+    };
+    let class = match source {
+        ToolSourceClass::BuiltIn | ToolSourceClass::Skill => ToolClass::BuiltIn,
+        ToolSourceClass::Mcp
+        | ToolSourceClass::Plugin
+        | ToolSourceClass::External
+        | ToolSourceClass::Custom => ToolClass::Custom,
     };
     (class, source, kind)
 }
 
 pub(crate) const fn inference_context_class() -> InferenceContextClass {
     InferenceContextClass::Turn
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bitfun_core_types::errors::AiProviderError;
+
+    #[test]
+    fn typed_errors_map_to_precise_terminal_facts() {
+        let timeout = completion_from_error(&BitFunError::Timeout("opaque".to_string()));
+        assert_eq!(
+            timeout.outcome(),
+            bitfun_observability::domains::Outcome::Timeout
+        );
+        assert_eq!(timeout.error_type(), Some(SafeErrorType::Timeout));
+
+        let overflow = completion_from_error(&BitFunError::RecoverableContextOverflow(
+            AiProviderError::classified("opaque".to_string(), ErrorCategory::ContextOverflow),
+        ));
+        assert_eq!(overflow.error_type(), Some(SafeErrorType::ContextOverflow));
+    }
+
+    #[test]
+    fn tool_failure_source_uses_typed_error_variants() {
+        assert_eq!(
+            tool_failure_from_error(&BitFunError::Validation("opaque".to_string())).1,
+            ToolFailureSource::Validation
+        );
+        assert_eq!(
+            tool_failure_from_error(&BitFunError::Timeout("opaque".to_string())).1,
+            ToolFailureSource::Timeout
+        );
+        assert_eq!(
+            tool_failure_from_error(&BitFunError::Cancelled("opaque".to_string())).1,
+            ToolFailureSource::Cancellation
+        );
+    }
+
+    #[test]
+    fn inference_classes_use_only_typed_configuration() {
+        assert_eq!(
+            inference_classes("anthropic", Some(&ModelCategory::CodeSpecialized), None),
+            (
+                ProviderClass::AnthropicCompatible,
+                ModelClass::Code,
+                InferenceProtocolClass::Messages,
+                None,
+            )
+        );
+        assert_eq!(
+            inference_classes("arbitrary-code-vl-haiku-name", None, None),
+            (
+                ProviderClass::Other,
+                ModelClass::Other,
+                InferenceProtocolClass::Other,
+                None,
+            )
+        );
+    }
+
+    #[test]
+    fn programming_language_uses_only_validated_file_paths() {
+        assert_eq!(
+            programming_language_class_from_path("src/main.rs"),
+            Some(ProgrammingLanguageClass::Rust)
+        );
+        assert_eq!(
+            programming_language_class_from_path("web/App.tsx"),
+            Some(ProgrammingLanguageClass::TypeScript)
+        );
+        assert_eq!(programming_language_class_from_path("README"), None);
+    }
+
+    #[test]
+    fn agent_mode_class_uses_registry_facts_not_agent_names() {
+        use crate::agentic::agents::{AgentCategory, AgentSource};
+
+        assert_eq!(
+            agent_mode_class(AgentCategory::Mode, AgentSource::Builtin, false),
+            AgentModeClass::Agentic
+        );
+        assert_eq!(
+            agent_mode_class(AgentCategory::SubAgent, AgentSource::Builtin, true),
+            AgentModeClass::Review
+        );
+        assert_eq!(
+            agent_mode_class(AgentCategory::Mode, AgentSource::External, false),
+            AgentModeClass::Custom
+        );
+    }
 }

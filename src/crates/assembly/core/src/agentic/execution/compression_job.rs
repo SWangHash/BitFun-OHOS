@@ -97,6 +97,7 @@ pub(super) fn merge_latest_context(
 pub(super) struct CompressionCandidate {
     pub plan: CompressionPlan,
     pub summary: String,
+    pub usage: Option<crate::util::types::ai::GeminiUsage>,
     pub request_identity: serde_json::Value,
 }
 
@@ -211,7 +212,10 @@ impl CompressionJob {
         }
     }
 
-    async fn request_summary(&self, messages: &[Message]) -> BitFunResult<String> {
+    async fn request_summary(
+        &self,
+        messages: &[Message],
+    ) -> BitFunResult<super::super::compression_request::CompressionSummary> {
         let mut messages = ExecutionEngine::build_ai_messages_for_send(
             messages,
             &self.client.config.format,
@@ -284,7 +288,8 @@ impl CompressionJob {
                 Ok(summary) => {
                     return Ok(CompressionCandidate {
                         plan,
-                        summary,
+                        summary: summary.text,
+                        usage: summary.usage,
                         request_identity: self.request_identity.clone(),
                     });
                 }

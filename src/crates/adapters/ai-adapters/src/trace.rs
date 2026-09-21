@@ -25,6 +25,10 @@ pub struct ModelExchangeRequestAttempt {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelExchangeRequestTraceHandle {
     pub trace_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_number: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +44,10 @@ pub struct ModelExchangeResponseTrace {
     pub usage: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_metadata: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub partial_recovery_reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -141,5 +149,24 @@ mod tests {
             })
         );
         assert!(Arc::ptr_eq(&base.sink, &scoped.sink));
+    }
+
+    #[test]
+    fn legacy_trace_payloads_default_new_correlation_and_timing_fields() {
+        let handle: ModelExchangeRequestTraceHandle =
+            serde_json::from_value(serde_json::json!({ "trace_id": "legacy-trace" }))
+                .expect("legacy trace handle should deserialize");
+        assert_eq!(handle.trace_id, "legacy-trace");
+        assert_eq!(handle.correlation_id, None);
+        assert_eq!(handle.attempt_number, None);
+
+        let response: ModelExchangeResponseTrace = serde_json::from_value(serde_json::json!({
+            "kind": "completed",
+            "assistant_text": "legacy answer"
+        }))
+        .expect("legacy trace response should deserialize");
+        assert_eq!(response.finish_reason, None);
+        assert_eq!(response.ttft_ms, None);
+        assert_eq!(response.assistant_text.as_deref(), Some("legacy answer"));
     }
 }

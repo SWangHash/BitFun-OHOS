@@ -45,6 +45,7 @@ pub mod miniapp_agent_api;
 pub mod miniapp_api;
 pub mod miniapp_export_api;
 pub mod miniapp_market_api;
+#[cfg(target_env = "ohos")]
 pub mod ohos;
 pub mod pages_api;
 pub mod path_target;

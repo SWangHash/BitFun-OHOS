@@ -19,6 +19,7 @@ use crate::runtime_ownership::CoreRuntimeOwnership;
 use crate::service::token_usage::{
     set_global_token_usage_service, TokenUsageService, TokenUsageSubscriber,
 };
+use bitfun_observability::Telemetry;
 pub use bitfun_product_capabilities::DeliveryProfile;
 
 fn session_manager_config_for_profile(
@@ -75,12 +76,41 @@ pub async fn init_agentic_system_for_profile(
         .await
 }
 
+/// Initialize a product runtime with an explicitly owned telemetry facade.
+pub async fn init_agentic_system_for_profile_with_telemetry(
+    delivery_profile: DeliveryProfile,
+    telemetry: Telemetry,
+) -> Result<AgenticSystem> {
+    let path_manager = try_get_path_manager_arc()?;
+    let runtime_ownership = Arc::new(CoreRuntimeOwnership::embedded(
+        path_manager.as_ref(),
+        "embedded-host",
+    ));
+    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry).await
+}
+
 /// Initializes one product runtime with an explicitly selected ownership
 /// deployment. First-party fixed-workspace hosts use this before protocol/UI
 /// readiness; public Agent Runtime contracts remain unchanged.
 pub async fn init_agentic_system_for_profile_with_runtime_ownership(
     delivery_profile: DeliveryProfile,
     runtime_ownership: Arc<CoreRuntimeOwnership>,
+) -> Result<AgenticSystem> {
+    init_agentic_system_inner(delivery_profile, runtime_ownership, Telemetry::noop()).await
+}
+
+pub async fn init_agentic_system_for_profile_with_runtime_ownership_and_telemetry(
+    delivery_profile: DeliveryProfile,
+    runtime_ownership: Arc<CoreRuntimeOwnership>,
+    telemetry: Telemetry,
+) -> Result<AgenticSystem> {
+    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry).await
+}
+
+async fn init_agentic_system_inner(
+    delivery_profile: DeliveryProfile,
+    runtime_ownership: Arc<CoreRuntimeOwnership>,
+    telemetry: Telemetry,
 ) -> Result<AgenticSystem> {
     info!("Initializing agentic system for profile {delivery_profile}");
 
@@ -126,33 +156,39 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership(
         crate::product_runtime::core_permission_request_manager().map_err(anyhow::Error::msg)?;
     let tool_pipeline = Arc::new(
         tools::pipeline::ToolPipeline::new(tool_registry, tool_state_manager, None)
-            .with_permission_request_manager(permission_request_manager),
+            .with_permission_request_manager(permission_request_manager)
+            .with_telemetry(telemetry.clone()),
     );
 
     let stream_processor = Arc::new(execution::StreamProcessor::new(event_queue.clone()));
-    let round_executor = Arc::new(execution::RoundExecutor::new(
-        stream_processor,
-        event_queue.clone(),
-        tool_pipeline.clone(),
-    ));
+    let round_executor = Arc::new(
+        execution::RoundExecutor::new(stream_processor, event_queue.clone(), tool_pipeline.clone())
+            .with_telemetry(telemetry.clone()),
+    );
 
     let execution_config = execution::execution_engine_config_from_global_config().await;
-    let execution_engine = Arc::new(execution::ExecutionEngine::new(
-        round_executor,
-        event_queue.clone(),
-        session_manager.clone(),
-        context_compressor,
-        execution_config,
-    ));
+    let execution_engine = Arc::new(
+        execution::ExecutionEngine::new(
+            round_executor,
+            event_queue.clone(),
+            session_manager.clone(),
+            context_compressor,
+            execution_config,
+        )
+        .with_telemetry(telemetry.clone()),
+    );
 
-    let coordinator = Arc::new(coordination::ConversationCoordinator::new(
-        session_manager,
-        execution_engine,
-        tool_pipeline,
-        event_queue.clone(),
-        event_router.clone(),
-        runtime_ownership,
-    ));
+    let coordinator = Arc::new(
+        coordination::ConversationCoordinator::new(
+            session_manager,
+            execution_engine,
+            tool_pipeline,
+            event_queue.clone(),
+            event_router.clone(),
+            runtime_ownership,
+        )
+        .with_telemetry(telemetry),
+    );
 
     coordination::ConversationCoordinator::set_global(coordinator.clone());
 

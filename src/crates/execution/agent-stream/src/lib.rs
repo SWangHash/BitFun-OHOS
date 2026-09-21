@@ -255,6 +255,10 @@ pub struct StreamResult {
     pub reasoning_content_kind: Option<ReasoningContentKind>,
     /// Whether the provider emitted a reasoning/thinking field even if its content was empty.
     pub reasoning_content_present: bool,
+    /// Milliseconds from stream processing start to the first non-empty reasoning chunk.
+    pub reasoning_first_ms: Option<u64>,
+    /// Milliseconds between the first and last non-empty reasoning chunks.
+    pub reasoning_duration_ms: Option<u64>,
     /// Signature of Anthropic extended thinking (passed back in multi-turn conversations)
     pub thinking_signature: Option<String>,
     /// User-visible assistant text after stream-only hidden markup has been removed.
@@ -268,6 +272,8 @@ pub struct StreamResult {
     pub provider_metadata: Option<Value>,
     /// Complete provider response layout and opaque state eligible for replay.
     pub model_response_replay: Option<ModelResponseReplayCapture>,
+    /// Last provider finish reason observed for the response.
+    pub finish_reason: Option<String>,
     /// Whether this stream produced any user-visible output (text/thinking/tool events)
     pub has_effective_output: bool,
     /// Milliseconds from stream processing start to the first upstream response item.
@@ -330,6 +336,7 @@ struct StreamContext {
     usage: Option<UnifiedTokenUsage>,
     provider_metadata: Option<Value>,
     model_response_replay: Option<ModelResponseReplayCapture>,
+    finish_reason: Option<String>,
 
     // Current tool call state
     pending_tool_calls: PendingToolCalls,
@@ -341,6 +348,8 @@ struct StreamContext {
     first_visible_output_ms: Option<u64>,
     text_chunks_count: usize,
     thinking_chunks_count: usize,
+    reasoning_first_ms: Option<u64>,
+    reasoning_last_ms: Option<u64>,
     thinking_streams: Vec<Option<ReasoningContentKind>>,
     completed_thinking_streams: HashSet<Option<ReasoningContentKind>>,
     has_effective_output: bool,
@@ -379,6 +388,7 @@ impl StreamContext {
             usage: None,
             provider_metadata: None,
             model_response_replay: None,
+            finish_reason: None,
             pending_tool_calls: PendingToolCalls::new(),
             finalized_tool_call_ids: HashSet::new(),
             stream_started_at: Instant::now(),
@@ -386,6 +396,8 @@ impl StreamContext {
             first_visible_output_ms: None,
             text_chunks_count: 0,
             thinking_chunks_count: 0,
+            reasoning_first_ms: None,
+            reasoning_last_ms: None,
             thinking_streams: Vec::new(),
             completed_thinking_streams: HashSet::new(),
             has_effective_output: false,
@@ -397,6 +409,10 @@ impl StreamContext {
     }
 
     fn into_result(self) -> StreamResult {
+        let reasoning_duration_ms = self
+            .reasoning_first_ms
+            .zip(self.reasoning_last_ms)
+            .map(|(first, last)| last.saturating_sub(first));
         let (full_thinking, reasoning_content_kind) = if !self.full_reasoning_summary.is_empty() {
             (
                 self.full_reasoning_summary,
@@ -414,6 +430,8 @@ impl StreamContext {
             full_thinking,
             reasoning_content_kind,
             reasoning_content_present: self.reasoning_content_present,
+            reasoning_first_ms: self.reasoning_first_ms,
+            reasoning_duration_ms,
             thinking_signature: self.thinking_signature,
             full_text: self.full_text,
             hidden_text_blocks: self.hidden_text_blocks,
@@ -421,6 +439,7 @@ impl StreamContext {
             usage: self.usage,
             provider_metadata: self.provider_metadata,
             model_response_replay: self.model_response_replay,
+            finish_reason: self.finish_reason,
             has_effective_output: self.has_effective_output,
             first_chunk_ms: self.first_chunk_ms,
             first_visible_output_ms: self.first_visible_output_ms,
@@ -919,6 +938,11 @@ impl StreamProcessor {
         // Thinking-only output does NOT count as "effective" for retry purposes:
         // if the stream fails after producing only thinking (no text/tool calls),
         // it is safe to retry because the model will re-think from scratch.
+        if !thinking_content.is_empty() {
+            let elapsed_ms = elapsed_ms_u64(ctx.stream_started_at);
+            ctx.reasoning_first_ms.get_or_insert(elapsed_ms);
+            ctx.reasoning_last_ms = Some(elapsed_ms);
+        }
         match reasoning_kind {
             Some(ReasoningContentKind::Reasoning) => {
                 ctx.full_reasoning_text.push_str(&thinking_content)
@@ -1269,6 +1293,7 @@ impl StreamProcessor {
                     }
 
                     if let Some(reason) = finish_reason {
+                        ctx.finish_reason = Some(reason.clone());
                         let completion = tool_call_completion.unwrap_or(ToolCallCompletion::Unknown);
                         let _ = ctx.finalize_all_pending_tool_calls(
                             ToolCallBoundary::FinishReason,
@@ -1777,6 +1802,7 @@ mod tests {
             .await
             .expect("stream result");
 
+        assert_eq!(result.finish_reason.as_deref(), Some("length"));
         assert!(result
             .partial_recovery_reason
             .as_deref()
@@ -1813,6 +1839,7 @@ mod tests {
             .await
             .expect("stream result");
 
+        assert_eq!(result.finish_reason.as_deref(), Some("stop"));
         assert!(result.partial_recovery_reason.is_none());
     }
 
@@ -2258,6 +2285,44 @@ mod tests {
         assert!(result.reasoning_content_present);
         assert!(result.full_thinking.is_empty());
         assert!(!result.has_effective_output);
+        assert_eq!(result.reasoning_first_ms, None);
+        assert_eq!(result.reasoning_duration_ms, None);
+    }
+
+    #[tokio::test]
+    async fn records_reasoning_first_and_duration_from_non_empty_chunks() {
+        let processor = build_processor();
+        let stream = iter(vec![
+            Ok(UnifiedResponse {
+                reasoning_content: Some("first".to_string()),
+                ..Default::default()
+            }),
+            Ok(UnifiedResponse {
+                reasoning_content: Some(" second".to_string()),
+                finish_reason: Some("stop".to_string()),
+                ..Default::default()
+            }),
+        ])
+        .boxed();
+
+        let result = processor
+            .process_stream(
+                stream,
+                None,
+                None,
+                "session_1".to_string(),
+                "turn_1".to_string(),
+                "round_1".to_string(),
+                "round_1:attempt:1".to_string(),
+                1,
+                &CancellationToken::new(),
+            )
+            .await
+            .expect("stream result");
+
+        assert_eq!(result.full_thinking, "first second");
+        assert!(result.reasoning_first_ms.is_some());
+        assert!(result.reasoning_duration_ms.is_some());
     }
 
     #[tokio::test]

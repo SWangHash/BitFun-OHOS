@@ -41,8 +41,6 @@ tauri = { workspace = true, features = ["unstable", "macos-private-api", "tray-i
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-fs = { workspace = true }
 tauri-plugin-log = { workspace = true }
-napi-ohos = { workspace = true }
-napi-derive-ohos = { workspace = true }
 keepawake = { workspace = true }
 # Keep Tauri's transitive time resolution on the known-good release.
 tauri-plugin-global-shortcut = { workspace = true }
@@ -182,6 +180,9 @@ dark-light = { workspace = true }
 # Pure-Rust xz decoder: the OpenHarmony NDK ships liblzma.so without lzma.h,
 # so the C-backed xz2/lzma-sys path cannot build on the OHOS target.
 lzma-rs = { workspace = true }
+# ArkTS bridge only links against the OHOS Node-API runtime.
+napi-ohos = { workspace = true }
+napi-derive-ohos = { workspace = true }
 
 [lints]
 workspace = true

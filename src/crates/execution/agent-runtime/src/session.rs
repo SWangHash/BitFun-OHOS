@@ -86,12 +86,20 @@ pub struct CompressionState {
     pub last_compression_at: Option<SystemTime>,
     /// Compression trigger count
     pub compression_count: usize,
+    /// Turn index at which the last compression was committed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_compression_turn_index: Option<usize>,
 }
 
 impl CompressionState {
     pub fn increment_compression_count(&mut self) {
         self.last_compression_at = Some(SystemTime::now());
         self.compression_count += 1;
+    }
+
+    pub fn increment_compression_count_at(&mut self, turn_index: usize) {
+        self.increment_compression_count();
+        self.last_compression_turn_index = Some(turn_index);
     }
 }
 
@@ -667,6 +675,7 @@ mod tests {
             compression_state: CompressionState {
                 last_compression_at: None,
                 compression_count: 2,
+                last_compression_turn_index: None,
             },
             runtime_state: SessionState::Idle,
         };
