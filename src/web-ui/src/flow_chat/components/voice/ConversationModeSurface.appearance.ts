@@ -5,6 +5,8 @@ export const conversationModeSurfaceAppearanceDescriptor: AppearanceSurfaceDescr
   parts: [
     { id: 'root' },
     { id: 'body' },
+    { id: 'voiceHeader' },
+    { id: 'composer' },
     { id: 'modeSwitch' },
     { id: 'modeSwitchButton' },
     { id: 'history' },

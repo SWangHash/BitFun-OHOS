@@ -1294,7 +1294,7 @@ async fn register_delegated_identity_providers() {
 pub fn init_on_startup() {
     register_page_deploy_host();
     register_page_publish_host();
-    tokio::spawn(async {
+    tauri::async_runtime::spawn(async {
         let startup_generation = account_context_generation();
         // Restore persisted account session (if any) before anything else
         // so that device routing and bot delegation work on restart.

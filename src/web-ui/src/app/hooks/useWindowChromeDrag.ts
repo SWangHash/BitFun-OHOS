@@ -62,6 +62,8 @@ export const useWindowChromeDrag = (
     if (!gesture) return;
     window.removeEventListener('pointermove', gesture.onMove, true);
     window.removeEventListener('pointerup', gesture.onUp, true);
+    window.removeEventListener('pointercancel', gesture.onUp, true);
+    window.removeEventListener('blur', gesture.onUp, true);
     pendingGestureRef.current = null;
   }, []);
 
@@ -97,36 +99,51 @@ export const useWindowChromeDrag = (
         return;
       }
 
-      if (!isMaximized) {
-        startChromeDragging();
-        return;
-      }
+      const startOrDeferChromeDragging = async () => {
+        let maximized = isMaximized;
+        if (!maximized) {
+          try {
+            maximized = await workspaceAPI.window_is_maximized();
+          } catch {
+            // Keep the rendered state as the fallback when the native query is
+            // unavailable during startup or a window transition.
+          }
+        }
 
-      if (isOpenHarmonyRuntime()) {
-        // ArkUI's startMoving() restores a maximized window immediately. Keep
-        // a click inert on the custom chrome; double-click is handled by the
-        // parent bar and calls the native maximize/recover command directly.
-        return;
-      }
-
-      // Maximized: defer until the pointer moves past the threshold so plain
-      // clicks stay inert and the window is not restored by a bare click.
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        const dx = moveEvent.clientX - event.clientX;
-        const dy = moveEvent.clientY - event.clientY;
-        if (
-          dx * dx + dy * dy <
-          MAXIMIZED_DRAG_START_THRESHOLD_PX * MAXIMIZED_DRAG_START_THRESHOLD_PX
-        ) {
+        if (!maximized) {
+          startChromeDragging();
           return;
         }
-        teardownGesture();
-        startChromeDragging();
+
+        if (isOpenHarmonyRuntime()) {
+          // Preserve the host's maximized-window gesture policy.
+          return;
+        }
+
+        // Native maximize can precede the asynchronous React state update.
+        // Require movement regardless of that state so a plain click never
+        // starts a native drag (which can restore the window immediately).
+        const onPointerMove = (moveEvent: PointerEvent) => {
+          const dx = moveEvent.clientX - event.clientX;
+          const dy = moveEvent.clientY - event.clientY;
+          if (
+            dx * dx + dy * dy <
+            MAXIMIZED_DRAG_START_THRESHOLD_PX * MAXIMIZED_DRAG_START_THRESHOLD_PX
+          ) {
+            return;
+          }
+          teardownGesture();
+          startChromeDragging();
+        };
+        const onPointerUp = () => teardownGesture();
+        pendingGestureRef.current = { onMove: onPointerMove, onUp: onPointerUp };
+        window.addEventListener('pointermove', onPointerMove, true);
+        window.addEventListener('pointerup', onPointerUp, true);
+        window.addEventListener('pointercancel', onPointerUp, true);
+        window.addEventListener('blur', onPointerUp, true);
       };
-      const onPointerUp = () => teardownGesture();
-      pendingGestureRef.current = { onMove: onPointerMove, onUp: onPointerUp };
-      window.addEventListener('pointermove', onPointerMove, true);
-      window.addEventListener('pointerup', onPointerUp, true);
+
+      void startOrDeferChromeDragging();
     },
     [canDragWindow, isMaximized, startChromeDragging, teardownGesture],
   );
