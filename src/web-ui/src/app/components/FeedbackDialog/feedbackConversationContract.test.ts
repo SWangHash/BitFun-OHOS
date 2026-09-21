@@ -51,6 +51,23 @@ describe('feedback conversation contract', () => {
     expect(source).toContain("t('feedback.conversation.ackFailed')");
   });
 
+  it('renders conversation messages as distinct bubbles and styles the design-system reply field', () => {
+    const source = readSource('./FeedbackConversationView.tsx');
+    const styles = readSource('./FeedbackDialog.scss');
+    const messageStyles = styles.slice(
+      styles.indexOf('.bitfun-feedback__message {'),
+      styles.indexOf('.bitfun-feedback__resolved-notice {'),
+    );
+
+    expect(messageStyles).toContain('background: var(--bitfun-color-action-neutral-surface);');
+    expect(messageStyles).toContain('box-shadow: var(--bitfun-shadow-xs);');
+    expect(messageStyles).toContain('&.is-user {');
+    expect(messageStyles).toContain('background: var(--bitfun-color-accent-surface);');
+    expect(messageStyles).toContain('border-color: var(--bitfun-color-accent-border-subtle);');
+    expect(source).toContain('className="bitfun-feedback__reply-input"');
+    expect(styles).toContain(".bitfun-feedback__reply-input [data-bitfun-part='input'] {");
+  });
+
   it('does not flash the empty state while a retry is refreshing', () => {
     const source = readSource('./FeedbackConversationView.tsx');
     const messageState = source.slice(

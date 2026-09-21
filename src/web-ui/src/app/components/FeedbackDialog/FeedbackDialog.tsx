@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ExternalLink, List, Send, SquarePen } from 'lucide-react';
 import {
+  Alert,
   Button,
   Checkbox,
   ConfirmDialog,
@@ -467,8 +468,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
         onOpenChange={(_open, reason) => {
           if (reason === 'close-button' || reason === 'escape-key' || reason === 'pointer-outside') requestClose();
         }}
-        size="2xl"
-        className="bitfun-feedback__modal-content"
+        size={completed ? 'sm' : '2xl'}
+        className={`bitfun-feedback__modal-content${completed ? ' is-complete' : ''}`}
         closeOnEscape={!submitting && !replyState.sending}
         closeOnPointerOutside={!submitting && !replyState.sending}
         data-testid="feedback-dialog"
@@ -529,8 +530,12 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
             </div>
             <div className="bitfun-feedback__content-field">
               <Textarea
+                className="bitfun-feedback__content-input"
                 label={t('feedback.content')}
+                layout="fill"
                 required
+                resize="none"
+                rows={8}
                 value={content}
                 maxLength={contentNativeMaxLength}
                 disabled={submitting}
@@ -587,14 +592,20 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
               </span>
             </div>
             {submitErrorMessage ? (
-              <div className="bitfun-feedback__error" role="alert">
-                {submitErrorMessage}
-              </div>
+              <Alert
+                className="bitfun-feedback__error"
+                tone="error"
+                message={submitErrorMessage}
+                showIcon
+              />
             ) : null}
             {gitCodeError ? (
-              <div className="bitfun-feedback__error" role="alert">
-                {t('feedback.errors.gitcode')}
-              </div>
+              <Alert
+                className="bitfun-feedback__error"
+                tone="error"
+                message={t('feedback.errors.gitcode')}
+                showIcon
+              />
             ) : null}
             <div className="bitfun-feedback__actions" data-bitfun-component="feedback-dialog" data-bitfun-part="actions">
               <Button type="button" variant="text" leadingIcon={<ExternalLink size={15} aria-hidden="true" />} onClick={openGitCode}>

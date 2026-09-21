@@ -562,6 +562,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
       ) : (
         <form className="bitfun-feedback__reply" onSubmit={requestReply}>
           <Textarea
+            className="bitfun-feedback__reply-input"
             value={draft}
             maxLength={draftNativeMaxLength}
             rows={3}
