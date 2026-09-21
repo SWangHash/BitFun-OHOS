@@ -365,6 +365,27 @@ describe('AcpAgentsConfig', () => {
     })).toBeUndefined();
   });
 
+  it('keeps empty commands and local overrides when saving JSON', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {
+      codex: { command: '', args: ['acp'], localOverride: { command: '', args: ['entry.js'], env: {} } },
+    } }));
+    await act(async () => { root.render(<AcpAgentsConfig />); });
+    await openView(container, 'views.json');
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(JSON.parse(editor.value).acpClients.codex.command).toBe('');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        ?.call(editor, `${editor.value}\n`);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const saveButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'actions.saveJson');
+    await act(async () => { saveButton!.click(); });
+    expect(JSON.parse(saveJsonConfigMock.mock.calls[0][0]).acpClients.codex).toMatchObject({
+      command: '', args: ['acp'], localOverride: { command: '', args: ['entry.js'] },
+    });
+  });
+
   it.each([
     ['ask', 'ask'],
     ['allow_once', 'allow_once'],
@@ -519,13 +540,13 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).not.toContain('provisioning.installing');
   });
 
-  it('marks an installed but unrunnable CLI as invalid and exposes its error', async () => {
+  it.each([true, false])('marks an unrunnable configured command as invalid (installed=%s)', async (installed) => {
     probeClientRequirementsMock.mockResolvedValue([
       {
         id: 'opencode',
         tool: {
           name: 'opencode',
-          installed: true,
+          installed,
           path: '/usr/bin/opencode',
           error: 'Process exited with status 1',
         },
@@ -549,7 +570,7 @@ describe('AcpAgentsConfig', () => {
     expect(opencodeRow).toBeTruthy();
     expect(opencodeRow!.querySelector('.bitfun-acp-agents__status.is-invalid')).not.toBeNull();
     expect(opencodeRow!.querySelector('.bitfun-acp-agents__capability.is-error')).not.toBeNull();
-    expect(opencodeRow!.textContent).toContain('registry.configInvalid');
+    expect(opencodeRow!.textContent).toContain(installed ? 'registry.configInvalid' : 'registry.cliMissing');
     expect(opencodeRow!.textContent).toContain('actions.viewError');
     expect(opencodeRow!.textContent).not.toContain('registry.enabled');
   });
