@@ -16,6 +16,7 @@ use super::builtin_clients::{
     OhosNpmManagedAdapterPreset, OhosNpmManagedPreset,
 };
 use super::config::{AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpRequirementProbeItem};
+use super::dsh_profile::check_bundled_profile_requirement;
 use super::ohos_node_compat::{
     prepare_node_child_environment, prepare_node_command, sanitize_node_environment,
 };
@@ -605,13 +606,27 @@ async fn probe_managed_installation(
         );
     }
 
-    AcpClientRequirementProbe {
+    let mut probe = AcpClientRequirementProbe {
         id: plan.client_id.clone(),
         tool,
         adapter,
         runnable,
         notes,
+    };
+    #[cfg(target_env = "ohos")]
+    let native_acp = plan.client_id == "dsh"
+        && tool_runnable
+        && super::dsh_profile::has_native_acp_profile(
+            &plan.tool_path.to_string_lossy(),
+            &environment,
+        )
+        .await;
+    #[cfg(not(target_env = "ohos"))]
+    let native_acp = false;
+    if !native_acp {
+        check_bundled_profile_requirement(&mut probe);
     }
+    probe
 }
 
 async fn probe_node_script_with_environment(

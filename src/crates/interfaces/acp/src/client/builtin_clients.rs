@@ -186,9 +186,9 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         adapter_bin: None,
         bundled_profile: None,
     },
-    // DeepSeek Harness (dsh) — the harness has no ACP entry point of its own,
-    // so BitFun ships one as a dsh PROFILE (packages/dsh-acp) and launches it
-    // through the user's own installation. The model and the API key stay in
+    // DeepSeek Harness (dsh) — BitFun ships a fallback ACP profile for older
+    // runtimes. HarmonyOS prefers the installed runtime's native ACP profile
+    // when available. The model and the API key stay in
     // dsh, where the user configured them; BitFun stores neither. Portable
     // hosts keep the npm installer, while HarmonyOS uses the patched official
     // HarmonyBrew formula and its exact launcher path.
