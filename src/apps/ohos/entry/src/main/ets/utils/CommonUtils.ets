@@ -149,17 +149,19 @@ export class CommonUtils {
 
   /// Read file paths from the OHOS system pasteboard.
   ///
-  /// When the user taps "复制" (copy) in `DocumentViewPicker`, the picker
-  /// writes the selected file URIs to the system pasteboard. This reads them
-  /// back so the project's paste flow can reach them.
+  /// When the user taps "复制" (copy) in the system file manager, the manager
+  /// writes file URIs (docs/file domain) to the system pasteboard. The Rust
+  /// side runs inside the app sandbox and CANNOT open those user-domain paths
+  /// directly ("Source file does not exist"), so this bridge copies each
+  /// clipboard URI into the app cache directory first (`fs.open` on the URI
+  /// consumes the pasteboard grant) and returns the sandbox cache paths.
   ///
   /// Iterates every record and collects file URIs from both the legacy `uri` /
-  /// `plainText` fields and API 14+ URI/plain-text MIME entries. Some system
-  /// file managers store file lists only in those additional entries. Each
-  /// candidate is run through the same normalization as the picker. Returns the
+  /// `plainText` fields and URI/plain-text MIME entries. Some system file
+  /// managers store file lists only in those additional entries. Returns the
   /// same envelope as `open_file_dialog`: `{ paths: string[] }` /
   /// `{ paths: [] }` (no files) / `{ error: string }`.
-  static async read_clipboard_files(): Promise<string> {
+  static async read_clipboard_files(cacheDir: string): Promise<string> {
     try {
       const systemPasteboard = pasteboard.getSystemPasteboard();
       const hasData = await systemPasteboard.hasData();
@@ -212,27 +214,34 @@ export class CommonUtils {
           if (seen.has(candidate)) {
             continue;
           }
-          // Accept URIs (file:// / docs://) and bare absolute paths. Some
-          // file managers put plain /storage/... paths into the pasteboard
-          // without a URI scheme; a copied plain-text snippet that merely
-          // looks like a path degrades loudly later as a
-          // "source file does not exist" paste failure instead of a silent
-          // empty clipboard.
-          const looksLikePath = candidate.startsWith('file://')
-            || candidate.startsWith('docs://')
-            || candidate.startsWith('/');
-          if (!looksLikePath) {
+          // Only URIs (file:// / docs://) carry a pasteboard read grant; a
+          // copied plain-text snippet that merely looks like a path is not a
+          // pasteable file.
+          const looksLikeFileUri = candidate.startsWith('file://')
+            || candidate.startsWith('docs://');
+          if (!looksLikeFileUri) {
             continue;
           }
           seen.add(candidate);
           try {
-            if (candidate.startsWith('/')) {
-              paths.push(candidate);
-            } else {
-              paths.push(CommonUtils.normalizeFileUri(candidate));
+            const fileName = CommonUtils.fileNameFromClipboardUri(candidate);
+            if (fileName.length === 0) {
+              hilog.warn(0x0000, 'vnext', 'read_clipboard_files: cannot resolve file name for ' + candidate);
+              continue;
             }
+            const destPath = (cacheDir.replace(/\/+$/, '')) + '/' + fileName;
+            const source = await fs.open(candidate, fs.OpenMode.READ_ONLY);
+            try {
+              await fs.copyFile(source.fd, destPath);
+            } finally {
+              await fs.close(source.fd);
+            }
+            hilog.info(0x0000, 'vnext', 'read_clipboard_files: cached ' + candidate + ' -> ' + destPath);
+            paths.push(destPath);
           } catch (e) {
-            hilog.warn(0x0000, 'vnext', 'read_clipboard_files: skip un-normalizable uri: ' + candidate + ' ' + e);
+            // Directory URIs and grant-less URIs land here — surface loudly in
+            // the log instead of pretending the clipboard was empty.
+            hilog.warn(0x0000, 'vnext', 'read_clipboard_files: skip uri ' + candidate + ': ' + e);
           }
         }
       }
@@ -241,6 +250,23 @@ export class CommonUtils {
     } catch (e) {
       return JSON.stringify({ error: 'read clipboard files failed: ' + e });
     }
+  }
+
+  /// Resolves a clipboard URI to a plain file name for the cache copy.
+  static fileNameFromClipboardUri(uri: string): string {
+    try {
+      const fileUriObject = new fileUri.FileUri(uri);
+      const name: string = fileUriObject.name;
+      if (name && name.length > 0) {
+        return name;
+      }
+    } catch (e) {
+      hilog.warn(0x0000, 'vnext', 'fileNameFromClipboardUri: FileUri.name failed: ' + e);
+    }
+    // Fallback: take the last non-empty segment of the URI path.
+    const withoutScheme = uri.replace(/^[a-zA-Z]+:\/\//, '');
+    const segments = withoutScheme.split('/').filter(s => s.length > 0);
+    return segments.length > 0 ? segments[segments.length - 1] : '';
   }
 }
 

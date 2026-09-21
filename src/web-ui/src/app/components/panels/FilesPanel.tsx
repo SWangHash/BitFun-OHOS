@@ -51,8 +51,14 @@ import {
   normalizeWorkspaceTargetDirectory,
   pasteClipboardFilesToWorkspaceDirectory,
   resolvePasteTargetDirectory,
+  uploadLocalPathsToWorkspaceDirectory,
   type TransferProgressState,
 } from '@/tools/file-system/services/workspaceFileTransfer';
+import {
+  clearFileTreeClipboard,
+  getFileTreeClipboard,
+  setFileTreeClipboard,
+} from '@/tools/file-system/services/fileTreeClipboard';
 import { useWorkspaceFileDrop } from '@/tools/file-system/hooks/useWorkspaceFileDrop';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { sshApi } from '@/features/ssh-remote/sshApi';
@@ -288,6 +294,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     expandFolderLazy,
     expandFolderEnsure,
     removePath,
+    collapseAll,
   } = useFileSystem({
     workspaceId: currentWorkspace?.id,
     rootPath: workspacePath,
@@ -657,19 +664,28 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
       targetDirectory = normalizeWorkspaceTargetDirectory(targetDirectory, currentWorkspace);
 
-      notification.info(
-        t('notifications.pastingFiles', {
-          count: 1,
-          target: targetDirectory.split(/[/\\]/).pop(),
-        })
-      );
+      // Prefer the in-app tree clipboard (右键/快捷键 复制、剪切). The OS
+      // pasteboard stays the fallback for files copied in external managers.
+      const internalClipboard = getFileTreeClipboard();
+      const result = internalClipboard
+        ? await uploadLocalPathsToWorkspaceDirectory(
+            internalClipboard.paths,
+            targetDirectory,
+            currentWorkspace,
+            onProgress,
+            { isCut: internalClipboard.isCut },
+            id
+          )
+        : await pasteClipboardFilesToWorkspaceDirectory(
+            targetDirectory,
+            currentWorkspace,
+            onProgress,
+            id
+          );
 
-      const result = await pasteClipboardFilesToWorkspaceDirectory(
-        targetDirectory,
-        currentWorkspace,
-        onProgress,
-        id
-      );
+      if (internalClipboard?.isCut && result.successCount > 0) {
+        clearFileTreeClipboard();
+      }
 
       if (result.successCount === 0 && result.failedFiles.length === 0) {
         notification.info(t('notifications.pasteNoFiles'));
@@ -730,15 +746,49 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     executePaste(data.targetDirectory);
   }, [executePaste]);
 
+  const handleCopyFromContextMenu = useCallback((data: { paths: string[] }) => {
+    setFileTreeClipboard(data.paths, false);
+  }, []);
+
+  const handleCutFromContextMenu = useCallback((data: { paths: string[] }) => {
+    setFileTreeClipboard(data.paths, true);
+  }, []);
+
   const handlePaste = useCallback(() => {
     executePaste();
   }, [executePaste]);
+
+  const handleCopy = useCallback(() => {
+    if (selectedFile) {
+      setFileTreeClipboard([selectedFile], false);
+    }
+  }, [selectedFile]);
+
+  const handleCut = useCallback(() => {
+    if (selectedFile) {
+      setFileTreeClipboard([selectedFile], true);
+    }
+  }, [selectedFile]);
 
   // Register paste as a filetree-scoped shortcut (Windows/Linux primary path).
   useShortcut(
     'filetree.paste',
     { key: 'V', ctrl: true, scope: 'filetree' },
     () => handlePaste(),
+    { enabled: Boolean(workspacePath) }
+  );
+
+  useShortcut(
+    'filetree.copy',
+    { key: 'C', ctrl: true, scope: 'filetree' },
+    () => handleCopy(),
+    { enabled: Boolean(workspacePath) }
+  );
+
+  useShortcut(
+    'filetree.cut',
+    { key: 'X', ctrl: true, scope: 'filetree' },
+    () => handleCut(),
     { enabled: Boolean(workspacePath) }
   );
 
@@ -810,6 +860,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     globalEventBus.on('file:compress', handleCompress);
     globalEventBus.on('file:decompress', handleDecompress);
     globalEventBus.on('file:paste', handlePasteFromContextMenu);
+    globalEventBus.on('file:copy', handleCopyFromContextMenu);
+    globalEventBus.on('file:cut', handleCutFromContextMenu);
     globalEventBus.on('file-tree:refresh', handleFileTreeRefresh);
     globalEventBus.on('file-explorer:navigate', handleNavigateToPath);
 
@@ -823,10 +875,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       globalEventBus.off('file:compress', handleCompress);
       globalEventBus.off('file:decompress', handleDecompress);
       globalEventBus.off('file:paste', handlePasteFromContextMenu);
+      globalEventBus.off('file:copy', handleCopyFromContextMenu);
+      globalEventBus.off('file:cut', handleCutFromContextMenu);
       globalEventBus.off('file-tree:refresh', handleFileTreeRefresh);
       globalEventBus.off('file-explorer:navigate', handleNavigateToPath);
     };
-  }, [handleOpenFile, handleNewFile, handleNewFolder, handleStartRename, handleDelete, handleFileDownload, handleCompress, handleDecompress, handlePasteFromContextMenu, handleFileTreeRefresh, handleNavigateToPath]);
+  }, [handleOpenFile, handleNewFile, handleNewFolder, handleStartRename, handleDelete, handleFileDownload, handleCompress, handleDecompress, handlePasteFromContextMenu, handleCopyFromContextMenu, handleCutFromContextMenu, handleFileTreeRefresh, handleNavigateToPath]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1236,6 +1290,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               onNewFile={handleNewFile}
               onNewFolder={handleNewFolder}
               onRefresh={() => loadFileTree(workspacePath || '', false)}
+              onCollapseAll={collapseAll}
               hideToolbar={hideExplorerToolbar}
             />
           )

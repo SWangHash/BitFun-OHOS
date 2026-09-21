@@ -16,6 +16,8 @@ import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import { getActiveSurfaceId } from '@/infrastructure/peer-device/deviceSurface';
 
 const PASTE_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+V' : 'Ctrl+V';
+const COPY_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+C' : 'Ctrl+C';
+const CUT_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+X' : 'Ctrl+X';
 
 const ARCHIVE_EXTENSIONS = [
   '.zip', '.tar.gz', '.tgz', '.tar',
@@ -191,7 +193,31 @@ export class FileExplorerMenuProvider implements IMenuProvider {
       separator: true
     });
 
-    
+    // In-app copy/cut feed the internal file-tree clipboard (see
+    // fileTreeClipboard.ts); paste prefers that internal clipboard and falls
+    // back to the OS pasteboard for files copied in external file managers.
+    items.push({
+      id: 'file-copy',
+      label: i18nService.t('common:actions.copy'),
+      icon: 'Copy',
+      shortcut: COPY_SHORTCUT,
+      onClick: () => {
+        globalEventBus.emit('file:copy', { paths: [fileContext.filePath] });
+      }
+    });
+
+    if (!isReadOnly) {
+      items.push({
+        id: 'file-cut',
+        label: i18nService.t('common:actions.cut'),
+        icon: 'Scissors',
+        shortcut: CUT_SHORTCUT,
+        onClick: () => {
+          globalEventBus.emit('file:cut', { paths: [fileContext.filePath] });
+        }
+      });
+    }
+
     if (!isReadOnly) {
 
       // Compress: available for both files and directories.
