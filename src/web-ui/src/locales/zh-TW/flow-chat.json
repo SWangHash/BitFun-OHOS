@@ -1909,6 +1909,7 @@
       "customInputHint": "提供自定義文字",
       "pleaseSpecify": "請輸入...",
       "submitPathNotFound": "{{field}}路徑不存在：{{path}}",
+      "submitOutputArtifact": "{{field}}指向歷史遷移產物，禁止覆蓋：{{path}}。請為本次遷移改用其他輸出目錄。",
       "fieldName": {
         "source_project": "原始工程",
         "output_project": "輸出工程",

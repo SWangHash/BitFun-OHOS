@@ -599,4 +599,107 @@ describe('AskUserQuestionCard', () => {
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledTimes(1);
   });
 
+  // Qt migration intake: the backend resolves the template and emits it on the
+  // `resolvedQuestions` envelope. Options carry a display label plus the real
+  // path in `description`, and answers are re-validated by field id.
+  function qtMigrationTool(): FlowToolItem {
+    return {
+      id: 'question-tool-1',
+      type: 'tool',
+      toolName: 'AskUserQuestion',
+      timestamp: 1,
+      status: 'waiting',
+      toolCall: {
+        id: 'question-call-1',
+        input: {
+          resolvedQuestions: [
+            {
+              field: 'source_project',
+              header: 'askUser.qtMigration.field.sourceProject',
+              question: 'askUser.qtMigration.question.sourceProject',
+              inputPlaceholder: 'askUser.qtMigration.placeholder.sourceProject',
+              options: [
+                { label: 'askUser.qtMigration.option.default', description: 'D:/work/myqt' },
+              ],
+            },
+            {
+              field: 'toolchain',
+              header: 'askUser.qtMigration.field.toolchain',
+              question: 'askUser.qtMigration.question.toolchain',
+              inputPlaceholder: 'askUser.qtMigration.placeholder.toolchain',
+              options: [
+                {
+                  label: 'askUser.qtMigration.option.officialToolchain',
+                  description: 'askUser.qtMigration.option.officialDescription',
+                  value: '__official__',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  it('reads the resolvedQuestions envelope and localizes template-owned keys', () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The envelope parsed: two questions rendered from resolvedQuestions.
+    expect(container.textContent).toContain('toolCards.askUser.questionsCount:2');
+    // Template text is an i18n key; it must be resolved through the catalog
+    // rather than rendered literally.
+    expect(container.textContent).toContain('toolCards.askUser.qtMigration.question.sourceProject');
+  });
+
+  it('submits template answers by field id using the resolved path, not the display label', async () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The candidate option submits the probed path (description), not the
+    // "Default path" label the backend would reject as a placeholder.
+    const pathOption = container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]');
+    expect(pathOption).not.toBeNull();
+    act(() => pathOption?.click());
+
+    // The skill-managed option carries an explicit value.
+    const officialOption = container.querySelector<HTMLInputElement>('input[value="__official__"]');
+    expect(officialOption).not.toBeNull();
+    act(() => officialOption?.click());
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      'session-a',
+    );
+  });
+
+  it('restores completed template answers stored under field ids', () => {
+    const tool = qtMigrationTool();
+    tool.status = 'completed';
+    tool.toolResult = {
+      success: true,
+      result: {
+        answers: {
+          source_project: 'D:/work/myqt',
+          toolchain: '__official__',
+        },
+      },
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    // Both field-keyed answers are recognized as option selections, so the
+    // summary shows them instead of treating them as typed custom values.
+    expect(container.textContent).toContain('D:/work/myqt');
+    expect(container.textContent).not.toContain('toolCards.askUser.notAnswered');
+  });
+
 });

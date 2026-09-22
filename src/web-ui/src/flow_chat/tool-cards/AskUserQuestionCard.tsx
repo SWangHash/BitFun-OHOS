@@ -49,9 +49,82 @@ const OTHER_OPTION_VALUE = 'Other';
 const subscribeToSurfaceActivation = (listener: () => void): (() => void) =>
   onSurfaceActivated(() => listener());
 
+/**
+ * Backend rejections for migration answers. Stable machine formats emitted by
+ * the coordinator:
+ * - `qt_migration_path_not_found: field=<id>; path=<value>`
+ * - `qt_migration_output_is_artifact: field=<id>; path=<value>`
+ */
+const PATH_NOT_FOUND_PATTERN =
+  /qt_migration_path_not_found:\s*field=([^;]+);\s*path=(.+)/;
+const OUTPUT_ARTIFACT_PATTERN =
+  /qt_migration_output_is_artifact:\s*field=([^;]+);\s*path=(.+)/;
+
+type SubmitRejectionCode = 'path-not-found' | 'output-artifact';
+
+/** Static i18n keys for the migration field ids rejected by the backend. */
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  source_project: 'toolCards.askUser.fieldName.source_project',
+  output_project: 'toolCards.askUser.fieldName.output_project',
+  toolchain: 'toolCards.askUser.fieldName.toolchain',
+  template: 'toolCards.askUser.fieldName.template',
+};
+
+function parseSubmitRejection(
+  message: string,
+): { code: SubmitRejectionCode; field: string; path: string } | null {
+  const trimmed = message.trim();
+  const pathNotFound = PATH_NOT_FOUND_PATTERN.exec(trimmed);
+  if (pathNotFound) {
+    return {
+      code: 'path-not-found',
+      field: pathNotFound[1].trim(),
+      path: pathNotFound[2].trim(),
+    };
+  }
+  const outputArtifact = OUTPUT_ARTIFACT_PATTERN.exec(trimmed);
+  if (outputArtifact) {
+    return {
+      code: 'output-artifact',
+      field: outputArtifact[1].trim(),
+      path: outputArtifact[2].trim(),
+    };
+  }
+  return null;
+}
+
+/**
+ * Value a question option submits.
+ *
+ * Template questions (those carrying a `field` id) pair a display label
+ * ("Default path") with the concrete path in `description`; the backend rejects
+ * placeholder-looking answers, so the path must win. The official option
+ * instead carries an explicit `value` (`__official__`). Plain questions have
+ * neither and keep their label semantics.
+ */
+function optionValue(question: QuestionData | undefined, option: QuestionOption): string {
+  if (option.value?.trim()) return option.value.trim();
+  if (question?.field) {
+    const description = option.description.trim();
+    if (description) return description;
+  }
+  return option.label;
+}
+
+/** Template-owned text may carry a stable i18n key instead of literal copy. */
+function isLocalizableText(text: string): boolean {
+  return text.startsWith('askUser.qtMigration.');
+}
+
 interface QuestionOption {
   description: string;
   label: string;
+  /**
+   * Concrete submitted value. Template questions carry display labels ("Default
+   * path") next to the real path, so the path lives in `description`; plain
+   * questions have no separate value and keep their label semantics.
+   */
+  value?: string;
 }
 
 interface QuestionData {
@@ -59,13 +132,22 @@ interface QuestionData {
   multiSelect: boolean;
   options: QuestionOption[];
   question: string;
+  /** When present, the question shows a text input below the options. */
+  inputPlaceholder?: string;
+  /** Field id the backend template binds the answer to (template questions). */
+  field?: string;
+  /** Backend-declared requiredness (template policy; only backend may set it). */
+  required?: boolean;
 }
 
 type ToolAnswer = string | string[];
 
 function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
   if (!input || typeof input !== 'object') return [];
-  const rawQuestions = (input as Record<string, unknown>).questions;
+  const raw = input as Record<string, unknown>;
+  // Template-backed requests arrive as `resolvedQuestions` on the
+  // toolawaitinguserinput envelope; plain questions use `questions`.
+  const rawQuestions = raw.questions ?? raw.resolvedQuestions;
   if (!Array.isArray(rawQuestions)) return [];
 
   return rawQuestions.flatMap((candidate): QuestionData[] => {
@@ -83,16 +165,27 @@ function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
           ? rawOption.description
           : '',
         label: rawOption.label,
+        value: typeof rawOption.value === 'string' && rawOption.value.trim()
+          ? rawOption.value
+          : undefined,
       }];
     });
 
+    const rawField = typeof rawQuestion.field === 'string' ? rawQuestion.field.trim() : '';
+    const rawPlaceholder = typeof rawQuestion.inputPlaceholder === 'string'
+      ? rawQuestion.inputPlaceholder.trim()
+      : '';
+
     return [{
+      field: rawField || undefined,
       header: typeof rawQuestion.header === 'string' ? rawQuestion.header : '',
+      inputPlaceholder: rawPlaceholder || undefined,
       multiSelect: Boolean(rawQuestion.multiSelect),
       options,
       question: typeof rawQuestion.question === 'string'
         ? rawQuestion.question
         : '',
+      required: Boolean(rawQuestion.required),
     }];
   });
 }
@@ -136,6 +229,12 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   sessionId,
 }) => {
   const { t } = useTranslation('flow-chat');
+  // Template-owned text (question/header/labels/placeholders) may carry a
+  // stable i18n key under the `askUser.qtMigration.*` namespace. Render those
+  // through the flow-chat catalog; keep concrete values (paths) as-is.
+  const localize = useCallback((text: string) => {
+    return isLocalizableText(text) ? t(`toolCards.${text}`) : text;
+  }, [t]);
   const peerDevice = usePeerDeviceModeOptional();
   const activeSurfaceScope = useSyncExternalStore(
     subscribeToSurfaceActivation,
@@ -213,6 +312,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const isSubmitting = submissionPhase === 'submitting';
   const isSubmitted = submissionPhase === 'submitted';
   const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [submissionErrorMessage, setSubmissionErrorMessage] = useState<string | null>(null);
   const [interactionFailed, setInteractionFailed] = useState(false);
   const interactionAttempt = useRef<number | null>(null);
   const startInteraction = useCallback(() => {
@@ -265,6 +365,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
   useEffect(() => {
     setSubmissionFailed(false);
+    setSubmissionErrorMessage(null);
     setInteractionFailed(false);
   }, [draftKey]);
 
@@ -405,25 +506,32 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     const scope = submissionScope.current;
 
     setSubmissionFailed(false);
+    setSubmissionErrorMessage(null);
     setSubmissionPhase('submitting');
     try {
       activeSurfaceScope.assertCurrent('submitUserAnswers');
       const processedAnswers: Record<string, string | string[]> = {};
 
       for (let index = 0; index < questions.length; index += 1) {
+        const question = questions[index];
+        // Template-backed questions are submitted by field id so the backend
+        // re-validation binds answers to the exact waiting request; plain
+        // questions keep the positional key.
+        const answerKey = question?.field ?? String(index);
         const answer = answers[index];
         const otherInput = otherInputs[index]?.trim() || '';
 
         if (Array.isArray(answer)) {
-          processedAnswers[String(index)] = answer.flatMap((value) => (
+          processedAnswers[answerKey] = answer.flatMap((value) => (
             value === OTHER_OPTION_VALUE
               ? otherInput ? [otherInput] : []
               : [value]
           ));
         } else if (answer === OTHER_OPTION_VALUE) {
-          if (otherInput) processedAnswers[String(index)] = otherInput;
+          if (otherInput) processedAnswers[answerKey] = otherInput;
         } else {
-          processedAnswers[String(index)] = answer;
+          const value = answer || otherInput;
+          if (value) processedAnswers[answerKey] = value;
         }
       }
 
@@ -438,6 +546,27 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         return;
       }
       setSubmissionFailed(true);
+      const rawMessage = error instanceof Error && error.message.trim()
+        ? error.message
+        : '';
+      const rejection = parseSubmitRejection(rawMessage);
+      if (rejection) {
+        const fieldLabelKey = FIELD_LABEL_KEYS[rejection.field];
+        const fieldLabel = fieldLabelKey ? t(fieldLabelKey) : rejection.field;
+        setSubmissionErrorMessage(
+          rejection.code === 'output-artifact'
+            ? t('toolCards.askUser.submitOutputArtifact', {
+              field: fieldLabel,
+              path: rejection.path,
+            })
+            : t('toolCards.askUser.submitPathNotFound', {
+              field: fieldLabel,
+              path: rejection.path,
+            }),
+        );
+      } else {
+        setSubmissionErrorMessage(null);
+      }
       log.error('Failed to submit answers', { toolId, sessionId, error });
     }
   }, [
@@ -448,9 +577,10 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     isSubmitted,
     isSubmitting,
     otherInputs,
-    questions.length,
+    questions,
     setSubmissionPhase,
     sessionId,
+    t,
     toolId,
   ]);
 
@@ -465,12 +595,19 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       && typeof resultAnswers === 'object'
       && !Array.isArray(resultAnswers)
     ) {
-      return normalizeToolAnswer(
-        (resultAnswers as Record<string, unknown>)[String(questionIndex)],
-      );
+      // Template answers persist under their field id, plain ones positionally.
+      const persisted = resultAnswers as Record<string, unknown>;
+      const keys = [questions[questionIndex]?.field, String(questionIndex)]
+        .filter((key): key is string => Boolean(key));
+      for (const key of keys) {
+        const persistedAnswer = normalizeToolAnswer(persisted[key]);
+        if (persistedAnswer !== undefined && persistedAnswer !== '') {
+          return persistedAnswer;
+        }
+      }
     }
     return undefined;
-  }, [answers, resultAnswers, status]);
+  }, [answers, questions, resultAnswers, status]);
 
   const presentation = useMemo(() => {
     const nextAnswers: Record<string, readonly string[]> = {};
@@ -481,7 +618,9 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       const answerValues = Array.isArray(answer)
         ? answer
         : answer === undefined || answer === '' ? [] : [answer];
-      const knownValues = new Set(question.options.map((option) => option.label));
+      const knownValues = new Set(
+        question.options.map((option) => optionValue(question, option)),
+      );
       const selectedValues: string[] = [];
       const customValues: string[] = [];
 
@@ -515,19 +654,21 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         description: t('toolCards.askUser.customInputHint'),
         inputLabel: t('toolCards.askUser.pleaseSpecify'),
         label: t('toolCards.askUser.other'),
-        placeholder: t('toolCards.askUser.pleaseSpecify'),
+        placeholder: question.inputPlaceholder
+          ? localize(question.inputPlaceholder)
+          : t('toolCards.askUser.pleaseSpecify'),
         value: OTHER_OPTION_VALUE,
       },
       id: String(questionIndex),
       options: question.options.map((option) => ({
-        description: option.description,
-        label: option.label,
-        value: option.label,
+        description: localize(option.description),
+        label: localize(option.label),
+        value: optionValue(question, option),
       })),
-      prompt: question.question,
+      prompt: localize(question.question),
       selectionMode: question.multiSelect ? 'multiple' : 'single',
     })),
-    [questions, t],
+    [localize, questions, t],
   );
 
   const handleAnswersChange = useCallback((
@@ -587,7 +728,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
           : interactionFailed
             ? t('toolCards.askUser.interactionFailed')
           : submissionFailed
-            ? t('toolCards.askUser.submitFailed')
+            ? submissionErrorMessage ?? t('toolCards.askUser.submitFailed')
             : t('toolCards.askUser.waitingAnswer');
 
   if (endedWithoutAnswer) {
