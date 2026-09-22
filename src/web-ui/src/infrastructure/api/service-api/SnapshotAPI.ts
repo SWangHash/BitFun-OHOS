@@ -593,6 +593,8 @@ export interface FileChangeEntry {
   session_id: string;
   turn_index: number;
   snapshot_id: string;
+  /** Operation id used to locate the exact before/after snapshot pair via getOperationDiff. */
+  operation_id: string;
   timestamp: {
     secs_since_epoch: number;
     nanos_since_epoch: number;

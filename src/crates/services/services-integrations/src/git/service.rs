@@ -717,7 +717,13 @@ impl GitService {
 
             // Safety valve: maximum revwalk steps for filtered queries.
             const MAX_REVWALK_STEPS: usize = 500;
-            let has_filter = params.author.is_some() || params.grep.is_some();
+            let path_filter = params
+                .path
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .map(Self::normalize_repo_relative_path);
+            let has_filter =
+                params.author.is_some() || params.grep.is_some() || path_filter.is_some();
             let has_time_filter = since_timestamp.is_some() || until_timestamp.is_some();
             let step_limit = if has_time_filter || has_filter {
                 MAX_REVWALK_STEPS
@@ -765,6 +771,12 @@ impl GitService {
 
                 if let Some(grep_filter) = &params.grep {
                     if !message.contains(grep_filter) {
+                        continue;
+                    }
+                }
+
+                if let Some(ref path_filter) = path_filter {
+                    if !Self::commit_touches_path(&repo, &commit, path_filter)? {
                         continue;
                     }
                 }
@@ -1256,6 +1268,44 @@ impl GitService {
         ))
     }
 
+    /// Normalizes a caller-supplied path to the repository-relative form
+    /// used by Git diff deltas (POSIX separators, no leading `./` or `/`).
+    fn normalize_repo_relative_path(path: &str) -> String {
+        let mut normalized = path.replace('\\', "/");
+        loop {
+            match normalized.strip_prefix("./") {
+                Some(stripped) => normalized = stripped.to_string(),
+                None => break,
+            }
+        }
+        normalized.trim_start_matches('/').to_string()
+    }
+
+    /// Returns true when the commit's diff against its first parent touches
+    /// the given repository-relative path. Root commits (no parent) are
+    /// treated as introducing every path in their tree.
+    fn commit_touches_path(
+        repo: &Repository,
+        commit: &Commit,
+        path: &str,
+    ) -> Result<bool, GitError> {
+        let tree = commit
+            .tree()
+            .map_err(|e| GitError::CommandFailed(format!("Failed to get tree: {e}")))?;
+        let parent_tree = if commit.parent_count() > 0 {
+            commit.parent(0).ok().and_then(|p| p.tree().ok())
+        } else {
+            None
+        };
+        let diff = repo
+            .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)
+            .map_err(|e| GitError::CommandFailed(format!("Failed to diff: {e}")))?;
+        let path_bytes = path.as_bytes();
+        Ok(diff.deltas().any(|delta| {
+            delta.old_file().path_bytes() == path_bytes || delta.new_file().path_bytes() == path_bytes
+        }))
+    }
+
     /// Gets Git commit graph data.
     pub async fn get_git_graph<P: AsRef<Path>>(
         path: P,
@@ -1654,6 +1704,48 @@ mod review_path_tests {
                 .map(|commit| commit.message.trim())
                 .collect::<Vec<_>>(),
             vec!["old commit"]
+        );
+    }
+
+    #[tokio::test]
+    async fn commit_path_filter_restricts_history_to_matching_commits() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        git(directory.path(), &["init"], None);
+        commit_file(directory.path(), "v1\n", "first tracked", "2020-01-01T00:00:00Z");
+        commit_file(directory.path(), "v2\n", "second tracked", "2021-01-01T00:00:00Z");
+        fs::write(directory.path().join("other.txt"), "other\n")
+            .expect("fixture file should be written");
+        git(directory.path(), &["add", "--", "other.txt"], None);
+        git(
+            directory.path(),
+            &[
+                "-c",
+                "user.name=BitFun Tests",
+                "-c",
+                "user.email=bitfun@example.com",
+                "commit",
+                "-m",
+                "unrelated file",
+            ],
+            Some("2022-01-01T00:00:00Z"),
+        );
+
+        let history = GitService::get_commits(
+            directory.path(),
+            GitLogParams {
+                path: Some("tracked.txt".to_string()),
+                max_count: Some(10),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("path filter should be accepted");
+        assert_eq!(
+            history
+                .iter()
+                .map(|commit| commit.message.trim())
+                .collect::<Vec<_>>(),
+            vec!["second tracked", "first tracked"]
         );
     }
 

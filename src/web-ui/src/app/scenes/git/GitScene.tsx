@@ -8,7 +8,7 @@ import { Button, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert } from 'lucide-react';
 import { useGitSceneStore } from './gitSceneStore';
-import { WorkingCopyView, BranchesView, GraphView } from './views';
+import { WorkingCopyView, BranchesView, GraphView, FileHistoryView } from './views';
 import { useGitState } from '@/tools/git/hooks';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { LoadingState } from '@bitfun/ui';
@@ -29,6 +29,7 @@ const GitScene: React.FC<GitSceneProps> = ({
   const workspacePath = workspacePathProp ?? workspace?.rootPath ?? '';
   const { t } = useTranslation('panels/git');
   const activeView = useGitSceneStore((s) => s.activeView);
+  const historyFilePath = useGitSceneStore((s) => s.historyFilePath);
 
   const [forceReset, setForceReset] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,13 +97,15 @@ const GitScene: React.FC<GitSceneProps> = ({
     switch (activeView) {
       case 'branches':
         return <BranchesView workspaceId={workspace?.id} workspacePath={workspacePath} />;
-      case 'graph':
-        return <GraphView workspaceId={workspace?.id} workspacePath={workspacePath} />;
-      case 'working-copy':
-      default:
-        return <WorkingCopyView workspaceId={workspace?.id} workspacePath={workspacePath} isActive={isActive} />;
-    }
-  }, [activeView, isActive, workspacePath, workspace?.id]);
+          case 'graph':
+          return <GraphView workspaceId={workspace?.id} workspacePath={workspacePath} />;
+        case 'file-history':
+          return <FileHistoryView workspacePath={workspacePath} filePath={historyFilePath} isActive={isActive} />;
+          case 'working-copy':
+          default:
+          return <WorkingCopyView workspaceId={workspace?.id} workspacePath={workspacePath} isActive={isActive} />;
+        }
+  }, [activeView, historyFilePath, isActive, workspacePath, workspace?.id]);
 
   if (!isActive) {
     return <div className="bitfun-git-scene" aria-hidden="true" data-bitfun-scene="git" data-bitfun-part="root" data-bitfun-view="hidden" />;

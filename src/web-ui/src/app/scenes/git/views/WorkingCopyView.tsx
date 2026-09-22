@@ -6,8 +6,9 @@ import { OverflowText, Button, Icon, IconButton, SearchField, Textarea, Tooltip 
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { useTranslation } from 'react-i18next';
-import { Minus, RotateCcw, Square, FileCode2 } from 'lucide-react';
+import { Minus, RotateCcw, Square, FileCode2, History } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
+import { useGitSceneStore } from '../gitSceneStore';
 import { ContentCanvas } from '@/app/components/panels/content-canvas';
 import { CanvasStoreModeContext } from '@/app/components/panels/content-canvas/stores';
 import { useGitState, useGitOperations, useGitAgent } from '@/tools/git/hooks';
@@ -54,6 +55,8 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
   const { t } = useTranslation('panels/git');
   const { t: tComponents } = useI18n('components');
   const notification = useNotification();
+  const setActiveView = useGitSceneStore((s) => s.setActiveView);
+  const setHistoryFilePath = useGitSceneStore((s) => s.setHistoryFilePath);
 
   const [quickCommitMessage, setQuickCommitMessage] = useState('');
   const [expandedFileGroups, setExpandedFileGroups] = useState<Set<string>>(new Set(['unstaged', 'staged', 'untracked']));
@@ -202,6 +205,14 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
       }
     },
     [workspacePath, workspaceId, handleRefresh, notification, t]
+  );
+
+  const handleViewFileHistory = useCallback(
+    (filePath: string) => {
+      setHistoryFilePath(filePath);
+      setActiveView('file-history');
+    },
+    [setActiveView, setHistoryFilePath]
   );
 
   const handleOpenFileDiff = useCallback(
@@ -555,6 +566,17 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
                           <OverflowText className="bitfun-git-scene-working-copy__file-name" data-bitfun-component="working-copy-view" data-bitfun-part="fileName">{fileName}</OverflowText>
                           {dirPath && <span className="bitfun-git-scene-working-copy__file-dir">{dirPath}</span>}
                           <span className={`bitfun-git-scene-working-copy__file-status ${statusInfo.className}`} data-bitfun-component="working-copy-view" data-bitfun-part="fileStatus">{statusInfo.text}</span>
+                          <Tooltip content={t('fileHistory.viewHistory')}>
+                            <IconButton
+                              aria-label={t('fileHistory.viewHistory')}
+                              size="sm"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleViewFileHistory(file.path);
+                              }}
+                              icon={<History size={12} />}
+                            />
+                          </Tooltip>
                           <Tooltip content={t('actions.discardFile')}>
                             <IconButton
                               aria-label={t('actions.discardFile')}
@@ -651,6 +673,17 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
                         >
                           <OverflowText className="bitfun-git-scene-working-copy__file-name" data-bitfun-component="working-copy-view" data-bitfun-part="fileName">{file.path}</OverflowText>
                           <span className={`bitfun-git-scene-working-copy__file-status ${statusInfo.className}`} data-bitfun-component="working-copy-view" data-bitfun-part="fileStatus">{statusInfo.text}</span>
+                          <Tooltip content={t('fileHistory.viewHistory')}>
+                            <IconButton
+                              aria-label={t('fileHistory.viewHistory')}
+                              size="sm"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleViewFileHistory(file.path);
+                              }}
+                              icon={<History size={12} />}
+                            />
+                          </Tooltip>
                           <Tooltip content={t('actions.discardFile')}>
                             <IconButton
                               aria-label={t('actions.discardFile')}

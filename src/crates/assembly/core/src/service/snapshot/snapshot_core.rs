@@ -27,6 +27,10 @@ pub struct FileChangeEntry {
     pub session_id: String,
     pub turn_index: usize,
     pub snapshot_id: String,
+    /// Operation id for locating the exact before/after snapshot pair.
+    /// Empty when the record predates operation ids or has no operation.
+    #[serde(default)]
+    pub operation_id: String,
     pub timestamp: SystemTime,
     pub operation_type: OperationType,
     pub tool_name: String,
@@ -860,6 +864,7 @@ impl SnapshotCore {
                             .before_snapshot_id
                             .clone()
                             .unwrap_or_else(|| format!("empty_snapshot_{}", op.operation_id)),
+                        operation_id: op.operation_id.clone(),
                         timestamp: op.timestamp,
                         operation_type: op.operation_type.clone(),
                         tool_name: op.tool_context.tool_name.clone(),

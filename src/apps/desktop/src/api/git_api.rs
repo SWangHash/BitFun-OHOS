@@ -419,6 +419,10 @@ fn git_log_args(params: &GitLogParams) -> Vec<String> {
     if let Some(until) = params.until.as_deref().filter(|s| !s.trim().is_empty()) {
         args.push(format!("--until={until}"));
     }
+    if let Some(path) = params.path.as_deref().filter(|s| !s.trim().is_empty()) {
+        args.push("--".to_string());
+        args.push(path.to_string());
+    }
     args
 }
 

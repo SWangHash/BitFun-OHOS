@@ -5,7 +5,7 @@ use bitfun_services_integrations::git::{
     build_git_changed_files_args, build_git_diff_args, parse_branch_line, parse_git_log_line,
     parse_name_status_output, parse_worktree_list, GitAuthor, GitChangedFile, GitChangedFileStatus,
     GitChangedFilesParams, GitCommandOutput, GitCommitParams, GitDiffParams, GitError, GitGraph,
-    GitService, GitStatus, GitWorkspaceDiffPort, GitWorktreeInfo, GraphNode, GraphRef,
+    GitLogParams, GitService, GitStatus, GitWorkspaceDiffPort, GitWorktreeInfo, GraphNode, GraphRef,
 };
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -896,4 +896,29 @@ fn git_graph_contract_preserves_camel_case_contract() {
     assert_eq!(value["nodes"][0]["fullMessage"], "initial commit");
     assert_eq!(value["nodes"][0]["refs"][0]["refType"], "branch");
     assert_eq!(value["nodes"][0]["refs"][0]["isCurrent"], true);
+}
+
+#[test]
+fn git_log_params_path_round_trips_camel_case_contract() {
+    let params = GitLogParams {
+        max_count: Some(20),
+        skip: Some(2),
+        author: Some("alice".to_string()),
+        grep: Some("fix".to_string()),
+        since: Some("2024-01-01".to_string()),
+        until: None,
+        stat: Some(true),
+        path: Some("src/git/service.rs".to_string()),
+    };
+
+    let value = serde_json::to_value(params).unwrap();
+    assert_eq!(value["maxCount"], 20);
+    assert_eq!(value["skip"], 2);
+    assert_eq!(value["path"], "src/git/service.rs");
+
+    let wire = r#"{"maxCount":20,"skip":2,"author":"alice","grep":"fix","since":"2024-01-01","until":null,"stat":true,"path":"src/git/service.rs"}"#;
+    let restored: GitLogParams = serde_json::from_str(wire).unwrap();
+    assert_eq!(restored.path.as_deref(), Some("src/git/service.rs"));
+    assert_eq!(restored.max_count, Some(20));
+    assert!(restored.until.is_none());
 }

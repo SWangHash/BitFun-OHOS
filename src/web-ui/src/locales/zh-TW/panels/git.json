@@ -452,5 +452,33 @@
     "unavailable": "無法在此處為 \"{{path}}\" 授予 Git 所有權信任，請在持有該儲存庫的機器上授予。",
     "unavailableWithCommand": "無法在此處為 \"{{path}}\" 授予 Git 所有權信任。請在持有該儲存庫的機器上執行：\n\n{{command}}",
     "required": "在你信任其所有權之前，Git 不會讀取 \"{{path}}\"。"
+  },
+  "fileHistory": {
+    "back": "返回變更清單",
+    "refresh": "重新整理",
+    "viewHistory": "檢視歷史",
+    "loading": "正在載入提交歷史...",
+    "loadFailed": "載入提交歷史失敗",
+    "loadFailedWithMessage": "載入失敗: {{error}}",
+    "retry": "重試",
+    "noCommits": "此檔案暫無提交記錄",
+    "selectCommit": "選擇左側提交，以檢視此檔案在該提交中的變更",
+    "addedInCommit": "此檔案在此提交中首次加入",
+    "emptyPath": "請先選擇要檢視歷史的檔案",
+    "tabs": {
+      "git": "Git 提交",
+      "local": "本地變更"
+    },
+    "localEmpty": "此檔案暫無本地變更記錄",
+    "selectChange": "選擇左側變更，以檢視此檔案在該操作中的變動",
+    "localNoDiff": "此操作沒有內容差異",
+    "localLoadFailedWithMessage": "載入失敗: {{error}}",
+    "turn": "第 {{turn}} 輪",
+    "operation": {
+      "create": "新增",
+      "modify": "修改",
+      "delete": "刪除",
+      "rename": "重新命名"
+    }
   }
 }

@@ -63,9 +63,15 @@ export interface GitStatus {
 
 export interface GitCommit {
   hash: string;
+  shortHash?: string;
   message: string;
   author: string;
+  authorEmail?: string;
   date: string;
+  parents?: string[];
+  additions?: number;
+  deletions?: number;
+  filesChanged?: number;
   files?: string[];
 }
 
@@ -144,9 +150,13 @@ export interface GitChangedFile {
 
 export interface GitLogParams {
   maxCount?: number;
+  skip?: number;
   since?: string;
   until?: string;
   author?: string;
+  grep?: string;
+  path?: string;
+  stat?: boolean;
 }
 
 export interface GitOperationParams {
