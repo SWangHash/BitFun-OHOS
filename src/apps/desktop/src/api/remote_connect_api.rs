@@ -355,7 +355,9 @@ fn enqueue_peer_device_event(targets: PeerEventTargets, event: String, payload: 
     };
     let tx = PEER_EVENT_FANOUT_TX.get_or_init(|| {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<PeerEventFanoutItem>();
-        tokio::spawn(async move {
+        // get_or_init can run on the main thread during startup, which has no
+        // entered tokio runtime context on OHOS; spawn through Tauri's managed runtime.
+        tauri::async_runtime::spawn(async move {
             while let Some(item) = rx.recv().await {
                 fanout_peer_device_event_once(item).await;
             }
@@ -1389,7 +1391,10 @@ pub fn init_on_startup() {
 
                 // Re-establish device routing WebSocket in the background.
                 // Uses the same Tauri command logic — fire and forget.
-                tokio::spawn(async {
+                // Startup init path: spawn through Tauri's managed runtime so
+                // this also works on the OHOS main thread (no entered tokio
+                // runtime context there).
+                tauri::async_runtime::spawn(async {
                     match account_connect_devices_with_retry().await {
                         Ok(_) => log::info!("Device routing restored on startup"),
                         Err(e) => log::warn!("Startup device connect failed: {e}"),

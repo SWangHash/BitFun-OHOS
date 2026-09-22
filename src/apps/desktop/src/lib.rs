@@ -10,7 +10,7 @@
 //! The chain runs ~15 frames through h2's own internals (`Slab` 鈫?`Buffer` 鈫?//! `Recv` 鈫?`Actions` 鈫?`Inner` 鈫?`Arc<Mutex<_>>` 鈫?`RecvStream` 鈫?hyper's
 //! `Incoming`), into the MCP remote transport, then out through roughly ten
 //! nested `async fn` bodies from `agentic::coordination::scheduler` to the
-//! `tokio::spawn` in `api::remote_connect_api`.
+//! `tauri::async_runtime::spawn` in `api::remote_connect_api`.
 //!
 //! Most of that depth is in third-party types, so `Box::pin`-ing one of our own
 //! futures does not collapse it; only erasing a mid-chain future to
@@ -21,6 +21,7 @@
 
 pub mod api;
 pub mod appearance;
+mod bitfun_control_host;
 mod builtin_browser_host;
 #[cfg(not(target_env = "ohos"))]
 pub mod computer_use;
@@ -29,7 +30,6 @@ mod embedded_relay_host;
 pub mod frontend_workbench;
 pub mod logging;
 pub mod macos_menubar;
-mod bitfun_control_host;
 pub mod runtime;
 pub mod sleep_prevention;
 pub mod startup_trace;
@@ -1303,7 +1303,9 @@ pub async fn _run() {
                 let workspace_path = app_state.workspace_path.clone();
                 let macos_edit_menu_mode = app_state.macos_edit_menu_mode.clone();
 
-                tokio::spawn(async move {
+                // Startup runs on the main thread, which has no entered tokio
+                // runtime context on OHOS; spawn through Tauri's managed runtime.
+                tauri::async_runtime::spawn(async move {
                     let language = config_service
                         .get_config::<String>(Some("app.language"))
                         .await
@@ -2439,7 +2441,9 @@ async fn init_agentic_system(
         // Desktop cron runs can emit FlowChat events immediately. Prefer the
         // frontend readiness handshake, but keep a fallback so cron is not left
         // disabled if the web host never reaches the ready path.
-        tokio::spawn(async move {
+        // Startup-path spawn: use Tauri's managed runtime so this also works on
+        // the OHOS main thread, which has no entered tokio runtime context.
+        tauri::async_runtime::spawn(async move {
             tokio::time::sleep(CRON_DESKTOP_START_FALLBACK_DELAY).await;
             log::info!(
                 "Ensuring cron service is started after desktop fallback delay: delay_seconds={}",
@@ -2543,7 +2547,6 @@ fn setup_panic_hook() {
             log::error!("  3) Run as administrator");
         }
 
-        // 鈹€鈹€ Recovery strategy 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Main-thread panics are unrecoverable — the event loop is gone.
         // Spawned-thread panics only kill that thread; the rest of the
         // application can continue.  We log a clear message and skip the
@@ -2664,7 +2667,11 @@ async fn deliver_event_to_webview(
     // delivery loop is not blocked on the ArkTS round-trip.
     if let AgenticEvent::SystemError { error, .. } = &event {
         let error_text = error.clone();
-        tokio::spawn(async move {
+        // Fire-and-forget so the event delivery loop is not blocked on the
+        // ArkTS round-trip. Spawn through Tauri's managed runtime so this also
+        // works on the OHOS target, whose startup-wired event loop must not
+        // rely on a bare tokio context.
+        tauri::async_runtime::spawn(async move {
             crate::api::system_api::notify_system_error_if_minimized(&error_text).await;
         });
     }

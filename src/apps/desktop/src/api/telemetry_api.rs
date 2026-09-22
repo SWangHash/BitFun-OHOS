@@ -47,7 +47,9 @@ impl OhosTelemetryController {
 
     pub fn spawn_health_summary_logger(self: &Arc<Self>) {
         let controller: Weak<Self> = Arc::downgrade(self);
-        tokio::spawn(async move {
+        // Called from main-process startup, which has no entered tokio runtime
+        // context on OHOS; spawn through Tauri's managed runtime.
+        tauri::async_runtime::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
             loop {
                 interval.tick().await;
