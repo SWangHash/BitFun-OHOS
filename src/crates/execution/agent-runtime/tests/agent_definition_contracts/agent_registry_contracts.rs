@@ -220,6 +220,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             "GenerateDoc",
             "BitFun",
             "MemoryPhase2",
+            "QtMigration",
         ]
     );
 
@@ -273,6 +274,18 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
     );
     assert_eq!(default_model_id_for_builtin_agent("SwarmWorker"), "primary");
     assert_eq!(default_model_id_for_builtin_agent("SwarmReviewer"), "fast");
+
+    // QtMigration is a vertical-domain primary mode. It runs on the primary
+    // model slot because it drives long build/deploy/verify turns; the selector
+    // only understands the primary and fast slots, so any other id would be
+    // resolved as an explicit model name.
+    let qt_migration = specs
+        .iter()
+        .find(|spec| spec.id == "QtMigration")
+        .expect("QtMigration spec should exist");
+    assert_eq!(qt_migration.category, BuiltinAgentCategory::Mode);
+    assert_eq!(qt_migration.default_model_id, "primary");
+    assert_eq!(default_model_id_for_builtin_agent("QtMigration"), "primary");
 
     for swarm_id in ["SwarmPlanner", "SwarmWorker", "SwarmReviewer"] {
         let swarm = specs
