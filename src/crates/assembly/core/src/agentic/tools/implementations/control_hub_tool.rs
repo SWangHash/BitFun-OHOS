@@ -1683,7 +1683,10 @@ Branch on `ok` and `error.code`, not on English messages.
                     .get("replace_existing")
                     .or_else(|| params.get("replaceExisting"))
                     .and_then(Value::as_bool)
-                    .unwrap_or(true);
+                    // Default to a NEW tab per open request so consecutive page
+                    // opens do not overwrite each other; agents opt back into
+                    // reuse explicitly with replace_existing=true.
+                    .unwrap_or(false);
 
                 get_global_event_system()
                     .emit(BackendEvent::Custom {
