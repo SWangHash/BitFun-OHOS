@@ -220,6 +220,8 @@ $env:PATH = "${env:DEVECO_PATH}\jbr\bin;" + $env:PATH
 mkdir -p "${PROJECTS_ROOT}/<app-name>-ohos"
 ```
 命名规范：格式 `<原始应用名>-ohos`（如 calculator-ohos），全部小写，空格替换为短横线。
+**同名冲突**：若目标目录已存在（同一工程的历次迁移产物），**禁止覆盖或复用旧目录**——为本次迁移追加序号区分：`<app-name>-ohos-2`、`<app-name>-ohos-3`（取最小可用序号），并在最终响应中告知用户新目录名。
+**`${PROJECTS_ROOT}` 取值**见 `ENV.md`「迁移输出根目录」；BitFun QtMigration 会话中 = 用户确认的 `output_project` 绑定值（输出容器）。模板与迁移产物只能写入 `<app-name>-ohos/` 子目录内，**禁止直接写入 `${PROJECTS_ROOT}` 根目录**——即使它是当前工作区根。
 
 #### 2.4 复制 Qt 源码内置胶水模板
 来源：`qt-app-harmonyos-migration` / `qt-harmonyos-project-structure` / `qt-ohos-concrete-build-recipe` / `qt6-ohos-windows-app-dev-guide`
