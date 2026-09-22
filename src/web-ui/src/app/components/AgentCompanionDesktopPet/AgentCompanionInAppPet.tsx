@@ -91,6 +91,8 @@ export const AgentCompanionInAppPet: React.FC = () => {
   const [typedOutputBySessionId, setTypedOutputBySessionId] = useState<Record<string, TypewriterOutputState>>({});
   const [isHoveringPet, setIsHoveringPet] = useState(false);
   const [isDraggingPet, setIsDraggingPet] = useState(false);
+  // While dragging: which way the pet is moving, so the sprite can face it.
+  const [petFacing, setPetFacing] = useState<'left' | 'right' | null>(null);
   const [overlay, setOverlay] = useState<PetOverlayState>(null);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuAnchor | null>(null);
@@ -474,12 +476,16 @@ export const AgentCompanionInAppPet: React.FC = () => {
     session.dragStarted = true;
     event.preventDefault();
     setIsDraggingPet(true);
-    // Begin free positioning; seed from the pointer so the grab point stays
-    // under the cursor instead of jumping the pet's top-left there.
+    // Seed the drag origin from the dock's current visual position: the
+    // origin-based delta math below would otherwise start from (0, 0) on the
+    // first drag and snap the pet toward the viewport's top-left corner.
+    const rect = dockRef.current?.getBoundingClientRect();
     const size = dragSizeRef.current;
-    const seedX = Math.max(0, event.clientX - size.width / 2);
-    const seedY = Math.max(0, event.clientY - size.height / 2);
-    setDragPosition(clampDragPosition(seedX, seedY, size.width, size.height));
+    const originX = rect ? rect.left : Math.max(0, event.clientX - size.width / 2);
+    const originY = rect ? rect.top : Math.max(0, event.clientY - size.height / 2);
+    session.originX = originX;
+    session.originY = originY;
+    setDragPosition(clampDragPosition(originX, originY, size.width, size.height));
   };
 
   const onPetPointerMoveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -491,6 +497,10 @@ export const AgentCompanionInAppPet: React.FC = () => {
     const nextX = session.originX + (event.clientX - session.startX);
     const nextY = session.originY + (event.clientY - session.startY);
     setDragPosition(clampDragPosition(nextX, nextY, size.width, size.height));
+    // Face the drag direction while moving so the pet sprite reads naturally.
+    if (Math.abs(event.clientX - session.startX) > 4) {
+      setPetFacing(event.clientX > session.startX ? 'right' : 'left');
+    }
   };
 
   const onPetPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -501,6 +511,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     const wasDrag = session.dragStarted;
     clearPetPointerSession(event.currentTarget, event.pointerId);
     setIsDraggingPet(false);
+    setPetFacing(null);
     // A click (no drag) on the pet restores the full app window when the
     // surface is currently minimized to the pet-only shape.
     if (!wasDrag && isPetOnlyMode) {
@@ -515,6 +526,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     }
     clearPetPointerSession(event.currentTarget, event.pointerId);
     setIsDraggingPet(false);
+    setPetFacing(null);
   };
 
   const openTaskSession = useCallback(async (task: AgentCompanionTaskStatus) => {
@@ -804,14 +816,22 @@ export const AgentCompanionInAppPet: React.FC = () => {
             data-bitfun-state={hasAttentionTask ? 'attention' : undefined}
             data-bitfun-host="inapp"
           >
-            <AgentCompanionPet
-              mood={displayMood}
-              pet={pet}
-              nativePetdexSize
-              petdexScale={PETDEX_DESKTOP_SCALE}
-              onPetFrameSizeChange={handlePetFrameSizeChange}
-              className="bitfun-agent-companion-window__pet"
-            />
+            <div
+              style={{
+                display: 'inline-flex',
+                transform: petFacing === 'left' ? 'scaleX(-1)' : undefined,
+                transition: 'transform 120ms ease',
+              }}
+            >
+              <AgentCompanionPet
+                mood={displayMood}
+                pet={pet}
+                nativePetdexSize
+                petdexScale={PETDEX_DESKTOP_SCALE}
+                onPetFrameSizeChange={handlePetFrameSizeChange}
+                className="bitfun-agent-companion-window__pet"
+              />
+            </div>
           </div>
         </div>
       </div>
