@@ -116,6 +116,7 @@ cargo test -p bitfun-services-integrations --no-default-features --features remo
 cargo test -p bitfun-services-integrations --no-default-features --features file-watch --test file_watch_contracts
 cargo test --locked -p bitfun-services-integrations --no-default-features --features deep-research --lib deep_research::tests::
 cargo test --locked -p bitfun-services-integrations --no-default-features --features miniapp-market --lib miniapp_market::client::tests::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features review-platform --lib review_platform
 pnpm run check:core-boundaries
 ```
 

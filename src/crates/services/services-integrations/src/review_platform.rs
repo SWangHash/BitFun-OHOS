@@ -25,6 +25,8 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as AsyncMutex;
 
+mod gitee;
+
 pub const REVIEW_PLATFORM_TOKEN_FILE_NAME: &str = "review-platform-tokens.json";
 
 const USER_AGENT_VALUE: &str = "ReviewPlatform";
@@ -128,6 +130,7 @@ pub enum ReviewPlatformKind {
     Github,
     Gitlab,
     Gitcode,
+    Gitee,
     Unknown,
 }
 
@@ -137,6 +140,7 @@ impl ReviewPlatformKind {
             Self::Github => "github",
             Self::Gitlab => "gitlab",
             Self::Gitcode => "gitcode",
+            Self::Gitee => "gitee",
             Self::Unknown => "unknown",
         }
     }
@@ -265,6 +269,7 @@ pub struct ReviewPlatformCiItem {
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPlatformPullRequest {
     pub id: String,
+    /// Remote binding for aggregated lists, not the provider's internal PR ID.
     pub provider_id: Option<String>,
     pub number: i64,
     pub title: String,
@@ -278,6 +283,10 @@ pub struct ReviewPlatformPullRequest {
     pub web_url: String,
     pub additions: i32,
     pub deletions: i32,
+    /// Whether line totals are complete and safe to present, including zero.
+    /// None preserves the behavior of providers and payloads predating this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_stats_known: Option<bool>,
     pub changed_files: i32,
     /// Whether `changed_files` is safe to present as an actual count.
     /// Older payloads predate the unknown state and are treated as known.
@@ -418,6 +427,8 @@ pub struct ReviewPlatformPullRequestDetail {
     pub files: Vec<ReviewPlatformFile>,
     pub commits: Vec<ReviewPlatformCommit>,
     pub threads: Vec<ReviewPlatformThread>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub limitations: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -442,6 +453,8 @@ pub struct ReviewPlatformPullRequestDetailPage {
     pub threads: Vec<ReviewPlatformThread>,
     pub section: ReviewPlatformDetailSection,
     pub pagination: ReviewPlatformPagination,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub limitations: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -465,6 +478,21 @@ pub struct ReviewPlatformCapabilities {
     pub can_request_changes: bool,
     pub can_merge: bool,
     pub supports_draft_review: bool,
+    /// Repository-wide list filters supported by this host/provider. An absent
+    /// field on an older host must not be treated as server-side filtering.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supported_pull_request_states: Vec<ReviewPlatformListState>,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewPlatformListState {
+    #[default]
+    All,
+    Open,
+    Draft,
+    Merged,
+    Closed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -701,7 +729,11 @@ impl ProviderIssueIdentity {
             platform,
             host: normalize_provider_host(host)?,
             project_path: normalize_project_path(platform, project_path)?,
-            issue_id: normalize_provider_item_id(issue_id, "Issue")?,
+            issue_id: if platform == ReviewPlatformKind::Gitee {
+                gitee::normalize_issue_number(issue_id)?
+            } else {
+                normalize_provider_item_id(issue_id, "Issue")?
+            },
         })
     }
 }
@@ -918,7 +950,25 @@ impl ReviewPlatformService {
         page: Option<u32>,
         per_page: Option<u32>,
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
-        self.workspace_snapshot_internal(repository_path, remote_id, page, per_page, true)
+        self.workspace_snapshot_with_state(
+            repository_path,
+            remote_id,
+            page,
+            per_page,
+            ReviewPlatformListState::All,
+        )
+        .await
+    }
+
+    pub async fn workspace_snapshot_with_state(
+        &self,
+        repository_path: &str,
+        remote_id: Option<&str>,
+        page: Option<u32>,
+        per_page: Option<u32>,
+        state: ReviewPlatformListState,
+    ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
+        self.workspace_snapshot_internal(repository_path, remote_id, page, per_page, true, state)
             .await
     }
 
@@ -927,8 +977,15 @@ impl ReviewPlatformService {
         repository_path: &str,
         remote_id: Option<&str>,
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
-        self.workspace_snapshot_internal(repository_path, remote_id, None, None, false)
-            .await
+        self.workspace_snapshot_internal(
+            repository_path,
+            remote_id,
+            None,
+            None,
+            false,
+            ReviewPlatformListState::All,
+        )
+        .await
     }
 
     async fn workspace_snapshot_internal(
@@ -938,6 +995,7 @@ impl ReviewPlatformService {
         page: Option<u32>,
         per_page: Option<u32>,
         include_pull_requests: bool,
+        state: ReviewPlatformListState,
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
         let pagination_request = PullRequestPagination::new(page, per_page);
         let auth_tokens = self.load_stored_tokens().await?;
@@ -965,6 +1023,17 @@ impl ReviewPlatformService {
                     .as_deref()
                     .unwrap_or("Unsupported remote provider"),
             ));
+        }
+
+        if state != ReviewPlatformListState::All
+            && !capabilities_for_remote(&remote)
+                .supported_pull_request_states
+                .contains(&state)
+        {
+            return Err(ReviewPlatformError::UnsupportedPlatform(format!(
+                "{} does not support repository-wide pull request state filtering on this host",
+                platform_label(remote.platform)
+            )));
         }
 
         if remote.platform == ReviewPlatformKind::Gitcode
@@ -1051,7 +1120,10 @@ impl ReviewPlatformService {
                 auth_challenge: None,
             });
         }
-        match provider.list_pull_requests(&ctx, pagination_request).await {
+        match provider
+            .list_pull_requests_with_state(&ctx, pagination_request, state)
+            .await
+        {
             Ok(page) => Ok(ReviewPlatformWorkspaceSnapshot {
                 remotes,
                 selected_remote_id: Some(remote.id.clone()),
@@ -1435,7 +1507,7 @@ impl ReviewPlatformService {
     ) -> bool {
         if !matches!(
             platform,
-            ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab
+            ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitee
         ) {
             return false;
         }
@@ -1477,9 +1549,10 @@ impl ReviewPlatformService {
         }
         let key = token_key(platform, host)
             .ok_or_else(|| ReviewPlatformError::UnsupportedPlatform(host.to_string()))?;
-        let _transaction = self.token_store_lock.lock().await;
+        let store = self.token_store_owner(platform, host)?;
+        let _transaction = store.token_store_lock.lock().await;
         let (mut stored, _) =
-            canonicalize_stored_tokens(self.load_stored_token_file_unlocked().await?);
+            canonicalize_stored_tokens(store.load_stored_token_file_unlocked().await?);
         stored.tokens.retain(|stored_key, _| {
             normalize_stored_token_key(stored_key).as_deref() != Some(key.as_str())
         });
@@ -1490,7 +1563,7 @@ impl ReviewPlatformService {
                 updated_at: chrono::Utc::now().to_rfc3339(),
             },
         );
-        self.save_stored_token_file_unlocked(&stored).await
+        store.save_stored_token_file_unlocked(&stored).await
     }
 
     pub async fn clear_auth_token(
@@ -1506,13 +1579,33 @@ impl ReviewPlatformService {
         }
         let key = token_key(platform, host)
             .ok_or_else(|| ReviewPlatformError::UnsupportedPlatform(host.to_string()))?;
-        let _transaction = self.token_store_lock.lock().await;
+        let store = self.token_store_owner(platform, host)?;
+        let _transaction = store.token_store_lock.lock().await;
         let (mut stored, _) =
-            canonicalize_stored_tokens(self.load_stored_token_file_unlocked().await?);
+            canonicalize_stored_tokens(store.load_stored_token_file_unlocked().await?);
         stored.tokens.retain(|stored_key, _| {
             normalize_stored_token_key(stored_key).as_deref() != Some(key.as_str())
         });
-        self.save_stored_token_file_unlocked(&stored).await
+        store.save_stored_token_file_unlocked(&stored).await
+    }
+
+    fn token_store_owner(
+        &self,
+        platform: ReviewPlatformKind,
+        host: &str,
+    ) -> Result<Self, ReviewPlatformError> {
+        let path = if platform == ReviewPlatformKind::Gitee {
+            if normalize_provider_host(host)? != "gitee.com" {
+                return Err(ReviewPlatformError::UnsupportedPlatform(host.to_string()));
+            }
+            // Older hosts reject unknown authority keys in the shared v1 file.
+            // Keep Gitee additive across upgrades and downgrades, using the same
+            // atomic persistence and per-path locking as existing providers.
+            self.token_store_path.with_extension("gitee.json")
+        } else {
+            self.token_store_path.clone()
+        };
+        Ok(Self::new(path, self.workspace_classifier.clone()))
     }
 }
 
@@ -1523,6 +1616,21 @@ trait ReviewProvider: Sync {
         ctx: &ProviderContext,
         pagination: PullRequestPagination,
     ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError>;
+
+    async fn list_pull_requests_with_state(
+        &self,
+        ctx: &ProviderContext,
+        pagination: PullRequestPagination,
+        state: ReviewPlatformListState,
+    ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+        if state != ReviewPlatformListState::All {
+            return Err(ReviewPlatformError::UnsupportedPlatform(format!(
+                "{} pull request state filtering",
+                platform_label(ctx.remote.platform)
+            )));
+        }
+        self.list_pull_requests(ctx, pagination).await
+    }
 
     async fn pull_request_detail(
         &self,
@@ -1607,6 +1715,7 @@ trait ReviewProvider: Sync {
             ReviewPlatformDetailSection::Reviews => thread_total,
         };
         Ok(ReviewPlatformPullRequestDetailPage {
+            limitations: detail.limitations,
             pull_request: detail.pull_request,
             body: detail.body,
             ci,
@@ -1719,6 +1828,7 @@ fn provider_for(platform: ReviewPlatformKind) -> &'static dyn ReviewProvider {
         ReviewPlatformKind::Github => &GithubProvider,
         ReviewPlatformKind::Gitlab => &GitlabProvider,
         ReviewPlatformKind::Gitcode => &GitcodeProvider,
+        ReviewPlatformKind::Gitee => &gitee::GiteeProvider,
         ReviewPlatformKind::Unknown => &UnsupportedProvider,
     }
 }
@@ -1990,6 +2100,7 @@ impl ReviewProvider for GithubProvider {
         pull_request.checks = checks;
 
         Ok(ReviewPlatformPullRequestDetail {
+            limitations: Vec::new(),
             body: value_string(&detail, "body"),
             pull_request,
             ci,
@@ -2286,6 +2397,7 @@ async fn github_pull_request_detail_page(
     }
 
     Ok(ReviewPlatformPullRequestDetailPage {
+        limitations: Vec::new(),
         pull_request,
         body: value_string(&detail, "body"),
         ci,
@@ -2528,6 +2640,7 @@ async fn gitlab_pull_request_detail(
     pull_request.checks = summarize_ci_items(&ci);
 
     Ok(ReviewPlatformPullRequestDetail {
+        limitations: Vec::new(),
         body: value_string(&detail, "description"),
         pull_request,
         ci,
@@ -2653,6 +2766,7 @@ async fn gitlab_pull_request_detail_page(
     }
 
     Ok(ReviewPlatformPullRequestDetailPage {
+        limitations: Vec::new(),
         pull_request,
         body: value_string(&detail, "description"),
         ci,
@@ -2962,6 +3076,7 @@ async fn gitcode_pull_request_detail_page(
     }
 
     Ok(ReviewPlatformPullRequestDetailPage {
+        limitations: Vec::new(),
         body: first_non_empty(&[
             value_string(&detail, "body"),
             value_string(&detail, "description"),
@@ -3094,6 +3209,7 @@ impl ReviewProvider for GitcodeProvider {
         }
 
         Ok(ReviewPlatformPullRequestDetail {
+            limitations: Vec::new(),
             body: first_non_empty(&[
                 value_string(&detail, "body"),
                 value_string(&detail, "description"),
@@ -3796,7 +3912,10 @@ fn normalize_project_path(
             })
     };
     if segments.len() < 2
-        || (platform == ReviewPlatformKind::Github && segments.len() != 2)
+        || (matches!(
+            platform,
+            ReviewPlatformKind::Github | ReviewPlatformKind::Gitee
+        ) && segments.len() != 2)
         || segments.iter().any(|segment| segment_is_invalid(segment))
     {
         return Err(ReviewPlatformError::Api(
@@ -3805,7 +3924,7 @@ fn normalize_project_path(
     }
     if !matches!(
         platform,
-        ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab
+        ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitee
     ) {
         return Err(ReviewPlatformError::UnsupportedPlatform(
             platform_label(platform).to_string(),
@@ -3856,7 +3975,9 @@ fn provider_context_for_identity_with_trust(
         .flatten();
     let public_anonymous_host = matches!(
         (platform, host.as_str()),
-        (ReviewPlatformKind::Github, "github.com") | (ReviewPlatformKind::Gitlab, "gitlab.com")
+        (ReviewPlatformKind::Github, "github.com")
+            | (ReviewPlatformKind::Gitlab, "gitlab.com")
+            | (ReviewPlatformKind::Gitee, "gitee.com")
     );
     if platform != ReviewPlatformKind::Github
         && !public_anonymous_host
@@ -3903,6 +4024,7 @@ fn provider_context_for_identity_with_trust(
         (ReviewPlatformKind::Github, "github.com") => "https://api.github.com".to_string(),
         (ReviewPlatformKind::Github, _) => format!("https://{host}/api/v3"),
         (ReviewPlatformKind::Gitlab, _) => format!("https://{host}/api/v4"),
+        (ReviewPlatformKind::Gitee, "gitee.com") => "https://gitee.com/api/v5".to_string(),
         _ => return Err(ReviewPlatformError::UnsupportedPlatform(host)),
     };
     Ok(ProviderContext {
@@ -3958,6 +4080,20 @@ fn issue_request_plan(
         ));
     }
     let (issue_url, comments_url, comments_query) = match identity.platform {
+        ReviewPlatformKind::Gitee => {
+            let issue_url = format!(
+                "{}/repos/{}/{}/issues/{}",
+                context.api_base_url,
+                urlencoding::encode(&context.remote.owner),
+                urlencoding::encode(&context.remote.repository_name),
+                identity.issue_id
+            );
+            (
+                issue_url.clone(),
+                format!("{issue_url}/comments"),
+                Vec::new(),
+            )
+        }
         ReviewPlatformKind::Github => {
             let issue_url = format!(
                 "{}/repos/{}/{}/issues/{}",
@@ -4009,6 +4145,7 @@ async fn acquire_issue_evidence(
     let page = plan.pagination.page.to_string();
     let per_page = plan.pagination.per_page.to_string();
     match identity.platform {
+        ReviewPlatformKind::Gitee => gitee::acquire_issue_evidence(context, identity, &plan).await,
         ReviewPlatformKind::Github => {
             let issue =
                 github_api_get_json(context, &plan.issue_url, &[], MAX_ISSUE_RESPONSE_BYTES)
@@ -4176,6 +4313,10 @@ fn provider_context(
         (ReviewPlatformKind::Github, host) => format!("https://{host}/api/v3"),
         (ReviewPlatformKind::Gitlab, host) => format!("https://{host}/api/v4"),
         (ReviewPlatformKind::Gitcode, _) => "https://api.gitcode.com/api/v5".to_string(),
+        (ReviewPlatformKind::Gitee, "gitee.com") => "https://gitee.com/api/v5".to_string(),
+        (ReviewPlatformKind::Gitee, _) => {
+            return Err(ReviewPlatformError::UnsupportedPlatform(remote.host));
+        }
         (ReviewPlatformKind::Unknown, _) => {
             return Err(ReviewPlatformError::UnsupportedPlatform(remote.host));
         }
@@ -4206,6 +4347,7 @@ fn env_token_for_platform(platform: ReviewPlatformKind) -> Option<String> {
         ReviewPlatformKind::Github => &[],
         ReviewPlatformKind::Gitlab => &["GITLAB_TOKEN", "GITLAB_PRIVATE_TOKEN"],
         ReviewPlatformKind::Gitcode => &["GITCODE_TOKEN"],
+        ReviewPlatformKind::Gitee => &["GITEE_TOKEN"],
         ReviewPlatformKind::Unknown => &[],
     };
     names.iter().find_map(|name| {
@@ -4254,6 +4396,7 @@ fn normalize_stored_token_key(key: &str) -> Option<String> {
         "github" => ReviewPlatformKind::Github,
         "gitlab" => ReviewPlatformKind::Gitlab,
         "gitcode" => ReviewPlatformKind::Gitcode,
+        "gitee" => ReviewPlatformKind::Gitee,
         _ => return None,
     };
     token_key(platform, host)
@@ -4393,10 +4536,7 @@ async fn resolve_git_program(current_dir: &Path) -> PathBuf {
     {
         let home = harmony_user_home(current_dir);
         let candidates = [
-            (
-                "zsh",
-                ["-lic", "command -v git"].as_slice(),
-            ),
+            ("zsh", ["-lic", "command -v git"].as_slice()),
             (
                 "sh",
                 [
@@ -4776,6 +4916,7 @@ fn github_pull_request_from_gh_cli_value(
         additions: value_i64(value, "additions") as i32,
         deletions: value_i64(value, "deletions") as i32,
         changed_files: value_i64(value, "changedFiles") as i32,
+        line_stats_known: None,
         changed_file_count_known: true,
         comments: value
             .get("comments")
@@ -5124,12 +5265,30 @@ fn normalize_repository_root(root: &str) -> String {
 
 impl ReviewPlatformService {
     async fn load_stored_tokens(&self) -> Result<ReviewPlatformAuthTokens, ReviewPlatformError> {
-        let _transaction = self.token_store_lock.lock().await;
-        let (stored, migrated) =
-            canonicalize_stored_tokens(self.load_stored_token_file_unlocked().await?);
-        if migrated {
-            self.save_stored_token_file_unlocked(&stored).await?;
+        let mut stored = {
+            let _transaction = self.token_store_lock.lock().await;
+            let (stored, migrated) =
+                canonicalize_stored_tokens(self.load_stored_token_file_unlocked().await?);
+            if migrated {
+                self.save_stored_token_file_unlocked(&stored).await?;
+            }
+            stored
+        };
+        let gitee_store = self.token_store_owner(ReviewPlatformKind::Gitee, "gitee.com")?;
+        let gitee_tokens = {
+            let _transaction = gitee_store.token_store_lock.lock().await;
+            gitee_store.load_stored_token_file_unlocked().await?
+        };
+        if gitee_tokens
+            .tokens
+            .keys()
+            .any(|key| key != "gitee:gitee.com")
+        {
+            return Err(ReviewPlatformError::Parse(
+                "Gitee token store contains an unexpected provider authority".to_string(),
+            ));
         }
+        stored.tokens.extend(gitee_tokens.tokens);
         Ok(ReviewPlatformAuthTokens {
             tokens: stored
                 .tokens
@@ -5364,6 +5523,7 @@ fn empty_snapshot(
             can_request_changes: false,
             can_merge: false,
             supports_draft_review: false,
+            supported_pull_request_states: Vec::new(),
         },
         message: if message.trim().is_empty() {
             None
@@ -5448,11 +5608,17 @@ fn capabilities_for_remote(_remote: &ReviewPlatformRemote) -> ReviewPlatformCapa
     ReviewPlatformCapabilities {
         can_create_review: matches!(
             platform,
-            ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitcode
+            ReviewPlatformKind::Github
+                | ReviewPlatformKind::Gitlab
+                | ReviewPlatformKind::Gitcode
+                | ReviewPlatformKind::Gitee
         ),
         can_create_pull_request: matches!(
             platform,
-            ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitcode
+            ReviewPlatformKind::Github
+                | ReviewPlatformKind::Gitlab
+                | ReviewPlatformKind::Gitcode
+                | ReviewPlatformKind::Gitee
         ),
         can_reply_to_thread: matches!(
             platform,
@@ -5461,12 +5627,29 @@ fn capabilities_for_remote(_remote: &ReviewPlatformRemote) -> ReviewPlatformCapa
         can_resolve_thread: matches!(platform, ReviewPlatformKind::Gitlab),
         can_approve: matches!(
             platform,
-            ReviewPlatformKind::Github | ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitcode
+            ReviewPlatformKind::Github
+                | ReviewPlatformKind::Gitlab
+                | ReviewPlatformKind::Gitcode
+                | ReviewPlatformKind::Gitee
         ),
-        can_revoke_approval: matches!(platform, ReviewPlatformKind::Gitlab),
+        can_revoke_approval: matches!(
+            platform,
+            ReviewPlatformKind::Gitlab | ReviewPlatformKind::Gitee
+        ),
         can_request_changes: matches!(platform, ReviewPlatformKind::Github),
         can_merge: false,
         supports_draft_review: matches!(platform, ReviewPlatformKind::Github),
+        supported_pull_request_states: if platform == ReviewPlatformKind::Gitee {
+            vec![
+                ReviewPlatformListState::All,
+                ReviewPlatformListState::Open,
+                ReviewPlatformListState::Draft,
+                ReviewPlatformListState::Merged,
+                ReviewPlatformListState::Closed,
+            ]
+        } else {
+            Vec::new()
+        },
     }
 }
 
@@ -5475,6 +5658,7 @@ fn platform_label(platform: ReviewPlatformKind) -> &'static str {
         ReviewPlatformKind::Github => "GitHub",
         ReviewPlatformKind::Gitlab => "GitLab",
         ReviewPlatformKind::Gitcode => "GitCode",
+        ReviewPlatformKind::Gitee => "Gitee",
         ReviewPlatformKind::Unknown => "Git",
     }
 }
@@ -5486,6 +5670,7 @@ fn required_scopes_for_platform(platform: ReviewPlatformKind) -> Vec<String> {
             vec!["read_api".to_string(), "api for write actions".to_string()]
         }
         ReviewPlatformKind::Gitcode => vec!["pull_request".to_string()],
+        ReviewPlatformKind::Gitee => vec!["pull_requests".to_string(), "projects".to_string()],
         ReviewPlatformKind::Unknown => Vec::new(),
     }
 }
@@ -6142,6 +6327,7 @@ fn parse_remote(
         "github.com" => ReviewPlatformKind::Github,
         "gitlab.com" => ReviewPlatformKind::Gitlab,
         "gitcode.com" => ReviewPlatformKind::Gitcode,
+        "gitee.com" => ReviewPlatformKind::Gitee,
         _ => auth_tokens
             .registered_platform_for_host(&host)
             .unwrap_or(ReviewPlatformKind::Unknown),
@@ -6641,6 +6827,7 @@ fn github_pull_request_from_value(value: &Value) -> ReviewPlatformPullRequest {
         additions: value_i64(value, "additions") as i32,
         deletions: value_i64(value, "deletions") as i32,
         changed_files: value_i64(value, "changed_files") as i32,
+        line_stats_known: None,
         changed_file_count_known: true,
         comments: (value_i64(value, "comments") + value_i64(value, "review_comments")) as i32,
         review_decision: ReviewDecision::Pending,
@@ -6689,6 +6876,7 @@ fn gitlab_pull_request_from_value(value: &Value) -> ReviewPlatformPullRequest {
         web_url: value_string(value, "web_url"),
         additions: 0,
         deletions: 0,
+        line_stats_known: None,
         changed_files,
         changed_file_count_known: true,
         comments: value_i64(value, "user_notes_count") as i32,
@@ -6752,6 +6940,7 @@ fn gitcode_pull_request_from_value(value: &Value) -> ReviewPlatformPullRequest {
         ]),
         additions: gitcode_pull_request_line_count(value, "added_lines", "additions"),
         deletions: gitcode_pull_request_line_count(value, "removed_lines", "deletions"),
+        line_stats_known: None,
         changed_files: changed_files.unwrap_or(0),
         changed_file_count_known,
         comments: value_i64(value, "comments") as i32,
@@ -6791,7 +6980,10 @@ fn gitcode_file_from_value(value: &Value) -> ReviewPlatformFile {
     let patch = value.get("patch").filter(|patch| patch.is_object());
     let metadata = patch.unwrap_or(value);
     let change_flag = |key| {
-        metadata.get(key).and_then(Value::as_bool).unwrap_or_else(|| value_bool(value, key))
+        metadata
+            .get(key)
+            .and_then(Value::as_bool)
+            .unwrap_or_else(|| value_bool(value, key))
     };
     let status = if change_flag("new_file") {
         ReviewFileStatus::Added
@@ -8531,13 +8723,9 @@ mod tests {
             token_key(ReviewPlatformKind::Gitcode, "gitcode.com").unwrap(),
             "fixture-token".to_string(),
         );
-        let mut context = provider_context_for_identity(
-            ReviewPlatformKind::Gitcode,
-            "gitcode.com",
-            "example/repo",
-            &tokens,
-        )
-        .unwrap();
+        let remote =
+            parse_remote("origin", "https://gitcode.com/example/repo.git", &tokens).unwrap();
+        let mut context = provider_context(remote, &tokens).unwrap();
         context.api_base_url = format!("http://{address}");
         let (_, files) = gitcode_review_file_parts(&context, "166", "src/new.rs", Some(2))
             .await

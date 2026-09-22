@@ -52,10 +52,14 @@ import {
   currentPullRequestReviewStatusText,
   effectivePullRequestReviewFreshness,
   mergeChangedFileCount,
+  mergeLineStats,
+  mergePullRequestDetailLimitations,
   mergeRevalidatedPullRequestOverview,
   pullRequestReviewFreshness,
   pullRequestReviewLaunchKey,
   resolvedChangedFileCount,
+  resolvedLineStats,
+  resolvedPullRequestStatistics,
   samePullRequestRevisions,
   samePullRequestIdentity,
   type PullRequestReviewFreshness,
@@ -168,8 +172,8 @@ function detailPageInfo(pagination: ReviewPlatformPagination, itemCount: number)
   };
 }
 
-function snapshotCacheKey(workspacePath: string, remoteId: string | null, page: number, perPage: number, mode: 'list' | 'context'): string {
-  return `${workspacePath}::${remoteId ?? 'default'}::${page}::${perPage}::${mode}`;
+function snapshotCacheKey(workspacePath: string, remoteId: string | null, page: number, perPage: number, mode: 'list' | 'context', state: ListStateFilter): string {
+  return `${workspacePath}::${remoteId ?? 'default'}::${page}::${perPage}::${mode}::${state}`;
 }
 
 function detailCacheKey(workspacePath: string, remoteId: string, pullRequestId: string): string {
@@ -201,8 +205,8 @@ function mergeDetailPage(
   return {
     ...base,
     ...page,
-    additions: page.additions || base.additions,
-    deletions: page.deletions || base.deletions,
+    limitations: mergePullRequestDetailLimitations(base.limitations, page.limitations, page.section),
+    ...mergeLineStats(base, page),
     ...mergeChangedFileCount(base, page),
     ci: page.section === 'ci' ? page.ci : base.ci,
     files: page.section === 'files' ? page.files : base.files,
@@ -306,6 +310,8 @@ function providerLabel(remote: ReviewPlatformRemote | ReviewPlatformAccount | nu
       return 'GitLab';
     case 'gitcode':
       return 'GitCode';
+    case 'gitee':
+      return 'Gitee';
     default:
       return 'Git';
   }
@@ -663,7 +669,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   initialPullRequestUrl,
   detailOnly = false,
 }) => {
-  const { t } = useI18n('common');
+  const { t } = useI18n('panels/git');
   const snapshotRequestSeq = useRef(0);
   const detailRequestSeq = useRef(0);
   const detailSectionRequestSeq = useRef(0);
@@ -687,6 +693,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const error = snapshotError ? reviewPlatformErrorMessage(snapshotError.cause, t) : null;
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<ListStateFilter>('all');
+  const serverStateFilter = useRef<ListStateFilter>('all');
   const [pageIndex, setPageIndex] = useState(0);
   const [ciPageIndex, setCiPageIndex] = useState(0);
   const [changePageIndex, setChangePageIndex] = useState(0);
@@ -782,9 +789,11 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
   const loadSnapshot = useCallback(async (
     nextRemoteId?: string | null,
-    options?: { force?: boolean; page?: number; userInitiated?: boolean },
+    options?: { force?: boolean; page?: number; state?: ListStateFilter; userInitiated?: boolean },
   ) => {
     const requestSeq = ++snapshotRequestSeq.current;
+    detailRequestSeq.current += 1;
+    detailSectionRequestSeq.current += 1;
     if (!workspacePath) {
       setSnapshot(emptySnapshot());
       setSelectedRemoteId(null);
@@ -804,9 +813,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         ? readRememberedRemote(workspacePath)
         : null;
     const requestedPage = Math.max(1, options?.page ?? 1);
+    const requestedState = detailOnly ? 'all' : options?.state ?? serverStateFilter.current;
     const snapshotMode = detailOnly ? 'context' : 'list';
     setListRemoteId(requestedRemoteId ?? null);
-    const requestedCacheKey = snapshotCacheKey(workspacePath, requestedRemoteId ?? null, requestedPage, PR_PAGE_SIZE, snapshotMode);
+    const requestedCacheKey = snapshotCacheKey(workspacePath, requestedRemoteId ?? null, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState);
     const cached = snapshotCache.get(requestedCacheKey);
     const force = options?.force === true;
 
@@ -824,7 +834,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setLoading(false);
       return;
     } else {
-      setSnapshot(emptySnapshot());
+      setSnapshot(current => ({ ...current, pullRequests: [], pagination: emptyPagination(requestedPage, PR_PAGE_SIZE) }));
       setSelectedPrId(null);
       setDetail(null);
       setVerifiedDetailKey(null);
@@ -843,6 +853,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               requestedRemoteId ?? null,
               requestedPage,
               PR_PAGE_SIZE,
+              requestedState,
             ),
         { userInitiated: options?.userInitiated },
       );
@@ -859,7 +870,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       const entry = { snapshot: next, fetchedAt: Date.now() };
       snapshotCache.set(requestedCacheKey, entry);
       if (remoteId) {
-        snapshotCache.set(snapshotCacheKey(workspacePath, remoteId, requestedPage, PR_PAGE_SIZE, snapshotMode), entry);
+        snapshotCache.set(snapshotCacheKey(workspacePath, remoteId, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState), entry);
       }
       setSnapshotCacheState('cached');
     } catch (err) {
@@ -1004,7 +1015,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, [applySectionPagination, loadDetail, workspacePath]);
 
   useEffect(() => {
-    void loadSnapshot(detailOnly && initialRemoteId ? initialRemoteId : undefined);
+    serverStateFilter.current = 'all';
+    setStateFilter('all');
+    setSnapshot(emptySnapshot());
+    void loadSnapshot(detailOnly && initialRemoteId ? initialRemoteId : undefined, { state: 'all' });
   }, [detailOnly, initialRemoteId, loadSnapshot]);
 
   useEffect(() => flowChatStore.subscribe(setFlowState), []);
@@ -1098,16 +1112,24 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
   useEffect(() => {
     if (!hasDetail || !selectedRemoteId || !selectedPrId || (!repository && !workspacePath)) return;
+    if (verifiedDetailKey !== detailCacheKey(workspacePath || repository?.workspacePath || '', selectedRemoteId, selectedPrId)) return;
+    let disposed = false;
     if (activeTab === 'overview') {
       void (async () => {
         await loadDetailSection(repository, selectedRemoteId, selectedPrId, 'ci', ciPageIndex, CI_PAGE_SIZE);
-        await loadDetailSection(repository, selectedRemoteId, selectedPrId, 'reviews', reviewPageIndex, REVIEW_PAGE_SIZE);
+        if (!disposed) {
+          await loadDetailSection(repository, selectedRemoteId, selectedPrId, 'reviews', reviewPageIndex, REVIEW_PAGE_SIZE);
+        }
       })();
     } else if (activeTab === 'changes') {
       void loadDetailSection(repository, selectedRemoteId, selectedPrId, 'files', changePageIndex, CHANGE_PAGE_SIZE);
     } else if (activeTab === 'commits') {
       void loadDetailSection(repository, selectedRemoteId, selectedPrId, 'commits', commitPageIndex, COMMIT_PAGE_SIZE);
     }
+    return () => {
+      disposed = true;
+      detailSectionRequestSeq.current += 1;
+    };
   }, [
     activeTab,
     ciPageIndex,
@@ -1121,6 +1143,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     reviewPageIndex,
     selectedPrId,
     selectedRemoteId,
+    verifiedDetailKey,
     workspacePath,
   ]);
 
@@ -1282,10 +1305,21 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setDetail(null);
     setDetailError(null);
     setStateFilter('all');
+    serverStateFilter.current = 'all';
     setPageIndex(0);
     rememberRemote(workspacePath, remoteId || null);
-    void loadSnapshot(remoteId || null, { page: 1 });
+    setSnapshot(emptySnapshot());
+    void loadSnapshot(remoteId || null, { page: 1, state: 'all' });
   }, [loadSnapshot, workspacePath]);
+
+  const handleStateChange = useCallback((state: ListStateFilter) => {
+    setStateFilter(state);
+    if (snapshot.capabilities.supportedPullRequestStates?.includes(state)) {
+      serverStateFilter.current = state;
+      setPageIndex(0);
+      void loadSnapshot(listRemoteId, { page: 1, state });
+    }
+  }, [listRemoteId, loadSnapshot, snapshot.capabilities.supportedPullRequestStates]);
 
   const handlePageChange = useCallback((nextPageIndex: number) => {
     const nextPage = Math.max(1, nextPageIndex + 1);
@@ -1831,6 +1865,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     ? `${providerLabel(selectedRemote)} · ${authLabel(account)}`
     : 'No remote detected';
   const displayPr = currentPullRequest;
+  const displayStatistics = selectedPrFromList && (!detail || samePullRequestRevisions(selectedPrFromList, detail))
+    ? resolvedPullRequestStatistics(selectedPrFromList, detail)
+    : displayPr;
+  const displayLineStats = resolvedLineStats(displayStatistics);
   const checksText = displayPr && displayPr.checks.total > 0
     ? `${displayPr.checks.passed}/${displayPr.checks.total}`
     : 'N/A';
@@ -1941,6 +1979,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               className="review-platform__icon-button"
               size="xs"
               variant="ghost"
+              data-testid="review-platform-refresh"
               tooltip="Refresh"
               onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}
               isLoading={loading}
@@ -1989,12 +2028,18 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     key={state}
                     type="button"
                     className={`review-platform__state-chip${stateFilter === state ? ' is-active' : ''}`}
-                    onClick={() => setStateFilter(state)}
+                    data-testid={`review-platform-filter-${state}`}
+                    aria-pressed={stateFilter === state}
+                    disabled={selectedRemote?.platform === 'gitee' && state !== 'all' && !snapshot.capabilities.supportedPullRequestStates?.includes(state)}
+                    onClick={() => handleStateChange(state)}
                   >
                     {state === 'all' ? 'All' : stateLabel(state)}
                   </button>
                 ))}
               </div>
+            )}
+            {selectedRemote?.platform === 'gitee' && !snapshot.capabilities.supportedPullRequestStates?.length && (
+              <div role="status">{t('reviewPlatform.stateFilterUnsupported')}</div>
             )}
           </div>
 
@@ -2022,11 +2067,19 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 const pullRequestRemote = pr.providerId
                   ? snapshot.remotes.find(remote => remote.id === pr.providerId)
                   : selectedRemote;
+                const cachedDetail = pullRequestRemote
+                  ? detailCache.get(detailCacheKey(workspacePath || repository?.workspacePath || '', pullRequestRemote.id, pr.id))
+                  : undefined;
+                const statistics = resolvedPullRequestStatistics(pr, cachedDetail?.detail);
+                const lineStats = resolvedLineStats(statistics);
                 return (
                   <button data-bf-component="review-platform" data-bf-part="listItem"
                     data-bf-state={selectedPrId === pr.id && (!pr.providerId || pr.providerId === selectedRemoteId) ? 'selected' : ''}
                     key={`${pr.providerId ?? selectedRemoteId ?? 'remote'}:${pr.id}`}
                     type="button"
+                    data-testid="review-platform-pr-row"
+                    data-pr-number={pr.number}
+                    data-pr-state={pr.state}
                     className={`review-platform__pr-row${selectedPrId === pr.id && (!pr.providerId || pr.providerId === selectedRemoteId) ? ' is-selected' : ''}`}
                     onClick={() => {
                       if (pr.providerId && pr.providerId !== selectedRemoteId) {
@@ -2051,9 +2104,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                         {decisionLabel(pr.reviewDecision)}
                       </span>
                       <span className="review-platform__counts">
-                        <span>{resolvedChangedFileCount(pr) ?? '—'} files</span>
-                        <span className="review-platform__additions">+{pr.additions}</span>
-                        <span className="review-platform__deletions">-{pr.deletions}</span>
+                        <span data-testid="review-platform-pr-files">{resolvedChangedFileCount(statistics) ?? '—'} files</span>
+                        <span data-testid="review-platform-pr-additions" className="review-platform__additions">{lineStats ? `+${lineStats.additions}` : '—'}</span>
+                        <span data-testid="review-platform-pr-deletions" className="review-platform__deletions">{lineStats ? `-${lineStats.deletions}` : '—'}</span>
                       </span>
                     </span>
                   </button>
@@ -2062,11 +2115,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             ))}
           </div>
           {!loading && !error && (totalPages > 1 || pagination.hasNext) && (
-            <div className="review-platform__pagination" data-bf-component="review-platform" data-bf-part="pagination">
+            <div data-testid="review-platform-pagination" className="review-platform__pagination" data-bf-component="review-platform" data-bf-part="pagination">
               <IconButton
                 className="review-platform__icon-button"
                 size="xs"
                 variant="ghost"
+                data-testid="review-platform-prev-page"
                 tooltip="Previous page"
                 disabled={currentPageIndex === 0}
                 onClick={() => handlePageChange(currentPageIndex - 1)}
@@ -2080,6 +2134,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 className="review-platform__icon-button"
                 size="xs"
                 variant="ghost"
+                data-testid="review-platform-next-page"
                 tooltip="Next page"
                 disabled={!pagination.hasNext && currentPageIndex >= totalPages - 1}
                 onClick={() => handlePageChange(currentPageIndex + 1)}
@@ -2168,7 +2223,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                   <div className="review-platform__detail-title-row">
                     {getPrIcon(selectedPr)}
                     <h3>{selectedPr.title}</h3>
-                    <span className={`review-platform__detail-state review-platform__detail-state--${displayPr?.state ?? selectedPr.state}`} data-bf-component="review-platform" data-bf-part="detailState">
+                    <span data-testid="review-platform-detail-state" className={`review-platform__detail-state review-platform__detail-state--${displayPr?.state ?? selectedPr.state}`} data-bf-component="review-platform" data-bf-part="detailState">
                       {stateLabel(displayPr?.state ?? selectedPr.state)}
                     </span>
                   </div>
@@ -2237,9 +2292,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     <strong>{displayPr?.sourceBranch ?? selectedPr.sourceBranch}</strong>
                     <ChevronRight size={13} />
                     <strong>{displayPr?.targetBranch ?? selectedPr.targetBranch}</strong>
-                    <span>{resolvedChangedFileCount(displayPr, selectedPr) ?? '—'} files</span>
-                    <span className="review-platform__additions">+{displayPr?.additions ?? selectedPr.additions}</span>
-                    <span className="review-platform__deletions">-{displayPr?.deletions ?? selectedPr.deletions}</span>
+                    <span data-testid="review-platform-detail-files">{resolvedChangedFileCount(displayStatistics) ?? '—'} files</span>
+                    <span data-testid="review-platform-detail-additions" className="review-platform__additions">{displayLineStats ? `+${displayLineStats.additions}` : '—'}</span>
+                    <span data-testid="review-platform-detail-deletions" className="review-platform__deletions">{displayLineStats ? `-${displayLineStats.deletions}` : '—'}</span>
                   </div>
                 </div>
                 <div className="review-platform__fact-row">
@@ -2272,6 +2327,20 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 </div>
               </div>
 
+                {(detail?.limitations?.length ?? 0) > 0 && (
+                  <div className="review-platform__detail-error" role="status">
+                    <span>{detail!.limitations!.map(limitation => {
+                      switch (limitation) {
+                        case 'gitee_file_list_limit': return t('reviewPlatform.fileLimit');
+                        case 'gitee_commit_list_limit': return t('reviewPlatform.commitLimit');
+                        case 'provider_comment_list_incomplete': return t('reviewPlatform.commentsLimited');
+                        case 'provider_ci_list_incomplete': return t('reviewPlatform.checksLimited');
+                        case 'provider_ci_head_unavailable': return t('reviewPlatform.ciHeadUnavailable');
+                        default: return t('reviewPlatform.limited');
+                      }
+                    }).join(' ')}</span>
+                  </div>
+                )}
               <Tabs
                 activeKey={activeTab}
                 onChange={(key) => setActiveTab(key as DetailTab)}
