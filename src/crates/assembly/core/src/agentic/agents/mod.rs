@@ -27,13 +27,15 @@ pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 pub(crate) use definitions::external::ExternalProvidedAgent;
 pub use definitions::hidden::{CodeReviewAgent, DeepReviewAgent, GenerateDocAgent};
 pub use definitions::modes::{
-    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, MultitaskMode, PlanMode,
-    QtMigrationMode, TeamMode,
+    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, HarmonyBuildMode,
+    MultitaskMode, PlanMode, QtMigrationMode, TeamMode,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;
 pub use definitions::subagents::{
-    ComputerUseMode, ExploreAgent, FileFinderAgent, GeneralPurposeAgent, ResearchSpecialistAgent,
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent,
+    ComputerUseMode, ExploreAgent, FileFinderAgent, GeneralPurposeAgent, HarmonyAgent,
+    HarmonyPlanAgent, ResearchSpecialistAgent,
 };
 use indexmap::IndexMap;
 pub use prompt_builder::{

@@ -53,6 +53,9 @@
     "workflowLabel": "Built-in domain workflow",
     "qtMigration": {
       "description": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
+    },
+    "harmonyBuild": {
+      "description": "HarmonyOS build, deployment, diagnosis, and verification specialist."
     }
   },
   "agentsZone": {
@@ -359,5 +362,10 @@
     "Claw": "Claw mode: extract and integrate information from external sources",
     "Team": "Team mode: coordinate multiple agents to collaboratively complete complex tasks",
     "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
+    ,"HarmonyBuild": "HarmonyOS build, deployment, diagnosis, and verification specialist"
+    ,"HarmonyPlan": "Read-only HarmonyOS planning and project analysis specialist"
+    ,"HarmonyGoal": "Constrained goal-driven HarmonyOS orchestration subagent"
+    ,"HarmonySpecImplementation": "Hidden approved-spec implementation subagent"
+    ,"HarmonySpecVerify": "Hidden HarmonyOS build, deployment, and UI verification subagent"
   }
 }
