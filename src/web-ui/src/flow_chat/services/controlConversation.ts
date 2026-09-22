@@ -100,8 +100,10 @@ const OUTBOX = 'bitfun-voice-exchange:';
 const volatileOutbox = new Map<string, VoiceExchange>();
 const outboxKey = (request: Pick<VoiceExchange, 'surfaceId' | 'sessionId' | 'exchangeId'>) =>
   OUTBOX + JSON.stringify([request.surfaceId, request.sessionId, request.exchangeId]);
-const outboxStorage = () =>
-  typeof localStorage === 'undefined' || localStorage === null ? undefined : localStorage;
+// ArkWeb with DOM storage disabled exposes `localStorage` as null instead of
+// throwing; normalize it so the send path never crashes on Object.keys(null).
+const outboxStorage = (): Storage | undefined =>
+  typeof localStorage === 'undefined' ? undefined : (localStorage as Storage | null) ?? undefined;
 
 /** Keep ordinary text submissions synchronous when no native history needs recovery. */
 export function hasPendingVoiceExchanges(sessionId: string): boolean {
