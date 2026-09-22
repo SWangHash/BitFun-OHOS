@@ -36,8 +36,14 @@ pub async fn computer_use_get_status(
         .get_config::<GlobalConfig>(None)
         .await
         .map_err(|e| e.to_string())?;
+    // The computer_use module (and its probes) is only compiled for non-OHOS
+    // hosts; OHOS has no desktop host and no probeable accessibility gate,
+    // and the screen-capture privacy gate is surfaced by the OS at first use.
+    #[cfg(not(target_env = "ohos"))]
     let (accessibility_granted, screen_capture_granted) =
         crate::computer_use::permission_probes();
+    #[cfg(target_env = "ohos")]
+    let (accessibility_granted, screen_capture_granted) = (true, true);
     Ok(ComputerUseStatusResponse {
         computer_use_enabled: config.ai.computer_use_enabled,
         accessibility_granted,

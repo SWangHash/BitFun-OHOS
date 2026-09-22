@@ -43,17 +43,12 @@ mod windows_wgc_capture;
 pub use desktop_host::DesktopComputerUseHost;
 
 /// OS permission probes for the desktop-control settings surface, as
-/// `(accessibility_granted, screen_capture_granted)`. The OHOS build has no
-/// desktop host and no probeable accessibility gate; the screen-capture
-/// privacy gate is surfaced by the OS at first use instead.
-#[cfg(not(target_env = "ohos"))]
+/// `(accessibility_granted, screen_capture_granted)`. Windows and Linux have
+/// no user-facing gates for these capabilities, so they report granted;
+/// macOS probes the real system state. The OHOS build does not compile this
+/// module at all.
 pub fn permission_probes() -> (bool, bool) {
     desktop_host::permission_probes()
-}
-
-#[cfg(target_env = "ohos")]
-pub fn permission_probes() -> (bool, bool) {
-    (true, true)
 }
 
 #[cfg(test)]
