@@ -4,6 +4,7 @@ mod creative;
 mod deep_research;
 mod harmony_feature;
 mod minimal;
+mod qt_migration;
 mod standard;
 mod ultimate;
 
@@ -13,5 +14,6 @@ pub use creative::CreativeHarness;
 pub use deep_research::DeepResearchMode;
 pub use harmony_feature::HarmonyFeatureMode;
 pub use minimal::MinimalHarness;
+pub use qt_migration::QtMigrationMode;
 pub use standard::StandardHarness;
 pub use ultimate::UltimateHarness;

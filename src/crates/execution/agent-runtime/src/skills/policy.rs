@@ -12,6 +12,7 @@ enum SkillModeId {
     HarmonyFeature,
     Ultra,
     SwarmWorker,
+    QtMigration,
     Other,
 }
 
@@ -27,6 +28,7 @@ impl SkillModeId {
             "HarmonyFeature" => Self::HarmonyFeature,
             "Ultimate" => Self::Ultra,
             "SwarmWorker" => Self::SwarmWorker,
+            "QtMigration" => Self::QtMigration,
             _ => Self::Other,
         }
     }
@@ -139,6 +141,19 @@ const ENABLE_HARMONY_FEATURE_GUIDE: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Enable,
 };
 
+const ENABLE_HARMONYOS: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::Group(BuiltinSkillGroup::HarmonyOS),
+    effect: PolicyEffect::Enable,
+};
+
+/// QtMigration mode enables the managed HarmonyOS built-in skills (incl.
+/// `ohos-qt-skills`) so the Skill tool can actually load them; other built-in
+/// groups stay disabled by default.
+const QT_MIGRATION_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[ENABLE_META, ENABLE_HARMONYOS],
+};
+
 const ULTRA_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
     rules: &[ENABLE_PLAN, ENABLE_AGENT_BROWSER],
@@ -221,6 +236,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::HarmonyFeature => HARMONY_FEATURE_POLICY,
         SkillModeId::Ultra => ULTRA_POLICY,
         SkillModeId::SwarmWorker => SWARM_WORKER_POLICY,
+        SkillModeId::QtMigration => QT_MIGRATION_POLICY,
         SkillModeId::ComputerUse | SkillModeId::Other => OPEN_META_ONLY_POLICY,
     }
 }

@@ -209,13 +209,19 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             "primary",
             SubagentVisibilityPolicy::default(),
         ),
+        builtin_agent_spec(
+            "QtMigration",
+            Mode,
+            "primary",
+            SubagentVisibilityPolicy::default(),
+        ),
     ]
 }
 
 pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
     match agent_type {
         "BitFun" | "Minimal" | "Standard" | "Cowork" | "Creative" | "ComputerUse" | "Claw"
-        | "DeepResearch" | "Ultimate" | "HarmonyFeature" => "primary",
+        | "DeepResearch" | "Ultimate" | "HarmonyFeature" | "QtMigration" => "primary",
         "Explore" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" | "SwarmPlanner"
         | "SwarmWorker" => "primary",
         "GenerateDoc"

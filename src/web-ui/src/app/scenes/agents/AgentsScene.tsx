@@ -259,22 +259,24 @@ const AgentsHomeView: React.FC = () => {
 
 
 
+  const industryAgents = useMemo(
+    () => filteredAgents.filter(
+      (agent) => INDUSTRY_AGENT_IDS.has(agent.id) && !hiddenAgentIds.has(agent.id),
+    ),
+    [filteredAgents, hiddenAgentIds],
+  );
+
   const coreAgents = useMemo(
-    () => filteredAgents.filter((agent) => (
-      isOrdinaryAgent(agent)
-      && !hiddenAgentIds.has(agent.id)
-      && !INDUSTRY_AGENT_IDS.has(agent.id)
-    )),
+    () => filteredAgents.filter(
+      (agent) => isOrdinaryAgent(agent)
+        && !hiddenAgentIds.has(agent.id)
+        && !INDUSTRY_AGENT_IDS.has(agent.id),
+    ),
     [filteredAgents, hiddenAgentIds],
   );
 
   const visibleAgents = useMemo(
     () => filteredAgents.filter((agent) => isAgentInOverviewZone(agent, hiddenAgentIds)),
-    [filteredAgents, hiddenAgentIds],
-  );
-
-  const industryAgents = useMemo(
-    () => filteredAgents.filter((agent) => INDUSTRY_AGENT_IDS.has(agent.id) && !hiddenAgentIds.has(agent.id)),
     [filteredAgents, hiddenAgentIds],
   );
 
@@ -808,34 +810,40 @@ const AgentsHomeView: React.FC = () => {
       <div className="gallery-zones" data-bitfun-scene="agents" data-bitfun-part="zones" data-testid="agent-list">
         <AgentHarnessOverview agents={allAgents.filter(agent => agent.agentKind === 'harness')} onOpenDetails={openAgentDetails} />
 
-        {(loading || industryAgents.length > 0) ? (
-          <GalleryZone
-            id="industry-agents-zone"
-            data-testid="agents-industry-zone"
-            title={t('industryAgentsZone.title')}
-            subtitle={t('industryAgentsZone.subtitle')}
-            titleAdornment={!loading ? <StatusPill tone="neutral">{industryAgents.length}</StatusPill> : null}
-          >
-            {loading ? renderSkeletons('industry-agent') : null}
+        <GalleryZone
+          id="industry-agents-zone"
+          data-testid="agents-industry-zone"
+          title={t('industryAgentsZone.title')}
+          subtitle={t('industryAgentsZone.subtitle')}
+          titleAdornment={!loading ? <StatusPill tone="neutral">{industryAgents.length}</StatusPill> : null}
+        >
+          {loading ? renderSkeletons('agent') : null}
 
-            {!loading && industryAgents.length > 0 ? (
-              <GalleryGrid
-                minCardWidth={320}
-                data-bitfun-scene="agents"
-                data-bitfun-part="catalogGrid"
-              >
-                {industryAgents.map((agent, index) => (
-                  <IndustryAgentCard
-                    key={agent.id}
-                    agent={agent}
-                    index={index}
-                    onOpenDetails={openAgentDetails}
-                  />
-                ))}
-              </GalleryGrid>
-            ) : null}
-          </GalleryZone>
-        ) : null}
+          {!loading && industryAgents.length === 0 ? (
+            <GalleryEmpty
+              icon={{ name: 'user' }}
+              message={t('industryAgentsZone.empty')}
+              testId="agent-industry-list-empty"
+            />
+          ) : null}
+
+          {!loading && industryAgents.length > 0 ? (
+            <GalleryGrid
+              minCardWidth={320}
+              data-bitfun-scene="agents"
+              data-bitfun-part="industryGrid"
+            >
+              {industryAgents.map((agent, index) => (
+                <IndustryAgentCard
+                  key={agent.id}
+                  agent={agent}
+                  index={index}
+                  onOpenDetails={openAgentDetails}
+                />
+              ))}
+            </GalleryGrid>
+          ) : null}
+        </GalleryZone>
 
         <GalleryZone
           id="agents-zone"
