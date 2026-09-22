@@ -178,14 +178,10 @@ export const ToolbarModeProvider: React.FC<ToolbarModeProviderProps> = ({ childr
       await ops.setMinSize({ width: geometry.minWidth, height: geometry.minHeight });
       await ops.setAlwaysOnTop(true);
 
-      const toolbarWindowOps: Array<Promise<unknown>> = [
-        ops.setSize({ width: geometry.width, height: geometry.height }),
-        ops.setPosition({ x: geometry.x, y: geometry.y }),
-        ops.setResizable(true),
-        ops.setSkipTaskbar(true),
-      ];
+      await ops.setResizable(true);
+      await ops.setSkipTaskbar(true);
       if (!isMacOS) {
-        toolbarWindowOps.push(ops.setDecorations(false));
+        await ops.setDecorations(false);
       } else {
         try {
           await ops.setTitleBarOverlay();
@@ -193,7 +189,15 @@ export const ToolbarModeProvider: React.FC<ToolbarModeProviderProps> = ({ childr
           // ignore macOS title bar style on platforms without it
         }
       }
-      await Promise.all(toolbarWindowOps);
+      await ops.setSize({ width: geometry.width, height: geometry.height });
+      const actualSize = await ops.outerSize();
+      const positionedGeometry = resolveToolbarWindowGeometry({
+        monitor,
+        targetSize: TOOLBAR_EXPANDED_SIZE,
+        minSize: TOOLBAR_EXPANDED_MIN,
+        actualSize,
+      });
+      await ops.setPosition({ x: positionedGeometry.x, y: positionedGeometry.y });
     } catch (error) {
       log.error('Failed to enable toolbar mode', error);
       setIsToolbarMode(false);
@@ -281,7 +285,21 @@ export const ToolbarModeProvider: React.FC<ToolbarModeProviderProps> = ({ childr
 
       await ops.setMinSize({ width: geometry.minWidth, height: geometry.minHeight });
       await ops.setSize({ width: geometry.width, height: geometry.height });
-      await ops.setPosition({ x: geometry.x, y: geometry.y });
+      const actualSize = await ops.outerSize();
+      const positionedGeometry = resolveToolbarWindowGeometry({
+        monitor,
+        targetSize,
+        minSize,
+        actualSize,
+        anchor: {
+          x: currentPosition.x,
+          y: currentPosition.y,
+          width: currentSize.width,
+          height: currentSize.height,
+        },
+        fallbackPosition: { x: geometry.x, y: geometry.y },
+      });
+      await ops.setPosition({ x: positionedGeometry.x, y: positionedGeometry.y });
     } catch (error) {
       log.error('Failed to toggle expanded state', { newIsExpanded, error });
     }

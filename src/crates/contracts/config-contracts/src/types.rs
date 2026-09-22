@@ -145,7 +145,7 @@ impl ProjectConfig {
 
 /// App configuration.
 fn default_close_button_behavior() -> String {
-    "minimize_to_tray".to_string()
+    "quit".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2228,6 +2228,15 @@ mod tests {
         assert_eq!(config.voice_call.api_key, "legacy-controller-key");
         assert_eq!(config.voice_call.provider, "volcengine");
         assert_eq!(config.voice_call.voice, "zh_female_vv_jupiter_bigtts");
+    }
+
+    #[test]
+    fn close_button_behavior_defaults_to_quit() {
+        assert_eq!(AppConfig::default().close_button_behavior, "quit");
+
+        let config: AppConfig =
+            serde_json::from_value(serde_json::json!({})).expect("empty app config should default");
+        assert_eq!(config.close_button_behavior, "quit");
     }
 
     #[test]

@@ -95,6 +95,22 @@ describe('resolveToolbarWindowGeometry', () => {
     expect(geometry.minHeight).toBeLessThanOrEqual(geometry.height);
   });
 
+  it('repositions using the native size rather than the requested size', () => {
+    const geometry = resolveToolbarWindowGeometry({
+      monitor: {
+        position: { x: 0, y: 0 },
+        size: { width: 1365, height: 768 },
+        workArea: { position: { x: 0, y: 0 }, size: { width: 1365, height: 728 } },
+        scaleFactor: 1,
+      },
+      targetSize: TOOLBAR_EXPANDED_SIZE,
+      minSize: TOOLBAR_EXPANDED_MIN,
+      actualSize: { width: 700, height: 680 },
+    });
+
+    expect(geometry.width).toBe(700);
+    expect(geometry.x + geometry.width).toBeLessThanOrEqual(1345);
+  });
   it('keeps the toolbar within a secondary monitor work area', () => {
     const geometry = resolveToolbarWindowGeometry({
       monitor: {
