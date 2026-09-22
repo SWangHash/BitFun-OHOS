@@ -126,12 +126,12 @@
   }
 }
 
-::highlight(bitfun-flowchat-search-current) {
+[data-flowchat-highlight-search-current]::highlight(bitfun-flowchat-search-current) {
   color: inherit;
   background: var(--bitfun-color-accent-border-subtle);
 }
 
-::highlight(bitfun-flowchat-search-match) {
+[data-flowchat-highlight-search-match]::highlight(bitfun-flowchat-search-match) {
   color: inherit;
   background: var(--bitfun-color-selection-surface);
 }
@@ -145,12 +145,12 @@
     }
   }
 
-  ::highlight(bitfun-flowchat-search-current) {
+  [data-flowchat-highlight-search-current]::highlight(bitfun-flowchat-search-current) {
     color: HighlightText;
     background: Highlight;
   }
 
-  ::highlight(bitfun-flowchat-search-match) {
+  [data-flowchat-highlight-search-match]::highlight(bitfun-flowchat-search-match) {
     color: MarkText;
     background: Mark;
   }
