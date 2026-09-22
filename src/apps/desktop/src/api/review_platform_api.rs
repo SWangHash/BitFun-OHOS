@@ -3,7 +3,7 @@
 use crate::api::app_state::AppState;
 use bitfun_core::service::review_platform::{
     untrusted_repository_error_message, ReviewPlatformCiLog, ReviewPlatformDetailSection,
-    ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind,
+    ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind, ReviewPlatformListState,
     ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,
     ReviewPlatformPullRequestReviewTarget, ReviewPlatformService, ReviewPlatformWorkspaceSnapshot,
 };
@@ -18,6 +18,8 @@ pub struct ReviewPlatformWorkspaceSnapshotRequest {
     pub remote_id: Option<String>,
     pub page: Option<u32>,
     pub per_page: Option<u32>,
+    #[serde(default)]
+    pub state: ReviewPlatformListState,
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,11 +78,12 @@ pub async fn review_platform_get_workspace_snapshot(
     _state: State<'_, AppState>,
     request: ReviewPlatformWorkspaceSnapshotRequest,
 ) -> Result<ReviewPlatformWorkspaceSnapshot, String> {
-    ReviewPlatformService::workspace_snapshot(
+    ReviewPlatformService::workspace_snapshot_with_state(
         &request.repository_path,
         request.remote_id.as_deref(),
         request.page,
         request.per_page,
+        request.state,
     )
     .await
     .map_err(|error| {
