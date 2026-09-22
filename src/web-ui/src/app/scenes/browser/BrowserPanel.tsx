@@ -8,7 +8,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OverflowText, Icon, IconButton, Input } from '@bitfun/ui';
-import { AlertTriangle, MousePointer2 } from 'lucide-react';
+import { AlertTriangle, MousePointer2, SquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
 import { useContextStore } from '@/shared/context-system';
@@ -159,6 +159,23 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
     }
   }, [addContext, evalInWebview, getCurrentUrl, getWebviewLabel, hasWebview, isInspectorActive, isTauri, stopInspector]);
 
+  // Opens a fresh embedded-browser tab instead of reusing this one, so
+  // multiple pages can stay open side by side. A request-scoped duplicate
+  // key keeps the new tab from being deduplicated against this one.
+  const handleNewPage = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('agent-create-tab', {
+      detail: {
+        type: 'browser',
+        title: t('browserView.newPage'),
+        metadata: { duplicateCheckKey: `browser-panel:new-${Date.now()}` },
+        checkDuplicate: true,
+        duplicateCheckKey: `browser-panel:new-${Date.now()}`,
+        replaceExisting: false,
+        mode: 'agent',
+      },
+    }));
+  }, [t]);
+
   return (
     <div data-bitfun-component="browser-panel" data-bitfun-part="root" data-bitfun-state={isLoading ? 'loading' : ''} className="browser-panel" data-testid="browser-panel">
       <form data-bitfun-component="browser-panel" data-bitfun-part="toolbar" className="browser-panel__toolbar" onSubmit={handleSubmit} data-testid="browser-panel-title">
@@ -201,6 +218,16 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
             data-testid="browser-url-input"
           />
         </div>
+        {isTauri && (
+          <IconButton
+            type="button"
+            size="sm"
+            onClick={handleNewPage}
+            aria-label={t('browserView.newPage')}
+            title={t('browserView.newPage')}
+            icon={<SquarePlus />}
+          />
+        )}
         {isTauri && (
           <IconButton
             type="button"
