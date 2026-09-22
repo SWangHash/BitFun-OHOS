@@ -58,12 +58,14 @@ describe('voice history recovery', () => {
     expect(fixture.invoke).not.toHaveBeenCalled();
   });
 
-  it('treats a null localStorage host as having no retained voice history', async () => {
+  it('keeps voice history in memory when the host exposes a null localStorage', async () => {
     vi.stubGlobal('localStorage', null);
     expect(service.hasPendingVoiceExchanges('conversation')).toBe(false);
     await service.replayVoiceExchanges('conversation');
     expect(fixture.invoke).not.toHaveBeenCalled();
-    expect(() => service.stageVoiceExchange(exchange)).toThrow('persistent storage is unavailable');
+    service.stageVoiceExchange(exchange);
+    expect(service.hasPendingVoiceExchanges(exchange.sessionId)).toBe(true);
+    expect(service.hasPendingVoiceExchanges('unrelated-text-session')).toBe(false);
   });
 
   it('requires explicit reset support on a peer instead of probing an older host', async () => {

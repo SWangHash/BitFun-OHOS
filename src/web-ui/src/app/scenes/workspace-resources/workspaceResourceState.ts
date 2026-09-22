@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { storage } from '@/shared/utils/storageAdapter';
 
 export interface WorkspaceResourceLayout {
   filesCollapsed: boolean;
@@ -50,7 +51,7 @@ export const useWorkspaceResourceState = create<ResourceState>()(persist((set) =
 }), {
   name: 'bitfun-workspace-resource-layouts',
   version: 1,
-  storage: createJSONStorage(() => localStorage),
+  storage: createJSONStorage(() => storage),
   partialize: state => ({ layouts: state.layouts }),
   merge: (persisted, current) => {
     const layouts = (persisted as Partial<ResourceState> | undefined)?.layouts;

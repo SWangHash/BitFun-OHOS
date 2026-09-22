@@ -215,20 +215,21 @@ export const selectHasInvalidContexts = (state: ContextState) =>
 export const cleanupImageContextsFromStorage = () => {
   try {
     const storageKey = 'bitfun-context-storage';
-    const stored = localStorage.getItem(storageKey);
-    
+    const stored = storage.getItem(storageKey);
+
     if (stored) {
       const parsed = JSON.parse(stored);
-      
+
       if (parsed.state && Array.isArray(parsed.state.contexts)) {
         const imageCount = parsed.state.contexts.filter((ctx: any) => ctx.type === 'image').length;
-        
+
         if (imageCount > 0) {
-          
+
+
           parsed.state.contexts = parsed.state.contexts.filter((ctx: any) => ctx.type !== 'image');
-          
-          
-          localStorage.setItem(storageKey, JSON.stringify(parsed));
+
+
+          storage.setItem(storageKey, JSON.stringify(parsed));
         }
       }
     }

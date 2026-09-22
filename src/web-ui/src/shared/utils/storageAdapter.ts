@@ -83,6 +83,28 @@ class StorageAdapter {
     hasKey(key: string): boolean {
         return this.getItem(key) !== null;
     }
+
+    get length(): number {
+        if (this.isAvailable) {
+            try {
+                return localStorage.length;
+            } catch (e) {
+                console.warn(`Failed to get storage length. Local storage not available`, e);
+            }
+        }
+        return this.memoryStorage.size;
+    }
+
+    key(index: number): string | null {
+        if (this.isAvailable) {
+            try {
+                return localStorage.key(index);
+            } catch (e) {
+                console.warn(`Failed to get key at ${index}. Local storage not available`, e);
+            }
+        }
+        return Array.from(this.memoryStorage.keys())[index] ?? null;
+    }
 }
 
 export const storage = new StorageAdapter();

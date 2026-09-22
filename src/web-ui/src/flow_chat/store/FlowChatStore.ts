@@ -1,6 +1,8 @@
 import { requireSessionWorkspaceId } from '../utils/sessionWorkspace';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
+// OHOS ArkWeb exposes localStorage as null; the adapter supplies a memory fallback.
+import { storage } from '@/shared/utils/storageAdapter';
 import { projectUserQuestionTiming } from '../utils/userQuestionTiming';
 /**
  * Flow Chat global state store
@@ -2064,14 +2066,14 @@ export class FlowChatStore {
       ];
       
       keysToRemove.forEach(key => {
-        if (localStorage.getItem(key)) {
-          localStorage.removeItem(key);
+        if (storage.getItem(key) !== null) {
+          storage.removeItem(key);
         }
       });
 
-      Object.keys(localStorage).forEach(key => {
+      storage.getKeys().forEach(key => {
         if (key.startsWith('bitfun-session-')) {
-          localStorage.removeItem(key);
+          storage.removeItem(key);
         }
       });
     } catch (error) {

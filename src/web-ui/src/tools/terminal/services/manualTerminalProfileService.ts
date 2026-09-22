@@ -2,6 +2,8 @@ import { migrateLegacyTerminalProfiles } from '@/infrastructure/api/service-api/
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { STORAGE_KEYS } from '@/shared/constants/app';
 import { createLogger } from '@/shared/utils/logger';
+// OHOS ArkWeb exposes localStorage as null; the adapter supplies a memory fallback.
+import { storage } from '@/shared/utils/storageAdapter';
 
 const logger = createLogger('ManualTerminalProfileService');
 
@@ -96,12 +98,12 @@ function normalizeState(raw: unknown): ManualTerminalProfilesState {
 export function loadManualTerminalProfiles(workspace: TerminalProfileWorkspace): ManualTerminalProfilesState {
   try {
     const key = getStorageKey(workspace);
-    if (localStorage.getItem(key) === null) {
+    if (storage.getItem(key) === null) {
       const state = workspaceManager.getState();
-      migrateLegacyTerminalProfiles(localStorage, STORAGE_KEYS.MANUAL_TERMINAL_PROFILES, key, workspace,
+      migrateLegacyTerminalProfiles(storage, STORAGE_KEYS.MANUAL_TERMINAL_PROFILES, key, workspace,
         [...state.openedWorkspaces.values(), ...state.recentWorkspaces]);
     }
-    const raw = localStorage.getItem(key);
+    const raw = storage.getItem(key);
     if (raw !== null) {
       return normalizeState(JSON.parse(raw));
     }
@@ -120,7 +122,7 @@ export function saveManualTerminalProfiles(
   // Do not replace an unreadable or newer-format record with a normalized subset.
   loadManualTerminalProfiles(workspace);
   try {
-    localStorage.setItem(getStorageKey(workspace), JSON.stringify(normalizeState(state)));
+    storage.setItem(getStorageKey(workspace), JSON.stringify(normalizeState(state)));
   } catch (error) {
     logger.error('Failed to save manual terminal profiles', { workspace, error });
     throw error;

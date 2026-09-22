@@ -3,6 +3,8 @@ import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { peerConnectionManager } from '@/infrastructure/peer-device/PeerConnectionManager';
 import { isTauriRuntime } from '@/infrastructure/runtime';
+// OHOS ArkWeb exposes `localStorage` as null; this adapter supplies the shared memory fallback.
+import { storage } from '@/shared/utils/storageAdapter';
 import { flowChatStore } from '../store/FlowChatStore';
 import { resolveSessionDriverId } from '../session-drivers/resolve';
 import { isAcpFlowSession } from '../utils/acpSession';
@@ -100,17 +102,12 @@ const OUTBOX = 'bitfun-voice-exchange:';
 const volatileOutbox = new Map<string, VoiceExchange>();
 const outboxKey = (request: Pick<VoiceExchange, 'surfaceId' | 'sessionId' | 'exchangeId'>) =>
   OUTBOX + JSON.stringify([request.surfaceId, request.sessionId, request.exchangeId]);
-// ArkWeb with DOM storage disabled exposes `localStorage` as null instead of
-// throwing; normalize it so the send path never crashes on Object.keys(null).
-const outboxStorage = (): Storage | undefined =>
-  typeof localStorage === 'undefined' ? undefined : (localStorage as Storage | null) ?? undefined;
 
 /** Keep ordinary text submissions synchronous when no native history needs recovery. */
 export function hasPendingVoiceExchanges(sessionId: string): boolean {
   const { surfaceId } = getActiveSurfaceScope();
   if ([...volatileOutbox.values()].some(request => request.surfaceId === surfaceId && request.sessionId === sessionId)) return true;
-  const storage = outboxStorage();
-  return storage !== undefined && Object.keys(storage).some(key => {
+  return storage.getKeys().some(key => {
     if (!key.startsWith(OUTBOX)) return false;
     try {
       const [surface, session] = JSON.parse(key.slice(OUTBOX.length));
@@ -121,8 +118,6 @@ export function hasPendingVoiceExchanges(sessionId: string): boolean {
 
 export function stageVoiceExchange(request: VoiceExchange) {
   volatileOutbox.set(outboxKey(request), request);
-  const storage = outboxStorage();
-  if (!storage) throw new Error('Voice history is retained in memory; persistent storage is unavailable');
   storage.setItem(outboxKey(request), JSON.stringify(request));
 }
 
@@ -140,7 +135,7 @@ export async function recordVoiceExchange(request: VoiceExchange) {
     userText: request.userText, assistantText: request.assistantText,
   } });
   volatileOutbox.delete(outboxKey(request));
-  outboxStorage()?.removeItem(outboxKey(request));
+  storage.removeItem(outboxKey(request));
   scope.assertCurrent('record voice exchange');
   if (flowChatStore.getState().sessions.has(request.sessionId)) {
     await flowChatStore.loadSessionHistory(request.sessionId, { includeInternal: true });
@@ -157,14 +152,13 @@ export function replayVoiceExchanges(sessionId?: string): Promise<void> {
   const replay = (async () => {
     const requests = new Map(volatileOutbox);
     const failures: unknown[] = [];
-    const storage = outboxStorage();
-    for (const key of Object.keys(storage ?? {}).filter(key => key.startsWith(OUTBOX))) {
+    for (const key of storage.getKeys().filter(key => key.startsWith(OUTBOX))) {
       let selected = !sessionId;
       try {
         const [surface, session] = JSON.parse(key.slice(OUTBOX.length));
         if (surface !== scope.surfaceId || sessionId && sessionId !== session) continue;
         selected = true;
-        const record = JSON.parse(storage!.getItem(key)!) as PersistedVoiceExchange | null;
+        const record = JSON.parse(storage.getItem(key) ?? 'null') as PersistedVoiceExchange | null;
         if (!record || outboxKey(record) !== key
           || !VOICE_EXCHANGE_FIELDS.every(field => typeof record[field] === 'string')
           || !(typeof record.workspaceId === 'string' || typeof record.workspacePath === 'string')) {

@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useWorkspaceSessionViewStore } from '@/app/components/NavPanel/workspaceSessionView';
+import { useWorkspaceResourceState } from '@/app/scenes/workspace-resources/workspaceResourceState';
 import { useI18nStore } from '@/infrastructure/i18n/store/i18nStore';
 import { useContextStore } from './contextStore';
 
@@ -67,6 +68,13 @@ describe('persist stores survive a null localStorage WebView', () => {
 
     useWorkspaceSessionViewStore.getState().setGrouping('grouped');
     expect(useWorkspaceSessionViewStore.getState().grouping).toBe('grouped');
+  });
+
+  it('keeps workspace resource layouts in memory', () => {
+    hideLocalStorageAsNull();
+
+    expect(() => useWorkspaceResourceState.getState().updateLayout('ws-1', { filesCollapsed: true })).not.toThrow();
+    expect(useWorkspaceResourceState.getState().layouts['ws-1']?.filesCollapsed).toBe(true);
   });
 
   it('keeps i18n language preference in memory', () => {

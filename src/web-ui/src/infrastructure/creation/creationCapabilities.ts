@@ -41,7 +41,7 @@ function matches(type: ParameterType, value: CreationValue): boolean {
   return typeof value === type;
 }
 
-export function createCreationCapabilities(options: { assertActive: () => void; storage: Storage }) {
+export function createCreationCapabilities(options: { assertActive: () => void; storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'> }) {
   const commands = new Map<string, { definition: CreationCommand; handler: Handler }>();
   const listeners = new Map<string, Set<Listener>>();
   const diagnostics: { operation: string; message: string }[] = [];
