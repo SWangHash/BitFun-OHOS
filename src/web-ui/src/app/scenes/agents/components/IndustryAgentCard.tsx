@@ -66,7 +66,9 @@ const IndustryAgentCard: React.FC<IndustryAgentCardProps> = ({
 
       <div className="agent-card__body" data-bf-component="industry-agent-card" data-bf-part="body">
         <p className="agent-card__desc" data-bf-component="industry-agent-card" data-bf-part="description" data-testid="agent-list-item-description">
-          {t('industryAgentsZone.qtMigration.description')}
+          {agent.id === 'HarmonyBuild'
+            ? t('industryAgentsZone.harmonyBuild.description')
+            : t('industryAgentsZone.qtMigration.description')}
         </p>
       </div>
 

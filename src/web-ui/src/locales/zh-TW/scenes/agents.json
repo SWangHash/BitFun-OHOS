@@ -53,6 +53,9 @@
     "workflowLabel": "內置領域工作流",
     "qtMigration": {
       "description": "Qt 5.12/5.15 工程鴻蒙化遷移：評估->8步代碼遷移->編譯構建->部署驗證->問題修復閉環，全程可視化任務進度。"
+    },
+    "harmonyBuild": {
+      "description": "鴻蒙項目構建、部署、診斷與驗證專業智能體。"
     }
   },
   "agentsZone": {
@@ -359,5 +362,10 @@
     "Claw": "抓取模式：從外部來源提取和整合資訊",
     "Team": "團隊模式：協調多個智慧體協同完成複雜任務",
     "QtMigration": "Qt 5.12/5.15 工程鴻蒙化遷移：評估->8步代碼遷移->編譯構建->部署驗證->問題修復閉環，全程可視化任務進度。"
+    ,"HarmonyBuild": "鴻蒙項目構建、部署、診斷與驗證專業智能體"
+    ,"HarmonyPlan": "只讀的鴻蒙項目規劃與工程分析 Sub-Agent"
+    ,"HarmonyGoal": "受限的鴻蒙目標驅動編排 Sub-Agent"
+    ,"HarmonySpecImplementation": "隱藏的已批准規格實施 Sub-Agent"
+    ,"HarmonySpecVerify": "隱藏的鴻蒙構建、部署與 UI 驗證 Sub-Agent"
   }
 }
