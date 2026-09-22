@@ -2666,7 +2666,9 @@ function buildBuiltInBrowserTabOptions(
   const requestId = typeof event?.requestId === 'string' && event.requestId.trim()
     ? event.requestId.trim()
     : undefined;
-  const replaceExisting = event?.replaceExisting !== false;
+  // Frontend-side default matches the Rust tool default: each open request
+  // creates a NEW tab unless the agent explicitly asked to reuse one.
+  const replaceExisting = event?.replaceExisting === true;
   // Replacing uses one stable product surface. A true new-tab request gets a
   // request-scoped key so identical URLs can still open as distinct targets.
   const duplicateCheckKey = replaceExisting

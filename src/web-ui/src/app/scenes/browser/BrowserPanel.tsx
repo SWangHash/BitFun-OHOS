@@ -218,16 +218,15 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
             data-testid="browser-url-input"
           />
         </div>
-        {isTauri && (
-          <IconButton
-            type="button"
-            size="sm"
-            onClick={handleNewPage}
-            aria-label={t('browserView.newPage')}
-            title={t('browserView.newPage')}
-            icon={<SquarePlus />}
-          />
-        )}
+        {/* Pure frontend action: works on every host, no Tauri gate. */}
+        <IconButton
+          type="button"
+          size="sm"
+          onClick={handleNewPage}
+          aria-label={t('browserView.newPage')}
+          title={t('browserView.newPage')}
+          icon={<SquarePlus />}
+        />
         {isTauri && (
           <IconButton
             type="button"
