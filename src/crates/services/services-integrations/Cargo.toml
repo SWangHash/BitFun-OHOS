@@ -250,7 +250,7 @@ account-identity = [
     "bitfun-services-core/product-identity",
     "chrono", "dirs", "thiserror",
     "dep:keyring-core", "dep:windows-native-keyring-store", "dep:zbus-secret-service-keyring-store",
-    "reqwest", "reqwest/json", "reqwest/rustls-no-provider",
+    "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "reqwest/system-proxy",
     "tokio/rt", "tokio/sync",
 ]
 miniapp-market = [

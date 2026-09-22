@@ -166,6 +166,8 @@ impl AccountIdentityClient {
         let client = crate::reqwest_client_builder()
             .user_agent(format!("BitFun/{}", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(15))
             .build()
             .map_err(|error| local_error("market_client_init_failed", error.to_string()))?;
         let credentials = load_market_credentials()
@@ -342,7 +344,12 @@ async fn response_error(response: Response) -> MarketClientError {
 }
 
 fn transport_error(error: reqwest::Error) -> MarketClientError {
-    local_error("account_unavailable", error.to_string())
+    local_error(
+        "account_unavailable",
+        format!(
+            "Cannot reach the BitFun account service. Check your network connection or proxy settings: {error}"
+        ),
+    )
 }
 
 fn local_error(code: impl Into<String>, message: impl Into<String>) -> MarketClientError {
