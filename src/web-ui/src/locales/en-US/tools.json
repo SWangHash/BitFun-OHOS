@@ -53,7 +53,7 @@
       "initFailedWithMessage": "Failed to initialize editor: {{message}}",
       "externalModifiedConfirm": "This file was modified by another program.\n\nYou have unsaved changes. Discard them and reload the file?",
       "externalModifiedTitle": "File changed on disk",
-      "externalModifiedDetail": "The file's metadata on disk (modified time / size) no longer matches the version this editor is based on. You have unsaved local changes. Reloading will discard them.",
+      "externalModifiedDetail": "The file on disk (modified time / size) no longer matches the version this editor is based on, and you have unsaved local changes. Choose:\n\n\"Discard and reload\" — drop the unsaved editor content and load the latest file from disk;\n\"Overwrite and save\" — write the current editor content over the file on disk, keeping your changes;\n\"Keep local edits\" — do nothing for now and decide how to reconcile later.",
       "discardAndReload": "Discard and reload",
       "overwriteSave": "Overwrite and save",
       "keepLocalEdits": "Keep my edits",

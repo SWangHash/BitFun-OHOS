@@ -53,7 +53,7 @@
       "initFailedWithMessage": "编辑器初始化失败: {{message}}",
       "externalModifiedConfirm": "该文件已被外部程序修改。\n\n您当前有未保存的修改，是否要放弃修改并重新加载文件？",
       "externalModifiedTitle": "磁盘上的文件已变更",
-      "externalModifiedDetail": "检测到该文件在磁盘上的版本（修改时间/大小）与当前编辑器所依据的版本不一致。您有未保存的本地修改。若重新加载，本地未保存内容将丢失。",
+      "externalModifiedDetail": "检测到该文件在磁盘上的版本（修改时间/大小）与当前编辑器所依据的版本不一致，且您有未保存的本地修改。请选择：\n\n「放弃修改并重新加载」— 丢弃编辑器中的未保存内容，载入磁盘上的最新版本；\n「覆盖保存」— 用编辑器中的当前内容覆盖磁盘上的文件，保留您的修改；\n「保留本地编辑」— 暂不处理，稍后自行决定如何合并。",
       "discardAndReload": "放弃修改并重新加载",
       "overwriteSave": "覆盖保存",
       "keepLocalEdits": "保留本地编辑",
