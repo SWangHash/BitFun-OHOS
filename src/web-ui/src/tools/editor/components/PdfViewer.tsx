@@ -22,6 +22,7 @@ import {
   type RenderTask,
 } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
@@ -41,7 +42,22 @@ const RENDER_ROOT_MARGIN = '150% 0px';
 const PDFJS_FONT_HEIGHT_PROPERTY = ['--font', 'height'].join('-');
 const PDF_GLYPH_HEIGHT_PROPERTY = '--bitfun-pdf-glyph-height';
 
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// pdf.js needs a worker script URL. The emitted `?url` asset can fail to load
+// inside packaged embedded WebViews (custom protocols, strict CSP), which
+// makes every PDF load fail. Prefer a same-origin blob worker built from the
+// worker source bundled at build time, and fall back to the emitted asset URL
+// if blob URLs are unavailable.
+let resolvedWorkerSrc = pdfWorkerUrl;
+try {
+  if (typeof Blob !== 'undefined' && typeof URL?.createObjectURL === 'function') {
+    resolvedWorkerSrc = URL.createObjectURL(
+      new Blob([pdfWorkerSource], { type: 'text/javascript' }),
+    );
+  }
+} catch (error) {
+  log.warn('Failed to create blob pdf worker; falling back to asset URL', error);
+}
+GlobalWorkerOptions.workerSrc = resolvedWorkerSrc;
 
 interface PageSize {
   width: number;
