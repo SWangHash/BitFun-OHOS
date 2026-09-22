@@ -1,10 +1,11 @@
 use super::types::AgentCategory;
 use super::visibility::SubagentVisibilityPolicy;
 use crate::agentic::agents::{
-    Agent, AgenticMode, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, DebugMode,
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent, Agent,
+    AgenticMode, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, DebugMode,
     DeepResearchMode, DeepReviewAgent, ExploreAgent, FileFinderAgent, GeneralPurposeAgent,
-    GenerateDocAgent, MultitaskMode, PlanMode, QtMigrationMode, ResearchSpecialistAgent,
-    ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent, TeamMode,
+    GenerateDocAgent, HarmonyBuildMode, HarmonyPlanAgent, MultitaskMode, PlanMode, QtMigrationMode,
+    ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent, TeamMode,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -35,11 +36,16 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "debug" => || Arc::new(DebugMode::new()),
         "Multitask" => || Arc::new(MultitaskMode::new()),
         "Plan" => || Arc::new(PlanMode::new()),
+        "HarmonyBuild" => || Arc::new(HarmonyBuildMode::new()),
         "Claw" => || Arc::new(ClawMode::new()),
         "DeepResearch" => || Arc::new(DeepResearchMode::new()),
         "Team" => || Arc::new(TeamMode::new()),
         "ComputerUse" => || Arc::new(ComputerUseMode::new()),
         "Explore" => || Arc::new(ExploreAgent::new()),
+        "HarmonyPlan" => || Arc::new(HarmonyPlanAgent::new()),
+        "HarmonyGoal" => || Arc::new(harmony_goal_agent()),
+        "HarmonySpecImplementation" => || Arc::new(harmony_spec_implementation_agent()),
+        "HarmonySpecVerify" => || Arc::new(harmony_spec_verify_agent()),
         "GeneralPurpose" => || Arc::new(GeneralPurposeAgent::new()),
         "ResearchSpecialist" => || Arc::new(ResearchSpecialistAgent::new()),
         "FileFinder" => || Arc::new(FileFinderAgent::new()),

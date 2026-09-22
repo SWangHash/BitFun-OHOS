@@ -28,7 +28,7 @@ export const HIDDEN_AGENT_IDS = new Set<string>([
 export const CORE_AGENT_IDS = new Set<string>(['agentic', 'Cowork']);
 
 /** Vertical-domain industry agents shown in the dedicated industry zone only. */
-export const INDUSTRY_AGENT_IDS = new Set<string>(['QtMigration']);
+export const INDUSTRY_AGENT_IDS = new Set<string>(['QtMigration', 'HarmonyBuild']);
 
 /** Agents that appear in the bottom overview grid (same pool as filter chip counts). */
 export function isAgentInOverviewZone(
