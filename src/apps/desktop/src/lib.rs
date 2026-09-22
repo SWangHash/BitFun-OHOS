@@ -473,8 +473,10 @@ fn get_startup_native_trace(
 /// Tauri application entry point
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    std::env::set_var("RUST_MIN_STACK", "8388308");
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(16)
+        .thread_stack_size( 8 * 1024 * 1024)
         .enable_all()
         .build()
         .expect("multi thread runtime failed");

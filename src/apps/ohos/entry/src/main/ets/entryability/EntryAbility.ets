@@ -118,11 +118,14 @@ export default class EntryAbility extends RustAbility {
   public remoteUrl: string = "";
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
+  private systemColorMode: 'light' | 'dark' = 'dark';
+  private nativeThemeMode: 'light' | 'dark' | 'system' = 'system';
   public shareStatus: boolean = false;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
+    this.updateSystemColorMode(this.context?.config?.colorMode);
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
@@ -141,6 +144,9 @@ export default class EntryAbility extends RustAbility {
    * the OHOS webview does not fire prefers-color-scheme change events on its own.
    */
   onConfigurationUpdate(newConfig: Configuration): void {
+    if (this.nativeThemeMode === 'system') {
+      this.updateSystemColorMode(newConfig?.colorMode);
+    }
     const mode = this.colorModeToString(newConfig?.colorMode);
     if (mode.length > 0) {
       try {
@@ -173,7 +179,17 @@ export default class EntryAbility extends RustAbility {
     return '';
   }
 
+  private updateSystemColorMode(colorMode: number | undefined): void {
+    const mode = this.colorModeToString(colorMode);
+    if (mode === 'light' || mode === 'dark') {
+      this.systemColorMode = mode;
+    }
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
+    windowStage.setWindowRectAutoSave(true).catch((error: BusinessError) => {
+      hilog.warn(DOMAIN, 'window', `setWindowRectAutoSave failed: ${error.message}`);
+    });
     AppGlobal.calendarMgr = calendarManager.getCalendarManager(this.context);
     AppGlobal.mContext = this.context;
     const DOMAIN_NUMBER: number = 0xFF00;
@@ -411,7 +427,7 @@ export default class EntryAbility extends RustAbility {
         if (req.visible) {
           mainWin.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
           mainWin.setWindowTitleMoveEnabled(false);
-          mainWin.setWindowDecorVisible(true);
+          mainWin.setWindowDecorVisible(false);
           try {
             // Tighten the native min/max/close cluster so it stays clear of the
             // in-app trailing actions while keeping the corner reservation slim.
@@ -661,6 +677,21 @@ export default class EntryAbility extends RustAbility {
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
         try {
+          const density = display.getDefaultDisplaySync().densityPixels;
+          const scale = density > 0 ? density : 1;
+          data.setWindowLimits({
+            minWidth: Math.round(800 * scale),
+            minHeight: Math.round(600 * scale),
+            maxWidth: -1,
+            maxHeight: -1,
+          }).catch((e: BusinessError) => {
+            hilog.warn(DOMAIN, TAG, `setWindowLimits failed: ${e.message}`);
+          });
+        } catch (e) {
+          const be = e as BusinessError;
+          hilog.warn(DOMAIN, TAG, `setWindowLimits setup failed: ${be.message}`);
+        }
+        try {
           // Match the same compact decor-button geometry applied when the
           // in-app chrome is later restored (set_decorations_ohos).
           data.setDecorButtonStyle(OHOS_DECOR_BUTTON_STYLE);
@@ -747,14 +778,18 @@ export default class EntryAbility extends RustAbility {
       // Fixed themes return '' — the web-ui already knows the resolved theme id.
       const appContext = this.context.getApplicationContext();
       if (arg === 'light') {
+        this.nativeThemeMode = 'light';
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
         return '';
       }
       if (arg === 'dark') {
+        this.nativeThemeMode = 'dark';
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
         return '';
       }
+      this.nativeThemeMode = 'system';
       appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+      this.notifySystemColorMode();
       return this.readSystemColorMode();
     });
     this.voiceInputService.setContext(this.context);
@@ -824,14 +859,17 @@ export default class EntryAbility extends RustAbility {
    */
   private readSystemColorMode(): string {
     try {
-      const mode = this.colorModeToString(this.context?.config?.colorMode);
-      if (mode.length > 0) {
+      const mode = this.colorModeToString(
+        this.context.resourceManager.getConfigurationSync().colorMode
+      );
+      if (mode === 'light' || mode === 'dark') {
+        this.systemColorMode = mode;
         return mode;
       }
     } catch (e) {
       hilog.warn(DOMAIN, 'vnext', 'readSystemColorMode failed: ' + JSON.stringify(e));
     }
-    return 'dark';
+    return this.systemColorMode;
   }
 
   private shareListening() {

@@ -100,7 +100,8 @@ const OUTBOX = 'bitfun-voice-exchange:';
 const volatileOutbox = new Map<string, VoiceExchange>();
 const outboxKey = (request: Pick<VoiceExchange, 'surfaceId' | 'sessionId' | 'exchangeId'>) =>
   OUTBOX + JSON.stringify([request.surfaceId, request.sessionId, request.exchangeId]);
-const outboxStorage = () => typeof localStorage === 'undefined' ? undefined : localStorage;
+const outboxStorage = () =>
+  typeof localStorage === 'undefined' || localStorage === null ? undefined : localStorage;
 
 /** Keep ordinary text submissions synchronous when no native history needs recovery. */
 export function hasPendingVoiceExchanges(sessionId: string): boolean {

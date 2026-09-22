@@ -40,9 +40,8 @@ import {
   canRenderFloatingMiniChatSession,
   isFloatingMiniChatIsolated,
 } from './floatingMiniChatIsolation';
-import {
-  ConversationModeSurface,
-} from '@/flow_chat/components/voice/ConversationModeSurface';
+import { startNativeWindowDragging } from '@/infrastructure/runtime/window';
+import { ConversationModeSurface } from '@/flow_chat/components/voice/ConversationModeSurface';
 import { useRealtimeVoiceCall } from '@/flow_chat/components/voice/RealtimeVoiceCallContext';
 import type { VoiceMiniAppCallTarget } from '@/flow_chat/components/voice/voiceClientContext';
 import './FloatingMiniChat.scss';
@@ -482,6 +481,11 @@ export const FloatingMiniChat: React.FC = () => {
     setPhase((prev) => (prev === 'opening' ? 'open' : prev));
   }, []);
 
+  const handlePanelHeaderPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    void startNativeWindowDragging();
+  }, []);
+
   const handlePanelKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -622,7 +626,13 @@ export const FloatingMiniChat: React.FC = () => {
         {/* Header — normal chat keeps the shared SessionMenu. An isolated
             Agentic MiniApp replaces that switcher with app identity, including
             during claim/session bootstrap, so normal chats are never exposed. */}
-        {!isVoiceMode && <div className="bitfun-fmc__header" data-bitfun-component="floating-mini-chat" data-bitfun-part="header">
+        {!isVoiceMode && <div
+          className="bitfun-fmc__header"
+          data-bitfun-component="floating-mini-chat"
+          data-bitfun-part="header"
+          data-tauri-drag-region="true"
+          onPointerDown={handlePanelHeaderPointerDown}
+        >
           {isMiniAppBubbleIsolated ? (
             <div
               className="bitfun-fmc__miniapp-session-icon"

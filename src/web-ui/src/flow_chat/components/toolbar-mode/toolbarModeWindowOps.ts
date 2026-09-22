@@ -167,14 +167,14 @@ const ohosOps = (): WindowOps => ({
     await workspaceAPI.setAlwaysOnTopOhos(top);
   },
   async setSize(size: Size2D): Promise<void> {
-    await workspaceAPI.setWindowSizeOhos(size.width, size.height);
+    await workspaceAPI.setWindowSizeOhos(Math.max(1, Math.round(size.width)), Math.max(1, Math.round(size.height)));
   },
   async setSizeLogical(size: Size2D): Promise<void> {
     const physical = await logicalToPhysical(size);
     await workspaceAPI.setWindowSizeOhos(physical.width, physical.height);
   },
   async setPosition(pos: Point2D): Promise<void> {
-    await workspaceAPI.setWindowPositionOhos(pos.x, pos.y);
+    await workspaceAPI.setWindowPositionOhos(Math.round(pos.x), Math.round(pos.y));
   },
   async setResizable(resizable: boolean): Promise<void> {
     await workspaceAPI.setResizableOhos(resizable);

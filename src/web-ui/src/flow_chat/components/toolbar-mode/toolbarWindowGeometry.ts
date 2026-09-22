@@ -31,6 +31,8 @@ interface ResolveToolbarWindowGeometryOptions {
   monitor: ToolbarMonitorGeometry | null | undefined;
   targetSize: ToolbarWindowSize;
   minSize: ToolbarWindowSize;
+  /** Actual physical outer size after the native window applies the request. */
+  actualSize?: ToolbarWindowSize;
   anchor?: ToolbarWindowRect | null;
   fallbackPosition?: {
     x: number;
@@ -55,6 +57,7 @@ export const resolveToolbarWindowGeometry = ({
   monitor,
   targetSize,
   minSize,
+  actualSize,
   anchor,
   fallbackPosition = { x: 100, y: 100 },
 }: ResolveToolbarWindowGeometryOptions): ResolvedToolbarWindowGeometry => {
@@ -72,13 +75,14 @@ export const resolveToolbarWindowGeometry = ({
     width: toPhysical(minSize.width),
     height: toPhysical(minSize.height),
   };
+  const requested = actualSize ?? target;
 
   if (!monitor) {
     return {
       ...fallbackPosition,
-      ...target,
-      minWidth: Math.min(min.width, target.width),
-      minHeight: Math.min(min.height, target.height),
+      ...requested,
+      minWidth: Math.min(min.width, requested.width),
+      minHeight: Math.min(min.height, requested.height),
     };
   }
 
@@ -89,8 +93,11 @@ export const resolveToolbarWindowGeometry = ({
   const margin = Math.max(0, Math.round(TOOLBAR_WINDOW_EDGE_MARGIN * scaleFactor));
   const availableWidth = workArea.size.width - margin * 2;
   const availableHeight = workArea.size.height - margin * 2;
-  const width = resolveDimension(target.width, min.width, availableWidth);
-  const height = resolveDimension(target.height, min.height, availableHeight);
+  const width = actualSize?.width ?? resolveDimension(target.width, min.width, availableWidth);
+  const height = actualSize?.height ?? resolveDimension(target.height, min.height, availableHeight);
+  if (actualSize && (width > workArea.size.width || height > workArea.size.height)) {
+    throw new Error('Native toolbar window is larger than the monitor work area');
+  }
 
   const desiredX = anchor
     ? anchor.x + anchor.width - width

@@ -122,6 +122,32 @@ describe('public Select product integration', () => {
     expect(anchor.textContent).toContain('Ask');
   });
 
+  it('closes the popup on an outside pointerdown', () => {
+    render();
+    act(() => trigger().click());
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+    act(() => {
+      outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    });
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    outside.remove();
+  });
+
+  it('closes the popup on an outside mousedown when pointer events are absent', () => {
+    render();
+    act(() => trigger().click());
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+    act(() => {
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    outside.remove();
+  });
+
   it('keeps the native form control synchronized for existing product integrations', () => {
     render();
     const native = host.querySelector<HTMLSelectElement>('select')!;

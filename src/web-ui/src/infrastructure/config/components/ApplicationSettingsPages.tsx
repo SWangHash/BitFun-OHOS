@@ -758,7 +758,7 @@ function WindowBehaviorSetting() {
     setLoadFailed(false);
     try {
       const value = await configManager.getOptionalConfig<CloseBehavior>('app.close_button_behavior');
-      setBehavior(value ?? 'minimize_to_tray');
+      setBehavior(value ?? 'quit');
     } catch (error) {
       log.error('Failed to load close behavior', error);
       setLoadFailed(true);

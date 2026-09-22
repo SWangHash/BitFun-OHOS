@@ -277,6 +277,7 @@ $panel-height: 680px;
   bottom: 0;
   right: 0;
   z-index: 1;
+  min-width: 0;
   width: $panel-width;
   height: $panel-height;
   max-width: calc(100vw - 32px);
@@ -389,6 +390,12 @@ $panel-height: 680px;
   padding-inline: var(--bitfun-space-2) var(--bitfun-space-1);
   gap: 4px;
   border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  touch-action: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .bitfun-fmc__miniapp-session-icon {

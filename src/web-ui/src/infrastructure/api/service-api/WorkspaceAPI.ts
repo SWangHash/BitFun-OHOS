@@ -1340,6 +1340,14 @@ export class WorkspaceAPI {
     }
   }
 
+  async startWindowDraggingOhos(): Promise<void> {
+    try {
+      await api.invoke('window_start_dragging');
+    } catch (error) {
+      throw createTauriCommandError('window_start_dragging', error);
+    }
+  }
+
   async setWindowPositionOhos(x: number, y: number): Promise<void> {
     try {
       await api.invoke('set_window_position_ohos', { arg: JSON.stringify({ x, y }) });

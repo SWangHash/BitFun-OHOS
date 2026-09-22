@@ -14,13 +14,13 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { IconButton, OverflowText, Menu, MenuItem } from '@bitfun/ui';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Square, Maximize2, MoreVertical, PanelTopOpen, PanelTopClose } from 'lucide-react';
 import { useToolbarModeContext } from './ToolbarModeContext';
 import { type FlowToolItem } from '../../types/flow-chat';
 import { projectEffectiveToolItem } from '../../utils/toolInvocationIdentity';
 import { createLogger } from '@/shared/utils/logger';
 import { isMacOSDesktopRuntime } from '@/infrastructure/runtime';
+import { startNativeWindowDragging } from '@/infrastructure/runtime/window';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
@@ -165,18 +165,18 @@ export const ToolbarMode: React.FC = () => {
     }
   }, [showHeaderOverflowMenu]);
 
-  const handleStartDrag = useCallback(async (e: React.MouseEvent) => {
+  const handleStartDrag = useCallback(async (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    // Avoid dragging when interacting with UI controls.
     const isCallHeader = target.closest?.('[data-bitfun-component="voice-call-panel"] [data-bitfun-part="header"]');
     if (target.closest?.('button, input') || (!isCallHeader && target.closest?.(
       'button, input, .bitfun-session-menu, .bitfun-toolbar-mode__overflow-menu, .bitfun-toolbar-mode__stream-content, .bitfun-toolbar-mode__session-surface'
     ))) {
       return;
     }
+    e.preventDefault();
     try {
-      const win = getCurrentWindow();
-      await win.startDragging();
+      await startNativeWindowDragging();
     } catch (error) {
       log.error('Failed to start dragging', error);
     }
@@ -240,7 +240,7 @@ export const ToolbarMode: React.FC = () => {
       currentStreamState.isStreaming && 'processing',
       toolbarState.hasError && 'error',
       toolbarState.hasPendingConfirmation && 'confirm',
-    ].filter(Boolean).join(' ') || undefined} className={containerClassName} onMouseDown={handleStartDrag}>
+    ].filter(Boolean).join(' ') || undefined} className={containerClassName} onPointerDown={handleStartDrag}>
       {!(isExpanded && isVoiceMode) && <div className="bitfun-toolbar-mode__header" data-bitfun-product-component="toolbar-mode" data-bitfun-product-part="header">
         <div className="bitfun-toolbar-mode__header-left" data-bitfun-product-component="toolbar-mode" data-bitfun-product-part="headerLeft">
           {isExpanded ? <SessionMenu onOpenChange={handleSessionMenuOpenChange} /> : null}
