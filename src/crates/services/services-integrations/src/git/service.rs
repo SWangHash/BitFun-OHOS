@@ -1302,7 +1302,8 @@ impl GitService {
             .map_err(|e| GitError::CommandFailed(format!("Failed to diff: {e}")))?;
         let path_bytes = path.as_bytes();
         Ok(diff.deltas().any(|delta| {
-            delta.old_file().path_bytes() == path_bytes || delta.new_file().path_bytes() == path_bytes
+            delta.old_file().path_bytes() == Some(path_bytes)
+                || delta.new_file().path_bytes() == Some(path_bytes)
         }))
     }
 
