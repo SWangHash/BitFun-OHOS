@@ -2078,9 +2078,23 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     unsubscribers.push(unsubRename);
 
     const unsubFormat = globalEventBus.on('editor:format-document', (data: any) => {
-      if (matchesEventFile(data)) {
-        void runFormatDocumentAction();
+      // Accept a path match or an exact editor-id match (the context menu may
+      // resolve a slightly different path form); log rejections so a dead
+      // click is diagnosable instead of silent.
+      const thisEditorId = `editor-${filePath.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      const idMatch = typeof data?.editorId === 'string' && data.editorId === thisEditorId;
+      if (!matchesEventFile(data) && !idMatch) {
+        log.warn('Format document event ignored by this editor instance', {
+          filePath,
+          eventFilePath: data?.filePath,
+          eventEditorId: data?.editorId,
+          thisEditorId,
+          isActiveTab,
+          documentSessionCurrent: documentSession ? documentSession.isCurrent() : null,
+        });
+        return;
       }
+      void runFormatDocumentAction();
     });
     unsubscribers.push(unsubFormat);
 
