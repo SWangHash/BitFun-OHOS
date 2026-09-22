@@ -53,7 +53,7 @@ const REPO_TARBALL_URL: &str = "https://github.com/GCWing/BitFun/archive/refs/he
 /// signed bytes and is used when GitHub metadata is unavailable.
 const RELEASE_BASE: &str = "https://github.com/GCWing/BitFun/releases";
 const OPENBITFUN_RELEASE_BASE: &str = "https://openbitfun.com/release";
-const RELAY_IMAGE_REPOSITORY: &str = "ghcr.io/gcwing/bitfun-relay-server";
+const RELAY_IMAGE_REPOSITORY: &str = "ghcr.io/gcwing/openbitfun-relay-server";
 const RELAY_IMAGE_DESCRIPTOR_ASSET: &str = "relay-image.json";
 /// Canonical China-mirror helper (shared with `src/apps/relay-server/deploy.sh`).
 /// Embedded so Desktop orchestration can select Docker-install and image routes.
@@ -2039,7 +2039,7 @@ bitfun_image_docker() {
   return 1
 }
 selected="$(bitfun_pull_relay_image linux/amd64)"
-test "$selected" = "m.daocloud.io/ghcr.io/gcwing/bitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
+test "$selected" = "m.daocloud.io/ghcr.io/gcwing/openbitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
 "#,
             )
             .arg("image-route-failover")
@@ -2056,8 +2056,8 @@ test "$selected" = "m.daocloud.io/ghcr.io/gcwing/bitfun-relay-server@$BITFUN_REL
         let pulls = std::fs::read_to_string(trace_path).expect("read pull trace");
         let routes: Vec<_> = pulls.lines().collect();
         assert_eq!(routes.len(), 2);
-        assert!(routes[0].contains("ghcr.nju.edu.cn/gcwing/bitfun-relay-server@sha256:"));
-        assert!(routes[1].contains("m.daocloud.io/ghcr.io/gcwing/bitfun-relay-server@sha256:"));
+        assert!(routes[0].contains("ghcr.nju.edu.cn/gcwing/openbitfun-relay-server@sha256:"));
+        assert!(routes[1].contains("m.daocloud.io/ghcr.io/gcwing/openbitfun-relay-server@sha256:"));
     }
 
     #[cfg(unix)]
@@ -2084,11 +2084,11 @@ bitfun_image_docker() {
 
 MOCK_SPEED=524288
 healthy="$(bitfun_pull_relay_image linux/amd64)"
-test "$healthy" = "ghcr.io/gcwing/bitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
+test "$healthy" = "ghcr.io/gcwing/openbitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
 
 MOCK_SPEED=524287
 slow="$(bitfun_pull_relay_image linux/amd64)"
-test "$slow" = "ghcr.nju.edu.cn/gcwing/bitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
+test "$slow" = "ghcr.nju.edu.cn/gcwing/openbitfun-relay-server@$BITFUN_RELAY_IMAGE_DIGEST"
 "#,
             )
             .arg("image-speed-policy")

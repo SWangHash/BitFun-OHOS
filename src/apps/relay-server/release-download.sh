@@ -22,7 +22,7 @@
 #   RELAY_PORT                  published/container port (default 9700)
 #   RELAY_HOST_BIND_IP          host bind address (default 0.0.0.0)
 
-BITFUN_RELAY_IMAGE="${BITFUN_RELAY_IMAGE:-ghcr.io/gcwing/bitfun-relay-server}"
+BITFUN_RELAY_IMAGE="${BITFUN_RELAY_IMAGE:-ghcr.io/gcwing/openbitfun-relay-server}"
 BITFUN_RELAY_IMAGE_TAG="${BITFUN_RELAY_IMAGE_TAG:-${BITFUN_RELEASE_TAG:-latest}}"
 BITFUN_IMAGE_PULL_TIMEOUT="${BITFUN_IMAGE_PULL_TIMEOUT:-900}"
 BITFUN_GITHUB_PROBE_WINDOW="${BITFUN_GITHUB_PROBE_WINDOW:-10}"
