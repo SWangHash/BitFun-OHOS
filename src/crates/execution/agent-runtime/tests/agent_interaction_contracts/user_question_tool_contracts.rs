@@ -221,6 +221,7 @@ fn ask_user_question_validation_allows_single_option_only_for_template_questions
             &AskUserQuestionInput {
                 questions: vec![single.clone()],
                 template_id: Some("qt-migration-paths".to_string()),
+                timeout_seconds: 30,
             },
             true
         )
@@ -268,7 +269,7 @@ fn ask_user_question_template_id_round_trips_and_takes_precedence() {
 
 #[test]
 fn ask_user_question_template_registry_serves_qt_migration_paths() {
-    use bitfun_agent_runtime::question_templates::{
+    use bitfun_agent_runtime::qt_migration_question_templates::{
         resolve_question_template, QT_MIGRATION_PATHS_TEMPLATE_ID,
     };
 
@@ -296,7 +297,7 @@ fn ask_user_question_template_registry_serves_qt_migration_paths() {
 
 #[test]
 fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
-    use bitfun_agent_runtime::question_templates::{
+    use bitfun_agent_runtime::qt_migration_question_templates::{
         resolve_question_template_full, QT_MIGRATION_PATHS_TEMPLATE_ID,
     };
     use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
@@ -346,6 +347,7 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
 fn timeout_is_distinct_from_answer_or_cancellation() {
     let input = AskUserQuestionInput {
         questions: vec![question()],
+        template_id: None,
         timeout_seconds: 30,
     };
     let result =

@@ -42,7 +42,7 @@ use crate::agentic::session::{
 };
 use crate::agentic::skill_agent_snapshot::build_skill_agent_tool_listing_sections_from_snapshot;
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::agentic::tools::implementations::{AnalyzeMigrationRequestTool, SkillTool, TaskTool};
+use crate::agentic::tools::implementations::{QtMigrationIntakeTool, SkillTool, TaskTool};
 use crate::agentic::tools::product_runtime::{
     collect_product_loaded_deferred_tool_specs, GetToolSpecTool,
 };
@@ -3368,7 +3368,7 @@ impl ExecutionEngine {
         // instructions are added. Non-migration prompts continue unchanged.
         let mut initial_messages = initial_messages;
         if agent_type == "QtMigration" && !original_user_input.trim().is_empty() {
-            let decision = AnalyzeMigrationRequestTool::analyze_request(&original_user_input);
+            let decision = QtMigrationIntakeTool::analyze_request(&original_user_input);
             let is_migration = decision["taskType"].as_str() == Some("app_migration");
             context
                 .context
@@ -3388,35 +3388,35 @@ impl ExecutionEngine {
             if is_migration {
                 let current_intake = self
                     .session_manager
-                    .intake_state(&context.session_id)
-                    .unwrap_or_else(bitfun_agent_runtime::intake_state::IntakeStateSnapshot::empty);
+                    .qt_migration_intake_state(&context.session_id)
+                    .unwrap_or_else(bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot::empty);
                 let restarted_intake =
-                    bitfun_agent_runtime::intake_state::start_new_migration_intake(&current_intake);
+                    bitfun_agent_runtime::qt_migration_intake_state::qt_migration_start_new_intake(&current_intake);
                 let mut activated_intake =
-                    bitfun_agent_runtime::intake_state::activate_migration_intake(
+                    bitfun_agent_runtime::qt_migration_intake_state::qt_migration_activate_intake(
                         &restarted_intake,
                     );
                 let prompt_starts_new_task = matches!(
                     current_intake.status,
-                    bitfun_agent_runtime::intake_state::IntakeStatus::Ready
-                        | bitfun_agent_runtime::intake_state::IntakeStatus::Executing
+                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStatus::Ready
+                        | bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStatus::Executing
                 ) && matches!(
                     decision["fields"]["source_project"].as_str(),
                     Some("missing") | Some("referenced") | Some("resolved")
                 );
                 if prompt_starts_new_task {
                     activated_intake =
-                        bitfun_agent_runtime::intake_state::start_new_active_migration_intake(
+                        bitfun_agent_runtime::qt_migration_intake_state::qt_migration_start_new_active_intake(
                             &current_intake,
                         );
                 }
                 if activated_intake != current_intake {
                     self.session_manager
-                        .remember_intake_state(&context.session_id, activated_intake.clone())
+                        .remember_qt_migration_intake_state(&context.session_id, activated_intake.clone())
                         .await;
                 }
                 self.session_manager
-                    .remember_migration_active(&context.session_id, true)
+                    .remember_qt_migration_active(&context.session_id, true)
                     .await;
                 // Try to bind paths resolved from the prompt directly to the
                 // intake, skipping the question card when all four fields are
@@ -3434,7 +3434,7 @@ impl ExecutionEngine {
                 let mut all_bound = true;
                 if !is_remote && resolved_paths.is_object() {
                     let mut bindings = std::collections::BTreeMap::new();
-                    for field in bitfun_agent_runtime::intake_state::INTAKE_REQUIRED_FIELDS {
+                    for field in bitfun_agent_runtime::qt_migration_intake_state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
                         if let Some(path) = resolved_paths.get(field).and_then(|v| v.as_str()) {
                             if std::path::Path::new(path).exists() {
                                 bindings.insert(field.to_string(), path.to_string());
@@ -3446,12 +3446,12 @@ impl ExecutionEngine {
                         }
                     }
                     if all_bound && !bindings.is_empty() {
-                        bound_intake = bitfun_agent_runtime::intake_state::apply_validated_answers(
+                        bound_intake = bitfun_agent_runtime::qt_migration_intake_state::qt_migration_apply_validated_answers(
                             &activated_intake,
                             &bindings,
                         );
                         self.session_manager
-                            .remember_intake_state(&context.session_id, bound_intake.clone())
+                            .remember_qt_migration_intake_state(&context.session_id, bound_intake.clone())
                             .await;
                     }
                 }

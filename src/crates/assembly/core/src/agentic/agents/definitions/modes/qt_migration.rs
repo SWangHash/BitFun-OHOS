@@ -27,7 +27,7 @@ impl QtMigrationMode {
         let mut default_tools = shared_coding_mode_tools();
         // Intake routing tool: decides whether a request needs the migration
         // path confirmation dialog. QtMigration-specific, not in the shared set.
-        default_tools.push("AnalyzeMigrationRequest".to_string());
+        default_tools.push("QtMigrationIntake".to_string());
         Self {
             default_tools,
             tool_exposure_overrides: shared_coding_mode_tool_exposure_overrides(),

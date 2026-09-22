@@ -412,13 +412,13 @@ pub struct SessionManager {
     /// Session-scoped QtMigration intake snapshot. Mirrors the edit-constraint
     /// pattern: the in-memory copy serves the answer-submission validation path
     /// and is persisted in session metadata for restore/fork.
-    intake_state_store:
-        Arc<DashMap<String, bitfun_agent_runtime::intake_state::IntakeStateSnapshot>>,
+    qt_migration_intake_state_store:
+        Arc<DashMap<String, bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>>,
     /// Session-scoped QtMigration activation flag. True once the analyzer
     /// confirmed an app_migration request for this session. Lets the gate fail
     /// closed when the intake snapshot is missing instead of treating absence
     /// as non-migration.
-    migration_active_store: Arc<DashMap<String, bool>>,
+    qt_migration_active_store: Arc<DashMap<String, bool>>,
     review_read_receipt_store: Arc<ReviewReadReceiptStore>,
     evidence_ledger: Arc<SessionEvidenceLedger>,
     evidence_ledger_operation_locks: Arc<KeyedAsyncLock>,
@@ -444,8 +444,8 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store: &DashMap<String, TurnSkillAgentSnapshot>,
     review_read_receipt_store: &ReviewReadReceiptStore,
     evidence_ledger: &SessionEvidenceLedger,
-    intake_state_store: &DashMap<String, bitfun_agent_runtime::intake_state::IntakeStateSnapshot>,
-    migration_active_store: &DashMap<String, bool>,
+    qt_migration_intake_state_store: &DashMap<String, bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>,
+    qt_migration_active_store: &DashMap<String, bool>,
 ) {
     context_store.delete_session(session_id);
     prompt_cache_store.delete_session(session_id);
@@ -454,8 +454,8 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store.remove(session_id);
     review_read_receipt_store.delete_session(session_id);
     evidence_ledger.delete_session(session_id);
-    intake_state_store.remove(session_id);
-    migration_active_store.remove(session_id);
+    qt_migration_intake_state_store.remove(session_id);
+    qt_migration_active_store.remove(session_id);
 }
 
 #[derive(Clone)]
@@ -2032,8 +2032,8 @@ impl SessionManager {
             turn_skill_agent_snapshot_store: Arc::new(TurnSkillAgentSnapshotStore::new()),
             skill_agent_baseline_override_snapshot_store: Arc::new(DashMap::new()),
             edit_constraints_store: Arc::new(DashMap::new()),
-            intake_state_store: Arc::new(DashMap::new()),
-            migration_active_store: Arc::new(DashMap::new()),
+            qt_migration_intake_state_store: Arc::new(DashMap::new()),
+            qt_migration_active_store: Arc::new(DashMap::new()),
             review_read_receipt_store: Arc::new(ReviewReadReceiptStore::new()),
             evidence_ledger: Arc::new(SessionEvidenceLedger::new()),
             evidence_ledger_operation_locks: Arc::new(KeyedAsyncLock::default()),
@@ -2537,8 +2537,8 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
-        let intake_state_store = self.intake_state_store.clone();
-        let migration_active_store = self.migration_active_store.clone();
+        let qt_migration_intake_state_store = self.qt_migration_intake_state_store.clone();
+        let qt_migration_active_store = self.qt_migration_active_store.clone();
         let review_read_receipt_store = self.review_read_receipt_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
         let evidence_ledger_operation_locks = self.evidence_ledger_operation_locks.clone();
@@ -2575,8 +2575,8 @@ impl SessionManager {
                 turn_skill_agent_snapshot_store,
                 skill_agent_baseline_override_snapshot_store,
                 edit_constraints_store,
-                intake_state_store,
-                migration_active_store,
+                qt_migration_intake_state_store,
+                qt_migration_active_store,
                 review_read_receipt_store,
                 evidence_ledger,
                 evidence_ledger_operation_locks,
@@ -3441,23 +3441,23 @@ impl SessionManager {
     /// QtMigration intake snapshot for a session. The in-memory store serves the
     /// answer-submission hot path; restored sessions re-seed it from persisted
     /// metadata during restore.
-    pub fn intake_state(
+    pub fn qt_migration_intake_state(
         &self,
         session_id: &str,
-    ) -> Option<bitfun_agent_runtime::intake_state::IntakeStateSnapshot> {
-        self.intake_state_store
+    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot> {
+        self.qt_migration_intake_state_store
             .get(session_id)
             .map(|value| value.clone())
     }
 
     /// Atomically swap the session intake snapshot in memory and mirror it into
     /// persisted session metadata so restore/fork paths preserve it.
-    pub async fn remember_intake_state(
+    pub async fn remember_qt_migration_intake_state(
         &self,
         session_id: &str,
-        snapshot: bitfun_agent_runtime::intake_state::IntakeStateSnapshot,
+        snapshot: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
     ) {
-        self.intake_state_store
+        self.qt_migration_intake_state_store
             .insert(session_id.to_string(), snapshot.clone());
 
         if self.should_persist_session_id(session_id) {
@@ -3478,9 +3478,9 @@ impl SessionManager {
         }
     }
 
-    fn intake_state_from_metadata(
+    fn qt_migration_intake_state_from_metadata(
         metadata: Option<&SessionMetadata>,
-    ) -> Option<bitfun_agent_runtime::intake_state::IntakeStateSnapshot> {
+    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot> {
         let value = metadata?
             .custom_metadata
             .as_ref()?
@@ -3499,9 +3499,9 @@ impl SessionManager {
 
     /// Subagent forks inherit the parent's intake snapshot so migration path
     /// confirmation survives delegation boundaries.
-    pub async fn seed_forked_intake_state(&self, parent_session_id: &str, child_session_id: &str) {
-        if let Some(snapshot) = self.intake_state(parent_session_id) {
-            self.intake_state_store
+    pub async fn seed_forked_qt_migration_intake_state(&self, parent_session_id: &str, child_session_id: &str) {
+        if let Some(snapshot) = self.qt_migration_intake_state(parent_session_id) {
+            self.qt_migration_intake_state_store
                 .insert(child_session_id.to_string(), snapshot.clone());
             if self.should_persist_session_id(child_session_id) {
                 if let Err(error) = self
@@ -3525,8 +3525,8 @@ impl SessionManager {
     /// Whether the session has an activated QtMigration admission context. The
     /// gate uses this to fail closed when the intake snapshot is missing
     /// instead of treating absence as non-migration.
-    pub fn migration_active(&self, session_id: &str) -> bool {
-        self.migration_active_store
+    pub fn qt_migration_active(&self, session_id: &str) -> bool {
+        self.qt_migration_active_store
             .get(session_id)
             .map(|v| *v)
             .unwrap_or(false)
@@ -3534,8 +3534,8 @@ impl SessionManager {
 
     /// Atomically mark the session's QtMigration admission context as active
     /// (or inactive on terminal/cancel) and mirror it into persisted metadata.
-    pub async fn remember_migration_active(&self, session_id: &str, active: bool) {
-        self.migration_active_store
+    pub async fn remember_qt_migration_active(&self, session_id: &str, active: bool) {
+        self.qt_migration_active_store
             .insert(session_id.to_string(), active);
         if self.should_persist_session_id(session_id) {
             if let Err(error) = self
@@ -3555,7 +3555,7 @@ impl SessionManager {
         }
     }
 
-    fn migration_active_from_metadata(metadata: Option<&SessionMetadata>) -> bool {
+    fn qt_migration_active_from_metadata(metadata: Option<&SessionMetadata>) -> bool {
         metadata
             .and_then(|m| m.custom_metadata.as_ref())
             .and_then(|cm| cm.get(MIGRATION_ACTIVE_METADATA_KEY))
@@ -3565,14 +3565,14 @@ impl SessionManager {
 
     /// Subagent forks inherit the parent's migration activation flag so a
     /// delegated subagent is still gated even before its own intake is seeded.
-    pub async fn seed_forked_migration_active(
+    pub async fn seed_forked_qt_migration_active(
         &self,
         parent_session_id: &str,
         child_session_id: &str,
     ) {
-        let active = self.migration_active(parent_session_id);
+        let active = self.qt_migration_active(parent_session_id);
         if active {
-            self.migration_active_store
+            self.qt_migration_active_store
                 .insert(child_session_id.to_string(), active);
             if self.should_persist_session_id(child_session_id) {
                 if let Err(error) = self
@@ -5170,8 +5170,8 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.review_read_receipt_store.as_ref(),
             self.evidence_ledger.as_ref(),
-            self.intake_state_store.as_ref(),
-            self.migration_active_store.as_ref(),
+            self.qt_migration_intake_state_store.as_ref(),
+            self.qt_migration_active_store.as_ref(),
         );
         self.release_session_write_lock(session_id);
         Ok(true)
@@ -5216,8 +5216,8 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.review_read_receipt_store.as_ref(),
             self.evidence_ledger.as_ref(),
-            self.intake_state_store.as_ref(),
-            self.migration_active_store.as_ref(),
+            self.qt_migration_intake_state_store.as_ref(),
+            self.qt_migration_active_store.as_ref(),
         );
 
         if let Some(cron) = crate::service::cron::get_global_cron_service() {
@@ -5986,9 +5986,9 @@ impl SessionManager {
             Self::listing_baseline_rebuild_turn_index_from_metadata(session_metadata.as_ref());
         let restored_edit_constraint_state =
             Self::edit_constraint_state_from_metadata(session_metadata.as_ref());
-        let restored_intake_state = Self::intake_state_from_metadata(session_metadata.as_ref());
-        let restored_migration_active =
-            Self::migration_active_from_metadata(session_metadata.as_ref());
+        let restored_qt_migration_intake_state = Self::qt_migration_intake_state_from_metadata(session_metadata.as_ref());
+        let restored_qt_migration_active =
+            Self::qt_migration_active_from_metadata(session_metadata.as_ref());
         debug!(
             "Session restore phase completed: session_id={}, phase=load_metadata, duration_ms={}",
             session_id,
@@ -6410,8 +6410,8 @@ impl SessionManager {
                 self.skill_agent_baseline_override_snapshot_store.as_ref(),
                 self.review_read_receipt_store.as_ref(),
                 self.evidence_ledger.as_ref(),
-                self.intake_state_store.as_ref(),
-                self.migration_active_store.as_ref(),
+                self.qt_migration_intake_state_store.as_ref(),
+                self.qt_migration_active_store.as_ref(),
             );
         }
         self.evidence_ledger
@@ -6457,12 +6457,12 @@ impl SessionManager {
                 .insert(session_id.to_string(), state);
         }
 
-        if let Some(snapshot) = restored_intake_state {
-            self.intake_state_store
+        if let Some(snapshot) = restored_qt_migration_intake_state {
+            self.qt_migration_intake_state_store
                 .insert(session_id.to_string(), snapshot);
         }
-        if restored_migration_active {
-            self.migration_active_store
+        if restored_qt_migration_active {
+            self.qt_migration_active_store
                 .insert(session_id.to_string(), true);
         }
 
@@ -7779,7 +7779,7 @@ impl SessionManager {
     /// plain questions or unknown template ids so unchanged records serialize
     /// without the extra field.
     fn build_ask_user_question_request(arguments: &serde_json::Value) -> Option<serde_json::Value> {
-        use bitfun_agent_runtime::question_templates::resolve_question_template_full;
+        use bitfun_agent_runtime::qt_migration_question_templates::resolve_question_template_full;
         use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
 
         let template_id = arguments
@@ -9665,6 +9665,119 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Resolve the AI client bound to a session's inherited model identity:
+    /// explicit session model -> agent registry default -> primary, honoring
+    /// the approved-immutable binding policy. Deliberately does not carry the
+    /// session's reasoning preset.
+    async fn resolve_inherit_session_client(
+        &self,
+        session_id: &str,
+    ) -> BitFunResult<std::sync::Arc<crate::infrastructure::ai::AIClient>> {
+        let ai_client_factory = get_global_ai_client_factory().await.map_err(|e| {
+            BitFunError::AIClient(format!("Failed to get AI client factory: {}", e))
+        })?;
+        let ai_config = Self::load_ai_config_for_model_resolution()
+            .await
+            .ok_or_else(|| BitFunError::AIClient("Failed to load AI configuration".to_string()))?;
+        let session = self
+            .get_session(session_id)
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
+        let explicit_model_id = session
+            .config
+            .model_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|model_id| !model_id.is_empty());
+        let fallback_model_id = if explicit_model_id.is_none() {
+            let workspace = session.config.workspace_id.as_deref();
+            Some(
+                get_agent_registry()
+                    .get_model_id_for_agent(&session.agent_type, workspace)
+                    .await
+                    .map_err(|error| {
+                        BitFunError::AIClient(format!(
+                            "Failed to resolve session Agent model: {error}"
+                        ))
+                    })?,
+            )
+        } else {
+            None
+        };
+        let configured_model_id = explicit_model_id
+            .or(fallback_model_id.as_deref())
+            .unwrap_or("primary");
+        let selector = configured_model_id;
+        let resolved_model_id = ai_config.resolve_model_selection(selector).ok_or_else(|| {
+            BitFunError::AIClient(format!(
+                "Failed to resolve inherited session model: {selector}"
+            ))
+        })?;
+        if matches!(
+            session.config.model_binding_policy,
+            SessionModelBindingPolicy::ApprovedImmutable
+        ) {
+            let fingerprint = session
+                .config
+                .model_binding_fingerprint
+                .as_deref()
+                .ok_or_else(|| {
+                    BitFunError::AIClient(
+                        "Inherited immutable session model has no approved fingerprint".to_string(),
+                    )
+                })?;
+            ai_client_factory
+                .get_client_by_approved_binding(&resolved_model_id, fingerprint)
+                .await
+        } else {
+            ai_client_factory.get_client_by_id(&resolved_model_id).await
+        }
+        .map_err(|e| BitFunError::AIClient(format!("Failed to get AI client: {}", e)))
+    }
+
+    /// Single-shot completion bound to the session's inherited model. Used by
+    /// engine-side semantic helpers (e.g. Qt migration intent analysis); not
+    /// part of the conversation loop.
+    pub async fn session_quick_completion(
+        &self,
+        session_id: &str,
+        system_prompt: &str,
+        user_prompt: &str,
+    ) -> BitFunResult<String> {
+        use crate::util::types::Message;
+        let client = self.resolve_inherit_session_client(session_id).await?;
+        let messages = vec![
+            Message {
+                role: "system".to_string(),
+                content: Some(system_prompt.to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                is_error: None,
+                tool_image_attachments: None,
+                model_response_replay: None,
+            },
+            Message {
+                role: "user".to_string(),
+                content: Some(user_prompt.to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                is_error: None,
+                tool_image_attachments: None,
+                model_response_replay: None,
+            },
+        ];
+        let response = client
+            .send_message(messages, None)
+            .await
+            .map_err(|e| BitFunError::ai(format!("AI call failed: {}", e)))?;
+        Ok(response.text)
+    }
+
     async fn try_generate_session_title_with_ai(
         &self,
         session_id: &str,
@@ -9934,8 +10047,8 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
-        let intake_state_store = self.intake_state_store.clone();
-        let migration_active_store = self.migration_active_store.clone();
+        let qt_migration_intake_state_store = self.qt_migration_intake_state_store.clone();
+        let qt_migration_active_store = self.qt_migration_active_store.clone();
         let review_read_receipt_store = self.review_read_receipt_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
 
@@ -10035,8 +10148,8 @@ impl SessionManager {
                             skill_agent_baseline_override_snapshot_store.as_ref(),
                             review_read_receipt_store.as_ref(),
                             evidence_ledger.as_ref(),
-                            intake_state_store.as_ref(),
-                            migration_active_store.as_ref(),
+                            qt_migration_intake_state_store.as_ref(),
+                            qt_migration_active_store.as_ref(),
                         );
                         edit_constraints_store.remove(&candidate.session_id);
                     }
@@ -19267,7 +19380,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn intake_state_round_trips_through_memory_and_persisted_metadata() {
+    async fn qt_migration_intake_state_round_trips_through_memory_and_persisted_metadata() {
         let workspace = TestWorkspace::new();
         let manager = test_manager(Arc::new(
             PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
@@ -19284,50 +19397,50 @@ mod tests {
             .await
             .expect("session should be created");
 
-        assert!(manager.intake_state(&session.session_id).is_none());
+        assert!(manager.qt_migration_intake_state(&session.session_id).is_none());
 
-        let snapshot = bitfun_agent_runtime::intake_state::IntakeStateSnapshot {
+        let snapshot = bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot {
             schema_version: 1,
             fields: std::collections::BTreeMap::from([
                 (
                     "source_project".to_string(),
-                    bitfun_agent_runtime::intake_state::IntakeFieldState {
-                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
+                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
                         value: Some("D:/work/myqt".to_string()),
                     },
                 ),
                 (
                     "output_project".to_string(),
-                    bitfun_agent_runtime::intake_state::IntakeFieldState {
-                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
+                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
                         value: Some("D:/out/hm".to_string()),
                     },
                 ),
                 (
                     "toolchain".to_string(),
-                    bitfun_agent_runtime::intake_state::IntakeFieldState {
-                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
+                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
                         value: Some("D:/sdk/ohos".to_string()),
                     },
                 ),
                 (
                     "template".to_string(),
-                    bitfun_agent_runtime::intake_state::IntakeFieldState {
-                        state: bitfun_agent_runtime::intake_state::FieldResolutionState::Resolved,
+                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
+                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
                         value: Some("qt-hm-template-1".to_string()),
                     },
                 ),
             ]),
-            status: bitfun_agent_runtime::intake_state::IntakeStatus::NeedsValidation,
+            status: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStatus::NeedsValidation,
             loaded_skill_receipt: None,
         };
         manager
-            .remember_intake_state(&session.session_id, snapshot.clone())
+            .remember_qt_migration_intake_state(&session.session_id, snapshot.clone())
             .await;
 
         // In-memory read path.
         assert_eq!(
-            manager.intake_state(&session.session_id),
+            manager.qt_migration_intake_state(&session.session_id),
             Some(snapshot.clone())
         );
 
@@ -19340,7 +19453,7 @@ mod tests {
             .restore_session(workspace.path(), &session.session_id)
             .await
             .expect("session should restore");
-        assert_eq!(restored.intake_state(&session.session_id), Some(snapshot));
+        assert_eq!(restored.qt_migration_intake_state(&session.session_id), Some(snapshot));
     }
 
     #[test]

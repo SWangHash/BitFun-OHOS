@@ -156,7 +156,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "LaunchReviewAgent" => Some(Arc::new(LaunchReviewAgentTool::new())),
             "Skill" => Some(Arc::new(SkillTool::new())),
             "AskUserQuestion" => Some(Arc::new(AskUserQuestionTool::new())),
-            "AnalyzeMigrationRequest" => Some(Arc::new(AnalyzeMigrationRequestTool::new())),
+            "QtMigrationIntake" => Some(Arc::new(QtMigrationIntakeTool::new())),
             "TodoWrite" => Some(Arc::new(TodoWriteTool::new())),
             "get_goal" => Some(Arc::new(GetGoalTool::new())),
             "create_goal" => Some(Arc::new(CreateGoalTool::new())),
