@@ -8,7 +8,7 @@ import { useEditorDocument } from '../services/EditorDocument';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
 import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
 import { useNotification } from '@/shared/notification-system';
@@ -290,7 +290,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                   aria-label={isFullscreen ? t('editor.imageViewer.exitFullscreen') : t('editor.imageViewer.enterFullscreen')}
                   size="sm"
                   variant="quiet"
-                  icon={<Maximize2 size={14} />}
+                  icon={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   onClick={handleToggleFullscreen}
                 />
               </Tooltip>
