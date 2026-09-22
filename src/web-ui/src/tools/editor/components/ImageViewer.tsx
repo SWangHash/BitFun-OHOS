@@ -16,6 +16,7 @@ import { useNotification } from '@/shared/notification-system';
 import { useI18n } from '@/infrastructure/i18n';
 import { formatBytes } from '@/shared/utils/format';
 import { downloadWorkspaceFileToDisk } from '@/tools/file-system/services/workspaceFileTransfer';
+import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
@@ -340,7 +341,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   );
 
   if (isFullscreen && typeof document !== 'undefined') {
-    return createPortal(viewerNode, document.body);
+    return createPortal(viewerNode, getAppearanceOverlayHost());
   }
   return viewerNode;
 };

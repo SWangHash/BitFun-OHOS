@@ -10,5 +10,6 @@ export const fileHistoryViewAppearanceDescriptor: AppearanceSurfaceDescriptor = 
   ],
   states: [
     { id: 'selected', selector: { kind: 'self', suffix: '[data-bitfun-state~="selected"]' } },
+    { id: 'empty', selector: { kind: 'self', suffix: '[data-bitfun-state~="empty"]' } },
   ],
 };
