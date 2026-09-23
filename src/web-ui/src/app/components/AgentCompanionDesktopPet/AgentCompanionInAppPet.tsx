@@ -816,22 +816,15 @@ export const AgentCompanionInAppPet: React.FC = () => {
             data-bitfun-state={hasAttentionTask ? 'attention' : undefined}
             data-bitfun-host="inapp"
           >
-            <div
-              style={{
-                display: 'inline-flex',
-                transform: petFacing === 'left' ? 'scaleX(-1)' : undefined,
-                transition: 'transform 120ms ease',
-              }}
-            >
-              <AgentCompanionPet
-                mood={displayMood}
-                pet={pet}
-                nativePetdexSize
-                petdexScale={PETDEX_DESKTOP_SCALE}
-                onPetFrameSizeChange={handlePetFrameSizeChange}
-                className="bitfun-agent-companion-window__pet"
-              />
-            </div>
+            <AgentCompanionPet
+              mood={displayMood}
+              pet={pet}
+              nativePetdexSize
+              petdexScale={PETDEX_DESKTOP_SCALE}
+              onPetFrameSizeChange={handlePetFrameSizeChange}
+              className="bitfun-agent-companion-window__pet"
+              dragDirection={petFacing ?? 'left'}
+            />
           </div>
         </div>
       </div>
