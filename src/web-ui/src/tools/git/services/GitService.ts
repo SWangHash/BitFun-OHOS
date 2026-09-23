@@ -315,7 +315,7 @@ export class GitService {
    * The returned commits carry per-commit stat info for the whole commit;
    * callers combine them with `getDiff` for per-file diffs.
    */
-  async getFileHistory(repositoryPath: string, filePath: string, maxCount: number = 100): Promise<GitCommit[]> {
+  async getFileHistory(repositoryPath: GitWorkspaceScope, filePath: string, maxCount: number = 100): Promise<GitCommit[]> {
     return this.getCommits(repositoryPath, { path: filePath, maxCount, stat: true });
   }
 

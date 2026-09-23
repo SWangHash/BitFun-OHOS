@@ -74,7 +74,7 @@
     "markdownEditor": {
       "loadingFile": "Loading file...",
       "placeholder": "Start writing Markdown...",
-      "richText": "Rich Text",
+      "richText": "Document",
       "source": "Source",
       "markdown": "Markdown",
       "preview": "Preview",

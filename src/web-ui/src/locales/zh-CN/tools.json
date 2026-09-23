@@ -74,7 +74,7 @@
     "markdownEditor": {
       "loadingFile": "正在加载文件...",
       "placeholder": "开始编写 Markdown 内容...",
-      "richText": "富文本",
+      "richText": "文档",
       "source": "源码",
       "markdown": "Markdown",
       "preview": "预览",

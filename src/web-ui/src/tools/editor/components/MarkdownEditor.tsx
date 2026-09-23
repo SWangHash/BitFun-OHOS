@@ -100,7 +100,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const documentMarkdownMode = documentSession?.markdownMode;
   const [content, setContent] = useState<string>(initialContent);
   const [hasChanges, setHasChanges] = useState(false);
-  const [viewMode, setViewMode] = useState<'ir' | 'source' | 'preview'>('ir');
+  const [viewMode, setViewMode] = useState<'ir' | 'source'>('ir');
   const [loading, setLoading] = useState(!!filePath);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -667,15 +667,12 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             tone="neutral"
             options={[
               { value: 'ir', label: t('editor.markdownEditor.richText') },
-              { value: 'preview', label: t('editor.markdownEditor.preview') },
               { value: 'source', label: t('editor.markdownEditor.source') },
             ]}
             value={viewMode}
             onValueChange={(value) => {
-              if (documentSession && value !== 'preview') {
-                documentSession.markdownMode = value as 'ir' | 'source';
-              }
-              setViewMode(value as 'ir' | 'source' | 'preview');
+              if (documentSession) documentSession.markdownMode = value as 'ir' | 'source';
+              setViewMode(value as 'ir' | 'source');
             }}
           />
         )}
@@ -703,7 +700,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           onChange={handleContentChange}
           onSave={handleSave}
           onDirtyChange={handleDirtyChange}
-          mode={viewMode === 'ir' ? 'ir' : viewMode === 'preview' ? 'preview' : 'edit'}
+          mode={viewMode === 'ir' ? 'ir' : 'edit'}
           height="100%"
           width="100%"
           placeholder={t('editor.markdownEditor.placeholder')}

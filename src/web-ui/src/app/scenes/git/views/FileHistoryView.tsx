@@ -13,6 +13,7 @@ import { ArrowLeft, FileCode2, History } from 'lucide-react';
 import { useGitSceneStore } from '../gitSceneStore';
 import { gitService } from '@/tools/git/services';
 import type { GitCommit } from '@/tools/git/types';
+import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
 import { GitDiffView } from '@/tools/git/components/GitDiffView';
 import { InlineDiffPreview } from '@/flow_chat/components/InlineDiffPreview';
 import { snapshotAPI, type FileChangeEntry, type SandboxOperationDiff } from '@/infrastructure/api/service-api/SnapshotAPI';
@@ -25,6 +26,7 @@ const log = createLogger('FileHistoryView');
 
 interface FileHistoryViewProps {
   workspacePath?: string;
+  workspaceId?: string;
   filePath?: string | null;
   isActive?: boolean;
 }
@@ -54,10 +56,10 @@ function formatRelativeTime(timestamp: number): string {
 
 /** Root commits have no parent to diff against; show the full content instead. */
 const RootCommitContent: React.FC<{
-  workspacePath: string;
+  scope: GitWorkspaceScope;
   filePath: string;
   commitHash: string;
-}> = ({ workspacePath, filePath, commitHash }) => {
+}> = ({ scope, filePath, commitHash }) => {
   const { t } = useTranslation('panels/git');
   const [content, setContent] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -65,18 +67,18 @@ const RootCommitContent: React.FC<{
   useEffect(() => {
     let cancelled = false;
     gitService
-      .getFileContent(workspacePath, filePath, commitHash)
+      .getFileContent(scope, filePath, commitHash)
       .then((value) => {
         if (!cancelled) setContent(value);
       })
       .catch((err) => {
-        log.error('Failed to load root-commit file content', { workspacePath, filePath, commitHash, error: err });
+        log.error('Failed to load root-commit file content', { repositoryPath: scope.repositoryPath, filePath, commitHash, error: err });
         if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [workspacePath, filePath, commitHash]);
+  }, [scope, filePath, commitHash]);
 
   return (
     <div data-bitfun-component="file-history-view" data-bitfun-part="rootContent" className="bitfun-git-file-history__root-content">
@@ -285,10 +287,15 @@ const FileLocalHistory: React.FC<{
 
 const FileHistoryView: React.FC<FileHistoryViewProps> = ({
   workspacePath = '',
+  workspaceId,
   filePath,
   isActive = true,
 }) => {
   const { t } = useTranslation('panels/git');
+  const scope = useMemo<GitWorkspaceScope>(
+    () => ({ workspaceId: workspaceId ?? '', repositoryPath: workspacePath }),
+    [workspaceId, workspacePath],
+  );
   const setActiveView = useGitSceneStore((s) => s.setActiveView);
   const [tab, setTab] = useState<'git' | 'local'>('git');
   const [localReloadKey, setLocalReloadKey] = useState(0);
@@ -302,7 +309,7 @@ const FileHistoryView: React.FC<FileHistoryViewProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const result = await gitService.getFileHistory(workspacePath, filePath);
+      const result = await gitService.getFileHistory(scope, filePath);
       setCommits(result);
       setSelectedHash((prev) => (prev && result.some((c) => c.hash === prev) ? prev : result[0]?.hash ?? null));
     } catch (err) {
@@ -311,7 +318,7 @@ const FileHistoryView: React.FC<FileHistoryViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [workspacePath, filePath]);
+  }, [scope, workspacePath, filePath]);
 
   useEffect(() => {
     void loadHistory();
@@ -451,10 +458,10 @@ const FileHistoryView: React.FC<FileHistoryViewProps> = ({
         <div data-bitfun-component="file-history-view" data-bitfun-part="diff" className="bitfun-git-file-history__diff">
           {selectedCommit ? (
             selectedCommit.parents.length === 0 ? (
-              <RootCommitContent workspacePath={workspacePath} filePath={filePath} commitHash={selectedCommit.hash} />
+              <RootCommitContent scope={scope} filePath={filePath} commitHash={selectedCommit.hash} />
             ) : (
               <GitDiffView
-                repositoryPath={workspacePath}
+                repositoryPath={scope}
                 sourceCommit={selectedCommit.parents[0]}
                 targetCommit={selectedCommit.hash}
                 filePath={filePath}
