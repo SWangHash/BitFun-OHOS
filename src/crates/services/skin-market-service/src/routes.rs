@@ -12,8 +12,6 @@ use axum::routing::{any, get, post, put};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::Utc;
-use hmac::{Hmac, Mac};
 use bitfun_product_domains::appearance_market::{
     compute_appearance_review_bundle_hash, validate_appearance_market_slug,
     AppearanceAdminSubmissionDetail, AppearanceCursorPage, AppearanceMarketListingDetail,
@@ -23,8 +21,10 @@ use bitfun_product_domains::appearance_market::{
     AppearanceMarketUserSummary, AppearanceReviewDecision, AppearanceReviewDecisionRequest,
     APPEARANCE_MARKET_API_VERSION, APPEARANCE_MARKET_DEFAULT_PAGE_SIZE,
     APPEARANCE_MARKET_MAX_PACKAGE_BYTES, APPEARANCE_MARKET_MAX_PAGE_SIZE,
-    APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE,
+    APPEARANCE_MARKET_OPENBITFUN_PACKAGE_CONTENT_TYPE, APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE,
 };
+use chrono::Utc;
+use hmac::{Hmac, Mac};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1950,13 +1950,20 @@ fn ensure_package_content_type(headers: &HeaderMap) -> SkinMarketResult<()> {
         .map(str::trim);
     if matches!(
         content_type,
-        Some(APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE | "application/zip")
+        Some(
+            APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE
+                | APPEARANCE_MARKET_OPENBITFUN_PACKAGE_CONTENT_TYPE
+                | "application/zip"
+        )
     ) {
         Ok(())
     } else {
         Err(SkinMarketError::bad_request(
             "unsupported_package_content_type",
-            format!("Appearance uploads must use {APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE}."),
+            format!(
+                "Appearance uploads must use {APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE} or \
+                 {APPEARANCE_MARKET_OPENBITFUN_PACKAGE_CONTENT_TYPE}."
+            ),
         ))
     }
 }

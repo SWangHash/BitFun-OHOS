@@ -5,6 +5,12 @@ use sha2::{Digest, Sha256};
 
 pub const APPEARANCE_MARKET_API_VERSION: &str = "v1";
 pub const APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE: &str = "application/vnd.bitfun.appearance+zip";
+/// Content type the OpenBitFun deployment advertises for Appearance packages.
+pub const APPEARANCE_MARKET_OPENBITFUN_PACKAGE_CONTENT_TYPE: &str =
+    "application/vnd.openbitfun.appearance+zip";
+/// Brand-neutral upload content type accepted by both the BitFun and OpenBitFun
+/// market servers.
+pub const APPEARANCE_MARKET_UPLOAD_CONTENT_TYPE: &str = "application/zip";
 pub const APPEARANCE_MARKET_MAX_PACKAGE_BYTES: u64 = 96 * 1024 * 1024;
 pub const APPEARANCE_MARKET_MAX_UNCOMPRESSED_BYTES: u64 = 128 * 1024 * 1024;
 pub const APPEARANCE_MARKET_MAX_MANIFEST_BYTES: u64 = 256 * 1024;
@@ -182,7 +188,7 @@ pub struct AppearanceMarketSubmissionDraftRequest {
     pub listing_id: Option<String>,
     pub slug: String,
     pub release_number: u32,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub license: AppearanceMarketLicense,

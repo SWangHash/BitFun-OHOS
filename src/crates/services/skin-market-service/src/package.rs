@@ -1,11 +1,11 @@
 use crate::error::{SkinMarketError, SkinMarketResult};
-use image::GenericImageView;
 use bitfun_product_domains::appearance_market::{
     AppearanceMarketPackageMeta, AppearancePackageMode, APPEARANCE_MARKET_MAX_ENTRIES,
     APPEARANCE_MARKET_MAX_MANIFEST_BYTES, APPEARANCE_MARKET_MAX_PACKAGE_BYTES,
     APPEARANCE_MARKET_MAX_PREVIEW_BYTES, APPEARANCE_MARKET_MAX_PREVIEW_PIXELS,
     APPEARANCE_MARKET_MAX_UNCOMPRESSED_BYTES,
 };
+use image::GenericImageView;
 use semver::Version;
 use serde::Deserialize;
 use serde_json::Value;
@@ -389,10 +389,14 @@ pub fn validate_appearance_package(bytes: &[u8]) -> SkinMarketResult<ValidatedAp
 }
 
 fn validate_manifest(manifest: &AppearanceManifest) -> SkinMarketResult<()> {
-    if manifest.schema != "bitfun.appearance" || manifest.schema_version != 1 {
+    if !matches!(
+        manifest.schema.as_str(),
+        "bitfun.appearance" | "openbitfun.appearance"
+    ) || !matches!(manifest.schema_version, 1 | 2)
+    {
         return Err(SkinMarketError::bad_request(
             "unsupported_manifest_schema",
-            "Appearance packages must use bitfun.appearance schema version 1.",
+            "Appearance packages must use the bitfun.appearance or openbitfun.appearance schema, version 1 or 2.",
         ));
     }
     validate_identifier(&manifest.id, "package id")?;
@@ -1009,7 +1013,15 @@ mod tests {
             "undeclared_package_entry"
         );
         let mut wrong_schema = manifest();
-        wrong_schema["schemaVersion"] = Value::from(2);
+        wrong_schema["schemaVersion"] = Value::from(3);
+        assert_eq!(
+            validate_appearance_package(&package(wrong_schema, &[]))
+                .unwrap_err()
+                .code,
+            "unsupported_manifest_schema"
+        );
+        let mut wrong_schema = manifest();
+        wrong_schema["schema"] = Value::from("example.unknown");
         assert_eq!(
             validate_appearance_package(&package(wrong_schema, &[]))
                 .unwrap_err()

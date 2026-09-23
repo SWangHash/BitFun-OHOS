@@ -1,10 +1,10 @@
-use image::ImageReader;
 use bitfun_product_domains::appearance_market::{
     AppearanceMarketPackageMeta, AppearancePackageMode, APPEARANCE_MARKET_MAX_ENTRIES,
     APPEARANCE_MARKET_MAX_MANIFEST_BYTES, APPEARANCE_MARKET_MAX_PACKAGE_BYTES,
     APPEARANCE_MARKET_MAX_PREVIEW_BYTES, APPEARANCE_MARKET_MAX_PREVIEW_PIXELS,
     APPEARANCE_MARKET_MAX_UNCOMPRESSED_BYTES,
 };
+use image::ImageReader;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -404,10 +404,14 @@ pub fn validate_appearance_market_package(
 fn validate_manifest_metadata(
     manifest: &AppearanceManifest,
 ) -> Result<(), AppearanceMarketPackageError> {
-    if manifest.schema != "bitfun.appearance" || manifest.schema_version != 1 {
+    if !matches!(
+        manifest.schema.as_str(),
+        "bitfun.appearance" | "openbitfun.appearance"
+    ) || !matches!(manifest.schema_version, 1 | 2)
+    {
         return Err(error(
             "unsupported_manifest",
-            "The package must use bitfun.appearance schema version 1.",
+            "The package must use the bitfun.appearance or openbitfun.appearance schema, version 1 or 2.",
         ));
     }
     validate_identifier(&manifest.id, "package id")?;

@@ -421,17 +421,16 @@ fn required_local_package_path(input: &Value) -> BitFunResult<PathBuf> {
             "package_path must be an absolute local path.",
         ));
     }
-    if !raw.to_ascii_lowercase().ends_with(".bitfun-appearance") {
+    let lower = raw.to_ascii_lowercase();
+    if !lower.ends_with(".bitfun-appearance") && !lower.ends_with(".openbitfun-appearance") {
         return Err(BitFunError::validation(
-            "package_path must end in .bitfun-appearance.",
+            "package_path must end in .bitfun-appearance or .openbitfun-appearance.",
         ));
     }
     Ok(path.to_path_buf())
 }
 
-fn publication_metadata(
-    input: &Value,
-) -> BitFunResult<(AppearanceMarketLicense, Option<String>)> {
+fn publication_metadata(input: &Value) -> BitFunResult<(AppearanceMarketLicense, Option<String>)> {
     let spdx = optional_text(input, "license_spdx");
     let custom_url = optional_https_url(input, "custom_license_url")?;
     if spdx.is_none() == custom_url.is_none() {

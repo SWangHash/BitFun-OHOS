@@ -183,7 +183,7 @@ pub struct MarketSubmissionDraftRequest {
     pub category: String,
     #[serde(default)]
     pub tags: Vec<String>,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub license: MarketLicense,

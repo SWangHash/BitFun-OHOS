@@ -102,14 +102,25 @@ describe('AppearancePackageParser', () => {
     expect(canonicalManifest.schemaVersion).toBe(APPEARANCE_SCHEMA_VERSION);
   });
 
-  it('rejects a noncanonical schema instead of upgrading it during import', async () => {
-    const unsupported = {
+  it('upgrades a legacy v1 archive to the canonical schema during import', async () => {
+    const legacy = {
       ...manifest(),
       schemaVersion: 1,
     };
 
-    await expect(parser.parse(await archive(unsupported)))
-      .rejects.toThrow(`Schema version must be ${APPEARANCE_SCHEMA_VERSION}`);
+    const stored = await parser.parse(await archive(legacy));
+    expect(stored.manifest.schemaVersion).toBe(APPEARANCE_SCHEMA_VERSION);
+    expect(stored.archiveSchemaVersion).toBe(APPEARANCE_SCHEMA_VERSION);
+  });
+
+  it('accepts the OpenBitFun schema id and canonicalizes it', async () => {
+    const renamed = {
+      ...manifest(),
+      schema: 'openbitfun.appearance',
+    } as unknown as AppearancePackage;
+
+    const stored = await parser.parse(await archive(renamed));
+    expect(stored.manifest.schema).toBe('bitfun.appearance');
   });
 
   it('rejects undeclared files before storage', async () => {

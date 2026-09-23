@@ -3,7 +3,7 @@ use bitfun_product_domains::appearance_market::{
     AppearanceMarketListingSummary, AppearanceMarketSort, AppearanceMarketSubmission,
     AppearanceMarketSubmissionDraftRequest, AppearanceMarketSubmissionStatus,
     AppearanceReviewDecisionRequest, APPEARANCE_MARKET_MAX_PACKAGE_BYTES,
-    APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE,
+    APPEARANCE_MARKET_UPLOAD_CONTENT_TYPE,
 };
 use reqwest::{RequestBuilder, Response};
 use serde::de::DeserializeOwned;
@@ -221,7 +221,7 @@ impl AppearanceMarketClient {
             request
                 .header(
                     reqwest::header::CONTENT_TYPE,
-                    APPEARANCE_MARKET_PACKAGE_CONTENT_TYPE,
+                    APPEARANCE_MARKET_UPLOAD_CONTENT_TYPE,
                 )
                 .body(bytes),
         )

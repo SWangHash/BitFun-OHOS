@@ -81,7 +81,9 @@ struct NormalizedManualSubmission {
 }
 
 async fn appearance_market_client() -> Result<AppearanceMarketClient, String> {
-    AppearanceMarketClient::from_environment().await.map_err(market_error)
+    AppearanceMarketClient::from_environment()
+        .await
+        .map_err(market_error)
 }
 
 #[tauri::command]
@@ -264,11 +266,14 @@ fn normalize_manual_submission(
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
-            name.to_ascii_lowercase()
-                .ends_with(".bitfun-appearance")
+            let name = name.to_ascii_lowercase();
+            name.ends_with(".bitfun-appearance") || name.ends_with(".openbitfun-appearance")
         })
     {
-        return Err("Skin submissions must use a .bitfun-appearance package.".to_string());
+        return Err(
+            "Skin submissions must use a .bitfun-appearance or .openbitfun-appearance package."
+                .to_string(),
+        );
     }
     let fallback_name = package_path
         .file_stem()

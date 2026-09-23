@@ -119,13 +119,13 @@ pub async fn submit_appearance_package(
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
-            name.to_ascii_lowercase()
-                .ends_with(".bitfun-appearance")
+            let name = name.to_ascii_lowercase();
+            name.ends_with(".bitfun-appearance") || name.ends_with(".openbitfun-appearance")
         });
     if !has_expected_extension {
         return Err(submission_error(
             "invalid_package_extension",
-            "Marketplace packages must use the .bitfun-appearance extension.",
+            "Marketplace packages must use the .bitfun-appearance or .openbitfun-appearance extension.",
         ));
     }
 

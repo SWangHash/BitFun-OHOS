@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import type { AppearanceRegistry } from '../registry/AppearanceRegistry';
 import { assertValidAppearancePackage } from './AppearancePackageValidator';
+import { migrateAppearancePackage } from './migrateAppearancePackage';
 import type {
   AppearancePackageAsset,
   StoredAppearanceAsset,
@@ -23,6 +24,27 @@ const MAX_VIDEO_DURATION_SECONDS = 60;
 const MANIFEST_PATH = 'appearance.json';
 const ZIP_END_OF_CENTRAL_DIRECTORY = 0x06054b50;
 const ZIP_CENTRAL_DIRECTORY_ENTRY = 0x02014b50;
+const OPENBITFUN_APPEARANCE_SCHEMA = 'openbitfun.appearance';
+const CANONICAL_APPEARANCE_SCHEMA = 'bitfun.appearance';
+const LEGACY_APPEARANCE_SCHEMA_VERSION = 1;
+
+/**
+ * Bridge OpenBitFun-authored packages onto the canonical BitFun contract:
+ * accept the sibling schema id and upgrade legacy v1 manifests before
+ * validation. Read-only: the archive is rewritten in its canonical form.
+ */
+function normalizeIncomingManifest(rawManifest: unknown): unknown {
+  if (typeof rawManifest !== 'object' || rawManifest === null || Array.isArray(rawManifest)) {
+    return rawManifest;
+  }
+  const normalized: Record<string, unknown> = { ...(rawManifest as Record<string, unknown>) };
+  if (normalized.schema === OPENBITFUN_APPEARANCE_SCHEMA) {
+    normalized.schema = CANONICAL_APPEARANCE_SCHEMA;
+  }
+  return normalized.schemaVersion === LEGACY_APPEARANCE_SCHEMA_VERSION
+    ? migrateAppearancePackage(normalized)
+    : normalized;
+}
 
 interface ImageInfo {
   mimeType: Extract<AppearancePackageAsset, { kind: 'image' }>['mimeType'];
@@ -116,7 +138,10 @@ export class AppearancePackageParser {
     } catch (error) {
       throw new Error(`Appearance manifest is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const manifest = assertValidAppearancePackage(rawManifest, this.registry);
+    const manifest = assertValidAppearancePackage(
+      normalizeIncomingManifest(rawManifest),
+      this.registry,
+    );
     const declaredPaths = new Map<string, { id: string; definition: AppearancePackageAsset }>();
     Object.entries(manifest.assets ?? {}).forEach(([id, definition]) => {
       const path = definition.source.path;
