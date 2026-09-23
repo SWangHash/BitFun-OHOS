@@ -1046,6 +1046,7 @@ const CODE_AGENT_IDS: &[&str] = &[
     "GeneralPurpose",
     "GenerateDoc",
     "MemoryPhase2",
+    "QtMigration",
 ];
 const DEEP_REVIEW_AGENT_IDS: &[&str] = &[
     "ReviewWorker",
