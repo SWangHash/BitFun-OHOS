@@ -33,6 +33,7 @@ import {
 } from '@/infrastructure/peer-device/deviceSurface';
 import { canSubmitUserQuestionsOnSurface } from '@/infrastructure/peer-device/peerCapabilityResolution';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { pickWorkspaceDirectory } from '@/infrastructure/peer-device/pickWorkspaceDirectory';
 import { createLogger } from '@/shared/utils/logger';
 import type { FlowToolItem, ToolCardProps } from '../types/flow-chat';
 import {
@@ -401,8 +402,17 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
     for (let index = 0; index < questions.length; index += 1) {
       const answer = answers[index];
-      if (!answer) return false;
       const otherInput = otherInputs[index]?.trim() || '';
+      // A question that declares its own input accepts a typed or picked value
+      // on its own; its option list is a convenience, not a requirement.
+      if (questions[index]?.inputPlaceholder) {
+        const hasOption = Array.isArray(answer)
+          ? answer.some((value) => value !== OTHER_OPTION_VALUE || otherInput.length > 0)
+          : Boolean(answer);
+        if (otherInput.length === 0 && !hasOption) return false;
+        continue;
+      }
+      if (!answer) return false;
       if (
         Array.isArray(answer)
         && !answer.some((value) => value !== OTHER_OPTION_VALUE || otherInput.length > 0)
@@ -411,7 +421,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       if (answer === OTHER_OPTION_VALUE && otherInput.length === 0) return false;
     }
     return true;
-  }, [answers, otherInputs, questions.length]);
+  }, [answers, otherInputs, questions]);
 
   const handleSingleChange = useCallback((questionIndex: number, value: string) => {
     if (draftKey) {
@@ -507,6 +517,39 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     });
   }, [draftKey]);
 
+  // Open a native directory picker (or the in-app peer browser in Peer Device
+  // Mode) and fill the question's input with the selected folder. Falls back to
+  // manual typing when the dialog is unavailable (e.g. web preview).
+  const handleBrowsePath = useCallback(async (questionIndex: number, title: string) => {
+    const currentValue = otherInputs[questionIndex] || '';
+    let selected: string | null = null;
+    try {
+      selected = await pickWorkspaceDirectory({
+        title,
+        defaultPath: currentValue || undefined,
+      });
+    } catch (error) {
+      log.error('Path picker unavailable', { questionIndex, error });
+      return;
+    }
+    if (!selected) return;
+    // The picked path is the answer, so any option highlight is cleared.
+    handleOtherInputChange(questionIndex, selected, true);
+    const currentAnswer = answers[questionIndex];
+    if (Array.isArray(currentAnswer)) {
+      currentAnswer.forEach((value) => handleMultiChange(questionIndex, value, false));
+      return;
+    }
+    handleSingleChange(questionIndex, '');
+  }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, otherInputs]);
+
+  const handleBrowseCustomAnswer = useCallback((questionId: string) => {
+    const questionIndex = Number(questionId);
+    const question = questions[questionIndex];
+    if (!Number.isInteger(questionIndex) || !question) return;
+    void handleBrowsePath(questionIndex, localize(question.question));
+  }, [handleBrowsePath, localize, questions]);
+
   const handleSubmit = useCallback(async () => {
     if (!canAnswer || !isAllAnswered() || isSubmitting || isSubmitted) return;
     const scope = submissionScope.current;
@@ -536,7 +579,12 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         } else if (answer === OTHER_OPTION_VALUE) {
           if (otherInput) processedAnswers[answerKey] = otherInput;
         } else {
-          const value = answer || otherInput;
+          // A question that declares its own input owns the answer: the typed or
+          // picked value wins over an option highlight, mirroring the field that
+          // is always visible for that question.
+          const value = question?.inputPlaceholder
+            ? otherInput || answer
+            : answer || otherInput;
           if (value) processedAnswers[answerKey] = value;
         }
       }
@@ -665,7 +713,15 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
           : t('toolCards.askUser.pleaseSpecify'),
         value: OTHER_OPTION_VALUE,
       },
+      // The owner's field label is template-owned copy, so it is localized the
+      // same way as the prompt and the option labels.
+      header: question.header ? localize(question.header) : undefined,
       id: String(questionIndex),
+      // Declaring the placeholder keeps the answer field mounted for the whole
+      // question instead of only after the custom option is selected.
+      inputPlaceholder: question.inputPlaceholder
+        ? localize(question.inputPlaceholder)
+        : undefined,
       options: question.options.map((option) => ({
         description: localize(option.description),
         label: localize(option.label),
@@ -702,7 +758,10 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const getAnswerDisplay = useCallback((questionIndex: number): string => {
     const answer = getEffectiveAnswer(questionIndex);
     const otherInput = otherInputs[questionIndex] || '';
-    if (!answer) return '';
+    // A declared input owns the display; a typed or picked value is the answer
+    // even when no option is highlighted.
+    if (questions[questionIndex]?.inputPlaceholder && otherInput) return otherInput;
+    if (!answer) return otherInput;
     if (Array.isArray(answer)) {
       return answer.map((value) => (
         value === OTHER_OPTION_VALUE ? otherInput || OTHER_OPTION_VALUE : value
@@ -711,7 +770,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     return answer === OTHER_OPTION_VALUE
       ? otherInput || OTHER_OPTION_VALUE
       : String(answer);
-  }, [getEffectiveAnswer, otherInputs]);
+  }, [getEffectiveAnswer, otherInputs, questions]);
 
   const answersSummary = useMemo(
     () => questions.map((question, questionIndex) => {
@@ -797,6 +856,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     <AskUser
       answers={presentation.answers}
       aria-label={t('toolCards.askUser.questionsCount', { count: questions.length })}
+      browseCustomAnswerLabel={t('toolCards.askUser.browsePath')}
       customAnswers={presentation.customAnswers}
       data-tool-card-id={toolId ?? ''}
       disabled={!canAnswer}
@@ -822,6 +882,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       ) : undefined}
       onFocusCapture={handleInteraction}
       onAnswersChange={handleAnswersChange}
+      onBrowseCustomAnswer={handleBrowseCustomAnswer}
       onCustomAnswerChange={(questionId, value, meta) => {
         handleOtherInputChange(Number(questionId), value, meta.isComposing);
       }}

@@ -1,17 +1,43 @@
 @layer bitfun.components {
   .root {
+    position: relative;
     inline-size: 100%;
     min-inline-size: 0;
+    margin-block: var(--bitfun-space-1);
     overflow: hidden;
-    border: 0;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
     border-radius: var(--bitfun-radius-lg);
-    outline: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-    outline-offset: calc(-1 * var(--bitfun-border-width-default));
-    background: var(--bitfun-color-surface-panel);
+    background: var(--bitfun-color-surface-scene);
+    backdrop-filter: blur(10px);
     box-shadow: none;
     color: var(--bitfun-color-content-primary);
     font-family:var(--bitfun-type-body-md-font-family);
     line-height: var(--bitfun-type-heading-page-line-height);
+    transition:
+      border-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
+      box-shadow var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
+  }
+
+  /* Glass hairline: keeps the card edge legible when the scene behind it is
+     nearly the same surface colour. */
+  .root::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    block-size: var(--bitfun-border-width-default);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--bitfun-color-border-subtle) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  .root:hover {
+    border-color: var(--bitfun-color-border-strong);
+    box-shadow: var(--bitfun-shadow-lg);
   }
 
   .header,
@@ -29,8 +55,10 @@
     padding-block: var(--bitfun-control-ask-user-summary-padding-block);
     padding-inline: var(--bitfun-control-ask-user-summary-padding-inline-start);
     border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    color: var(--bitfun-color-content-secondary);
     font-size: var(--bitfun-type-body-sm-font-size);
-    font-weight: var(--bitfun-type-label-lg-font-weight);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    letter-spacing: var(--bitfun-type-flow-title-letter-spacing);
   }
 
   .headerTrailing {
@@ -104,7 +132,8 @@
   .summaryIcon > svg,
   .controlIcon > svg,
   .statusIcon > svg,
-  .summaryAction > svg {
+  .summaryAction > svg,
+  .browseButton > svg {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -157,7 +186,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-control-ask-user-body-gap);
-    padding: var(--bitfun-control-ask-user-body-padding);
+    padding-block: var(--bitfun-space-3);
+    padding-inline: var(--bitfun-space-3);
   }
 
   .question {
@@ -172,17 +202,44 @@
 
   .question + .question {
     padding-block-start: var(--bitfun-control-ask-user-body-gap);
-    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-block-start: var(--bitfun-border-width-default) dashed var(--bitfun-color-border-subtle);
   }
 
   .prompt {
-    display: block;
+    display: flex;
     inline-size: 100%;
+    align-items: center;
+    gap: var(--bitfun-space-2);
     padding-inline: var(--bitfun-control-ask-user-question-padding-inline);
     color: var(--bitfun-color-action-neutral-content);
     font-size: var(--bitfun-type-body-sm-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
     line-height: var(--bitfun-type-heading-page-line-height);
+  }
+
+  /* Owner-supplied field label: a quiet badge ahead of the prompt text. */
+  .questionHeader {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    padding-block: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-sm);
+    color: var(--bitfun-color-content-secondary);
+    background: var(--bitfun-color-surface-subtle);
+    font-family: var(--bitfun-type-overline-sm-font-family);
+    font-size: var(--bitfun-type-overline-sm-font-size);
+    font-weight: var(--bitfun-type-overline-sm-font-weight);
+    line-height: var(--bitfun-type-overline-sm-line-height);
+    letter-spacing: var(--bitfun-type-overline-sm-letter-spacing);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .promptText {
+    flex: 1 1 auto;
+    min-inline-size: 0;
   }
 
   .options {
@@ -200,16 +257,19 @@
     gap: var(--bitfun-control-ask-user-option-content-gap);
     padding-block: var(--bitfun-control-ask-user-option-padding-block);
     padding-inline: var(--bitfun-control-ask-user-option-padding-inline);
-    border-radius: var(--bitfun-radius-base);
-    background: var(--bitfun-color-surface-subtle);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-lg);
+    background: transparent;
     transition:
       background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-      box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .option:hover:not(:has(.nativeControl:disabled)),
-  .option:has(.nativeControl[data-bitfun-preview-state="hover"]) {
-    background: var(--bitfun-color-action-neutral-surface-hover);
+  .option:has(.nativeControl[data-bitfun-preview-state="hover"]),
+  .option[data-selected="true"] {
+    border-color: var(--bitfun-color-border-strong);
+    background: var(--bitfun-color-surface-subtle);
   }
 
   .option:has(.nativeControl:focus-visible) {
@@ -229,7 +289,8 @@
     display: flex;
     flex: 1 1 auto;
     min-inline-size: 0;
-    align-items: center;
+    /* The control tracks the label line, not the two-line block center. */
+    align-items: flex-start;
     gap: var(--bitfun-control-ask-user-option-content-gap);
     cursor: pointer;
   }
@@ -250,9 +311,9 @@
     display: flex;
     flex: 1 1 auto;
     min-inline-size: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--bitfun-space-4);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--bitfun-space-1);
   }
 
   .optionLabel,
@@ -276,18 +337,93 @@
     color: var(--bitfun-color-content-muted);
     font-weight: var(--bitfun-type-body-md-font-weight);
     line-height: var(--bitfun-type-body-sm-line-height);
-    text-align: end;
+    text-align: start;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .customInput {
+    display: flex;
     flex: 1 1 var(--bitfun-control-ask-user-description-max-width);
     max-inline-size: var(--bitfun-control-ask-user-description-max-width);
     min-inline-size: 180px;
+    align-items: stretch;
+    gap: var(--bitfun-space-1);
   }
 
-  .customInput > :global([data-bitfun-component="input"]) {
+  /* A question that declares its own input owns a full-width row below the
+     options instead of a trailing slot inside the custom option. */
+  .customInputRow {
+    flex: 1 1 auto;
     inline-size: 100%;
+    max-inline-size: none;
+    min-inline-size: 0;
+  }
+
+  .customInputField {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    padding-block: var(--bitfun-space-2);
+    padding-inline: var(--bitfun-space-3);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-lg);
+    color: var(--bitfun-color-content-primary);
+    background: transparent;
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .customInputField::placeholder {
+    color: var(--bitfun-color-field-placeholder);
+    opacity: 1;
+  }
+
+  .customInputField:focus {
+    border-color: var(--bitfun-color-field-border-active);
+  }
+
+  .customInputField:disabled {
+    color: var(--bitfun-color-content-disabled);
+    cursor: default;
+  }
+
+  .browseButton {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding-block: 0;
+    padding-inline: var(--bitfun-space-2);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-radius-lg);
+    color: var(--bitfun-color-content-secondary);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .browseButton:hover:not(:disabled) {
+    border-color: var(--bitfun-color-border-strong);
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .browseButton:disabled {
+    color: var(--bitfun-color-content-disabled);
+    cursor: default;
+  }
+
+  .browseButton > svg {
+    inline-size: var(--bitfun-control-ask-user-icon-size);
+    block-size: var(--bitfun-control-ask-user-icon-size);
   }
 
   .root[data-disabled="true"] .option {
@@ -381,13 +517,14 @@
   }
 
   :global([data-density="touch"]) .summaryButton,
-  :global([data-density="touch"]) .option {
+  :global([data-density="touch"]) .option,
+  :global([data-density="touch"]) .customInputField,
+  :global([data-density="touch"]) .browseButton {
     min-block-size: var(--bitfun-control-hit-target);
   }
 
   @media (max-width: 640px) {
-    .option,
-    .optionSelector {
+    .option {
       align-items: flex-start;
     }
 
@@ -395,15 +532,8 @@
       flex-wrap: wrap;
     }
 
-    .optionContent {
-      display: block;
-    }
-
     .optionDescription {
-      display: block;
       max-inline-size: none;
-      margin-block-start: var(--bitfun-space-1);
-      text-align: start;
       white-space: normal;
     }
 
@@ -412,9 +542,14 @@
       max-inline-size: none;
       margin-inline-start: calc(var(--bitfun-control-ask-user-icon-size) + var(--bitfun-control-ask-user-option-content-gap));
     }
+
+    .customInputRow {
+      margin-inline-start: 0;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .root,
     .details,
     .option {
       transition: none;
@@ -433,6 +568,10 @@
       border: var(--bitfun-border-width-default) solid CanvasText;
       outline: 0;
       box-shadow: none;
+    }
+
+    .root::before {
+      background: none;
     }
 
     .option {
