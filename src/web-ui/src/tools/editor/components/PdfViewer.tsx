@@ -26,6 +26,10 @@ import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  installTypedArrayPolyfills,
+  TYPED_ARRAY_POLYFILL_SOURCE,
+} from '@/shared/utils/typedArrayPolyfills';
 import './PdfViewer.scss';
 
 const log = createLogger('PdfViewer');
@@ -47,11 +51,17 @@ const PDF_GLYPH_HEIGHT_PROPERTY = '--bitfun-pdf-glyph-height';
 // makes every PDF load fail. Prefer a same-origin blob worker built from the
 // worker source bundled at build time, and fall back to the emitted asset URL
 // if blob URLs are unavailable.
+// pdf.js >= 5.4 also relies on the ES2025 Uint8Array to/from base64 & hex
+// methods (`toHex` is used while computing the document fingerprint, inside
+// the worker). Embedded WebViews with older JS engines lack these natively, so
+// install the polyfills on the main thread and prepend them to the worker
+// source before creating the blob.
+installTypedArrayPolyfills();
 let resolvedWorkerSrc = pdfWorkerUrl;
 try {
   if (typeof Blob !== 'undefined' && typeof URL?.createObjectURL === 'function') {
     resolvedWorkerSrc = URL.createObjectURL(
-      new Blob([pdfWorkerSource], { type: 'text/javascript' }),
+      new Blob([TYPED_ARRAY_POLYFILL_SOURCE + pdfWorkerSource], { type: 'text/javascript' }),
     );
   }
 } catch (error) {
