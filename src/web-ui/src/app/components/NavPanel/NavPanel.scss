@@ -1623,6 +1623,7 @@ $_section-header-height: 22px;
 
 .bitfun-nav-panel__footer-menu-wrap {
   position: relative;
+  z-index: 2;
 }
 
 // Hover-open subtle glow on the main button
