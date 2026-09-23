@@ -611,32 +611,39 @@ describe('AskUserQuestionCard', () => {
       status: 'waiting',
       toolCall: {
         id: 'question-call-1',
-        input: {
-          resolvedQuestions: [
-            {
-              field: 'source_project',
-              header: 'askUser.qtMigration.field.sourceProject',
-              question: 'askUser.qtMigration.question.sourceProject',
-              inputPlaceholder: 'askUser.qtMigration.placeholder.sourceProject',
-              options: [
-                { label: 'askUser.qtMigration.option.default', description: 'D:/work/myqt' },
-              ],
-            },
-            {
-              field: 'toolchain',
-              header: 'askUser.qtMigration.field.toolchain',
-              question: 'askUser.qtMigration.question.toolchain',
-              inputPlaceholder: 'askUser.qtMigration.placeholder.toolchain',
-              options: [
-                {
-                  label: 'askUser.qtMigration.option.officialToolchain',
-                  description: 'askUser.qtMigration.option.officialDescription',
-                  value: '__official__',
-                },
-              ],
-            },
-          ],
-        },
+        // Runtime shape: the model sends only the template id. The resolved
+        // questions arrive on `questionRequest` from the ToolAwaitingUserInput
+        // event; routing them through `toolCall.input` here is what used to
+        // hide the card's missing envelope read.
+        input: { templateId: 'qt-migration-paths' },
+      },
+      questionRequest: {
+        templateId: 'qt-migration-paths',
+        templateVersion: '1',
+        resolvedQuestions: [
+          {
+            field: 'source_project',
+            header: 'askUser.qtMigration.field.sourceProject',
+            question: 'askUser.qtMigration.question.sourceProject',
+            inputPlaceholder: 'askUser.qtMigration.placeholder.sourceProject',
+            options: [
+              { label: 'askUser.qtMigration.option.default', description: 'D:/work/myqt' },
+            ],
+          },
+          {
+            field: 'toolchain',
+            header: 'askUser.qtMigration.field.toolchain',
+            question: 'askUser.qtMigration.question.toolchain',
+            inputPlaceholder: 'askUser.qtMigration.placeholder.toolchain',
+            options: [
+              {
+                label: 'askUser.qtMigration.option.officialToolchain',
+                description: 'askUser.qtMigration.option.officialDescription',
+                value: '__official__',
+              },
+            ],
+          },
+        ],
       },
     };
   }

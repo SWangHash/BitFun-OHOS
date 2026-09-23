@@ -253,10 +253,16 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const failed = status === 'error' || toolResult?.success === false;
   const endedWithoutAnswer = timedOut || cancelled || rejected || failed;
   const finished = status === 'completed' || endedWithoutAnswer;
-  const questions = useMemo(
-    () => normalizeQuestionsFromParams(paramsSource),
-    [paramsSource],
-  );
+  // Template-backed requests arrive on `questionRequest` as the
+  // ToolAwaitingUserInput envelope the backend resolved; the raw model params
+  // only carry `templateId`, so reading them alone yields zero questions and an
+  // unusable card. Plain (non-template) questions keep using the model params.
+  const questions = useMemo(() => {
+    const fromEnvelope = normalizeQuestionsFromParams(toolItem.questionRequest);
+    return fromEnvelope.length > 0
+      ? fromEnvelope
+      : normalizeQuestionsFromParams(paramsSource);
+  }, [paramsSource, toolItem.questionRequest]);
   const awaitingPayload = !finished && isAwaitingQuestionPayload(
     isParamsStreaming,
     status,
