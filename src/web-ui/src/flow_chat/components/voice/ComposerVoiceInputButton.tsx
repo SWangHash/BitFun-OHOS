@@ -216,6 +216,12 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputButto
             {formatElapsedTime(elapsedSeconds)}
           </span>
 
+          {recording ? (
+           <span className="bitfun-chat-input__voice-pill-recording-label">
+              {controller.recordingLabel}
+            </span>
+          ) : null}
+
           <span
             className={`bitfun-chat-input__voice-pill-timeline${recording ? '' : ' bitfun-chat-input__voice-pill-timeline--paused'}`}
             data-bitfun-component="composer-voice-input"
@@ -239,7 +245,24 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputButto
             })}
           </span>
 
-          <span className="bitfun-chat-input__voice-pill-divider" data-bitfun-component="composer-voice-input" data-bitfun-part="divider" aria-hidden="true" />
+           <span className="bitfun-chat-input__voice-pill-divider" data-bitfun-component="composer-voice-input" data-bitfun-part="divider" aria-hidden="true" />
+
+          {recording ? (
+            <span className="bitfun-chat-input__voice-pill-action-shell" data-bitfun-component="composer-voice-input" data-bitfun-part="action" data-bitfun-action="stop">
+              <Tooltip content={controller.tooltip}>
+                <ChatComposerActionButton
+                  aria-label={controller.tooltip}
+                  className="bitfun-chat-input__voice-pill-action"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    controller.transcribe();
+                  }}
+                  icon={<Icon name="mic" size="md" />}
+                  variant="quiet"
+                />
+              </Tooltip>
+            </span>
+          ) : null}
 
           <span className="bitfun-chat-input__voice-pill-action-shell" data-bitfun-component="composer-voice-input" data-bitfun-part="action" data-bitfun-action="cancel" data-bitfun-state={transcribing ? 'disabled' : undefined}>
             <Tooltip content={controller.cancelTooltip}>

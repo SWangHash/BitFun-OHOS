@@ -212,6 +212,12 @@
   line-height: var(--bitfun-type-modifier-leading-none-line-height);
 }
 
+.bitfun-chat-input__voice-pill-recording-label {
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-support-font-size);
+  white-space: nowrap;
+}
+
 .bitfun-chat-input__voice-pill-timeline {
   position: relative;
   display: grid;

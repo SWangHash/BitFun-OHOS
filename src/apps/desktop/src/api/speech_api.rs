@@ -1,6 +1,8 @@
 //! Desktop adapter for local speech input.
 
 use crate::api::AppState;
+#[cfg(target_env = "ohos")]
+use bitfun_core::util::ohos_speech_call;
 use bitfun_core_types::speech::{
     SpeechAppendAudioChunkRequest, SpeechAppendAudioChunkResponse,
     SpeechAppendRealtimeAudioRequest, SpeechCancelInputSessionRequest,
@@ -18,6 +20,13 @@ use bitfun_events::{
 use bitfun_services_integrations::speech::VolcengineRealtimeSpeechConfig;
 use tauri::{AppHandle, Emitter, State};
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_list_models() -> Result<SpeechListModelsResponse, String> {
+    Ok(SpeechListModelsResponse { models: Vec::new() })
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_list_models(
     state: State<'_, AppState>,
@@ -29,6 +38,16 @@ pub async fn speech_list_models(
         .map_err(|error| format!("Failed to list speech models: {error}"))
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_download_model(
+    request: SpeechDownloadModelRequest,
+) -> Result<SpeechModelStatus, String> {
+    let _ = request;
+    Err("Speech model management is not supported on HarmonyOS".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_download_model(
     state: State<'_, AppState>,
@@ -49,6 +68,16 @@ pub async fn speech_download_model(
     Ok(status)
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_cancel_model_download(
+    request: SpeechCancelModelDownloadRequest,
+) -> Result<SpeechModelStatus, String> {
+    let _ = request;
+    Err("Speech model management is not supported on HarmonyOS".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_cancel_model_download(
     state: State<'_, AppState>,
@@ -64,6 +93,16 @@ pub async fn speech_cancel_model_download(
     Ok(status)
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_delete_model(
+    request: SpeechDeleteModelRequest,
+) -> Result<SpeechModelStatus, String> {
+    let _ = request;
+    Err("Speech model management is not supported on HarmonyOS".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_delete_model(
     state: State<'_, AppState>,
@@ -79,6 +118,16 @@ pub async fn speech_delete_model(
     Ok(status)
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_verify_model(
+    request: SpeechVerifyModelRequest,
+) -> Result<SpeechModelStatus, String> {
+    let _ = request;
+    Err("Speech model management is not supported on HarmonyOS".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_verify_model(
     state: State<'_, AppState>,
@@ -94,6 +143,24 @@ pub async fn speech_verify_model(
     Ok(status)
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_start_input_session(
+    request: SpeechStartInputSessionRequest,
+) -> Result<SpeechInputSession, String> {
+    let payload = serde_json::to_string(&request)
+        .map_err(|error| format!("Failed to encode speech start request: {error}"))?;
+    let response = ohos_speech_call("ohos_speech_start", &payload).await?;
+    let value: serde_json::Value = serde_json::from_str(&response)
+        .map_err(|error| format!("Invalid speech start response from ArkTS: {error}"))?;
+    if let Some(error) = value.get("__error").and_then(serde_json::Value::as_str) {
+        return Err(error.to_string());
+    }
+    serde_json::from_str(&response)
+        .map_err(|error| format!("Invalid speech start response from ArkTS: {error}"))
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_start_input_session(
     state: State<'_, AppState>,
@@ -106,6 +173,19 @@ pub async fn speech_start_input_session(
         .map_err(|error| format!("Failed to start speech input session: {error}"))
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_append_audio_chunk(
+    request: SpeechAppendAudioChunkRequest,
+) -> Result<SpeechAppendAudioChunkResponse, String> {
+    let payload = serde_json::to_string(&request)
+        .map_err(|error| format!("Failed to encode speech append request: {error}"))?;
+    let response = ohos_speech_call("ohos_speech_append", &payload).await?;
+    serde_json::from_str(&response)
+        .map_err(|error| format!("Invalid speech append response from ArkTS: {error}"))
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_append_audio_chunk(
     state: State<'_, AppState>,
@@ -118,6 +198,19 @@ pub async fn speech_append_audio_chunk(
         .map_err(|error| format!("Failed to append speech audio chunk: {error}"))
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_finish_input_session(
+    request: SpeechFinishInputSessionRequest,
+) -> Result<SpeechTranscriptionResult, String> {
+    let payload = serde_json::to_string(&request)
+        .map_err(|error| format!("Failed to encode speech finish request: {error}"))?;
+    let response = ohos_speech_call("ohos_speech_finish", &payload).await?;
+    serde_json::from_str(&response)
+        .map_err(|error| format!("Invalid speech finish response from ArkTS: {error}"))
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_finish_input_session(
     state: State<'_, AppState>,
@@ -130,6 +223,18 @@ pub async fn speech_finish_input_session(
         .map_err(|error| format!("Failed to transcribe speech input: {error}"))
 }
 
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_cancel_input_session(
+    request: SpeechCancelInputSessionRequest,
+) -> Result<(), String> {
+    let payload = serde_json::to_string(&request)
+        .map_err(|error| format!("Failed to encode speech cancel request: {error}"))?;
+    let _ = ohos_speech_call("ohos_speech_cancel", &payload).await?;
+    Ok(())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_cancel_input_session(
     state: State<'_, AppState>,

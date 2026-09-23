@@ -65,6 +65,7 @@ vi.mock('@/infrastructure/config/hooks', () => ({
 
 vi.mock('@/infrastructure/runtime', () => ({
   isTauriRuntime: () => true,
+  isOpenHarmonyRuntime: () => false,
 }));
 
 vi.mock('@/app/stores/sceneStore', () => ({
@@ -104,7 +105,9 @@ vi.mock('@/infrastructure/speech/voiceInputAudio', () => ({
 
 interface ProbeProps {
   focusInputSoon: () => void;
+  getCurrentText: () => string;
   insertText: (text: string) => string | null;
+  replaceText: (text: string) => void;
   submitText: (text: string) => Promise<void>;
   onController: (controller: ComposerVoiceInputController) => void;
 }
@@ -150,6 +153,8 @@ describe('useComposerVoiceInput completion modes', () => {
   let focusInputSoon: ReturnType<typeof vi.fn>;
   let insertText: ReturnType<typeof vi.fn>;
   let submitText: ReturnType<typeof vi.fn>;
+  let getCurrentText: ReturnType<typeof vi.fn>;
+  let replaceText: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     mocks.voiceInputSettings = {
@@ -192,6 +197,8 @@ describe('useComposerVoiceInput completion modes', () => {
     mocks.notificationError.mockClear();
     focusInputSoon = vi.fn();
     insertText = vi.fn(() => 'Existing draft Transcribed request');
+    getCurrentText = vi.fn(() => 'Existing draft');
+    replaceText = vi.fn();
     submitText = vi.fn(async () => undefined);
     controller = undefined;
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -206,7 +213,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -281,7 +290,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -373,7 +384,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -395,7 +408,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,
@@ -410,7 +425,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
+          replaceText={replaceText}
           submitText={submitText}
           onController={(next) => { controller = next; }}
         />,

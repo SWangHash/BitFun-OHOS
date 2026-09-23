@@ -61,9 +61,10 @@ describe('ComposerVoiceInputButton', () => {
     const cancel = container.querySelector<HTMLButtonElement>('[data-bitfun-action="cancel"] button');
     const transcribe = container.querySelector<HTMLButtonElement>('[data-bitfun-action="transcribe"] button');
     const send = container.querySelector<HTMLButtonElement>('[data-bitfun-action="send"] button');
+    const stop = container.querySelector<HTMLButtonElement>('[data-bitfun-action="stop"] button');
     const actionShells = container.querySelectorAll<HTMLElement>('[data-bitfun-part="action"]');
 
-    expect(actionShells).toHaveLength(3);
+    expect(actionShells).toHaveLength(4);
     actionShells.forEach((actionShell) => {
       expect(actionShell.classList.contains('bitfun-chat-input__voice-pill-action-shell')).toBe(true);
     });
@@ -90,5 +91,6 @@ describe('ComposerVoiceInputButton', () => {
         bitfunVariant: 'primary',
       }),
     });
+    expect(stop).toBeTruthy();
   });
 });

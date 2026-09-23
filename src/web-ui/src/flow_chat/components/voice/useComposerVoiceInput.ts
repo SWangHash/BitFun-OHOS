@@ -8,7 +8,7 @@ import {
   type SpeechModelStatus,
 } from '@/infrastructure/api';
 import { useAIExperienceSettings } from '@/infrastructure/config/hooks';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { notificationService } from '@/shared/notification-system';
@@ -45,6 +45,7 @@ export interface ComposerVoiceInputController {
   setupCancelTooltip: string;
   lowVolumeTooltip: string;
   tooltip: string;
+  recordingLabel: string;
   cancelTooltip: string;
   transcribeTooltip: string;
   sendTooltip: string;
@@ -58,7 +59,9 @@ export interface ComposerVoiceInputController {
 
 export interface UseComposerVoiceInputOptions {
   focusInputSoon: () => void;
+  getCurrentText: () => string;
   insertText: (text: string) => string | null;
+  replaceText: (text: string) => void;
   submitText: (text: string) => Promise<void>;
 }
 
@@ -95,7 +98,9 @@ function estimatePcm16Base64Seconds(pcm16Base64: string, sampleRate: number): nu
 
 export function useComposerVoiceInput({
   focusInputSoon,
+  getCurrentText,
   insertText,
+  replaceText,
   submitText,
 }: UseComposerVoiceInputOptions): ComposerVoiceInputController {
   const { t } = useTranslation('flow-chat');
@@ -123,6 +128,9 @@ export function useComposerVoiceInput({
   const bufferedSecondsRef = useRef(0);
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const recordingLimitTimerRef = useRef<number | null>(null);
+  const liveTextBaseRef = useRef<string | null>(null);
+  const liveTextRef = useRef('');
+  const liveDraftRef = useRef<string | null>(null);
   const lowVolumeStartedAtRef = useRef<number | null>(null);
   const speechRuntimeSupported = isTauriRuntime();
   const selectedModelCapability = selectedProvider === 'local'
@@ -209,6 +217,22 @@ export function useComposerVoiceInput({
       removeProgressListener();
     };
   }, [refreshCapability, selectedModelId, selectedProvider, speechRuntimeSupported]);
+
+  useEffect(() => {
+    if (!isOpenHarmonyRuntime()) return undefined;
+    return speechAPI.onTranscription(event => {
+      const session = sessionRef.current;
+      if (!session || event.sessionId !== session.sessionId) return;
+      liveTextRef.current = event.text;
+      const baseText = liveTextBaseRef.current ?? '';
+       const nextText = baseText.trim().length > 0 ? `${baseText.trimEnd()} ${event.text}` : event.text;
+       const currentText = getCurrentText();
+       if (liveDraftRef.current === null || currentText === liveDraftRef.current) {
+         replaceText(nextText);
+         liveDraftRef.current = nextText;
+       }
+     });
+  }, [getCurrentText, replaceText]);
 
   useEffect(() => {
     if (phase !== 'setup' || modelInstalled !== true) return;
@@ -423,7 +447,7 @@ export function useComposerVoiceInput({
     let session = sessionRef.current;
     const sessionPromise = sessionPromiseRef.current;
     const recorder = recorderRef.current;
-    if (!recorder || (!session && !sessionPromise)) {
+     if ((!recorder && !isOpenHarmonyRuntime()) || (!session && !sessionPromise)) {
       setPhase('idle');
       return;
     }
@@ -436,7 +460,7 @@ export function useComposerVoiceInput({
     setAudioLevel(0);
     try {
       recorderRef.current = null;
-      await recorder.stop();
+       await recorder?.stop();
       if (!session && sessionPromise) {
         session = await sessionPromise;
         attachSession(session, activeRecordingIdRef.current);
@@ -452,7 +476,13 @@ export function useComposerVoiceInput({
       const result = await speechAPI.finishInputSession(session.sessionId);
       const text = result.text.trim();
       if (text) {
-        const mergedText = insertText(text);
+        const baseText = liveTextBaseRef.current ?? '';
+        const mergedText = liveTextRef.current.length > 0
+          ? (baseText.trim().length > 0 ? `${baseText.trimEnd()} ${text}` : text)
+          : insertText(text);
+        if (liveTextRef.current.length > 0) {
+          replaceText(mergedText ?? text);
+        }
         if (mode === 'send' && mergedText) {
           await submitText(mergedText);
         } else {
@@ -488,24 +518,25 @@ export function useComposerVoiceInput({
       setCompletionMode(null);
       setPhase('idle');
     }
-  }, [attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, submitText, t]);
+  }, [attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, replaceText, submitText, t]);
 
   const startRecording = useCallback(async (skipModelCheck = false) => {
     if (!settings?.enabled) {
       notificationService.info(t('input.voiceInput.disabled'));
       return;
     }
-    if (!speechRuntimeSupported || !isMediaCaptureSupported()) {
+    const openHarmony = isOpenHarmonyRuntime();
+    if (!speechRuntimeSupported || (!openHarmony && !isMediaCaptureSupported())) {
       notificationService.error(t('input.voiceInput.unsupported'));
       return;
     }
-    if (settings.provider === 'cloud') {
+    if (!openHarmony && settings.provider === 'cloud') {
       notificationService.info(t('input.voiceInput.cloudPending'));
       openVoiceInputSettings();
       return;
     }
 
-    if (!skipModelCheck) {
+    if (!openHarmony && !skipModelCheck) {
       let installed = modelInstalled;
       if (installed === null) {
         setPhase('preparing');
@@ -520,6 +551,9 @@ export function useComposerVoiceInput({
 
     setPhase('preparing');
     setCompletionMode(null);
+    liveTextBaseRef.current = null;
+    liveTextRef.current = '';
+    liveDraftRef.current = null;
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
     const recordingId = activeRecordingIdRef.current + 1;
@@ -537,8 +571,9 @@ export function useComposerVoiceInput({
 
     try {
       const voiceSettings = settings;
+      liveTextBaseRef.current = getCurrentText();
       log.debug('Voice input startup requested', { modelInstalled });
-      const recorder = await createVoiceInputRecorder({
+      const recorder = openHarmony ? null : await createVoiceInputRecorder({
         targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
         chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
         microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
@@ -555,7 +590,7 @@ export function useComposerVoiceInput({
         },
       });
       if (activeRecordingIdRef.current !== recordingId) {
-        await recorder.stop().catch(error => {
+        await recorder?.stop().catch(error => {
           log.warn('Failed to stop stale voice recorder', { error });
         });
         return;
@@ -563,7 +598,7 @@ export function useComposerVoiceInput({
       recorderRef.current = recorder;
       setPhase('recording');
       recordingLimitTimerRef.current = window.setTimeout(() => {
-        if (activeRecordingIdRef.current === recordingId && recorderRef.current) {
+        if (activeRecordingIdRef.current === recordingId && (recorderRef.current || openHarmony)) {
           void stopAndTranscribe('transcribe');
         }
       }, voiceSettings.max_recording_seconds * 1000);
@@ -657,7 +692,7 @@ export function useComposerVoiceInput({
       setAudioLevel(0);
       setPhase('idle');
     }
-  }, [attachSession, enqueueChunk, markSelectedModelMissing, modelInstalled, openVoiceInputSettings, refreshCapability, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
+  }, [attachSession, enqueueChunk, getCurrentText, markSelectedModelMissing, modelInstalled, openVoiceInputSettings, refreshCapability, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
 
   const installAndStart = useCallback(async () => {
     if (selectedProvider !== 'local' || phase !== 'setup') return;
@@ -747,7 +782,7 @@ export function useComposerVoiceInput({
   const disabled = phase === 'preparing' || phase === 'transcribing';
   const tooltip = useMemo(() => {
     if (!settings?.enabled) return t('input.voiceInput.disabled');
-    if (!speechRuntimeSupported || !isMediaCaptureSupported()) return t('input.voiceInput.unsupported');
+     if (!speechRuntimeSupported || (!isOpenHarmonyRuntime() && !isMediaCaptureSupported())) return t('input.voiceInput.unsupported');
     if (settings.provider === 'cloud') return t('input.voiceInput.cloudPending');
     if (phase === 'setup') return t('input.voiceInput.setupTooltip');
     if (phase === 'downloading') return t('input.voiceInput.downloadingTooltip');
@@ -780,6 +815,7 @@ export function useComposerVoiceInput({
     setupCancelTooltip: t('input.voiceInput.cancelSetup'),
     lowVolumeTooltip: t('input.voiceInput.lowVolume'),
     tooltip,
+    recordingLabel: t('input.voiceInput.recording'),
     cancelTooltip: t('input.cancelShortcut'),
     transcribeTooltip: t('input.voiceInput.transcribeOnly'),
     sendTooltip: t('input.voiceInput.transcribeAndSend'),

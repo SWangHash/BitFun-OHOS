@@ -815,8 +815,8 @@ export default class EntryAbility extends RustAbility {
     RustModule.registerArktsFunction('ohos_speech_finish', async (err: Error, arg: string): Promise<string> => {
       return await this.voiceInputService.finish(arg);
     });
-    RustModule.registerArktsFunction('ohos_speech_cancel', async (err: Error, _arg: string): Promise<string> => {
-      return await this.voiceInputService.cancel('');
+    RustModule.registerArktsFunction('ohos_speech_cancel', async (err: Error, arg: string): Promise<string> => {
+      return await this.voiceInputService.cancel(arg);
     });
     // Share a BitFun-generated/exported file with a nearby HarmonyOS device
     // through the system Share Kit. `arg` is a JSON `FileShareRequest`

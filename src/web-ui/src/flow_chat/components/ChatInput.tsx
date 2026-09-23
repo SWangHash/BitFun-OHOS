@@ -5861,6 +5861,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       });
       return mergedText;
     },
+    getCurrentText: () => inputState.value,
+    replaceText: (text) => {
+      dispatchInput({
+        type: 'SET_VALUE',
+        payload: text,
+      });
+    },
     submitText: async (text) => {
       await handleSendOrCancel(text);
     },
