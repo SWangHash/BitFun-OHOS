@@ -158,9 +158,9 @@ impl AgentRegistry {
     pub(crate) fn observability_mode_class(
         &self,
         agent_type: &str,
-        workspace_root: Option<&Path>,
+        workspace_id: Option<&str>,
     ) -> bitfun_observability::domains::AgentModeClass {
-        let Some(entry) = self.find_agent_entry(agent_type, workspace_root) else {
+        let Some(entry) = self.find_agent_entry(agent_type, workspace_id) else {
             return bitfun_observability::domains::AgentModeClass::Other;
         };
         crate::agentic::observability::agent_mode_class(

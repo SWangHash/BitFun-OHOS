@@ -74,7 +74,7 @@ export async function sessionWorkspaceIdRequest(workspaceId: string) {
  * validation remain with the profile owner; migration never repairs user data.
  */
 export function migrateLegacyTerminalProfiles(
-  storage: Storage,
+  storage: Pick<Storage, 'getItem' | 'setItem'>,
   prefix: string,
   targetKey: string,
   reference: { surfaceId: string; workspaceId: string },

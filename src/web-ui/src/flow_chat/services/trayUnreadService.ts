@@ -1,4 +1,4 @@
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { createLogger } from '@/shared/utils/logger';
 import { flowChatStore } from '../store/FlowChatStore';
@@ -28,7 +28,8 @@ export function countUnreadSessions(sessions: Iterable<Session>): number {
 
 /** Reuse persisted receipts and the selected surface's session projection. */
 export function installTrayUnreadService(): () => void {
-  if (!isTauriRuntime()) return () => {};
+  // HarmonyOS has no tray; never issue the native call there.
+  if (!isTauriRuntime() || isOpenHarmonyRuntime()) return () => {};
   let disposed = false;
   let sent: number | undefined;
   let running = false;

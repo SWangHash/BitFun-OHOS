@@ -209,7 +209,9 @@ async fn probe_endpoint_throughput(client: &reqwest::Client, url: &str) -> u64 {
 /// Build an updater whose endpoints are ordered by measured throughput.
 /// Falls back to the bundled configuration if the builder rejects them.
 #[cfg(not(target_env = "ohos"))]
-pub(super) async fn ranked_updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+pub(super) async fn ranked_updater(
+    app: &AppHandle,
+) -> Result<tauri_plugin_updater::Updater, String> {
     let endpoints = updater_endpoints_by_policy().await;
     let builder = app.updater_builder();
     let builder = match builder.endpoints(endpoints) {
@@ -1017,13 +1019,17 @@ pub struct SetTrayUnreadCountRequest {
 }
 
 #[tauri::command]
-pub async fn set_tray_unread_count(request: SetTrayUnreadCountRequest) -> Result<(), String> {
+pub async fn set_tray_unread_count(
+    app: tauri::AppHandle,
+    request: SetTrayUnreadCountRequest,
+) -> Result<(), String> {
     #[cfg(not(target_env = "ohos"))]
     {
-        crate::tray::set_unread_count(request.count)
+        crate::tray::set_unread_count(&app, request.count)
     }
     #[cfg(target_env = "ohos")]
     {
+        let _ = app;
         let _ = request;
         Err("Do not support the tray unread count on HarmonyOS".to_string())
     }

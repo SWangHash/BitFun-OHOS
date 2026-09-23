@@ -3100,7 +3100,7 @@ impl ExecutionEngine {
                 context
                     .workspace
                     .as_ref()
-                    .map(|workspace| workspace.root_path()),
+                    .and_then(|workspace| workspace.workspace_id.as_deref()),
             )
             .await;
         let mode_class = agent_registry.observability_mode_class(
@@ -3108,7 +3108,7 @@ impl ExecutionEngine {
             context
                 .workspace
                 .as_ref()
-                .map(|workspace| workspace.root_path()),
+                .and_then(|workspace| workspace.workspace_id.as_deref()),
         );
         let debug_enabled = self.telemetry.is_debug_enabled();
         let (user_content_length, user_content) = {
@@ -5195,10 +5195,10 @@ impl ExecutionEngine {
         let duration_ms = elapsed_ms_u64(start_time);
 
         let (turn_diff, modified_file_paths) = if let Some(workspace) = context.workspace.as_ref() {
-            if let Some(manager) =
-                crate::service::snapshot::manager::get_snapshot_manager_for_workspace(
-                    workspace.root_path(),
-                )
+            if let Some(manager) = workspace
+                .workspace_id
+                .as_deref()
+                .and_then(crate::service::snapshot::manager::get_snapshot_manager_for_workspace)
             {
                 let turn_diff = manager
                     .turn_diff_aggregate(&context.session_id, context.turn_index)

@@ -42,6 +42,9 @@ product wiring and compatibility bridges in `src/crates/assembly/core`.
 ## Local rules
 
 - Keep desktop-only integrations here; do not move them into shared core
+- On the OHOS target, main-process startup code runs on the main thread with no
+  entered tokio runtime context, so bare `tokio::spawn` panics. Startup and
+  restore wiring must spawn async tasks with `tauri::async_runtime::spawn`.
 - Window lifecycle behavior, including close/minimize-to-tray defaults, is a
   desktop surface concern. Preserve saved user preferences when changing it.
 - `window_state_support` owns main-window geometry validation and atomic

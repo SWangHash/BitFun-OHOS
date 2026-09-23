@@ -34,6 +34,9 @@ crate；`src/crates/assembly/core` 只保留产品装配与兼容桥接。
 ## 本模块规则
 
 - 桌面端专属集成留在这里，不要下沉到共享 core
+- 在 OHOS 目标上，主进程启动代码运行在没有进入 tokio runtime 上下文的主线程，
+  裸 `tokio::spawn` 会 panic。启动/恢复装配路径必须用 `tauri::async_runtime::spawn`
+  启动异步任务。
 - 窗口 lifecycle 行为（包括 close/minimize-to-tray 默认值）属于桌面端 surface；修改时必须保留用户已保存偏好。
 - `window_state_support` 负责主窗口布局校验，并沿用旧 `.window-state.json` 格式原子保存。
   不要同时注册 window-state 插件，其退出时写入的缓存可能覆盖修复结果。

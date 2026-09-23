@@ -39,9 +39,10 @@ pub(crate) fn completion_from_error(error: &BitFunError) -> CompletionFacts {
 
 pub(crate) fn tool_completion_from_error(error: &BitFunError) -> CompletionFacts {
     match error {
-        BitFunError::Tool(_) | BitFunError::Validation(_) | BitFunError::NotFound(_) => {
-            CompletionFacts::failed(SafeErrorType::ToolValidation)
-        }
+        BitFunError::Tool(_)
+        | BitFunError::ClassifiedTool { .. }
+        | BitFunError::Validation(_)
+        | BitFunError::NotFound(_) => CompletionFacts::failed(SafeErrorType::ToolValidation),
         _ => completion_from_error(error),
     }
 }
@@ -49,9 +50,10 @@ pub(crate) fn tool_completion_from_error(error: &BitFunError) -> CompletionFacts
 pub(crate) fn tool_failure_from_error(error: &BitFunError) -> (CompletionFacts, ToolFailureSource) {
     let completion = tool_completion_from_error(error);
     let source = match error {
-        BitFunError::Tool(_) | BitFunError::Validation(_) | BitFunError::NotFound(_) => {
-            ToolFailureSource::Validation
-        }
+        BitFunError::Tool(_)
+        | BitFunError::ClassifiedTool { .. }
+        | BitFunError::Validation(_)
+        | BitFunError::NotFound(_) => ToolFailureSource::Validation,
         BitFunError::Timeout(_) => ToolFailureSource::Timeout,
         BitFunError::Cancelled(_) => ToolFailureSource::Cancellation,
         BitFunError::AIProvider(provider) => match provider.category {

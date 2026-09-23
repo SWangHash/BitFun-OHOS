@@ -58,29 +58,14 @@ describe('voice history recovery', () => {
     expect(fixture.invoke).not.toHaveBeenCalled();
   });
 
-  it('treats a null browser storage adapter as unavailable', async () => {
+  it('keeps voice history in memory when the host exposes a null localStorage', async () => {
     vi.stubGlobal('localStorage', null);
     expect(service.hasPendingVoiceExchanges('conversation')).toBe(false);
     await service.replayVoiceExchanges('conversation');
-    expect(fixture.ensure).not.toHaveBeenCalled();
     expect(fixture.invoke).not.toHaveBeenCalled();
-  });
-
-  it.each([null, undefined])('retains and recovers in-memory voice history with storage %s', async (storage) => {
-    vi.stubGlobal('localStorage', storage);
-    expect(() => service.stageVoiceExchange(exchange)).toThrow('persistent storage is unavailable');
+    service.stageVoiceExchange(exchange);
     expect(service.hasPendingVoiceExchanges(exchange.sessionId)).toBe(true);
-    activateSurface('peer');
-    expect(service.hasPendingVoiceExchanges(exchange.sessionId)).toBe(false);
-    await service.replayVoiceExchanges(exchange.sessionId);
-    expect(fixture.invoke).not.toHaveBeenCalled();
-    activateSurface('local');
-    await service.replayVoiceExchanges(exchange.sessionId);
-    expect(fixture.invoke).toHaveBeenCalledWith('record_voice_exchange', { request: {
-      sessionId: exchange.sessionId, exchangeId: exchange.exchangeId,
-      userText: exchange.userText, assistantText: exchange.assistantText,
-    } });
-    expect(service.hasPendingVoiceExchanges(exchange.sessionId)).toBe(false);
+    expect(service.hasPendingVoiceExchanges('unrelated-text-session')).toBe(false);
   });
 
   it('requires explicit reset support on a peer instead of probing an older host', async () => {

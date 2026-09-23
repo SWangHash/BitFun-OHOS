@@ -4,6 +4,8 @@ import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFla
 import { createCreationCapabilities } from '@/infrastructure/creation/creationCapabilities';
 import type { ProductControlCapabilityId, ProductControlOperationId, ProductControlOptionId } from '@/infrastructure/api/generated/productControl';
 import { selectActiveSceneId, useSceneStore } from '../stores/sceneStore';
+// OHOS ArkWeb exposes localStorage as null; the adapter supplies a memory fallback.
+import { storage } from '@/shared/utils/storageAdapter';
 
 export const CREATION_PARTS = Object.freeze({
   shell: '[data-bitfun-component="app-layout"][data-bitfun-part="root"]',
@@ -24,7 +26,7 @@ export function createCreationUiApi(signal: AbortSignal) {
     signal.throwIfAborted();
     if (isPeerDeviceModeActive()) throw new Error('UI customization is unavailable on a Peer Device surface');
   };
-  const capabilities = createCreationCapabilities({ assertActive, storage: window.localStorage });
+  const capabilities = createCreationCapabilities({ assertActive, storage });
   const inspect = () => {
     assertActive();
     return {

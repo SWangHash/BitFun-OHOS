@@ -11,7 +11,7 @@ import { ConfirmDialogRenderer } from '@/infrastructure/confirm-dialog';
 import { SessionUsageModal } from '../flow_chat/components/usage/SessionUsageModal';
 import { createLogger } from '@/shared/utils/logger';
 import { startupTrace } from '@/shared/utils/startupTrace';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useWorkspaceContext } from '../infrastructure/contexts/WorkspaceContext';
 import { useGlobalSceneShortcuts } from './hooks/useGlobalSceneShortcuts';
@@ -363,6 +363,13 @@ function App() {
       return;
     }
 
+    // The OpenHarmony host owns window visibility; the desktop window API
+    // rejects these probes on that runtime.
+    if (isOpenHarmonyRuntime()) {
+      log.debug('Skipping main window visibility probe on the OpenHarmony host', { reason });
+      return;
+    }
+
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const mainWindow = getCurrentWindow();
@@ -497,7 +504,9 @@ function App() {
   }, [interactiveShellReady, startupOverlayVisible]);
 
   useEffect(() => {
-    if (!isTauriRuntime() || !interactiveShellReady || startupOverlayVisible) {
+    // The OpenHarmony host has no tray; the native command would reject and
+    // only add startup warning noise.
+    if (!isTauriRuntime() || isOpenHarmonyRuntime() || !interactiveShellReady || startupOverlayVisible) {
       return;
     }
 
