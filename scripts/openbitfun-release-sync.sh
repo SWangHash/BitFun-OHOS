@@ -485,7 +485,7 @@ import json, re, sys
 with open(sys.argv[1], encoding="utf-8") as f:
     data = json.load(f)
 assert data.get("schema_version") == 1
-assert data.get("image") == "ghcr.io/gcwing/bitfun-relay-server"
+assert data.get("image") == "ghcr.io/gcwing/openbitfun-relay-server"
 assert re.fullmatch(r"sha256:[0-9a-f]{64}", data.get("digest", ""))
 print(data["version"])
 PY
