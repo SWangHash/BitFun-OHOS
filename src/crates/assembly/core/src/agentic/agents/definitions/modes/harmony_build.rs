@@ -18,7 +18,6 @@ impl Default for HarmonyBuildMode {
 impl HarmonyBuildMode {
     pub fn new() -> Self {
         let mut tool_exposure_overrides = AgentToolPolicyOverrides::default();
-        tool_exposure_overrides.insert("plan_enter".to_string(), ToolExposure::Deferred);
         tool_exposure_overrides.insert("verify_ui".to_string(), ToolExposure::Deferred);
         tool_exposure_overrides.insert(
             "get_ui_verification_log".to_string(),
