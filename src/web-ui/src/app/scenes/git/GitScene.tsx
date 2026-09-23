@@ -100,7 +100,7 @@ const GitScene: React.FC<GitSceneProps> = ({
           case 'graph':
           return <GraphView workspaceId={workspace?.id} workspacePath={workspacePath} />;
         case 'file-history':
-          return <FileHistoryView workspacePath={workspacePath} filePath={historyFilePath} isActive={isActive} />;
+          return <FileHistoryView workspacePath={workspacePath} workspaceId={workspace?.id} filePath={historyFilePath} isActive={isActive} />;
           case 'working-copy':
           default:
           return <WorkingCopyView workspaceId={workspace?.id} workspacePath={workspacePath} isActive={isActive} />;
