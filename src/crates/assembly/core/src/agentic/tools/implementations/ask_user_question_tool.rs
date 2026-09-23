@@ -510,7 +510,13 @@ Usage notes:
             questions: payload,
         };
 
-        let _ = event_system.emit(event).await;
+        log::info!(
+            "AskUserQuestion awaiting user input, emitting ToolAwaitingUserInput: tool_id={}",
+            tool_id
+        );
+        if let Err(error) = event_system.emit(event).await {
+            warn!("AskUserQuestion failed to emit ToolAwaitingUserInput: {error}");
+        }
         debug!(
             "AskUserQuestion tool event emitted, waiting for user input, tool_id: {}",
             tool_id
