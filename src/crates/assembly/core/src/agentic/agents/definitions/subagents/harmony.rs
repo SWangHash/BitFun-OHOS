@@ -38,13 +38,37 @@ const VERIFY_TOOLS: &[&str] = &[
     "AskUserQuestion",
 ];
 
-fn deny_tools(tools: &[&str]) -> PermissionConstraintLayer {
-    PermissionConstraintLayer::new(
-        tools
-            .iter()
-            .map(|tool| PermissionRule::new(*tool, "*", PermissionEffect::Deny))
-            .collect(),
-    )
+fn deny(action: &str, resource: &str) -> PermissionRule {
+    PermissionRule::new(action, resource, PermissionEffect::Deny)
+}
+
+fn deny_layer(rules: Vec<PermissionRule>) -> PermissionConstraintLayer {
+    PermissionConstraintLayer::new(rules)
+}
+
+fn readonly_harmony_constraints() -> PermissionConstraintLayer {
+    deny_layer(vec![
+        deny("edit", "*"),
+        deny("bash", "*"),
+        deny("custom_tool", "build_project"),
+        deny("custom_tool", "start_app"),
+        deny("custom_tool", "hdc_log"),
+        deny("custom_tool", "verify_ui"),
+    ])
+}
+
+fn implementation_constraints() -> PermissionConstraintLayer {
+    deny_layer(vec![
+        deny("custom_tool", "build_project"),
+        deny("custom_tool", "start_app"),
+        deny("custom_tool", "hdc_log"),
+        deny("custom_tool", "verify_ui"),
+        deny("custom_tool", "save_ui_screenshot"),
+    ])
+}
+
+fn verification_constraints() -> PermissionConstraintLayer {
+    deny_layer(vec![deny("edit", "*"), deny("bash", "*")])
 }
 
 pub struct HarmonyPlanAgent {
@@ -64,16 +88,7 @@ impl HarmonyPlanAgent {
                 .map(|tool| (*tool).to_string())
                 .collect(),
             overrides,
-            permissions: deny_tools(&[
-                "edit",
-                "write",
-                "delete",
-                "bash",
-                "build_project",
-                "start_app",
-                "hdc_log",
-                "verify_ui",
-            ]),
+            permissions: readonly_harmony_constraints(),
         }
     }
 }
@@ -205,6 +220,7 @@ pub fn harmony_goal_agent() -> HarmonyAgent {
             "Grep",
             "LS",
             "Skill",
+            "arkts_knowledge_search",
         ],
         false,
     )
@@ -219,17 +235,7 @@ pub fn harmony_spec_implementation_agent() -> HarmonyAgent {
         IMPLEMENTATION_TOOLS,
         false,
     );
-    agent.permissions = deny_tools(&[
-        "build_project",
-        "start_app",
-        "hdc_log",
-        "verify_ui",
-        "get_ui_verification_log",
-        "save_ui_screenshot",
-        "plan_enter",
-        "plan_exit",
-        "spec_write",
-    ]);
+    agent.permissions = implementation_constraints();
     agent
 }
 
@@ -242,14 +248,48 @@ pub fn harmony_spec_verify_agent() -> HarmonyAgent {
         VERIFY_TOOLS,
         true,
     );
-    agent.permissions = deny_tools(&[
-        "edit",
-        "write",
-        "delete",
-        "bash",
-        "plan_enter",
-        "plan_exit",
-        "spec_write",
-    ]);
+    agent.permissions = verification_constraints();
     agent
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent};
+    use crate::agentic::agents::Agent;
+    use bitfun_runtime_ports::{PermissionEffect, PermissionEvaluator};
+
+    #[test]
+    fn harmony_goal_includes_arkts_knowledge_search() {
+        assert!(harmony_goal_agent()
+            .default_tools()
+            .contains(&"arkts_knowledge_search".to_string()));
+    }
+
+    #[test]
+    fn implementation_constraints_deny_build_but_allow_edit() {
+        let layer = harmony_spec_implementation_agent().permission_constraints();
+        let evaluator = PermissionEvaluator::for_current_platform();
+        assert_eq!(
+            evaluator.evaluate_constraint_resource("custom_tool", "build_project", layer),
+            PermissionEffect::Deny
+        );
+        assert_eq!(
+            evaluator.evaluate_constraint_resource("edit", "src/main.ets", layer),
+            PermissionEffect::Allow
+        );
+    }
+
+    #[test]
+    fn verify_constraints_deny_edit_and_bash() {
+        let layer = harmony_spec_verify_agent().permission_constraints();
+        let evaluator = PermissionEvaluator::for_current_platform();
+        assert_eq!(
+            evaluator.evaluate_constraint_resource("edit", "src/main.ets", layer),
+            PermissionEffect::Deny
+        );
+        assert_eq!(
+            evaluator.evaluate_constraint_resource("bash", "hvigorw assembleHap", layer),
+            PermissionEffect::Deny
+        );
+    }
 }

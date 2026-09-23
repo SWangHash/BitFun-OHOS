@@ -10,6 +10,7 @@ enum SkillModeId {
     ComputerUse,
     DeepResearch,
     QtMigration,
+    HarmonyBuild,
     Other,
 }
 
@@ -23,6 +24,11 @@ impl SkillModeId {
             "ComputerUse" => Self::ComputerUse,
             "DeepResearch" => Self::DeepResearch,
             "QtMigration" => Self::QtMigration,
+            "HarmonyBuild"
+            | "HarmonyPlan"
+            | "HarmonyGoal"
+            | "HarmonySpecImplementation"
+            | "HarmonySpecVerify" => Self::HarmonyBuild,
             _ => Self::Other,
         }
     }
@@ -114,6 +120,15 @@ const AGENTIC_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     rules: &[DISABLE_OFFICE, DISABLE_GSTACK, DISABLE_COMPUTER_USE],
 };
 
+/// HarmonyBuild mode (and its Harmony sub-agents) enable the HarmonyOS built-in
+/// skill group so the Skill tool can load `arkts-grammar-standards`,
+/// `deveco-cli`, `ohos-qt-skills`, etc. Office, Gstack, and Computer Use stay
+/// disabled to keep the industry agent focused on HarmonyOS workflows.
+const HARMONY_BUILD_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Enable,
+    rules: &[DISABLE_OFFICE, DISABLE_GSTACK, DISABLE_COMPUTER_USE],
+};
+
 const COWORK_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
     rules: &[ENABLE_OFFICE, ENABLE_META],
@@ -131,6 +146,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::Cowork => COWORK_POLICY,
         SkillModeId::Team => TEAM_POLICY,
         SkillModeId::QtMigration => QT_MIGRATION_POLICY,
+        SkillModeId::HarmonyBuild => HARMONY_BUILD_POLICY,
         SkillModeId::ComputerUse | SkillModeId::DeepResearch | SkillModeId::Other => {
             OPEN_META_ONLY_POLICY
         }
@@ -180,6 +196,11 @@ mod tests {
             "Team",
             "ComputerUse",
             "DeepResearch",
+            "HarmonyBuild",
+            "HarmonyPlan",
+            "HarmonyGoal",
+            "HarmonySpecImplementation",
+            "HarmonySpecVerify",
             "SomeUnknownMode",
         ] {
             assert_eq!(
@@ -222,6 +243,68 @@ mod tests {
                     resolve_builtin_default_enabled(spec.dir_name, mode_id),
                     expected,
                     "builtin skill {} differs for shared coding mode {}",
+                    spec.dir_name,
+                    mode_id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn harmony_build_mode_enables_harmonyos_builtin_skills() {
+        // HarmonyBuild must enable the HarmonyOS skill group so the Skill tool
+        // can load arkts-grammar-standards, deveco-cli, ohos-qt-skills, etc.
+        assert_eq!(
+            resolve_builtin_default_enabled("arkts-grammar-standards", "HarmonyBuild"),
+            Some(true),
+            "arkts-grammar-standards must be enabled in HarmonyBuild mode"
+        );
+        assert_eq!(
+            resolve_builtin_default_enabled("deveco-cli", "HarmonyBuild"),
+            Some(true),
+            "deveco-cli must be enabled in HarmonyBuild mode"
+        );
+        assert_eq!(
+            resolve_builtin_default_enabled("ohos-qt-skills", "HarmonyBuild"),
+            Some(true),
+            "ohos-qt-skills must be enabled in HarmonyBuild mode"
+        );
+        assert_eq!(
+            resolve_builtin_default_enabled("arkts-error-fixes", "HarmonyBuild"),
+            Some(true),
+            "arkts-error-fixes must be enabled in HarmonyBuild mode"
+        );
+        // Non-HarmonyOS groups stay disabled by default (Office, Gstack, ComputerUse).
+        assert_eq!(
+            resolve_builtin_default_enabled("ppt-design", "HarmonyBuild"),
+            Some(false),
+            "Office skills must stay disabled in HarmonyBuild mode"
+        );
+        assert_eq!(
+            resolve_builtin_default_enabled("gstack-review", "HarmonyBuild"),
+            Some(false),
+            "Gstack skills must stay disabled in HarmonyBuild mode"
+        );
+    }
+
+    #[test]
+    fn harmony_subagents_inherit_harmony_build_skill_policy() {
+        // All Harmony sub-agents must share the same HarmonyOS skill defaults
+        // as HarmonyBuild so the Skill tool works consistently across the
+        // Harmony agent family.
+        let harmony_agent_ids = [
+            "HarmonyPlan",
+            "HarmonyGoal",
+            "HarmonySpecImplementation",
+            "HarmonySpecVerify",
+        ];
+        for spec in BUILTIN_SKILL_SPECS {
+            let expected = resolve_builtin_default_enabled(spec.dir_name, "HarmonyBuild");
+            for mode_id in harmony_agent_ids {
+                assert_eq!(
+                    resolve_builtin_default_enabled(spec.dir_name, mode_id),
+                    expected,
+                    "builtin skill {} differs for Harmony sub-agent {} (must match HarmonyBuild)",
                     spec.dir_name,
                     mode_id
                 );
