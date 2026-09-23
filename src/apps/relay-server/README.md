@@ -138,7 +138,7 @@ bash deploy.sh
 
 `deploy.sh` must run **on the target server** (it does not SSH elsewhere).
 Its default path requires Docker on **linux/amd64** or **linux/arm64** and pulls
-`ghcr.io/gcwing/bitfun-relay-server:latest`; it does not compile locally.
+`ghcr.io/gcwing/openbitfun-relay-server:latest`; it does not compile locally.
 Use `--build-from-source` only when deliberately exercising the source path.
 
 Clone on the server, as above, rather than uploading a Windows checkout. Git for
