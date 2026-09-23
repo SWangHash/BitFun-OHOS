@@ -1771,6 +1771,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "ssh_list_saved_connections",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
+    // Reports the executing host's WSL support, not the controller's OS.
+    (
+        "ssh_list_wsl_distributions",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     (
         "ssh_save_connection",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
@@ -2184,6 +2189,24 @@ mod tests {
         assert!(
             registered_commands().contains(COMMAND),
             "Desktop must register the external-source control command"
+        );
+    }
+
+    /// The WSL picker in the SSH connection dialog called a command the desktop
+    /// never registered, so choosing "WSL" answered `Command
+    /// ssh_list_wsl_distributions not found` instead of the host's real answer
+    /// (on a non-Windows host: "WSL is not supported here").
+    #[test]
+    fn wsl_distribution_listing_is_registered_for_the_executing_host() {
+        const COMMAND: &str = "ssh_list_wsl_distributions";
+        assert!(
+            registered_commands().contains(COMMAND),
+            "Desktop must register the WSL distribution listing the SSH dialog calls"
+        );
+        assert_eq!(
+            remote_workspace_policy(COMMAND),
+            Some(RemoteWorkspacePolicy::WorkspaceAgnostic),
+            "WSL support is a property of the executing host, not of the open workspace"
         );
     }
 

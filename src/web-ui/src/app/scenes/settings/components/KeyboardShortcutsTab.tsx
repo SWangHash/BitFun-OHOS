@@ -341,6 +341,15 @@ const KeyboardShortcutsTab: React.FC = () => {
   useEffect(() => {
     if (!recordingId) return;
 
+    // ShortcutManager listens on window's capture phase from construction, so
+    // its handler runs before this one no matter when this listener is added:
+    // preventDefault here cannot undo a callback that already ran, which is why
+    // recording mod+B collapsed the sidebar while the conflict hint appeared.
+    // Suspend dispatch for the recording lifetime instead, and restore whatever
+    // state was in force rather than assuming it was enabled.
+    const shortcutsWereEnabled = shortcutManager.isShortcutEnabled();
+    shortcutManager.setEnabled(false);
+
     const handleCapture = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -406,7 +415,12 @@ const KeyboardShortcutsTab: React.FC = () => {
     };
 
     window.addEventListener('keydown', handleCapture, true);
-    return () => window.removeEventListener('keydown', handleCapture, true);
+    return () => {
+      window.removeEventListener('keydown', handleCapture, true);
+      // Covers every exit: a recorded key, Esc, switching to another row,
+      // discarding changes, and unmounting the settings page.
+      shortcutManager.setEnabled(shortcutsWereEnabled);
+    };
   }, [recordingId]);
 
   // Apply all pending changes

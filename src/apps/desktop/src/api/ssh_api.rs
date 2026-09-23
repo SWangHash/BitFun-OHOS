@@ -14,7 +14,7 @@ use bitfun_core::service::remote_ssh::{
     list_remote_listening_ports, ConnectionTestReport, DockerContainerInfo, PortForward,
     PortForwardRequest, RemoteListeningPort, RemoteTreeNode, SSHAuthMethod, SSHConfigEntry,
     SSHConfigLookupResult, SSHConnectionConfig, SSHConnectionManager, SSHConnectionResult,
-    SavedConnection, ServerInfo,
+    SavedConnection, ServerInfo, WslDistributions,
 };
 
 impl From<SSHServiceError> for String {
@@ -168,6 +168,20 @@ pub async fn ssh_test_connection(
     let manager = state.get_ssh_manager_async().await?;
     hydrate_stored_password(&manager, &mut config).await?;
     Ok(manager.test_connection(&config).await)
+}
+
+/// WSL distributions available to the host BitFun runs on.
+///
+/// Read-only, and about the *executing* host, never the controller's operating
+/// system: a phone or a HarmonyOS device driving a Windows host must see that
+/// host's distributions, and a non-Windows host answers `supported: false` with
+/// an empty list so the connection dialog can say WSL is unavailable instead of
+/// offering a transport that cannot start.
+#[tauri::command]
+pub async fn ssh_list_wsl_distributions() -> Result<WslDistributions, String> {
+    bitfun_services_integrations::remote_ssh::wsl::list_distributions()
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
