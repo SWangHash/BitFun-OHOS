@@ -138,6 +138,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     originX: number;
     originY: number;
     dragStarted: boolean;
+    lastFacingX: number;
   } | null>(null);
   const dragSizeRef = useRef<{ width: number; height: number }>({ width: DEFAULT_PET_SIZE, height: DEFAULT_PET_SIZE });
 
@@ -479,6 +480,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
       originX: origin.x,
       originY: origin.y,
       dragStarted: false,
+      lastFacingX: event.clientX,
     };
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -521,9 +523,12 @@ export const AgentCompanionInAppPet: React.FC = () => {
     const nextX = session.originX + (event.clientX - session.startX);
     const nextY = session.originY + (event.clientY - session.startY);
     setDragPosition(clampDragPosition(nextX, nextY, size.width, size.height));
-    // Face the drag direction while moving so the pet sprite reads naturally.
-    if (Math.abs(event.clientX - session.startX) > 4) {
-      setPetFacing(event.clientX > session.startX ? 'right' : 'left');
+    // Face the instantaneous movement direction (mirrors the desktop-window
+    // drag helper: compare against the previous pointer position, no
+    // start-anchored threshold that lags behind direction changes).
+    if (event.clientX !== session.lastFacingX) {
+      setPetFacing(event.clientX > session.lastFacingX ? 'right' : 'left');
+      session.lastFacingX = event.clientX;
     }
   };
 
