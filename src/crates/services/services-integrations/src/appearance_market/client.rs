@@ -14,7 +14,9 @@ use crate::account_identity::{
     MarketClientError, MarketMe,
 };
 
-const DEFAULT_APPEARANCE_MARKET_API_URL: &str = "https://market.bitfun.com/skin/api/v1";
+// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+// deployment until the domain cutover.
+const DEFAULT_APPEARANCE_MARKET_API_URL: &str = "https://market.openbitfun.com/skin/api/v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

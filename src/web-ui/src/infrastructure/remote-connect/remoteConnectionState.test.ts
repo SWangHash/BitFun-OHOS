@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConnectionResult, RemoteConnectStatus, RemoteConnectionMethod } from '../api/service-api/RemoteConnectAPI';
 import { remoteNetworkMethod, selectRemoteNetworkConnection, invitationRelayUrl } from './remoteConnectionState';
 
-const official = 'https://remote.bitfun.com/v/1.0.1';
+const official = 'https://remote.openbitfun.com/v/1.0.1';
 const lan = 'http://192.168.1.2:9700';
 const method = (url: string): RemoteConnectionMethod => url === official ? 'bitfun_server' : { lan: { ip: '192.168.1.2' } };
 const status = (url: string): RemoteConnectStatus => ({

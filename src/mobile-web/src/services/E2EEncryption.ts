@@ -101,6 +101,6 @@ export function deriveDeviceMessageKey(privateKey: Uint8Array, peerPublicKey: Ui
   const info = new Uint8Array(64);
   info.set(first); info.set(second, 32);
   try {
-    return hkdf(sha256, shared, new TextEncoder().encode('BitFun Relay v1.0.0 device key'), info, 32);
+    return hkdf(sha256, shared, new TextEncoder().encode('OpenBitFun Relay v1.0.0 device key'), info, 32);
   } finally { shared.fill(0); }
 }

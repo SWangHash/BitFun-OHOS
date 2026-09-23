@@ -89,7 +89,7 @@ function navigate(path: string) {
 
 function App() {
   const path = window.location.pathname;
-  if (window.location.hostname === 'auth.bitfun.com' || path === '/miniapp/auth/sign-in' || path === '/miniapp/auth/complete' || path === '/miniapp/auth/desktop-complete') {
+  if (window.location.hostname === 'auth.openbitfun.com' || path === '/miniapp/auth/sign-in' || path === '/miniapp/auth/complete' || path === '/miniapp/auth/desktop-complete') {
     return <GitHubIdentityPage complete={path.endsWith('complete')} />;
   }
   return <MarketApp />;

@@ -8,7 +8,9 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, StaticSecret};
 
-pub const KDF_SALT: &[u8] = b"BitFun Relay v1.0.0 device key";
+// Wire contract shared with older installs; renaming this salt breaks
+// end-to-end pairing across versions. Keep in sync with mobile-web E2EEncryption.
+pub const KDF_SALT: &[u8] = b"OpenBitFun Relay v1.0.0 device key";
 
 pub fn generate_secret() -> [u8; 32] {
     StaticSecret::random_from_rng(rand::rngs::OsRng).to_bytes()
@@ -23,12 +25,9 @@ pub fn provisioning_secret(
 ) -> [u8; 32] {
     let mut secret = [0; 32];
     let info = format!("{device_id}:{request_id}");
-    Hkdf::<Sha256>::new(
-        Some(b"BitFun device provisioning v1.0.0"),
-        parent_secret,
-    )
-    .expand(info.as_bytes(), &mut secret)
-    .expect("32-byte HKDF output is valid");
+    Hkdf::<Sha256>::new(Some(b"BitFun device provisioning v1.0.0"), parent_secret)
+        .expand(info.as_bytes(), &mut secret)
+        .expect("32-byte HKDF output is valid");
     secret
 }
 

@@ -257,7 +257,9 @@ export class AccountIdentityService {
     const page = new URL(url);
     // A fragment is not part of the HTTP cache key. Give each browser opening
     // a fresh URL so previously cached sign-in HTML cannot constrain the form.
-    if (page.origin === 'https://auth.bitfun.com') {
+    // bitfun.com is not provisioned yet; the sign-in page still lives on
+    // auth.openbitfun.com until the domain cutover.
+    if (page.origin === 'https://auth.openbitfun.com') {
       page.searchParams.set('_auth', createId());
     }
     await this.dependencies.openExternal(page.href);
@@ -298,7 +300,7 @@ export class AccountIdentityService {
     const transaction = await this.dependencies.api.authStart();
     this.ensureCurrentAuth(generation);
     const authorizationUrl = new URL(transaction.authorizationUrl);
-    if (authorizationUrl.origin === 'https://auth.bitfun.com' && typeof document !== 'undefined') {
+    if (authorizationUrl.origin === 'https://auth.openbitfun.com' && typeof document !== 'undefined') {
       authorizationUrl.searchParams.set('locale', document.documentElement.lang || 'en-US');
     }
     this.authorizationUrl = authorizationUrl.href;

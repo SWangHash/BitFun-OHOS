@@ -6,7 +6,6 @@ use crate::anonymous_auth::{
     AnonymousAccessTokenProvider, AnonymousAuthError, AnonymousAuthService,
     AnonymousCredentialStore,
 };
-use chrono::DateTime;
 use bitfun_product_domains::feedback::{
     validate_content, validate_inbox_page_size, validate_message_page_size,
     AcknowledgeFeedbackRequest, AcknowledgeFeedbackResponse, FeedbackAccessState,
@@ -15,6 +14,7 @@ use bitfun_product_domains::feedback::{
     OpenFeedbackConversationRequest, ReplyFeedbackRequest, ReplyFeedbackResponse,
     SubmitFeedbackRequest, SubmitFeedbackResponse,
 };
+use chrono::DateTime;
 use reqwest::{Response, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -41,8 +41,8 @@ impl AnonymousCredentialStore for FeedbackAnonymousCredentialStore {
 }
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
-const DEBUG_FEEDBACK_API_BASE_URL: &str = "http://api-test.infra-bitfun.com";
-const RELEASE_FEEDBACK_API_BASE_URL: &str = "https://api.infra-bitfun.com";
+const DEBUG_FEEDBACK_API_BASE_URL: &str = "http://api-test.infra-openbitfun.com";
+const RELEASE_FEEDBACK_API_BASE_URL: &str = "https://api.infra-openbitfun.com";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct StoredCredentials {
@@ -1602,11 +1602,11 @@ mod tests {
     fn selects_a_fixed_feedback_endpoint_for_each_build_profile() {
         assert_eq!(
             DEBUG_FEEDBACK_API_BASE_URL,
-            "http://api-test.infra-bitfun.com"
+            "http://api-test.infra-openbitfun.com"
         );
         assert_eq!(
             RELEASE_FEEDBACK_API_BASE_URL,
-            "https://api.infra-bitfun.com"
+            "https://api.infra-openbitfun.com"
         );
         assert_eq!(feedback_api_base_url(true), DEBUG_FEEDBACK_API_BASE_URL);
         assert_eq!(feedback_api_base_url(false), RELEASE_FEEDBACK_API_BASE_URL);

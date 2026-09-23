@@ -10,7 +10,9 @@ use reqwest::{Method, RequestBuilder, Response};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_MARKET_API_URL: &str = "https://market.bitfun.com/miniapp/api/v1";
+// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+// deployment until the domain cutover.
+const DEFAULT_MARKET_API_URL: &str = "https://market.openbitfun.com/miniapp/api/v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

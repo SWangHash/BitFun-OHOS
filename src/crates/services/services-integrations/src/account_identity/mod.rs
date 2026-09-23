@@ -1,18 +1,20 @@
 //! Shared GitHub identity used by every BitFun product surface.
 mod credentials;
 mod flow;
+use bitfun_product_domains::account::GitHubUser;
+#[cfg(target_env = "ohos")]
+pub use credentials::inject_ohos_credential_vault;
 pub use credentials::{
     clear_market_credentials, load_market_credentials, save_market_credentials,
     StoredMarketCredentials,
 };
-#[cfg(target_env = "ohos")]
-pub use credentials::inject_ohos_credential_vault;
 pub use flow::{poll_auth_flow, start_auth_flow};
-use bitfun_product_domains::account::GitHubUser;
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-pub const DEFAULT_ACCOUNT_API_URL: &str = "https://auth.bitfun.com/api/v1";
+// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+// deployment until the domain cutover.
+pub const DEFAULT_ACCOUNT_API_URL: &str = "https://auth.openbitfun.com/api/v1";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopAuthStart {

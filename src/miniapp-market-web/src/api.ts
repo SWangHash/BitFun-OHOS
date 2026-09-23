@@ -11,7 +11,7 @@ import type {
   SubmissionStatus,
 } from './types';
 
-const API = typeof window !== 'undefined' && window.location.hostname === 'auth.bitfun.com' ? '/api/v1' : '/miniapp/api/v1';
+const API = typeof window !== 'undefined' && window.location.hostname === 'auth.openbitfun.com' ? '/api/v1' : '/miniapp/api/v1';
 
 export class MarketApiError extends Error {
   readonly code: string;
@@ -141,7 +141,7 @@ export const marketApi = {
 };
 
 export function loginUrl(returnTo = window.location.pathname): string {
-  return `https://auth.bitfun.com/sign-in?locale=${encodeURIComponent((typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'))}&returnTo=${encodeURIComponent(returnTo)}`;
+  return `https://auth.openbitfun.com/sign-in?locale=${encodeURIComponent((typeof document === 'undefined' ? 'en-US' : document.documentElement.lang || 'en-US'))}&returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 export function downloadUrl(slug: string, release: number): string {

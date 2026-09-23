@@ -56,7 +56,7 @@ test('isolated Page sign-in retains the one-time login state and callback origin
 });
 
 test('email sign-in carries the browser locale without changing the authorization ticket', async () => {
-  const result = await runLogin({ authorizationUrl: 'https://auth.bitfun.com/sign-in#ticket=original-ticket' });
+  const result = await runLogin({ authorizationUrl: 'https://auth.openbitfun.com/sign-in#ticket=original-ticket' });
   const opened = new URL(result.opened);
   assert.equal(opened.searchParams.get('locale'), 'en');
   assert.equal(opened.hash, '#ticket=original-ticket');

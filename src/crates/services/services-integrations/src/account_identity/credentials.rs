@@ -4,12 +4,14 @@ use std::sync::{Arc, OnceLock};
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
 use std::sync::{Mutex, OnceLock};
 
+// Legacy service names: credentials were saved before the BitFun rename, and
+// the system keyring has no cross-name migration.
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
-const KEYRING_SERVICE: &str = "bitfun.miniapp-market.v1";
+const KEYRING_SERVICE: &str = "openbitfun.miniapp-market.v1";
 const CREDENTIAL_ENTRY: &str = "github-oauth";
 
 #[cfg(target_env = "ohos")]
-const OHOS_MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
+const OHOS_MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -35,10 +35,12 @@ use super::remote_git::shell_quote_posix;
 use super::types::SSHCommandOptions;
 
 const GITHUB_RELEASE_BASE: &str = "https://github.com/GCWing/BitFun/releases";
-const BITFUN_RELEASE_BASE: &str = "https://bitfun.com/release";
+// bitfun.com is not provisioned yet; keep defaulting to the live openbitfun.com
+// release mirror until the domain cutover.
+const BITFUN_RELEASE_BASE: &str = "https://openbitfun.com/release";
 const GITHUB_LATEST_MANIFEST: &str =
     "https://github.com/GCWing/BitFun/releases/latest/download/latest-v1.json";
-const BITFUN_LATEST_MANIFEST: &str = "https://bitfun.com/release/latest-v1.json";
+const BITFUN_LATEST_MANIFEST: &str = "https://openbitfun.com/release/latest-v1.json";
 const INSTALL_STEM: &str = "install-cli";
 const INSTALL_DONE_MARKER: &str = "BITFUN_DISPATCH_CLI_INSTALL_DONE";
 const INSTALL_PREPARE_GRACE_SECONDS: u64 = 30;
@@ -105,8 +107,7 @@ const FIRST_COMPATIBLE_STABLE_DISPATCH_RELEASE: (u64, u64, u64) = (1, 0, 0);
 /// plus the platform-conditional detached worker.
 static REQUIRED_DISPATCH_CAPABILITIES: std::sync::LazyLock<Vec<&'static str>> =
     std::sync::LazyLock::new(|| {
-        bitfun_services_core::dispatch_contract::dispatch_required_target_capabilities()
-            .collect()
+        bitfun_services_core::dispatch_contract::dispatch_required_target_capabilities().collect()
     });
 
 fn install_state_relative_dir() -> String {
@@ -1040,9 +1041,7 @@ pub async fn account_daemon_identity(
         || identity.device_name.len() > 256
         || identity.device_name.chars().any(char::is_control)
     {
-        return Err(anyhow!(
-            "BitFun daemon target returned an unsafe identity"
-        ));
+        return Err(anyhow!("BitFun daemon target returned an unsafe identity"));
     }
     Ok(identity)
 }
@@ -3440,7 +3439,7 @@ mod tests {
         assert_eq!(sources[1].origin, ReleaseOrigin::BitFun);
         assert_eq!(
             sources[1].url,
-            format!("https://bitfun.com/release/1.2.3/{filename}")
+            format!("https://openbitfun.com/release/1.2.3/{filename}")
         );
     }
 
@@ -3701,11 +3700,8 @@ mod tests {
         let pkg = temp.path().join("pkg/bitfun-cli-1.2.3-test");
         std::fs::create_dir_all(&pkg).expect("package dir");
         std::fs::write(pkg.join("bitfun"), primary).expect("write binary");
-        std::fs::set_permissions(
-            pkg.join("bitfun"),
-            std::fs::Permissions::from_mode(0o755),
-        )
-        .expect("chmod package binary");
+        std::fs::set_permissions(pkg.join("bitfun"), std::fs::Permissions::from_mode(0o755))
+            .expect("chmod package binary");
         let archive = install_dir.join("archive.tar.gz");
         assert!(std::process::Command::new("tar")
             .arg("-czf")
