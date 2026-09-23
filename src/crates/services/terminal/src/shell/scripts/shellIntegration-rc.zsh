@@ -1,7 +1,37 @@
 # ---------------------------------------------------------------------------------------------
 #   Shell Integration for Zsh
 # ---------------------------------------------------------------------------------------------
-builtin autoload -Uz add-zsh-hook is-at-least
+# Minimal zsh distributions (e.g. the OpenHarmony host) do not ship
+# `add-zsh-hook` / `is-at-least`; keep the distribution implementations where
+# zsh can resolve them and define fallbacks where it cannot.
+if ! builtin type add-zsh-hook >/dev/null 2>&1; then
+	add-zsh-hook() {
+		local hook_name="$1"
+		local func_name="$2"
+		local -a hook_array
+
+		case "${hook_name}" in
+			precmd)
+				hook_array=("${(@)precmd_functions[@]}")
+				precmd_functions+=("${func_name}")
+				;;
+			preexec)
+				preexec_functions+=("${func_name}")
+				;;
+			*)
+				return 1
+				;;
+		esac
+	}
+fi
+
+if ! builtin type is-at-least >/dev/null 2>&1; then
+	is-at-least() {
+		local required="$1"
+		local current="${ZSH_VERSION}"
+		[[ "${current}" == "$(printf '%s\n%s\n' "${required}" "${current}" | sort -V | head -n1)" ]]
+	}
+fi
 
 # Prevent the script recursing when setting up
 if [ -n "$TERMINAL_SHELL_INTEGRATION" ]; then
