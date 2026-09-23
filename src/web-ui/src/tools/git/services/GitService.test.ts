@@ -28,7 +28,8 @@ vi.mock('../state/GitStateManager', () => ({
   gitStateManager: gitStateManagerMock,
 }));
 
-const repositoryPath = 'D:/workspace/BitFun';
+// Git is scoped by workspace identity; the path rides along as evidence only.
+const repositoryWorkspace = { workspaceId: 'ws-bitfun', repositoryPath: 'D:/workspace/BitFun' };
 
 describe('GitService dangerous operation refresh guard', () => {
   beforeEach(() => {
@@ -49,10 +50,10 @@ describe('GitService dangerous operation refresh guard', () => {
       return { success: true };
     });
 
-    await gitService.commit(repositoryPath, { message: 'test' });
+    await gitService.commit(repositoryWorkspace, { message: 'test' });
 
     expect(order).toEqual(['refresh', 'commit']);
-    expect(gitStateManagerMock.refresh).toHaveBeenCalledWith(repositoryPath, {
+    expect(gitStateManagerMock.refresh).toHaveBeenCalledWith(repositoryWorkspace, {
       force: true,
       layers: ['basic', 'status'],
       reason: 'operation',
@@ -61,8 +62,8 @@ describe('GitService dangerous operation refresh guard', () => {
   });
 
   it('forces a fresh basic/status refresh before push and reset operations', async () => {
-    await gitService.push(repositoryPath);
-    await gitService.resetFiles(repositoryPath, ['src/app.ts'], false);
+    await gitService.push(repositoryWorkspace);
+    await gitService.resetFiles(repositoryWorkspace, ['src/app.ts'], false);
 
     expect(gitStateManagerMock.refresh).toHaveBeenCalledTimes(2);
     expect(gitApiMocks.push).toHaveBeenCalledTimes(1);
@@ -78,11 +79,11 @@ describe('GitService non-repository cache', () => {
   });
 
   it('remembers a path that really is not a repository', async () => {
-    const path = 'D:/workspace/not-a-repo';
+    const workspace = { workspaceId: 'ws-not-a-repo', repositoryPath: 'D:/workspace/not-a-repo' };
     gitApiMocks.getStatus.mockRejectedValue(new Error('not a git repository'));
 
-    await expect(gitService.getStatus(path)).resolves.toBeNull();
-    await expect(gitService.getStatus(path)).resolves.toBeNull();
+    await expect(gitService.getStatus(workspace)).resolves.toBeNull();
+    await expect(gitService.getStatus(workspace)).resolves.toBeNull();
 
     expect(gitApiMocks.getStatus).toHaveBeenCalledTimes(1);
   });
@@ -90,25 +91,25 @@ describe('GitService non-repository cache', () => {
   it('does not remember an ownership rejection as "not a repository"', async () => {
     // Caching it would outlive the trust decision the user is about to make,
     // and would hide the error the recovery flow keys off.
-    const path = 'D:/workspace/untrusted-repo';
+    const workspace = { workspaceId: 'ws-untrusted', repositoryPath: 'D:/workspace/untrusted-repo' };
     gitApiMocks.getStatus.mockRejectedValue(
-      new Error(`git_repository_untrusted: ${path}`),
+      new Error(`git_repository_untrusted: ${workspace.repositoryPath}`),
     );
 
-    await expect(gitService.getStatus(path)).resolves.toBeNull();
-    await expect(gitService.getStatus(path)).resolves.toBeNull();
+    await expect(gitService.getStatus(workspace)).resolves.toBeNull();
+    await expect(gitService.getStatus(workspace)).resolves.toBeNull();
 
     expect(gitApiMocks.getStatus).toHaveBeenCalledTimes(2);
   });
 
   it('keeps reprobing a repository the ownership gate blocked', async () => {
-    const path = 'D:/workspace/untrusted-probe';
+    const workspace = { workspaceId: 'ws-untrusted-probe', repositoryPath: 'D:/workspace/untrusted-probe' };
     gitApiMocks.isGitRepository.mockRejectedValue(
-      new Error(`git_repository_untrusted: ${path}`),
+      new Error(`git_repository_untrusted: ${workspace.repositoryPath}`),
     );
 
-    await expect(gitService.isGitRepository(path)).resolves.toBe(false);
-    await expect(gitService.isGitRepository(path)).resolves.toBe(false);
+    await expect(gitService.isGitRepository(workspace)).resolves.toBe(false);
+    await expect(gitService.isGitRepository(workspace)).resolves.toBe(false);
 
     expect(gitApiMocks.isGitRepository).toHaveBeenCalledTimes(2);
   });
@@ -124,10 +125,10 @@ describe('GitService mutation ownership rejections', () => {
 
   it('names the wall when a local mutation throws the stable code', async () => {
     gitApiMocks.commit.mockRejectedValue(
-      new Error(`git_repository_untrusted: ${repositoryPath}`),
+      new Error(`git_repository_untrusted: ${repositoryWorkspace.repositoryPath}`),
     );
 
-    await expect(gitService.commit(repositoryPath, { message: 'test' })).resolves.toEqual({
+    await expect(gitService.commit(repositoryWorkspace, { message: 'test' })).resolves.toEqual({
       success: false,
       error: 'panels/git:trust.required',
     });
@@ -142,7 +143,7 @@ describe('GitService mutation ownership rejections', () => {
       data: { remoteExecution: true, exitCode: 128 },
     });
 
-    await expect(gitService.push(repositoryPath)).resolves.toMatchObject({
+    await expect(gitService.push(repositoryWorkspace)).resolves.toMatchObject({
       success: false,
       error: 'panels/git:trust.required',
       data: { remoteExecution: true, exitCode: 128 },
@@ -155,13 +156,13 @@ describe('GitService mutation ownership rejections', () => {
       error: 'error: failed to push some refs',
     });
 
-    await expect(gitService.push(repositoryPath)).resolves.toEqual({
+    await expect(gitService.push(repositoryWorkspace)).resolves.toEqual({
       success: false,
       error: 'error: failed to push some refs',
     });
 
     gitApiMocks.resetFiles.mockRejectedValue(new Error('unable to write index'));
-    await expect(gitService.resetFiles(repositoryPath, ['src/app.ts'])).resolves.toEqual({
+    await expect(gitService.resetFiles(repositoryWorkspace, ['src/app.ts'])).resolves.toEqual({
       success: false,
       error: 'unable to write index',
     });
