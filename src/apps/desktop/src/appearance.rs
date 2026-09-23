@@ -493,15 +493,17 @@ mod startup_appearance_tests {
 }
 
 fn use_development_frontend() -> bool {
-    #[cfg(debug_assertions)]
-    {
+    // An OHOS device cannot reach the desktop Vite dev server, so a `--debug`
+    // OHOS build must still load the packaged page. Without this the main window
+    // points at `build.devUrl` and the app shows an empty webview.
+    if cfg!(target_env = "ohos") {
+        false
+    } else if cfg!(debug_assertions) {
         // Isolated E2E can exercise the production protocol using a debug
         // executable and dist assets, without launching a development server.
         !(std::env::var("BITFUN_E2E_PACKAGED_FRONTEND").as_deref() == Ok("1")
             && std::env::var("BITFUN_E2E_STORAGE_GUARD").as_deref() == Ok("1"))
-    }
-    #[cfg(not(debug_assertions))]
-    {
+    } else {
         false
     }
 }
