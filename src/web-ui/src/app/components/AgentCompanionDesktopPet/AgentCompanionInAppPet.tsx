@@ -93,6 +93,30 @@ export const AgentCompanionInAppPet: React.FC = () => {
   const [isDraggingPet, setIsDraggingPet] = useState(false);
   // While dragging: which way the pet is moving, so the sprite can face it.
   const [petFacing, setPetFacing] = useState<'left' | 'right' | null>(null);
+  // Short sprite reactions: jump when a task starts, wave when it completes
+  // (mirrors the desktop-window pet; the OHOS surface has no second window).
+  const [reaction, setReaction] = useState<{ action: 'jumping' | 'waving' } | null>(null);
+  const previousTasksRef = useRef<AgentCompanionTaskStatus[] | null>(null);
+  useEffect(() => {
+    if (!previousTasksRef.current) {
+      previousTasksRef.current = tasks;
+      return;
+    }
+    const previousTasks = previousTasksRef.current;
+    const isActive = (task: AgentCompanionTaskStatus) => task.state === 'running' || task.state === 'waiting' || task.state === 'attention';
+    const started = tasks.some(task => isActive(task)
+      && !previousTasks.some(previous => previous.sessionId === task.sessionId && isActive(previous)));
+    const completed = tasks.find(task => task.state === 'completed'
+      && previousTasks.some(previous => previous.sessionId === task.sessionId && isActive(previous)));
+    previousTasksRef.current = tasks;
+    if (completed) setReaction({ action: 'waving' });
+    else if (started) setReaction({ action: 'jumping' });
+  }, [tasks]);
+  useEffect(() => {
+    if (!reaction) return;
+    const timer = window.setTimeout(() => setReaction(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [reaction]);
   const [overlay, setOverlay] = useState<PetOverlayState>(null);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuAnchor | null>(null);
@@ -824,6 +848,9 @@ export const AgentCompanionInAppPet: React.FC = () => {
               onPetFrameSizeChange={handlePetFrameSizeChange}
               className="bitfun-agent-companion-window__pet"
               dragDirection={petFacing ?? 'left'}
+              action={!isDraggingPet
+                ? mood === 'rest' && visibleTasks.some(task => task.state === 'error') ? 'failed' : reaction?.action ?? null
+                : null}
             />
           </div>
         </div>
