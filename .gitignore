@@ -126,3 +126,12 @@ src/apps/mobile/android/.kotlin/
 # Node.js compile cache emitted by WSL runs with a relative NODE_COMPILE_CACHE
 node-compile-cache/
 .openbitfun/
+
+# OHOS PC app packaging artifacts. DevEco Studio on the machine that builds the
+# app produces the HAP and the unpacked distribution tree; the staged native
+# library and frontend live under src/apps/ohos/entry and are ignored there.
+# Crash dumps are written wherever the failing process ran, so they are ignored
+# by extension rather than by path.
+*.hap
+/dist-ohos/
+*.dmp
