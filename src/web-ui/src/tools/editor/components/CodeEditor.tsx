@@ -41,7 +41,7 @@ import {
   editorSyncContentSha256Hex,
   type DiskFileVersion,
 } from '../utils/diskFileVersion';
-import { confirmDialog, confirmDialogChoice } from '@/infrastructure/confirm-dialog';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {
   isFileMissingFromMetadata,
   isLikelyFileNotFoundError,
@@ -1867,24 +1867,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       log.info('File modified externally', { filePath });
 
       if (hasChangesRef.current) {
-        const choice = await confirmDialogChoice({
+        const shouldReload = await confirmDialog({
           title: t('editor.codeEditor.externalModifiedTitle'),
           message: t('editor.codeEditor.externalModifiedDetail'),
           type: 'warning',
           confirmText: t('editor.codeEditor.discardAndReload'),
-          secondaryText: t('editor.codeEditor.overwriteSave'),
           cancelText: t('editor.codeEditor.keepLocalEdits'),
           confirmDanger: true,
         });
-        if (choice === 'secondary') {
-          // Overwrite: push the local buffer to disk. The save path owns the
-          // write and the disk-version bookkeeping after it completes.
-          diskVersionRef.current = currentVersion;
-          outcome = 'overwrote-external-changes';
-          void saveFileContentRef.current?.();
-          return;
-        }
-        if (choice !== 'confirm') {
+        if (!shouldReload) {
           diskVersionRef.current = currentVersion;
           outcome = 'kept-local-changes';
           return;
@@ -2196,21 +2187,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
 
         if (hasChangesRef.current) {
-          const choice = await confirmDialogChoice({
+          const shouldReload = await confirmDialog({
             title: t('editor.codeEditor.externalModifiedTitle'),
             message: t('editor.codeEditor.externalModifiedDetail'),
             type: 'warning',
             confirmText: t('editor.codeEditor.discardAndReload'),
-            secondaryText: t('editor.codeEditor.overwriteSave'),
             cancelText: t('editor.codeEditor.keepLocalEdits'),
             confirmDanger: true,
           });
-          if (choice === 'secondary') {
-            // Overwrite: push the local buffer to disk instead of reloading.
-            saveFileContentRef.current?.();
-            return;
-          }
-          if (choice !== 'confirm') {
+          if (!shouldReload) {
             try {
               const fileInfo = await fetchFileMetadata();
               const v = diskVersionFromMetadata(fileInfo);
