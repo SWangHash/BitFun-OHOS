@@ -35,7 +35,7 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "start_app",
     "hdc_log",
     "arkts_knowledge_search",
-    "check_arkts_files",
+    "arkts_check",
     "check_cpp_files",
     "switch_cwd",
     "verify_ui",
@@ -135,8 +135,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "start_app" => Some(Arc::new(StartAppTool::new())),
             "hdc_log" => Some(Arc::new(HdcLogTool::new())),
             "arkts_knowledge_search" => Some(Arc::new(ArktsKnowledgeSearchTool::new())),
-            #[cfg(feature = "mcp-runtime")]
-            "check_arkts_files" => Some(Arc::new(CheckArktsFilesTool::new())),
+            "arkts_check" => Some(Arc::new(ArktsCheckTool::new())),
             #[cfg(feature = "mcp-runtime")]
             "check_cpp_files" => Some(Arc::new(CheckCppFilesTool::new())),
             "switch_cwd" => Some(Arc::new(SwitchCwdTool::new())),

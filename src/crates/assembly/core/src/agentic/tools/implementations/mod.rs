@@ -7,6 +7,8 @@ pub mod agent_wait_tool;
 pub mod analyze_image_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod appearance_publish_tool;
+pub mod arkts_check_tool;
+pub mod arkts_checker;
 pub mod ask_user_question_tool;
 #[cfg(feature = "tools-canvas")]
 pub mod canvas_tools;
@@ -37,8 +39,6 @@ pub mod delete_file_tool;
     pub(crate) mod hdc_fallback;
     pub mod arkts_knowledge_search_tool;
     pub mod build_project_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod check_arkts_files_tool;
     #[cfg(feature = "mcp-runtime")]
     pub mod check_cpp_files_tool;
     #[cfg(feature = "mcp-runtime")]
@@ -114,6 +114,7 @@ pub use appearance_publish_tool::PublishAppearanceTool;
 pub use ask_user_question_tool::AskUserQuestionTool;
 #[cfg(feature = "tools-canvas")]
 pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
+pub use arkts_check_tool::ArktsCheckTool;
 pub use code_review_tool::CodeReviewTool;
 #[cfg(feature = "tools-computer-use")]
 pub use computer_use_tool::ComputerUseTool;
@@ -128,8 +129,6 @@ pub use file_read_tool::FileReadTool;
 pub use file_write_tool::FileWriteTool;
 pub use arkts_knowledge_search_tool::ArktsKnowledgeSearchTool;
 pub use build_project_tool::BuildProjectTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use check_arkts_files_tool::CheckArktsFilesTool;
     #[cfg(feature = "mcp-runtime")]
     pub use check_cpp_files_tool::CheckCppFilesTool;
     #[cfg(feature = "mcp-runtime")]
