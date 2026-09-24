@@ -6,8 +6,11 @@ import { MenuContext, ContextType, EditorContext } from '../types/context.types'
 import { commandExecutor } from '../commands/CommandExecutor';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { i18nService } from '@/infrastructure/i18n';
+import { createLogger } from '@/shared/utils/logger';
 import type { CodeSnippetContext } from '@/shared/types/context';
 import { useContextStore } from '@/shared/stores/contextStore';
+
+const formatMenuLog = createLogger('EditorMenuProvider.format');
 
 function fileNameFromPath(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/');
@@ -211,7 +214,10 @@ export class EditorMenuProvider implements IMenuProvider {
         icon: 'Code',
         shortcut: 'Shift+Alt+F',
         onClick: () => {
-          
+          formatMenuLog.info('Format document requested from context menu', {
+            filePath: editorContext.filePath,
+            editorId: editorContext.editorId,
+          });
           globalEventBus.emit('editor:format-document', {
             filePath: editorContext.filePath,
             editorId: editorContext.editorId

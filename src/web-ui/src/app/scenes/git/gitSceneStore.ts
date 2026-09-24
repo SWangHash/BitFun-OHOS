@@ -7,7 +7,7 @@
 
 import { create } from 'zustand';
 
-export type GitSceneView = 'working-copy' | 'branches' | 'graph';
+export type GitSceneView = 'working-copy' | 'branches' | 'graph' | 'file-history';
 
 interface GitSceneState {
   activeView: GitSceneView;
@@ -17,6 +17,8 @@ interface GitSceneState {
   selectedCommit: string | null;
   /** History: file path selected within commit detail */
   selectedCommitFile: string | null;
+  /** File-history: repository-relative path whose commit history is shown */
+  historyFilePath: string | null;
   /** Working-copy: file list column width (px) */
   fileListWidth: number;
 
@@ -24,6 +26,7 @@ interface GitSceneState {
   setSelectedFile: (file: string | null) => void;
   setSelectedCommit: (hash: string | null) => void;
   setSelectedCommitFile: (file: string | null) => void;
+  setHistoryFilePath: (path: string | null) => void;
   setFileListWidth: (width: number) => void;
 }
 
@@ -34,11 +37,13 @@ export const useGitSceneStore = create<GitSceneState>((set) => ({
   selectedFile: null,
   selectedCommit: null,
   selectedCommitFile: null,
+  historyFilePath: null,
   fileListWidth: DEFAULT_FILE_LIST_WIDTH,
 
   setActiveView: (view) => set({ activeView: view }),
   setSelectedFile: (file) => set({ selectedFile: file }),
   setSelectedCommit: (hash) => set({ selectedCommit: hash, selectedCommitFile: null }),
   setSelectedCommitFile: (file) => set({ selectedCommitFile: file }),
+  setHistoryFilePath: (path) => set({ historyFilePath: path }),
   setFileListWidth: (width) => set({ fileListWidth: Math.max(180, Math.min(400, width)) }),
 }));

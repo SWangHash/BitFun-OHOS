@@ -7,12 +7,16 @@ import { useEditorDocument } from '../services/EditorDocument';
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
 import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
+import { useNotification } from '@/shared/notification-system';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { formatBytes } from '@/shared/utils/format';
+import { downloadWorkspaceFileToDisk } from '@/tools/file-system/services/workspaceFileTransfer';
+import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
@@ -40,6 +44,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 }) => {
   const documentSession = useEditorDocument();
   const { t } = useI18n('tools');
+  const notification = useNotification();
   const [retryKey, setRetryKey] = useState(0);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -98,7 +103,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         setError(null);
 
         const workspaceAPI = documentSession?.files ?? (await import('@/infrastructure/api')).workspaceAPI;
-        const result = await workspaceAPI.readFileContent(filePath);
+        // Request base64 explicitly: the default read returns decoded text,
+        // which produces invalid data URLs for binary images and SVG.
+        const result = await workspaceAPI.readFileContent(filePath, 'base64');
 
         if (cancelled) return;
         const mimeType = getMimeType(filePath);
@@ -159,7 +166,23 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     setRotation(prev => (prev + 90) % 360);
   }, []);
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
+    // Anchor-based downloads (href + download attribute) are silently dropped
+    // by some embedded WebViews (e.g. ArkWeb on HarmonyOS). Route through the
+    // shared workspace download pipeline, which owns the platform save dialog
+    // and transfer progress on every host. This no longer depends on a
+    // mounted FilesPanel to handle the event.
+    if (filePath && !filePath.startsWith('dispatch-file://')) {
+      downloadWorkspaceFileToDisk(filePath, null, () => {}, undefined, false)
+        .catch((err) => {
+          log.error('Failed to download image', err);
+          notification.error(t('editor.imageViewer.loadImageFailedWithMessage', { message: String(err) }));
+        });
+      return;
+    }
+
+    // Session-provided images have no workspace path: fall back to a blob
+    // download from the in-memory data URL (desktop WebViews).
     try {
       const name = fileName || filePath.split(/[/\\]/).pop() || 'image';
       const link = document.createElement('a');
@@ -171,13 +194,16 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     } catch (err) {
       log.error('Failed to download image', err);
     }
-  }, [imageUrl, fileName, filePath]);
+  }, [imageUrl, fileName, filePath, notification, t]);
 
   const handleToggleFullscreen = useCallback(() => {
     setIsFullscreen(prev => !prev);
   }, []);
 
-  return (
+  // Fullscreen renders through a portal on document.body: the editor-area
+  // ancestors apply transforms/stacking that would otherwise contain a
+  // position:fixed overlay inside the pane instead of covering the window.
+  const viewerNode = (
     <div
       className={`bitfun-image-viewer ${className} ${isFullscreen ? 'fullscreen' : ''}`}
       data-bitfun-component="image-viewer"
@@ -264,7 +290,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                   aria-label={isFullscreen ? t('editor.imageViewer.exitFullscreen') : t('editor.imageViewer.enterFullscreen')}
                   size="sm"
                   variant="quiet"
-                  icon={<Maximize2 size={14} />}
+                  icon={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   onClick={handleToggleFullscreen}
                 />
               </Tooltip>
@@ -313,6 +339,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
       </div>
     </div>
   );
+
+  if (isFullscreen && typeof document !== 'undefined') {
+    return createPortal(viewerNode, getAppearanceOverlayHost());
+  }
+  return viewerNode;
 };
 
 export default ImageViewer;

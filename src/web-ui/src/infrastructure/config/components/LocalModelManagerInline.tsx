@@ -109,13 +109,22 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
       if (isMounted.current) {
         setModels(list);
         notifyIfDownloadedChanged(list);
-        // Sync pullingModels: remove entries whose backend status is no longer "downloading"
-        // (handles external state changes like CLI pause/cancel/complete)
+        // Sync pullingModels: only a definitive terminal status clears the
+        // optimistic "downloading" state. A model missing from the list (or
+        // still reported undownloaded) must NOT clear it — an in-flight pull
+        // is not listed by the service, and clearing on absence made the
+        // progress bar vanish seconds after starting on platforms where the
+        // progress-event bridge is unavailable (e.g. OHOS).
         setPullingModels((prev) => {
           const next = new Set(prev);
           for (const name of next) {
             const backendModel = list.find((m) => m.name === name);
-            if (!backendModel || backendModel.status !== 'downloading') {
+            if (
+              backendModel
+              && (backendModel.status === 'downloaded'
+                || backendModel.status === 'failed'
+                || backendModel.status === 'paused')
+            ) {
               next.delete(name);
               activePulls.current.delete(name);
             }

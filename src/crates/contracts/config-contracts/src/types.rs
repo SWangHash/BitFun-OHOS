@@ -1820,8 +1820,16 @@ impl Default for AppConfig {
 impl Default for AppLoggingConfig {
     fn default() -> Self {
         Self {
-            // Set to Debug in early development for easier diagnostics
-            level: "debug".to_string(),
+            // The initial log level follows the build profile: debug builds
+            // start at debug for easier diagnostics, release builds start at
+            // info to keep field logs quiet. Users can still override the
+            // level in Settings -> Logging & Diagnostics.
+            level: if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "info"
+            }
+            .to_string(),
             include_sensitive_diagnostics: true,
             flow_chat_diagnostics: false,
             model_exchange_tracing: ModelExchangeTracingConfig::default(),
@@ -2129,6 +2137,17 @@ impl AIModelConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn app_logging_default_level_follows_build_profile() {
+        let config = super::AppLoggingConfig::default();
+        let expected = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "info"
+        };
+        assert_eq!(config.level, expected);
+    }
+
     #[test]
     fn global_skill_settings_keep_legacy_values_and_project_scope_on_round_trip() {
         let legacy = r#"{"globally_disabled_user_skills":["user::home.agents::review"]}"#;

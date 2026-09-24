@@ -4,7 +4,7 @@ use crate::api::app_state::AppState;
 #[cfg(not(target_env = "ohos"))]
 use crate::computer_use::DesktopComputerUseHost;
 use bitfun_core::agentic::tools::computer_use_host::ComputerUseHost;
-use bitfun_core::service::config::types::AIConfig;
+use bitfun_core::service::config::{get_global_config_service, GlobalConfig};
 #[cfg(target_os = "windows")]
 use bitfun_core::util::process_manager;
 use serde::{Deserialize, Serialize};
@@ -28,9 +28,28 @@ pub struct ComputerUseOpenSettingsRequest {
 
 #[tauri::command]
 pub async fn computer_use_get_status(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
 ) -> Result<ComputerUseStatusResponse, String> {
-    Err("computer_use_get_status error".to_string())
+    let config = get_global_config_service()
+        .await
+        .map_err(|e| e.to_string())?
+        .get_config::<GlobalConfig>(None)
+        .await
+        .map_err(|e| e.to_string())?;
+    // The computer_use module (and its probes) is only compiled for non-OHOS
+    // hosts; OHOS has no desktop host and no probeable accessibility gate,
+    // and the screen-capture privacy gate is surfaced by the OS at first use.
+    #[cfg(not(target_env = "ohos"))]
+    let (accessibility_granted, screen_capture_granted) =
+        crate::computer_use::permission_probes();
+    #[cfg(target_env = "ohos")]
+    let (accessibility_granted, screen_capture_granted) = (true, true);
+    Ok(ComputerUseStatusResponse {
+        computer_use_enabled: config.ai.computer_use_enabled,
+        accessibility_granted,
+        screen_capture_granted,
+        platform_note: None,
+    })
 }
 
 #[tauri::command]
@@ -89,6 +108,10 @@ pub async fn computer_use_open_system_settings(
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         let _ = request;
-        Err("Unsupported platform.".to_string())
+        // OHOS and other targets have no settings deep link; point the person
+        // at the manual path for the screen-capture privacy gate.
+        Err(
+            "No settings deep link on this platform. Open Settings, then Privacy & security, then Screen capture, and allow BitFun.".to_string(),
+        )
     }
 }

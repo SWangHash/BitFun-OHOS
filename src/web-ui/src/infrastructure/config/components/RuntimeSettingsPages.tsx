@@ -909,15 +909,17 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
     ? t('loading.text')
     : computerUseStatusError ? t('computerUse.statusUnavailable')
     : computerUseScreen ? t('computerUse.granted') : t('computerUse.notGranted');
-  const computerUsePlatformMessage = computerUsePlatformNote
-    ? platform === 'macos'
-      ? t('computerUse.platformNotes.macos')
-      : platform === 'windows'
-        ? t('computerUse.platformNotes.windows')
-        : platform === 'linux'
-          ? t('computerUse.platformNotes.linux')
-          : t('computerUse.platformNotes.generic')
-    : null;
+  const computerUsePlatformMessage = platform === 'macos'
+    ? t('computerUse.platformNotes.macos')
+    : platform === 'windows'
+      ? t('computerUse.platformNotes.windows')
+      : platform === 'linux'
+        ? t('computerUse.platformNotes.linux')
+        : platform === 'ohos'
+          ? t('computerUse.platformNotes.ohos')
+          : computerUsePlatformNote
+            ? t('computerUse.platformNotes.generic')
+            : null;
   const browserStatusLabel = browserStatusLoading
     ? t('loading.text')
     : browserStatusError

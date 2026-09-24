@@ -252,7 +252,7 @@ export default class EntryAbility extends RustAbility {
       return await CommonUtils.save_text_file_dialog(arg);
     });
     RustModule.registerArktsFunction('get_clipboard_files', async (err: Error, _arg: string): Promise<string> => {
-      let res = await CommonUtils.read_clipboard_files();
+      let res = await CommonUtils.read_clipboard_files(this.context.cacheDir);
       return res;
     });
     RustModule.registerArktsFunction('handle_min_window', async (err: Error, arg: string): Promise<string> => {

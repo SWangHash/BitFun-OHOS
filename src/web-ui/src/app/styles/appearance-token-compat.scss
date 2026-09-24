@@ -1,0 +1,236 @@
+/**
+ * Legacy appearance-token compatibility layer.
+ *
+ * The 1.0.x appearance system injected `--bf-appearance-token-*` variables at
+ * runtime from skin JSON. The token-governance refactor (3553857e0) replaced
+ * that injector with the `--bitfun-*` semantic theme, but dozens of merged
+ * component stylesheets still consume the legacy names, so every color,
+ * shadow, and typography property bound to them silently collapsed to its CSS
+ * fallback (transparent/inherit) — e.g. the local model manager's progress
+ * bar rendered as an invisible 0-width-looking track.
+ *
+ * This layer rebinds the legacy names to the current semantic tokens (colors
+ * follow light/dark automatically) and restores theme-independent scale values
+ * (spacing, radius, typography, motion) from the historical definitions.
+ *
+ * New code must consume `--bitfun-*` directly; do not add new
+ * `--bf-appearance-token-*` usages. Track remaining consumers down instead.
+ */
+
+:root {
+  /* ---------- text ---------- */
+  --bf-appearance-token-color-text-primary: var(--bitfun-color-content-primary);
+  --bf-appearance-token-color-text-secondary: var(--bitfun-color-content-secondary);
+  --bf-appearance-token-color-text-muted: var(--bitfun-color-content-muted);
+  --bf-appearance-token-color-text-tertiary: var(--bitfun-color-content-muted);
+  --bf-appearance-token-color-text-disabled: var(--bitfun-color-content-disabled);
+
+  /* ---------- backgrounds ---------- */
+  --bf-appearance-token-color-bg-primary: var(--bitfun-color-surface-canvas);
+  --bf-appearance-token-color-bg-secondary: var(--bitfun-color-surface-panel);
+  --bf-appearance-token-color-bg-tertiary: var(--bitfun-color-surface-tertiary);
+  --bf-appearance-token-color-bg-elevated: var(--bitfun-color-surface-raised);
+  --bf-appearance-token-color-bg-workbench: var(--bitfun-color-surface-workbench);
+  --bf-appearance-token-color-bg-scene: var(--bitfun-color-surface-scene);
+  --bf-appearance-token-color-bg-chrome: var(--bitfun-color-surface-chrome);
+
+  /* ---------- accent scale ---------- */
+  --bf-appearance-token-color-accent-500: var(--bitfun-color-accent-default);
+  --bf-appearance-token-color-accent-600: var(--bitfun-color-accent-hover);
+  --bf-appearance-token-color-accent-700: var(--bitfun-color-accent-hover);
+  --bf-appearance-token-color-accent-400: color-mix(in srgb, var(--bitfun-color-accent-default) 75%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-accent-300: color-mix(in srgb, var(--bitfun-color-accent-default) 45%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-accent-200: color-mix(in srgb, var(--bitfun-color-accent-default) 30%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-accent-100: color-mix(in srgb, var(--bitfun-color-accent-default) 18%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-accent-50: color-mix(in srgb, var(--bitfun-color-accent-default) 10%, var(--bitfun-color-surface-canvas));
+
+  /* ---------- status ---------- */
+  --bf-appearance-token-color-success: var(--bitfun-color-status-success-surface);
+  --bf-appearance-token-color-success-bg: var(--bitfun-color-status-success-surface);
+  --bf-appearance-token-color-success-border: var(--bitfun-color-status-success-border);
+  --bf-appearance-token-color-warning: var(--bitfun-color-status-warning-surface);
+  --bf-appearance-token-color-warning-bg: var(--bitfun-color-status-warning-surface);
+  --bf-appearance-token-color-warning-border: var(--bitfun-color-status-warning-border);
+  --bf-appearance-token-color-error: var(--bitfun-color-status-danger-surface);
+  --bf-appearance-token-color-error-bg: var(--bitfun-color-status-danger-surface);
+  --bf-appearance-token-color-error-border: var(--bitfun-color-status-danger-border);
+  --bf-appearance-token-color-info: var(--bitfun-color-status-info-surface);
+  --bf-appearance-token-color-info-bg: var(--bitfun-color-status-info-surface);
+  --bf-appearance-token-color-info-border: var(--bitfun-color-status-info-border);
+
+  /* ---------- borders ---------- */
+  --bf-appearance-token-border-base: var(--bitfun-color-border-default);
+  --bf-appearance-token-border-subtle: var(--bitfun-color-border-subtle);
+  --bf-appearance-token-border-medium: var(--bitfun-color-border-default);
+  --bf-appearance-token-border-strong: var(--bitfun-color-border-strong);
+  --bf-appearance-token-border-prominent: var(--bitfun-color-border-strong);
+  --bf-appearance-token-border-accent: var(--bitfun-color-accent-border);
+  --bf-appearance-token-border-accent-strong: var(--bitfun-color-accent-border);
+  --bf-appearance-token-border-accent-soft: var(--bitfun-color-accent-surface);
+  --bf-appearance-token-border-accent-subtle: var(--bitfun-color-accent-border-subtle);
+
+  /* ---------- element surfaces (translucent local tints) ---------- */
+  --bf-appearance-token-element-bg-subtle: color-mix(in srgb, var(--bitfun-color-content-primary) 5%, transparent);
+  --bf-appearance-token-element-bg-soft: color-mix(in srgb, var(--bitfun-color-content-primary) 8%, transparent);
+  --bf-appearance-token-element-bg-base: color-mix(in srgb, var(--bitfun-color-content-primary) 12%, transparent);
+  --bf-appearance-token-element-bg-medium: color-mix(in srgb, var(--bitfun-color-content-primary) 16%, transparent);
+  --bf-appearance-token-element-bg-strong: color-mix(in srgb, var(--bitfun-color-content-primary) 24%, transparent);
+  --bf-appearance-token-element-bg-hover: color-mix(in srgb, var(--bitfun-color-content-primary) 8%, transparent);
+
+  /* ---------- overlays (theme-independent veils) ---------- */
+  --bf-appearance-token-color-overlay-black-08: rgba(0, 0, 0, 0.08);
+  --bf-appearance-token-color-overlay-black-12: rgba(0, 0, 0, 0.12);
+  --bf-appearance-token-color-overlay-black-15: rgba(0, 0, 0, 0.15);
+  --bf-appearance-token-color-overlay-black-20: rgba(0, 0, 0, 0.20);
+  --bf-appearance-token-color-overlay-black-30: rgba(0, 0, 0, 0.30);
+  --bf-appearance-token-color-overlay-black-40: rgba(0, 0, 0, 0.40);
+  --bf-appearance-token-color-overlay-black-50: rgba(0, 0, 0, 0.50);
+  --bf-appearance-token-color-overlay-black-80: rgba(0, 0, 0, 0.80);
+  --bf-appearance-token-color-overlay-white-04: rgba(255, 255, 255, 0.04);
+  --bf-appearance-token-color-overlay-white-08: rgba(255, 255, 255, 0.08);
+  --bf-appearance-token-color-overlay-white-12: rgba(255, 255, 255, 0.12);
+  --bf-appearance-token-color-overlay-white-15: rgba(255, 255, 255, 0.15);
+  --bf-appearance-token-color-overlay-white-20: rgba(255, 255, 255, 0.20);
+  --bf-appearance-token-color-overlay-white-24: rgba(255, 255, 255, 0.24);
+  --bf-appearance-token-color-overlay-white-60: rgba(255, 255, 255, 0.60);
+  --bf-appearance-token-color-overlay-white-70: rgba(255, 255, 255, 0.70);
+  --bf-appearance-token-color-overlay-white-80: rgba(255, 255, 255, 0.80);
+  --bf-appearance-token-color-overlay-white-90: rgba(255, 255, 255, 0.90);
+  --bf-appearance-token-color-overlay-white-95: rgba(255, 255, 255, 0.95);
+  --bf-appearance-token-color-overlay-slate-rgb: 16, 26, 39;
+  --bf-appearance-token-color-overlay-slate-04: rgba(16, 26, 39, 0.04);
+  --bf-appearance-token-color-overlay-slate-08: rgba(16, 26, 39, 0.08);
+  --bf-appearance-token-color-overlay-slate-12: rgba(16, 26, 39, 0.12);
+  --bf-appearance-token-color-static-black: #000000;
+  --bf-appearance-token-color-static-black-rgb: 0, 0, 0;
+  --bf-appearance-token-color-static-white: #ffffff;
+  --bf-appearance-token-color-static-white-rgb: 255, 255, 255;
+
+  /* ---------- secondary hues ---------- */
+  --bf-appearance-token-color-purple-500: var(--bitfun-color-accent-secondary);
+  --bf-appearance-token-color-purple-600: var(--bitfun-color-accent-secondary-hover);
+  --bf-appearance-token-color-purple-200: color-mix(in srgb, var(--bitfun-color-accent-secondary) 30%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-purple-100: color-mix(in srgb, var(--bitfun-color-accent-secondary) 18%, var(--bitfun-color-surface-canvas));
+  --bf-appearance-token-color-cyan-500: var(--bitfun-color-accent-default);
+  --bf-appearance-token-color-indigo-500: var(--bitfun-color-accent-secondary);
+  --bf-appearance-token-glass-blue-subtle: color-mix(in srgb, var(--bitfun-color-accent-default) 8%, transparent);
+
+  /* ---------- git domain ---------- */
+  --bf-appearance-token-git-color-branch: var(--bitfun-domain-git-branch, var(--bitfun-color-accent-default));
+  --bf-appearance-token-git-color-branch-bg: color-mix(in srgb, var(--bitfun-domain-git-branch, var(--bitfun-color-accent-default)) 12%, transparent);
+  --bf-appearance-token-git-color-branch-bg-hover: color-mix(in srgb, var(--bitfun-domain-git-branch, var(--bitfun-color-accent-default)) 20%, transparent);
+  --bf-appearance-token-git-color-changes: var(--bitfun-color-code-change-added);
+  --bf-appearance-token-git-color-deleted: var(--bitfun-color-code-change-removed);
+  --bf-appearance-token-git-color-staged: var(--bitfun-color-code-change-added);
+
+  /* ---------- typography ---------- */
+  --bf-appearance-token-font-family-sans: -apple-system, 'Segoe UI', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --bf-appearance-token-font-family-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  --bf-appearance-token-font-size-2xs: 10px;
+  --bf-appearance-token-font-size-xxs: 11px;
+  --bf-appearance-token-font-size-xs: 12px;
+  --bf-appearance-token-font-size-sm: 13px;
+  --bf-appearance-token-font-size-base: 14px;
+  --bf-appearance-token-font-size-lg: 16px;
+  --bf-appearance-token-font-size-xl: 18px;
+  --bf-appearance-token-font-weight-normal: 400;
+  --bf-appearance-token-font-weight-medium: 500;
+  --bf-appearance-token-font-weight-semibold: 600;
+  --bf-appearance-token-font-weight-bold: 700;
+  --bf-appearance-token-line-height-tight: 1.25;
+  --bf-appearance-token-line-height-base: 1.5;
+  --bf-appearance-token-line-height-relaxed: 1.7;
+
+  /* ---------- spacing / radius ---------- */
+  --bf-appearance-token-size-gap-1: 4px;
+  --bf-appearance-token-size-gap-2: 8px;
+  --bf-appearance-token-size-gap-3: 12px;
+  --bf-appearance-token-size-gap-4: 16px;
+  --bf-appearance-token-size-gap-5: 20px;
+  --bf-appearance-token-size-gap-6: 24px;
+  --bf-appearance-token-size-gap-8: 32px;
+  --bf-appearance-token-size-gap-10: 40px;
+  --bf-appearance-token-size-gap-12: 48px;
+  --bf-appearance-token-size-radius-sm: 6px;
+  --bf-appearance-token-size-radius-md: 8px;
+  --bf-appearance-token-size-radius-base: 8px;
+  --bf-appearance-token-size-radius-lg: 12px;
+  --bf-appearance-token-size-radius-xl: 16px;
+  --bf-appearance-token-size-radius-full: 9999px;
+  --bf-appearance-token-badge-padding-y: 2px;
+
+  /* ---------- shadows / blur ---------- */
+  --bf-appearance-token-shadow-xs: var(--bitfun-shadow-xs);
+  --bf-appearance-token-shadow-sm: var(--bitfun-shadow-sm);
+  --bf-appearance-token-shadow-base: var(--bitfun-shadow-base);
+  --bf-appearance-token-shadow-lg: var(--bitfun-shadow-lg);
+  --bf-appearance-token-shadow-xl: var(--bitfun-shadow-xl);
+  --bf-appearance-token-effect-blur-subtle: var(--bitfun-effect-blur-subtle);
+  --bf-appearance-token-effect-blur-medium: var(--bitfun-effect-blur-medium);
+  --bf-appearance-token-effect-blur-base: var(--bitfun-effect-blur-base);
+  --bf-appearance-token-blur-subtle: var(--bitfun-effect-blur-subtle);
+  --bf-appearance-token-blur-medium: var(--bitfun-effect-blur-medium);
+  --bf-appearance-token-blur-base: var(--bitfun-effect-blur-base);
+
+  /* ---------- motion ---------- */
+  --bf-appearance-token-motion-instant: 0ms;
+  --bf-appearance-token-motion-fast: 120ms;
+  --bf-appearance-token-motion-base: 200ms;
+  --bf-appearance-token-motion-slow: 320ms;
+  --bf-appearance-token-motion-lazy: 500ms;
+  --bf-appearance-token-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --bf-appearance-token-easing-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --bf-appearance-token-easing-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --bf-appearance-token-easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---------- opacity ---------- */
+  --bf-appearance-token-opacity-disabled: var(--bitfun-opacity-disabled);
+  --bf-appearance-token-opacity-hover: var(--bitfun-opacity-hover);
+
+  /* ---------- buttons ---------- */
+  --bf-appearance-token-btn-primary-bg: var(--bitfun-color-accent-default);
+  --bf-appearance-token-btn-primary-color: var(--bitfun-color-surface-canvas);
+  --bf-appearance-token-btn-primary-hover-bg: var(--bitfun-color-accent-hover);
+  --bf-appearance-token-btn-primary-hover-color: var(--bitfun-color-surface-canvas);
+  --bf-appearance-token-btn-primary-active-bg: var(--bitfun-color-accent-hover);
+  --bf-appearance-token-btn-primary-active-color: var(--bitfun-color-surface-canvas);
+  --bf-appearance-token-btn-primary-shadow: var(--bitfun-shadow-sm);
+  --bf-appearance-token-btn-primary-hover-shadow: var(--bitfun-shadow-base);
+  --bf-appearance-token-btn-primary-active-shadow: var(--bitfun-shadow-sm);
+  --bf-appearance-token-btn-ghost-color: var(--bitfun-color-content-secondary);
+  --bf-appearance-token-btn-ghost-hover-color: var(--bitfun-color-content-primary);
+  --bf-appearance-token-btn-ghost-hover-bg: var(--bitfun-color-surface-subtle);
+  --bf-appearance-token-btn-ghost-hover-border: var(--bitfun-color-border-subtle);
+  --bf-appearance-token-button-bg-hover: var(--bitfun-color-action-neutral-surface-hover);
+
+  /* ---------- flowchat ---------- */
+  --bf-appearance-token-flowchat-font-size-base: 14px;
+  --bf-appearance-token-flowchat-font-size-sm: 13px;
+  --bf-appearance-token-flowchat-font-size-xs: 12px;
+  --bf-appearance-token-flowchat-font-size-xxs: 11px;
+  --bf-appearance-token-flowchat-text-line-height: 1.6;
+  --bf-appearance-token-flowchat-support-line-height: 1.5;
+  --bf-appearance-token-flowchat-compact-line-height: 1.45;
+  --bf-appearance-token-flowchat-code-line-height: 1.5;
+  --bf-appearance-token-flowchat-code-font-size: 13px;
+  --bf-appearance-token-flowchat-card-pad-x: 16px;
+  --bf-appearance-token-flowchat-card-pad-y: 12px;
+  --bf-appearance-token-flowchat-card-expanded-pad-x: 20px;
+  --bf-appearance-token-flowchat-card-expanded-pad-y: 16px;
+  --bf-appearance-token-flowchat-card-radius: 12px;
+  --bf-appearance-token-flowchat-card-gap: 12px;
+  --bf-appearance-token-flowchat-flow-item-gap: 8px;
+  --bf-appearance-token-flowchat-inline-gap: 6px;
+  --bf-appearance-token-flowchat-control-gap: 8px;
+  --bf-appearance-token-flowchat-code-block-pad-x: 12px;
+  --bf-appearance-token-flowchat-code-block-pad-y: 10px;
+  --bf-appearance-token-flowchat-link-color: var(--bitfun-color-link-default);
+  --bf-appearance-token-flowchat-link-hover-color: var(--bitfun-color-link-hover);
+
+  /* ---------- tool cards / misc ---------- */
+  --bf-appearance-token-tool-card-font-mono: var(--bf-appearance-token-font-family-mono);
+  --bf-appearance-token-tool-card-action-font-size: 12px;
+  --bf-appearance-token-inner-glow-top: color-mix(in srgb, var(--bitfun-color-content-on-light) 6%, transparent);
+  --bf-appearance-token-inner-glow-top-hover: color-mix(in srgb, var(--bitfun-color-content-on-light) 10%, transparent);
+  --bf-appearance-token-glow-shadow-blue: 0 0 18px color-mix(in srgb, var(--bitfun-color-accent-default) 35%, transparent);
+}

@@ -196,13 +196,15 @@ export class GitService {
 
       return {
         hash: commit.hash,
-        shortHash: commit.hash.substring(0, 7),
+        shortHash: commit.shortHash ?? commit.hash.substring(0, 7),
         message: commit.message,
         author: commit.author,
-        authorEmail: '',
+        authorEmail: commit.authorEmail ?? '',
         date: new Date(commit.date),
-        parents: [],
-        files: adaptedFiles
+        parents: commit.parents ?? [],
+        files: adaptedFiles,
+        additions: commit.additions,
+        deletions: commit.deletions
       };
     });
   }
@@ -306,6 +308,15 @@ export class GitService {
       log.error('Failed to get commits', error);
       return [];
     }
+  }
+
+  /**
+   * Gets the commit history of a single repository-relative file path.
+   * The returned commits carry per-commit stat info for the whole commit;
+   * callers combine them with `getDiff` for per-file diffs.
+   */
+  async getFileHistory(repositoryPath: GitWorkspaceScope, filePath: string, maxCount: number = 100): Promise<GitCommit[]> {
+    return this.getCommits(repositoryPath, { path: filePath, maxCount, stat: true });
   }
 
   /**

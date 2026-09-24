@@ -42,5 +42,14 @@ mod windows_wgc_capture;
 
 pub use desktop_host::DesktopComputerUseHost;
 
+/// OS permission probes for the desktop-control settings surface, as
+/// `(accessibility_granted, screen_capture_granted)`. Windows and Linux have
+/// no user-facing gates for these capabilities, so they report granted;
+/// macOS probes the real system state. The OHOS build does not compile this
+/// module at all.
+pub fn permission_probes() -> (bool, bool) {
+    desktop_host::permission_probes()
+}
+
 #[cfg(test)]
 mod integration_e2e;

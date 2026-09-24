@@ -1175,6 +1175,7 @@ pub async fn get_file_change_history(
                     snapshot_id: operation
                         .before_snapshot_id
                         .unwrap_or_else(|| format!("empty_snapshot_{}", operation.operation_id)),
+                    operation_id: operation.operation_id,
                     timestamp: operation.timestamp,
                     operation_type: operation.operation_type,
                     tool_name: operation.tool_context.tool_name,

@@ -452,5 +452,33 @@
     "unavailable": "Git ownership trust for \"{{path}}\" could not be granted from here. Grant it on the machine that owns the repository.",
     "unavailableWithCommand": "Git ownership trust for \"{{path}}\" could not be granted from here. Run this command on the machine that holds the repository:\n\n{{command}}",
     "required": "Git will not read \"{{path}}\" until you trust its ownership."
+  },
+  "fileHistory": {
+    "back": "Back to changes",
+    "refresh": "Refresh",
+    "viewHistory": "View history",
+    "loading": "Loading commit history...",
+    "loadFailed": "Failed to load commit history",
+    "loadFailedWithMessage": "Failed to load: {{error}}",
+    "retry": "Retry",
+    "noCommits": "No commits touch this file",
+    "selectCommit": "Select a commit to view its changes to this file",
+    "addedInCommit": "This file was first added in this commit",
+    "emptyPath": "Select a file to view its history",
+    "tabs": {
+      "git": "Commits",
+      "local": "Local changes"
+    },
+    "localEmpty": "No local change history for this file",
+    "selectChange": "Select a change to view its diff",
+    "localNoDiff": "No content difference for this operation",
+    "localLoadFailedWithMessage": "Failed to load: {{error}}",
+    "turn": "Turn {{turn}}",
+    "operation": {
+      "create": "Created",
+      "modify": "Modified",
+      "delete": "Deleted",
+      "rename": "Renamed"
+    }
   }
 }

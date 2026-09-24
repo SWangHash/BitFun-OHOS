@@ -49,6 +49,8 @@ export interface FileExplorerProps {
   onNewFile?: (data: { parentPath: string }) => void;
   onNewFolder?: (data: { parentPath: string }) => void;
   onRefresh?: () => void;
+  /** Collapses every expanded folder in the tree (owner owns the expanded set). */
+  onCollapseAll?: () => void;
 
   /** When true, the floating toolbar is not rendered (e.g. actions live in a parent header). */
   hideToolbar?: boolean;
@@ -62,6 +64,8 @@ export interface FileExplorerToolbarHandlers {
   onNewFile: () => void;
   onNewFolder: () => void;
   onRefresh: () => void;
+  /** Optional collapse-all handler; omitted when the host hides the tree. */
+  onCollapseAll?: () => void;
 }
 
 

@@ -63,25 +63,27 @@
   &__status-icon {
     flex-shrink: 0;
 
+    // Icon strokes use the *-content status tokens (strong, text-safe);
+    // the *-surface tokens are pale background tints and wash out here.
     &--downloaded {
-      color: var(--bf-appearance-token-color-success);
+      color: var(--bitfun-color-status-success-content);
     }
 
     &--downloading {
-      color: var(--bf-appearance-token-color-info);
+      color: var(--bitfun-color-status-info-content);
       animation: local-model-manager-spin 1s linear infinite;
     }
 
     &--paused {
-      color: var(--bf-appearance-token-color-warning);
+      color: var(--bitfun-color-status-warning-content);
     }
 
     &--failed {
-      color: var(--bf-appearance-token-color-error);
+      color: var(--bitfun-color-status-danger-content);
     }
 
     &--undownloaded {
-      color: var(--bf-appearance-token-color-text-muted);
+      color: var(--bitfun-color-content-muted);
     }
   }
 
@@ -137,18 +139,18 @@
     width: 100%;
     height: 6px;
     border-radius: 3px;
-    background: var(--bf-appearance-token-border-subtle);
+    background: var(--bitfun-color-border-default);
     overflow: hidden;
   }
 
   &__progress-fill {
     height: 100%;
     border-radius: 3px;
-    background: var(--bf-appearance-token-color-accent-500);
+    background: var(--bitfun-color-accent-default);
     transition: width 0.3s ease;
 
     &--paused {
-      background: var(--bf-appearance-token-color-warning);
+      background: var(--bitfun-color-status-warning-content);
     }
 
     &--indeterminate {
@@ -156,7 +158,7 @@
       background: linear-gradient(
         90deg,
         transparent 0%,
-        var(--bf-appearance-token-color-accent-500) 50%,
+        var(--bitfun-color-accent-default) 50%,
         transparent 100%
       );
       background-size: 40% 100%;
@@ -176,7 +178,7 @@
     align-items: center;
     gap: 4px;
     font-size: 12px;
-    color: var(--bf-appearance-token-color-success);
+    color: var(--bitfun-color-status-success-content);
   }
 
   &__empty {

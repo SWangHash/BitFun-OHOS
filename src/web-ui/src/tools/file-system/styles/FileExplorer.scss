@@ -225,11 +225,13 @@ $_indent-width: 8px;
   flex-shrink: 0;
   min-width: $_icon-size;
 
-  > svg:not(.bitfun-file-explorer__loading-icon) {
+  > svg:not(.bitfun-file-explorer__loading-icon),
+  > [data-bitfun-component='icon'] {
     transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
   }
 
-  &--expanded > svg:not(.bitfun-file-explorer__loading-icon) {
+  &--expanded > svg:not(.bitfun-file-explorer__loading-icon),
+  &--expanded > [data-bitfun-component='icon'] {
     transform: rotate(90deg);
   }
 }

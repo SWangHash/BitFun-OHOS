@@ -108,6 +108,8 @@ pub struct GitLogParams {
     pub since: Option<String>,
     pub until: Option<String>,
     pub stat: Option<bool>,
+    /// Restrict history to commits that touch this repository-relative path.
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

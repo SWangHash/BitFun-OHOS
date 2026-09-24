@@ -70,6 +70,7 @@ import { planViewerAppearanceDescriptor } from '@/tools/editor/components/PlanVi
 import { appLayoutAppearanceDescriptor } from '@/app/layout/AppLayout.appearance';
 import { skillGroupPickerAppearanceDescriptor } from '@/app/scenes/agents/components/SkillGroupPicker.appearance';
 import { workingCopyViewAppearanceDescriptor } from '@/app/scenes/git/views/WorkingCopyView.appearance';
+import { fileHistoryViewAppearanceDescriptor } from '@/app/scenes/git/views/FileHistoryView.appearance';
 import { assistantConfigPageAppearanceDescriptor } from '@/app/scenes/profile/views/AssistantConfigPage.appearance';
 import { assistantDefaultsPageAppearanceDescriptor } from '@/app/scenes/profile/views/AssistantDefaultsPage.appearance';
 import { taskDetailPanelAppearanceDescriptor } from '@/flow_chat/components/TaskDetailPanel/TaskDetailPanel.appearance';
@@ -373,6 +374,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(appLayoutAppearanceDescriptor)
     .registerComponent(skillGroupPickerAppearanceDescriptor)
     .registerComponent(workingCopyViewAppearanceDescriptor)
+    .registerComponent(fileHistoryViewAppearanceDescriptor)
     .registerComponent(assistantConfigPageAppearanceDescriptor)
     .registerComponent(assistantDefaultsPageAppearanceDescriptor)
     .registerComponent(taskDetailPanelAppearanceDescriptor)

@@ -513,6 +513,21 @@ impl DesktopComputerUseHost {
         }
     }
 
+    /// Current OS permission gates for desktop control, as
+    /// `(accessibility_granted, screen_capture_granted)`. Windows and Linux
+    /// have no user-facing gates for these capabilities, so they report
+    /// granted; macOS probes the real system state.
+    pub(super) fn permission_probes() -> (bool, bool) {
+        #[cfg(target_os = "macos")]
+        {
+            (macos::ax_trusted(), macos::screen_capture_preflight())
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            (true, true)
+        }
+    }
+
     pub fn prompt_for_missing_permissions(&self) {
         self.run_background_input_self_check();
     }

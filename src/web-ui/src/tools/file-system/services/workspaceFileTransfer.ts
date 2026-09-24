@@ -4,7 +4,7 @@
 
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { sshApi } from "@/features/ssh-remote/sshApi";
-import { workspaceAPI } from "@/infrastructure/api";
+import { workspaceAPI, systemAPI } from "@/infrastructure/api";
 import { createTransportAdapter, getTransportAdapter } from "@/infrastructure/api/adapters";
 import {
   PeerDeviceTransportAdapter,
@@ -575,11 +575,31 @@ export async function downloadWorkspaceFileToDisk(
     }
     dest = joinWorkspaceTargetPath(picked, baseName, false);
   } else {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    dest = await save({
-      title: i18nService.t("common:file.downloadSaveTitle"),
-      defaultPath: baseName,
-    });
+    // Platform-dispatched save: native dialog on desktop, OHOS folder picker
+    // plus file-name append on HarmonyOS (no Tauri dialog/fs plugin there).
+    let systemInfo: { platform?: string } | undefined;
+    try {
+      systemInfo = await systemAPI.getSystemInfo();
+    } catch {
+      // Unavailable — fall through to the desktop dialog path.
+    }
+    if (systemInfo?.platform === 'openharmony') {
+      const folder = await workspaceAPI.open_oh_file_dialog({
+        title: i18nService.t("common:file.downloadSaveTitle"),
+        directory: true,
+        recursive: false,
+      });
+      if (typeof folder !== 'string' || folder.length === 0) {
+        return;
+      }
+      dest = joinWorkspaceTargetPath(folder, baseName, false);
+    } else {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      dest = await save({
+        title: i18nService.t("common:file.downloadSaveTitle"),
+        defaultPath: baseName,
+      });
+    }
   }
   if (dest === null) {
     return;

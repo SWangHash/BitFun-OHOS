@@ -282,12 +282,12 @@ const McpToolsConfig: React.FC = () => {
   // ─── MCP effects & handlers ─────────────────────────────────────────────────
   const LOAD_SERVERS_TIMEOUT_MS = 15_000;
 
-  const loadServers = useCallback(async (): Promise<boolean> => {
+  const loadServers = useCallback(async (silent = false): Promise<boolean> => {
     const capabilityEpoch = currentCapabilityEpoch();
     if (capabilityEpoch === null) return false;
     const requestId = ++serverLoadRequestIdRef.current;
     try {
-      setMcpLoading(true);
+      if (!silent) setMcpLoading(true);
       const serverList = await Promise.race([
         MCPAPI.getServers(),
         new Promise<never>((_, reject) =>
@@ -488,6 +488,16 @@ const McpToolsConfig: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [desktopConfigAvailable, loadServers, mcpLoading, servers]);
 
+  // Silently poll server status while the list is visible so Running/Failed
+  // badges track background state changes without flashing the loading state.
+  useEffect(() => {
+    if (!desktopConfigAvailable || showJsonEditor || servers.length === 0) return;
+    const timer = window.setInterval(() => {
+      void loadServers(true);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [desktopConfigAvailable, showJsonEditor, servers.length, loadServers]);
+
   useEffect(() => {
     return () => {
       if (oauthPollTimerRef.current !== null) {
@@ -588,7 +598,7 @@ const McpToolsConfig: React.FC = () => {
         });
       }
       setShowJsonEditor(false);
-      await loadServers();
+      await loadServers(true);
       if (capabilityIsCurrent(capabilityEpoch)) {
         await loadJsonConfig();
       }
@@ -608,6 +618,16 @@ const McpToolsConfig: React.FC = () => {
         title: errorInfo.title,
         duration: errorInfo.duration,
       });
+      // If the backend reports the config changed (StaleConfiguration), silently
+      // reload the JSON snapshot so the next Save attempt uses the fresh fingerprint.
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes('reload before saving') ||
+        errorMessage.includes('changed before write') ||
+        errorMessage.includes('StaleConfiguration')
+      ) {
+        void loadJsonConfig();
+      }
       return false;
     } finally {
       mcpSavingRef.current = false;
@@ -792,7 +812,7 @@ const McpToolsConfig: React.FC = () => {
         if (!capabilityIsCurrent(capabilityEpoch)) return;
         if (!result.runtimeApplied) {
           notification.warning(tMcp('messages.partialStartFailed'));
-          await loadServers();
+          await loadServers(true);
           return;
         }
       }
@@ -802,7 +822,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.startSuccess'),
         duration: 3000,
       });
-      await loadServers();
+      await loadServers(true);
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const needsRemoteAuth = isRemoteServer(server) && isLikelyRemoteAuthError(error);
@@ -836,7 +856,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.stopSuccess'),
         duration: 3000,
       });
-      await loadServers();
+      await loadServers(true);
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       notification.error(
@@ -875,7 +895,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.restartSuccess'),
         duration: 3000,
       });
-      await loadServers();
+      await loadServers(true);
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const needsRemoteAuth = isRemoteServer(server) && isLikelyRemoteAuthError(error);
@@ -1001,7 +1021,7 @@ const McpToolsConfig: React.FC = () => {
         }
       );
       closeAuthDialog();
-      await loadServers();
+      await loadServers(true);
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const errorInfo = classifyError(error, tMcp('actions.saveConfig'));
@@ -1039,7 +1059,7 @@ const McpToolsConfig: React.FC = () => {
         title: tMcp('notifications.saveSuccess'),
         duration: 3000,
       });
-      await loadServers();
+      await loadServers(true);
     } catch (error) {
       if (!capabilityIsCurrent(capabilityEpoch)) return;
       const errorInfo = classifyError(error, tMcp('actions.delete'));

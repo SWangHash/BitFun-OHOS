@@ -102,6 +102,7 @@ import {
   type SubscriptionLoginOperation,
 } from './subscriptionLoginCoordinator';
 import { ModelDiscoveryCoordinator } from './modelDiscoveryCoordinator';
+import LocalModelManagerInline from './LocalModelManagerInline';
 import './ModelSettingsPage.scss';
 
 const log = createLogger('ModelSettings');
@@ -109,6 +110,30 @@ const MODELS_DEV_DOWNLOAD_URL = 'https://models.dev/api.json';
 
 /** Rows the preset picker shows before the user searches or expands the list. */
 const COLLAPSED_PROVIDER_COUNT = 6;
+
+/**
+ * Provider id for the local AI model service (Ollama). It is the only built-in
+ * provider that needs download/pause/refresh management in the model
+ * selection form, and the only one that does not require an API key.
+ */
+const LOCAL_MODEL_PROVIDER_ID = 'ollama';
+
+function isLocalModelProvider(providerId?: string | null): boolean {
+  return !!providerId && providerId === LOCAL_MODEL_PROVIDER_ID;
+}
+
+/**
+ * True when base_url points at the local Ollama endpoint the inline manager
+ * actually queries (localhost:11434). The inline panel manages Ollama models
+ * through localhost:11434 regardless of the configured base_url, so it must
+ * hide when the user repoints the API URL elsewhere (e.g. an invalid or
+ * non-local address) to avoid showing a stale download list.
+ */
+function isLocalOllamaEndpointActive(baseUrl?: string): boolean {
+  const normalized = normalizeProviderBaseUrl(baseUrl || '').toLowerCase().replace(/\/+$/, '');
+  return normalized === 'http://localhost:11434/v1'
+    || normalized === 'http://127.0.0.1:11434/v1';
+}
 
 interface RemoteModelOption {
   id: string;
@@ -723,6 +748,17 @@ const ModelSettingsPage: React.FC = () => {
     };
   }, [providerTemplates, selectedProviderId, t]);
 
+  // True when the selected provider does not require an API key (e.g. local
+  // Ollama). Hides the auth/api_key rows and unlocks model discovery without
+  // a key. Also gates the inline local-model download/pause/refresh panel.
+  const isNoApiKeyProvider = currentTemplate?.requiresApiKey === false;
+  const isLocalModelProviderSelected = isLocalModelProvider(selectedProviderId);
+  // The inline panel only shows when the configured base_url still points at
+  // the local Ollama endpoint; repointing the API URL hides the panel so a
+  // stale download list does not persist for a non-Ollama / invalid URL.
+  const showLocalModelManager = isLocalModelProviderSelected
+    && isLocalOllamaEndpointActive(editingConfig?.base_url);
+
   const editingModalHasUnsavedChanges = useMemo(() => {
     if (!editingConfig) return false;
     const persistedModels = editingConfig.id
@@ -939,7 +975,9 @@ const ModelSettingsPage: React.FC = () => {
     // CLI-backed auth (Codex/Gemini) resolves the bearer token at request time
     // from `~/.codex` or `~/.gemini`, so we must NOT gate discovery on the
     // user pasting an API key. Only the legacy `api_key` mode requires it.
-    const requiresApiKey = resolvedAuth.type === 'api_key';
+    // No-key providers (e.g. local Ollama) skip the API key requirement entirely.
+    const requiresApiKey = resolvedAuth.type === 'api_key'
+      && currentTemplate?.requiresApiKey !== false;
     if (!resolvedBaseUrl || !resolvedProvider || (requiresApiKey && !resolvedApiKey)) {
       return null;
     }
@@ -1041,11 +1079,27 @@ const ModelSettingsPage: React.FC = () => {
   const handleModelSelectionOpenChange = (isOpen: boolean) => {
     if (!isOpen || !editingConfig || isFetchingRemoteModels) return;
     const authType = editingConfig.auth?.type ?? 'api_key';
-    if (authType === 'api_key' && !editingConfig.api_key?.trim()) return;
+    const providerNeedsApiKey = currentTemplate?.requiresApiKey !== false;
+    if (authType === 'api_key' && providerNeedsApiKey && !editingConfig.api_key?.trim()) return;
     if (hasAttemptedRemoteFetch) return;
     if (remoteModelOptions.length > 0) return;
     void fetchRemoteModels(editingConfig);
   };
+
+  // Stable callback for the inline local-model manager to notify the form that
+  // the downloaded model set changed (pull completed / refreshed). The ref
+  // always reads the latest editingConfig + fetchRemoteModels so the callback
+  // identity stays stable and does not re-trigger the panel's event listeners.
+  const handleLocalModelsChangedRef = React.useRef<() => void>(() => {});
+  handleLocalModelsChangedRef.current = () => {
+    resetRemoteModelDiscovery();
+    if (editingConfig) {
+      void fetchRemoteModels(editingConfig);
+    }
+  };
+  const handleLocalModelsChanged = useCallback(() => {
+    handleLocalModelsChangedRef.current();
+  }, []);
 
   const requestEditorOpen = useCallback((targetKey: string, open: () => void) => {
     const matchesSuspendedDraft = editingTargetKey === targetKey
@@ -2825,8 +2879,8 @@ const ModelSettingsPage: React.FC = () => {
                     size="sm"
                   />
                 </ConfigPageRow>
-                {renderAuthRow()}
-                {!authIsSubscription && renderApiKeyRow(t('form.apiKey'))}
+                {!isNoApiKeyProvider && renderAuthRow()}
+                {!authIsSubscription && !isNoApiKeyProvider && renderApiKeyRow(t('form.apiKey'))}
                 {!authIsSubscription && (
                   <>
                     <ConfigPageRow label={t('form.baseUrl')} required align="center" wide>
@@ -2954,6 +3008,9 @@ const ModelSettingsPage: React.FC = () => {
                       </small>
                     )}
                     {renderSelectedModelRows()}
+                    {showLocalModelManager && (
+                      <LocalModelManagerInline onModelsChanged={handleLocalModelsChanged} />
+                    )}
                   </div>
                 </ConfigPageRow>
               </>
@@ -2972,8 +3029,8 @@ const ModelSettingsPage: React.FC = () => {
                         size="sm"
                       />
                     </ConfigPageRow>
-                    {renderAuthRow()}
-                    {!authIsSubscription && renderApiKeyRow(t('form.apiKey'))}
+                    {!isNoApiKeyProvider && renderAuthRow()}
+                    {!authIsSubscription && !isNoApiKeyProvider && renderApiKeyRow(t('form.apiKey'))}
                     {!authIsSubscription && (
                       <>
                         <ConfigPageRow label={t('form.baseUrl')} required align="center" wide>
@@ -3098,6 +3155,9 @@ const ModelSettingsPage: React.FC = () => {
                       </small>
                     )}
                     {renderSelectedModelRows()}
+                    {showLocalModelManager && (
+                      <LocalModelManagerInline onModelsChanged={handleLocalModelsChanged} />
+                    )}
                   </div>
                 </ConfigPageRow>
               </>

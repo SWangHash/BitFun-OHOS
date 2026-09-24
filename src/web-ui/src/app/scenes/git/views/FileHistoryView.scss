@@ -1,0 +1,256 @@
+.bitfun-git-file-history {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bitfun-color-surface-canvas);
+  color: var(--bitfun-color-content-primary);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-panel);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  &__header-left,
+  &__header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__header-right {
+    flex-shrink: 0;
+  }
+
+  &__path {
+    font-family: var(--bitfun-type-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  &__tabs {
+    flex-shrink: 0;
+  }
+
+  &__operation-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    margin-right: 6px;
+    border-radius: 4px;
+    font-size: var(--bitfun-type-body-xs-font-size);
+    font-weight: 600;
+    background: var(--bitfun-color-action-primary-surface);
+    color: var(--bitfun-color-accent-default);
+    flex-shrink: 0;
+  }
+
+  &__tool-name {
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  &__main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__commits {
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    min-width: 200px;
+    max-width: 420px;
+    border-right: 1px solid var(--bitfun-color-border-default);
+    background: var(--bitfun-color-surface-panel);
+    overflow: hidden;
+  }
+
+  &__commit-list {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+  }
+
+  &__state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px 20px;
+    flex: 1;
+    text-align: center;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-md-font-size);
+
+    p {
+      margin: 0;
+      color: var(--bitfun-color-content-secondary);
+    }
+  }
+
+  &__commit {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--bitfun-color-border-faint);
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+    }
+
+    &.is-selected {
+      background: var(--bitfun-color-action-primary-surface);
+    }
+  }
+
+  &__timeline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  &__timeline-node {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bitfun-color-accent-default);
+    color: var(--bitfun-color-content-on-accent);
+    font-size: var(--bitfun-type-body-xs-font-size);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  &__timeline-line {
+    width: 2px;
+    flex: 1;
+    background: var(--bitfun-color-border-default);
+  }
+
+  &__commit-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__commit-message {
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: 500;
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &__commit-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__commit-author {
+    font-size: var(--bitfun-type-body-xs-font-size);
+    color: var(--bitfun-color-content-secondary);
+    max-width: 90px;
+  }
+
+  &__commit-time {
+    font-size: var(--bitfun-type-body-xs-font-size);
+    color: var(--bitfun-color-content-muted);
+    flex-shrink: 0;
+  }
+
+  &__commit-hash {
+    font-family: var(--bitfun-type-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: var(--bitfun-type-body-xs-font-size);
+    color: var(--bitfun-color-content-muted);
+    flex-shrink: 0;
+  }
+
+  &__diff {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    background: var(--bitfun-color-surface-canvas);
+  }
+
+  &__local-diff {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    .inline-diff-preview__content {
+      max-height: 100% !important;
+      flex: 1;
+    }
+  }
+
+  &__diff-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-md-font-size);
+    padding: 24px;
+    text-align: center;
+  }
+
+  &__root-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  &__root-banner {
+    padding: 8px 12px;
+    background: var(--bitfun-color-action-primary-surface);
+    color: var(--bitfun-color-accent-default);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: 500;
+    border-bottom: 1px solid var(--bitfun-color-border-faint);
+    flex-shrink: 0;
+  }
+
+  &__root-pre {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 12px 16px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: var(--bitfun-type-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: 1.6;
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &__root-failed {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-md-font-size);
+  }
+}

@@ -22,9 +22,14 @@ import {
   type RenderTask,
 } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  installTypedArrayPolyfills,
+  TYPED_ARRAY_POLYFILL_SOURCE,
+} from '@/shared/utils/typedArrayPolyfills';
 import './PdfViewer.scss';
 
 const log = createLogger('PdfViewer');
@@ -41,7 +46,28 @@ const RENDER_ROOT_MARGIN = '150% 0px';
 const PDFJS_FONT_HEIGHT_PROPERTY = ['--font', 'height'].join('-');
 const PDF_GLYPH_HEIGHT_PROPERTY = '--bitfun-pdf-glyph-height';
 
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// pdf.js needs a worker script URL. The emitted `?url` asset can fail to load
+// inside packaged embedded WebViews (custom protocols, strict CSP), which
+// makes every PDF load fail. Prefer a same-origin blob worker built from the
+// worker source bundled at build time, and fall back to the emitted asset URL
+// if blob URLs are unavailable.
+// pdf.js >= 5.4 also relies on the ES2025 Uint8Array to/from base64 & hex
+// methods (`toHex` is used while computing the document fingerprint, inside
+// the worker). Embedded WebViews with older JS engines lack these natively, so
+// install the polyfills on the main thread and prepend them to the worker
+// source before creating the blob.
+installTypedArrayPolyfills();
+let resolvedWorkerSrc = pdfWorkerUrl;
+try {
+  if (typeof Blob !== 'undefined' && typeof URL?.createObjectURL === 'function') {
+    resolvedWorkerSrc = URL.createObjectURL(
+      new Blob([TYPED_ARRAY_POLYFILL_SOURCE + pdfWorkerSource], { type: 'text/javascript' }),
+    );
+  }
+} catch (error) {
+  log.warn('Failed to create blob pdf worker; falling back to asset URL', error);
+}
+GlobalWorkerOptions.workerSrc = resolvedWorkerSrc;
 
 interface PageSize {
   width: number;
@@ -409,9 +435,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
     }
   }, [documentFiles, filePath, t]);
 
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
   useEffect(() => {
-    if (isActiveTab && error && documentSession?.isCurrent()) setRetryKey(key => key + 1);
-  }, [documentSession, error, isActiveTab]);
+    // Retry on reactivation only. Putting `error` in the dependencies would
+    // re-trigger on every failure and loop forever whenever the failure
+    // message varies between attempts (matching the ImageViewer contract).
+    if (isActiveTab && errorRef.current && documentSession?.isCurrent()) setRetryKey(key => key + 1);
+  }, [documentSession, isActiveTab]);
 
   useEffect(() => {
     void loadDocument();

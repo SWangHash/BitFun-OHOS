@@ -37,7 +37,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { WorkspaceKind } from '@/shared/types';
 import { SSHContext } from '@/features/ssh-remote/SSHRemoteContext';
 import { shortcutManager, parseStoredKeybindings } from '@/infrastructure/services/ShortcutManager';
-import { isMacOSDesktopRuntime, usesHostWindowControls } from '@/infrastructure/runtime';
+import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, usesHostWindowControls } from '@/infrastructure/runtime';
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { startSessionSceneLifecycle } from '../services/sessionSceneLifecycle';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
@@ -65,6 +65,9 @@ const AboutDialog = lazy(() =>
   import('../components/AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
 const WorkspaceManager = lazy(() => import('../../tools/workspace/components/WorkspaceManager'));
+const AgentCompanionInAppPet = lazy(() =>
+  import('../components/AgentCompanionDesktopPet/AgentCompanionInAppPet')
+);
 
 interface AppLayoutProps {
   className?: string;
@@ -115,6 +118,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   // stay wired for the double-click-to-maximize bar gesture.
   const usesHostWindowChrome = useMemo(() => {
     return usesHostWindowControls();
+  }, []);
+  // HarmonyOS has no separate always-on-top pet OS window, so the companion
+  // pet renders as an in-app overlay portal instead (see AgentCompanionWindowService).
+  const isOpenHarmony = useMemo(() => {
+    return isOpenHarmonyRuntime();
   }, []);
 
   const {
@@ -799,6 +807,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         </Suspense>
       </RetainedMountBoundary>
       <MCPInteractionDialog />
+      {isOpenHarmony && (
+        <Suspense fallback={null}>
+          <AgentCompanionInAppPet />
+        </Suspense>
+      )}
     </>
   );
 };
