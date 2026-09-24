@@ -55,6 +55,10 @@
         {
             "name": "permission_microphone_reason",
             "value": "用于采集麦克风音频以进行对话框语音输入转写"
+        },
+        {
+            "name": "permission_keep_background_running_reason",
+            "value": "用于在应用最小化或息屏时继续运行定时任务和后台服务"
         }
     ]
 }

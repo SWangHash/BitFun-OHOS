@@ -20,6 +20,9 @@
         "startWindowIcon": "$media:bitfun_icon_light",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "backgroundModes": [
+          "taskKeeping"
+        ],
         "skills": [
           {
             "entities": [
@@ -142,6 +145,10 @@
           ],
           "when": "always"
         }
+      },
+      {
+        "name": "ohos.permission.KEEP_BACKGROUND_RUNNING",
+        "reason": "$string:permission_keep_background_running_reason"
       }
     ],
     "extensionAbilities": [

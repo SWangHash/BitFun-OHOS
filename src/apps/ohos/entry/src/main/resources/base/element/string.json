@@ -58,6 +58,10 @@
         {
             "name": "permission_screen_capture_reason",
             "value": "Used to capture the application window screenshot for MiniApp market submissions"
+        },
+        {
+            "name": "permission_keep_background_running_reason",
+            "value": "Used to keep scheduled agent jobs and background services running while the app is minimized or the screen is off"
         }
     ]
 }

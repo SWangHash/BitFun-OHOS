@@ -35,6 +35,7 @@ import {
   SetBackgroundColorRequest,
 } from '../services/BrowserWebviewService';
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
+import { backgroundKeepAliveService, KeepAliveStatus } from '../services/BackgroundKeepAliveService';
 
 
 const DOMAIN = 0x0000;
@@ -781,6 +782,21 @@ export default class EntryAbility extends RustAbility {
       };
       await notificationManager.publish(request);
       return '';
+    });
+    // Background keepalive bridge: the Rust cron (scheduled jobs) service
+    // calls `background_keepalive_start` once it begins running so a
+    // `taskKeeping` continuous task keeps the process alive when the app is
+    // minimized or the screen is off. Without it HarmonyOS freezes the
+    // process and every scheduled job is delayed until the app returns to
+    // the foreground. Idempotent on the ArkTS side; returns a JSON
+    // KeepAliveStatus envelope.
+    RustModule.registerArktsFunction('background_keepalive_start', async (_err: Error, _arg: string): Promise<string> => {
+      const result: KeepAliveStatus = await backgroundKeepAliveService.start(this.context);
+      return JSON.stringify(result);
+    });
+    RustModule.registerArktsFunction('background_keepalive_stop', async (_err: Error, _arg: string): Promise<string> => {
+      const result: KeepAliveStatus = await backgroundKeepAliveService.stop(this.context);
+      return JSON.stringify(result);
     });
     RustModule.registerArktsFunction('set_theme_mode', async (err: Error, arg: string): Promise<string> => {
       // arg is the color mode the webview should adopt: 'light' | 'dark' | 'system'.

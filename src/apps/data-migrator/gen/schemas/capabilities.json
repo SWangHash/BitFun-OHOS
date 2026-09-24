@@ -1,0 +1,1 @@
+{"migrator":{"identifier":"migrator","description":"Minimal local capability set for BitFun Data Migrator","local":true,"windows":["migrator"],"permissions":["core:default","core:window:allow-close"]}}

@@ -2479,6 +2479,9 @@ async fn init_agentic_system(
                 CRON_DESKTOP_START_FALLBACK_DELAY.as_secs()
             );
             cron_service_for_fallback.start();
+            // Same keepalive request as the frontend readiness path, so a
+            // HarmonyOS host never relies on the web UI reaching ready.
+            api::ohos::background_keepalive::ensure_background_keepalive().await;
         });
     }
 

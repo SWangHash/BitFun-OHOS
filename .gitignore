@@ -101,3 +101,4 @@ external/
 
 .design/
 .pnpm-store/
+.openbitfun/

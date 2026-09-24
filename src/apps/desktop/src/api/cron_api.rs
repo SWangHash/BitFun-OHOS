@@ -110,5 +110,9 @@ pub async fn notify_cron_host_ready() -> Result<(), String> {
     // `start` is idempotent, so the frontend readiness signal can safely race
     // with the desktop fallback timer.
     service.start();
+    // Ask the HarmonyOS host for a continuous background task so cron timers
+    // keep firing while the app is minimized or the screen is off. No-op on
+    // other hosts.
+    crate::api::ohos::background_keepalive::ensure_background_keepalive().await;
     Ok(())
 }

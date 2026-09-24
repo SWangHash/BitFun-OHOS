@@ -1,3 +1,4 @@
+pub mod background_keepalive;
 pub mod browser;
 #[cfg(target_env = "ohos")]
 pub mod feedback_credentials;
