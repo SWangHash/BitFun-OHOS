@@ -18,7 +18,7 @@ export const harnessProfileSelectorAppearanceDescriptor: AppearanceSurfaceDescri
     {
       id: 'profile',
       attribute: 'data-bitfun-profile',
-      values: ['Minimal', 'Standard', 'Ultimate', 'Creative', 'other'],
+      values: ['Minimal', 'Standard', 'Ultimate', 'Creative', 'industry', 'other'],
     },
   ],
   states: [

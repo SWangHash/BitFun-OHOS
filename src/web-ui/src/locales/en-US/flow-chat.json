@@ -751,11 +751,15 @@
       "rememberFailed": "The Harness changed, but this selection could not be remembered. New sessions may continue using the previous default.",
       "otherAgentsTitle": "Agents",
       "otherAgentsEmpty": "No main Agents are available",
+      "industryAgentsTitle": "Industry agents",
       "unavailable": "Unavailable",
       "agentUnavailable": "{{name}} is not available with the current Host or settings.",
       "profiles": {
         "other": {
           "name": "Agents"
+        },
+        "industry": {
+          "name": "Industry agents"
         },
         "Minimal": {
           "name": "$t(shared:agents.Minimal)"

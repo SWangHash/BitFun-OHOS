@@ -153,6 +153,7 @@ import {
 } from '../utils/chatInputExecutionLevelPolicy';
 import { collectModifiedFilePathsFromTurns } from '../utils/modifiedFilePaths';
 import { useSceneStore } from '@/app/stores/sceneStore';
+import { INDUSTRY_AGENT_IDS } from '@/app/scenes/agents/agentVisibility';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import type { SceneTabId } from '@/app/components/SceneBar/types';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
@@ -1363,10 +1364,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [modeInfoById, t]);
 
   const otherAgentOptions = useMemo((): HarnessAgentOption[] => {
-    const options = mainAgentModes.map(mode => ({
+    const options: HarnessAgentOption[] = mainAgentModes.map(mode => ({
       id: mode.id,
       name: getModeDisplayName(mode.id),
       available: mode.id !== 'ComputerUse' || computerUseEnabled,
+      category: INDUSTRY_AGENT_IDS.has(mode.id) ? 'industry' : 'other',
     }));
 
     if (

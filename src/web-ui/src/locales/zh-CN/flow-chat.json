@@ -751,11 +751,15 @@
       "rememberFailed": "执行框架已切换，但未能记住本次选择。之后的新会话可能继续使用原默认设置。",
       "otherAgentsTitle": "智能体",
       "otherAgentsEmpty": "当前没有可用的主智能体",
+      "industryAgentsTitle": "行业智能体",
       "unavailable": "不可用",
       "agentUnavailable": "当前 Host 或设置不支持 {{name}}。",
       "profiles": {
         "other": {
           "name": "智能体"
+        },
+        "industry": {
+          "name": "行业智能体"
         },
         "Minimal": {
           "name": "$t(shared:agents.Minimal)"
