@@ -48,7 +48,7 @@ Call this tool:
 
 Do NOT call this tool:
 - For non-`.ets` source files (use `lsp` or read the build output instead).
-- When DevEco Studio is not installed locally. Set `DEVECO_HOME` first.
+- When DevEco Studio is not installed locally. The tool auto-discovers DevEco Studio from `DEVECO_HOME` or standard install paths; only set `DEVECO_HOME` manually if the auto-discovery fails.
 "#.to_string())
     }
 
