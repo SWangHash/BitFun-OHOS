@@ -10,7 +10,7 @@ import {
   activateSurface,
 } from '@/infrastructure/peer-device/deviceSurface';
 import { PeerDeviceContext } from '@/infrastructure/peer-device/peerDeviceContextState';
-import { askUserQuestionDraftStore } from '../store/askUserQuestionDraftStore';
+import { askUserQuestionDraftStore, askUserQuestionDraftKey } from '../store/askUserQuestionDraftStore';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...await importOriginal<typeof import('react-i18next')>(),
@@ -58,9 +58,15 @@ function questionTool(
           header: 'Database',
           question: 'Which database?',
           multiSelect,
+          // A single-select question opens on its first option, so the
+          // restore/isolation cases below select the alternate to keep the
+          // user's own choice distinguishable from the default.
           options: [{
             label: 'PostgreSQL',
             description: 'Use PostgreSQL',
+          }, {
+            label: 'SQLite',
+            description: 'Use SQLite',
           }],
         }],
       },
@@ -230,7 +236,9 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    const radio = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    // The first option is the default; pick the alternate so the restored value
+    // is unambiguously the user's own choice.
+    const radio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     expect(radio).not.toBeNull();
     act(() => radio?.click());
     expect(radio?.checked).toBe(true);
@@ -247,8 +255,11 @@ describe('AskUserQuestionCard', () => {
       );
     });
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(true);
 
     act(() => root.render(null));
     act(() => {
@@ -262,7 +273,7 @@ describe('AskUserQuestionCard', () => {
       );
     });
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(true);
   });
 
@@ -278,7 +289,9 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    const localRadio = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    // The alternate option is the surface's own answer; the local surface's
+    // default must not be mistaken for it.
+    const localRadio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     act(() => localRadio?.click());
     expect(localRadio?.checked).toBe(true);
 
@@ -287,8 +300,11 @@ describe('AskUserQuestionCard', () => {
     });
 
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(true);
   });
 
   it('explains why an older CLI peer cannot answer instead of exposing a dead form', () => {
@@ -707,6 +723,74 @@ describe('AskUserQuestionCard', () => {
     // summary shows them instead of treating them as typed custom values.
     expect(container.textContent).toContain('D:/work/myqt');
     expect(container.textContent).not.toContain('toolCards.askUser.notAnswered');
+  });
+
+  it('pre-selects the first option of a single-select template question', async () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The card opens on the backend's first candidate, so a template question is
+    // never presented blank and the submit rule agrees with what is shown.
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="__official__"]')?.checked)
+      .toBe(true);
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      'session-a',
+    );
+  });
+
+  it('keeps a restored draft instead of overwriting it with the default', () => {
+    askUserQuestionDraftStore.getState().setSingleAnswer(
+      askUserQuestionDraftKey('session-a', 'question-call-1'),
+      0,
+      'Other',
+    );
+    askUserQuestionDraftStore.getState().setOtherInput(
+      askUserQuestionDraftKey('session-a', 'question-call-1'),
+      0,
+      'CockroachDB',
+      true,
+    );
+
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation')}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+      .toBe(false);
+  });
+
+  it('leaves a multi-select question unselected until the user opts in', () => {
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation', true)}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    // Multi-select answers stay opt-in: only single-select questions open on a
+    // recommended default.
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+      .toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked)
+      .toBe(false);
   });
 
 });

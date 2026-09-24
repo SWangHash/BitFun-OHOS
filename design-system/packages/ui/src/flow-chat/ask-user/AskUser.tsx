@@ -54,8 +54,8 @@ export interface AskUserQuestion {
   header?: string;
   id: string;
   /**
-   * Declares a free-text answer. The field stays visible for the whole
-   * question instead of only after the custom option is selected, so a path or
+   * Declares a free-text answer. The field is rendered below the options for the
+   * whole question and takes the place of the custom option, so a path or
    * identifier can be typed or picked without a preceding click.
    */
   inputPlaceholder?: string;
@@ -308,6 +308,12 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                   ? customOption.label
                   : undefined)
                 ?? question.inputPlaceholder;
+              // The declared input is the question's own field, not the custom
+              // option it replaces, so its accessible name and hint come from the
+              // question whenever it declares one.
+              const declaredInputLabel = question.inputPlaceholder ?? inputLabel;
+              const declaredInputPlaceholder = question.inputPlaceholder
+                ?? customOption?.placeholder;
               const isComposing = () => composingQuestionsRef.current.has(question.id);
 
               /**
@@ -325,7 +331,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                   data-bitfun-part="custom-input"
                 >
                   <input
-                    aria-label={inputLabel}
+                    aria-label={standalone ? declaredInputLabel : inputLabel}
                     autoFocus={!standalone}
                     className={styles.customInputField}
                     disabled={interactionDisabled}
@@ -360,7 +366,9 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                         event.stopPropagation();
                       }
                     }}
-                    placeholder={customOption?.placeholder ?? question.inputPlaceholder}
+                    placeholder={standalone
+                      ? declaredInputPlaceholder
+                      : customOption?.placeholder ?? question.inputPlaceholder}
                     type="text"
                     value={customAnswers[question.id] ?? ""}
                   />
@@ -452,7 +460,11 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                       );
                     })}
 
-                    {customOption && (() => {
+                    {/* A declared input replaces the custom option entirely: the
+                        question already shows its own text field below the
+                        options, so a second "Other" row would only duplicate the
+                        same free-text answer. */}
+                    {customOption && !hasDeclaredInput && (() => {
                       const optionId = `${instanceId}-${questionIndex}-custom`;
 
                       return (
@@ -497,7 +509,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                                 )}
                             </span>
                           </label>
-                          {customSelected && !hasDeclaredInput && customInputRow(false)}
+                          {customSelected && customInputRow(false)}
                         </div>
                       );
                     })()}

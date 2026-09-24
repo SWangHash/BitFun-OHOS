@@ -2,7 +2,14 @@
 //!
 //! Priority: prompt-named candidates (model-provided, validated) rank first in
 //! every field; per-field discovery order below that:
-//! - `source_project`: qmake projects (`*.pro`) in the workspace;
+//! - `source_project`: qmake projects (`*.pro`) in the workspace. A
+//!   prompt-named candidate is user intent and is accepted wherever it lives: a
+//!   candidate that is itself a Qt project is offered directly, and a
+//!   prompt-named directory (the common case is the project's parent directory,
+//!   because the `.pro` sits in a subdirectory) is descended so the Qt projects
+//!   found inside are offered — anywhere on the machine, since the user wrote
+//!   that path. Only the backend workspace scan stays workspace-bounded: it
+//!   reads under the workspace root by construction;
 //! - `toolchain`: workspace qmake, then BitFun-managed shared toolchains,
 //!   then `PATH`;
 //! - `template`: Qt-for-HarmonyOS templates in the workspace, then
@@ -11,6 +18,8 @@
 //! - `output_project`: workspace directories whose names denote an output
 //!   container for migrated projects (e.g. `output-project`, `迁移工程`);
 //!   the workspace root is the last-resort default.
+//! Every candidate derived from a path the user named may legitimately point
+//! outside the workspace; only the backend workspace scan is workspace-bounded.
 //! Probing is read-only, depth-bounded, and only applies to local workspaces.
 
 use std::collections::HashMap;
@@ -280,6 +289,15 @@ fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<S
             .into_iter()
             .map(|(depth, path)| (1, depth, path)),
     );
+    // A prompt-named `source_project` is user intent and may live anywhere: the
+    // user wrote that path, so it is not workspace discovery. A candidate that
+    // is itself a Qt project is offered directly; a prompt-named directory (the
+    // common case is the project's parent directory, because the `.pro` sits in
+    // a subdirectory) is descended and the project roots found inside are
+    // offered — outside the workspace too. Only the workspace scan above stays
+    // workspace-bounded: it reads under the workspace root by construction and
+    // is never pointed anywhere else. `toolchain`, `template`, and
+    // `output_project` accept external paths for the same reason.
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
@@ -295,6 +313,10 @@ fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<S
             path
         };
         if is_qt_source_project(&path) && !is_inside_migrated_harmony_project(&path) {
+            // A prompt-named project outside the workspace has no
+            // workspace-relative depth; `MAX_PROBE_DEPTH + 1` keeps it at tier
+            // 0 (still ahead of every workspace scan hit) and behind a
+            // prompt-named project that resolves inside the workspace.
             let depth = path
                 .strip_prefix(workspace)
                 .map(|relative| relative.components().count())
@@ -303,7 +325,8 @@ fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<S
         } else if path.is_dir() {
             // Prompt-named container (e.g. the parent directory of the Qt
             // project): descend and offer the project roots actually found
-            // inside. scan_projects keeps the migrated-project exclusions.
+            // inside, wherever the container lives. scan_projects keeps the
+            // migrated-project exclusions.
             let mut scanned = Vec::new();
             scan_projects(&path, 0, &mut scanned);
             for (sub_depth, project) in scanned {
@@ -783,11 +806,12 @@ fn normalize_toolchain_candidate(candidate: &Path) -> Option<PathBuf> {
 }
 
 /// Normalize a model-provided candidate path. Absolute paths are accepted even
-/// outside the workspace: users may point at toolchains/templates anywhere,
-/// and a prompt-named path is user intent, not a workspace scan hit. Relative
-/// paths resolve against the workspace; `..` segments are rejected. Callers
-/// still apply per-field structural checks (qmake / template layout / is_dir),
-/// so hallucinated paths cannot reach the option list.
+/// outside the workspace: a prompt-named path is user intent, not a workspace
+/// scan hit, for every field (`toolchain`/`template`/`output_project`
+/// legitimately live outside the workspace, and `source_project` may too).
+/// Relative paths resolve against the workspace; `..` segments are rejected.
+/// Callers still apply per-field structural checks (qmake / template layout /
+/// is_dir), so hallucinated paths cannot reach the option list.
 fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<PathBuf> {
     let candidate = candidate.trim();
     if candidate.is_empty() {
@@ -867,6 +891,21 @@ mod tests {
         HashMap::from([(field.to_string(), paths)])
     }
 
+    /// Path-key view of a candidate list: separator- and case-agnostic, so a
+    /// mixed-separator fixture path compares equal to the canonicalized option
+    /// path on every host OS.
+    fn keys(paths: &[String]) -> Vec<String> {
+        paths.iter().map(|path| path_key(Path::new(path))).collect()
+    }
+
+    /// Best-effort canonical form of a fixture path, so a comparison against a
+    /// candidate the probe canonicalized through
+    /// [`normalize_workspace_candidate`] holds on hosts where the temp dir is
+    /// reached through a symlink (e.g. macOS `/var` -> `/private/var`).
+    fn canonical_or_self(path: &Path) -> PathBuf {
+        dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
     #[test]
     fn model_source_candidate_fills_backend_scan_gap() {
         let (_t, root) = tree();
@@ -939,21 +978,207 @@ mod tests {
     }
 
     #[test]
-    fn workspace_external_source_candidate_is_kept() {
+    fn workspace_external_source_project_is_accepted() {
+        // 归属规则：prompt/模型显式给出的 source_project 候选本身是 Qt 工程时，
+        // 即使在当前工作区之外也是用户意图，必须成为候选并占默认位（文件头优先级：
+        // 输入 > 工作区）。工作区归属不限制任何由用户命名路径派生的候选，只限制后端
+        // 自行发现的工作区扫描，见 workspace_scan_does_not_reach_outside_the_workspace
+        // 与 workspace_external_source_container_descends_to_project_roots。
+        // （toolchain/template/output_project 同样保留工作区外候选，见
+        // workspace_external_toolchain_and_template_are_kept。）
         let (_t, root) = tree();
+        let inside = mkdir(&root, "inside-project");
+        touch(&inside, "inside.pro");
         let outside = tempfile::tempdir().unwrap();
-        touch(outside.path(), "outside.pro");
+        let project = mkdir(outside.path(), "outside-project");
+        touch(&project, "outside.pro");
         let model = candidate_map(
             "source_project",
+            vec![project.to_string_lossy().into_owned()],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        let source = &probe.candidates["source_project"];
+        assert_eq!(source.len(), 2);
+        assert_eq!(
+            path_key(Path::new(&source[0])),
+            path_key(&canonical_or_self(&project)),
+            "工作区外 prompt 工程保留并占默认位"
+        );
+        assert_eq!(
+            path_key(Path::new(&source[1])),
+            path_key(&inside),
+            "工作区扫描命中补位，排在 prompt 候选之后"
+        );
+    }
+
+    #[test]
+    fn workspace_external_source_pro_file_candidate_is_accepted() {
+        // prompt 写出的是工作区外工程里的 `.pro` 文件路径：归一化为父目录后同样
+        // 属于"用户指明的 Qt 工程"，不得因工作区归属被拒。
+        let (_t, root) = tree();
+        let outside = tempfile::tempdir().unwrap();
+        let project = mkdir(outside.path(), "notepad--");
+        let pro = project.join("RealCompare.pro");
+        touch(&project, "RealCompare.pro");
+        let model = candidate_map("source_project", vec![pro.to_string_lossy().into_owned()]);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[canonical_or_self(&project).to_string_lossy().into_owned()])
+        );
+    }
+
+    #[test]
+    fn workspace_relative_source_candidate_is_accepted() {
+        // 工作区相对路径按工作区解析，天然在工作区内，必须保留。
+        let (_t, root) = tree();
+        let project = mkdir(&root, "relative-project");
+        touch(&project, "relative.pro");
+        let model = candidate_map("source_project", vec!["relative-project".to_string()]);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[project.to_string_lossy().into_owned()])
+        );
+    }
+
+    #[test]
+    fn workspace_root_and_pro_file_source_candidates_are_accepted() {
+        // 归属边界：工作区根本身是工程时是合法 source_project（扫描在 depth 0
+        // 已经给出它，prompt 命名的同一个根与之去重），prompt 指向 *.pro 文件的
+        // 候选归一化为父目录后同样成立。
+        let (_t, root) = tree();
+        touch(&root, "root.pro");
+        let project = mkdir(&root, "notepad--/src");
+        let pro = project.join("RealCompare.pro");
+        touch(&project, "RealCompare.pro");
+        let model = candidate_map(
+            "source_project",
+            vec![
+                root.to_string_lossy().into_owned(),
+                pro.to_string_lossy().into_owned(),
+            ],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[
+                root.to_string_lossy().into_owned(),
+                project.to_string_lossy().into_owned()
+            ]),
+            "工作区根(depth 0)先于深层工程；两者都在工作区内，prompt 与扫描指向同一批候选"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prompt_named_symlinked_container_descends_to_linked_project() {
+        // 用户写下的路径就是意图，即使它是一条符号链接：链接解析后是容器目录，
+        // 下钻并给出其中真实的 Qt 工程根。工作区归属只约束后端自行扫描，不约束
+        // 由用户命名路径派生的候选。
+        let (_t, root) = tree();
+        let outside = tempfile::tempdir().unwrap();
+        let container = mkdir(outside.path(), "container");
+        let project = mkdir(&container, "linked-project");
+        touch(&project, "linked.pro");
+        let link = root.join("link-to-outside");
+        std::os::unix::fs::symlink(&container, &link).unwrap();
+        let model = candidate_map("source_project", vec![link.to_string_lossy().into_owned()]);
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[canonical_or_self(&project).to_string_lossy().into_owned()]),
+            "prompt 命名的链接容器必须下钻到其中的真实工程根"
+        );
+    }
+
+    #[test]
+    fn workspace_external_toolchain_and_template_are_kept() {
+        // 工作区归属不限制任何字段的候选：工具链与模板本来就常在工作区外
+        // （独立 SDK、下载解压的模板），显式指定是用户意图，必须保留。
+        let (_t, root) = tree();
+        let sdk_tmp = tempfile::tempdir().unwrap();
+        let bin = mkdir(&sdk_tmp.path(), "Qt5.12.12/bin");
+        touch(&bin, "qmake");
+        let tpl_tmp = tempfile::tempdir().unwrap();
+        let tpl = mkdir(&tpl_tmp.path(), "qt5.12");
+        create_template(&tpl);
+        let mut model = candidate_map("toolchain", vec![bin.to_string_lossy().into_owned()]);
+        model.extend(candidate_map(
+            "template",
+            vec![tpl.to_string_lossy().into_owned()],
+        ));
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["toolchain"]),
+            keys(&[bin.to_string_lossy().into_owned()])
+        );
+        assert_eq!(
+            keys(&probe.candidates["template"]),
+            keys(&[tpl.to_string_lossy().into_owned()])
+        );
+    }
+
+    #[test]
+    fn workspace_external_output_candidate_is_kept() {
+        // output_project 同样不限定工作区（用户可以把产物放到工作区外），
+        // 与 source_project 的归属规则一致：用户命名的路径可以落在任何位置。
+        let (_t, root) = tree();
+        let inside = mkdir(&root, "output-project");
+        let outside = tempfile::tempdir().unwrap();
+        let model = candidate_map(
+            "output_project",
             vec![outside.path().to_string_lossy().into_owned()],
         );
 
         let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
-        // 用户显式给出的工作区外工程是用户意图，必须保留在候选中。
+        let outputs = &probe.candidates["output_project"];
+        assert!(outputs
+            .iter()
+            .any(|path| path_key(Path::new(path)) == path_key(outside.path())));
+        assert!(outputs
+            .iter()
+            .any(|path| path_key(Path::new(path)) == path_key(&inside)));
+    }
+
+    #[test]
+    fn prompt_named_source_project_outranks_workspace_scan() {
+        // 排序意图（文件头）：prompt 指定的候选优先（tier 0），其后才是工作区扫描
+        // 命中（tier 1）。默认位（options[0]，前端预选）始终是 prompt 命名的工程，
+        // 不是扫描命中的那个。prompt 命名的工作区外工程同样占默认位，见
+        // workspace_external_source_project_is_accepted。
+        let (_t, root) = tree();
+        let scanned = mkdir(&root, "a-workspace-project");
+        touch(&scanned, "a.pro");
+        let prompt_named = mkdir(&root, "z-prompt-project");
+        touch(&prompt_named, "z.pro");
+        let model = candidate_map(
+            "source_project",
+            vec![prompt_named.to_string_lossy().into_owned()],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
         assert_eq!(
-            probe.candidates["source_project"],
-            vec![outside.path().to_string_lossy().into_owned()]
+            keys(&probe.candidates["source_project"]),
+            keys(&[
+                prompt_named.to_string_lossy().into_owned(),
+                scanned.to_string_lossy().into_owned()
+            ]),
+            "prompt 命名的工程排在扫描命中之前，占默认位"
         );
     }
 
@@ -1267,9 +1492,41 @@ mod tests {
 
     #[test]
     fn prompt_named_source_container_descends_to_project_roots() {
-        // 用户填的是工程的上级目录（.pro 在子目录），且该目录在工作区外：
-        // 必须下钻找到真实工程根作为候选，而不是丢弃。
+        // 用户填的是工程的上级目录（.pro 在子目录）：必须下钻找到真实工程根作为
+        // 候选，而不是丢弃。容器位于工作区内、且深于普通扫描的深度上限，所以
+        // 这里的候选只能来自下钻。工作区外的容器同样下钻，见
+        // workspace_external_source_container_descends_to_project_roots。
         let (_t, root) = tree();
+        let container = root
+            .join("one")
+            .join("two")
+            .join("three")
+            .join("four")
+            .join("five");
+        let project = mkdir(&container, "notepad--");
+        touch(&project, "RealCompare.pro");
+        let model = candidate_map(
+            "source_project",
+            vec![container.to_string_lossy().into_owned()],
+        );
+
+        let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[project.to_string_lossy().into_owned()])
+        );
+    }
+
+    #[test]
+    fn workspace_external_source_container_descends_to_project_roots() {
+        // 用户 prompt 里写的是工作区外工程的上级目录（.pro 在子目录）：该路径是
+        // 用户意图，必须下钻并把其中真实的工程根作为候选——否则卡片只剩输入框，
+        // 用户写下的路径不会成为任何候选项（回归症状）。目录本身不是 Qt 工程，
+        // 所以候选只能来自下钻。
+        let (_t, root) = tree();
+        let inside = mkdir(&root, "inside-project");
+        touch(&inside, "inside.pro");
         let outside = tempfile::tempdir().unwrap();
         let project = mkdir(&outside.path(), "notepad--");
         touch(&project, "RealCompare.pro");
@@ -1280,10 +1537,42 @@ mod tests {
 
         let probe = probe_qt_migration_candidates(&root, "", &root.join("managed"), &model);
 
+        let source = &probe.candidates["source_project"];
+        assert_eq!(source.len(), 2);
         assert_eq!(
-            probe.candidates["source_project"],
-            vec![project.to_string_lossy().into_owned()]
+            path_key(Path::new(&source[0])),
+            path_key(&canonical_or_self(&project)),
+            "工作区外容器的下钻结果占默认位"
         );
+        assert_eq!(
+            path_key(Path::new(&source[1])),
+            path_key(&inside),
+            "工作区扫描命中补位，排在 prompt 候选之后"
+        );
+    }
+
+    #[test]
+    fn workspace_scan_does_not_reach_outside_the_workspace() {
+        // 工作区扫描是唯一的"后端自行发现"来源，且按构造只读取工作区根之下：
+        // prompt 未命名的外部工程绝不能进入 source_project 候选。
+        let (_t, root) = tree();
+        let scanned = mkdir(&root, "workspace-project");
+        touch(&scanned, "ws.pro");
+        let outside = tempfile::tempdir().unwrap();
+        let external = mkdir(&outside.path(), "external-project");
+        touch(&external, "ext.pro");
+
+        let probe =
+            probe_qt_migration_candidates(&root, "", &root.join("managed"), &HashMap::new());
+
+        assert_eq!(
+            keys(&probe.candidates["source_project"]),
+            keys(&[scanned.to_string_lossy().into_owned()]),
+            "工作区扫描不得越出工作区根"
+        );
+        assert!(probe.candidates["source_project"]
+            .iter()
+            .all(|path| path_key(Path::new(path)) != path_key(&external)));
     }
 
     #[test]

@@ -469,6 +469,23 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     });
   }, [draftKey]);
 
+  // Main opens a single-select question on its first (recommended) option so the
+  // Qt migration intake never presents an all-blank form, and so the submit rule
+  // and the pre-selection agree. A draft restored from the store — or the
+  // persisted answer of a finished card — always wins, and multi-select
+  // questions keep their opt-in semantics.
+  useEffect(() => {
+    if (finished || awaitingPayload) return;
+    questions.forEach((question, questionIndex) => {
+      if (
+        question.multiSelect
+        || question.options.length === 0
+        || answers[questionIndex] !== undefined
+      ) return;
+      handleSingleChange(questionIndex, optionValue(question, question.options[0]));
+    });
+  }, [answers, awaitingPayload, finished, handleSingleChange, questions]);
+
   const handleOtherInputChange = useCallback((
     questionIndex: number,
     value: string,
