@@ -40,7 +40,7 @@ import {
   canRenderFloatingMiniChatSession,
   isFloatingMiniChatIsolated,
 } from './floatingMiniChatIsolation';
-import { startNativeWindowDragging } from '@/infrastructure/runtime/window';
+import { useWindowChromeDrag } from '@/app/hooks/useWindowChromeDrag';
 import { ConversationModeSurface } from '@/flow_chat/components/voice/ConversationModeSurface';
 import { useRealtimeVoiceCall } from '@/flow_chat/components/voice/RealtimeVoiceCallContext';
 import type { VoiceMiniAppCallTarget } from '@/flow_chat/components/voice/voiceClientContext';
@@ -481,10 +481,16 @@ export const FloatingMiniChat: React.FC = () => {
     setPhase((prev) => (prev === 'opening' ? 'open' : prev));
   }, []);
 
-  const handlePanelHeaderPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
-    void startNativeWindowDragging();
-  }, []);
+  // The header is window chrome for the floating panel. On Windows a native drag
+  // started on a maximized window restores it before any pointer movement, so a
+  // plain click used to shrink the window; the shared hook defers startDragging()
+  // until the pointer actually moves while maximized.
+  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag();
+
+  const handlePanelHeaderMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    handleChromeMouseDown(e);
+  }, [handleChromeMouseDown]);
 
   const handlePanelKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -630,8 +636,7 @@ export const FloatingMiniChat: React.FC = () => {
           className="bitfun-fmc__header"
           data-bitfun-component="floating-mini-chat"
           data-bitfun-part="header"
-          data-tauri-drag-region="true"
-          onPointerDown={handlePanelHeaderPointerDown}
+          onMouseDown={handlePanelHeaderMouseDown}
         >
           {isMiniAppBubbleIsolated ? (
             <div
