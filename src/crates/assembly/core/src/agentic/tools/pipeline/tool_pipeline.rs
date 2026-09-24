@@ -94,6 +94,16 @@ fn persisted_effective_tool_name(
     (wire_tool_name != effective_tool_name).then(|| effective_tool_name.to_string())
 }
 
+/// Map legacy tool names to their canonical successors so resumed sessions
+/// whose transcript history contains an old name still resolve correctly.
+/// Currently only `check_arkts_files` → `arkts_check`.
+pub(crate) fn normalize_legacy_tool_name(name: &str) -> &str {
+    match name {
+        "check_arkts_files" => "arkts_check",
+        _ => name,
+    }
+}
+
 #[derive(Clone)]
 struct ToolDebugState {
     correlation: DebugCorrelation,
@@ -188,8 +198,9 @@ fn resolve_pipeline_invocation(
     tool_call: &ToolCall,
     context: &ToolExecutionContext,
 ) -> (ResolvedToolInvocation, Option<String>) {
+    let canonical_name = normalize_legacy_tool_name(&tool_call.tool_name);
     let invocation = match ResolvedToolInvocation::from_wire_call(
-        tool_call.tool_name.clone(),
+        canonical_name.to_string(),
         tool_call.arguments.clone(),
     ) {
         Ok(invocation) => invocation,
@@ -5288,5 +5299,18 @@ mod tests {
     fn task_tool_manages_its_own_execution_timeout() {
         let task_tool = TaskTool::new();
         assert!(task_tool.manages_own_execution_timeout());
+    }
+
+    #[test]
+    fn normalize_legacy_tool_name_maps_check_arkts_files() {
+        assert_eq!(normalize_legacy_tool_name("check_arkts_files"), "arkts_check");
+    }
+
+    #[test]
+    fn normalize_legacy_tool_name_passes_through_unknown_names() {
+        assert_eq!(normalize_legacy_tool_name("build_project"), "build_project");
+        assert_eq!(normalize_legacy_tool_name("arkts_check"), "arkts_check");
+        assert_eq!(normalize_legacy_tool_name("Read"), "Read");
+        assert_eq!(normalize_legacy_tool_name(""), "");
     }
 }
