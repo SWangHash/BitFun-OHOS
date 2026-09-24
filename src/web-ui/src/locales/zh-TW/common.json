@@ -225,6 +225,7 @@
       "project": "目錄",
       "persona": "助理",
       "todos": "待辦事項",
+      "knowledge": "知識庫",
       "agents": "專業智能體",
       "skills": "技能",
       "tools": "工具",
@@ -236,6 +237,7 @@
     "tooltips": {
       "persona": "助理 — 建立與管理所有助理實例",
       "todos": "待辦 — 匯總所有定時任務，列表與日曆兩層檢視",
+      "knowledge": "知識庫 — 用你自己的資料建立檢索庫",
       "agents": "它能調用哪些 Agent",
       "skills": "它懂什麼專項知識 — 技能知識檔案",
       "tools": "它能用什麼工具 — 內置工具與 MCP 服務",
@@ -1375,6 +1377,7 @@
     "insights": "洞察",
     "assistant": "助理",
     "todos": "待辦事項",
+    "knowledge": "知識庫",
     "shell": "Shell",
     "panelView": "面板視圖"
   },
@@ -1440,6 +1443,48 @@
       "openProjectDesc": "選擇一個已有的項目目錄，開始你的 AI 編程之旅",
       "newProject": "新增項目",
       "newProjectDesc": "從零開始建立一個全新的項目"
+    }
+  },
+  "knowledge": {
+    "title": "知識庫",
+    "subtitle": "用你自己的資料建立檢索庫並搜尋",
+    "actions": {
+      "refresh": "重新整理"
+    },
+    "base": {
+      "namePlaceholder": "新知識庫名稱",
+      "embeddingModelPlaceholder": "嵌入模型 ID（選填）",
+      "embeddingModelNone": "不使用嵌入（僅 BM25）",
+      "dimensionsPlaceholder": "向量維度",
+      "rerankModelPlaceholder": "重排模型（選填）",
+      "rerankModelNone": "不重排",
+      "create": "建立",
+      "empty": "還沒有知識庫",
+      "status": "狀態：{{status}}",
+      "selectPrompt": "選擇或建立一個知識庫以開始",
+      "delete": "刪除知識庫"
+    },
+    "search": {
+      "placeholder": "搜尋此知識庫",
+      "run": "執行搜尋"
+    },
+    "items": {
+      "title": "資料來源",
+      "noteTitlePlaceholder": "筆記標題（選填）",
+      "noteContentPlaceholder": "要索引的筆記內容",
+      "addNote": "新增筆記",
+      "urlPlaceholder": "要匯入的網頁位址",
+      "addUrl": "新增網頁",
+      "filePlaceholder": "文字/Markdown 檔案的絕對路徑",
+      "addFile": "新增檔案",
+      "directoryPlaceholder": "資料夾的絕對路徑",
+      "addDirectory": "新增資料夾",
+      "browse": "瀏覽",
+      "empty": "此知識庫還沒有資料"
+    },
+    "results": {
+      "title": "檢索結果",
+      "empty": "執行搜尋以查看符合結果"
     }
   },
   "insights": {

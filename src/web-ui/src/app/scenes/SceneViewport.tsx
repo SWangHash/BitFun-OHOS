@@ -39,6 +39,7 @@ const MiniAppGalleryScene = lazy(() => import('./miniapps/MiniAppGalleryScene'))
 const PagesScene      = lazy(() => import('./pages/PagesScene'));
 const BrowserScene    = lazy(() => import('./browser/BrowserScene'));
 const TodosScene      = lazy(() => import('./todos/TodosScene'));
+const KnowledgeScene  = lazy(() => import('./knowledge/KnowledgeScene'));
 const InsightsScene   = lazy(() => import('./my-agent/InsightsScene'));
 const ShellScene      = lazy(() => import('./shell/ShellScene'));
 const WelcomeScene    = lazy(() => import('./welcome/WelcomeScene'));
@@ -322,6 +323,8 @@ function renderScene(
       return <AssistantScene workspacePath={workspacePath} />;
     case 'todos':
       return <TodosScene />;
+    case 'knowledge':
+      return <KnowledgeScene />;
     case 'insights':
       return <InsightsScene />;
     case 'shell':

@@ -14,7 +14,7 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { Plus, FolderOpen, FolderPlus, History, Check, User, Users, Puzzle, Blocks, CalendarClock, ChevronDown, Search } from 'lucide-react';
+import { Plus, FolderOpen, FolderPlus, History, Check, User, Users, Puzzle, Blocks, CalendarClock, Library, ChevronDown, Search } from 'lucide-react';
 // import { PanelsTopLeft } from 'lucide-react'; // temporarily hidden: Pages nav entry
 import { Tooltip } from '@/component-library';
 import { useApp } from '../../hooks/useApp';
@@ -407,6 +407,10 @@ const MainNav: React.FC<MainNavProps> = ({
     openScene('todos');
   }, [openScene]);
 
+  const handleOpenKnowledge = useCallback(() => {
+    openScene('knowledge');
+  }, [openScene]);
+
   const handleOpenAgents = useCallback(() => {
     openScene('agents');
   }, [openScene]);
@@ -522,9 +526,11 @@ const MainNav: React.FC<MainNavProps> = ({
   const createCoworkTooltip = t('nav.sessions.newCoworkSession');
   const assistantTooltip = t('nav.items.persona');
   const todosTooltip = t('nav.tooltips.todos');
+  const knowledgeTooltip = t('nav.tooltips.knowledge');
   const addWorkspaceTooltip = t('nav.tooltips.addWorkspace');
   const isAssistantActive = activeTabId === 'assistant';
   const isTodosActive = activeTabId === 'todos';
+  const isKnowledgeActive = activeTabId === 'knowledge';
   const agentsTooltip = t('nav.tooltips.agents');
   const skillsTooltip = t('nav.tooltips.skills');
   const extensionsLabel = t('nav.sections.extensions');
@@ -630,6 +636,25 @@ const MainNav: React.FC<MainNavProps> = ({
               <CalendarClock size={15} />
             </span>
             <span>{t('nav.items.todos')}</span>
+          </button>
+        </Tooltip>
+
+        <Tooltip content={knowledgeTooltip} placement="right" followCursor>
+          <button
+            type="button"
+            className={`bitfun-nav-panel__top-action-btn${isKnowledgeActive ? ' is-active' : ''}`}
+            data-bf-component="nav-panel"
+            data-bf-part="topAction"
+            data-bf-action="knowledge"
+            data-bf-state={isKnowledgeActive ? 'active' : ''}
+            onClick={handleOpenKnowledge}
+            aria-label={knowledgeTooltip}
+            data-testid="nav-knowledge-btn"
+          >
+            <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
+              <Library size={15} />
+            </span>
+            <span>{t('nav.items.knowledge')}</span>
           </button>
         </Tooltip>
 

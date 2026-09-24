@@ -20,6 +20,7 @@ export type SceneTabId =
   | 'browser'
   | 'assistant'
   | 'todos'
+  | 'knowledge'
   | 'insights'
   | 'shell'
   | 'panel-view'

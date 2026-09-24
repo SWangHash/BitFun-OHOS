@@ -175,6 +175,7 @@ product-full = [
     "web-tools",
     "deep-research",
     "scheduled-jobs",
+    "knowledge",
     "tools-basic",
     "tools-git",
     "tools-mcp",
@@ -207,6 +208,17 @@ product-full = [
     "product-capabilities",
     "runtime-services",
     "tool-packs",
+]
+# Knowledge base: SQLite-backed bases/items plus a derived per-base retrieval
+# index (trigram FTS5 BM25, optional brute-force cosine vectors). Reuses the
+# bundled rusqlite already pulled in by the agent runtime.
+knowledge = [
+    "dep:rusqlite",
+    "dep:reqwest",
+    "tokio/rt",
+    "tokio/time",
+    "dep:tool-runtime",
+    "tool-runtime/document-read",
 ]
 # Core compatibility facade and concrete product Agent Runtime assembly. This
 # owns the existing agent/session/tool lifecycle, not app presentation or

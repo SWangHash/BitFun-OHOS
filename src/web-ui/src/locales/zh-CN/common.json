@@ -225,6 +225,7 @@
       "project": "目录",
       "persona": "助理",
       "todos": "待办事项",
+      "knowledge": "知识库",
       "agents": "专业智能体",
       "skills": "技能",
       "tools": "工具",
@@ -236,6 +237,7 @@
     "tooltips": {
       "persona": "助理 — 创建与管理所有助理实例",
       "todos": "待办 — 汇总所有定时任务，列表与日历两层查看",
+      "knowledge": "知识库 — 用你自己的资料构建检索库",
       "agents": "它能调用哪些 Agent",
       "skills": "它懂什么专项知识 — 技能知识文件",
       "tools": "它能用什么工具 — 内置工具与 MCP 服务",
@@ -1375,6 +1377,7 @@
     "insights": "洞察",
     "assistant": "助理",
     "todos": "待办事项",
+    "knowledge": "知识库",
     "shell": "Shell",
     "panelView": "面板视图"
   },
@@ -1440,6 +1443,48 @@
       "openProjectDesc": "选择一个已有的项目目录，开始你的 AI 编程之旅",
       "newProject": "新建项目",
       "newProjectDesc": "从零开始创建一个全新的项目"
+    }
+  },
+  "knowledge": {
+    "title": "知识库",
+    "subtitle": "用你自己的资料构建检索库并搜索",
+    "actions": {
+      "refresh": "刷新"
+    },
+    "base": {
+      "namePlaceholder": "新知识库名称",
+      "embeddingModelPlaceholder": "嵌入模型 ID（可选）",
+      "embeddingModelNone": "不使用嵌入（仅 BM25）",
+      "dimensionsPlaceholder": "向量维度",
+      "rerankModelPlaceholder": "重排模型（可选）",
+      "rerankModelNone": "不重排",
+      "create": "创建",
+      "empty": "还没有知识库",
+      "status": "状态：{{status}}",
+      "selectPrompt": "选择或创建一个知识库以开始",
+      "delete": "删除知识库"
+    },
+    "search": {
+      "placeholder": "搜索该知识库",
+      "run": "执行搜索"
+    },
+    "items": {
+      "title": "资料来源",
+      "noteTitlePlaceholder": "笔记标题（可选）",
+      "noteContentPlaceholder": "要索引的笔记内容",
+      "addNote": "添加笔记",
+      "urlPlaceholder": "要导入的网页地址",
+      "addUrl": "添加网页",
+      "filePlaceholder": "文本/Markdown 文件的绝对路径",
+      "addFile": "添加文件",
+      "directoryPlaceholder": "文件夹的绝对路径",
+      "addDirectory": "添加文件夹",
+      "browse": "浏览",
+      "empty": "该知识库还没有资料"
+    },
+    "results": {
+      "title": "检索结果",
+      "empty": "执行搜索以查看匹配结果"
     }
   },
   "insights": {

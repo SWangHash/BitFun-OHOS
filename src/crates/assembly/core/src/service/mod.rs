@@ -22,10 +22,12 @@ pub mod git; // Git service
 pub mod i18n; // I18n service
 #[cfg(feature = "agent-runtime")]
 pub(crate) mod instruction_context; // Workspace instruction file prompt helpers
-#[cfg(feature = "lsp")]
-pub mod lsp; // LSP (Language Server Protocol) system
+#[cfg(feature = "knowledge")]
+pub mod knowledge; // Knowledge base: bases/items + derived retrieval index
 #[cfg(feature = "product-full")]
 pub mod local_model_client; // Local model service HTTP client (Ollama-compatible)
+#[cfg(feature = "lsp")]
+pub mod lsp; // LSP (Language Server Protocol) system
 #[cfg(feature = "mcp-runtime")]
 pub mod mcp; // MCP (Model Context Protocol) system
 #[cfg(feature = "remote-connect")]
@@ -100,16 +102,18 @@ pub use git::GitService;
 #[cfg(feature = "i18n-runtime")]
 pub use i18n::{get_global_i18n_service, I18nService};
 pub use i18n::{I18nConfig, LocaleId, LocaleMetadata};
+#[cfg(feature = "knowledge")]
+pub use knowledge::{get_global_knowledge_service, set_global_knowledge_service, KnowledgeService};
+#[cfg(feature = "product-full")]
+pub use local_model_client::{
+    default_port as local_model_default_port, detect_service as detect_local_model_service,
+    list_models as list_local_models, pause_download as pause_local_model_download,
+    pull_model as pull_local_model, LocalModelError,
+};
 #[cfg(feature = "lsp")]
 pub use lsp::LspManager;
 #[cfg(feature = "mcp-runtime")]
 pub use mcp::MCPService;
-#[cfg(feature = "product-full")]
-pub use local_model_client::{
-    detect_service as detect_local_model_service, list_models as list_local_models,
-    pause_download as pause_local_model_download, pull_model as pull_local_model,
-    LocalModelError, default_port as local_model_default_port,
-};
 #[cfg(feature = "review-platform")]
 pub use review_platform::{
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,

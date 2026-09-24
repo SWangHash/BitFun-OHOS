@@ -9,6 +9,7 @@ export * from './service-api/ApiClient';
 export * from './service-api/tauri-commands';
 export * from './service-api/AIApi';
 export * from './service-api/CronAPI';
+export * from './service-api/KnowledgeAPI';
 export * from './service-api/PermissionAPI';
 export * from './service-api/PageAPI';
 export * from './service-api/SpeechAPI';
@@ -30,6 +31,7 @@ import { snapshotAPI } from './service-api/SnapshotAPI';
 import { globalAPI } from './service-api/GlobalAPI';
 import { contextAPI } from './service-api/ContextAPI';
 import { cronAPI } from './service-api/CronAPI';
+import { knowledgeAPI } from './service-api/KnowledgeAPI';
 import { permissionAPI } from './service-api/PermissionAPI';
 import { pageAPI } from './service-api/PageAPI';
 import { gitAPI } from './service-api/GitAPI';
@@ -49,7 +51,7 @@ import { localModelApi } from './service-api/LocalModelAPI';
 import { matrixSkillAPI } from './service-api/MatrixSkillAPI';
 
 // Export API modules
-export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI, localModelApi, matrixSkillAPI };
+export { feedbackAPI, workspaceAPI, configAPI, aiApi, toolAPI, agentAPI, systemAPI, projectAPI, diffAPI, snapshotAPI, globalAPI, contextAPI, cronAPI, knowledgeAPI, permissionAPI, pageAPI, gitAPI, gitAgentAPI, gitRepoHistoryAPI, sessionAPI, i18nAPI, btwAPI, editorAiAPI, reviewPlatformAPI, insightsApi, tokenUsageStatisticsApi, speechAPI, worktreeAPI, localModelApi, matrixSkillAPI };
 export { TokenUsageStatisticsUnavailableError } from './tokenUsageStatisticsApi';
 export * from './service-api/ReviewPlatformAPI';
 

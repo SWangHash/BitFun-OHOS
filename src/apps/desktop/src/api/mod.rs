@@ -31,6 +31,7 @@ pub mod git_agent_api;
 pub mod git_api;
 pub mod i18n_api;
 pub mod insights_api;
+pub mod knowledge_api;
 pub mod lsp_api;
 pub mod lsp_workspace_api;
 pub mod matrix_skill_api;
@@ -50,9 +51,9 @@ pub mod remote_connect_api;
 pub mod remote_workspace_policy;
 pub mod review_platform_api;
 pub mod runtime_api;
-pub mod search_api;
 #[cfg(not(target_env = "ohos"))]
 pub mod screen_capture;
+pub mod search_api;
 pub mod session_api;
 pub mod session_storage_path;
 pub mod skill_api;

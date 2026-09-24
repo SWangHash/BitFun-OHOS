@@ -12,7 +12,9 @@ use bitfun_core::miniapp::{
 use bitfun_core::service::remote_ssh::{
     init_remote_workspace_manager, RemoteFileService, RemoteTerminalManager, SSHConnectionManager,
 };
-use bitfun_core::service::{announcement, config, filesystem, mcp, search, token_usage, workspace};
+use bitfun_core::service::{
+    announcement, config, filesystem, knowledge, mcp, search, token_usage, workspace,
+};
 use bitfun_core::util::errors::*;
 use bitfun_services_integrations::speech::{SpeechService, SpeechStoragePaths};
 
@@ -144,6 +146,17 @@ impl AppState {
             }
         };
         let path_manager = workspace_service.path_manager().clone();
+        let knowledge_service = Arc::new(knowledge::KnowledgeService::new(&path_manager).map_err(
+            |error| {
+                BitFunError::service(format!("Failed to initialize knowledge service: {}", error))
+            },
+        )?);
+        if let Err(error) = knowledge_service.recover_interrupted_items() {
+            log::warn!("Failed to recover interrupted knowledge items: {}", error);
+        }
+        knowledge_service.start_worker();
+        knowledge::set_global_knowledge_service(knowledge_service);
+
         let acp_client_service = Some(
             bitfun_acp::AcpClientService::new(config_service.clone(), path_manager.clone())
                 .map_err(|e| {

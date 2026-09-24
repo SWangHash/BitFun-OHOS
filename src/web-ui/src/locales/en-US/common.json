@@ -225,6 +225,7 @@
       "project": "Directory",
       "persona": "Assistant",
       "todos": "Todos",
+      "knowledge": "Knowledge",
       "agents": "Agents",
       "skills": "Skills",
       "tools": "Tools",
@@ -236,6 +237,7 @@
     "tooltips": {
       "persona": "Assistant — create and manage all assistant instances",
       "todos": "Todos — every scheduled task, by list and calendar",
+      "knowledge": "Knowledge — build retrieval bases from your own sources",
       "agents": "Which agents it can call",
       "skills": "What it knows — specialized knowledge files",
       "tools": "What it can use — built-in tools & MCP services",
@@ -1375,6 +1377,7 @@
     "insights": "Insights",
     "assistant": "Assistant",
     "todos": "Todos",
+    "knowledge": "Knowledge",
     "shell": "Shell",
     "panelView": "Panel View"
   },
@@ -1440,6 +1443,48 @@
       "openProjectDesc": "Select an existing project directory to start your AI-powered coding journey.",
       "newProject": "New Project",
       "newProjectDesc": "Create a brand new project from scratch."
+    }
+  },
+  "knowledge": {
+    "title": "Knowledge",
+    "subtitle": "Build retrieval bases from your own sources and search them",
+    "actions": {
+      "refresh": "Refresh"
+    },
+    "base": {
+      "namePlaceholder": "New knowledge base name",
+      "embeddingModelPlaceholder": "Embedding model id (optional)",
+      "embeddingModelNone": "No embedding (BM25 only)",
+      "dimensionsPlaceholder": "Vector dimensions",
+      "rerankModelPlaceholder": "Rerank model (optional)",
+      "rerankModelNone": "No rerank",
+      "create": "Create",
+      "empty": "No knowledge bases yet",
+      "status": "Status: {{status}}",
+      "selectPrompt": "Select or create a knowledge base to get started",
+      "delete": "Delete base"
+    },
+    "search": {
+      "placeholder": "Search this knowledge base",
+      "run": "Run search"
+    },
+    "items": {
+      "title": "Sources",
+      "noteTitlePlaceholder": "Note title (optional)",
+      "noteContentPlaceholder": "Note content to index",
+      "addNote": "Add note",
+      "urlPlaceholder": "Web page URL to import",
+      "addUrl": "Add URL",
+      "filePlaceholder": "Absolute path to a text/Markdown file",
+      "addFile": "Add file",
+      "directoryPlaceholder": "Absolute path to a folder",
+      "addDirectory": "Add folder",
+      "browse": "Browse",
+      "empty": "No sources in this base yet"
+    },
+    "results": {
+      "title": "Results",
+      "empty": "Run a search to see matches"
     }
   },
   "insights": {

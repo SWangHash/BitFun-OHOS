@@ -96,8 +96,8 @@ use api::git_api::*;
 use api::i18n_api::*;
 use api::lsp_api::*;
 use api::lsp_workspace_api::*;
-use api::mcp_api::*;
 use api::matrix_skill_api::*;
+use api::mcp_api::*;
 use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
@@ -1488,6 +1488,17 @@ pub async fn _run() {
         .invoke_handler(tauri::generate_handler![
             appearance::show_main_window,
             hide_main_window_after_close_request,
+            api::knowledge_api::knowledge_create_base,
+            api::knowledge_api::knowledge_list_bases,
+            api::knowledge_api::knowledge_get_base,
+            api::knowledge_api::knowledge_delete_base,
+            api::knowledge_api::knowledge_add_items,
+            api::knowledge_api::knowledge_list_items,
+            api::knowledge_api::knowledge_delete_items,
+            api::knowledge_api::knowledge_reindex_items,
+            api::knowledge_api::knowledge_search,
+            api::knowledge_api::knowledge_list_item_chunks,
+            api::knowledge_api::knowledge_get_file_path,
             api::privacy_api::privacy_initialize,
             api::privacy_api::privacy_get_status,
             api::privacy_api::privacy_accept,

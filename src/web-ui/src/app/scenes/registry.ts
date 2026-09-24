@@ -23,6 +23,7 @@ import {
   BarChart3,
   CalendarClock,
   ExternalLink,
+  Library,
 } from 'lucide-react';
 import type { SceneTabDef, SceneTabId } from '../components/SceneBar/types';
 
@@ -150,6 +151,15 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
     label: 'Todos',
     labelKey: 'scenes.todos',
     Icon: CalendarClock,
+    pinned: false,
+    singleton: true,
+    defaultOpen: false,
+  },
+  {
+    id: 'knowledge' as SceneTabId,
+    label: 'Knowledge',
+    labelKey: 'scenes.knowledge',
+    Icon: Library,
     pinned: false,
     singleton: true,
     defaultOpen: false,
