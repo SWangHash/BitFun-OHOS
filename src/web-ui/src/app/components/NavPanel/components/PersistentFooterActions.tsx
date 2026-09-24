@@ -33,6 +33,7 @@ import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
 } from '../../RemoteConnectDialog/remoteConnectDisclaimerStorage';
+import { requestBrowserNavigation } from '@/app/scenes/browser/browserNavigation';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
@@ -45,6 +46,7 @@ const AboutDialog = lazy(() =>
   import('../../AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
 const FeedbackDialog = lazy(() => import('../../FeedbackDialog'));
+const CHANGELOG_URL = 'https://www.bitfun.work/Changelog.html';
 
 const PersistentFooterActions: React.FC = () => {
   const { t } = useI18n('common');
@@ -176,6 +178,26 @@ const PersistentFooterActions: React.FC = () => {
     await systemAPI.openExternal('https://gitcode.com/BitFun/bitfun_ade/issues');
   }, [closeMenu, feedbackPlatformEnabled]);
 
+  const handleOpenChangelog = useCallback(() => {
+    closeMenu();
+    if (activeTabId === 'session' || activeTabId?.startsWith('session:')) {
+      window.dispatchEvent(new CustomEvent('agent-create-tab', {
+        detail: {
+          type: 'browser',
+          title: t('header.changelog'),
+          data: { url: CHANGELOG_URL },
+          checkDuplicate: true,
+          duplicateCheckKey: `browser-panel:${CHANGELOG_URL}`,
+          replaceExisting: false,
+        },
+      }));
+      return;
+    }
+
+    useSceneStore.getState().openScene('browser');
+    requestBrowserNavigation(CHANGELOG_URL);
+  }, [activeTabId, closeMenu, t]);
+
   const handleFloatingMode = () => {
     closeMenu();
     enableToolbarMode();
@@ -306,6 +328,13 @@ const PersistentFooterActions: React.FC = () => {
                     onOpenAppearanceSettings={handleOpenAppearanceSettings}
                   />
                   <MenuSeparator />
+                  <MenuItem
+                    leading={<Icon name="files" size="sm" aria-hidden="true" />}
+                    onClick={handleOpenChangelog}
+                    data-testid="nav-footer-changelog-item"
+                  >
+                    {t('header.changelog')}
+                  </MenuItem>
                   <MenuItem
                     leading={<Icon name="waitlist-message" size="sm" aria-hidden="true" />}
                     metadata={hasUnreadFeedback ? (
