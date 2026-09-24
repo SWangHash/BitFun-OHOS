@@ -44,7 +44,13 @@ pub(crate) struct MCPToolContextPolicy {
 
 impl MCPToolContextPolicy {
     pub(crate) fn replace_route(&self, workspace_key: String, route: MCPWorkspaceToolRoute) {
-        let mut routes = self.routes.write().expect("MCP route lock poisoned");
+        let mut routes = match self.routes.write() {
+            Ok(routes) => routes,
+            Err(e) => {
+                error!("MCP route lock poisoned, cannot replace route: {}", e);
+                return;
+            }
+        };
         if route == MCPWorkspaceToolRoute::default() {
             routes.remove(&workspace_key);
         } else {
@@ -63,10 +69,17 @@ impl MCPToolContextPolicy {
             if remote || workspace_key != Some(expected_workspace) {
                 return false;
             }
-            return self
-                .routes
-                .read()
-                .expect("MCP route lock poisoned")
+            let routes = match self.routes.read() {
+                Ok(routes) => routes,
+                Err(e) => {
+                    error!(
+                        "MCP route lock poisoned, treating server '{}' as unavailable: {}",
+                        server_id, e
+                    );
+                    return false;
+                }
+            };
+            return routes
                 .get(expected_workspace)
                 .is_some_and(|route| route.active_external_server_ids.contains(server_id));
         }
@@ -76,10 +89,17 @@ impl MCPToolContextPolicy {
         let Some(workspace_key) = workspace_key else {
             return true;
         };
-        !self
-            .routes
-            .read()
-            .expect("MCP route lock poisoned")
+        let routes = match self.routes.read() {
+            Ok(routes) => routes,
+            Err(e) => {
+                error!(
+                    "MCP route lock poisoned, treating server '{}' as unavailable: {}",
+                    server_id, e
+                );
+                return false;
+            }
+        };
+        !routes
             .get(workspace_key)
             .is_some_and(|route| route.suppressed_native_server_ids.contains(server_id))
     }

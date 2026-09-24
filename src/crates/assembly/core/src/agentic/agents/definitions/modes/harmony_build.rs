@@ -52,7 +52,7 @@ impl HarmonyBuildMode {
                 "start_app".to_string(),
                 "hdc_log".to_string(),
                 "arkts_knowledge_search".to_string(),
-                "check_arkts_files".to_string(),
+                "arkts_check".to_string(),
                 "check_cpp_files".to_string(),
                 "switch_cwd".to_string(),
                 "verify_ui".to_string(),

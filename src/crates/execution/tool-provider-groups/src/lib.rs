@@ -99,7 +99,7 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         | "start_app"
         | "hdc_log"
         | "arkts_knowledge_search"
-        | "check_arkts_files"
+        | "arkts_check"
         | "check_cpp_files"
         | "switch_cwd"
         | "verify_ui"
@@ -121,9 +121,9 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
             Some(ToolPackFeatureGroup::Canvas)
         }
         "Task" | "AgentWait" | "LaunchReviewAgent" | "Skill" | "AskUserQuestion" | "TodoWrite"
-        | "get_goal" | "create_goal" | "update_goal" | "CreatePlan" | "submit_code_review"
-        | "GetToolSpec" | "CallDeferredTool" | "SessionControl" | "SessionMessage"
-        | "SessionHistory" | "Cron" => Some(ToolPackFeatureGroup::AgentControl),
+        | "get_goal" | "create_goal" | "update_goal" | "CreatePlan" | "plan_write"
+        | "submit_code_review" | "GetToolSpec" | "CallDeferredTool" | "SessionControl"
+        | "SessionMessage" | "SessionHistory" | "Cron" => Some(ToolPackFeatureGroup::AgentControl),
         _ => None,
     }
 }
@@ -217,6 +217,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "create_goal",
             "update_goal",
             "CreatePlan",
+            "plan_write",
             "submit_code_review",
             "GetToolSpec",
             "CallDeferredTool",
@@ -266,7 +267,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "start_app",
             "hdc_log",
             "arkts_knowledge_search",
-            "check_arkts_files",
+            "arkts_check",
             "check_cpp_files",
             "switch_cwd",
             "verify_ui",
@@ -529,6 +530,7 @@ mod tests {
                 "create_goal",
                 "update_goal",
                 "CreatePlan",
+                "plan_write",
                 "submit_code_review",
                 "GetToolSpec",
                 "CallDeferredTool",
@@ -564,7 +566,7 @@ mod tests {
                 "start_app",
                 "hdc_log",
                 "arkts_knowledge_search",
-                "check_arkts_files",
+                "arkts_check",
                 "check_cpp_files",
                 "switch_cwd",
                 "verify_ui",

@@ -30,7 +30,7 @@ const VERIFY_TOOLS: &[&str] = &[
     "start_app",
     "hdc_log",
     "arkts_knowledge_search",
-    "check_arkts_files",
+    "arkts_check",
     "check_cpp_files",
     "verify_ui",
     "get_ui_verification_log",
@@ -267,7 +267,8 @@ mod tests {
 
     #[test]
     fn implementation_constraints_deny_build_but_allow_edit() {
-        let layer = harmony_spec_implementation_agent().permission_constraints();
+        let agent = harmony_spec_implementation_agent();
+        let layer = agent.permission_constraints();
         let evaluator = PermissionEvaluator::for_current_platform();
         assert_eq!(
             evaluator.evaluate_constraint_resource("custom_tool", "build_project", layer),
@@ -281,7 +282,8 @@ mod tests {
 
     #[test]
     fn verify_constraints_deny_edit_and_bash() {
-        let layer = harmony_spec_verify_agent().permission_constraints();
+        let agent = harmony_spec_verify_agent();
+        let layer = agent.permission_constraints();
         let evaluator = PermissionEvaluator::for_current_platform();
         assert_eq!(
             evaluator.evaluate_constraint_resource("edit", "src/main.ets", layer),

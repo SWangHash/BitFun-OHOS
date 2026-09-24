@@ -4,7 +4,9 @@
 //! tool on the `ui-verification-mcp` MCP server.
 
 use super::ui_verification_mcp::call_ui_verification_mcp;
-use crate::agentic::tools::framework::{Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult};
+use crate::agentic::tools::framework::{
+    Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
+};
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -12,16 +14,22 @@ use serde_json::{json, Value};
 pub struct GetUiVerificationLogTool;
 
 impl Default for GetUiVerificationLogTool {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GetUiVerificationLogTool {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 
 #[async_trait]
 impl Tool for GetUiVerificationLogTool {
-    fn name(&self) -> &str { "get_ui_verification_log" }
+    fn name(&self) -> &str {
+        "get_ui_verification_log"
+    }
 
     async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Retrieve device logs for a UI verification run.
@@ -38,7 +46,9 @@ Example:
 - {"id": "abc123", "maxLogSize": -1, "searchKeywords": "Error"}"#.to_string())
     }
 
-    fn short_description(&self) -> String { "Retrieve device logs for a UI verification run.".to_string() }
+    fn short_description(&self) -> String {
+        "Retrieve device logs for a UI verification run.".to_string()
+    }
 
     fn input_schema(&self) -> Value {
         json!({
@@ -53,24 +63,96 @@ Example:
         })
     }
 
-    fn is_readonly(&self) -> bool { true }
-    fn is_concurrency_safe(&self, _input: Option<&Value>) -> bool { true }
+    fn is_readonly(&self) -> bool {
+        true
+    }
+    fn is_concurrency_safe(&self, _input: Option<&Value>) -> bool {
+        true
+    }
 
-    async fn validate_input(&self, input: &Value, _ctx: Option<&ToolUseContext>) -> ValidationResult {
+    async fn validate_input(
+        &self,
+        input: &Value,
+        _ctx: Option<&ToolUseContext>,
+    ) -> ValidationResult {
         let id = input.get("id").and_then(|v| v.as_str());
         if id.is_none() || id.map(|s| s.trim().is_empty()).unwrap_or(true) {
-            return ValidationResult { result: false, message: Some("id is required".to_string()), error_code: Some(400), meta: None };
+            return ValidationResult {
+                result: false,
+                message: Some("id is required".to_string()),
+                error_code: Some(400),
+                meta: None,
+            };
         }
-        ValidationResult { result: true, message: None, error_code: None, meta: None }
+        if id.is_some_and(|value| value.len() > 512 || value.chars().any(char::is_control)) {
+            return ValidationResult {
+                result: false,
+                message: Some("id is invalid".to_string()),
+                error_code: Some(400),
+                meta: None,
+            };
+        }
+        if let Some(value) = input.get("maxLogSize") {
+            let Some(size) = value.as_i64() else {
+                return ValidationResult {
+                    result: false,
+                    message: Some("maxLogSize must be an integer".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            };
+            if size < -1 || size > 10 * 1024 * 1024 {
+                return ValidationResult {
+                    result: false,
+                    message: Some("maxLogSize must be -1 or between 0 and 10485760".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            }
+        }
+        if let Some(value) = input.get("searchKeywords") {
+            let Some(keywords) = value.as_str() else {
+                return ValidationResult {
+                    result: false,
+                    message: Some("searchKeywords must be a string".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            };
+            if keywords.len() > 2048 || keywords.chars().any(char::is_control) {
+                return ValidationResult {
+                    result: false,
+                    message: Some("searchKeywords is invalid".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            }
+        }
+        ValidationResult {
+            result: true,
+            message: None,
+            error_code: None,
+            meta: None,
+        }
     }
 
     fn render_tool_use_message(&self, input: &Value, options: &ToolRenderOptions) -> String {
         let id = input.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        if options.verbose { format!("HarmonyOS UI log: {}", id) } else { format!("UI log: {}", id) }
+        if options.verbose {
+            format!("HarmonyOS UI log: {}", id)
+        } else {
+            format!("UI log: {}", id)
+        }
     }
 
-    async fn call_impl(&self, input: &Value, _ctx: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
-        let id = input.get("id").and_then(|v| v.as_str())
+    async fn call_impl(
+        &self,
+        input: &Value,
+        _ctx: &ToolUseContext,
+    ) -> BitFunResult<Vec<ToolResult>> {
+        let id = input
+            .get("id")
+            .and_then(|v| v.as_str())
             .ok_or_else(|| BitFunError::tool("id is required".to_string()))?;
         let mut payload = json!({ "id": id });
         if let Some(size) = input.get("maxLogSize").and_then(|v| v.as_i64()) {
@@ -80,7 +162,12 @@ Example:
             payload["searchKeywords"] = json!(kw);
         }
 
-        let result = call_ui_verification_mcp("getLog", payload).await?;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            call_ui_verification_mcp("getLog", payload),
+        )
+        .await
+        .map_err(|_| BitFunError::tool("UI verification log retrieval timed out".to_string()))??;
         Ok(vec![ToolResult::Result {
             data: json!({ "tool": "get_ui_verification_log", "id": id, "success": true }),
             result_for_assistant: Some(result),
@@ -96,20 +183,31 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn tool_name_matches() { assert_eq!(GetUiVerificationLogTool::new().name(), "get_ui_verification_log"); }
+    fn tool_name_matches() {
+        assert_eq!(
+            GetUiVerificationLogTool::new().name(),
+            "get_ui_verification_log"
+        );
+    }
     #[test]
-    fn is_readonly() { assert!(GetUiVerificationLogTool::new().is_readonly()); }
+    fn is_readonly() {
+        assert!(GetUiVerificationLogTool::new().is_readonly());
+    }
 
     #[tokio::test]
     async fn rejects_missing_id() {
-        let r = GetUiVerificationLogTool::new().validate_input(&json!({}), None).await;
+        let r = GetUiVerificationLogTool::new()
+            .validate_input(&json!({}), None)
+            .await;
         assert!(!r.result);
         assert_eq!(r.error_code, Some(400));
     }
 
     #[tokio::test]
     async fn accepts_valid_id() {
-        let r = GetUiVerificationLogTool::new().validate_input(&json!({"id": "abc123"}), None).await;
+        let r = GetUiVerificationLogTool::new()
+            .validate_input(&json!({"id": "abc123"}), None)
+            .await;
         assert!(r.result);
     }
 }

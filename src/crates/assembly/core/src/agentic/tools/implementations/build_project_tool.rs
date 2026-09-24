@@ -74,8 +74,14 @@ Example:
     }
 
     fn render_tool_use_message(&self, input: &Value, options: &ToolRenderOptions) -> String {
-        let build_mode = input.get("build_mode").and_then(|v| v.as_str()).unwrap_or("debug");
-        let clean = input.get("clean").and_then(|v| v.as_bool()).unwrap_or(false);
+        let build_mode = input
+            .get("build_mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("debug");
+        let clean = input
+            .get("clean")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let label = if clean { "Clean build" } else { "Build" };
         if options.verbose {
             format!("HarmonyOS {} (mode={})", label, build_mode)
@@ -89,11 +95,39 @@ Example:
         input: &Value,
         context: &ToolUseContext,
     ) -> BitFunResult<Vec<ToolResult>> {
-        let clean = input.get("clean").and_then(|v| v.as_bool()).unwrap_or(false);
+        let clean = input
+            .get("clean")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let build_mode = input.get("build_mode").and_then(|v| v.as_str());
         let product = input.get("product").and_then(|v| v.as_str());
         let module = input.get("module").and_then(|v| v.as_str());
-        let log_path = input.get("log_path").and_then(|v| v.as_str()).map(String::from);
+        let log_path = input
+            .get("log_path")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        for (name, value) in [
+            ("build_mode", build_mode),
+            ("product", product),
+            ("module", module),
+            ("log_path", log_path.as_deref()),
+        ] {
+            if let Some(value) = value {
+                if value.trim().is_empty() {
+                    return Err(BitFunError::validation(format!(
+                        "{} must not be empty",
+                        name
+                    )));
+                }
+                if value.len() > 512 || value.chars().any(char::is_control) {
+                    return Err(BitFunError::validation(format!(
+                        "{} contains invalid or oversized input",
+                        name
+                    )));
+                }
+            }
+        }
 
         let mut argv: Vec<&str> = Vec::new();
         if clean {
@@ -117,7 +151,15 @@ Example:
             argv.push(m.as_str());
         }
 
-        let out = run_devecocli(&argv, context, DevecocliOptions { log_path, ..Default::default() }).await?;
+        let out = run_devecocli(
+            &argv,
+            context,
+            DevecocliOptions {
+                log_path,
+                ..Default::default()
+            },
+        )
+        .await?;
         let combined = [out.stdout.as_str(), out.stderr.as_str()]
             .iter()
             .filter(|s| !s.is_empty())
@@ -161,7 +203,10 @@ mod tests {
     #[test]
     fn build_project_schema_declares_optional_parameters() {
         let schema = BuildProjectTool::new().input_schema();
-        let props = schema.get("properties").and_then(|v| v.as_object()).expect("properties");
+        let props = schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .expect("properties");
         for key in ["clean", "build_mode", "product", "module", "log_path"] {
             assert!(props.contains_key(key), "missing {key}");
         }

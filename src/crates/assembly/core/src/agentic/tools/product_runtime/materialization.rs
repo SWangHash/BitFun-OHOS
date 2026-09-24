@@ -49,7 +49,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "ExecControl" => Some(Arc::new(ExecControlTool::new())),
             "GetTime" => Some(Arc::new(GetTimeTool::new())),
             "ListModels" => Some(Arc::new(ListModelsTool::new())),
-            "check_arkts_files" => Some(Arc::new(CheckArktsFilesTool::new())),
+            "arkts_check" => Some(Arc::new(ArktsCheckTool::new())),
             "check_cpp_files" => Some(Arc::new(CheckCppFilesTool::new())),
             "switch_cwd" => Some(Arc::new(SwitchCwdTool::new())),
             "Task" => Some(Arc::new(TaskTool::new())),
@@ -71,6 +71,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             #[cfg(feature = "tools-canvas")]
             "PatchCanvas" => Some(Arc::new(PatchCanvasTool::new())),
             "CreatePlan" => Some(Arc::new(CreatePlanTool::new())),
+            "plan_write" => Some(Arc::new(CreatePlanTool::plan_write())),
             "submit_code_review" => Some(Arc::new(CodeReviewTool::new())),
             "GetToolSpec" => Some(Arc::new(GetToolSpecTool::new())),
             "CallDeferredTool" => Some(Arc::new(CallDeferredTool::new())),
