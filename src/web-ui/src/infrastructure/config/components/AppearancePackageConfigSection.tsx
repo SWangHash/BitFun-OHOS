@@ -279,6 +279,7 @@ export function AppearancePackageConfigSection() {
     appearances: appearanceCatalog,
     unavailableSelectionId,
     selectedAppearanceId,
+    pendingSelectionId,
     getPreviewAsset,
     importPackage,
     exportPackage,
@@ -298,8 +299,14 @@ export function AppearancePackageConfigSection() {
   const selectedAppearance = importedAppearances.find(
     appearance => appearance.id === selectedAppearanceId,
   );
-  const defaultPackageSelected = selectedAppearanceId === SYSTEM_APPEARANCE_ID
-    || builtinAppearances.some(appearance => appearance.id === selectedAppearanceId);
+  // The runtime already shows the pending theme while a selection is applying,
+  // but `selectedAppearanceId` only updates once persistence settles. Display the
+  // pending selection so the picker never falls back to the previous theme.
+  const displayedSelectionId = status === 'applying' && pendingSelectionId
+    ? pendingSelectionId
+    : selectedAppearanceId;
+  const defaultPackageSelected = displayedSelectionId === SYSTEM_APPEARANCE_ID
+    || builtinAppearances.some(appearance => appearance.id === displayedSelectionId);
   const builtinThemeOptions = useMemo(() => [
     {
       value: SYSTEM_APPEARANCE_ID,
@@ -316,7 +323,7 @@ export function AppearancePackageConfigSection() {
       testAttributes: { 'data-appearance-id': appearance.id },
     })),
   ], [builtinAppearances, t, tApplication]);
-  const selectedBuiltinThemeId = defaultPackageSelected ? selectedAppearanceId : '';
+  const selectedBuiltinThemeId = defaultPackageSelected ? displayedSelectionId : '';
   const busy = loading || !initialized || status === 'applying';
 
   const handleAppearanceSelection = async (id: string) => {
@@ -498,7 +505,7 @@ export function AppearancePackageConfigSection() {
             appearanceDescription={`${appearance.author || t('package.unknownAuthor')} · v${appearance.version}`}
             getPreviewAsset={getPreviewAsset}
             packageType="imported"
-            selected={appearance.id === selectedAppearanceId}
+            selected={appearance.id === displayedSelectionId}
             disabled={busy}
             onSelect={() => void handleAppearanceSelection(appearance.id)}
           />

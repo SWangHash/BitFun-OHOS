@@ -1,30 +1,29 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { notificationStore } from '../store/NotificationStore';
 import { notificationService } from './NotificationService';
 
+/**
+ * The toast timeout is owned by the notification presentation (see
+ * NotificationContainer), so the service contract verified here is the duration
+ * it records. Auto-expiry itself is covered by the container tests.
+ */
+const activeToast = (id: string) =>
+  notificationStore.getState().activeNotifications.find((item) => item.id === id);
+
 describe('NotificationService error toast', () => {
   afterEach(() => {
-    vi.useRealTimers();
     notificationService.dismissAll();
   });
 
-  it('uses the default toast duration and closes automatically', () => {
-    vi.useFakeTimers();
+  it('records the default toast duration so the presentation expires it', () => {
     const id = notificationService.error('Failed');
 
-    expect(notificationStore.getState().activeNotifications.some((item) => item.id === id)).toBe(true);
-
-    vi.advanceTimersByTime(notificationStore.getState().config.defaultDuration);
-
-    expect(notificationStore.getState().activeNotifications.some((item) => item.id === id)).toBe(false);
+    expect(activeToast(id)?.duration).toBe(notificationStore.getState().config.defaultDuration);
   });
 
-  it('remains open when duration is explicitly zero', () => {
-    vi.useFakeTimers();
+  it('keeps an explicit zero duration as the opt-out of automatic expiry', () => {
     const id = notificationService.error('Failed', { duration: 0 });
 
-    vi.advanceTimersByTime(notificationStore.getState().config.defaultDuration * 2);
-
-    expect(notificationStore.getState().activeNotifications.some((item) => item.id === id)).toBe(true);
+    expect(activeToast(id)?.duration).toBe(0);
   });
 });

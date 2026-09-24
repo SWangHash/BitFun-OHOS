@@ -1,9 +1,10 @@
  
 
-import { ScrollArea } from '@bitfun/ui';
+import { ScrollArea, useHasModalOverlay } from '@bitfun/ui';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Notification } from '../types';
 import { useActiveNotifications } from '../hooks/useNotificationState';
+import { notificationService } from '../services/NotificationService';
 import { NotificationItem } from './NotificationItem';
 import { ProgressNotification } from './ProgressNotification';
 import { LoadingNotification } from './LoadingNotification';
@@ -19,6 +20,26 @@ interface NotificationPresenceProps {
 const NotificationPresence: React.FC<NotificationPresenceProps> = ({ notification, isExiting }) => {
   const presenceRef = useRef<HTMLDivElement>(null);
   const [exitAccessibilityApplied, setExitAccessibilityApplied] = useState(false);
+  const modalOpen = useHasModalOverlay();
+  // Presentation owns the toast timeout: it starts only once the toast is
+  // actually on screen, and it is held while a modal overlay covers the toast
+  // so the display time is never spent unseen. The remaining time survives a
+  // hold, so a toast cannot be cut short by an unrelated modal.
+  const remainingDuration = useRef(notification.duration ?? 0);
+
+  useEffect(() => {
+    if (isExiting || modalOpen || remainingDuration.current <= 0) {
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => {
+      notificationService.dismiss(notification.id);
+    }, remainingDuration.current);
+    return () => {
+      window.clearTimeout(timer);
+      remainingDuration.current = Math.max(0, remainingDuration.current - (Date.now() - startedAt));
+    };
+  }, [isExiting, modalOpen, notification.id]);
 
   useLayoutEffect(() => {
     if (!isExiting) {

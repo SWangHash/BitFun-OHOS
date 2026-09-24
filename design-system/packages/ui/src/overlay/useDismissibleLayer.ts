@@ -3,8 +3,7 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import { isImeOwnedKeyboardEvent } from "../internal/ime";
-import { useOverlayLayerStack } from "./LayerStack";
+import { getOverlayLayerStack, useOverlayLayerStack } from "./LayerStack";
 import type {
   OverlayDismissReason,
   OverlayLayerScope,
@@ -22,10 +21,6 @@ export interface UseDismissibleLayerOptions {
   scope?: OverlayLayerScope;
 }
 
-function isNode(value: EventTarget | null): value is Node {
-  return Boolean(value && typeof (value as Node).nodeType === "number");
-}
-
 export function useDismissibleLayer({
   branchRefs = [],
   containsTarget,
@@ -37,64 +32,39 @@ export function useDismissibleLayer({
   ownerDocument,
   scope,
 }: UseDismissibleLayerOptions): symbol {
-  const stack = useOverlayLayerStack();
+  const inheritedStack = useOverlayLayerStack();
   const identityRef = useRef(Symbol("bitfun-overlay-layer"));
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  // Guards that are not identity-stable stay behind a ref so a content update
+  // does not reissue the registration ticket.
+  const guardsRef = useRef({ branchRefs, containsTarget });
+  guardsRef.current = { branchRefs, containsTarget };
 
   useEffect(() => {
     if (!enabled) return;
+    // The stack that owns the surface document resolves both ranking and
+    // dismissal, so the dismissible must register where its layer is ranked.
+    const documentOwner = ownerDocument
+      ?? layerRef.current?.ownerDocument
+      ?? (typeof document === "undefined" ? null : document);
+    const stack = documentOwner ? getOverlayLayerStack(documentOwner) : inheritedStack;
     return stack.register({
       id: identityRef.current,
       onDismiss: (reason) => onDismissRef.current(reason),
       scope,
+      // The coordinator ranks the dismissible against the painted layers, so the
+      // owned surface and its guards are part of the registration.
+      element: () => layerRef.current,
+      containsTarget: (target) => {
+        const guards = guardsRef.current;
+        return guards.branchRefs.some((branchRef) => branchRef.current?.contains(target))
+          || Boolean(guards.containsTarget?.(target));
+      },
+      dismissOnEscape,
+      dismissOnPointerOutside,
     });
-  }, [enabled, scope, stack]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const documentOwner = ownerDocument
-      ?? layerRef.current?.ownerDocument
-      ?? (typeof document === "undefined" ? null : document);
-    if (!documentOwner) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key !== "Escape"
-        || isImeOwnedKeyboardEvent(event)
-        || !dismissOnEscape
-        || !stack.isTopLayer(identityRef.current)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      onDismissRef.current("escape-key");
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        !dismissOnPointerOutside
-        || !stack.isTopLayer(identityRef.current)
-        || !isNode(event.target)
-      ) {
-        return;
-      }
-      const target = event.target;
-      if (!isNode(target)) return;
-      if (layerRef.current?.contains(target)) return;
-      if (branchRefs.some((branchRef) => branchRef.current?.contains(target))) return;
-      if (containsTarget?.(target)) return;
-      onDismissRef.current("pointer-outside");
-    };
-
-    documentOwner.addEventListener("keydown", handleKeyDown, true);
-    documentOwner.addEventListener("pointerdown", handlePointerDown, true);
-    return () => {
-      documentOwner.removeEventListener("keydown", handleKeyDown, true);
-      documentOwner.removeEventListener("pointerdown", handlePointerDown, true);
-    };
-  }, [branchRefs, containsTarget, dismissOnEscape, dismissOnPointerOutside, enabled, layerRef, ownerDocument, stack]);
+  }, [dismissOnEscape, dismissOnPointerOutside, enabled, inheritedStack, layerRef, ownerDocument, scope]);
 
   return identityRef.current;
 }

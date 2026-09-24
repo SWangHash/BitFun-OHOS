@@ -346,31 +346,49 @@ export class OverlayLayerStack {
     event.preventDefault();
     event.stopPropagation();
   };
+  /** Resolves an outside interaction against the top surface's own guards. */
+  private dismissOutside(descriptor: OverlayLayerDescriptor, target: Node | null): boolean {
+    if (descriptor.dismissOnPointerOutside === false) return false;
+    if (!target?.nodeType) return false;
+    if (descriptor.element?.()?.contains(target) || descriptor.containsTarget?.(target)) return false;
+    const owner = this.getLayerForElement(descriptor.element?.() ?? null);
+    const targetLayer = this.getLayerForElement(target);
+    if (owner && targetLayer && targetLayer.id !== owner.id && this.isDescendant(targetLayer.id, owner.id)) return false;
+    descriptor.onDismiss("pointer-outside");
+    return true;
+  }
   private handlePointerDown = (event: PointerEvent) => {
     const top = this.interactionTop(event.target as Node | null);
     this.pointerGesture = { target: event.target, top };
     const descriptor = this.topDismissible(undefined, top);
     if (!descriptor) this.routeInteraction("pointerdown", event, top);
     if (event.defaultPrevented) return;
-    if (!descriptor || descriptor.dismissOnPointerOutside === false) return;
-    const target = event.target as Node | null;
-    if (!target?.nodeType || descriptor.element?.()?.contains(target) || descriptor.containsTarget?.(target)) return;
-    const owner = this.getLayerForElement(descriptor.element?.() ?? null);
-    const targetLayer = this.getLayerForElement(target);
-    if (owner && targetLayer && targetLayer.id !== owner.id && this.isDescendant(targetLayer.id, owner.id)) return;
-    descriptor.onDismiss("pointer-outside");
+    if (descriptor) this.dismissOutside(descriptor, event.target as Node | null);
   };
   private handleMouseDown = (event: MouseEvent) => {
     const gesture = this.pointerGesture;
     this.pointerGesture = undefined;
-    if (gesture?.target === event.target && gesture.top) {
-      // pointerdown may already have closed the top layer. Its compatibility
-      // mouse event must not dismiss the next surface in the same gesture.
-      if (this.layers.has(gesture.top.id) && this.isAvailable(gesture.top)) {
-        this.routeInteraction("mousedown", event, gesture.top);
+    const gestureTarget = gesture?.target as Node | null | undefined;
+    // A pointerdown is followed by its compatibility mousedown while its target
+    // stays in the document, so a live gesture owns this event. A gesture whose
+    // target has left the document cannot have produced it.
+    if (gesture && (gestureTarget === event.target || Boolean(gestureTarget?.isConnected))) {
+      if (gestureTarget === event.target && gesture.top) {
+        // pointerdown may already have closed the top layer. Its compatibility
+        // mouse event must not dismiss the next surface in the same gesture.
+        if (this.layers.has(gesture.top.id) && this.isAvailable(gesture.top)) {
+          this.routeInteraction("mousedown", event, gesture.top);
+        }
+        return;
       }
+      this.routeInteraction("mousedown", event);
       return;
     }
+    // A mousedown with no live pointerdown behind it is the only outside
+    // interaction a host without pointer events delivers, so it dismisses here.
+    const top = this.interactionTop(event.target as Node | null);
+    const descriptor = this.topDismissible(undefined, top);
+    if (descriptor && this.dismissOutside(descriptor, event.target as Node | null)) return;
     this.routeInteraction("mousedown", event);
   };
   private handleFocusIn = (event: FocusEvent) => {
