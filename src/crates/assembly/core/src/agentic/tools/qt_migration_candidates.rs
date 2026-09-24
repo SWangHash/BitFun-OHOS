@@ -1831,6 +1831,40 @@ mod tests {
     }
 
     #[test]
+    fn session_qmake_hit_reaches_the_toolchain_option_through_the_path_tier() {
+        // 回归（环境变量层工具链候选）：模型执行 `command -v qmake` 后按指令把
+        // 命中路径放入 `toolchain_env`，该路径必须归一化为工具链目录、作为 PATH
+        // 层条目参与探测，并最终出现在 toolchain 候选中。链路两端各自的单元测试
+        // 都通过时这一条仍可能断（指令丢步、专用键改名、PATH 层被绕过），所以这里
+        // 按指令描述的顺序端到端跑一遍。
+        let (_t, root) = tree();
+        let session_tmp = tempfile::tempdir().expect("session tempdir");
+        let session_bin = mkdir(&session_tmp.path(), "Qt5.12.12/ohos/bin");
+        touch(&session_bin, "qmake");
+        let managed_root = root.join("managed");
+        // `command -v qmake` 的原始形态是可执行文件路径。
+        let mut candidates = candidate_map(
+            SESSION_TOOLCHAIN_CANDIDATES_KEY,
+            vec![session_bin.join("qmake").to_string_lossy().into_owned()],
+        );
+
+        let probe_path_env =
+            take_session_toolchain_dir(&mut candidates).expect("命中路径必须归一化为工具链目录");
+        let probe =
+            probe_qt_migration_candidates(&root, &probe_path_env, &managed_root, &candidates);
+
+        assert_eq!(
+            keys(&probe.candidates["toolchain"]),
+            keys(&[session_bin.to_string_lossy().into_owned()]),
+            "环境变量命中的工具链必须重新成为候选选项"
+        );
+        assert!(
+            !candidates.contains_key(SESSION_TOOLCHAIN_CANDIDATES_KEY),
+            "专用键已取出，不得泄漏到模板解析"
+        );
+    }
+
+    #[test]
     fn toolchain_prefers_workspace_then_managed_then_path() {
         let (_t, root) = tree();
         // workspaces dir (a qmake inside the workspace is the fallback)
