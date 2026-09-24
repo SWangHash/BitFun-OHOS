@@ -20,8 +20,13 @@ use bitfun_services_integrations::mcp::{MCPConnection, MCPServerConfig, MCPServe
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub(crate) const MCP_SERVER_ID: &str = "deveco-mcp";
+
+/// Bounded timeout for MCP `check` calls, so C++/MCP checks don't hang
+/// indefinitely when the MCP server is alive but unresponsive.
+const MCP_CHECK_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Call the `check` tool on the `deveco-mcp` MCP server. If the server is not
 /// connected, provision/start it on demand, then retry.
@@ -64,10 +69,20 @@ async fn call_check_tool(
     connection: &Arc<MCPConnection>,
     files: &[String],
 ) -> BitFunResult<String> {
-    let result = connection
-        .call_tool("check", Some(json!({ "files": files })))
-        .await
-        .map_err(|e| BitFunError::tool(format!("MCP check call failed: {}", e)))?;
+    let call_future = connection.call_tool("check", Some(json!({ "files": files })));
+    let result = match tokio::time::timeout(MCP_CHECK_TIMEOUT, call_future).await {
+        Ok(result) => result,
+        Err(_) => {
+            return Err(BitFunError::tool(format!(
+                "MCP check call timed out after {:?}. The deveco-mcp server may be stuck. \
+                 Try restarting it with `devecocli serve mcp`.",
+                MCP_CHECK_TIMEOUT
+            )));
+        }
+    };
+    let result = result.map_err(|e| {
+        BitFunError::tool(format!("MCP check call failed: {}", e))
+    })?;
     if result.is_error {
         return Err(BitFunError::tool(extract_text(&result)));
     }

@@ -77,7 +77,10 @@ Example:
     }
 
     fn render_tool_use_message(&self, input: &Value, options: &ToolRenderOptions) -> String {
-        let device = input.get("hvd").and_then(|v| v.as_str()).unwrap_or("(list)");
+        let device = input
+            .get("hvd")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(list)");
         if options.verbose {
             format!("HarmonyOS start app on device: {}", device)
         } else {
@@ -91,27 +94,76 @@ Example:
         context: &ToolUseContext,
     ) -> BitFunResult<Vec<ToolResult>> {
         let hvd = input.get("hvd").and_then(|v| v.as_str());
-        let module = input.get("module").and_then(|v| v.as_str()).unwrap_or("entry");
-        let target = input.get("target").and_then(|v| v.as_str()).unwrap_or("default");
-        let ability = input.get("ability").and_then(|v| v.as_str()).unwrap_or("EntryAbility");
+        let module = input
+            .get("module")
+            .and_then(|v| v.as_str())
+            .unwrap_or("entry");
+        let target = input
+            .get("target")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+        let ability = input
+            .get("ability")
+            .and_then(|v| v.as_str())
+            .unwrap_or("EntryAbility");
+
+        for (name, value) in [
+            ("hvd", hvd),
+            ("module", Some(module)),
+            ("target", Some(target)),
+            ("ability", Some(ability)),
+        ] {
+            if let Some(value) = value {
+                if value.trim().is_empty() {
+                    return Err(BitFunError::validation(format!(
+                        "{} must not be empty",
+                        name
+                    )));
+                }
+                if value.len() > 512 || value.chars().any(char::is_control) {
+                    return Err(BitFunError::validation(format!(
+                        "{} contains invalid or oversized input",
+                        name
+                    )));
+                }
+            }
+        }
 
         // Primary path: devecocli device resolution + run.
         match resolve_start_app_device(hvd, context).await {
             Ok(DeviceResolution::Ready { device }) => {
                 let module_target = format!("{}@{}", module, target);
-                let argv = vec!["run", "--skip-build", "--device", device.as_str(), "--module", module_target.as_str(), "--ability", ability];
+                let argv = vec![
+                    "run",
+                    "--skip-build",
+                    "--device",
+                    device.as_str(),
+                    "--module",
+                    module_target.as_str(),
+                    "--ability",
+                    ability,
+                ];
                 match run_devecocli(&argv, context, DevecocliOptions::default()).await {
                     Ok(out) => {
                         let combined = [out.stdout.as_str(), out.stderr.as_str()]
-                            .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
+                            .iter()
+                            .filter(|s| !s.is_empty())
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .join("\n");
                         if out.exit_code != 0 {
                             // devecocli run failed — try hdc fallback before surfacing the error.
                             return try_hdc_fallback(hvd, module, target, ability, context)
                                 .await
-                                .or_else(|fb_err| Err(append_fallback_hint(
-                                    format!("start_app failed (exit {}):\n{}", out.exit_code, combined),
-                                    Some(&fb_err.to_string()),
-                                )));
+                                .or_else(|fb_err| {
+                                    Err(append_fallback_hint(
+                                        format!(
+                                            "start_app failed (exit {}):\n{}",
+                                            out.exit_code, combined
+                                        ),
+                                        Some(&fb_err.to_string()),
+                                    ))
+                                });
                         }
                         Ok(vec![ToolResult::Result {
                             data: json!({
@@ -131,11 +183,19 @@ Example:
                         // devecocli unavailable / spawn failure — try hdc fallback.
                         try_hdc_fallback(hvd, module, target, ability, context)
                             .await
-                            .or_else(|fb_err| Err(append_fallback_hint(e.to_string(), Some(&fb_err.to_string()))))
+                            .or_else(|fb_err| {
+                                Err(append_fallback_hint(
+                                    e.to_string(),
+                                    Some(&fb_err.to_string()),
+                                ))
+                            })
                     }
                 }
             }
-            Ok(DeviceResolution::List { output, device_count }) => {
+            Ok(DeviceResolution::List {
+                output,
+                device_count,
+            }) => {
                 // devecocli enumerated fine and (when devices exist) we just list.
                 // Only fall back to hdc when devecocli saw zero devices — hdc may
                 // still see a device devecocli's permission model hides.
@@ -151,16 +211,23 @@ Example:
                 }
                 try_hdc_fallback(hvd, module, target, ability, context)
                     .await
-                    .or_else(|fb_err| Err(append_fallback_hint(
-                        format!("{} found 0 devices via devecocli", output),
-                        Some(&fb_err.to_string()),
-                    )))
+                    .or_else(|fb_err| {
+                        Err(append_fallback_hint(
+                            format!("{} found 0 devices via devecocli", output),
+                            Some(&fb_err.to_string()),
+                        ))
+                    })
             }
             Err(e) => {
                 // devecocli device resolution failed outright — try hdc fallback.
                 try_hdc_fallback(hvd, module, target, ability, context)
                     .await
-                    .or_else(|fb_err| Err(append_fallback_hint(e.to_string(), Some(&fb_err.to_string()))))
+                    .or_else(|fb_err| {
+                        Err(append_fallback_hint(
+                            e.to_string(),
+                            Some(&fb_err.to_string()),
+                        ))
+                    })
             }
         }
     }
@@ -176,7 +243,8 @@ async fn try_hdc_fallback(
     context: &ToolUseContext,
 ) -> BitFunResult<Vec<ToolResult>> {
     log::info!("start_app: devecocli path failed, attempting hdc fallback");
-    let result = super::hdc_fallback::run_hdc_start_fallback(hvd, module, target, ability, context).await?;
+    let result =
+        super::hdc_fallback::run_hdc_start_fallback(hvd, module, target, ability, context).await?;
     Ok(vec![result])
 }
 
@@ -218,7 +286,10 @@ mod tests {
     #[test]
     fn start_app_schema_has_optional_device_params() {
         let schema = StartAppTool::new().input_schema();
-        let props = schema.get("properties").and_then(|v| v.as_object()).expect("properties");
+        let props = schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .expect("properties");
         for key in ["hvd", "module", "target", "ability"] {
             assert!(props.contains_key(key), "missing {key}");
         }

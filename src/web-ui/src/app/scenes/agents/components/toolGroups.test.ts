@@ -47,7 +47,7 @@ describe('tool groups', () => {
       { name: 'start_app', description: 'Start a HarmonyOS app', is_readonly: false },
       { name: 'hdc_log', description: 'Read device logs', is_readonly: true },
       { name: 'arkts_knowledge_search', description: 'Search HarmonyOS docs', is_readonly: true },
-      { name: 'check_arkts_files', description: 'Check ArkTS files', is_readonly: true },
+      { name: 'arkts_check', description: 'Check ArkTS files', is_readonly: true },
       { name: 'check_cpp_files', description: 'Check C++ files', is_readonly: true },
       { name: 'switch_cwd', description: 'Switch project directory', is_readonly: false },
       { name: 'verify_ui', description: 'Verify HarmonyOS UI', is_readonly: false },
