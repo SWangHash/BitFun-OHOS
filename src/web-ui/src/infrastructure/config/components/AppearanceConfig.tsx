@@ -26,6 +26,7 @@ function AppearanceSelectionSection() {
   const { t } = useTranslation('settings/basics');
   const {
     selectedAppearanceId,
+    pendingSelectionId,
     appearances,
     select,
     initialized,
@@ -127,7 +128,9 @@ function AppearanceSelectionSection() {
               >
                 <Select
                   size="sm"
-                  value={selectedAppearanceId}
+                  value={status === 'applying' && pendingSelectionId
+                    ? pendingSelectionId
+                    : selectedAppearanceId}
                   onValueChange={(value) => handleAppearanceChange(String(value))}
                   disabled={!initialized || status === 'applying'}
                   options={appearanceOptions}

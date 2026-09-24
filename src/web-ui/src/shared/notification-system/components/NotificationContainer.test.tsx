@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Notification } from '../types';
 import { useActiveNotifications } from '../hooks/useNotificationState';
+import { notificationService } from '../services/NotificationService';
 import { NotificationContainer } from './NotificationContainer';
 
 vi.mock('../hooks/useNotificationState', () => ({
@@ -17,6 +18,13 @@ vi.mock('@/infrastructure/i18n', () => ({
 
 vi.mock('../services/NotificationService', () => ({
   notificationService: { dismiss: vi.fn() },
+}));
+
+const modalOverlay = vi.hoisted(() => ({ open: false }));
+
+vi.mock('@bitfun/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@bitfun/ui')>()),
+  useHasModalOverlay: () => modalOverlay.open,
 }));
 
 vi.mock('./ProgressNotification', () => ({
@@ -49,6 +57,7 @@ describe('NotificationContainer', () => {
   let root: Root;
 
   beforeEach(() => {
+    modalOverlay.open = false;
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     globalThis.window = dom.window as unknown as Window & typeof globalThis;
     globalThis.document = dom.window.document;
@@ -123,5 +132,52 @@ describe('NotificationContainer', () => {
     expect(presence?.getAttribute('aria-hidden')).toBe('true');
     expect(presence?.hasAttribute('inert')).toBe(true);
     expect(presence?.querySelector('.notification-item')).not.toBeNull();
+  });
+
+  it('dismisses a toast once its duration elapses', () => {
+    vi.useFakeTimers();
+    const toast = { ...notification('toast', 'Saved'), duration: 1000 };
+    vi.mocked(useActiveNotifications).mockReturnValue([toast]);
+
+    act(() => root.render(<NotificationContainer />));
+
+    act(() => vi.advanceTimersByTime(999));
+    expect(notificationService.dismiss).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(notificationService.dismiss).toHaveBeenCalledWith(toast.id);
+  });
+
+  it('keeps a toast without a duration open until it is dismissed explicitly', () => {
+    vi.useFakeTimers();
+    const toast = { ...notification('toast', 'Saved'), duration: 0 };
+    vi.mocked(useActiveNotifications).mockReturnValue([toast]);
+
+    act(() => root.render(<NotificationContainer />));
+
+    act(() => vi.advanceTimersByTime(60000));
+    expect(notificationService.dismiss).not.toHaveBeenCalled();
+  });
+
+  it('holds toast expiry while a modal overlay is open and resumes with the remaining time', () => {
+    vi.useFakeTimers();
+    const toast = { ...notification('toast', 'Saved'), duration: 1000 };
+    vi.mocked(useActiveNotifications).mockReturnValue([toast]);
+
+    act(() => root.render(<NotificationContainer />));
+    act(() => vi.advanceTimersByTime(400));
+
+    modalOverlay.open = true;
+    act(() => root.render(<NotificationContainer />));
+    act(() => vi.advanceTimersByTime(5000));
+    expect(notificationService.dismiss).not.toHaveBeenCalled();
+
+    modalOverlay.open = false;
+    act(() => root.render(<NotificationContainer />));
+    act(() => vi.advanceTimersByTime(599));
+    expect(notificationService.dismiss).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(notificationService.dismiss).toHaveBeenCalledWith(toast.id);
   });
 });
