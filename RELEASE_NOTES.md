@@ -4,6 +4,15 @@
 
 ---
 
+## v1.0.8 ( unreleased ) — 工具与技能同步
+
+### 工具重命名
+
+- `check_arkts_files` 已重命名为 `arkts_check`，并改为直接调用 DevEco Studio 自带 Node + SDK checker，不再依赖 `deveco-mcp` MCP server。旧会话中 transcript 历史引用 `check_arkts_files` 的调用会自动归一化为 `arkts_check`，无需手动迁移。
+- `arkts_check` 自动发现 DevEco Studio 安装路径（`DEVECO_HOME` 环境变量 + 平台默认路径）；仅在自动发现失败时提示用户设置 `DEVECO_HOME`。
+
+---
+
 ## v1.0.7 (2026-09-17) — 基于 BitFun 1.0.7
 
 ### HarmonyOS PC 适配

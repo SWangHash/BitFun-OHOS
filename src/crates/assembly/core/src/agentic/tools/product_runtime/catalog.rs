@@ -348,9 +348,27 @@ pub(crate) async fn resolve_product_get_tool_spec_results(
     get_tool_spec_tool_name: &str,
 ) -> Result<Vec<ToolResult>, GetToolSpecExecutionError> {
     let provider = ProductToolCatalogProvider;
+    let normalized_input = normalize_get_tool_spec_input(input);
     GetToolSpecRuntime::new(&provider, get_tool_spec_tool_name)
-        .call_results(input, &context.loaded_deferred_tool_specs, context)
+        .call_results(&normalized_input, &context.loaded_deferred_tool_specs, context)
         .await
+}
+
+/// Normalize legacy tool names in GetToolSpec requests so resumed sessions
+/// whose transcript history references old names still resolve to the
+/// canonical tool spec.
+fn normalize_get_tool_spec_input(input: &Value) -> Value {
+    if let Some(name) = input.get("tool_name").and_then(|v| v.as_str()) {
+        let canonical = crate::agentic::tools::pipeline::tool_pipeline::normalize_legacy_tool_name(name);
+        if canonical != name {
+            let mut cloned = input.clone();
+            if let Some(obj) = cloned.as_object_mut() {
+                obj.insert("tool_name".to_string(), Value::String(canonical.to_string()));
+            }
+            return cloned;
+        }
+    }
+    input.clone()
 }
 
 #[cfg(test)]

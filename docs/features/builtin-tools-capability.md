@@ -40,7 +40,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 | `core.canvas` | canvas | `CreateCanvas` / `ReadCanvas` / `UpdateCanvas` / `PatchCanvas` |
 | `core.session` | agent-control | `SessionControl`、`SessionMessage`、`SessionHistory`、`Cron` |
 | `core.integration` | browser-web, mcp, git, miniapp, computer-use | `WebSearch`、`WebFetch`、MCP 资源 / prompt 工具、`GenerativeUI`、`Git`、`Worktree`、`ReviewPlatform`、MiniApp / Appearance / Page 发布工具、`ControlHub`、`ComputerUse`、`Playbook` |
-| `core.openharmony` | basic | `build_project`、`start_app`、`hdc_log`、`arkts_knowledge_search`、`check_arkts_files`、`check_cpp_files`、`switch_cwd`、`verify_ui`、`get_ui_verification_log`、`save_ui_screenshot` |
+| `core.openharmony` | basic | `build_project`、`start_app`、`hdc_log`、`arkts_knowledge_search`、`arkts_check`、`check_cpp_files`、`switch_cwd`、`verify_ui`、`get_ui_verification_log`、`save_ui_screenshot` |
 
 - 一个 provider 可包含来自多个 feature owner 的工具；**工具到 feature group 的精确映射**由 `bitfun-tool-packs` 作为 owner 权威。
 - 编译期 availability 是**验证事实**而非运行时推断来源；materialization 必须在"计划请求了未编译 group"时 fail closed。
@@ -61,7 +61,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 ### 4. 跨平台与鸿蒙
 
 - 基础工具（文件 / 检索 / 执行 / 时间 / 模型列表）平台无关；
-- `core.openharmony` 子集覆盖鸿蒙开发链：构建（`build_project`）、启动（`start_app`）、设备日志（`hdc_log`）、ArkTS 知识检索与静态检查（`arkts_knowledge_search` / `check_arkts_files` / `check_cpp_files`）、UI 校验（`verify_ui` / `get_ui_verification_log` / `save_ui_screenshot`）、工作目录切换（`switch_cwd`）；
+- `core.openharmony` 子集覆盖鸿蒙开发链：构建（`build_project`）、启动（`start_app`）、设备日志（`hdc_log`）、ArkTS 知识检索与静态检查（`arkts_knowledge_search` / `arkts_check` / `check_cpp_files`）、UI 校验（`verify_ui` / `get_ui_verification_log` / `save_ui_screenshot`）、工作目录切换（`switch_cwd`）；
 - 鸿蒙子集作为独立 provider 维护，不与基础工具混编，便于按 profile 裁剪。
 
 ### 5. 远程工作区
