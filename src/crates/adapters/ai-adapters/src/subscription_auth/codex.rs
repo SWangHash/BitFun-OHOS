@@ -7,6 +7,7 @@
 use super::store::{self, StoredCredential};
 use super::{
     jwt, oauth_server, pkce::Pkce, ResolvedCredential, StartedLogin, SubscriptionHttpOptions,
+    TokenRefreshPolicy,
 };
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
@@ -380,7 +381,10 @@ pub(crate) async fn begin_login(
 
 /// Ensures the stored access token is fresh, refreshing it when needed. Returns
 /// the current `(access, account_id, expires_ms)`.
-async fn ensure_fresh(options: &SubscriptionHttpOptions) -> Result<(String, Option<String>, i64)> {
+async fn ensure_fresh(
+    options: &SubscriptionHttpOptions,
+    refresh_policy: TokenRefreshPolicy,
+) -> Result<(String, Option<String>, i64)> {
     let _refresh_lease = store::acquire_provider_refresh_lease(STORE_KEY).await?;
     let snapshot = store::load_entry_with_revision(STORE_KEY).await?;
     let entry = snapshot
@@ -398,7 +402,7 @@ async fn ensure_fresh(options: &SubscriptionHttpOptions) -> Result<(String, Opti
     };
 
     let expires = jwt::effective_expiry_ms(&access, expires);
-    if expires > now_ms() + REFRESH_LEEWAY_MS {
+    if !refresh_policy.should_refresh(expires, now_ms(), REFRESH_LEEWAY_MS) {
         return Ok((access, account_id, expires));
     }
 
@@ -457,7 +461,8 @@ async fn ensure_fresh(options: &SubscriptionHttpOptions) -> Result<(String, Opti
 
 /// Resolves the runtime credential (refreshing tokens if required).
 pub(crate) async fn resolve(options: &SubscriptionHttpOptions) -> Result<ResolvedCredential> {
-    let (access, account_id, expires) = ensure_fresh(options).await?;
+    let (access, account_id, expires) =
+        ensure_fresh(options, TokenRefreshPolicy::WhenExpiring).await?;
     let mut headers = HashMap::new();
     if let Some(account) = account_id.or_else(|| jwt::chatgpt_account_id(&access)) {
         headers.insert("ChatGPT-Account-ID".to_string(), account);
@@ -476,6 +481,13 @@ pub(crate) async fn resolve(options: &SubscriptionHttpOptions) -> Result<Resolve
         extra_headers: headers,
         expires_at: Some(expires / 1000),
     })
+}
+
+/// Explicitly refreshes the stored OAuth token, even when it is not near expiry.
+pub(crate) async fn refresh_account(options: &SubscriptionHttpOptions) -> Result<()> {
+    ensure_fresh(options, TokenRefreshPolicy::Force)
+        .await
+        .map(|_| ())
 }
 
 /// Provider metadata used to seed a new model entry.

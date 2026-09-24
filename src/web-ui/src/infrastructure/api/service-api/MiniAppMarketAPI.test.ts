@@ -38,6 +38,18 @@ describe('MiniAppMarketAPI account bridge', () => {
     });
   });
 
+  it.each(['consumed', 'unexpected', undefined, null])('rejects terminal or malformed status %s from older hosts', async status => {
+    const market = new MiniAppMarketAPI();
+    mocks.invoke.mockResolvedValue(status === null ? null : { status });
+
+    await expect(market.authPoll({
+      transactionId: 'transaction-1',
+      authorizationUrl: 'https://github.com/login/oauth/authorize',
+      expiresAt: 1234,
+      pollIntervalSeconds: 3,
+    })).rejects.toBeDefined();
+  });
+
   it('subscribes every market surface to the native account-change event', () => {
     const market = new MiniAppMarketAPI();
     const handler = vi.fn();

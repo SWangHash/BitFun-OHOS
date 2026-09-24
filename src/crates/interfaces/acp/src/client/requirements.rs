@@ -51,19 +51,113 @@ pub(crate) fn acp_requirement_spec<'a>(
     }
 }
 
+/// Resolve the same command and PATH used to launch the configured process.
+/// Do not append --version: arbitrary ACP commands need not implement that flag.
+pub(crate) fn probe_configured_executable(config: &AcpClientConfig) -> AcpRequirementProbeItem {
+    let configured_path = configured_path_value(&config.env);
+    let path = if config.command.trim().is_empty() {
+        None
+    } else {
+        find_executable_with_path(&config.command, configured_path.as_deref())
+    };
+    let installed = path.is_some();
+    AcpRequirementProbeItem {
+        name: config.command.clone(),
+        installed,
+        version: None,
+        path: path.map(|path| path.to_string_lossy().into_owned()),
+        error: (!installed).then(|| "Configured ACP command could not be resolved".to_string()),
+    }
+}
+
+pub(crate) async fn probe_remote_configured_executable(
+    ssh_manager: &SSHConnectionManager,
+    connection_id: &str,
+    config: &AcpClientConfig,
+) -> AcpRequirementProbeItem {
+    let mut item = AcpRequirementProbeItem {
+        name: config.command.clone(),
+        installed: false,
+        version: None,
+        path: None,
+        error: None,
+    };
+    if config.command.trim().is_empty() {
+        item.error = Some("Configured ACP command is empty".to_string());
+        return item;
+    }
+    let env_prefix = render_remote_env_prefix(Some(&config.env));
+    let command = remote_user_shell_command(&format!(
+        "{env_prefix}command -v {}",
+        shell_escape(config.command.trim())
+    ));
+    match ssh_manager.execute_command(connection_id, &command).await {
+        Ok((stdout, _, 0)) if !stdout.trim().is_empty() => {
+            item.installed = true;
+            item.path = Some(stdout.trim().to_string());
+        }
+        Ok(_) => {
+            item.error =
+                Some("Configured ACP command could not be resolved on remote PATH".to_string())
+        }
+        Err(error) => item.error = Some(error.to_string()),
+    }
+    item
+}
+
 pub(crate) async fn probe_executable(command: &str) -> AcpRequirementProbeItem {
-    let path = find_executable(command);
+    probe_executable_with_path(command, None).await
+}
+
+pub(crate) async fn probe_executable_with_path(
+    command: &str,
+    configured_path: Option<&OsStr>,
+) -> AcpRequirementProbeItem {
+    probe_executable_with_context(command, configured_path, None, None).await
+}
+
+pub(crate) async fn probe_executable_with_environment(
+    command: &str,
+    extra_env: Option<&HashMap<String, String>>,
+    working_directory: Option<&Path>,
+) -> AcpRequirementProbeItem {
+    let configured_path = extra_env.and_then(configured_path_value);
+    probe_executable_with_context(
+        command,
+        configured_path.as_deref(),
+        extra_env,
+        working_directory,
+    )
+    .await
+}
+
+async fn probe_executable_with_context(
+    command: &str,
+    configured_path: Option<&OsStr>,
+    extra_env: Option<&HashMap<String, String>>,
+    working_directory: Option<&Path>,
+) -> AcpRequirementProbeItem {
     let mut item = AcpRequirementProbeItem {
         name: command.to_string(),
-        installed: path.is_some(),
+        installed: false,
         version: None,
-        path: path.as_ref().map(|path| path.to_string_lossy().to_string()),
+        path: None,
         error: None,
     };
 
+    let path = find_executable_with_path(command, configured_path);
+    item.installed = path.is_some();
+    item.path = path.as_ref().map(|path| path.to_string_lossy().to_string());
+
     if let Some(path) = path {
-        match run_command_with_timeout(path.as_os_str(), ["--version"], REQUIREMENT_PROBE_TIMEOUT)
-            .await
+        match run_command_with_timeout_in_context(
+            path.as_os_str(),
+            ["--version"],
+            REQUIREMENT_PROBE_TIMEOUT,
+            extra_env,
+            working_directory,
+        )
+        .await
         {
             Ok(output) if output.status.success() => {
                 item.version = parse_version_text(&output.stdout)
@@ -97,6 +191,11 @@ async fn probe_npm_adapter_with_path(
         path: None,
         error: None,
     };
+    if let Some(bin_path) = find_executable_with_path(bin, configured_path) {
+        item.installed = true;
+        item.path = Some(bin_path.to_string_lossy().to_string());
+        return item;
+    }
     if find_executable_with_path("npx", configured_path).is_some() {
         return npx_adapter_probe_item(package);
     }
@@ -413,9 +512,26 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
+    run_command_with_timeout_in_context(program, args, timeout, None, None).await
+}
+
+async fn run_command_with_timeout_in_context<I, S>(
+    program: &OsStr,
+    args: I,
+    timeout: Duration,
+    extra_env: Option<&HashMap<String, String>>,
+    working_directory: Option<&Path>,
+) -> Result<std::process::Output, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
     let mut command = bitfun_core::util::process_manager::create_tokio_command(program);
     command.args(args);
-    apply_command_environment(&mut command, None);
+    apply_command_environment(&mut command, extra_env);
+    if let Some(working_directory) = working_directory {
+        command.current_dir(working_directory);
+    }
     match tokio::time::timeout(timeout, command.output()).await {
         Ok(Ok(output)) => Ok(output),
         Ok(Err(error)) => Err(error.to_string()),
@@ -542,6 +658,13 @@ fn push_split_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>, valu
 }
 
 fn push_user_bin_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>) {
+    #[cfg(target_env = "ohos")]
+    push_existing_search_path(
+        paths,
+        seen,
+        PathBuf::from("/storage/Users/currentUser/.harmonybrew/bin"),
+    );
+
     let Some(home) = env::var_os("HOME") else {
         return;
     };
@@ -712,6 +835,19 @@ mod tests {
         std::fs::write(&executable, b"").expect("test executable should be written");
 
         let found = find_executable_with_path("bitfun-test-tool", Some(test_dir.as_os_str()));
+        let mut config: AcpClientConfig = serde_json::from_value(serde_json::json!({
+            "command": "bitfun-test-tool",
+            "env": { "PATH": test_dir.to_string_lossy() }
+        }))
+        .expect("configured command");
+        let probe = probe_configured_executable(&config);
+        assert!(probe.installed);
+        assert_eq!(probe.path.as_deref(), executable.to_str());
+        // The empty fixture is never executed: entry discovery must not impose --version.
+        config.command = "missing-bitfun-test-tool".to_string();
+        assert!(!probe_configured_executable(&config).installed);
+        config.command.clear();
+        assert!(!probe_configured_executable(&config).installed);
 
         let _ = std::fs::remove_dir_all(&test_dir);
         assert_eq!(found, Some(executable));
@@ -750,6 +886,35 @@ mod tests {
             "npm probe should not run when npx can launch the adapter"
         );
         let _ = std::fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn executable_probe_uses_explicit_environment_and_readable_working_directory() {
+        let test_root = env::temp_dir().join(format!("bitfun-acp-{}", uuid::Uuid::new_v4()));
+        let bin_dir = test_root.join("bin");
+        let working_directory = test_root.join("working");
+        std::fs::create_dir_all(&bin_dir).expect("bin directory should be created");
+        std::fs::create_dir_all(&working_directory).expect("working directory should be created");
+        write_command_stub(&bin_dir, "bitfun-probe-context", &probe_context_script());
+        let extra_env = HashMap::from([
+            ("PATH".to_string(), bin_dir.to_string_lossy().to_string()),
+            ("BITFUN_PROBE_MARKER".to_string(), "expected".to_string()),
+        ]);
+
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime should be created");
+        let item = runtime.block_on(probe_executable_with_environment(
+            "bitfun-probe-context",
+            Some(&extra_env),
+            Some(&working_directory),
+        ));
+
+        assert!(item.installed);
+        assert!(item.error.is_none());
+        assert_eq!(
+            item.version.as_deref(),
+            Some(format!("{}|expected", working_directory.display()).as_str())
+        );
+        let _ = std::fs::remove_dir_all(&test_root);
     }
 
     #[test]
@@ -802,6 +967,17 @@ mod tests {
                 "#!/bin/sh\necho called > '{}'\nexit 42\n",
                 marker_path.display()
             )
+        }
+    }
+
+    fn probe_context_script() -> String {
+        #[cfg(windows)]
+        {
+            "@echo off\r\necho %CD%^|%BITFUN_PROBE_MARKER%\r\n".to_string()
+        }
+        #[cfg(not(windows))]
+        {
+            "#!/bin/sh\nprintf '%s|%s\\n' \"$PWD\" \"$BITFUN_PROBE_MARKER\"\n".to_string()
         }
     }
 }

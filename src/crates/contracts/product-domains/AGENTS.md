@@ -61,6 +61,7 @@ Use the smallest matching check for the changed surface:
 
 ```bash
 cargo test -p bitfun-product-domains --no-default-features
+cargo test --locked -p bitfun-product-domains --no-default-features --features miniapp,appearance-market --lib market
 cargo test -p bitfun-product-domains --features product-full
 node scripts/check-core-boundaries.mjs
 cargo check -p bitfun-core --features product-full

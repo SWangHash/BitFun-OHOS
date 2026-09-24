@@ -45,6 +45,38 @@ pub(crate) async fn prepare_node_command(
     Ok(())
 }
 
+pub(crate) async fn prepare_node_child_environment(
+    path_manager: &PathManager,
+    program: &Path,
+    environment: &mut HashMap<String, String>,
+) -> BitFunResult<()> {
+    if is_node_program(program) {
+        #[cfg(target_env = "ohos")]
+        {
+            let shim_path = ensure_ohos_node_compat_shim(path_manager).await?;
+            let shim_option = format!("--require={}", shim_path.display());
+            let existing = environment
+                .get(NODE_OPTIONS_ENV)
+                .map(String::as_str)
+                .unwrap_or_default();
+            let sanitized = strip_jitless_option(existing);
+            let mut options = sanitized
+                .split_whitespace()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>();
+            if !options.iter().any(|option| option == &shim_option) {
+                options.push(shim_option);
+            }
+            environment.insert(NODE_OPTIONS_ENV.to_string(), options.join(" "));
+        }
+
+        #[cfg(not(target_env = "ohos"))]
+        let _ = (path_manager, environment);
+    }
+
+    Ok(())
+}
+
 pub(crate) fn sanitize_node_environment(
     command: &mut Command,
     program: &Path,

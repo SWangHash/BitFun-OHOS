@@ -3,6 +3,7 @@
 import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+import type { AcpManagedProvisioningProgress } from '../../api/service-api/ACPClientAPI';
 import AcpAgentsConfigPage, { type AcpAgentsConfigHandle } from './AcpAgentsConfig';
 import {
   discardAndContinueSettingsNavigation,
@@ -10,6 +11,12 @@ import {
   requestSettingsNavigation,
   resetSettingsDraftRegistryForTests,
 } from '@/infrastructure/config/settingsDraftRegistry';
+import {
+  availableRemotePresetIds,
+  canInstallPresetCli,
+  getManualInstallGuide,
+  visiblePresetIdsForRuntime,
+} from './acpAgentPresetPolicy';
 
 const AcpAgentsConfig = () => <AcpAgentsConfigPage navigationRequestId={0} />;
 
@@ -18,7 +25,9 @@ const getClientsMock = vi.hoisted(() => vi.fn());
 const probeClientRequirementsMock = vi.hoisted(() => vi.fn());
 const saveJsonConfigMock = vi.hoisted(() => vi.fn());
 const installClientCliMock = vi.hoisted(() => vi.fn());
+const cancelClientInstallMock = vi.hoisted(() => vi.fn());
 const predownloadClientAdapterMock = vi.hoisted(() => vi.fn());
+const onManagedProvisioningProgressMock = vi.hoisted(() => vi.fn());
 const listSavedConnectionsMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
 const notifyInfoMock = vi.hoisted(() => vi.fn());
@@ -196,6 +205,8 @@ vi.mock('../../api/service-api/ACPClientAPI', () => ({
     getClients: getClientsMock,
     probeClientRequirements: probeClientRequirementsMock,
     installClientCli: installClientCliMock,
+    cancelClientInstall: cancelClientInstallMock,
+    onManagedProvisioningProgress: onManagedProvisioningProgressMock,
     predownloadClientAdapter: predownloadClientAdapterMock,
     saveJsonConfig: saveJsonConfigMock,
   },
@@ -255,9 +266,11 @@ async function selectPermission(container: HTMLElement, value: string): Promise<
 describe('AcpAgentsConfig', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let emitManagedProvisioningProgress: ((progress: AcpManagedProvisioningProgress) => void) | undefined;
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    emitManagedProvisioningProgress = undefined;
     localStorage.clear();
     loadJsonConfigMock.mockResolvedValue(JSON.stringify({
       acpClients: {
@@ -289,8 +302,13 @@ describe('AcpAgentsConfig', () => {
     saveJsonConfigMock.mockImplementation(async () => {
       window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     });
-    installClientCliMock.mockResolvedValue(undefined);
+    installClientCliMock.mockResolvedValue({ clientId: 'opencode', status: 'cli_installed' });
+    cancelClientInstallMock.mockResolvedValue({ clientId: 'opencode', status: 'cancellation_requested' });
     predownloadClientAdapterMock.mockResolvedValue(undefined);
+    onManagedProvisioningProgressMock.mockImplementation((callback) => {
+      emitManagedProvisioningProgress = callback;
+      return () => undefined;
+    });
 
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -306,6 +324,188 @@ describe('AcpAgentsConfig', () => {
     container?.remove();
     resetSettingsDraftRegistryForTests();
     vi.clearAllMocks();
+  });
+
+  it('limits local HarmonyOS managed setup to verified install recipes', () => {
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'kimi-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'qwen-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'codebuddy-code',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'dsh',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(true);
+    for (const presetId of ['claude-code', 'codex']) {
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'not_installed',
+        issueKind: 'cli_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId,
+        status: 'partial',
+        issueKind: 'adapter_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+    }
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'kimi-code',
+      status: 'ready',
+      issueKind: 'none',
+      hasConfigEntry: false,
+    })).toBe(true);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'not_installed',
+      issueKind: 'cli_missing',
+      hasConfigEntry: false,
+    })).toBe(false);
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'ready',
+      issueKind: 'none',
+      hasConfigEntry: false,
+    })).toBe(true);
+  });
+
+  it('shows only HarmonyOS-supported presets on HarmonyOS', () => {
+    const ohosPresetIds = visiblePresetIdsForRuntime(true);
+    expect(ohosPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'claude-code',
+      'codex',
+    ]);
+
+    const desktopPresetIds = visiblePresetIdsForRuntime(false);
+    expect(desktopPresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
+  });
+
+  it('keeps the full preset catalog available to remote hosts', () => {
+    const remotePresetIds = availableRemotePresetIds();
+    expect(remotePresetIds).toEqual([
+      'opencode',
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+      'omp',
+      'claude-code',
+      'codex',
+    ]);
+  });
+
+  it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {
+    expect(getManualInstallGuide({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'not_installed',
+    })).toEqual({
+      repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
+    });
+    expect(getManualInstallGuide({
+      isOhos: true,
+      presetId: 'opencode',
+      status: 'ready',
+    })).toBeUndefined();
+    expect(getManualInstallGuide({
+      isOhos: false,
+      presetId: 'opencode',
+      status: 'not_installed',
+    })).toBeUndefined();
+  });
+
+  it('keeps empty commands and local overrides when saving JSON', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {
+      codex: { command: '', args: ['acp'], localOverride: { command: '', args: ['entry.js'], env: {} } },
+    } }));
+    await act(async () => { root.render(<AcpAgentsConfig />); });
+    await openView(container, 'views.json');
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(JSON.parse(editor.value).acpClients.codex.command).toBe('');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        ?.call(editor, `${editor.value}\n`);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const saveButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'actions.saveJson');
+    await act(async () => { saveButton!.click(); });
+    expect(JSON.parse(saveJsonConfigMock.mock.calls[0][0]).acpClients.codex).toMatchObject({
+      command: '', args: ['acp'], localOverride: { command: '', args: ['entry.js'] },
+    });
+  });
+
+  it.each([true, false])('marks an unrunnable configured command as invalid (installed=%s)', async (installed) => {
+    probeClientRequirementsMock.mockResolvedValue([
+      {
+        id: 'opencode',
+        tool: {
+          name: 'opencode',
+          installed,
+          path: '/usr/bin/opencode',
+          error: 'Process exited with status 1',
+        },
+        runnable: false,
+        notes: ['Process exited with status 1'],
+      },
+    ]);
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const opencodeRow = Array.from(
+      container.querySelectorAll('.bitfun-acp-agents__registry-row'),
+    ).find(row => row.querySelector('.bitfun-acp-agents__registry-name')
+      ?.textContent === 'opencode');
+    expect(opencodeRow).toBeTruthy();
+    expect(opencodeRow!.querySelector('[data-bitfun-state="invalid"]')).not.toBeNull();
+    expect(opencodeRow!.textContent).toContain(installed ? 'registry.configInvalid' : 'registry.cliMissing');
+    expect(opencodeRow!.textContent).toContain('actions.viewError');
+    expect(opencodeRow!.textContent).not.toContain('registry.enabled');
   });
 
   it('closes a clean dialog without saving configuration', async () => {
@@ -499,7 +699,42 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).not.toContain('registry.configInvalid');
   });
 
+  it('does not offer add actions while local requirements are still being detected', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {} }));
+    getClientsMock.mockResolvedValue([]);
+    probeClientRequirementsMock.mockReturnValue(new Promise(() => undefined));
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+
+    expect(container.textContent).toContain('registry.checking');
+    expect(container.textContent).not.toContain('actions.add');
+    expect(container.textContent).not.toContain('actions.get');
+  });
+
+  it('does not retain an installing label after managed provisioning fails', async () => {
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      emitManagedProvisioningProgress?.({
+        clientId: 'opencode',
+        stage: 'failed',
+        percent: 100,
+      });
+    });
+
+    expect(container.textContent).not.toContain('provisioning.installing');
+  });
+
   it('omits the redundant CLI capability column from local agent rows', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {} }));
+    getClientsMock.mockResolvedValue([]);
     probeClientRequirementsMock.mockResolvedValue([{
       id: 'opencode',
       tool: { name: 'opencode', installed: false },

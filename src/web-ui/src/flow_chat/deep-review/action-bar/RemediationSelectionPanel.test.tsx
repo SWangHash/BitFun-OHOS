@@ -28,7 +28,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@bitfun/ui', async importOriginal => ({
   Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
   Button: ({
     children,
@@ -37,34 +37,8 @@ vi.mock('@bitfun/ui', () => ({
     children: React.ReactNode;
     disabled?: boolean;
   }) => <button type="button" disabled={disabled}>{children}</button>,
-  Checkbox: ({
-    checked,
-    className,
-    disabled,
-    indeterminate,
-    label,
-    onChange,
-  }: {
-    checked?: boolean;
-    className?: string;
-    disabled?: boolean;
-    indeterminate?: boolean;
-    label?: React.ReactNode;
-    onChange?: React.ChangeEventHandler<HTMLInputElement>;
-  }) => (
-    <label className={className}>
-      <input
-        type="checkbox"
-        aria-checked={indeterminate ? 'mixed' : checked ? 'true' : 'false'}
-        checked={checked}
-        disabled={disabled}
-        onChange={onChange}
-        readOnly={!onChange}
-      />
-      {label}
-    </label>
-  ),
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Checkbox: (await importOriginal<typeof import('@bitfun/ui')>()).Checkbox,
+  Tooltip: (await importOriginal<typeof import('@bitfun/ui')>()).Tooltip,
 }));
 
 vi.mock('@/infrastructure/event-bus', () => ({
@@ -164,6 +138,7 @@ describe('RemediationSelectionPanel', () => {
     expect(html).toContain('Fast path is risky; staged path is safer.');
     expect(html).toContain('Staged path (recommended)');
     expect(html).toContain('deep-review-action-bar__remediation-item--completed');
+    expect(html).not.toContain('title=');
   });
 });
 
@@ -212,6 +187,9 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     vi.stubGlobal('document', window.document);
     vi.stubGlobal('navigator', window.navigator);
     vi.stubGlobal('HTMLElement', window.HTMLElement);
+    vi.stubGlobal('HTMLDivElement', window.HTMLDivElement);
+    vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame.bind(window));
+    vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame.bind(window));
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 
     container = document.createElement('div');
@@ -225,8 +203,54 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     });
     container.remove();
     dom.window.close();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+
+  it.each([true, false])('keeps list visibility when selecting all (expanded=%s)', (expanded) => {
+    const onToggleAll = vi.fn();
+    const onToggleList = vi.fn();
+    function Panel() {
+      const [selected, setSelected] = React.useState(new Set<string>());
+      const [visible, setVisible] = React.useState(expanded);
+      return (
+        <RemediationSelectionPanel
+          {...baseProps}
+          remediationItems={remediationItems()}
+          selectedRemediationIds={selected}
+          completedRemediationIds={new Set()}
+          decisionSelections={{}}
+          expandedDecisionIds={new Set()}
+          showRemediationList={visible}
+          onToggleAll={() => {
+            onToggleAll();
+            setSelected(selected.size ? new Set() : new Set(remediationItems().map((item) => item.id)));
+          }}
+          onToggleList={() => {
+            onToggleList();
+            setVisible(!visible);
+          }}
+        />
+      );
+    }
+    mount(<Panel />);
+    const header = container.querySelector<HTMLElement>('.deep-review-action-bar__remediation-toggle')!;
+    const checkbox = header.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    const box = header.querySelector<HTMLElement>('[data-bitfun-part="box"]')!;
+
+    for (const target of [checkbox, box]) {
+      act(() => { target.click(); });
+      expect(checkbox.checked).toBe(target === checkbox);
+      expect(Boolean(container.querySelector('.deep-review-action-bar__remediation-list'))).toBe(expanded);
+      expect(onToggleList).not.toHaveBeenCalled();
+    }
+    expect(onToggleAll).toHaveBeenCalledTimes(2);
+
+    act(() => { header.querySelector<HTMLElement>('.deep-review-action-bar__remediation-label')!.click(); });
+    expect(onToggleList).toHaveBeenCalledTimes(1);
+    expect(Boolean(container.querySelector('.deep-review-action-bar__remediation-list'))).toBe(!expanded);
+    expect(onToggleAll).toHaveBeenCalledTimes(2);
   });
 
   it('toggles a remediation group once when clicking the root checkbox', () => {
@@ -256,6 +280,57 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     expect(onToggleGroup).toHaveBeenCalledTimes(1);
     expect(onToggleGroup).toHaveBeenCalledWith('should_improve');
   });
+
+  it.each([
+    ['ordinary', false], ['ordinary', true],
+    ['completed', false], ['completed', true],
+    ['fixing', false], ['fixing', true],
+    ['empty-plan', true],
+  ] as const)(
+    'preserves the original hint eligibility for %s (decisionContext=%s)',
+    (state, hasDecisionContext) => {
+      vi.useFakeTimers();
+      const item = remediationItems()[0];
+      if (hasDecisionContext) {
+        item.decisionContext = { question: 'Which approach?', options: ['A', 'B'] };
+      }
+      if (state === 'empty-plan') item.plan = '';
+      const originalHint = item.decisionContext
+        ? `${item.decisionContext.question}\n${item.plan}`
+        : item.plan;
+      mount(
+        <RemediationSelectionPanel
+          {...baseProps}
+          remediationItems={[item]}
+          selectedRemediationIds={new Set()}
+          completedRemediationIds={new Set(state === 'completed' ? [item.id] : [])}
+          fixingRemediationIds={new Set(state === 'fixing' ? [item.id] : [])}
+          selectionDisabled={state === 'fixing'}
+          decisionSelections={{}}
+          expandedDecisionIds={new Set()}
+        />,
+      );
+      const trigger = container.querySelector<HTMLElement>('.deep-review-action-bar__remediation-text')!;
+      expect(trigger.hasAttribute('title')).toBe(false);
+      act(() => {
+        trigger.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }));
+        vi.advanceTimersByTime(500);
+      });
+      act(() => { vi.advanceTimersByTime(32); });
+      const tooltip = document.querySelector('[role="tooltip"]');
+      if (!originalHint) {
+        expect(tooltip).toBeNull();
+        return;
+      }
+      expect(tooltip?.textContent).toBe(originalHint);
+      expect(tooltip?.getAttribute('data-bitfun-state')).toBe('visible');
+      expect(tooltip?.closest('[data-bitfun-overlay-host="true"]')).not.toBeNull();
+      act(() => {
+        trigger.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true }));
+      });
+      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    },
+  );
 
   it('keeps the tree visible but disables selection while fixing', () => {
     const onToggleRemediation = vi.fn();

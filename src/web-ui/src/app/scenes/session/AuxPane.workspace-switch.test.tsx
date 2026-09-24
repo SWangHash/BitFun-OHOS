@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     findTabByMetadata: vi.fn(() => null),
     updateTabContent: vi.fn(),
     closeAllTabs: vi.fn(),
+    syncSessionOwnedBrowserTabs: vi.fn(),
     primaryGroup: { tabs: [] },
     secondaryGroup: { tabs: [] },
     tertiaryGroup: { tabs: [] },

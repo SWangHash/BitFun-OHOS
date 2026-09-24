@@ -3,7 +3,10 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::{
@@ -39,18 +42,31 @@ use super::builtin_clients::{
     builtin_acp_client_preset, builtin_client_ids, default_config_for_builtin_client,
     migrate_legacy_builtin_client_configs,
 };
+#[cfg(test)]
+use super::config::AcpClientRuntimeOverride;
 use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
     AcpClientRequirementProbe, AcpClientStatus, RemoteAcpClientRequirementSnapshot,
 };
-use super::dsh_profile::{ensure_bundled_profile, ensure_bundled_profile_remote};
+use super::dsh_profile::{
+    check_bundled_profile_requirement, ensure_bundled_profile, ensure_bundled_profile_remote,
+};
+#[cfg(target_env = "ohos")]
+use super::managed_provisioning::probe_existing_managed_client;
+use super::managed_provisioning::{
+    build_managed_provisioning_plan, cleanup_managed_installation, install_managed_client,
+    AcpClientInstallOutcome, AcpClientInstallStatus, AcpManagedProvisioningProgress,
+    AcpManagedProvisioningStage, PROVISIONING_CANCELLED_CODE,
+};
+use super::ohos_node_compat::{prepare_node_command, sanitize_node_environment};
 use super::prompt::AcpPrompt;
 use super::remote_capability_store::RemoteAcpCapabilityStore;
 use super::remote_session::{preferred_resume_strategies, AcpRemoteSessionStrategy};
 use super::remote_shell::{remote_user_shell_command, render_remote_env_assignments, shell_escape};
 use super::requirements::{
     acp_requirement_spec, apply_command_environment, install_npm_cli_package,
-    install_remote_npm_cli_package, predownload_npm_adapter, probe_executable, probe_npm_adapter,
+    install_remote_npm_cli_package, predownload_npm_adapter, probe_configured_executable,
+    probe_executable, probe_npm_adapter, probe_remote_configured_executable,
     probe_remote_executable, probe_remote_npx_adapter, resolve_configured_command,
 };
 use super::session_options::{
@@ -154,11 +170,14 @@ impl AcpSessionConfigValue {
 
 pub struct AcpClientService {
     config_service: Arc<ConfigService>,
+    path_manager: Arc<PathManager>,
     session_persistence: AcpSessionPersistence,
     remote_capability_store: RemoteAcpCapabilityStore,
     clients: DashMap<String, Arc<AcpClientConnection>>,
     pending_permissions: DashMap<String, PendingPermission>,
     session_permission_modes: DashMap<String, AcpClientPermissionMode>,
+    managed_provisioning_cancellations: DashMap<String, Arc<AtomicBool>>,
+    managed_provisioning_gate: Mutex<()>,
 }
 
 struct PendingPermission {
@@ -226,6 +245,7 @@ impl AcpClientService {
     ) -> BitFunResult<Arc<Self>> {
         Ok(Arc::new(Self {
             config_service,
+            path_manager: path_manager.clone(),
             session_persistence: AcpSessionPersistence::new(path_manager.clone())?,
             remote_capability_store: RemoteAcpCapabilityStore::new(
                 path_manager
@@ -235,6 +255,8 @@ impl AcpClientService {
             clients: DashMap::new(),
             pending_permissions: DashMap::new(),
             session_permission_modes: DashMap::new(),
+            managed_provisioning_cancellations: DashMap::new(),
+            managed_provisioning_gate: Mutex::new(()),
         }))
     }
 
@@ -354,6 +376,26 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
+            if let Some(config) = configs.get(&id) {
+                let config =
+                    apply_local_runtime_override(config.clone(), cfg!(target_env = "ohos"));
+                probes.push(configured_client_probe(
+                    &id,
+                    probe_configured_executable(&config),
+                ));
+                continue;
+            }
+
+            #[cfg(target_env = "ohos")]
+            if builtin_acp_client_preset(&id)
+                .map(|preset| preset.supports_ohos())
+                .unwrap_or(false)
+            {
+                let (_, probe) = probe_existing_managed_client(&id, &self.path_manager).await?;
+                probes.push(probe);
+                continue;
+            }
+
             let spec = acp_requirement_spec(&id, configs.get(&id));
             let tool = probe_executable(spec.tool_command).await;
             let adapter = match spec.adapter {
@@ -387,13 +429,15 @@ impl AcpClientService {
                 notes
             );
 
-            probes.push(AcpClientRequirementProbe {
+            let mut probe = AcpClientRequirementProbe {
                 id,
                 tool,
                 adapter,
                 runnable,
                 notes,
-            });
+            };
+            check_bundled_profile_requirement(&mut probe);
+            probes.push(probe);
         }
 
         Ok(probes)
@@ -438,6 +482,13 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
+            if let Some(config) = config_file.acp_clients.get(&id) {
+                let tool =
+                    probe_remote_configured_executable(&ssh_manager, remote_connection_id, config)
+                        .await;
+                probes.push(configured_client_probe(&id, tool));
+                continue;
+            }
             let config = resolve_config_for_client(&config_file, &id, Some(remote_connection_id));
             let spec = acp_requirement_spec(&id, config.as_ref());
             let tool = probe_remote_executable(
@@ -486,13 +537,15 @@ impl AcpClientService {
                 notes
             );
 
-            probes.push(AcpClientRequirementProbe {
+            let mut probe = AcpClientRequirementProbe {
                 id,
                 tool,
                 adapter,
                 runnable,
                 notes,
-            });
+            };
+            check_bundled_profile_requirement(&mut probe);
+            probes.push(probe);
         }
 
         Ok(probes)
@@ -543,6 +596,253 @@ impl AcpClientService {
         } else {
             install_npm_cli_package(package).await
         }
+    }
+
+    pub fn cancel_managed_client_provisioning(&self, client_id: &str) -> bool {
+        let Some(cancelled) = self
+            .managed_provisioning_cancellations
+            .get(client_id)
+            .map(|entry| entry.clone())
+        else {
+            return false;
+        };
+        cancelled.store(true, Ordering::Release);
+        true
+    }
+
+    pub async fn provision_managed_client<F>(
+        self: &Arc<Self>,
+        client_id: &str,
+        on_progress: F,
+    ) -> BitFunResult<AcpClientInstallOutcome>
+    where
+        F: Fn(AcpManagedProvisioningProgress) + Send + Sync,
+    {
+        self.run_managed_client_setup(client_id, on_progress).await
+    }
+
+    async fn run_managed_client_setup<F>(
+        self: &Arc<Self>,
+        client_id: &str,
+        on_progress: F,
+    ) -> BitFunResult<AcpClientInstallOutcome>
+    where
+        F: Fn(AcpManagedProvisioningProgress) + Send + Sync,
+    {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        match self
+            .managed_provisioning_cancellations
+            .entry(client_id.to_string())
+        {
+            Entry::Occupied(_) => {
+                return Err(BitFunError::service(format!(
+                    "[ACP_PROVISIONING_ALREADY_RUNNING] Managed setup is already running for '{}'",
+                    client_id
+                )));
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(cancelled.clone());
+            }
+        }
+
+        // HarmonyBrew formulas and npm-managed packages share one prefix.
+        // Serialize all managed setup flows so two different Agent installs
+        // cannot race while updating the same package-manager-owned tree.
+        let provisioning_guard = tokio::select! {
+            guard = self.managed_provisioning_gate.lock() => guard,
+            _ = wait_for_managed_provisioning_cancellation(&cancelled) => {
+                self.managed_provisioning_cancellations.remove(client_id);
+                on_progress(AcpManagedProvisioningProgress::new(
+                    client_id,
+                    AcpManagedProvisioningStage::Cancelled,
+                    100,
+                ));
+                return Err(managed_provisioning_cancelled_error());
+            }
+        };
+
+        let result = self
+            .provision_managed_client_inner(client_id, &cancelled, &on_progress)
+            .await;
+        drop(provisioning_guard);
+        self.managed_provisioning_cancellations.remove(client_id);
+
+        if let Err(error) = &result {
+            let stage = if error.to_string().contains(PROVISIONING_CANCELLED_CODE) {
+                AcpManagedProvisioningStage::Cancelled
+            } else {
+                AcpManagedProvisioningStage::Failed
+            };
+            on_progress(AcpManagedProvisioningProgress::new(client_id, stage, 100));
+        }
+        result
+    }
+
+    async fn provision_managed_client_inner<F>(
+        self: &Arc<Self>,
+        client_id: &str,
+        cancelled: &Arc<AtomicBool>,
+        on_progress: &F,
+    ) -> BitFunResult<AcpClientInstallOutcome>
+    where
+        F: Fn(AcpManagedProvisioningProgress) + Send + Sync,
+    {
+        on_progress(AcpManagedProvisioningProgress::new(
+            client_id,
+            AcpManagedProvisioningStage::Detecting,
+            5,
+        ));
+        let plan = build_managed_provisioning_plan(client_id, &self.path_manager).await?;
+        ensure_managed_provisioning_active(cancelled)?;
+        on_progress(AcpManagedProvisioningProgress::new(
+            client_id,
+            AcpManagedProvisioningStage::Installing,
+            30,
+        ));
+        let installation = install_managed_client(&plan, cancelled, &self.path_manager).await?;
+        if let Err(error) = ensure_managed_provisioning_active(cancelled) {
+            cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
+            return Err(error);
+        }
+
+        let original_config = match self.load_config_file().await {
+            Ok(config) => config,
+            Err(error) => {
+                cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
+                return Err(error);
+            }
+        };
+        let mut candidate_config = original_config.clone();
+        let client_config = candidate_config
+            .acp_clients
+            .get(client_id)
+            .cloned()
+            .or_else(|| default_config_for_builtin_client(client_id));
+        let Some(mut client_config) = client_config else {
+            cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
+            return Err(BitFunError::config(format!(
+                "ACP client not found: {}",
+                client_id
+            )));
+        };
+        client_config.enabled = true;
+        client_config.local_override = Some(installation.runtime_override.clone());
+        candidate_config
+            .acp_clients
+            .insert(client_id.to_string(), client_config);
+
+        on_progress(AcpManagedProvisioningProgress::new(
+            client_id,
+            AcpManagedProvisioningStage::Configuring,
+            70,
+        ));
+        if let Err(error) = self.persist_config_file(&candidate_config).await {
+            cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
+            return Err(error);
+        }
+        if let Err(error) = self.remote_capability_store.clear().await {
+            let rollback_errors = self
+                .rollback_managed_provisioning(
+                    &original_config,
+                    installation.cleanup_path.as_deref(),
+                    None,
+                )
+                .await;
+            return Err(managed_provisioning_failure(error, rollback_errors));
+        }
+        if let Err(error) = self.initialize_all().await {
+            let rollback_errors = self
+                .rollback_managed_provisioning(
+                    &original_config,
+                    installation.cleanup_path.as_deref(),
+                    None,
+                )
+                .await;
+            return Err(managed_provisioning_failure(error, rollback_errors));
+        }
+        if let Err(error) = ensure_managed_provisioning_active(cancelled) {
+            let rollback_errors = self
+                .rollback_managed_provisioning(
+                    &original_config,
+                    installation.cleanup_path.as_deref(),
+                    None,
+                )
+                .await;
+            return Err(managed_provisioning_failure(error, rollback_errors));
+        }
+
+        on_progress(AcpManagedProvisioningProgress::new(
+            client_id,
+            AcpManagedProvisioningStage::Verifying,
+            85,
+        ));
+        let verification_connection_id = format!(
+            "{}::managed-verification::{}",
+            client_id,
+            uuid::Uuid::new_v4().simple()
+        );
+        let verification = tokio::select! {
+            result = self.start_client_connection(
+                &verification_connection_id,
+                client_id,
+                None,
+                None,
+            ) => result,
+            _ = wait_for_managed_provisioning_cancellation(cancelled) => {
+                Err(managed_provisioning_cancelled_error())
+            }
+        };
+        let stop_verification = self.stop_connection(&verification_connection_id).await;
+        if let Err(error) = verification.and(stop_verification) {
+            let rollback_errors = self
+                .rollback_managed_provisioning(
+                    &original_config,
+                    installation.cleanup_path.as_deref(),
+                    Some(&verification_connection_id),
+                )
+                .await;
+            return Err(managed_provisioning_failure(error, rollback_errors));
+        }
+
+        on_progress(AcpManagedProvisioningProgress::new(
+            client_id,
+            AcpManagedProvisioningStage::Ready,
+            100,
+        ));
+        Ok(AcpClientInstallOutcome {
+            client_id: client_id.to_string(),
+            status: AcpClientInstallStatus::ManagedReady,
+            install_root: installation
+                .cleanup_path
+                .as_ref()
+                .map(|path| path.to_string_lossy().to_string()),
+            probe: Some(installation.probe),
+        })
+    }
+
+    async fn rollback_managed_provisioning(
+        self: &Arc<Self>,
+        original_config: &AcpClientConfigFile,
+        cleanup_path: Option<&Path>,
+        verification_connection_id: Option<&str>,
+    ) -> Vec<String> {
+        let mut rollback_errors = Vec::new();
+        if let Some(connection_id) = verification_connection_id {
+            if let Err(error) = self.stop_connection(connection_id).await {
+                rollback_errors.push(error.to_string());
+            }
+        }
+        if let Err(error) = self.persist_config_file(original_config).await {
+            rollback_errors.push(error.to_string());
+        }
+        if let Err(error) = self.remote_capability_store.clear().await {
+            rollback_errors.push(error.to_string());
+        }
+        if let Err(error) = self.initialize_all().await {
+            rollback_errors.push(error.to_string());
+        }
+        cleanup_managed_installation(cleanup_path).await;
+        rollback_errors
     }
 
     pub async fn start_client_for_session(
@@ -907,12 +1207,7 @@ impl AcpClientService {
             BitFunError::config(format!("Invalid ACP client JSON config: {}", error))
         })?;
         let config = parse_config_value(value)?;
-        let canonical_value = serde_json::to_value(config).map_err(|error| {
-            BitFunError::config(format!("Failed to render ACP config: {}", error))
-        })?;
-        self.config_service
-            .set_config(CONFIG_PATH, canonical_value)
-            .await?;
+        self.persist_config_file(&config).await?;
         self.remote_capability_store.clear().await?;
         self.initialize_all().await
     }
@@ -1643,6 +1938,15 @@ impl AcpClientService {
             .unwrap_or_else(|_| json!({ "acpClients": {} })))
     }
 
+    async fn persist_config_file(&self, config: &AcpClientConfigFile) -> BitFunResult<()> {
+        let canonical_value = serde_json::to_value(config).map_err(|error| {
+            BitFunError::config(format!("Failed to render ACP config: {}", error))
+        })?;
+        self.config_service
+            .set_config(CONFIG_PATH, canonical_value)
+            .await
+    }
+
     async fn register_configured_tools(
         self: &Arc<Self>,
         configs: &HashMap<String, AcpClientConfig>,
@@ -1742,22 +2046,39 @@ impl AcpClientService {
         client_id: &str,
         connection_id: &str,
         config: &AcpClientConfig,
+        _workspace_path: Option<&str>,
     ) -> BitFunResult<(
         ByteStreams<AcpOutgoingStream, AcpIncomingStream>,
         Child,
         StderrTail,
     )> {
-        // An agent whose runtime BitFun ships (dsh) needs it in place before the
-        // command runs, because the command's only job is to boot it.
+        let program = resolve_configured_command(&config.command, &config.env);
+        let mut args = config.args.clone();
         if let Some(profile) = builtin_acp_client_preset(client_id).and_then(|p| p.bundled_profile)
         {
-            ensure_bundled_profile(profile).await?;
+            // Prefer the installed runtime's own ACP implementation when it
+            // advertises one. Keep old launch arguments persisted so older
+            // runtimes and custom profile selections remain readable.
+            #[cfg(target_env = "ohos")]
+            let native_acp = args == ["--profile", profile]
+                && super::dsh_profile::has_native_acp_profile(
+                    &program.to_string_lossy(),
+                    &config.env,
+                )
+                .await;
+            #[cfg(not(target_env = "ohos"))]
+            let native_acp = false;
+            if native_acp {
+                args = vec!["--profile".to_string(), "acp".to_string()];
+                log::info!("Using the installed DeepSeek Harness ACP profile");
+            } else {
+                ensure_bundled_profile(profile, &config.command, &config.env).await?;
+            }
         }
-
-        let program = resolve_configured_command(&config.command, &config.env);
+        prepare_node_command(&self.path_manager, &program, &mut args).await?;
         let mut command = bitfun_core::util::process_manager::create_tokio_command(&program);
         command
-            .args(&config.args)
+            .args(&args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             // Inheriting sent this to a terminal that a packaged app does not
@@ -1766,6 +2087,19 @@ impl AcpClientService {
             // goes into the error the user is shown.
             .stderr(Stdio::piped());
         apply_command_environment(&mut command, Some(&config.env));
+        sanitize_node_environment(&mut command, &program, &config.env);
+        #[cfg(target_env = "ohos")]
+        if let Some(working_directory) = _workspace_path
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+            .or_else(|| {
+                config.env.iter().find_map(|(key, value)| {
+                    key.eq_ignore_ascii_case("HOME").then_some(value.as_str())
+                })
+            })
+        {
+            command.current_dir(working_directory);
+        }
         configure_process_group(&mut command);
 
         let mut child = command.spawn().map_err(|error| {
@@ -1826,7 +2160,7 @@ impl AcpClientService {
                 .await
                 .map(|(transport, stderr_tail)| (transport, None, stderr_tail)),
             None => self
-                .start_local_transport(client_id, connection_id, config)
+                .start_local_transport(client_id, connection_id, config, workspace_path)
                 .await
                 .map(|(transport, child, stderr_tail)| (transport, Some(child), stderr_tail)),
         }
@@ -1939,11 +2273,86 @@ fn resolve_config_for_client(
     client_id: &str,
     remote_connection_id: Option<&str>,
 ) -> Option<AcpClientConfig> {
-    config_file
+    let config = config_file
         .acp_clients
         .get(client_id)
         .cloned()
-        .or_else(|| remote_connection_id.and_then(|_| default_config_for_builtin_client(client_id)))
+        .or_else(|| {
+            remote_connection_id.and_then(|_| default_config_for_builtin_client(client_id))
+        })?;
+
+    let config = apply_local_runtime_override(
+        config,
+        cfg!(target_env = "ohos") && remote_connection_id.is_none(),
+    );
+
+    Some(config)
+}
+
+fn apply_local_runtime_override(
+    mut config: AcpClientConfig,
+    apply_override: bool,
+) -> AcpClientConfig {
+    if apply_override {
+        if let Some(runtime_override) = config.local_override.as_ref() {
+            config.command = runtime_override.command.clone();
+            config.args = runtime_override.args.clone();
+            config.env.extend(runtime_override.env.clone());
+        }
+    }
+    config
+}
+
+fn ensure_managed_provisioning_active(cancelled: &Arc<AtomicBool>) -> BitFunResult<()> {
+    if cancelled.load(Ordering::Acquire) {
+        return Err(managed_provisioning_cancelled_error());
+    }
+    Ok(())
+}
+
+fn managed_provisioning_cancelled_error() -> BitFunError {
+    BitFunError::service(format!(
+        "[{PROVISIONING_CANCELLED_CODE}] Managed ACP installation was cancelled"
+    ))
+}
+
+async fn wait_for_managed_provisioning_cancellation(cancelled: &Arc<AtomicBool>) {
+    while !cancelled.load(Ordering::Acquire) {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn managed_provisioning_failure(error: BitFunError, rollback_errors: Vec<String>) -> BitFunError {
+    if error.to_string().contains(PROVISIONING_CANCELLED_CODE) {
+        return error;
+    }
+    let rollback_detail = if rollback_errors.is_empty() {
+        String::new()
+    } else {
+        format!(" Rollback warnings: {}", rollback_errors.join("; "))
+    };
+    BitFunError::service(format!(
+        "[ACP_PROVISIONING_VERIFICATION_FAILED] Managed ACP installation could not be activated: {}{}",
+        error, rollback_detail
+    ))
+}
+
+// Requirement discovery does not start the configured agent or claim an ACP handshake.
+fn configured_client_probe(
+    client_id: &str,
+    tool: super::config::AcpRequirementProbeItem,
+) -> AcpClientRequirementProbe {
+    let runnable = tool.installed;
+    let notes = tool.error.iter().cloned().collect();
+    let mut probe = AcpClientRequirementProbe {
+        id: client_id.to_string(),
+        tool,
+        adapter: None,
+        runnable,
+        notes,
+    };
+    check_bundled_profile_requirement(&mut probe);
+    probe
 }
 
 fn ensure_remote_client_supported(
@@ -2785,6 +3194,7 @@ mod tests {
                 readonly: false,
                 subagent: Default::default(),
                 permission_mode: AcpClientPermissionMode::Ask,
+                local_override: None,
             },
         ))
     }
@@ -2912,6 +3322,7 @@ mod tests {
             readonly: false,
             subagent: Default::default(),
             permission_mode: AcpClientPermissionMode::Ask,
+            local_override: None,
         };
 
         let command = render_remote_client_command(&config, Some("/srv/my repo")).expect("command");
@@ -2939,6 +3350,7 @@ mod tests {
                     readonly: false,
                     subagent: Default::default(),
                     permission_mode: AcpClientPermissionMode::Ask,
+                    local_override: None,
                 },
             )]),
         };
@@ -2953,6 +3365,76 @@ mod tests {
         );
         assert_eq!(resolved.env.get("BASE").map(String::as_str), Some("1"));
         assert!(resolved.enabled);
+    }
+
+    #[test]
+    fn local_runtime_override_replaces_only_launch_fields() {
+        let config = AcpClientConfig {
+            name: Some("CodeBuddy Code".to_string()),
+            command: "codebuddy".to_string(),
+            args: vec!["--acp".to_string()],
+            env: HashMap::from([("PORTABLE".to_string(), "1".to_string())]),
+            enabled: true,
+            readonly: true,
+            permission_mode: AcpClientPermissionMode::RejectOnce,
+            local_override: Some(AcpClientRuntimeOverride {
+                command: "/storage/Users/currentUser/.harmonybrew/bin/node".to_string(),
+                args: vec!["/managed/codebuddy".to_string(), "--acp".to_string()],
+                env: HashMap::from([
+                    ("HOME".to_string(), "/storage/Users/currentUser".to_string()),
+                    ("PORTABLE".to_string(), "managed".to_string()),
+                ]),
+            }),
+        };
+
+        let resolved = apply_local_runtime_override(config, true);
+
+        assert_eq!(
+            resolved.command,
+            "/storage/Users/currentUser/.harmonybrew/bin/node"
+        );
+        assert_eq!(resolved.args, vec!["/managed/codebuddy", "--acp"]);
+        assert_eq!(
+            resolved.env.get("HOME").map(String::as_str),
+            Some("/storage/Users/currentUser")
+        );
+        assert_eq!(
+            resolved.env.get("PORTABLE").map(String::as_str),
+            Some("managed")
+        );
+        assert!(resolved.readonly);
+        assert_eq!(
+            resolved.permission_mode,
+            AcpClientPermissionMode::RejectOnce
+        );
+    }
+
+    #[test]
+    fn remote_and_standard_hosts_keep_portable_launch_fields() {
+        let config = AcpClientConfig {
+            name: Some("Kimi Code".to_string()),
+            command: "kimi".to_string(),
+            args: vec!["acp".to_string()],
+            env: HashMap::from([("PORTABLE".to_string(), "1".to_string())]),
+            enabled: true,
+            readonly: false,
+            permission_mode: AcpClientPermissionMode::Ask,
+            local_override: Some(AcpClientRuntimeOverride {
+                command: "/storage/Users/currentUser/.harmonybrew/bin/kimi".to_string(),
+                args: vec!["acp".to_string()],
+                env: HashMap::from([(
+                    "HOME".to_string(),
+                    "/storage/Users/currentUser".to_string(),
+                )]),
+            }),
+        };
+
+        let resolved = apply_local_runtime_override(config, false);
+
+        assert_eq!(resolved.command, "kimi");
+        assert_eq!(resolved.args, vec!["acp"]);
+        assert_eq!(resolved.env.get("PORTABLE").map(String::as_str), Some("1"));
+        assert!(resolved.env.get("HOME").is_none());
     }
 
     #[test]

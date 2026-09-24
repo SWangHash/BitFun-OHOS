@@ -128,7 +128,11 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
       switchAgentCanvasWorkspace(prev ?? null, next ?? null);
       syncSessionOwnedBrowserTabs(flowChatStore.getState().activeSessionId);
       prevWorkspaceIdRef.current = next;
-}, [syncSessionOwnedBrowserTabs, workspaceId]);
+    }, [syncSessionOwnedBrowserTabs]);
+
+    useEffect(() => {
+      syncAgentCanvasWorkspace(workspaceId);
+    }, [syncAgentCanvasWorkspace, workspaceId]);
 
     useEffect(() => {
       let previousSessionId: string | null | undefined;

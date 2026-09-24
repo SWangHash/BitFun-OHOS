@@ -42,6 +42,20 @@
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
       "description": "Native ACP coding agent that runs on HarmonyBrew Node."
+    },
+    "deepSeekHarness": {
+      "description": "DeepSeek Harness installed through HarmonyBrew and connected through BitFun's bundled ACP bridge."
+    },
+    "opencode": { "description": "Native ACP support." },
+    "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
+    "omp": { "description": "Native ACP support." },
+    "claudeCode": {
+      "name": "Claude Code",
+      "description": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
+    },
+    "codex": {
+      "name": "Codex",
+      "description": "Codex installed through HarmonyBrew and connected through the ACP adapter."
     }
   },
   "json": {
@@ -60,13 +74,6 @@
     "localHost": "Current execution host",
     "packageUnknown": "BitFun could not verify the install package for this Agent, so installation was cancelled",
     "confirm": "Install on target host"
-  },
-  "presets": {
-    "opencode": { "description": "Native ACP support." },
-    "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
-    "omp": { "description": "Native ACP support." },
-    "claudeCode": { "description": "Connects through the official ACP adapter." },
-    "codex": { "description": "Connects through the official ACP adapter." }
   },
   "registry": {
     "title": "Agents",

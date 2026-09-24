@@ -106,6 +106,8 @@ const SESSION_IN_USE_PREFIX = 'session_in_use:';
 const OUTCOME_UNKNOWN_PREFIX = 'outcome_unknown:';
 const NOT_AVAILABLE_PREFIX = 'not_available:';
 const GIT_REPOSITORY_UNTRUSTED_PREFIX = 'git_repository_untrusted:';
+const GIT_UNAVAILABLE_PREFIX = 'git_unavailable:';
+const REVIEW_PLATFORM_ERROR_PREFIX = 'review_platform_error:';
 
 /** Returns the payload carried after a stable error prefix, if present. */
 function stableErrorPayload(error: unknown, prefix: string): string | undefined {
@@ -193,4 +195,14 @@ export function isGitRepositoryNotFoundError(error: unknown): boolean {
 export function gitRepositoryUntrustedPath(error: unknown): string | undefined {
   const payload = stableErrorPayload(error, GIT_REPOSITORY_UNTRUSTED_PREFIX);
   return payload ? payload : undefined;
+}
+
+/** Identifies missing Git in the environment executing the workspace. */
+export function isGitUnavailableError(error: unknown): boolean {
+  return hasStableErrorPrefix(error, GIT_UNAVAILABLE_PREFIX);
+}
+
+/** Stable Review-platform failure kind, preserved through transport wrappers. */
+export function reviewPlatformErrorCode(error: unknown): string | undefined {
+  return stableErrorPayload(error, REVIEW_PLATFORM_ERROR_PREFIX)?.split(':', 1)[0].trim();
 }

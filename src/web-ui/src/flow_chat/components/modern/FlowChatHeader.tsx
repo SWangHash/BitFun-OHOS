@@ -595,7 +595,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   );
   const rightActions = (
     <div
-      className="flowchat-header__actions"
+      className={`flowchat-header__actions${isSearchOpen ? ' flowchat-header__actions--searching' : ''}`}
       data-bitfun-component="flow-chat-header"
       data-bitfun-part="actions"
     >
