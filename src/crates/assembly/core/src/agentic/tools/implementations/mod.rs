@@ -5,13 +5,14 @@ pub mod agent_wait_tool;
 pub mod analyze_image_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod appearance_publish_tool;
+pub mod arkts_check_tool;
+pub mod arkts_checker;
 pub mod arkts_knowledge_search_tool;
 pub mod ask_user_question_tool;
 pub mod bash_tool;
 pub mod build_project_tool;
 #[cfg(feature = "tools-canvas")]
 pub mod canvas_tools;
-pub mod check_arkts_files_tool;
 pub mod check_cpp_files_tool;
 pub mod code_review_tool;
 #[cfg(feature = "tools-computer-use")]
@@ -103,7 +104,7 @@ pub use bash_tool::BashTool;
 pub use build_project_tool::BuildProjectTool;
 #[cfg(feature = "tools-canvas")]
 pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
-pub use check_arkts_files_tool::CheckArktsFilesTool;
+pub use arkts_check_tool::ArktsCheckTool;
 pub use check_cpp_files_tool::CheckCppFilesTool;
 pub use code_review_tool::CodeReviewTool;
 #[cfg(feature = "tools-computer-use")]

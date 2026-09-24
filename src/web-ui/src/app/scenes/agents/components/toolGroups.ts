@@ -53,7 +53,7 @@ const BUILTIN_TOOL_GROUPS: BuiltinToolGroupDefinition[] = [
       'start_app',
       'hdc_log',
       'arkts_knowledge_search',
-      'check_arkts_files',
+      'arkts_check',
       'check_cpp_files',
       'switch_cwd',
       'verify_ui',

@@ -35,7 +35,7 @@ impl Tool for SwitchCwdTool {
     }
 
     async fn description(&self) -> BitFunResult<String> {
-        Ok(r#"Switch the session project directory for HarmonyOS tools (build_project, start_app, hdc_log, check_arkts_files, check_cpp_files).
+        Ok(r#"Switch the session project directory for HarmonyOS tools (build_project, start_app, hdc_log, arkts_check, check_cpp_files).
 
 Only use this tool when the HarmonyOS project directory is DIFFERENT from the current workspace root. For example, when the `deveco-create-project` skill creates a project in a subdirectory like `./MyApp`, call this tool with `project_path` pointing to that subdirectory.
 
