@@ -1300,7 +1300,7 @@ pub async fn _run() {
                 let app_handle_for_menu = app.handle().clone();
                 let app_state: tauri::State<'_, api::app_state::AppState> = app.state();
                 let config_service = app_state.config_service.clone();
-                let workspace_path = app_state.workspace_path.clone();
+                let workspace_id = app_state.workspace_id.clone();
                 let macos_edit_menu_mode = app_state.macos_edit_menu_mode.clone();
 
                 // Startup runs on the main thread, which has no entered tokio
@@ -1311,7 +1311,7 @@ pub async fn _run() {
                         .await
                         .unwrap_or_else(|_| "zh-CN".to_string());
 
-                    let has_workspace = workspace_path.read().await.is_some();
+                    let has_workspace = workspace_id.read().await.is_some();
                     let mode = if has_workspace {
                         crate::macos_menubar::MenubarMode::Workspace
                     } else {
