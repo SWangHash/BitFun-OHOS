@@ -31,30 +31,10 @@ When the user provides a Chinese or other non-ASCII name, you MUST:
 
 If `{projectPath}/{appName}` already exists and is not empty, the script will exit with code `2` and emit a `PROJECT_EXISTS` JSON payload. When you see it, ask the user via `AskUserQuestion` whether to overwrite, rename, or cancel — do NOT silently re-run or delete the directory yourself.
 
-If the user explicitly specifies an SDK/API level, pass it through directly. It must fall within the supported range `17..defaultApiVersion`, where `defaultApiVersion` comes from `DEVECO_HOME/sdk/default/sdk-pkg.json` → `data.apiVersion`.
-If the user does not specify one, do not let the model invent a version. Let the script auto-detect from `DEVECO_HOME/sdk/default/sdk-pkg.json`.
+If the user explicitly specifies an SDK/API level, pass it through directly.
+If the user does not specify one, do not let the model invent a version. Let the script use its OHOS fallback API level `22`.
 
-`DEVECO_HOME` must be configured and point to a valid DevEco Studio installation. If SDK metadata is missing or invalid, the script fails with a structured JSON error (`code`, `message`, `hint`) — there is no fallback API level.
-
-### SDK / environment error handling (MANDATORY)
-
-When the script exits with a non-zero code and emits one of the following error codes, you MUST **stop immediately** and report the `code`, `message`, and `hint` to the user. Do NOT attempt any recovery action:
-
-| Error code | Meaning | Must NOT do |
-|---|---|---|
-| `DEVECO_HOME_MISSING` | `DEVECO_HOME` not set | Do NOT search for DevEco directories or ask for permission to set the env var |
-| `DEVECO_HOME_INVALID` | `DEVECO_HOME` points to wrong dir | Do NOT suggest alternative paths or try to locate DevEco elsewhere |
-| `SDK_PKG_MISSING` | `sdk/default/sdk-pkg.json` not found | Do NOT search for `sdk-pkg.json` elsewhere, copy/create it, or ask for permission to write into the SDK directory |
-| `SDK_PKG_INVALID` | `sdk-pkg.json` not valid JSON or missing `data` | Do NOT attempt to fix or regenerate the file |
-| `SDK_API_INVALID` | `data.apiVersion` missing / non-integer / < 17 | Do NOT guess an API level, fall back to a hardcoded value, or examine the SDK directory structure to infer/determine an API level |
-| `SDK_PLATFORM_VERSION_MISSING` | `data.platformVersion` missing | Do NOT invent a platform version |
-| `API_LEVEL_OUT_OF_RANGE` | User `--api-level` outside `17..defaultApiVersion` | Do NOT silently clamp or substitute |
-| `API_CONFIG_MISSING` | No template mapping for the requested API level | Do NOT fall back to a different API level without explicit user consent |
-| `TEMPLATE_COPY_INCOMPLETE` | Generated project is missing required files | Do NOT attempt to manually create the missing files |
-
-In all cases: **stop, report the JSON error payload verbatim, and let the user fix their environment before retrying.** Do not search the filesystem for SDK files, do not examine the SDK directory structure or scan subdirectories, do not copy/create `sdk-pkg.json`, and do not modify anything under `DEVECO_HOME/sdk/`.
-
-The script's stdout JSON (`apiLevel`, `sdkVersion`, `source`, `detectedFrom`) is authoritative — do not re-read files under `{DEVECO_HOME}/sdk/**` to verify it.
+The script's stdout JSON (`apiLevel`, `source`) is authoritative.
 
 ### Optional: Brief Requirement Checklist for Complex App Requests
 
@@ -102,6 +82,8 @@ At minimum, verify that the following file exists:
 - `{projectPath}/{appName}/build-profile.json5`
 
 If the file is missing, treat the creation as failed and do not proceed to later compile or page-generation steps.
+
+If the script reports `source: "fallback"`, it used the OHOS default API level `22`.
 
 ### Step 3: Switch to Project Directory
 
