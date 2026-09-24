@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { OverflowText, Icon, IconButton, Input } from '@bitfun/ui';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,10 @@ import { createLogger } from '@/shared/utils/logger';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
 import { BrowserPreview } from './BrowserPreview';
+import {
+  BROWSER_NAVIGATION_EVENT,
+  consumePendingBrowserNavigation,
+} from './browserNavigation';
 import './BrowserScene.scss';
 
 const log = createLogger('BrowserScene');
@@ -21,6 +25,19 @@ const BrowserScene: React.FC = () => {
     labelPrefix: 'embedded-browser-view',
     log,
   });
+
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const url = (event as CustomEvent<{ url?: string }>).detail?.url;
+      if (url) void browser.loadUrl(url);
+    };
+
+    const pendingUrl = consumePendingBrowserNavigation();
+    if (pendingUrl) void browser.loadUrl(pendingUrl);
+
+    window.addEventListener(BROWSER_NAVIGATION_EVENT, navigate);
+    return () => window.removeEventListener(BROWSER_NAVIGATION_EVENT, navigate);
+  }, [browser.loadUrl]);
 
   const handleSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

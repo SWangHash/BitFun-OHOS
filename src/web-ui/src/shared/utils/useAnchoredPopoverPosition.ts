@@ -151,6 +151,12 @@ export function useAnchoredPopoverPosition({
     }
 
     updatePosition();
+    // Portalled popovers can mount one frame after the trigger component on
+    // WebView hosts. Retry after the portal ref is attached so the first open
+    // does not remain hidden with a null layout.
+    const retryFrame = window.requestAnimationFrame(() => {
+      updatePosition();
+    });
     window.addEventListener('resize', schedulePositionUpdate, { passive: true });
     window.addEventListener('scroll', schedulePositionUpdate, {
       capture: true,
@@ -167,6 +173,7 @@ export function useAnchoredPopoverPosition({
       window.removeEventListener('resize', schedulePositionUpdate);
       window.removeEventListener('scroll', schedulePositionUpdate, { capture: true });
       resizeObserver?.disconnect();
+      window.cancelAnimationFrame(retryFrame);
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
