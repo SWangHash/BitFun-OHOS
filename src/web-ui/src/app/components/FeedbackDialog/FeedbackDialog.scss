@@ -140,6 +140,8 @@
   .bitfun-feedback__content-input [data-bitfun-part='input'] {
     height: auto;
     min-height: 0;
+    overflow-wrap: anywhere;
+    white-space: break-spaces;
   }
 }
 
@@ -319,6 +321,7 @@
 
 .bitfun-feedback__inbox-list {
   border-right: 1px solid var(--bf-appearance-token-border-subtle);
+  user-select: none;
 }
 
 .bitfun-feedback__inbox-header,
@@ -679,7 +682,9 @@
   .bitfun-feedback__reply-input [data-bitfun-part='input'] {
     min-height: 64px;
     max-height: 132px;
+    overflow-wrap: anywhere;
     resize: vertical;
+    white-space: break-spaces;
   }
 }
 

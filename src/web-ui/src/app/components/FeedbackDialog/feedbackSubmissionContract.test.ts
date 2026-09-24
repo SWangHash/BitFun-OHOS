@@ -203,6 +203,29 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(styles).toContain('border-radius: 2px;');
   });
 
+  it('preserves pasted whitespace rendering and prevents Inbox text selection', () => {
+    const styles = readSource('./FeedbackDialog.scss');
+    const contentInput = styles.slice(
+      styles.indexOf(".bitfun-feedback__content-input [data-bitfun-part='input'] {"),
+      styles.indexOf('.bitfun-feedback__content-meta {'),
+    );
+    const inboxList = styles.slice(
+      styles.indexOf('.bitfun-feedback__inbox-list {'),
+      styles.indexOf('.bitfun-feedback__inbox-header,'),
+    );
+    const replyInput = styles.slice(
+      styles.indexOf(".bitfun-feedback__reply-input [data-bitfun-part='input'] {"),
+      styles.indexOf('.bitfun-feedback__reply-meta {'),
+    );
+
+    expect(contentInput).toContain('overflow-wrap: anywhere;');
+    expect(contentInput).toContain('white-space: break-spaces;');
+    expect(inboxList).toContain('user-select: none;');
+    expect(replyInput).toContain('overflow-wrap: anywhere;');
+    expect(replyInput).toContain('white-space: break-spaces;');
+    expect(styles.match(/white-space: break-spaces;/g)).toHaveLength(2);
+  });
+
   it('limits feedback paste before replacing the controlled value', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
     const pasteHandler = dialog.slice(
