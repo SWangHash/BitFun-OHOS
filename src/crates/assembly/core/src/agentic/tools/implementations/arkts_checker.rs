@@ -91,8 +91,10 @@ pub(crate) async fn run_arkts_check(
     let deveco_home = resolve_deveco_home()
         .ok_or_else(|| {
             BitFunError::tool(format!(
-                "DevEco Studio installation not found. Set DEVECO_HOME to your DevEco Studio \
-                 installation directory (minimum version {}) and retry.",
+                "DevEco Studio installation not found. Checked DEVECO_HOME env var and default \
+                 install paths (e.g. D:\\DevEco Studio, C:\\Program Files\\Huawei\\DevEco Studio). \
+                 Set DEVECO_HOME to your DevEco Studio installation directory (minimum version {}) \
+                 and retry.",
                 MIN_DEVECO_STUDIO_VERSION
             ))
         })?;
