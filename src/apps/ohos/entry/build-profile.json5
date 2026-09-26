@@ -6,6 +6,13 @@
       "arguments": "",
       "cppFlags": ""
     },
+    "arkOptions": {
+      "runtimeOnly": {
+        "packages": [
+          "libbitfun_desktop_lib.so"
+        ]
+      }
+    },
     "resOptions": {
       "copyCodeResource": {
         "enable": false
