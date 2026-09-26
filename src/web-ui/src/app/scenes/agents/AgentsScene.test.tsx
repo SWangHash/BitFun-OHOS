@@ -54,6 +54,24 @@ vi.mock('./components/CoreAgentCard', async () => ({
   default: (await import('./components/AgentCard')).default,
 }));
 
+vi.mock('./components/IndustryAgentCard', () => ({
+  default: ({
+    agent,
+    onOpenDetails,
+  }: {
+    agent: { name: string };
+    onOpenDetails: (agent: unknown) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="industry-agent-card"
+      onClick={() => onOpenDetails(agent)}
+    >
+      {agent.name}
+    </button>
+  ),
+}));
+
 vi.mock('./components/useUserToolGroups', () => ({
   useUserToolGroups: () => ({
     groups: [],
@@ -109,7 +127,12 @@ vi.mock('@/app/components', () => ({
   ),
   GalleryPageHeader: () => <header />,
   GallerySkeleton: () => <div />,
-  GalleryZone: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
+  GalleryZone: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & React.HTMLAttributes<HTMLElement>) => (
+    <section {...props}>{children}</section>
+  ),
 }));
 
 vi.mock('./hooks/useAgentsList', () => ({
@@ -251,6 +274,75 @@ describeWithJsdom('AgentsScene', () => {
 
     expect(container.querySelector('[data-testid="create-agent-page"]')).toBeTruthy();
     expect(container.querySelector('.bitfun-agents-scene--page')).toBeTruthy();
+  }, 10_000);
+
+  it('renders industry agents only in the industry zone', async () => {
+    mockAgentsList({
+      allAgents: [
+        {
+          key: 'mode::HarmonyFeature',
+          id: 'HarmonyFeature',
+          name: '鸿蒙特性增强专家',
+          description: 'HarmonyOS feature enhancement',
+          isReadonly: false,
+          toolCount: 1,
+          defaultTools: ['Skill'],
+          source: 'builtin',
+          agentKind: 'agent',
+          capabilities: [],
+        },
+        {
+          key: 'mode::GeneralPurpose',
+          id: 'GeneralPurpose',
+          name: '通用智能体',
+          description: 'General purpose agent',
+          isReadonly: false,
+          toolCount: 1,
+          defaultTools: ['Read'],
+          source: 'builtin',
+          agentKind: 'agent',
+          capabilities: [],
+        },
+      ],
+      filteredAgents: [
+        {
+          key: 'mode::HarmonyFeature',
+          id: 'HarmonyFeature',
+          name: '鸿蒙特性增强专家',
+          description: 'HarmonyOS feature enhancement',
+          isReadonly: false,
+          toolCount: 1,
+          defaultTools: ['Skill'],
+          source: 'builtin',
+          agentKind: 'agent',
+          capabilities: [],
+        },
+        {
+          key: 'mode::GeneralPurpose',
+          id: 'GeneralPurpose',
+          name: '通用智能体',
+          description: 'General purpose agent',
+          isReadonly: false,
+          toolCount: 1,
+          defaultTools: ['Read'],
+          source: 'builtin',
+          agentKind: 'agent',
+          capabilities: [],
+        },
+      ],
+    });
+    const { default: AgentsScene } = await import('./AgentsScene');
+
+    await act(async () => {
+      root.render(<AgentsScene />);
+    });
+
+    const industryZone = container.querySelector('[data-testid="agents-industry-zone"]');
+    const catalogZone = container.querySelector('[data-testid="agents-catalog-zone"]');
+    expect(industryZone?.querySelectorAll('[data-testid="industry-agent-card"]')).toHaveLength(1);
+    expect(industryZone?.textContent).toContain('鸿蒙特性增强专家');
+    expect(catalogZone?.textContent).not.toContain('鸿蒙特性增强专家');
+    expect(catalogZone?.textContent).toContain('通用智能体');
   }, 10_000);
 
   it('keeps agent subpages stretched across the active scene viewport', () => {

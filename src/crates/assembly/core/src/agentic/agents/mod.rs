@@ -18,8 +18,8 @@ pub use definitions::hidden::{
     CodeReviewAgent, DeepReviewAgent, GenerateDocAgent, BitFunAgent,
 };
 pub use definitions::modes::{
-    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, MinimalHarness, StandardHarness,
-    UltimateHarness,
+    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyFeatureMode, MinimalHarness,
+    StandardHarness, UltimateHarness,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;
@@ -84,6 +84,23 @@ static EMPTY_AGENT_TOOL_POLICY_OVERRIDES: std::sync::LazyLock<AgentToolPolicyOve
     std::sync::LazyLock::new(AgentToolPolicyOverrides::default);
 static EMPTY_PERMISSION_CONSTRAINTS: std::sync::LazyLock<PermissionConstraintLayer> =
     std::sync::LazyLock::new(PermissionConstraintLayer::default);
+
+/// Shared baseline used by vertical coding modes such as Qt migration and
+/// HarmonyOS feature enhancement.
+pub fn shared_coding_mode_tool_exposure_overrides() -> AgentToolPolicyOverrides {
+    let mut overrides = AgentToolPolicyOverrides::default();
+    overrides.insert("WebSearch".to_string(), ToolExposure::Direct);
+    overrides.insert("WebFetch".to_string(), ToolExposure::Direct);
+    overrides
+}
+
+pub fn shared_coding_mode_tools() -> Vec<String> {
+    standard_harness_tools()
+}
+
+pub fn shared_coding_mode_user_context_policy() -> UserContextPolicy {
+    standard_harness_user_context_policy()
+}
 
 pub fn standard_harness_tools() -> Vec<String> {
     vec![

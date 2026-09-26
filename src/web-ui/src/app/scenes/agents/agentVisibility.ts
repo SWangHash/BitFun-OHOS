@@ -27,12 +27,20 @@ export function isOrdinaryAgent(agent: { agentKind?: string }): boolean {
   return agent.agentKind === 'agent';
 }
 
+/** Vertical-domain industry agents shown in the dedicated industry zone only. */
+export const INDUSTRY_AGENT_IDS = new Set<string>(['QtMigration', 'HarmonyFeature']);
+
 /** Agents that appear in the bottom overview grid (same pool as filter chip counts). */
 export function isAgentInOverviewZone(
   agent: { id: string; agentKind?: string },
   hiddenAgentIds: ReadonlySet<string> = HIDDEN_AGENT_IDS,
 ): boolean {
-  return !hiddenAgentIds.has(agent.id) && agent.agentKind !== 'harness' && !isOrdinaryAgent(agent);
+  return (
+    !hiddenAgentIds.has(agent.id)
+    && agent.agentKind !== 'harness'
+    && !isOrdinaryAgent(agent)
+    && !INDUSTRY_AGENT_IDS.has(agent.id)
+  );
 }
 
 /** External subagents are visible in the overview but managed by their source adapter. */

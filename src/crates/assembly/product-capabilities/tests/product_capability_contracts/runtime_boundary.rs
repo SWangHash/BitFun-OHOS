@@ -122,6 +122,16 @@ fn headless_agent_hosts_keep_explore_code_agents_without_product_workflow_agents
 }
 
 #[test]
+fn desktop_agent_hosts_register_harmony_feature_agent() {
+    let plan = product_assembly_plan_for_profile(DeliveryProfile::Desktop);
+
+    assert!(
+        plan.agent_ids().contains(&"HarmonyFeature"),
+        "desktop profile must register HarmonyFeature"
+    );
+}
+
+#[test]
 fn cli_pages_are_independent_of_miniapp_and_acp() {
     let plan = product_assembly_plan_for_profile(DeliveryProfile::Cli);
     assert_eq!(

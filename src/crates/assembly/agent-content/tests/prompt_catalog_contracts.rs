@@ -14,6 +14,10 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/agentic_mode.md"),
     ),
     (
+        "bitfun_agent",
+        include_bytes!("../prompts/agents/bitfun_agent.md"),
+    ),
+    (
         "claw_mode",
         include_bytes!("../prompts/agents/claw_mode.md"),
     ),
@@ -54,6 +58,10 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/generate_doc_agent.md"),
     ),
     (
+        "harmony_feature_agent",
+        include_bytes!("../prompts/agents/harmony_feature_agent.md"),
+    ),
+    (
         "init_agents_md",
         include_bytes!("../prompts/shared/init_agents_md.md"),
     ),
@@ -62,16 +70,16 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/minimal-harness-v1.md"),
     ),
     (
-        "bitfun_agent",
-        include_bytes!("../prompts/agents/bitfun_agent.md"),
-    ),
-    (
         "phase1_system",
         include_bytes!("../prompts/memories/phase1_system.md"),
     ),
     (
         "phase2_system",
         include_bytes!("../prompts/memories/phase2_system.md"),
+    ),
+    (
+        "qt_migration_agent",
+        include_bytes!("../prompts/agents/qt_migration_agent.md"),
     ),
     (
         "research_specialist_agent",

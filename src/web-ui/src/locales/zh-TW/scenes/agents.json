@@ -62,6 +62,23 @@
     "roleLabel": "主要應用 · ",
     "computerUseDisabledBadge": "已在設定中停用"
   },
+  "industryAgentsZone": {
+    "title": "行業智能體",
+    "subtitle": "面向垂直領域的專業智能體，內置領域知識與工作流。",
+    "badge": "行業智能體",
+    "empty": "暫無行業智能體",
+    "workflowLabel": "內置領域工作流",
+    "agents": {
+      "QtMigration": {
+        "name": "QT 遷移專家",
+        "description": "Qt 5.12/5.15 工程鴻蒙化遷移：評估、遷移、編譯、部署、驗證與問題修復閉環。"
+      },
+      "HarmonyFeature": {
+        "name": "鴻蒙特性增強專家",
+        "description": "基於 70+ 鴻蒙創新特性知識庫，匹配特性、Kit 與 2C 分類，並輔助接入平台能力。"
+      }
+    }
+  },
   "agentsZone": {
     "title": "智能體",
     "subtitle": "統一查看內置、用戶、項目和外部智能體，點擊卡片查看與設定能力",
@@ -381,6 +398,7 @@
     "Standard": "透過規劃、工具與子智能體協作完成一般任務。",
     "Ultimate": "拆解複雜任務，協調並行子智能體並審查結果。",
     "Minimal": "使用精簡執行流程與固定的小型工具集。",
-    "Creative": "創造與客製 BitFun 體驗及能力。"
+    "Creative": "創造與客製 BitFun 體驗及能力。",
+    "HarmonyFeature": "基於鴻蒙創新特性知識庫，協助匹配、規劃並實作平台特性增強。"
   }
 }

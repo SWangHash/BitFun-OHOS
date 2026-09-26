@@ -1,12 +1,14 @@
 import React from 'react';
 import { Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@bitfun/ui';
+import { CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@bitfun/ui';
 import { Badge } from '@/component-library';
 import type { AgentWithCapabilities } from '../agentsStore';
 import { AGENT_ICON_MAP } from '../agentsIcons';
 import { getCardGradient } from '@/shared/utils/cardGradients';
-import './AgentCard.scss';
+import { getAgentDescription } from '../utils';
+import AgentCatalogCard from './AgentCatalogCard';
+import './AgentCatalogCard.scss';
 
 /**
  * Industry agent card —renders a real backend-registered agent (e.g.
@@ -27,59 +29,62 @@ const IndustryAgentCard: React.FC<IndustryAgentCardProps> = ({
 }) => {
   const { t } = useTranslation('scenes/agents');
   const iconSource = AGENT_ICON_MAP[(agent.iconKey ?? 'bot') as keyof typeof AGENT_ICON_MAP] ?? { glyph: Bot };
-  const openDetails = () => onOpenDetails?.(agent);
+  const name = t(`industryAgentsZone.agents.${agent.id}.name`, { defaultValue: agent.name });
+  const description = t(
+    `industryAgentsZone.agents.${agent.id}.description`,
+    { defaultValue: getAgentDescription(t, agent) },
+  );
 
   return (
-    <div
+    <AgentCatalogCard
+      agent={{ ...agent, name }}
+      onOpenDetails={(selectedAgent) => onOpenDetails?.(selectedAgent)}
       data-bitfun-component="industry-agent-card"
       data-bitfun-part="root"
-      className="agent-card"
       style={{
         '--surface-stagger-index': index,
         '--agent-card-gradient': getCardGradient(agent.id || agent.name),
       } as React.CSSProperties}
-      onClick={openDetails}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && openDetails()}
-      aria-label={agent.name}
-      data-testid="agent-list-item"
-      data-agent-id={agent.id}
-      data-agent-name={agent.name}
     >
-      <div className="agent-card__header" data-bitfun-component="industry-agent-card" data-bitfun-part="header">
-        <div className="agent-card__icon-area" data-bitfun-component="industry-agent-card" data-bitfun-part="iconArea">
-          <div className="agent-card__icon" data-bitfun-component="industry-agent-card" data-bitfun-part="icon">
-            <Icon {...iconSource} size="lg" />
-          </div>
-        </div>
-        <div className="agent-card__header-info" data-bitfun-component="industry-agent-card" data-bitfun-part="headerInfo">
-          <div className="agent-card__title-row" data-bitfun-component="industry-agent-card" data-bitfun-part="titleRow">
-            <span className="agent-card__name" data-bitfun-component="industry-agent-card" data-bitfun-part="name" data-testid="agent-list-item-title">
-              {t('industryAgentsZone.qtMigration.name')}
-            </span>
-            <div className="agent-card__badges" data-bitfun-component="industry-agent-card" data-bitfun-part="badges">
-              <Badge variant="accent">{t('industryAgentsZone.badge')}</Badge>
+      <CardHeader
+        align="center"
+        className="agent-catalog-card__header"
+        data-bitfun-component="industry-agent-card"
+        data-bitfun-part="header"
+        title={(
+          <div className="agent-catalog-card__title" data-bitfun-component="industry-agent-card" data-bitfun-part="headerInfo">
+            <div className="agent-catalog-card__title-row" data-bitfun-component="industry-agent-card" data-bitfun-part="titleRow">
+              <OverflowText className="agent-catalog-card__name" data-bitfun-component="industry-agent-card" data-bitfun-part="name" data-testid="agent-list-item-title">
+                {name}
+              </OverflowText>
+              <span className="agent-catalog-card__identity">
+                <span className="agent-catalog-card__icon" data-bitfun-component="industry-agent-card" data-bitfun-part="iconArea" aria-hidden="true">
+                  <span data-bitfun-component="industry-agent-card" data-bitfun-part="icon">
+                    <Icon {...iconSource} size="sm" />
+                  </span>
+                </span>
+                <span data-bitfun-component="industry-agent-card" data-bitfun-part="badges">
+                  <Badge variant="accent">{t('industryAgentsZone.badge')}</Badge>
+                </span>
+              </span>
             </div>
           </div>
-        </div>
-      </div>
+        )}
+      />
 
-      <div className="agent-card__body" data-bitfun-component="industry-agent-card" data-bitfun-part="body">
-        <p className="agent-card__desc" data-bitfun-component="industry-agent-card" data-bitfun-part="description" data-testid="agent-list-item-description">
-          {t('industryAgentsZone.qtMigration.description')}
-        </p>
-      </div>
+      <CardBody data-bitfun-component="industry-agent-card" data-bitfun-part="body">
+        <OverflowText as="p" lines={2} className="agent-catalog-card__description" data-bitfun-component="industry-agent-card" data-bitfun-part="description" data-testid="agent-list-item-description">
+          {description}
+        </OverflowText>
+      </CardBody>
 
-      <div className="agent-card__footer" data-bitfun-component="industry-agent-card" data-bitfun-part="footer">
-        <div className="agent-card__meta" data-bitfun-component="industry-agent-card" data-bitfun-part="meta">
-          <span className="agent-card__meta-item">
-            <Icon {...iconSource} size="xs" />
-            {t('industryAgentsZone.workflowLabel')}
-          </span>
-        </div>
-      </div>
-    </div>
+      <CardFooter align="start" className="agent-catalog-card__footer" data-bitfun-component="industry-agent-card" data-bitfun-part="footer">
+        <span className="agent-catalog-card__identity" data-bitfun-component="industry-agent-card" data-bitfun-part="meta">
+          <Icon {...iconSource} size="xs" />
+          {t('industryAgentsZone.workflowLabel')}
+        </span>
+      </CardFooter>
+    </AgentCatalogCard>
   );
 };
 

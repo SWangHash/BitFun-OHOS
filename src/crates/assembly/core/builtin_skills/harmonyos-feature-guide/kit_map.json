@@ -1,0 +1,363 @@
+{
+  "spatial recon kit": [
+    1
+  ],
+  "Spatial Recon Kit": [
+    1
+  ],
+  "camera kit": [
+    2,
+    37
+  ],
+  "share kit": [
+    3
+  ],
+  "Share Kit": [
+    3
+  ],
+  "agentkit": [
+    4
+  ],
+  "AgentKit": [
+    4
+  ],
+  "image kit": [
+    5,
+    40
+  ],
+  "Image kit": [
+    5,
+    40
+  ],
+  "online authentication kit": [
+    6
+  ],
+  "Online Authentication Kit": [
+    6
+  ],
+  "locaiton": [
+    7
+  ],
+  "Locaiton": [
+    7
+  ],
+  "scan kit": [
+    8,
+    35,
+    50
+  ],
+  "Scan Kit": [
+    8,
+    35,
+    50
+  ],
+  "ar engine": [
+    9,
+    27
+  ],
+  "AR Engine": [
+    9,
+    27
+  ],
+  "cann kit": [
+    10
+  ],
+  "CANN Kit": [
+    10
+  ],
+  "multimodal awareness kit": [
+    11,
+    18
+  ],
+  "Multimodal Awareness Kit": [
+    11,
+    18
+  ],
+  "from kit": [
+    12
+  ],
+  "From Kit": [
+    12
+  ],
+  "form kit": [
+    13,
+    42
+  ],
+  "Form Kit": [
+    13,
+    42
+  ],
+  "arkdata": [
+    14
+  ],
+  "ArkData": [
+    14
+  ],
+  "network kit": [
+    15,
+    54
+  ],
+  "Network kit": [
+    15,
+    54
+  ],
+  "device security kit": [
+    16,
+    17,
+    22,
+    23,
+    33
+  ],
+  "Device Security KIT": [
+    16,
+    17,
+    22,
+    23,
+    33
+  ],
+  "sharekit": [
+    19
+  ],
+  "ShareKit": [
+    19
+  ],
+  "basic services kit": [
+    20
+  ],
+  "Basic Services Kit": [
+    20
+  ],
+  "sensor service kit": [
+    21
+  ],
+  "Sensor Service Kit": [
+    21
+  ],
+  "Device Security Kit": [
+    16,
+    17,
+    22,
+    23,
+    33
+  ],
+  "cann  kit": [
+    24
+  ],
+  "CANN  Kit": [
+    24
+  ],
+  "data protection kit": [
+    25
+  ],
+  "Data Protection Kit": [
+    25
+  ],
+  "--": [
+    26
+  ],
+  "avcodec": [
+    28
+  ],
+  "AvCodec": [
+    28
+  ],
+  "core file kit": [
+    29
+  ],
+  "device certificate kit": [
+    30
+  ],
+  "Device Certificate Kit": [
+    30
+  ],
+  "universal keystore kit": [
+    30,
+    31
+  ],
+  "Universal Keystore Kit": [
+    30,
+    31
+  ],
+  "Universal Keystore KIT": [
+    30,
+    31
+  ],
+  "asset store kit": [
+    32
+  ],
+  "Asset Store Kit": [
+    32
+  ],
+  "arkui": [
+    34,
+    47,
+    56,
+    61,
+    68,
+    69
+  ],
+  "ArkUI": [
+    34,
+    47,
+    56,
+    61,
+    68,
+    69
+  ],
+  "audio kit": [
+    36,
+    40
+  ],
+  "Audio Kit": [
+    36,
+    40
+  ],
+  "Camera kit": [
+    2,
+    37
+  ],
+  "function flow runtime": [
+    38
+  ],
+  "Function Flow Runtime": [
+    38
+  ],
+  "avcodec kit": [
+    39
+  ],
+  "AVcodec kit": [
+    39
+  ],
+  "media kit": [
+    40,
+    62
+  ],
+  "Media Kit": [
+    40,
+    62
+  ],
+  "car kit": [
+    41
+  ],
+  "Car Kit": [
+    41
+  ],
+  "app linking kit": [
+    43
+  ],
+  "App Linking Kit": [
+    43
+  ],
+  "account kit": [
+    44,
+    56
+  ],
+  "call kit": [
+    45
+  ],
+  "Call Kit": [
+    45
+  ],
+  "arkgraphics 2d": [
+    46
+  ],
+  "ArkGraphics 2D": [
+    46
+  ],
+  "arkts": [
+    48
+  ],
+  "ArkTS": [
+    48
+  ],
+  "calendar kit": [
+    49
+  ],
+  "Calendar Kit": [
+    49
+  ],
+  "statusbar extension kit": [
+    51
+  ],
+  "StatusBar Extension Kit": [
+    51
+  ],
+  "preview kit": [
+    52
+  ],
+  "PreView Kit": [
+    52
+  ],
+  "pen kit": [
+    53
+  ],
+  "Pen Kit": [
+    53
+  ],
+  "Network Kit": [
+    15,
+    54
+  ],
+  "intents kit": [
+    55
+  ],
+  "Intents Kit": [
+    55
+  ],
+  "Account Kit": [
+    44,
+    56
+  ],
+  "vision kit": [
+    57,
+    58
+  ],
+  "Vision kit": [
+    57,
+    58
+  ],
+  "speech kit": [
+    59,
+    60
+  ],
+  "Speech Kit": [
+    59,
+    60
+  ],
+  "Media kit": [
+    40,
+    62
+  ],
+  "medialibrary kit": [
+    63,
+    64
+  ],
+  "MediaLibrary Kit": [
+    63,
+    64
+  ],
+  "servicecollaboration kit": [
+    65
+  ],
+  "ServiceCollaboration Kit": [
+    65
+  ],
+  "ability kit": [
+    66
+  ],
+  "Ability Kit": [
+    66
+  ],
+  "avsession kit": [
+    67
+  ],
+  "AVSession kit": [
+    67
+  ],
+  "liveview kit": [
+    70
+  ],
+  "LiveView Kit": [
+    70
+  ]
+}

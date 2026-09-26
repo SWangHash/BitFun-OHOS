@@ -962,6 +962,7 @@
       "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT Migration Expert",
+      "HarmonyFeature": "HarmonyOS Feature Enhancement Expert",
       "Standard": "$t(shared:agents.Standard)",
       "Ultimate": "$t(shared:agents.Ultimate)",
       "Minimal": "$t(shared:agents.Minimal)",

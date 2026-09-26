@@ -956,6 +956,7 @@
       "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT 迁移专家",
+      "HarmonyFeature": "鸿蒙特性增强专家",
       "Standard": "$t(shared:agents.Standard)",
       "Ultimate": "$t(shared:agents.Ultimate)",
       "Minimal": "$t(shared:agents.Minimal)",
