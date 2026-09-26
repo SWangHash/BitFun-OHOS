@@ -537,6 +537,9 @@
       "parentSession": "父会话",
       "childSourceWithoutTurn": "来自 {{parentTitle}}",
       "childSourceWithTurn": "来自 {{parentTitle}} · 第 {{turnIndex}} 轮",
+      "worktreeTooltip": "正在隔离的 worktree 中执行：{{path}}",
+      "openWorktreeWorkspace": "打开 worktree 工作区",
+      "openWorktreeWorkspaceFailed": "无法将 worktree 目录作为工作区打开。",
       "reviewRunning": "审核中",
       "deepReviewRunning": "审核中",
       "unreadCompleted": "已完成 — 未读",
@@ -613,6 +616,7 @@
       "title": "定时任务",
       "open": "定时任务",
       "shortLabel": "定时任务",
+      "badgeTooltip": "{{count}} 个定时任务",
       "listTitle": "任务列表",
       "assistantFallback": "当前助理",
       "loading": "正在加载定时任务...",
@@ -661,8 +665,7 @@
         }
       },
       "targets": {
-        "session": "会话",
-        "newSession": "新会话"
+        "session": "会话"
       },
       "status": {
         "idle": "待命",
@@ -691,6 +694,11 @@
         "title": "删除任务“{{name}}”？"
       },
       "messages": {
+        "reviewAvailable": "审查可用，打开查看",
+        "reviewFailedInspect": "审查失败，打开查看详情",
+        "reviewResultUnloaded": "审查已完成，打开加载结果",
+        "reviewResultUnavailable": "审查已完成，但结果不可用，打开查看详情",
+        "reviewError": "审查出错",
         "loadFailed": "加载定时任务失败：{{error}}",
         "saveFailed": "保存定时任务失败：{{error}}",
         "updateFailed": "更新定时任务失败：{{error}}",
@@ -915,6 +923,7 @@
     "footerDistributedExecution": "{{count}} 台设备正在执行",
     "current": "当前",
     "currentUse": "当前使用",
+    "currentLocalDevice": "当前本地设备",
     "controlling": "正在控制",
     "executingTasks": "{{count}} 个任务",
     "connectedDevices": "协同设备",
@@ -2030,6 +2039,56 @@
       "minutesAgo": "{{count}} 分钟前",
       "hoursAgo": "{{count}} 小时前",
       "daysAgo": "{{count}} 天前"
+    },
+    "errors": {
+      "gitUnavailable": "Git 不可用。请在运行此工作区的环境中安装 Git 并将其加入 PATH，然后重试。",
+      "loadFailed": "加载拉取请求失败",
+      "invalidRepository": "无法读取此 Git 仓库，请检查工作区路径和访问权限。",
+      "repositoryUntrusted": "Git 尚未信任此仓库，请确认仓库所有权后重试。",
+      "remoteNotFound": "所选远程仓库已不存在，请刷新并重新选择。",
+      "unsupportedPlatform": "不支持此仓库提供方。",
+      "providerFailed": "仓库提供方无法完成请求，请重试或检查提供方服务。",
+      "authenticationRequired": "需要认证，请登录或更新令牌后重试。",
+      "permissionDenied": "访问被拒绝，请检查账号和令牌权限。",
+      "notFound": "未找到请求的仓库或条目，或当前账号无权访问。",
+      "networkFailed": "无法连接仓库提供方，请检查网络后重试。",
+      "invalidResponse": "仓库提供方返回了无法解析的响应。",
+      "staleTarget": "拉取请求已变化，请刷新后继续审查。",
+      "evidenceTooLarge": "提供方证据超出支持的大小，请缩小审查范围后重试。",
+      "targetIsPullRequest": "此条目是拉取请求，请按拉取请求打开，而不是按问题打开。"
+    },
+    "messages": {
+      "noWorkspace": "没有可用的活动工作区。",
+      "unsupportedLink": "此链接不是受支持的拉取请求链接。",
+      "detailsFailed": "加载拉取请求详情失败。",
+      "ciLogFailed": "加载 CI 错误日志失败。",
+      "chatRequired": "请先打开或创建会话，再发送拉取请求上下文。",
+      "reviewChatRequired": "请先打开或创建会话，再审查此拉取请求。",
+      "reviewUncertain": "审查已发起，但尚未确认启动结果。",
+      "reviewFailed": "启动拉取请求审查失败。",
+      "tokenRequired": "请输入令牌。",
+      "saveTokenFailed": "保存令牌失败。",
+      "clearTokenFailed": "清除令牌失败。",
+      "openAuthFailed": "打开 GitHub CLI 认证失败。",
+      "copyAuthFailed": "复制 GitHub CLI 登录命令失败。",
+      "unresolvedPullRequest": "无法从当前工作区的远程仓库中找到此拉取请求。",
+      "ghAuthRequired": "需要 GitHub CLI 认证",
+      "tokenRequiredTitle": "需要令牌",
+      "tokenScopeTitle": "需要令牌权限",
+      "tokenUpdateTitle": "需要更新令牌",
+      "headUnavailable": "无法获取 GitHub 拉取请求的源提交 SHA。",
+      "noActionsJob": "未找到与此检查匹配的 GitHub Actions 任务。",
+      "noActionsJobId": "匹配的 GitHub Actions 任务未提供任务 ID。",
+      "authError": "认证错误",
+      "reviewFailedInspect": "审查失败 · 打开以查看详情",
+      "reviewResultUnavailable": "审查已完成 · 结果不可用 · 打开以查看详情",
+      "reviewError": "审查错误"
+    },
+    "auth": {
+      "github": "请在工作区运行环境中完成 GitHub 认证后重试：{{command}}",
+      "missing": "请为 {{host}} 添加访问令牌以访问此仓库。",
+      "invalid": "{{host}} 的访问令牌被拒绝，请更新后重试。",
+      "insufficientScope": "{{host}} 的访问令牌权限不足，请更新后重试。"
     }
   },
   "dispatch": {
@@ -2109,5 +2168,19 @@
     "nextMonth": "下个月",
     "now": "此刻",
     "close": "关闭"
+  },
+  "computerControl": {
+    "title": "应用控制",
+    "observe": "正在观察",
+    "background": "正在后台控制",
+    "foreground": "正在使用桌面输入控制",
+    "stopped": "控制已停止",
+    "unavailable": "暂时无法获取控制状态，仍可尝试停止。",
+    "previewAlt": "带有 Agent 指针的应用窗口画面",
+    "previewUnavailable": "暂时无法显示窗口预览。",
+    "showPreview": "显示预览",
+    "hidePreview": "收起预览",
+    "stop": "停止控制",
+    "stopping": "正在停止…"
   }
 }

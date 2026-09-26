@@ -51,6 +51,7 @@ impl CoworkMode {
                 "WebSearch".to_string(),
                 "WebFetch".to_string(),
                 "ControlHub".to_string(),
+                "ComputerUse".to_string(),
                 // Recurring office work ("check these channels every 30
                 // minutes") is squarely this mode's job, and ControlHub's
                 // `wait` sends schedules here rather than pinning a turn open
@@ -86,6 +87,10 @@ impl Agent for CoworkMode {
 
     fn default_tools(&self) -> Vec<String> {
         self.default_tools.clone()
+    }
+
+    fn tool_exposure_overrides(&self) -> &crate::agentic::agents::AgentToolPolicyOverrides {
+        crate::agentic::agents::direct_computer_use_policy()
     }
 
     fn user_context_policy(&self) -> UserContextPolicy {

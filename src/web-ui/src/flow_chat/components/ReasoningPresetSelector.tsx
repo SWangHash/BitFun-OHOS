@@ -5,7 +5,7 @@ import {
   CircleOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem } from '@bitfun/ui';
+import { subscribeOverlayInteraction, OverflowText, Menu, MenuItem } from '@bitfun/ui';
 import { Tooltip } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -118,8 +118,8 @@ export const ReasoningPresetSelector: React.FC<ReasoningPresetSelectorProps> = (
         setKeyboardOpen(false);
       }
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
+    return () => removeOverlayMousedown0?.();
   }, [open]);
 
   useEffect(() => {

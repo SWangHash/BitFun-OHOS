@@ -2,6 +2,6 @@
   :where([data-bitfun-design-system-root]) {
     --bitfun-font-family-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
     --bitfun-font-family-control: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-    --bitfun-font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, monospace;
+    --bitfun-font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "PingFang SC", "Hiragino Sans GB", monospace;
   }
 }

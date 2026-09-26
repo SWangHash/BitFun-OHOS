@@ -250,7 +250,10 @@ test("text, action, and field focus pairs meet their contrast requirements", () 
 test("Button states have a mode-complete palette independent from shared actions", () => {
   const light = themes.light;
   assert.equal(light["component.button.outlineBorder"], "rgba(0, 0, 0, 0.08)");
-  assert.equal(light["component.button.outlineBorderInteractive"], "transparent");
+  assert.equal(
+    light["component.button.outlineBorderInteractive"],
+    light["component.button.outlineBorder"],
+  );
   for (const suffix of ["", "Hover", "Pressed"]) {
     assert.equal(light[`component.button.fillBackground${suffix}`], "rgba(0, 0, 0, 0.08)");
   }

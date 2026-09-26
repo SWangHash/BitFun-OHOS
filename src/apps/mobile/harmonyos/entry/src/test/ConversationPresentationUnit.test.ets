@@ -25,7 +25,7 @@ import {
 import { AssistantProcessLayoutPolicy } from '../main/ets/pages/policy/AssistantProcessLayoutPolicy';
 import { ConversationMessageRenderPolicy } from '../main/ets/pages/policy/ConversationMessageRenderPolicy';
 import { ToolCollapsePolicy } from '../main/ets/pages/policy/ToolCollapsePolicy';
-import { ChatMessageStructurePolicy } from '../main/ets/pages/policy/ChatMessageStructurePolicy';
+import { ChatMessageStructurePolicy, StructuredRenderGroup } from '../main/ets/pages/policy/ChatMessageStructurePolicy';
 import { ToolStatusPresentationPolicy } from '../main/ets/pages/policy/ToolStatusPresentationPolicy';
 import { PlanToolPolicy } from '../main/ets/pages/policy/PlanToolPolicy';
 import {
@@ -322,6 +322,119 @@ export default function conversationPresentationUnitTest() {
       ]);
       expect(parentOutput.length).assertEqual(2);
       expect(parentOutput[0].subItems?.length || 0).assertEqual(0);
+    });
+
+    it('folds a Task restatement once instead of drawing its children twice', 0, () => {
+      const task = toolStatus('task-1', 'Task', 'running');
+      const childThinking: ConversationUiMessageItem = {
+        type: 'thinking',
+        content: 'Inspect child files',
+        is_subagent: true
+      };
+      const childRead: ConversationUiMessageItem = {
+        type: 'tool',
+        tool: toolStatus('read-child', 'Read', 'running'),
+        is_subagent: true
+      };
+      const parentTask: ConversationUiMessageItem = { type: 'tool', tool: task };
+      parentTask.subItems = [childThinking, childRead];
+
+      const scoped = ChatMessageStructurePolicy.scopeSubagentItems([parentTask, childThinking, childRead]);
+      expect(scoped.length).assertEqual(1);
+      expect(scoped[0].subItems?.length || 0).assertEqual(2);
+    });
+
+    it('keeps a child that repeats inside the Task', 0, () => {
+      const task = toolStatus('task-2', 'Task', 'running');
+      const childRead: ConversationUiMessageItem = {
+        type: 'tool',
+        tool: toolStatus('read-child-2', 'Read', 'completed'),
+        is_subagent: true
+      };
+      const parentTask: ConversationUiMessageItem = { type: 'tool', tool: task };
+      parentTask.subItems = [childRead, childRead];
+
+      const scoped = ChatMessageStructurePolicy.scopeSubagentItems([parentTask, childRead, childRead]);
+      expect(scoped[0].subItems?.length || 0).assertEqual(2);
+    });
+
+    it('matches only original nested occurrences and preserves repeated flat text', 0, () => {
+      [true, false].forEach((marked: boolean) => {
+        [0, 1, 2].forEach((nestedCount: number) => {
+          const child: ConversationUiMessageItem = { type: 'text', content: 'Checking again', is_subagent: marked };
+          const nested: ConversationUiMessageItem[] = [];
+          for (let index = 0; index < nestedCount; index++) nested.push(child);
+          const task: ConversationUiMessageItem = {
+            type: 'tool', tool: toolStatus('task', 'Task', 'running'), subItems: nested
+          };
+          const scoped = ChatMessageStructurePolicy.scopeSubagentItems([task, child, child, child, child, child]);
+          expect(scoped[0].subItems?.length).assertEqual(5);
+          expect(task.subItems?.length).assertEqual(nestedCount);
+        });
+      });
+    });
+
+    it('updates a nested tool from its flat restatement without mutating the source', 0, () => {
+      [true, false].forEach((marked: boolean) => {
+        const nested: ConversationUiMessageItem = {
+          type: 'tool', content: 'old', tool: toolStatus('read', 'Read', 'running'),
+          subItems: [{ type: 'text', content: 'nested detail' }]
+        };
+        const task: ConversationUiMessageItem = {
+          type: 'tool', tool: toolStatus('task', 'Task', 'running'), subItems: [nested]
+        };
+        const completed = toolStatus('read', 'Read', 'completed');
+        completed.result_preview = 'new output';
+        completed.name = undefined;
+        if (nested.tool) nested.tool.input_preview = 'original input';
+        const flat: ConversationUiMessageItem = { type: 'tool', content: 'new', tool: completed, is_subagent: marked };
+        const children = ChatMessageStructurePolicy.scopeSubagentItems([task, flat])[0].subItems || [];
+        expect(children.length).assertEqual(1);
+        expect(children[0].tool?.status).assertEqual('completed');
+        expect(children[0].tool?.result_preview).assertEqual('new output');
+        expect(children[0].content).assertEqual('new');
+        expect(children[0].tool?.name).assertEqual('Read');
+        expect(children[0].tool?.input_preview).assertEqual('original input');
+        expect(children[0].subItems?.length).assertEqual(1);
+        expect(nested.tool?.status).assertEqual('running');
+      });
+    });
+
+    it('keeps a reasoning block path when an earlier item arrives in front of it', 0, () => {
+      const onlyThinking = ChatMessageStructurePolicy.structuredGroups([
+        { type: 'thinking', content: 'Inspect' }
+      ], 'item', true, 'active');
+      const withSteeringFirst = ChatMessageStructurePolicy.structuredGroups([
+        { type: 'user-steering', steering_id: 'steering-1', content: 'Use plan B' },
+        { type: 'thinking', content: 'Inspect' }
+      ], 'item', true, 'active');
+      expect(onlyThinking.length).assertEqual(1);
+      expect(onlyThinking[0].type).assertEqual('item');
+      const thinkingGroup = withSteeringFirst.filter((group: StructuredRenderGroup) =>
+        group.items.length > 0 && ChatMessageStructurePolicy.isThinkingEntry(group.items[0]))[0];
+      expect(thinkingGroup.path).assertEqual(onlyThinking[0].path);
+      expect(thinkingGroup.key).assertEqual(onlyThinking[0].key);
+    });
+
+    it('keeps a Task path and its children when an earlier tool arrives late', 0, () => {
+      const task = toolStatus('task-3', 'Task', 'running');
+      const childThinking: ConversationUiMessageItem = {
+        type: 'thinking',
+        content: 'Child reasoning',
+        is_subagent: true
+      };
+      const parentTask: ConversationUiMessageItem = { type: 'tool', tool: task };
+      parentTask.subItems = [childThinking];
+
+      const taskOnly = ChatMessageStructurePolicy.structuredGroups([parentTask], 'item', true, 'active');
+      const withEarlierTool = ChatMessageStructurePolicy.structuredGroups([
+        { type: 'tool', tool: toolStatus('read-late', 'Read', 'completed') },
+        parentTask
+      ], 'item', true, 'active');
+      const taskGroup = withEarlierTool.filter((group: StructuredRenderGroup) =>
+        group.type === 'item' && (group.items[0].tool?.name || '') === 'Task')[0];
+      expect(taskOnly[0].path).assertEqual(taskGroup.path);
+      expect((taskGroup.items[0].subItems || []).length).assertEqual(1);
     });
 
     it('keeps one plain assistant text item on the lightweight markdown path', 0, () => {

@@ -1,5 +1,6 @@
 import type { Session } from '../types/flow-chat';
 import { isProjectedSessionEmpty } from './flowChatTurnIdentity';
+import { isWorktreeIsolatedSession } from './sessionOrdering';
 import { sessionProjectWorkspaceId, sessionProjectWorkspacePath } from './sessionWorkspace';
 
 type SessionWorktreeFacts = Pick<
@@ -38,6 +39,25 @@ export function isSessionWorktreeIsolationEnabled(
 ): boolean {
   return session.config.worktreeIsolationRequested
     ?? isSessionWorktreeMaterialized(session);
+}
+
+type SessionWorktreeRootFacts = Pick<
+  SessionWorktreeFacts,
+  'workspaceId' | 'projectWorkspaceId' | 'config' | 'workspacePath'
+>;
+
+/**
+ * Directory in which a worktree-isolated session actually runs, or `undefined`
+ * when the session runs in its project root.
+ *
+ * Every surface that starts work for the session (navigation badge, tooltip,
+ * terminal cwd) reads this one fact, so none of them can disagree about where
+ * the worktree is.
+ */
+export function sessionWorktreeRootPath(session: SessionWorktreeRootFacts): string | undefined {
+  if (!isWorktreeIsolatedSession(session)) return undefined;
+  const rootPath = (session.config.executionTarget?.rootPath ?? session.workspacePath ?? '').trim();
+  return rootPath || undefined;
 }
 
 export interface SessionWorktreeMaterializationPlan {

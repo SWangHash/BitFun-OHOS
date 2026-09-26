@@ -4,6 +4,7 @@ import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';
 import { SSHRemoteProvider } from '../features/ssh-remote';
 import { ContextMenuRenderer } from '../shared/context-menu-system/components/ContextMenuRenderer';
 import { NotificationContainer, notificationService } from '../shared/notification-system';
+import { ComputerUseControlCard } from './components/ComputerUseControlCard';
 import { UpdateNotificationCard } from '@/infrastructure/update/UpdateNotificationCard';
 import { NotificationCenter } from '../shared/notification-system/components/NotificationCenter';
 import { AnnouncementProvider } from '../shared/announcement-system';
@@ -967,7 +968,7 @@ function App() {
               <ContextMenuRenderer />
 
               {/* Notification system */}
-              <NotificationContainer><UpdateNotificationCard /></NotificationContainer>
+              <NotificationContainer><ComputerUseControlCard /><UpdateNotificationCard /></NotificationContainer>
               <NotificationCenter />
 
               {/* Confirm dialog */}

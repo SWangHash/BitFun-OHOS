@@ -17,8 +17,12 @@ pub mod computer_use_actions;
 #[cfg(feature = "tools-computer-use")]
 pub mod computer_use_locate;
 #[cfg(feature = "tools-computer-use")]
+pub(crate) mod computer_use_presentation;
+#[cfg(feature = "tools-computer-use")]
+mod computer_use_program;
+#[cfg(feature = "tools-computer-use")]
 pub mod computer_use_tool;
-#[cfg(feature = "tools-browser-web")]
+#[cfg(any(feature = "tools-browser-web", feature = "tools-computer-use"))]
 pub mod control_hub;
 #[cfg(feature = "tools-browser-web")]
 pub mod control_hub_tool;

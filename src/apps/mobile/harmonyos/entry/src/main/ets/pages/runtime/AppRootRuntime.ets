@@ -41,7 +41,7 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     super(host);
   }
 
-  async aboutToAppear(): Promise<void> {
+  async aboutToAppear(onAccountRestored?: (signedIn: boolean) => void): Promise<void> {
     await this.localeController.initialize(this.host.context());
     if (this.host.offerTaskNotifications) {
       await this.taskCompletionNotificationPort.offerOnboarding(
@@ -53,6 +53,7 @@ export class AppRootRuntime extends AppRootRuntimeComposition {
     await this.remoteSessionListCache.init(this.host.context());
     await this.restoreCachedRemoteSessions();
     await this.settingsController.initializeCloudAccount(this.host.context());
+    if (onAccountRestored) onAccountRestored(this.settingsController.hasCloudAccountSession());
     if (this.settingsController.hasCloudAccountSession()) {
       try {
         await this.settingsController.listCloudAccountDevices();

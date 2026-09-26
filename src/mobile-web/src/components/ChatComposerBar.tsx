@@ -21,6 +21,7 @@ interface ChatComposerBarProps {
   input: string;
   inputRef: React.Ref<HTMLTextAreaElement>;
   modelControls: React.ReactNode;
+  queueContent?: React.ReactNode;
   onActivate: () => void;
   onAttach: () => void;
   onCancel: () => void;
@@ -44,6 +45,7 @@ export default function ChatComposerBar({
   input,
   inputRef,
   modelControls,
+  queueContent,
   onActivate,
   onAttach,
   onCancel,
@@ -62,6 +64,7 @@ export default function ChatComposerBar({
 
   return (
     <div className={`chat-page__input-wrap ${expanded ? 'is-expanded' : ''}`} ref={containerRef}>
+      {queueContent}
       <MobileComposer
         aria-label={t('chat.collapsedInputPlaceholder')}
         className="chat-page__composer"
@@ -78,19 +81,8 @@ export default function ChatComposerBar({
                 )}
                 size="sm"
               />
-            ) : streaming ? (
-              <MobileIconButton
-                appearance="plain"
-                aria-label={t('common.stop')}
-                className={`chat-page__send-btn is-stop${cancelling ? ' is-cancelling' : ''}`}
-                disabled={cancelling}
-                icon={cancelling
-                  ? <span className="chat-page__stop-spinner" aria-hidden="true" />
-                  : <span className="chat-page__stop-glyph" aria-hidden="true" />}
-                onClick={onCancel}
-                size="sm"
-              />
-            ) : expanded ? (
+            ) : null}
+            {!imageAnalyzing && (expanded || input.trim() || pendingImages.length > 0) ? (
               <MobileIconButton
                 appearance="plain"
                 aria-label={t('common.submit')}
@@ -103,6 +95,19 @@ export default function ChatComposerBar({
                 size="sm"
               />
             ) : null}
+            {streaming && (
+              <MobileIconButton
+                appearance="plain"
+                aria-label={t('common.stop')}
+                className={`chat-page__send-btn is-stop${cancelling ? ' is-cancelling' : ''}`}
+                disabled={cancelling}
+                icon={cancelling
+                  ? <span className="chat-page__stop-spinner" aria-hidden="true" />
+                  : <span className="chat-page__stop-glyph" aria-hidden="true" />}
+                onClick={onCancel}
+                size="sm"
+              />
+            )}
           </>
         )}
         expanded={expanded}

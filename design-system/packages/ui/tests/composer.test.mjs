@@ -75,7 +75,8 @@ test("Composer styling uses only shared public token layers", async () => {
   assert.match(styles, /--bitfun-control-composer-context-offset/);
   assert.match(styles, /--bitfun-control-composer-min-block-size/);
   assert.match(styles, /--bitfun-color-surface-raised/);
-  assert.match(styles, /--bitfun-color-field-border-focus/);
+  assert.match(styles, /--bitfun-color-field-border-active/);
   assert.match(styles, /--bitfun-shadow-composer/);
+  assert.doesNotMatch(styles, /\.surface:focus-within\s*\{[^}]*--bitfun-color-focus-ring/s);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });

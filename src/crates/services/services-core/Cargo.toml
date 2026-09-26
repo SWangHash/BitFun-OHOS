@@ -256,6 +256,11 @@ path = "tests/session_write_lock_contracts.rs"
 required-features = ["local-storage"]
 
 [[test]]
+name = "exclusive_file_lease_contracts"
+path = "tests/exclusive_file_lease_contracts.rs"
+required-features = ["local-storage"]
+
+[[test]]
 name = "process_runtime_contracts"
 path = "tests/process_runtime_contracts.rs"
 required-features = ["process-runtime"]

@@ -465,7 +465,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
     if (!menuOpen) return;
     const handleOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -476,7 +475,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         setMenuOpen(false);
       }
     };
-    removeOverlayMousedown0 = subscribeOverlayInteraction(menuPopoverRef, 'mousedown', handleOutside);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(menuPopoverRef, 'mousedown', handleOutside);
     return () => removeOverlayMousedown0?.();
   }, [menuOpen]);
 
@@ -776,7 +775,8 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     const surfaceId = getActiveSurfaceId();
     window.dispatchEvent(new CustomEvent('terminal-create-requested', {
       detail: {
-        workingDirectory: workspace.rootPath,
+        // No explicit cwd: the resolver picks the active session's execution
+        // root (a worktree session's worktree) and falls back to this root.
         surfaceId,
         resourceScope: {
           surfaceId,
@@ -909,6 +909,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               <Menu
                 ref={menuPopoverRef}
                 className="bitfun-nav-panel__workspace-item-menu-popover"
+                inlineSize="content"
                 style={{
                   top: menuPosition?.top ?? 0,
                   left: menuPosition?.left ?? 0,
@@ -918,17 +919,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-workspace-id={workspace.id}
               >
                 <MenuItem
-                  leading={<Icon name="plus" size="xs" />}
+                  leading={<Icon name="plus" size="sm" />}
                   onClick={() => { void handleCreateSession(); }}
                   data-testid="nav-workspace-menu-create-session"
                 >
                   {t('nav.workspaces.actions.newSession')}
                 </MenuItem>
-                <MenuItem leading={<Icon name="clock" size="xs" />} onClick={handleOpenScheduledJobs}>
+                <MenuItem leading={<Icon name="clock" size="sm" />} onClick={handleOpenScheduledJobs}>
                   {t('nav.scheduledJobs.open')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={ShieldCheck} />}
+                  leading={<Icon glyph={ShieldCheck} size="sm" />}
                   onClick={handleOpenProjectPermissions}
                   data-testid="nav-workspace-menu-project-permissions"
                 >
@@ -936,7 +937,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 </MenuItem>
                 {portForwardConnectionId ? (
                   <MenuItem
-                    leading={<Icon glyph={Network} />}
+                    leading={<Icon glyph={Network} size="sm" />}
                     onClick={handleOpenPortForward}
                     data-testid="nav-workspace-menu-port-forward"
                   >
@@ -945,7 +946,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 ) : null}
                 <MenuSeparator />
                 <MenuItem
-                  leading={<Icon name="duplicate" size="xs" />}
+                  leading={<Icon name="duplicate" size="sm" />}
                   onClick={() => { void handleCopyWorkspacePath(); }}
                   disabled={!workspace.rootPath}
                   data-testid="nav-workspace-menu-copy-path"
@@ -953,7 +954,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   {t('nav.workspaces.actions.copyPath')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={FolderSearch} />}
+                  leading={<Icon glyph={FolderSearch} size="sm" />}
                   onClick={() => { void handleReveal(); }}
                   disabled={isRemoteWorkspace(workspace)}
                   data-testid="nav-workspace-menu-reveal"
@@ -962,7 +963,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem
-                  leading={<Icon glyph={ListChecks} />}
+                  leading={<Icon glyph={ListChecks} size="sm" />}
                   onClick={handleOpenSessionBatchModal}
                   data-testid="nav-workspace-menu-manage-sessions"
                 >
@@ -972,7 +973,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   <>
                     {isDefaultAssistantWorkspace ? (
                       <MenuItem
-                        leading={<Icon glyph={RotateCcw} />}
+                        leading={<Icon glyph={RotateCcw} size="sm" />}
                         tone="danger"
                         onClick={handleRequestResetWorkspace}
                         disabled={isResettingWorkspace}
@@ -983,7 +984,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                     ) : null}
                     {isDeletableAssistantWorkspace ? (
                       <MenuItem
-                        leading={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                        leading={<Icon name="delete" size="sm" />}
                         tone="danger"
                         onClick={handleRequestDeleteAssistant}
                         disabled={isDeletingAssistant}
@@ -1393,6 +1394,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
               <Menu
                 ref={menuPopoverRef}
                 className="bitfun-nav-panel__workspace-item-menu-popover"
+                inlineSize="content"
                 style={{
                   top: menuPosition?.top ?? 0,
                   left: menuPosition?.left ?? 0,
@@ -1402,7 +1404,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-workspace-id={workspace.id}
               >
                 <MenuItem
-                  leading={<Icon name="plus" size="xs" />}
+                  leading={<Icon name="plus" size="sm" />}
                   onClick={handleCreateProjectSession}
                   data-testid="nav-workspace-menu-create-session"
                 >
@@ -1415,7 +1417,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   onSelect={client => { void handleCreateAcpSession(client); }}
                 />
                 <MenuItem
-                  leading={<Icon name="terminal" size="xs" />}
+                  leading={<Icon name="terminal" size="sm" />}
                   onClick={handleCreateTerminal}
                   disabled={!workspace.rootPath}
                   data-testid="nav-workspace-menu-create-terminal"
@@ -1423,14 +1425,14 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   {t('nav.shell.actions.newTerminal')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={FileText} />}
+                  leading={<Icon glyph={FileText} size="sm" />}
                   onClick={() => { void handleCreateInitSession(); }}
                   data-testid="nav-workspace-menu-create-init-session"
                 >
                   {t('nav.workspaces.actions.initAgents')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon name="link" size="xs" />}
+                  leading={<Icon name="link" size="sm" />}
                   onClick={() => {
                     setMenuOpen(false);
                     setRelatedPathsDialogOpen(true);
@@ -1440,18 +1442,18 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   {t('nav.workspaces.actions.manageRelatedPaths')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={ShieldCheck} />}
+                  leading={<Icon glyph={ShieldCheck} size="sm" />}
                   onClick={handleOpenProjectPermissions}
                   data-testid="nav-workspace-menu-project-permissions"
                 >
                   {t('nav.workspaces.actions.manageProjectPermissions')}
                 </MenuItem>
-                <MenuItem leading={<Icon name="clock" size="xs" />} onClick={handleOpenScheduledJobs}>
+                <MenuItem leading={<Icon name="clock" size="sm" />} onClick={handleOpenScheduledJobs}>
                   {t('nav.scheduledJobs.open')}
                 </MenuItem>
                 {portForwardConnectionId ? (
                   <MenuItem
-                    leading={<Icon glyph={Network} />}
+                    leading={<Icon glyph={Network} size="sm" />}
                     onClick={handleOpenPortForward}
                     data-testid="nav-workspace-menu-port-forward"
                   >
@@ -1460,14 +1462,14 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 ) : null}
                 <MenuSeparator />
                 <MenuItem
-                  leading={<Icon name="edit" size="xs" />}
+                  leading={<Icon name="edit" size="sm" />}
                   onClick={handleRequestRename}
                   data-testid="nav-workspace-menu-rename"
                 >
                   {t('nav.workspaces.actions.rename')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon name="duplicate" size="xs" />}
+                  leading={<Icon name="duplicate" size="sm" />}
                   onClick={() => { void handleCopyWorkspacePath(); }}
                   disabled={!workspace.rootPath}
                   data-testid="nav-workspace-menu-copy-path"
@@ -1475,7 +1477,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                   {t('nav.workspaces.actions.copyPath')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={FolderSearch} />}
+                  leading={<Icon glyph={FolderSearch} size="sm" />}
                   onClick={() => { void handleReveal(); }}
                   disabled={isRemoteWorkspace(workspace)}
                   data-testid="nav-workspace-menu-reveal"
@@ -1484,14 +1486,14 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem
-                  leading={<Icon glyph={ListChecks} />}
+                  leading={<Icon glyph={ListChecks} size="sm" />}
                   onClick={handleOpenSessionBatchModal}
                   data-testid="nav-workspace-menu-manage-sessions"
                 >
                   {t('nav.sessions.manage')}
                 </MenuItem>
                 <MenuItem
-                  leading={<Icon glyph={FolderOpen} />}
+                  leading={<Icon glyph={FolderOpen} size="sm" />}
                   tone="danger"
                   onClick={() => { void handleCloseWorkspace(); }}
                   data-testid="nav-workspace-menu-close"

@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -105,7 +104,7 @@ internal fun SidebarSessionList(
                     ),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = openBitFunColors.sidebar.muted,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 )
             }
@@ -158,7 +157,7 @@ private fun SectionLabel(text: String, modifier: Modifier) {
         text,
         fontSize = 14.sp,
         fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = openBitFunColors.sidebar.muted,
         modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 6.dp),
     )
 }
@@ -186,7 +185,7 @@ private fun SessionRow(
             .fillMaxWidth()
             .height(44.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else bitFunColors.transparent)
+            .background(if (selected) openBitFunColors.sidebar.selection else openBitFunColors.transparent)
             .onGloballyPositioned { coordinates ->
                 anchorBounds = coordinates.boundsInWindow().toIntRect()
             }
@@ -204,14 +203,14 @@ private fun SessionRow(
             Icon(
                 painterResource(R.drawable.ic_symbol_checkmark_circle),
                 contentDescription = stringResource(R.string.sidebar_pinned),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = openBitFunColors.sidebar.muted,
                 modifier = Modifier.size(18.dp),
             )
         }
         Text(
             title,
             fontSize = 15.sp,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = openBitFunColors.sidebar.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -228,7 +227,7 @@ private fun SessionRow(
             Icon(
                 painterResource(R.drawable.ic_symbol_ellipsis),
                 contentDescription = stringResource(R.string.session_actions),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = openBitFunColors.sidebar.muted,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -252,7 +251,7 @@ private fun ArchivedDisclosureRow(count: Int, expanded: Boolean, onToggle: () ->
             .padding(top = 8.dp)
             .height(46.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (expanded) MaterialTheme.colorScheme.surfaceVariant else bitFunColors.transparent)
+            .background(if (expanded) openBitFunColors.sidebar.selection else openBitFunColors.transparent)
             .clickable(role = Role.Button, onClick = onToggle)
             .semantics(mergeDescendants = true) {
                 contentDescription = archivedLabel
@@ -265,14 +264,14 @@ private fun ArchivedDisclosureRow(count: Int, expanded: Boolean, onToggle: () ->
         Icon(
             painterResource(R.drawable.ic_symbol_archivebox),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = openBitFunColors.sidebar.muted,
             modifier = Modifier.size(20.dp),
         )
         Text(
             archivedLabel,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = openBitFunColors.sidebar.ink,
             modifier = Modifier.weight(1f),
         )
         Box(
@@ -280,14 +279,14 @@ private fun ArchivedDisclosureRow(count: Int, expanded: Boolean, onToggle: () ->
                 .width(24.dp)
                 .height(22.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .background(openBitFunColors.sidebar.selection),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 count.toString(),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = openBitFunColors.sidebar.muted,
             )
         }
         Icon(
@@ -299,7 +298,7 @@ private fun ArchivedDisclosureRow(count: Int, expanded: Boolean, onToggle: () ->
                 },
             ),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = openBitFunColors.sidebar.muted,
             modifier = Modifier.size(16.dp),
         )
     }

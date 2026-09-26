@@ -348,3 +348,46 @@ test('ID-less references keep the legacy triple and IDs are refused by hosts wit
   assert.deepEqual(calls.slice(switched).map(cmd => cmd.cmd), ['get_workspace_info', 'list_sessions']);
   assert.deepEqual(Object.keys(calls.at(-1)).filter(key => key !== '_request_id' && key !== 'cmd').sort(), ['limit', 'offset', 'query', 'workspace_id']);
 });
+
+test('rollback refuses legacy hosts without sending an unknown mutation', async () => {
+  const calls = [];
+  const manager = new RemoteSessionManager(catalogClient(async (_device, command) => {
+    calls.push(command);
+  }), ['host_stream_v1']);
+  await assert.rejects(manager.rollbackSessionToTurn('session-a', 'turn-a', 7), /does not support/);
+  assert.deepEqual(calls, []);
+});
+
+test('rollback forwards the streamed storage index and validates the acknowledgement', async () => {
+  const { presentSessionTurn } = await import(await moduleUrl('../src/services/SessionRecordPresentation.ts'));
+  const [message] = presentSessionTurn({ turnId: 'turn-a', turnIndex: 7, status: 'completed', timestamp: 1,
+    userMessage: { id: 'user-a', content: 'hello', timestamp: 1 }, modelRounds: [] });
+  let response = { resp: 'session_rolled_back', session_id: 'session-a', retired_turn_ids: ['turn-a'],
+    restored_files: [], composer_text: 'hello', changed: true };
+  const calls = [];
+  const manager = new RemoteSessionManager(catalogClient(async (_device, command) => {
+    calls.push(command);
+    return response;
+  }), ['session_rollback_v1']);
+  assert.equal((await manager.rollbackSessionToTurn('session-a', message.turn_id, message.turn_index)).changed, true);
+  assert.equal(calls[0].expected_storage_turn_index, 7);
+  response = { ...response, session_id: 'session-b' };
+  await assert.rejects(manager.rollbackSessionToTurn('session-a', 'turn-a', 7), /Invalid session rollback response/);
+  response = { ...response, session_id: 'session-a', composer_text: { unexpected: 'object' } };
+  await assert.rejects(manager.rollbackSessionToTurn('session-a', 'turn-a', 7), /Invalid session rollback response/);
+  response = { resp: 'ok' };
+  await assert.rejects(manager.rollbackSessionToTurn('session-a', 'turn-a', 7), /Invalid session rollback response/);
+});
+
+test('rollback completion cannot cross a control target switch', async () => {
+  let finish;
+  const client = catalogClient(() => new Promise(resolve => { finish = resolve; }));
+  const manager = new RemoteSessionManager(client, ['session_rollback_v1']);
+  const pending = manager.rollbackSessionToTurn('session-a', 'turn-a', 7);
+  while (!finish) await new Promise(resolve => setImmediate(resolve));
+  client.controlTargetEpoch = 2;
+  client.targetDeviceId = 'desktop-b';
+  finish({ resp: 'session_rolled_back', session_id: 'session-a', retired_turn_ids: ['turn-a'], restored_files: [], changed: true });
+  await assert.rejects(pending, RemoteControlTargetChangedError);
+  await assert.rejects(manager.rollbackSessionToTurn('session-a', 'turn-a', 7), /does not support/);
+});

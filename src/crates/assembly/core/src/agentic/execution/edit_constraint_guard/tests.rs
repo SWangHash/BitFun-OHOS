@@ -981,9 +981,7 @@ async fn disabled_guard_skips_extraction_and_all_tool_entry_points() {
             assert!(check_recursive_delete(Some(&context), "tests", true)
                 .await
                 .is_none());
-            assert!(check_bash_command(&context, "rm tests/a.rs")
-                .await
-                .is_none());
+            assert!(check_bash_command(&context, "rm tests/a.rs").is_none());
             assert!(
                 check_exec_command(&context, "Get-Location", "powershell", r"E:\guard-repro")
                     .await

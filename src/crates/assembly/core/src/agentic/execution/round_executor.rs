@@ -1438,8 +1438,10 @@ impl RoundExecutor {
                 .with_memory_citation(parsed_memory_citation)
                 .with_model_response_replay(model_response_replay);
 
-        // Commit the complete provider response before any tool can block on IO,
-        // approval, or cancellation. Tool results remain separate semantic messages.
+        // Publish the semantic assistant response before tool execution so
+        // readers can observe the active tool call while it is running. Fork
+        // snapshots normalize this intentionally incomplete exchange before
+        // sending it to a provider.
         let assistant_message_committed = if let Some(session_manager) = session_manager {
             session_manager
                 .add_message(&context.session_id, assistant_message.clone())
@@ -1783,23 +1785,21 @@ impl RoundExecutor {
             },
         );
 
-        self.emit_event(
-            AgenticEvent::TokenUsageUpdated {
-                session_id: context.session_id.clone(),
-                turn_id: context.dialog_turn_id.clone(),
-                model_config_id: context.model_config_id.clone(),
-                effective_model_name: context.effective_model_name.clone(),
-                input_tokens: usage.prompt_token_count as usize,
-                output_tokens: Some(usage.candidates_token_count as usize),
-                total_tokens: usage.total_token_count as usize,
-                max_context_tokens: context_window,
-                is_subagent,
-                cached_tokens: usage.cached_content_token_count.map(|v| v as usize),
-                token_details: token_details_from_usage(usage),
-            },
-            EventPriority::Normal,
-        )
-        .await;
+        let event = AgenticEvent::TokenUsageUpdated {
+            session_id: context.session_id.clone(),
+            turn_id: context.dialog_turn_id.clone(),
+            model_config_id: context.model_config_id.clone(),
+            effective_model_name: context.effective_model_name.clone(),
+            input_tokens: usage.prompt_token_count as usize,
+            output_tokens: Some(usage.candidates_token_count as usize),
+            total_tokens: usage.total_token_count as usize,
+            max_context_tokens: context_window,
+            is_subagent,
+            cached_tokens: usage.cached_content_token_count.map(|v| v as usize),
+            token_details: token_details_from_usage(usage),
+        };
+        crate::agentic::goal_mode::record_thread_goal_token_usage(&event);
+        self.emit_event(event, EventPriority::Normal).await;
     }
 
     async fn emit_failed_partial_tool_calls(

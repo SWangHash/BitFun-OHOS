@@ -15,7 +15,9 @@ public fun resolveAccountDeviceLink(url: String, state: AccountUiState): Account
     val id = link.deviceId
     val ready = (state as? AccountUiState.Ready)?.takeIf { it.relayUrl == link.relayUrl }
         ?: return AccountDeviceLinkResult(AccountDeviceLinkStatus.SIGN_IN_REQUIRED, id, link.relayUrl)
-    return if (ready.devices.any { it.id == id && it.online }) {
+    // A scanned target must never resolve to a device the Relay confirmed is
+    // incompatible; the link reads as unavailable, the same as offline.
+    return if (ready.devices.any { it.id == id && it.online && it.controllable }) {
         AccountDeviceLinkResult(AccountDeviceLinkStatus.READY, id, link.relayUrl)
     } else AccountDeviceLinkResult(AccountDeviceLinkStatus.UNAVAILABLE, null)
 }

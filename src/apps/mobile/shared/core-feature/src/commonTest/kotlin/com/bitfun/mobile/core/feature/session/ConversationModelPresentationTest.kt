@@ -3,6 +3,7 @@ package com.bitfun.mobile.core.feature.session
 import com.bitfun.mobile.core.domain.ChatSessionCursor
 import com.bitfun.mobile.core.domain.ChatSyncPhase
 import com.bitfun.mobile.core.domain.ChatTimelineState
+import com.bitfun.mobile.core.domain.ChatTranscriptOrigin
 import com.bitfun.mobile.core.protocol.RemoteDefaultModels
 import com.bitfun.mobile.core.protocol.RemoteModelCatalog
 import com.bitfun.mobile.core.protocol.RemoteModelConfig
@@ -111,4 +112,5 @@ private fun timeline(
     ),
     selectedModelId = selectedModelId,
     activeTurnAnchorId = "",
+    origin = ChatTranscriptOrigin.HOST,
 )

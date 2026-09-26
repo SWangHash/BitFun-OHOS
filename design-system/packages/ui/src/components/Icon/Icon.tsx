@@ -242,8 +242,6 @@ interface IconBaseProps
 
 export type IconProps = IconBaseProps & IconSource;
 
-const LINE_ICON_STROKE_WIDTH = 1.6;
-
 export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
   className,
   glyph: LineGlyph,
@@ -285,7 +283,7 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>(function Icon({
         <Glyph
           aria-hidden="true"
           focusable="false"
-          strokeWidth={LINE_ICON_STROKE_WIDTH}
+          strokeWidth="var(--bitfun-control-icon-stroke-width)"
         />
       ) : null}
     </span>

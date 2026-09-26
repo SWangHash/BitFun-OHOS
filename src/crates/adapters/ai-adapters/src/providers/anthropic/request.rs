@@ -32,7 +32,7 @@ struct ClaudeModelVersion {
 
 /// Anthropic-compatible endpoints whose vendors document `Authorization: Bearer`
 /// (ANTHROPIC_AUTH_TOKEN) instead of `x-api-key`: Zhipu bigmodel.cn / Z.AI,
-/// Moonshot's /anthropic gateway, and Kimi For Coding.
+/// Moonshot's /anthropic gateway, Kimi For Coding, and Xiaomi MiMo.
 fn wants_bearer_auth(url: &str) -> bool {
     // Nous Portal uses the same OAuth bearer for its Messages and model-list
     // endpoints. Do not send that subscription token as an Anthropic API key.
@@ -41,7 +41,18 @@ fn wants_bearer_auth(url: &str) -> bool {
             && url.host_str() == Some("inference-api.nousresearch.com")
             && url.port_or_known_default() == Some(443)
     });
+    // MiMo accepts Bearer or api-key, rather than Anthropic's x-api-key.
+    let xiaomi_mimo = reqwest::Url::parse(url).ok().is_some_and(|url| {
+        url.scheme() == "https"
+            && matches!(
+                url.host_str(),
+                Some("api.xiaomimimo.com" | "token-plan-cn.xiaomimimo.com")
+            )
+            && url.port_or_known_default() == Some(443)
+            && (url.path() == "/anthropic" || url.path().starts_with("/anthropic/"))
+    });
     nous_portal
+        || xiaomi_mimo
         || url.contains("bigmodel.cn")
         || url.contains("api.z.ai")
         || url.contains("api.kimi.com/coding")
@@ -556,6 +567,40 @@ pub(crate) async fn send_stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xiaomi_mimo_headers_use_bearer_for_messages_and_discovery() {
+        for host in ["api.xiaomimimo.com", "token-plan-cn.xiaomimimo.com"] {
+            for suffix in ["v1/messages", "v1/models"] {
+                let url = format!("https://{host}/anthropic/{suffix}");
+                let client = AIClient::new(
+                    serde_json::from_value(serde_json::json!({
+                        "name": "MiMo", "base_url": format!("https://{host}/anthropic"),
+                        "request_url": url, "api_key": "synthetic",
+                        "model": "mimo-v2.6-pro", "format": "anthropic",
+                        "context_window": 4096, "inline_think_in_text": false,
+                        "skip_ssl_verify": false
+                    }))
+                    .unwrap(),
+                );
+                let request = apply_headers(&client, client.client.post(&url), &url)
+                    .build()
+                    .unwrap();
+                assert_eq!(request.headers()["authorization"], "Bearer synthetic");
+                assert!(!request.headers().contains_key("x-api-key"));
+            }
+        }
+        for url in [
+            "https://api.xiaomimimo.com.evil.test/anthropic/v1/messages",
+            "https://evil.test/anthropic/api.xiaomimimo.com/v1/messages",
+            "http://api.xiaomimimo.com/anthropic/v1/messages",
+            "https://api.xiaomimimo.com:8443/anthropic/v1/messages",
+            "https://api.xiaomimimo.com/v1/chat/completions",
+            "https://api.xiaomimimo.com/anthropic-other/v1/messages",
+        ] {
+            assert!(!wants_bearer_auth(url), "{url}");
+        }
+    }
 
     #[test]
     fn bearer_auth_matches_each_gateway_documented_scheme() {

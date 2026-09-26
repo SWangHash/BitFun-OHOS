@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bitfun.mobile.app.R
+import com.bitfun.mobile.app.ui.theme.openBitFunColors
 
 internal const val SIDEBAR_SEARCH_TEST_TAG: String = "app-sidebar-search"
 
@@ -51,7 +51,7 @@ internal fun SidebarAuthenticatedHeader(
             stringResource(R.string.app_name),
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = openBitFunColors.sidebar.ink,
             modifier = Modifier.weight(1f),
         )
         SidebarCircleButton(
@@ -80,7 +80,7 @@ private fun SidebarSearchField(query: String, onQueryChange: (String) -> Unit) {
             .padding(top = 12.dp)
             .height(42.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(openBitFunColors.sidebar.hover)
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -88,7 +88,7 @@ private fun SidebarSearchField(query: String, onQueryChange: (String) -> Unit) {
         Icon(
             painterResource(R.drawable.ic_symbol_magnifyingglass),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = openBitFunColors.sidebar.muted,
             modifier = Modifier.size(18.dp),
         )
         BasicTextField(
@@ -97,15 +97,15 @@ private fun SidebarSearchField(query: String, onQueryChange: (String) -> Unit) {
             singleLine = true,
             textStyle = LocalTextStyle.current.copy(
                 fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = openBitFunColors.sidebar.ink,
             ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(openBitFunColors.sidebar.ink),
             decorationBox = { field ->
                 if (query.isEmpty()) {
                     Text(
                         stringResource(R.string.sidebar_search_placeholder),
                         fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = openBitFunColors.sidebar.muted,
                     )
                 }
                 field()
@@ -141,14 +141,14 @@ internal fun SidebarSignedOutHeader(onNewChat: () -> Unit) {
         Icon(
             painterResource(R.drawable.ic_symbol_square_and_pencil),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = openBitFunColors.sidebar.ink,
             modifier = Modifier.size(22.dp),
         )
         Text(
             newChatLabel,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = openBitFunColors.sidebar.ink,
         )
     }
 }

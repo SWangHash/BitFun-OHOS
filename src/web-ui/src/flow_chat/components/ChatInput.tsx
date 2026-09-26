@@ -118,7 +118,12 @@ import {
   isSessionWorktreeBindingLocked,
 } from '../utils/sessionWorktree';
 import { chatInputSessionSubscriptionKey } from '../utils/chatInputSessionSubscription';
-import { isLocalWorkspaceSession, sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
+import {
+  isLocalWorkspaceSession,
+  sessionProjectWorkspacePath,
+  sessionWorkspaceId,
+} from '../utils/sessionWorkspace';
+import { sessionOwningWorkspaceId } from '../utils/sessionOrdering';
 import { findWorkspaceForSession } from '../utils/workspaceScope';
 import { isTauriRuntime, isWindowsDesktopRuntime } from '@/infrastructure/runtime';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Tooltip } from '@bitfun/ui';
@@ -212,6 +217,7 @@ import {
   replaceLeadingSlashCommandWithSkillToken,
 } from '../utils/skillPromptReference';
 import { resolveChatInputQuickSkillShortcuts } from '../utils/chatInputQuickSkills';
+import { contextPickerOwnsKey } from '../utils/chatInputKeyOwnership';
 import { useDeepReviewConsent } from './DeepReviewConsentDialog';
 import { useSessionReviewActivity } from '../hooks/useSessionReviewActivity';
 import { shouldBlockReviewCommand } from '../utils/deepReviewCommandGuard';
@@ -223,6 +229,7 @@ import {
 } from '../utils/tokenUsageDisplay';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import type { SessionPermissionMode } from '@/infrastructure/api/service-api/AgentAPI';
+import { isSessionInUseError } from '@/infrastructure/api/errors/TauriCommandError';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { isBtwSessionDraft } from '../utils/modelSelectionTarget';
@@ -237,6 +244,7 @@ import {
   buildExternalFileContexts,
   partitionExternalDropFiles,
   resolveExternalFileIntakeAvailability,
+  shouldAttemptNativeClipboardImageRead,
   type ExternalFileSource,
 } from '../utils/externalFileIntake';
 import { selectInterruptedTurnRecovery } from '../utils/interruptedTurnRecovery';
@@ -576,6 +584,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // other open session.
   const [sessionPermissionMode, setSessionPermissionMode] =
     useState<SessionPermissionMode | null>(null);
+  // A failed read leaves `sessionPermissionMode` at null, which makes the control
+  // fall back to the user-level default. That fallback is safe, but it must not
+  // pass for the Session's own selection: this flag keeps the two apart.
+  const [sessionPermissionModeUnread, setSessionPermissionModeUnread] = useState(false);
   // One-off state has two owners: the idle composer arms a future submission,
   // while an executing turn keeps a mutable override until it ends.
   const [armedTurnPermissionMode, setArmedTurnPermissionMode] =
@@ -588,6 +600,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     sessionId: string | null;
     activeTurnId: string | null;
   }>({ sessionId: null, activeTurnId: null });
+  // Reports a fallback to the default once per Session: the read effect re-runs
+  // on every Session and turn change, so without this the same unresolved read
+  // would notify on each pass.
+  const permissionModeUnreadNotifiedRef = useRef<string | null>(null);
   const { addMessage: addToHistory, getSessionHistory } = useInputHistoryStore();
   
   const conversationScope = useConversationViewScope();
@@ -1117,11 +1133,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       ? findWorkspaceForSession(effectiveTargetSession, openedWorkspaces.values())
       : workspace ?? undefined
   ), [effectiveTargetSession, openedWorkspaces, workspace]);
-  // Workspace record the input addresses: the targeted session's own record,
-  // or the context workspace while no session exists yet. An empty string means
-  // the targeted session has no record; it must not fall back to the context.
+  // Workspace record the session's own state and configuration are addressed
+  // with. A worktree-isolated session belongs to the project it was started
+  // from: its worktree record exists for execution and is usually not an open
+  // workspace, so a request addressed with that record is rejected outright
+  // while the owning project resolves to the identical session directory.
+  const sessionOwningId = effectiveTargetSession
+    ? sessionOwningWorkspaceId(effectiveTargetSession)
+    : undefined;
+  const sessionOwningPath = effectiveTargetSession
+    ? sessionProjectWorkspacePath(effectiveTargetSession)
+    : undefined;
+  // Workspace record the input addresses, or the context workspace while no
+  // session exists yet. An empty string means the targeted session has no
+  // record; it must not fall back to the context.
   const inputWorkspaceId = effectiveTargetSession
-    ? effectiveTargetSession.workspaceId ?? ''
+    ? sessionOwningId ?? ''
+    : contextWorkspace?.id;
+  // Workspace record of the directory the session actually runs in. Git state
+  // and dispatch baselines describe that checkout, not the owning project.
+  const executionWorkspaceId = effectiveTargetSession
+    ? sessionWorkspaceId(effectiveTargetSession) ?? ''
     : contextWorkspace?.id;
   const sessionBoundRemoteConnectionId = (
     hasRegisteredWorkspace
@@ -1160,15 +1192,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // Workspace identity decides whether the session belongs to the current
     // workspace; a session in a linked worktree still belongs to its owning
     // project. Path comparison only serves sessions that predate workspace IDs.
-    const sessionWorkspaceId = hasRegisteredWorkspace
+    const sessionRecordWorkspaceId = hasRegisteredWorkspace
       ? undefined
       : (effectiveTargetSession?.workspaceId || effectiveTargetSession?.config.workspaceId);
-    const sessionProjectWorkspaceId = hasRegisteredWorkspace
+    const sessionProjectRecordWorkspaceId = hasRegisteredWorkspace
       ? undefined
       : (effectiveTargetSession?.projectWorkspaceId || effectiveTargetSession?.config.projectWorkspaceId);
     const contextWorkspaceId = hasRegisteredWorkspace ? undefined : workspace?.id;
-    const sessionUsesDifferentRoot = sessionWorkspaceId && contextWorkspaceId
-      ? sessionWorkspaceId !== contextWorkspaceId && sessionProjectWorkspaceId !== contextWorkspaceId
+    const sessionUsesDifferentRoot = sessionRecordWorkspaceId && contextWorkspaceId
+      ? sessionRecordWorkspaceId !== contextWorkspaceId && sessionProjectRecordWorkspaceId !== contextWorkspaceId
       : !!sessionPath
         && (!contextPath || !isSamePath(sessionPath, contextPath))
         && !(
@@ -2426,6 +2458,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (sessionChanged) {
       setArmedTurnPermissionMode(null);
       setActiveTurnPermissionMode(null);
+      setSessionPermissionModeUnread(false);
     } else if (activeTurnChanged) {
       // A locally submitted one-off becomes the active turn's initial mode.
       // Keep it armed until start_dialog_turn acknowledges so a failed send
@@ -2437,6 +2470,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (!effectiveTargetSessionId || isAcpTargetSession) {
       setSessionPermissionMode(null);
+      setSessionPermissionModeUnread(false);
       setArmedTurnPermissionMode(null);
       setActiveTurnPermissionMode(null);
       return undefined;
@@ -2449,21 +2483,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         const response = await agentAPI.getSessionPermissionMode({
           sessionId: permissionSessionId,
           turnId: activePermissionTurnId ?? undefined,
-          workspacePath: effectiveTargetSession?.workspacePath,
+          workspaceId: sessionOwningId,
+          workspacePath: sessionOwningPath,
           remoteConnectionId: effectiveTargetSession?.remoteConnectionId,
           remoteSshHost: effectiveTargetSession?.remoteSshHost,
         });
         if (permissionModeRequestGenerationRef.current !== generation) return;
         setSessionPermissionMode(response.mode ?? null);
+        setSessionPermissionModeUnread(false);
+        permissionModeUnreadNotifiedRef.current = null;
         if (activePermissionTurnId && response.activeTurnId === activePermissionTurnId) {
           setActiveTurnPermissionMode(response.turnMode ?? null);
         }
       } catch (error) {
         log.warn('Failed to read session permission mode', error);
         // Falling back to the global default is the safe read: it never shows a
-        // wider mode than the session actually runs with.
+        // wider mode than the session actually runs with. Report the fallback
+        // once per Session so it cannot pass for that Session's own selection.
         if (permissionModeRequestGenerationRef.current === generation) {
           setSessionPermissionMode(null);
+          setSessionPermissionModeUnread(true);
+          if (permissionModeUnreadNotifiedRef.current !== effectiveTargetSessionId) {
+            permissionModeUnreadNotifiedRef.current = effectiveTargetSessionId;
+            notificationService.error(t(
+              isSessionInUseError(error)
+                ? 'chatInput.permissionMode.unreadSessionInUse'
+                : 'chatInput.permissionMode.unread',
+            ));
+          }
         }
       }
     })();
@@ -2471,12 +2518,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [
     activePermissionTurnId,
     effectiveTargetSessionId,
+    sessionOwningId,
+    sessionOwningPath,
     effectiveTargetSession?.workspacePath,
     effectiveTargetSession?.remoteConnectionId,
     effectiveTargetSession?.remoteSshHost,
     effectiveTargetSession?.parentSessionId,
     isBtwDraftTarget,
     isAcpTargetSession,
+    t,
   ]);
 
   const applySessionPermissionMode = useCallback(async (
@@ -2500,7 +2550,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         sessionId: targetSessionId,
         mode: nextMode,
         turnId: targetTurnId ?? undefined,
-        workspacePath: effectiveTargetSession?.workspacePath,
+        workspaceId: sessionOwningId,
+        workspacePath: sessionOwningPath,
         remoteConnectionId: effectiveTargetSession?.remoteConnectionId,
         remoteSshHost: effectiveTargetSession?.remoteSshHost,
       });
@@ -2509,6 +2560,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         && effectiveTargetSessionIdRef.current === targetSessionId
       ) {
         setSessionPermissionMode(response.mode ?? null);
+        setSessionPermissionModeUnread(false);
+        permissionModeUnreadNotifiedRef.current = null;
         setActiveTurnPermissionMode(null);
       }
     } catch (error) {
@@ -2521,14 +2574,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (activePermissionTurnIdRef.current === targetTurnId) {
           setActiveTurnPermissionMode(previousActiveTurnMode);
         }
-        notificationService.error(t('chatInput.permissionMode.changeFailed'));
+        notificationService.error(t(
+          isSessionInUseError(error)
+            ? 'chatInput.permissionMode.changeFailedSessionInUse'
+            : 'chatInput.permissionMode.changeFailed',
+        ));
       }
     } finally {
       setPermissionModeSaving(false);
     }
   }, [
     effectiveTargetSessionId,
-    effectiveTargetSession?.workspacePath,
+    sessionOwningId,
+    sessionOwningPath,
     effectiveTargetSession?.remoteConnectionId,
     effectiveTargetSession?.remoteSshHost,
     activeTurnPermissionMode,
@@ -2615,7 +2673,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         sessionId: targetSessionId,
         turnId: targetTurnId,
         mode: nextTemporaryMode,
-        workspacePath: effectiveTargetSession?.workspacePath,
+        workspaceId: sessionOwningId,
+        workspacePath: sessionOwningPath,
         remoteConnectionId: effectiveTargetSession?.remoteConnectionId,
         remoteSshHost: effectiveTargetSession?.remoteSshHost,
       });
@@ -2625,6 +2684,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         && activePermissionTurnIdRef.current === targetTurnId
       ) {
         setSessionPermissionMode(response.mode ?? null);
+        setSessionPermissionModeUnread(false);
+        permissionModeUnreadNotifiedRef.current = null;
         setActiveTurnPermissionMode(response.turnMode ?? null);
       }
     } catch (error) {
@@ -2635,7 +2696,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         && activePermissionTurnIdRef.current === targetTurnId
       ) {
         setActiveTurnPermissionMode(previousMode);
-        notificationService.error(t('chatInput.permissionMode.changeFailed'));
+        notificationService.error(t(
+          isSessionInUseError(error)
+            ? 'chatInput.permissionMode.changeFailedSessionInUse'
+            : 'chatInput.permissionMode.changeFailed',
+        ));
       }
     } finally {
       setPermissionModeSaving(false);
@@ -2646,9 +2711,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     confirmFullAccessIfNeeded,
     effectiveTargetSession?.remoteConnectionId,
     effectiveTargetSession?.remoteSshHost,
-    effectiveTargetSession?.workspacePath,
     effectiveTargetSessionId,
     isAcpTargetSession,
+    sessionOwningId,
+    sessionOwningPath,
     permissionModeSaving,
     t,
   ]);
@@ -4765,6 +4831,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [addContext, contextStore, isExternalFileIntakeRequestCurrent, t]);
 
+  /**
+   * Host-side clipboard image read for engines that deliver paste events with
+   * empty DataTransfer (WebKitGTK on Linux). Reuses the clipboard-image
+   * intake, so limits and error reporting stay identical to the in-page path.
+   */
+  const readPastedClipboardImage = useCallback(async (request: ExternalFileIntakeRequest) => {
+    try {
+      const image = await workspaceAPI.getClipboardImage();
+      if (!image || !isExternalFileIntakeRequestCurrent(request)) return;
+      const binary = atob(image.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      const extension = image.mimeType === 'image/png' ? 'png' : 'jpg';
+      const file = new File([bytes], `clipboard-image.${extension}`, { type: image.mimeType });
+      await addClipboardImageFiles(request, [file]);
+    } catch (error) {
+      log.warn('Native clipboard image read failed', { error });
+      if (String(error).startsWith('clipboard_image_unsupported:')) {
+        notificationService.warning(t('input.clipboardImageToolsUnavailable'), {
+          duration: 4000,
+        });
+      }
+    }
+  }, [addClipboardImageFiles, isExternalFileIntakeRequestCurrent, t]);
+
   const addExternalPaths = useCallback(async (
     request: ExternalFileIntakeRequest,
     source: ExternalFileSource,
@@ -4946,9 +5039,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         () => addClipboardImageFiles(request, [file]),
       );
     };
+    const handlePasteFallback = (event: Event) => {
+      // WebKitGTK fires paste with zero DataTransfer types; the in-page file
+      // branch can never run there, so ask the host to read the clipboard.
+      const clipboardData = (event as ClipboardEvent).clipboardData;
+      if (!clipboardData) return;
+      if (!shouldAttemptNativeClipboardImageRead(Array.from(clipboardData.types ?? []))) return;
+      if (!externalFileAvailability.supported) return;
+      const request = captureExternalFileIntakeRequest();
+      void enqueueExternalFileIntake(
+        request,
+        () => readPastedClipboardImage(request),
+      );
+    };
     inputElement.addEventListener('imagePaste', handleImagePaste);
-    return () => inputElement.removeEventListener('imagePaste', handleImagePaste);
-  }, [addClipboardImageFiles, captureExternalFileIntakeRequest, enqueueExternalFileIntake]);
+    inputElement.addEventListener('paste', handlePasteFallback);
+    return () => {
+      inputElement.removeEventListener('imagePaste', handleImagePaste);
+      inputElement.removeEventListener('paste', handlePasteFallback);
+    };
+  }, [
+    addClipboardImageFiles,
+    captureExternalFileIntakeRequest,
+    enqueueExternalFileIntake,
+    externalFileAvailability,
+    readPastedClipboardImage,
+  ]);
 
   useWindowsFileDropPreview({
     targetRef: fileDropTargetRef ?? externalFileDropTargetRef,
@@ -5504,6 +5620,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
+    // The '@' reference picker owns its navigation and acceptance keys through
+    // its overlay layer, which the coordinator routes after React handlers.
+    if (contextPickerOwnsKey({ contextPickerActive: contextTriggerState.isActive, key: e.key })) {
+      return;
+    }
+
     if (slashCommandState.isActive) {
         const items = getActiveSlashPickerItems();
         const maxIndex = Math.max(0, items.length - 1);
@@ -5698,7 +5820,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       handleSendOrCancel();
     }
     
-  }, [canUseThreadGoal, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, slashCommandState, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, hasSendableInput, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
+  }, [canUseThreadGoal, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, slashCommandState, contextTriggerState.isActive, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, hasSendableInput, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
 
   const handleImeCompositionStart = useCallback(() => {
     isImeComposingRef.current = true;
@@ -5719,16 +5841,38 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     input.type = 'file';
     input.accept = CHAT_INPUT_CONFIG.image.acceptedTypes.join(',');
     input.multiple = true;
-    
+
+    // WebKitGTK never fires `change` on a detached file input after the native
+    // chooser closes, so a detached picker silently dropped every selection on
+    // Linux. Mounting the element offscreen keeps WebKitGTK on the same path as
+    // WebView2 and WKWebView. `display: none` is deliberately avoided because
+    // some WebKit builds refuse to open a chooser for a display:none input.
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    input.style.top = '0';
+    input.style.width = '1px';
+    input.style.height = '1px';
+    input.style.opacity = '0';
+
+    const dismissPicker = () => {
+      window.removeEventListener('focus', dismissPicker);
+      input.onchange = null;
+      input.remove();
+    };
+    // Cancelling the chooser never fires `change`; reclaim the node the next
+    // time the window regains focus.
+    window.addEventListener('focus', dismissPicker);
+
     input.onchange = async (e) => {
+      dismissPicker();
       const files = (e.target as HTMLInputElement).files;
       if (!files || files.length === 0) return;
-      
+
       const fileArray = Array.from(files).slice(0, remaining);
       if (files.length > remaining) {
         notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), { duration: 3000 });
       }
-      
+
       for (const file of fileArray) {
         try {
           const imageContext = await createImageContextFromFile(file);
@@ -5742,7 +5886,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
       }
     };
-    
+
+    document.body.appendChild(input);
     input.click();
   }, [addContext, currentImageCount, t]);
   
@@ -5999,7 +6144,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   );
   const workspaceStrip = workspaceStripVisible ? (
     <ChatInputWorkspaceStrip
-      workspaceId={inputWorkspaceId ?? ''}
+      workspaceId={executionWorkspaceId ?? ''}
       repositoryPath={chatStripRepositoryPath}
       workspaceLabel={chatStripWorkspaceLabel}
       executionTarget={effectiveTargetSession?.config.executionTarget}
@@ -6021,6 +6166,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               saving: permissionModeSaving,
               scopeLabel: t('chatInput.permissionMode.sessionScope'),
               overridden: permissionModeOverridden,
+              // The trigger falls back to the user-level default when the read
+              // failed, so the menu must not mark that fallback as this
+              // Session's own selection.
+              unread: sessionPermissionModeUnread,
               nextTurnMode: temporaryPermissionMode
                 ? chatInputPermissionMode(temporaryPermissionMode)
                 : null,

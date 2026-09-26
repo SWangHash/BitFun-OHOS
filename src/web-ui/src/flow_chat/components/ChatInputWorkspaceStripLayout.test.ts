@@ -218,8 +218,10 @@ describe('composer context track layout', () => {
 
     expect(component).toContain('contextBar={workspaceStrip}');
     expect(component).toContain('<ChatInputWorkspaceStrip');
+    // The composer is a panel of the transcript, so it takes the transcript
+    // content inset and not a second, narrower one of its own.
     expect(chatInput).toMatch(
-      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--bitfun-space-2\);/,
+      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--bitfun-control-flow-chat-content-padding-inline\);/,
     );
     expect(chatInput).toMatch(
       /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?bottom: var\(--bitfun-space-6\);/,

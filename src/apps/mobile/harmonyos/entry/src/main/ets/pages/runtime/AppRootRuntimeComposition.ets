@@ -1,5 +1,5 @@
 import { InteractionMailboxAction, InteractionMailboxState } from '../../model/InteractionMailbox';
-import { HostCatalogObserver } from '../../services/HostCatalogObserver';
+import { HostCatalogChange, HostCatalogObserver } from '../../services/HostCatalogObserver';
 import { WorkspaceToolsViewModel } from '../viewmodel/WorkspaceToolsViewModel';
 import { WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { BuiltinMiniAppHost } from '../../services/BuiltinMiniAppHost';
@@ -234,8 +234,18 @@ export abstract class AppRootRuntimeComposition {
     });
   private readonly hostCatalogObserver: HostCatalogObserver = new HostCatalogObserver(
     this.sessionManager,
-    async (): Promise<void> => {
-      await Promise.all([this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground(), this.remoteSessionViewModel.refreshSessions(), this.remoteChatPollingLifecycleController.refreshModelCatalog()]);
+    async (change: HostCatalogChange): Promise<void> => {
+      const initial = change.initial === true ||
+        (change.sessionsRevision === undefined && change.workspacesRevision === undefined);
+      const refreshSessions = initial || change.sessionsRevision !== undefined;
+      const refreshWorkspaces = initial || change.workspacesRevision !== undefined;
+      const jobs: Promise<void>[] = [];
+      if (refreshSessions) {
+        jobs.push(this.remoteSessionViewModel.refreshSessions(true));
+        jobs.push(this.remoteChatPollingLifecycleController.refreshModelCatalog());
+      }
+      if (refreshWorkspaces) jobs.push(this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground(true));
+      await Promise.all(jobs);
     },
     (error: Error): void => { this.remotePageState.setError(ConnectionErrorPolicy.errorText(error)); }
   );
@@ -400,16 +410,8 @@ export abstract class AppRootRuntimeComposition {
         onTimelineReady: () => {
           this.remoteSessionViewModel.settleTranscriptLoading();
         },
-        onComposerSubmitted: (sessionId: string, text: string, images: SelectedImageAttachment[]) => {
-          if (this.remotePageState.activeSession.sessionId !== sessionId) {
-            return;
-          }
-          if (this.remotePageState.chatInput.trim() === text.trim()) {
-            this.remotePageState.setChatInput('');
-          }
-          this.remotePageState.setSelectedImages(this.remotePageState.selectedImages.filter(
-            (image: SelectedImageAttachment) => !images.some((sent: SelectedImageAttachment) => sent.id === image.id)
-          ));
+        onComposerPrepared: (sessionId: string, text: string, images: SelectedImageAttachment[]) => {
+          return this.remotePageState.conversation.prepareComposerSubmission(sessionId, text, images);
         },
         onSendSucceeded: (turnId: string, pendingActiveId: string, localMessageId: string) => {
           this.chatTimelineStore.acknowledgeOptimisticTurn(localMessageId, turnId);
@@ -560,6 +562,9 @@ export abstract class AppRootRuntimeComposition {
           this.remoteSessionViewModel.settleTranscriptLoading();
           this.remotePageState.setConversationLoading(false);
           this.remotePageState.setStatusText(ConnectionErrorPolicy.errorText(error));
+          // Confirm host reachability immediately; transcript errors alone do
+          // not prove disconnection, and the probe is generation-fenced.
+          void this.remoteActivityViewModel.checkConnectionHealth();
         }
       }
     );

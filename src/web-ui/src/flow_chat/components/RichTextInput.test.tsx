@@ -138,17 +138,36 @@ describeWithJsdom('RichTextInput external sync', () => {
 
   function paste(
     editor: HTMLDivElement,
-    options: { items?: Array<{ kind: string; type: string; getAsFile: () => File | null }>; types?: string[]; text?: string },
+    options: {
+      items?: Array<{ kind: string; type: string; getAsFile: () => File | null }>;
+      types?: string[];
+      text?: string;
+      html?: string;
+    },
   ) {
     const event = new window.Event('paste', { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'clipboardData', {
       value: {
         items: options.items ?? [],
         types: options.types ?? [],
-        getData: (type: string) => type === 'text/plain' ? options.text ?? '' : '',
+        getData: (type: string) => {
+          if (type === 'text/plain') return options.text ?? '';
+          if (type === 'text/html') return options.html ?? '';
+          return '';
+        },
       },
     });
     editor.dispatchEvent(event);
+  }
+
+  function copy(editor: HTMLDivElement) {
+    const clipboard = new Map<string, string>();
+    const event = new window.Event('copy', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: { setData: (type: string, value: string) => clipboard.set(type, value) },
+    });
+    editor.dispatchEvent(event);
+    return clipboard;
   }
 
   function setCaret(editor: HTMLDivElement, offset: number) {
@@ -261,6 +280,89 @@ describeWithJsdom('RichTextInput external sync', () => {
     setCaret(editor, editor.firstChild?.textContent?.length ?? 0);
     paste(editor, { types: ['text/plain'], text: 'long text content' });
     expect(editor.querySelector('[data-large-paste-placeholder]')).toBeTruthy();
+  });
+
+  it('rebuilds capsules from pasted inline token text', async () => {
+    const onChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={onChange}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    setCaret(editor, 0);
+
+    paste(editor, { types: ['text/plain'], text: 'run [$pdf] and [$doc] please' });
+
+    const pills = Array.from(
+      editor.querySelectorAll<HTMLElement>('[data-inline-token-type="skill-ref"]'),
+    );
+    expect(pills.map(pill => pill.dataset.tagFormat)).toEqual(['[$pdf]', '[$doc]']);
+    expect(editor.textContent).toBe('run pdf× and doc× please');
+    expect(onChange).toHaveBeenLastCalledWith('run [$pdf] and [$doc] please', emptyContexts);
+  });
+
+  it('restores capsules from the composer clipboard payload of a copied message', async () => {
+    const onChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          value=""
+          onChange={onChange}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = container.querySelector('.rich-text-input') as HTMLDivElement;
+    setCaret(editor, 0);
+
+    paste(editor, {
+      types: ['text/plain', 'text/html'],
+      text: '[Skill: pdf] summarize it',
+      html: '<div data-bitfun-composer-clipboard="1" '
+        + 'data-bitfun-composer-clipboard-tokens="[$pdf] summarize it">'
+        + '[Skill: pdf] summarize it</div>',
+    });
+
+    expect(editor.querySelector<HTMLElement>('[data-inline-token-type="skill-ref"]')?.dataset.tagFormat)
+      .toBe('[$pdf]');
+    expect(onChange).toHaveBeenLastCalledWith('[$pdf] summarize it', emptyContexts);
+  });
+
+  it('copies a selection as composer token text with a marked payload', async () => {
+    const inputRef = createRef<RichTextInputElement>();
+    await act(async () => {
+      root.render(
+        <RichTextInput
+          ref={inputRef}
+          value="compare [$pdf] with [$doc]"
+          onChange={() => {}}
+          contexts={emptyContexts}
+          onRemoveContext={() => {}}
+        />,
+      );
+    });
+    const editor = inputRef.current!;
+
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const clipboard = copy(editor);
+
+    expect(clipboard.get('text/plain')).toBe('compare [$pdf] with [$doc]');
+    const html = clipboard.get('text/html') ?? '';
+    expect(html).toContain('data-bitfun-composer-clipboard="1"');
+    expect(html).toContain('data-bitfun-composer-clipboard-tokens="compare [$pdf] with [$doc]"');
+    expect(html).not.toContain('rich-text-tag-pill__remove');
   });
 
   it('keeps the existing DOM node when parent echoes local input', async () => {

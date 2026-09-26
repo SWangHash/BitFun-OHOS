@@ -1,6 +1,6 @@
 import { OverflowText } from '../../primitives/OverflowText';
 import type { HTMLAttributes, ReactNode } from "react";
-import { Layers, MessageSquare } from "lucide-react";
+import { CalendarClock, Layers, MessageSquare } from "lucide-react";
 import {
   AmbientToolCard,
   AmbientToolCardHeader,
@@ -123,4 +123,11 @@ export interface SessionMessageToolCardProps
 
 export function SessionMessageToolCard(props: SessionMessageToolCardProps) {
   return <SessionToolCardBase {...props} icon={<MessageSquare aria-hidden="true" />} toolCard="session-message" />;
+}
+
+export interface CronToolCardProps
+  extends Omit<SessionToolCardBaseProps, "icon" | "sessions" | "toolCard"> {}
+
+export function CronToolCard(props: CronToolCardProps) {
+  return <SessionToolCardBase {...props} icon={<CalendarClock aria-hidden="true" />} toolCard="cron" />;
 }

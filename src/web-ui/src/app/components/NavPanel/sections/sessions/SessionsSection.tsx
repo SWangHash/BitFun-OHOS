@@ -1,5 +1,5 @@
 import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
-import { requireSessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
+import { requireSessionOwningWorkspaceId } from '@/flow_chat/utils/sessionOrdering';
 /**
  * SessionsSection — inline accordion content for the "Sessions" nav item.
  *
@@ -9,7 +9,7 @@ import { requireSessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { subscribeOverlayInteraction, createOverlayPortal, Button, Icon, IconButton, Input, Menu, MenuItem, OverflowText, Tooltip } from '@bitfun/ui';
-import { Loader2, Archive, ListChecks } from 'lucide-react';
+import { Loader2, Archive, FolderGit2, ListChecks } from 'lucide-react';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n';
 import { flowChatStore } from '../../../../../flow_chat/store/FlowChatStore';
@@ -18,6 +18,8 @@ import type { FlowChatState, Session } from '../../../../../flow_chat/types/flow
 import { useSceneStore } from '../../../../stores/sceneStore';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { createLogger } from '@/shared/utils/logger';
+import { isSamePath } from '@/shared/utils/pathUtils';
+import { isLinkedWorktreeWorkspace } from '@/shared/types/global-state';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import {
@@ -32,8 +34,10 @@ import {
 import { recordHistorySessionDiagnosticEvent } from '@/flow_chat/services/historySessionDiagnostics';
 import { resolveSessionRelationship } from '@/flow_chat/utils/sessionMetadata';
 import {
+  isWorktreeIsolatedSession,
   sessionBelongsToWorkspaceNavRow,
 } from '@/flow_chat/utils/sessionOrdering';
+import { sessionWorktreeRootPath } from '@/flow_chat/utils/sessionWorktree';
 import {
   compareWorkspaceNavSessions,
   DEFAULT_WORKSPACE_SESSION_FILTERS,
@@ -78,6 +82,11 @@ import {
 } from '@/features/dispatch/types';
 import { useDispatchJobStore } from '@/features/dispatch/dispatchJobStore';
 import { resolveDispatchNavPresentation } from '@/features/dispatch/dispatchNavPresentation';
+import {
+  ensureCronJobCountsListener,
+  getCronJobCountsSnapshot,
+  subscribeCronJobCounts,
+} from '@/app/components/scheduled-jobs/cronJobCountsStore';
 import {
   SESSION_METADATA_DEFERRED_FALLBACK_MS,
   SESSION_METADATA_DEFERRED_FRAME_COUNT,
@@ -220,6 +229,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
 }) => {
   useDeviceDirectory();
   const { t } = useI18n('common');
+  useEffect(() => { ensureCronJobCountsListener(); }, []);
   const storedSessionOrdering = useWorkspaceSessionViewStore(state => state.ordering);
   const storedSessionShow = useWorkspaceSessionViewStore(state => state.show);
   const storedSessionFilters = useWorkspaceSessionViewStore(state => state.filters);
@@ -231,7 +241,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
   const hasActiveSessionFilter = sessionShow !== 'all' || hasWorkspaceSessionFilters(sessionFilters);
   const showAllWithoutLimit = layout === 'flat' && Boolean(workspaceScopes?.length);
   const sessionListClassName = `bitfun-nav-panel__inline-list${layout === 'flat' ? ' is-flat-workspace-view' : ''}`;
-  const { setActiveWorkspace, currentWorkspace } = useWorkspaceContext();
+  const { setActiveWorkspace, openWorkspace, openedWorkspacesList, currentWorkspace } = useWorkspaceContext();
   const activeTabId = useSceneStore(s => s.activeTabId);
   const activeBtwSessionTab = useAgentCanvasStore(state => selectActiveBtwSessionTab(state as any));
   const activeBtwSessionData = activeBtwSessionTab?.content.data as
@@ -292,6 +302,12 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     return new Set([...flowChatState.sessions.keys()].filter(sessionNavStatusService.isRunning));
   }, [flowChatState.sessions, orderingRevision]);
   const [scheduledJobsSessionId, setScheduledJobsSessionId] = useState<string | null>(null);
+  const cronJobCountsRevision = useSyncExternalStore(
+    subscribeCronJobCounts,
+    () => getCronJobCountsSnapshot(),
+    () => getCronJobCountsSnapshot(),
+  );
+  const cronJobCountsBySession = cronJobCountsRevision.bySessionId;
   const [batchWorkspace, setBatchWorkspace] = useState<WorkspaceSessionScope | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const sessionMenuPopoverRef = useRef<HTMLDivElement>(null);
@@ -688,7 +704,6 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
   }, []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
     if (!openMenuSessionId) return;
     const handleOutside = (event: MouseEvent) => {
       if (!sessionMenuPopoverRef.current?.contains(event.target as Node)
@@ -696,7 +711,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
         closeSessionMenu();
       }
     };
-    removeOverlayMousedown0 = subscribeOverlayInteraction(sessionMenuPopoverRef, 'mousedown', handleOutside);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(sessionMenuPopoverRef, 'mousedown', handleOutside);
     return () => removeOverlayMousedown0?.();
   }, [closeSessionMenu, openMenuSessionId]);
 
@@ -848,16 +863,32 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
     });
   }, [topLevelSessions.length, expandLevel, level2DisplayCount, showAllWithoutLimit]);
 
-  const totalTopLevelSessionCount = !hasActiveSessionFilter && !workspaceScopes?.length
-    ? getEffectiveTopLevelSessionCount(
-        metadataPageState.totalTopLevelCount,
-        metadataPageState.syncedTopLevelCount,
-        allTopLevelSessions.length,
-        metadataPageState.isLoading,
-      )
-    : topLevelSessions.length;
+  // A linked worktree stores its sessions in its main workspace's session root,
+  // so a metadata page loaded for that directory counts the project's sessions
+  // as well. That total cannot describe this row: the extra rows it counts belong
+  // to the project, and a "show more" affordance built on it promises rows this
+  // list can never reveal. Only the rows this workspace owns are counted here.
+  // Resolve the row's own workspace, not the active one, because a nested row
+  // renders while another workspace is active.
+  const sectionWorkspace = workspaceId
+    ? openedWorkspacesList.find(workspace => workspace.id === workspaceId) ?? null
+    : null;
+  const countOnlyOwnedTopLevelSessions = isLinkedWorktreeWorkspace(sectionWorkspace);
+
+  const totalTopLevelSessionCount =
+    !hasActiveSessionFilter && !workspaceScopes?.length && !countOnlyOwnedTopLevelSessions
+      ? getEffectiveTopLevelSessionCount(
+          metadataPageState.totalTopLevelCount,
+          metadataPageState.syncedTopLevelCount,
+          allTopLevelSessions.length,
+          metadataPageState.isLoading,
+        )
+      : topLevelSessions.length;
   const hasMoreUnloadedSessions =
-    !hasActiveSessionFilter && !workspaceScopes?.length && allTopLevelSessions.length < totalTopLevelSessionCount;
+    !hasActiveSessionFilter
+    && !workspaceScopes?.length
+    && !countOnlyOwnedTopLevelSessions
+    && allTopLevelSessions.length < totalTopLevelSessionCount;
   const expandToggleState = getSessionExpandToggleState(totalTopLevelSessionCount, expandLevel);
   // The visible label stays short ("Show more") and the remaining count rides in
   // a trailing `+N` chip; screen readers get the full sentence via aria-label.
@@ -1214,7 +1245,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           {
             sessionId: session.sessionId,
             title: resolveSessionTitle(session),
-            workspaceId: requireSessionWorkspaceId(session),
+            workspaceId: requireSessionOwningWorkspaceId(session),
           },
           scope
         );
@@ -1272,6 +1303,36 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
       }
     },
     [t]
+  );
+
+  /**
+   * A worktree directory is registered for execution but not opened, so the
+   * session row is the only place it can be reached from. Opening it as a
+   * workspace is an explicit user action; if the worktree happens to be open
+   * already, activating it is the whole effect.
+   */
+  const handleOpenWorktreeWorkspace = useCallback(
+    async (e: React.MouseEvent, worktreePath: string) => {
+      e.stopPropagation();
+      closeSessionMenu();
+      const opened = openedWorkspacesList.find(workspace =>
+        isSamePath(workspace.rootPath ?? '', worktreePath)
+      );
+      try {
+        if (opened) {
+          await setActiveWorkspace(opened.id);
+          return;
+        }
+        await openWorkspace(worktreePath);
+      } catch (err) {
+        log.error('Failed to open the worktree directory as a workspace', {
+          worktreePath,
+          error: err,
+        });
+        notificationService.error(t('nav.sessions.openWorktreeWorkspaceFailed'), { duration: 3000 });
+      }
+    },
+    [closeSessionMenu, openWorkspace, openedWorkspacesList, setActiveWorkspace, t]
   );
 
   const handleStartEdit = useCallback(
@@ -1390,7 +1451,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
             role="status"
             aria-live="polite"
           >
-            <Loader2 size={12} />
+            <Loader2 className="bitfun-nav-panel__inline-loading-icon" aria-hidden="true" />
             <OverflowText>{t('nav.sessions.loading')}</OverflowText>
           </div>
         )
@@ -1422,7 +1483,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
       return (
         <div data-bitfun-component="sessions-section" data-bitfun-part="root" className={sessionListClassName}>
           <div className="bitfun-nav-panel__inline-loading" data-bitfun-component="sessions-section" data-bitfun-part="loading" data-bitfun-state="loading">
-            <Loader2 size={12} />
+            <Loader2 className="bitfun-nav-panel__inline-loading-icon" aria-hidden="true" />
             <OverflowText>{t('nav.sessions.loading')}</OverflowText>
           </div>
         </div>
@@ -1518,6 +1579,18 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
             : undefined;
           const backgroundSubagentActivityCount = backgroundSubagentActivity?.totalCount ?? 0;
           const showBackgroundSubagentActivity = !isChildSession && backgroundSubagentActivityCount > 0;
+          const scheduledJobCount = cronJobCountsBySession.get(session.sessionId) ?? 0;
+          // Same mark the session status indicator draws, in the same trailing
+          // cell: one 12px secondary clock on the row's right edge, no count.
+          // Sessions with a status to report keep that status instead.
+          const scheduledJobMark = scheduledJobCount > 0 ? (
+            <Icon
+              name="clock"
+              size="xs"
+              tone="secondary"
+              label={t('nav.scheduledJobs.badgeTooltip', { count: scheduledJobCount })}
+            />
+          ) : undefined;
           const parentSessionId = relationship.parentSessionId;
           const parentSession = parentSessionId ? flowChatState.sessions.get(parentSessionId) : undefined;
           const parentTitle = parentSession ? resolveSessionTitle(parentSession) : '';
@@ -1529,6 +1602,8 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           const showAssistantInTooltip = trimmedAssistant.length > 0;
           const dispatchTarget = session.config.dispatchTarget;
           const isDispatched = isNonLocalDispatchTarget(dispatchTarget);
+          const worktreeIsolated = isWorktreeIsolatedSession(session);
+          const worktreeRootPath = sessionWorktreeRootPath(session) ?? '';
           const dispatchTargetLabel =
             dispatchTarget?.kind === 'ssh' || dispatchTarget?.kind === 'device'
               ? (dispatchTarget.kind === 'device' ? resolveDeviceName(dispatchTarget.deviceId, dispatchTarget.displayName) : dispatchTarget.displayName)
@@ -1567,6 +1642,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
             showAssistantInTooltip ||
             isChildSession ||
             showBackgroundSubagentActivity ||
+            worktreeIsolated ||
             isDispatched;
           const tooltipContent = showRichTooltip ? (
             <div className="bitfun-nav-panel__inline-item-tooltip">
@@ -1594,6 +1670,11 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                     : t('nav.sessions.childSourceWithoutTurn', {
                         parentTitle: parentTitle || t('nav.sessions.parentSession'),
                   })}
+                </div>
+              ) : null}
+              {worktreeIsolated ? (
+                <div className="bitfun-nav-panel__inline-item-tooltip-meta">
+                  {t('nav.sessions.worktreeTooltip', { path: worktreeRootPath })}
                 </div>
               ) : null}
               {isDispatched ? (
@@ -1729,9 +1810,20 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         {dispatchPresentation?.badgeLabel}
                       </OverflowText></span>
                     ) : null}
+                    {worktreeIsolated ? (
+                      // Icon-only marker: the badge sits next to the title, where a
+                      // label competes with it. The tooltip carries the worktree path.
+                      <span
+                        className="bitfun-nav-panel__inline-item-worktree-badge"
+                        title={t('nav.sessions.worktreeTooltip', { path: worktreeRootPath })}
+                        aria-label={t('nav.sessions.worktreeTooltip', { path: worktreeRootPath })}
+                      >
+                        <FolderGit2 className="bitfun-nav-panel__inline-item-worktree-icon" aria-hidden />
+                      </span>
+                    ) : null}
                     {reviewActivityKind ? (
                       <span className="bitfun-nav-panel__inline-item-review-badge">
-                        <Loader2 size={9} aria-hidden />
+                        <Loader2 className="bitfun-nav-panel__inline-item-review-icon" aria-hidden />
                         {getReviewActivityBadge(reviewActivityKind)}
                       </span>
                     ) : null}
@@ -1750,7 +1842,6 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         />
                         <Loader2
                           className="bitfun-nav-panel__inline-item-background-subagent-icon is-loader"
-                          size={10}
                           aria-hidden
                         />
                       </span>
@@ -1767,7 +1858,10 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                     </span>
                   </span>
                   <div className="bitfun-nav-panel__inline-item-trailing">
-                    <SessionStatusIndicator sessionId={session.sessionId} />
+                    <SessionStatusIndicator
+                      sessionId={session.sessionId}
+                      idleFallback={scheduledJobMark}
+                    />
                     <div
                       className={`bitfun-nav-panel__inline-item-actions${openMenuSessionId === session.sessionId ? ' is-open' : ''}`}
                       data-bitfun-component="sessions-section"
@@ -1793,6 +1887,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                     <Menu
                       ref={sessionMenuPopoverRef}
                       className="bitfun-nav-panel__inline-item-menu-popover"
+                      inlineSize="content"
                       data-bitfun-component="sessions-section"
                       data-bitfun-part="menu"
                       data-bitfun-state="menuOpen"
@@ -1808,7 +1903,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         <>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="chevron-left" />}
+                            leading={<Icon name="chevron-left" size="sm" />}
                             onClick={e => {
                               e.stopPropagation();
                               setIsExportScopeMenu(false);
@@ -1820,7 +1915,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="arrow-down" size="lg" style={{ width: 13, height: 13 }} />}
+                            leading={<Icon name="arrow-down" size="sm" />}
                             onClick={e => { void handleExportMarkdown(e, session, 'full'); }}
                             data-testid="nav-session-menu-export-full"
                             data-session-id={session.sessionId}
@@ -1829,7 +1924,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="arrow-down" size="lg" style={{ width: 13, height: 13 }} />}
+                            leading={<Icon name="arrow-down" size="sm" />}
                             onClick={e => { void handleExportMarkdown(e, session, 'result'); }}
                             data-testid="nav-session-menu-export-result"
                             data-session-id={session.sessionId}
@@ -1841,7 +1936,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                         <>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="edit" size="xs" />}
+                            leading={<Icon name="edit" size="sm" />}
                             onClick={e => { closeSessionMenu(); handleStartEdit(e, session); }}
                             data-testid="nav-session-menu-rename"
                             data-session-id={session.sessionId}
@@ -1850,7 +1945,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="duplicate" size="xs" />}
+                            leading={<Icon name="duplicate" size="sm" />}
                             onClick={e => { closeSessionMenu(); void handleCopySessionId(e, session.sessionId); }}
                             data-testid="nav-session-menu-copy-id"
                             data-session-id={session.sessionId}
@@ -1867,14 +1962,14 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                             data-testid="nav-session-menu-export-markdown"
                             data-session-id={session.sessionId}
                             leading={exportingSessionId === session.sessionId
-                              ? <Loader2 size={13} className="bitfun-nav-panel__inline-toggle-spinner" />
-                              : <Icon name="arrow-down" size="lg" style={{ width: 13, height: 13 }} />}
+                              ? <Loader2 className="bitfun-nav-panel__inline-toggle-spinner" aria-hidden />
+                              : <Icon name="arrow-down" size="sm" />}
                           >
                             <span>{t('nav.sessions.exportMarkdown')}</span>
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Icon name="clock" size="xs" />}
+                            leading={<Icon name="clock" size="sm" />}
                             onClick={e => {
                               e.stopPropagation();
                               closeSessionMenu();
@@ -1888,7 +1983,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Archive size={13} />}
+                            leading={<Icon glyph={Archive} size="sm" />}
                             onClick={e => { closeSessionMenu(); void handleArchive(e, session.sessionId); }}
                             data-testid="nav-session-menu-archive"
                             data-session-id={session.sessionId}
@@ -1897,7 +1992,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           </MenuItem>
                           <MenuItem
                             type="button"
-                            leading={<Icon glyph={ListChecks} />}
+                            leading={<Icon glyph={ListChecks} size="sm" />}
                             disabled={!workspaceId && !session.projectWorkspaceId && !session.workspaceId}
                             onClick={e => {
                               e.stopPropagation();
@@ -1917,10 +2012,21 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                           >
                             <span>{t('nav.sessions.manage')}</span>
                           </MenuItem>
+                          {worktreeIsolated && worktreeRootPath ? (
+                            <MenuItem
+                              type="button"
+                              leading={<Icon glyph={FolderGit2} size="sm" />}
+                              onClick={e => { void handleOpenWorktreeWorkspace(e, worktreeRootPath); }}
+                              data-testid="nav-session-menu-open-worktree-workspace"
+                              data-session-id={session.sessionId}
+                            >
+                              <span>{t('nav.sessions.openWorktreeWorkspace')}</span>
+                            </MenuItem>
+                          ) : null}
                           <MenuItem
                             type="button"
                             tone="danger"
-                            leading={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
+                            leading={<Icon name="delete" size="sm" />}
                             onClick={e => { closeSessionMenu(); void handleDelete(e, session.sessionId); }}
                             data-testid="nav-session-menu-delete"
                             data-session-id={session.sessionId}
@@ -1969,7 +2075,9 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           <span className="bitfun-nav-panel__inline-toggle-count" aria-hidden>
             +{topLevelSessions.length - sessionDisplayLimit}
           </span>
-          <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
+          <span className="bitfun-nav-panel__inline-toggle-trailing">
+            <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
+          </span>
         </button>
       )}
 
@@ -1994,13 +2102,15 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
               +{expandToggleLabels.remainingCount}
             </span>
           )}
-          {metadataPageState.isLoading ? (
-            <Loader2 size={12} className="bitfun-nav-panel__inline-toggle-spinner" aria-hidden />
-          ) : expandToggleLabels.remainingCount === null ? (
-            <Icon name="chevron-up" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
-          ) : (
-            <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
-          )}
+          <span className="bitfun-nav-panel__inline-toggle-trailing">
+            {metadataPageState.isLoading ? (
+              <Loader2 className="bitfun-nav-panel__inline-toggle-spinner" aria-hidden />
+            ) : expandToggleLabels.remainingCount === null ? (
+              <Icon name="chevron-up" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
+            ) : (
+              <Icon name="chevron-down" size="xs" className="bitfun-nav-panel__inline-toggle-chevron" aria-hidden />
+            )}
+          </span>
         </button>
       )}
 

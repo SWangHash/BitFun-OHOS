@@ -2,9 +2,9 @@ import {
   openHostStream, parseStreamHint, parseStreamPage,
   type HostStreamOptions, type SessionStreamHandle, type StreamHint, type StreamReadRequest,
 } from '../../../shared/relay-transport/HostStream';
-/** Account directory plus the shared Socket.IO encrypted RPC transport. */
 import { AccountRealtime, type DeviceEventEnvelope } from '../../../shared/relay-transport/AccountRealtime';
 import { deriveDeviceMessageKey, encrypt, decrypt, fromB64 } from './E2EEncryption';
+import { normalizeRelayUrl } from './pairingLink';
 import { normalizeRelayUrl } from './pairingLink';
 
 export interface AccountIdentity {
@@ -35,6 +35,12 @@ type RelayRequestOptions = { retryable?: boolean; timeoutMs?: number };
 export interface RelayDeviceInfo {
   device_id: string;
   device_name: string;
+  /**
+   * Kind the device reported to the Relay: `desktop`, `cli`, `mobile` or
+   * `watch`. Absent on an older Relay or a client that never reported one, so
+   * every reader has to keep a neutral answer for "unknown".
+   */
+  device_kind?: string | null;
   device_alias?: string | null;
   device_model?: string | null;
   device_os?: string | null;

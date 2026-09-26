@@ -6,12 +6,6 @@ import { useI18n } from '@/infrastructure/i18n';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useSceneStore } from '@/app/stores/sceneStore';
-import type { EcosystemProductId } from './ecosystemCompatibilityModel';
-
-/** Native subscription connections are separate from external credential discovery. */
-export function ecosystemAccountProvider(product: EcosystemProductId): 'codex' | 'opencode' | undefined {
-  return product === 'codex' || product === 'opencode' ? product : undefined;
-}
 
 interface Props {
   provider: 'codex' | 'opencode';
@@ -73,7 +67,7 @@ export default function EcosystemAccounts({ provider, supported, refreshVersion,
       </span>
     </div>
     <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={3} className="ecosystem-compatibility__content-expanded">
-      {expanded ? <Card appearance="subtle" padding="sm" className="ecosystem-compatibility__account-panel">
+      {expanded ? <Card appearance="subtle" padding="sm" radius="none" className="ecosystem-compatibility__account-panel">
         <CardHeader
           title={<OverflowText>{account?.account || t(`content.accounts.providers.${provider}`)}</OverflowText>}
           description={supported && loading

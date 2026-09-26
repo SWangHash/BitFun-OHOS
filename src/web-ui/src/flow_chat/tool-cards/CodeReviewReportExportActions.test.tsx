@@ -139,6 +139,33 @@ describe('CodeReviewReportExportActions', () => {
     }
   }
 
+  it('keeps pending export controls visible and enables them when a report arrives', async () => {
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ = {};
+    vi.mocked(save).mockResolvedValue('/review.md');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      await act(async () => {
+        root.render(<CodeReviewReportExportActions reviewData={null} actions={['copy', 'save']} />);
+      });
+      const buttons = [...container.querySelectorAll<HTMLButtonElement>('button')];
+      expect(buttons).toHaveLength(2);
+      expect(buttons.every(button => button.disabled)).toBe(true);
+      expect(formatCodeReviewReportMarkdownMock).not.toHaveBeenCalled();
+      await act(async () => {
+        root.render(<CodeReviewReportExportActions
+          reviewData={{ summary: { recommended_action: 'approve' } }}
+          actions={['copy', 'save']}
+        />);
+      });
+      expect(buttons.every(button => !button.disabled)).toBe(true);
+      await act(async () => { buttons[1].click(); });
+      expect(writeFile).toHaveBeenCalledWith('/review.md', new TextEncoder().encode('# Review'));
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
   it('uses the same copy icon as other copy buttons', () => {
     const html = renderToStaticMarkup(
       <CodeReviewReportExportActions reviewData={{ summary: { recommended_action: 'approve' } }} />,

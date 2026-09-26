@@ -92,3 +92,34 @@ pub async fn computer_use_open_system_settings(
         Err("Unsupported platform.".to_string())
     }
 }
+
+/// Resource state is owned by the executing Desktop, not a newly constructed host.
+#[tauri::command]
+pub async fn computer_use_control_status(
+) -> Result<bitfun_agent_tools::computer_use_control::ControlSnapshot, String> {
+    Ok(crate::computer_use::control_session::snapshot())
+}
+#[derive(Debug, Deserialize)]
+pub struct ComputerUseControlRequest {
+    pub generation: u64,
+}
+#[tauri::command]
+pub async fn computer_use_control_stop(
+    request: ComputerUseControlRequest,
+) -> Result<bitfun_agent_tools::computer_use_control::ControlSnapshot, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::stop_checked(
+            None,
+            Some(request.generation),
+            "user_stopped",
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub async fn computer_use_control_preview(
+    request: ComputerUseControlRequest,
+) -> Result<Option<crate::computer_use::control_session::ControlPreview>, String> {
+    crate::computer_use::control_session::preview(request.generation)
+}

@@ -532,6 +532,11 @@ function ensureSubagentSession(
         parentSession?.projectWorkspacePath
         || parentSession?.config.projectWorkspacePath
         || parentSession?.workspacePath,
+      // The child owns the parent's project, so navigation and persistence
+      // resolve both to the same group.
+      projectWorkspaceId:
+        parentSession?.projectWorkspaceId
+        || parentSession?.config.projectWorkspaceId,
       executionTarget: parentSession?.config.executionTarget,
       workspaceId: subagentWorkspace.workspaceId,
     },

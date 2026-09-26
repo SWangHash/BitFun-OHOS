@@ -10,7 +10,7 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { Tooltip } from '@bitfun/ui';
 import remarkGfm from 'remark-gfm';
 import { remarkAutolinkBoundaries } from './remarkAutolinkBoundaries';
-import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange';
+import { remarkStreamingTableLinks } from './remarkStreamingTableLinks';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { visit } from 'unist-util-visit';
@@ -38,6 +38,8 @@ import { getActiveSurfaceScope, onSurfaceActivated, type SurfaceScope } from '@/
 import './Markdown.scss';
 import { useStreamingTextReveal } from './useStreamingTextReveal';
 import { SessionMarkdownImage, type SessionImageReader } from './SessionMarkdownImage';
+import { ImageLightbox, type ImageLightboxState } from '@/shared/ui/ImageLightbox';
+import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange';
 
 const log = createLogger('Markdown');
 const COMPUTER_LINK_PREFIX = 'computer://';
@@ -46,6 +48,8 @@ const CANVAS_LINK_PREFIX = 'bitfun-canvas://';
 const WORKSPACE_FOLDER_PLACEHOLDER = '{{workspaceFolder}}';
 
 const MarkdownMathRenderer = React.lazy(() => import('./MarkdownMathRenderer'));
+const ThinkingMarkdown = React.lazy(() => import('./ThinkingMarkdown'));
+const InlineFragment = ({ children }: { children?: ReactNode }) => <>{children}</>;
 
 function markdownUrlTransform(value: string, key?: string): string {
   if (/^bitfun:\/\/(?:runtime|current-session)\//.test(value)) return value;
@@ -527,12 +531,19 @@ async function getLocalImageDataUrl(
   return request;
 }
 
+/** Only sources the browser can display may open the full-size preview. */
+function isPreviewableImageSource(source: string): boolean {
+  return /^(?:data:image\/|https?:)/i.test(source);
+}
+
 interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   basePath?: string;
   /** Owning workspace ID; authoritative for the read when present. */
   workspaceId?: string;
   /** Legacy owner selector for renderers without a workspace ID. */
   remoteConnectionId?: string;
+  /** Opens the full-size preview for the source this renderer resolved. */
+  onPreview?: (source: string, alt?: string) => void;
 }
 
 const ScopedMarkdownImage: React.FC<MarkdownImageProps & { scope: SurfaceScope }> = ({
@@ -543,6 +554,8 @@ const ScopedMarkdownImage: React.FC<MarkdownImageProps & { scope: SurfaceScope }
   basePath,
   workspaceId,
   remoteConnectionId,
+  onPreview,
+  onClick,
   onLoad,
   onError,
   ...imgProps
@@ -639,6 +652,12 @@ const ScopedMarkdownImage: React.FC<MarkdownImageProps & { scope: SurfaceScope }
     };
   }, [cacheKey, localPath, rawSrc, owner, fileAccess, scope]);
 
+  // The placeholder is not content, and a failed read renders the fallback span
+  // instead of an image, so anything reachable here can be previewed.
+  const previewable = Boolean(onPreview)
+    && resolvedSrc !== LOCAL_IMAGE_PLACEHOLDER
+    && isPreviewableImageSource(resolvedSrc);
+
   if (loadState === 'error') {
     return (
       <span
@@ -659,9 +678,20 @@ const ScopedMarkdownImage: React.FC<MarkdownImageProps & { scope: SurfaceScope }
       className={[
         className,
         loadState === 'loading' ? 'markdown-image markdown-image--loading' : '',
+        previewable ? 'markdown-image--previewable' : '',
       ].filter(Boolean).join(' ')}
       loading="lazy"
       src={resolvedSrc}
+      onClick={(event) => {
+        // An image owned by a link or a file link keeps that owner's behavior.
+        if (!previewable || event.currentTarget.closest('a, button')) {
+          onClick?.(event);
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onPreview?.(resolvedSrc, typeof alt === 'string' && alt ? alt : undefined);
+      }}
       onLoad={(event) => {
         if (resolvedSrc !== LOCAL_IMAGE_PLACEHOLDER) {
           setLoadState('loaded');
@@ -767,8 +797,8 @@ export interface FlowCodeBlockFallbackProps {
 }
 
 /**
- * Lightweight, stable line-numbered code renderer used while the surrounding
- * markdown is still streaming. Its layout deliberately matches the
+ * Lightweight, stable line-numbered code renderer used for thinking at all
+ * times, and for response Markdown while streaming. Its layout matches the
  * `react-syntax-highlighter` `showLineNumbers` output: a fixed-width inline
  * line-number column followed by the line content, separated visually by the
  * same padding. This keeps the code block from visibly jumping when streaming
@@ -807,6 +837,7 @@ const CodeBlockFallback: React.FC<FlowCodeBlockFallbackProps> = ({
             minWidth: '3em',
             paddingRight: '1em',
             textAlign: 'right',
+            fontStyle: 'italic',
             color: gutterColor,
             userSelect: 'none',
             whiteSpace: 'pre',
@@ -886,8 +917,9 @@ function useLiveValueRef<T>(value: T): React.MutableRefObject<T> {
   return ref;
 }
 
-export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
-  content,
+const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean }>(({
+  thinking = false,
+  content, 
   sourceRange,
   workspaceId,
   basePath,
@@ -932,10 +964,22 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   const onHttpLinkClickRef = useLiveValueRef(onHttpLinkClick);
   const traceContextRef = useLiveValueRef(traceContext);
   const sourceRangeRef = useLiveValueRef(sourceRange);
+
+  // The overlay belongs to the renderer that resolved the image bytes: a
+  // Markdown image is inline content, not an independently mounted viewer.
+  const [imagePreview, setImagePreview] = useState<ImageLightboxState | null>(null);
+  const openImagePreview = useCallback((source: string, alt?: string) => {
+    setImagePreview({ source, alt });
+  }, []);
+  const onImagePreviewRef = useLiveValueRef(openImagePreview);
+
+  useEffect(() => {
+    // A surface switch invalidates the bytes behind an open preview.
+    setImagePreview(null);
+  }, [surfaceScope.epoch]);
   
   const syntaxTheme = useMemo(() => buildMarkdownPrismStyle(isLight), [isLight]);
   const syntaxThemeRef = useLiveValueRef(syntaxTheme);
-  const isLightRef = useLiveValueRef(isLight);
   
   const contentStr = typeof content === 'string' ? content : String(content || '');
   const renderTraceEnabled = isStartupRenderTraceEnabled();
@@ -949,7 +993,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     // which unmounts/remounts the code block and shifts its position every
     // tick. Append a synthetic closing fence so the AST stays a stable code
     // block from the moment the opening fence appears.
-    if (isStreaming) {
+    if (isStreaming && !thinking) {
       const fenceMatches = body.match(/^[ \t]{0,3}(`{3,}|~{3,})/gm);
       if (fenceMatches && fenceMatches.length % 2 === 1) {
         const lastFence = fenceMatches[fenceMatches.length - 1].trim();
@@ -959,7 +1003,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     }
 
     return body;
-  }, [contentStr, isStreaming]);
+  }, [contentStr, isStreaming, thinking]);
   const markdownContentRef = useLiveValueRef(markdownContent);
 
   const needsWorkspacePathForLinks = useMemo(
@@ -1288,7 +1332,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       
       const streaming = isStreamingRef.current;
 
-      if (language.toLowerCase().startsWith('mermaid')) {
+      if (!thinking && language.toLowerCase().startsWith('mermaid')) {
         return (
           <MermaidBlock
             code={code}
@@ -1307,10 +1351,11 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       const codeTagStyle: React.CSSProperties = {
         fontFamily: 'var(--bitfun-type-code-md-font-family)',
         fontWeight: 'var(--bitfun-type-code-md-font-weight)',
+        color: syntaxThemeRef.current['code[class*="language-"]']?.color,
       };
-      const gutterColor = isLightRef.current
-        ? 'color-mix(in srgb, var(--bitfun-color-content-on-light) 40%, var(--bitfun-color-content-on-dark))'
-        : 'color-mix(in srgb, var(--bitfun-color-content-on-dark) 40%, var(--bitfun-color-content-on-light))';
+      // Prism's line-number nodes use the comment token, applied after
+      // lineNumberStyle. Reuse that final color in the fallback as well.
+      const gutterColor = syntaxThemeRef.current.comment.color as string;
 
       return (
         <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-bitfun-component="markdown" data-bitfun-part="codeBlock" data-bitfun-state={streaming ? 'streaming' : undefined}>
@@ -1319,38 +1364,46 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
             <CopyButton code={code} />
           </div>
           <div className="code-block-body" data-bitfun-component="markdown" data-bitfun-part="codeBody">
-            {/*
-              Always mount AsyncPrismSyntaxHighlighter. While streaming,
-              preferFallback keeps the lightweight line-numbered pre so we do
-              not remount Fallback ??Prism when the turn finishes (that remount
-              flashed the chat pane).
-            */}
-            <AsyncPrismSyntaxHighlighter
-              language={normalizedLang}
-              style={syntaxThemeRef.current}
-              showLineNumbers={true}
-              customStyle={codeBodyStyle}
-              codeTagProps={{ style: codeTagStyle }}
-              lineNumberStyle={{
-                color: gutterColor,
-                paddingRight: '1em',
-                textAlign: 'right',
-                userSelect: 'none',
-                minWidth: '3em'
-              }}
-              preferFallback={streaming}
-              fallback={CodeBlockFallback}
-              fallbackProps={{
-                code,
-                language: normalizedLang,
-                bodyStyle: codeBodyStyle,
-                codeTagStyle,
-                gutterColor,
-              }}
-              traceContext={traceContextRef.current}
-            >
-              {code}
-            </AsyncPrismSyntaxHighlighter>
+            {/* Thinking must never mount a syntax highlighter, even after completion
+                or reopening. Bulk highlighting caused measured completion stalls;
+                keep this lightweight path independent of streaming state. */}
+            {thinking ? (
+              <CodeBlockFallback
+                code={code}
+                language={normalizedLang}
+                bodyStyle={codeBodyStyle}
+                codeTagStyle={codeTagStyle}
+                gutterColor={gutterColor}
+              />
+            ) : (
+              <AsyncPrismSyntaxHighlighter
+                language={normalizedLang}
+                style={syntaxThemeRef.current}
+                showLineNumbers={true}
+                customStyle={codeBodyStyle}
+                codeTagProps={{ style: codeTagStyle }}
+                lineNumberStyle={{
+                  color: gutterColor,
+                  fontStyle: 'italic',
+                  paddingRight: '1em',
+                  textAlign: 'right',
+                  userSelect: 'none',
+                  minWidth: '3em'
+                }}
+                preferFallback={streaming}
+                fallback={CodeBlockFallback}
+                fallbackProps={{
+                  code,
+                  language: normalizedLang,
+                  bodyStyle: codeBodyStyle,
+                  codeTagStyle,
+                  gutterColor,
+                }}
+                traceContext={traceContextRef.current}
+              >
+                {code}
+              </AsyncPrismSyntaxHighlighter>
+            )}
           </div>
         </div>
       );
@@ -1624,7 +1677,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     img({ node: _node, ...props }: any) {
       if (onImageReadRef.current && isLocalAssetPath(props.src || '')) {
         return <SessionMarkdownImage path={normalizeFileLikeHref(props.src)} alt={props.alt} title={props.title}
-          read={onImageReadRef.current} download={onFileDownloadRef.current} />;
+          read={onImageReadRef.current} download={onFileDownloadRef.current} onPreview={onImagePreviewRef.current} />;
       }
       // Dispatch observers have no local filesystem ownership. Do not mount
       // MarkdownImage here: even its initial state can reuse controller bytes
@@ -1648,6 +1701,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           basePath={basePathRef.current || currentWorkspacePathRef.current}
           workspaceId={workspaceIdRef.current}
           remoteConnectionId={remoteConnectionIdRef.current}
+          onPreview={onImagePreviewRef.current}
         />
       );
     },
@@ -1664,14 +1718,23 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       return <ol {...props}>{children}</ol>;
     },
     
-    li({ children, ...props }: any) {
-      return <li {...props}>{children}</li>;
+    li({ node: _node, children, className, ...props }: any) {
+      return <li {...props} className={['markdown-list-item', className].filter(Boolean).join(' ')}>{children}</li>;
+    },
+
+    th({ node: _node, children, className, ...props }: any) {
+      return <th {...props} className={['markdown-header-cell', className].filter(Boolean).join(' ')}>{children}</th>;
+    },
+
+    td({ node: _node, children, className, ...props }: any) {
+      return <td {...props} className={['markdown-data-cell', className].filter(Boolean).join(' ')}>{children}</td>;
     },
     
-    p({ children, align, style, ...props }: any) {
+    p({ node: _node, children, align, style, className, ...props }: any) {
       return (
         <p
           {...props}
+          className={['markdown-paragraph', className].filter(Boolean).join(' ')}
           style={align ? { ...style, textAlign: align } : style}
         >
           {children}
@@ -1679,8 +1742,10 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
       );
     }
   }), [
+    thinking,
     onFileDownloadRef,
     onImageReadRef,
+    onImagePreviewRef,
     handleFileViewRequest,
     handleRevealInExplorer,
     handleLocalFileContextMenu,
@@ -1694,7 +1759,6 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     currentWorkspacePathRef,
     expandDetailsByDefaultRef,
     fileActionsViaCallbackOnlyRef,
-    isLightRef,
     markdownContentRef,
     onHttpLinkClickRef,
     remoteConnectionIdRef,
@@ -1706,12 +1770,48 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
   ]);
   
   const textRevealRef = useRef<HTMLDivElement>(null);
-  useStreamingTextReveal(textRevealRef, sourceRange ? contentStr.slice(sourceRange.start, sourceRange.end) : contentStr, isStreaming);
+  // Do not re-enable arrival fading for thinking: its full-document DOM scan
+  // caused measured frame drops on long streams. This guard also applies to
+  // completed/remounted thinking; typewriter text advancement is independent.
+  useStreamingTextReveal(textRevealRef, sourceRange ? contentStr.slice(sourceRange.start, sourceRange.end) : contentStr, isStreaming, !thinking);
 
   const wrapperClassName = `markdown-renderer ${className}`.trim();
+  const thinkingEnvironment = useMemo(() => ({
+    fileAccess, surfaceScope, currentWorkspacePath, workspaceId, basePath,
+    remoteConnectionId, remoteSshHost, onImageRead, onFileDownload,
+    fileActionsViaCallbackOnly, expandDetailsByDefault,
+  }), [fileAccess, surfaceScope, currentWorkspacePath, workspaceId, basePath,
+    remoteConnectionId, remoteSshHost, onImageRead, onFileDownload,
+    fileActionsViaCallbackOnly, expandDetailsByDefault]);
+  // Rare HTML/math fragments retain the existing sanitizer and product renderers.
+  // Ordinary thinking text never enters the full-document remark/rehype pipeline.
+  const renderThinkingFragment = useCallback((fragment: string, inline: boolean, math: boolean) => {
+    const fragmentComponents = inline ? { ...components, p: InlineFragment } : components;
+    const basicFragment = (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkAutolinkBoundaries, remarkAutolinkInternalLinks]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+        urlTransform={markdownUrlTransform}
+        components={fragmentComponents}
+      >{fragment}</ReactMarkdown>
+    );
+    return math ? (
+      <React.Suspense fallback={basicFragment}>
+        <MarkdownMathRenderer
+          markdownContent={fragment}
+          isStreaming={isStreaming}
+          components={fragmentComponents}
+          sanitizeSchema={sanitizeSchema}
+          remarkAutolinkComputerFileLinks={remarkAutolinkInternalLinks}
+          urlTransform={markdownUrlTransform}
+          inline={inline}
+        />
+      </React.Suspense>
+    ) : basicFragment;
+  }, [components, isStreaming]);
   const basicMarkdownRenderer = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkAutolinkBoundaries, remarkAutolinkInternalLinks]}
+      remarkPlugins={[remarkGfm, [remarkStreamingTableLinks, { isStreaming }], remarkAutolinkBoundaries, remarkAutolinkInternalLinks]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange]]}
       urlTransform={markdownUrlTransform}
       components={components}
@@ -1733,10 +1833,23 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
         />
       )}
       <MarkdownErrorBoundary fallbackContent={sourceRange ? markdownContent.slice(sourceRange.start, sourceRange.end) : markdownContent}>
-        {shouldUseMathRenderer ? (
+        {thinking ? (
+          <React.Suspense fallback={contentStr}>
+            <ThinkingMarkdown
+              content={contentStr}
+              isStreaming={isStreaming}
+              isDark={!isLight}
+              components={components}
+              urlTransform={markdownUrlTransform}
+              renderFragment={renderThinkingFragment}
+              environment={thinkingEnvironment}
+            />
+          </React.Suspense>
+        ) : shouldUseMathRenderer ? (
           <React.Suspense fallback={basicMarkdownRenderer}>
             <MarkdownMathRenderer
               markdownContent={markdownContent}
+              isStreaming={isStreaming}
               components={components}
               sanitizeSchema={sanitizeSchema}
               remarkAutolinkComputerFileLinks={remarkAutolinkInternalLinks}
@@ -1746,7 +1859,13 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           </React.Suspense>
         ) : basicMarkdownRenderer}
       </MarkdownErrorBoundary>
+      <ImageLightbox image={imagePreview} onClose={() => setImagePreview(null)} />
       
     </div>
   );
 });
+
+export const MarkdownRenderer = React.memo<MarkdownRendererProps>(props => <MarkdownSurface {...props} />);
+
+/** Deliberately opt in only from the thinking surface, never from response bodies. */
+export const ThinkingMarkdownRenderer = React.memo<Omit<MarkdownRendererProps, 'sourceRange'>>(props => <MarkdownSurface {...props} thinking />);

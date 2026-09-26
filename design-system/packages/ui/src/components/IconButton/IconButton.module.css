@@ -1,10 +1,10 @@
-@layer bitfun.components {
+@layer openbitfun.components {
   .button {
     --_icon-button-background: transparent;
     --_icon-button-background-hover: var(--bitfun-color-action-neutral-surface-hover);
     --_icon-button-background-active: var(--bitfun-color-action-neutral-surface-hover);
     --_icon-button-content: var(--bitfun-color-content-primary);
-    --_icon-button-icon-size: 14px;
+    --_icon-button-icon-size: var(--bitfun-control-icon-size-sm);
     --_icon-button-size: var(--bitfun-control-height-sm);
 
     position: relative;
@@ -126,12 +126,12 @@
   }
 
   .button[data-size="md"] {
-    --_icon-button-icon-size: 16px;
+    --_icon-button-icon-size: var(--bitfun-control-icon-size-md);
     --_icon-button-size: var(--bitfun-control-height-md);
   }
 
   .button[data-size="lg"] {
-    --_icon-button-icon-size: 20px;
+    --_icon-button-icon-size: var(--bitfun-control-icon-size-lg);
     --_icon-button-size: var(--bitfun-control-height-lg);
   }
 

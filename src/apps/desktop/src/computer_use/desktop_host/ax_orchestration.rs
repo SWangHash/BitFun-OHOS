@@ -19,18 +19,15 @@ use super::LINUX_LEGACY_AX_UNAVAILABLE;
 use super::{require_macos_background_input, resolve_pid_macos};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use super::{CachedInteractiveView, CachedVisualMarkView};
-#[cfg(target_os = "macos")]
-use log::debug;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use log::warn;
 #[cfg(any(test, target_os = "macos", target_os = "windows"))]
 use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 use bitfun_core::agentic::tools::computer_use_host::ComputerUseHost;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use bitfun_core::agentic::tools::computer_use_host::VisualMark;
 use bitfun_core::agentic::tools::computer_use_host::{
-    AppClickParams, AppSelector, AppStateSnapshot, AppWaitPredicate, ClickTarget,
+    AppClickParams, AppInputAction, AppSelector, AppStateSnapshot, AppWaitPredicate, ClickTarget,
     InteractiveActionResult, InteractiveClickParams, InteractiveScrollParams,
     InteractiveTypeTextParams, InteractiveView, InteractiveViewOpts, VisualActionResult,
     VisualClickParams, VisualMarkView, VisualMarkViewOpts,
@@ -42,6 +39,43 @@ use std::time::{Duration, Instant};
 #[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 mod context_integrity_tests {
     use super::*;
+
+    #[test]
+    fn point_press_preserves_non_plain_click_contracts() {
+        assert!(is_plain_activation_click("left", 1, &[]));
+        for button in ["right", "middle"] {
+            assert!(!is_plain_activation_click(button, 1, &[]));
+        }
+        for count in [0, 2, 3] {
+            assert!(!is_plain_activation_click("left", count, &[]));
+        }
+        for modifier in ["command", "control", "shift", "option"] {
+            assert!(!is_plain_activation_click("left", 1, &[modifier.into()]));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn absent_observed_node_never_resnapshots_or_dispatches_input() {
+        let error = resolve_macos_node_click(i32::MAX, 0, true).unwrap_err();
+        assert!(error.to_string().contains("AX_NODE_STALE"), "{error}");
+    }
+
+    #[test]
+    fn coordinate_fallback_requires_a_finite_nonempty_observed_frame() {
+        assert_eq!(
+            observed_node_center((100.0, 200.0, 80.0, 40.0)).unwrap(),
+            (140.0, 220.0)
+        );
+        for frame in [
+            (0.0, 0.0, 0.0, 10.0),
+            (0.0, 0.0, 10.0, -1.0),
+            (f64::NAN, 0.0, 10.0, 10.0),
+            (0.0, 0.0, f64::INFINITY, 10.0),
+        ] {
+            assert!(observed_node_center(frame).is_err());
+        }
+    }
 
     #[tokio::test]
     async fn stale_view_actions_do_not_rebuild_and_retarget_old_indices() {
@@ -98,16 +132,223 @@ mod context_integrity_tests {
     }
 }
 
+#[cfg(any(test, target_os = "macos"))]
+fn is_plain_activation_click(button: &str, count: u8, modifiers: &[String]) -> bool {
+    button == "left" && count == 1 && modifiers.is_empty()
+}
+
+#[cfg(target_os = "macos")]
+fn try_macos_point_press(pid: i32, x: f64, y: f64) -> BitFunResult<bool> {
+    let Some(target) = crate::computer_use::macos_ax_dump::retained_target_at_point(pid, x, y)?
+    else {
+        return Ok(false);
+    };
+    crate::computer_use::macos_ax_dump::validate_bound_target(pid, target.reference())?;
+    if !target.supports_point_press() {
+        return Ok(false);
+    }
+    match crate::computer_use::macos_ax_write::try_ax_press(target.reference()) {
+        crate::computer_use::macos_ax_write::AxWriteOutcome::Ok => {
+            crate::computer_use::control_session::record_pointer(x, y, true);
+            Ok(true)
+        },
+        crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(-25206) => Ok(false),
+        crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(status) => Err(BitFunError::tool(format!("AX_ACTION_OUTCOME_UNKNOWN: AXPress returned {status}; no coordinate retry was sent. Observe before choosing another action"))),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_macos_node_click(
+    pid: i32,
+    idx: u32,
+    semantic: bool,
+) -> BitFunResult<Option<(f64, f64)>> {
+    let target = crate::computer_use::macos_ax_dump::retained_cached_target(pid, idx)
+        .ok_or_else(|| BitFunError::tool(format!("AX_NODE_STALE: idx={idx} is not in the observed app snapshot; observe the app again")))?;
+    crate::computer_use::macos_ax_dump::validate_bound_target(pid, target.reference())?;
+    if semantic {
+        match crate::computer_use::macos_ax_write::try_ax_press(target.reference()) {
+            crate::computer_use::macos_ax_write::AxWriteOutcome::Ok => return Ok(None),
+            // kAXErrorActionUnsupported guarantees no semantic action was sent.
+            crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(-25206) => {}
+            crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(status) => {
+                return Err(BitFunError::tool(format!("AX_ACTION_OUTCOME_UNKNOWN: AXPress returned {status}; no coordinate retry was sent. Re-observe before deciding another action")));
+            }
+        }
+    }
+    let frame = target.frame_global().ok_or_else(|| {
+        BitFunError::tool(format!(
+            "AX_NODE_STALE: idx={idx} no longer has a readable frame; observe the app again"
+        ))
+    })?;
+    observed_node_center(frame).map(Some)
+}
+
+#[cfg(any(test, target_os = "macos"))]
+fn observed_node_center(
+    (x, y, width, height): (f64, f64, f64, f64),
+) -> BitFunResult<(f64, f64)> {
+    if ![x, y, width, height].into_iter().all(f64::is_finite) || width <= 0.0 || height <= 0.0 {
+        return Err(BitFunError::tool(
+            "AX_NODE_STALE: Observed target has an invalid or empty frame",
+        ));
+    }
+    Ok((x + width / 2.0, y + height / 2.0))
+}
+
 impl DesktopComputerUseHost {
+    pub(super) async fn dispatch_app_input_impl(
+        &self,
+        app: AppSelector,
+        action: AppInputAction,
+    ) -> BitFunResult<()> {
+        crate::computer_use::control_session::input_allowed().map_err(BitFunError::tool)?;
+        match action {
+            AppInputAction::Click {
+                target,
+                click_count,
+                mouse_button,
+                modifier_keys,
+                wait_ms_after,
+            } => {
+                self.dispatch_app_click_impl(AppClickParams {
+                    app,
+                    target,
+                    click_count,
+                    mouse_button,
+                    modifier_keys,
+                    wait_ms_after,
+                })
+                .await
+            }
+            AppInputAction::TypeText { text, focus } => {
+                self.dispatch_app_type_text_impl(app, &text, focus).await
+            }
+            AppInputAction::KeyChord { keys, focus_idx } => {
+                self.dispatch_app_key_chord_impl(app, keys, focus_idx).await
+            }
+            AppInputAction::Scroll { dx, dy, focus } => {
+                self.dispatch_app_scroll_impl(app, focus, dx, dy).await
+            }
+            AppInputAction::Wait { ms } => self.wait_ms(ms).await,
+            AppInputAction::Drag {
+                from,
+                to,
+                mouse_button,
+                duration_ms,
+            } => {
+                self.dispatch_app_drag_impl(app, from, to, mouse_button, duration_ms)
+                    .await
+            }
+        }
+    }
+
+    async fn dispatch_app_drag_impl(
+        &self,
+        app: AppSelector,
+        from: ClickTarget,
+        to: ClickTarget,
+        button: String,
+        duration_ms: u64,
+    ) -> BitFunResult<()> {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            #[cfg(target_os = "macos")]
+            let pid = resolve_pid_macos(self, &app).await?;
+            #[cfg(target_os = "windows")]
+            let (pid, hwnd) = self.windows_target(&app).await?;
+            // Both endpoints refer to observed pixels from this same window.
+            let point = |target: ClickTarget| -> BitFunResult<(f64, f64)> {
+                match target {
+                    ClickTarget::ImageXy {x, y, screenshot_id} => self.map_app_image_coords_to_pointer_f64(pid, x, y, screenshot_id.as_deref()),
+                    _ => Err(BitFunError::tool("[INVALID_DRAG_TARGET] Drag endpoints require image_xy and screenshot_id from the observed app window")),
+                }
+            };
+            let (x0, y0) = point(from)?;
+            let (x1, y1) = point(to)?;
+            let steps = (duration_ms / 16).clamp(2, 120) as usize;
+            #[cfg(target_os = "macos")]
+            {
+                let wid = crate::computer_use::macos_capture::bound_window_id(pid)
+                    .map_err(BitFunError::tool)?;
+                let [wx, wy, _, _] = crate::computer_use::macos_capture::window_bounds(pid, wid)
+                    .map_err(BitFunError::tool)?;
+                let button = match button.as_str() {
+                    "right" => crate::computer_use::macos_bg_input::BgDragButton::Right,
+                    "middle" => crate::computer_use::macos_bg_input::BgDragButton::Middle,
+                    _ => crate::computer_use::macos_bg_input::BgDragButton::Left,
+                };
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    macos::catch_objc(|| {
+                        crate::computer_use::macos_bg_input::bg_drag(
+                            pid,
+                            x0,
+                            y0,
+                            x1,
+                            y1,
+                            Some((x0 - wx, y0 - wy)),
+                            Some((x1 - wx, y1 - wy)),
+                            Some(wid),
+                            duration_ms,
+                            steps,
+                            &[],
+                            button,
+                        )
+                    })
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
+            }
+            #[cfg(target_os = "windows")]
+            {
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    crate::computer_use::windows_bg_input::post_drag_screen(
+                        windows::Win32::Foundation::HWND(hwnd as *mut std::ffi::c_void),
+                        x0.round() as i32,
+                        y0.round() as i32,
+                        x1.round() as i32,
+                        y1.round() as i32,
+                        duration_ms,
+                        steps,
+                        &button,
+                    )
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
+            }
+            crate::computer_use::control_session::record_pointer(x1, y1, false);
+            Ok(())
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            let _ = (app, from, to, button, duration_ms);
+            Err(BitFunError::tool("[BACKGROUND_DRAG_UNAVAILABLE] This compositor does not support app-directed background dragging"))
+        }
+    }
+
     pub(super) async fn app_click_impl(
         &self,
         params: AppClickParams,
     ) -> BitFunResult<AppStateSnapshot> {
+        let app = params.app.clone();
+        self.dispatch_app_click_impl(params).await?;
+        self.observe_after_app_input(app).await
+    }
+
+    async fn observe_after_app_input(
+        &self,
+        app: AppSelector,
+    ) -> BitFunResult<AppStateSnapshot> {
+        self.get_app_state(app, 32, true).await.map_err(|error| {
+            BitFunError::tool(format!("[POST_INPUT_OBSERVATION_FAILED] Input was already submitted; only observation failed: {error}. Observe the target before deciding another input; do not replay the action to repair this error."))
+        })
+    }
+
+    async fn dispatch_app_click_impl(&self, params: AppClickParams) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
             let pid = resolve_pid_macos(self, &params.app).await?;
             let self_pid = std::process::id() as i32;
-            let mut click_coords: Option<(f64, f64)> = None;
             log::info!(
                 target: "computer_use::app_click",
                 "app_click.enter pid={} self_pid={} same_process={} target={:?} button={} click_count={} modifier_keys={:?}",
@@ -119,34 +360,46 @@ impl DesktopComputerUseHost {
                 params.click_count,
                 params.modifier_keys
             );
-            // Try AX press path when the target is a node idx and the cache
-            // still holds a live ref; otherwise inject background events at
-            // the resolved global coordinate.
+            // Retain the exact observed AX node. Never rebuild a tree and
+            // reinterpret an old index after an unsupported semantic action.
+            let mut node_coordinates = None;
+            let mut image_coordinates = None;
             let ax_ok = match &params.target {
                 ClickTarget::NodeIdx { idx } => {
                     let idx = *idx;
-                    // Run AX lookup + AXPress under @try/@catch on a blocking
-                    // thread; either a missing ref or a thrown NSException
-                    // simply degrades to the bg_click fallback below.
-                    tokio::task::spawn_blocking(move || {
-                        macos::catch_objc(|| {
-                            Ok(
-                                if let Some(r) =
-                                    crate::computer_use::macos_ax_dump::cached_ref_loose(pid, idx)
-                                {
-                                    matches!(
-                                        crate::computer_use::macos_ax_write::try_ax_press(r),
-                                        crate::computer_use::macos_ax_write::AxWriteOutcome::Ok
-                                    )
-                                } else {
-                                    false
-                                },
-                            )
+                    let semantic = params.mouse_button == "left"
+                        && params.click_count == 1
+                        && params.modifier_keys.is_empty();
+                    node_coordinates =
+                        crate::computer_use::control_session::spawn_blocking(move || {
+                            macos::catch_objc(|| resolve_macos_node_click(pid, idx, semantic))
                         })
-                        .unwrap_or(false)
+                        .await
+                        .map_err(|error| BitFunError::tool(error.to_string()))??;
+                    node_coordinates.is_none()
+                }
+                ClickTarget::ImageXy {
+                    x,
+                    y,
+                    screenshot_id,
+                } if is_plain_activation_click(
+                    &params.mouse_button,
+                    params.click_count,
+                    &params.modifier_keys,
+                ) =>
+                {
+                    let (x, y) = self.map_app_image_coords_to_pointer_f64(
+                        pid,
+                        *x,
+                        *y,
+                        screenshot_id.as_deref(),
+                    )?;
+                    image_coordinates = Some((x, y));
+                    crate::computer_use::control_session::spawn_blocking(move || {
+                        macos::catch_objc(|| try_macos_point_press(pid, x, y))
                     })
                     .await
-                    .unwrap_or(false)
+                    .map_err(|error| BitFunError::tool(error.to_string()))??
                 }
                 ClickTarget::ScreenXy { .. }
                 | ClickTarget::ImageXy { .. }
@@ -156,127 +409,14 @@ impl DesktopComputerUseHost {
             };
             if !ax_ok {
                 require_macos_background_input()?;
-                let (x, y): (f64, f64) = match &params.target {
-                    ClickTarget::ScreenXy { x, y } => (*x, *y),
-                    ClickTarget::ImageXy {
-                        x,
-                        y,
-                        screenshot_id,
-                    } => self.map_app_image_coords_to_pointer_f64(
+                let (x, y) = self
+                    .resolve_macos_pointer_target(
                         pid,
-                        *x,
-                        *y,
-                        screenshot_id.as_deref(),
-                    )?,
-                    ClickTarget::ImageGrid { screenshot_id, .. } => {
-                        let (ix, iy) =
-                            Self::image_grid_target_to_xy(&params.target)?.ok_or_else(|| {
-                                BitFunError::tool("invalid image_grid target".to_string())
-                            })?;
-                        self.map_app_image_coords_to_pointer_f64(
-                            pid,
-                            ix,
-                            iy,
-                            screenshot_id.as_deref(),
-                        )?
-                    }
-                    ClickTarget::VisualGrid {
-                        rows,
-                        cols,
-                        row,
-                        col,
-                        intersections,
-                        wait_ms_after_detection,
-                    } => {
-                        let shot = self.screenshot_for_app_pid(pid).await?;
-                        let (x0, y0, width, height) =
-                            detect_regular_grid_rect_from_screenshot(&shot, *rows, *cols)?;
-                        let target = ClickTarget::ImageGrid {
-                            x0,
-                            y0,
-                            width,
-                            height,
-                            rows: *rows,
-                            cols: *cols,
-                            row: *row,
-                            col: *col,
-                            intersections: *intersections,
-                            screenshot_id: shot.screenshot_id.clone(),
-                        };
-                        let (ix, iy) =
-                            Self::image_grid_target_to_xy(&target)?.ok_or_else(|| {
-                                BitFunError::tool(
-                                    "invalid detected visual_grid target".to_string(),
-                                )
-                            })?;
-                        if let Some(wait) = wait_ms_after_detection {
-                            if *wait > 0 {
-                                tokio::time::sleep(Duration::from_millis(*wait as u64)).await;
-                            }
-                        }
-                        self.map_app_image_coords_to_pointer_f64(
-                            pid,
-                            ix,
-                            iy,
-                            shot.screenshot_id.as_deref(),
-                        )?
-                    }
-                    ClickTarget::NodeIdx { idx } => {
-                        // Best-effort: re-snapshot to read the node's frame.
-                        // Skip the screenshot — this snapshot is internal-only;
-                        // the post-click re-snapshot below is the one returned
-                        // to the model and carries the visual evidence.
-                        let snap = self
-                            .get_app_state_inner(params.app.clone(), 32, false, false)
-                            .await?;
-                        let node = snap.nodes.iter().find(|n| n.idx == *idx).ok_or_else(|| {
-                            BitFunError::tool(format!(
-                                "AX_NODE_STALE: idx={} no longer present in app state",
-                                idx
-                            ))
-                        })?;
-                        // Refuse to fall back to (0,0) on the desktop —
-                        // that would silently click the menu bar / Finder
-                        // icon. The caller must re-snapshot to acquire a
-                        // node with a real on-screen frame.
-                        let (fx, fy, fw, fh) = node.frame_global.ok_or_else(|| {
-                            BitFunError::tool(format!(
-                                "AX_NODE_STALE: idx={} has no AXFrame (likely off-screen or window minimised)",
-                                idx
-                            ))
-                        })?;
-                        if fw <= 0.0 || fh <= 0.0 {
-                            return Err(BitFunError::tool(format!(
-                                "AX_NODE_STALE: idx={} has zero-size frame ({}x{})",
-                                idx, fw, fh
-                            )));
-                        }
-                        (fx + fw / 2.0, fy + fh / 2.0)
-                    }
-                    ClickTarget::OcrText { needle } => {
-                        // Codex parity: when the AX tree doesn't expose the
-                        // target widget (Canvas, WebGL, custom-drawn cell),
-                        // fall back to OCR-on-screenshot. We screenshot the
-                        // whole screen rather than just the target window
-                        // because window-relative regions need extra plumbing
-                        // and the matcher already filters by confidence.
-                        let matches = self.ocr_find_text_matches(needle, None).await?;
-                        let best = matches.into_iter().max_by(|a, b| {
-                            a.confidence
-                                .partial_cmp(&b.confidence)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        });
-                        let m = best.ok_or_else(|| {
-                            BitFunError::tool(format!(
-                                "NOT_FOUND: no OCR match for needle {:?}",
-                                needle
-                            ))
-                        })?;
-                        (m.center_x, m.center_y)
-                    }
-                };
-                let click_coords_val = Some((x, y));
-                click_coords = click_coords_val;
+                        &params.target,
+                        node_coordinates,
+                        image_coordinates,
+                    )
+                    .await?;
                 let mods: Vec<crate::computer_use::macos_bg_input::BgModifier> = params
                     .modifier_keys
                     .iter()
@@ -294,27 +434,9 @@ impl DesktopComputerUseHost {
                     pid, self_pid, pid == self_pid, x, y, cnt
                 );
 
-                // Capture pre-click digest so we can detect "click delivered
-                // but UI did not change" and apply a foreground fallback when
-                // the target lives in our own process (the most common cause
-                // of `bg_click → WKWebView no-op` in single-process Tauri).
-                let pre_digest_opt = match self
-                    .get_app_state_inner(params.app.clone(), 0, false, false)
-                    .await
-                {
-                    Ok(s) => Some(s.digest),
-                    Err(e) => {
-                        debug!(
-                            target: "computer_use::app_click",
-                            "pre_digest_unavailable error={}",
-                            e
-                        );
-                        None
-                    }
-                };
-
-                // Resolve window-id and bundle-id for focus-without-raise
-                // activation and Chromium click routing.
+                // Chromium routing must use the same window and coordinate
+                // basis as the captured image. The sharing indicator can be
+                // WindowServer's first window for this PID; it is not a target.
                 let bundle_id_opt = params
                     .app
                     .bundle_id
@@ -323,59 +445,43 @@ impl DesktopComputerUseHost {
                 let is_chromium = crate::computer_use::macos_bg_input::is_chromium_electron(
                     bundle_id_opt.as_deref(),
                 );
-                let win_id_and_bounds = tokio::task::spawn_blocking(move || {
-                    macos::catch_objc(|| {
-                        let wid =
-                            crate::computer_use::macos_bg_input::frontmost_window_id_for_pid(pid);
-                        let bounds =
-                            crate::computer_use::macos_ax_ui::window_bounds_global_for_pid(pid)
-                                .ok();
-                        Ok::<_, BitFunError>((wid, bounds))
+                let (win_id, win_bounds) =
+                    crate::computer_use::control_session::spawn_blocking(move || {
+                        macos::catch_objc(|| {
+                            let wid = crate::computer_use::macos_capture::bound_window_id(pid)
+                                .map_err(BitFunError::tool)?;
+                            let bounds =
+                                crate::computer_use::macos_capture::window_bounds(pid, wid)
+                                    .map_err(BitFunError::tool)?;
+                            Ok::<_, BitFunError>((wid, bounds))
+                        })
                     })
-                })
-                .await
-                .unwrap_or(Ok((None, None)))
-                .unwrap_or((None, None));
-                let (win_id, win_bounds) = win_id_and_bounds;
+                    .await
+                    .map_err(|error| BitFunError::tool(error.to_string()))??;
 
-                // Best-effort foreground activation — required for WKWebView
-                // and many Cocoa hit-testers to actually deliver our
-                // synthetic events. Uses focus-without-raise SPI when a
-                // window_id is available, falling back to public API.
-                let activate_pid = pid;
-                let activate_wid = win_id;
-                let _ = tokio::task::spawn_blocking(move || {
-                    macos::catch_objc(|| {
-                        crate::computer_use::macos_bg_input::activate_pid_macos_with_window(
-                            activate_pid,
-                            activate_wid,
-                        )
-                    })
-                })
-                .await;
-
+                // Raw mouse-down requires explicit foreground authorization;
+                // the native dispatcher rejects background mode before posting.
                 let mods_for_bg = mods.clone();
                 let win_bounds_for_click = win_bounds;
                 let wid_for_click = win_id;
-                tokio::task::spawn_blocking(move || {
+                crate::computer_use::control_session::spawn_blocking(move || {
                     macos::catch_objc(|| {
-                        // Use Chromium 5-event recipe for Chromium/Electron
-                        // targets when we have a window-id and window bounds.
-                        if is_chromium {
-                            if let (Some(wid), Some((wx, wy, _, _))) =
-                                (wid_for_click, win_bounds_for_click)
-                            {
-                                return crate::computer_use::macos_bg_input::bg_click_chromium(
-                                    pid,
-                                    x,
-                                    y,
-                                    x - wx as f64,
-                                    y - wy as f64,
-                                    wid,
-                                    cnt,
-                                    &mods_for_bg,
-                                );
-                            }
+                        // This Chromium recipe encodes a left button. Other
+                        // buttons use the ordinary directed event path.
+                        if is_chromium
+                            && btn == crate::computer_use::macos_bg_input::BgMouseButton::Left
+                        {
+                            let [wx, wy, _, _] = win_bounds_for_click;
+                            return crate::computer_use::macos_bg_input::bg_click_chromium(
+                                pid,
+                                x,
+                                y,
+                                x - wx,
+                                y - wy,
+                                wid_for_click,
+                                cnt,
+                                &mods_for_bg,
+                            );
                         }
                         crate::computer_use::macos_bg_input::bg_click(
                             pid,
@@ -388,126 +494,80 @@ impl DesktopComputerUseHost {
                 })
                 .await
                 .map_err(|e| BitFunError::tool(e.to_string()))??;
-
-                // Same-process fallback: if `bg_click` left the digest
-                // unchanged AND the target is our own process (bitfun-desktop
-                // hosting an embedded mini-app WebView), retry with the
-                // foreground click path. This trades a momentary cursor
-                // movement for actually landing the click in the WebView.
-                if pid == self_pid {
-                    let settle = params.wait_ms_after.unwrap_or(120).min(5_000);
-                    tokio::time::sleep(Duration::from_millis(settle.max(80) as u64)).await;
-                    let post_digest_opt = self
-                        .get_app_state_inner(params.app.clone(), 0, false, false)
-                        .await
-                        .ok()
-                        .map(|s| s.digest);
-                    let unchanged =
-                        matches!((&pre_digest_opt, &post_digest_opt), (Some(a), Some(b)) if a == b);
-                    if unchanged {
-                        warn!(
-                            target: "computer_use::app_click",
-                            "bg_click_no_effect_self_pid_falling_back_to_foreground pid={} x={:.2} y={:.2} digest={:?}",
-                            pid, x, y, post_digest_opt
-                        );
-                        // Foreground fallback uses the user's real cursor +
-                        // synthetic enigo click so the WKWebView's hit-test
-                        // path is identical to a human click.
-                        let btn_str = match btn {
-                            crate::computer_use::macos_bg_input::BgMouseButton::Right => "right",
-                            crate::computer_use::macos_bg_input::BgMouseButton::Middle => "middle",
-                            _ => "left",
-                        };
-                        self.mouse_move_global_f64(x, y).await?;
-                        for _ in 0..cnt {
-                            self.mouse_click_authoritative(btn_str).await?;
-                        }
-                    }
-                }
             }
-            let settle_ms = params.wait_ms_after.unwrap_or(120).min(5_000);
+            let settle_ms = params.wait_ms_after.unwrap_or(0);
             if settle_ms > 0 {
-                tokio::time::sleep(Duration::from_millis(settle_ms as u64)).await;
+                crate::computer_use::control_session::wait(settle_ms as u64)
+                    .await
+                    .map_err(BitFunError::tool)?;
             }
-            // Re-snapshot so the caller can see the new state + new digest.
-            let result_snap = self.get_app_state(params.app, 32, false).await?;
-            // Debug-only: annotate the returned screenshot with the click
-            // target coordinates so logs show where the click landed.
-            if let Some((cx, cy)) = click_coords {
-                if log::log_enabled!(target: "computer_use::debug_overlay", log::Level::Debug) {
-                    if let Some(ref shot) = result_snap.screenshot {
-                        match crate::computer_use::debug_overlay::annotate_screenshot_with_click(
-                            &shot.bytes,
-                            "image/jpeg",
-                            cx as u32,
-                            cy as u32,
-                        ) {
-                            Ok(_annotated) => {
-                                debug!(
-                                    target: "computer_use::debug_overlay",
-                                    "click_annotated pid={} x={:.0} y={:.0} original_bytes={}",
-                                    pid, cx, cy, shot.bytes.len()
-                                );
-                            }
-                            Err(e) => {
-                                debug!(
-                                    target: "computer_use::debug_overlay",
-                                    "click_annotation_failed pid={} error={}",
-                                    pid, e
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(result_snap)
+            Ok(())
         }
         #[cfg(target_os = "windows")]
         {
-            // Resolve the target to a global screen point, then deliver an
-            // invisible PostMessage click to the foreground window (the same
-            // window the AX snapshot describes).
-            let (x, y) = self.resolve_click_target_windows(&params.target).await?;
-            let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
-            if hwnd_raw == 0 {
-                return Err(BitFunError::tool(
-                    "app_click: no foreground window to target on Windows.".to_string(),
-                ));
+            let (_, hwnd_raw) = self.windows_target(&params.app).await?;
+            if let ClickTarget::NodeIdx { idx } = &params.target {
+                if params.mouse_button != "left"
+                    || params.click_count != 1
+                    || !params.modifier_keys.is_empty()
+                {
+                    return Err(BitFunError::tool("[AX_ACTION_UNSUPPORTED] Semantic activation supports one unmodified left click"));
+                }
+                let idx = *idx;
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    crate::computer_use::windows_ax_ui::invoke_cached_node(hwnd_raw, idx)
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
+            } else {
+                let (x, y) = self
+                    .resolve_click_target_windows(&params.target, &params.app)
+                    .await?;
+                let button = params.mouse_button.clone();
+                let count = params.click_count.max(1) as usize;
+                let modifiers = params.modifier_keys.clone();
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
+                    crate::computer_use::windows_bg_input::post_click_screen(
+                        hwnd,
+                        x.round() as i32,
+                        y.round() as i32,
+                        &button,
+                        count,
+                        &modifiers,
+                    )?;
+                    crate::computer_use::control_session::record_pointer(x, y, true);
+                    Ok::<_, BitFunError>(())
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
             }
-            let button = params.mouse_button.clone();
-            let count = params.click_count.max(1) as usize;
-            let modifiers = params.modifier_keys.clone();
-            log::info!(
-                target: "computer_use::app_click",
-                "app_click.windows post_click_screen x={:.1} y={:.1} button={} count={} mods={:?}",
-                x, y, button, count, modifiers
-            );
-            tokio::task::spawn_blocking(move || {
-                let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
-                crate::computer_use::windows_bg_input::post_click_screen(
-                    hwnd,
-                    x.round() as i32,
-                    y.round() as i32,
-                    &button,
-                    count,
-                    &modifiers,
-                )
-            })
-            .await
-            .map_err(|e| BitFunError::tool(e.to_string()))??;
-
-            let settle_ms = params.wait_ms_after.unwrap_or(120).min(5_000);
+            let settle_ms = params.wait_ms_after.unwrap_or(0);
             if settle_ms > 0 {
-                tokio::time::sleep(Duration::from_millis(settle_ms as u64)).await;
+                crate::computer_use::control_session::wait(settle_ms as u64)
+                    .await
+                    .map_err(BitFunError::tool)?;
             }
-            self.get_app_state(params.app, 32, false).await
+            Ok(())
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
         {
-            let _ = params;
-            Err(BitFunError::tool(
-                LINUX_LEGACY_AX_UNAVAILABLE.to_string(),
-            ))
+            if params.click_count != 1
+                || params.mouse_button != "left"
+                || !params.modifier_keys.is_empty()
+            {
+                return Err(BitFunError::tool("[BACKGROUND_ACTION_UNAVAILABLE] AT-SPI default actions support one semantic activation without mouse modifiers."));
+            }
+            let ClickTarget::NodeIdx { idx } = params.target else {
+                return Err(BitFunError::tool("[FOREGROUND_REQUIRED] Linux background app actions require an observed AT-SPI node. Coordinate input requires an authorized foreground portal session."));
+            };
+            crate::computer_use::linux_control_ax::press(&params.app, idx).await?;
+            if let Some(delay) = params.wait_ms_after {
+                crate::computer_use::control_session::wait(delay as u64)
+                    .await
+                    .map_err(BitFunError::tool)?;
+            }
+            Ok(())
         }
     }
 
@@ -517,24 +577,115 @@ impl DesktopComputerUseHost {
         text: &str,
         focus: Option<ClickTarget>,
     ) -> BitFunResult<AppStateSnapshot> {
+        self.dispatch_app_type_text_impl(app.clone(), text, focus)
+            .await?;
+        self.observe_after_app_input(app).await
+    }
+
+    /// Resolve focus through the target application's own accessibility hit test,
+    /// not the human's foreground window and not a guessed containing rectangle.
+    /// This preserves text insertion semantics without synthesizing a mouse click.
+    #[cfg(target_os = "macos")]
+    async fn try_focus_macos_text_target(
+        &self,
+        pid: i32,
+        target: &ClickTarget,
+    ) -> BitFunResult<bool> {
+        self.try_macos_text_operation(pid, target, None).await
+    }
+
+    #[cfg(target_os = "macos")]
+    async fn try_macos_text_operation(
+        &self,
+        pid: i32,
+        target: &ClickTarget,
+        insertion: Option<String>,
+    ) -> BitFunResult<bool> {
+        let point = match target {
+            ClickTarget::NodeIdx { .. } => None,
+            _ => Some(
+                self.resolve_macos_pointer_target(pid, target, None, None)
+                    .await?,
+            ),
+        };
+        let index = if let ClickTarget::NodeIdx { idx } = target {
+            Some(*idx)
+        } else {
+            None
+        };
+        if point.is_none() && index.is_none() {
+            return Ok(false);
+        }
+        crate::computer_use::control_session::spawn_blocking(move || macos::catch_objc(|| {
+            let element = if let Some(index) = index {
+                Some(crate::computer_use::macos_ax_dump::retained_cached_target(pid, index)
+                    .ok_or_else(|| BitFunError::tool("AX_NODE_STALE: text focus target is no longer in the observed snapshot"))?)
+            } else if let Some((x, y)) = point {
+                crate::computer_use::macos_ax_dump::retained_target_at_point(pid, x, y)?
+            } else { None };
+            let Some(element) = element else { return Ok(false); };
+            crate::computer_use::macos_ax_dump::validate_bound_target(pid, element.reference())?;
+            if !element.is_text_input() { return Ok(false); }
+            if let Some(text) = insertion.as_deref() {
+                return crate::computer_use::macos_ax_write::insert_selected_text(element.reference(), text);
+            }
+            // Reapplying AXFocused can reset a native editor's selection.
+            // A retained, already-focused field needs no mutation here.
+            if element.is_focused() { return Ok(true); }
+            match crate::computer_use::macos_ax_write::try_ax_focus(element.reference()) {
+                crate::computer_use::macos_ax_write::AxWriteOutcome::Ok => Ok(true),
+                crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(-25205 | -25206) => Ok(false),
+                crate::computer_use::macos_ax_write::AxWriteOutcome::Unavailable(status) => Err(BitFunError::tool(format!("AX_FOCUS_OUTCOME_UNKNOWN: AXFocused returned {status}; no click or text was sent. Observe before choosing another action"))),
+            }
+        })).await.map_err(|error| BitFunError::tool(error.to_string()))?
+    }
+
+    async fn dispatch_app_type_text_impl(
+        &self,
+        app: AppSelector,
+        text: &str,
+        focus: Option<ClickTarget>,
+    ) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
             let pid = resolve_pid_macos(self, &app).await?;
-            let focus_target_idx = match &focus {
-                Some(ClickTarget::NodeIdx { idx }) => Some(*idx),
-                _ => None,
-            };
-            // If a focus target is provided, click it first to give focus.
+            let text_target = focus.clone();
+            // Focus an observed text control semantically before considering pointer input.
             if let Some(target) = focus {
-                let click = AppClickParams {
-                    app: app.clone(),
-                    target,
-                    click_count: 1,
-                    mouse_button: "left".to_string(),
-                    modifier_keys: vec![],
-                    wait_ms_after: None,
-                };
-                let _ = self.app_click(click).await?;
+                if !self.try_focus_macos_text_target(pid, &target).await? {
+                    let verify_pointer_focus = !matches!(&target, ClickTarget::NodeIdx { .. });
+                    let click = AppClickParams {
+                        app: app.clone(),
+                        target,
+                        click_count: 1,
+                        mouse_button: "left".to_string(),
+                        modifier_keys: vec![],
+                        wait_ms_after: None,
+                    };
+                    self.dispatch_app_click_impl(click).await?;
+                    // Pointer targets (including OCR) record the actual submitted
+                    // location. Do not infer it from the human's real mouse.
+                    let intended_point = verify_pointer_focus
+                        .then(|| crate::computer_use::control_session::snapshot().pointer)
+                        .flatten()
+                        .map(|point| (point.x, point.y));
+                    if let Some((x, y)) = intended_point {
+                        let mismatch = crate::computer_use::control_session::spawn_blocking(move || macos::catch_objc(||
+                        crate::computer_use::macos_ax_dump::focused_text_target_mismatch(pid, x, y)
+                    )).await.map_err(|error| BitFunError::tool(error.to_string()))??;
+                        if mismatch {
+                            return Err(BitFunError::tool("FOCUS_TARGET_MISMATCH: The application still reports a different text field as focused after the click. No text was sent. Observe and select the intended field before typing."));
+                        }
+                    }
+                }
+            }
+            if let Some(target) = text_target.as_ref() {
+                if self
+                    .try_macos_text_operation(pid, target, Some(text.to_owned()))
+                    .await?
+                {
+                    return Ok(());
+                }
             }
             require_macos_background_input()?;
             log::info!(
@@ -543,93 +694,151 @@ impl DesktopComputerUseHost {
                 pid,
                 text.chars().count()
             );
-            // Resolve window-id and activate with focus-without-raise SPI
-            // when available. Falls back to public NSRunningApplication.
-            // Also best-effort AX-focus the previously-clicked element so
-            // `bg_type_text` lands in the right text field even when the
-            // click activated the window but didn't move key focus.
-            let activate_pid = pid;
-            let _ = tokio::task::spawn_blocking(move || {
-                macos::catch_objc(|| {
-                    let wid = crate::computer_use::macos_bg_input::frontmost_window_id_for_pid(
-                        activate_pid,
-                    );
-                    crate::computer_use::macos_bg_input::activate_pid_macos_with_window(
-                        activate_pid,
-                        wid,
-                    )?;
-                    // Best-effort: AX-focus the target node so the text
-                    // channel delivers to the right field. `Ok` even on
-                    // failure — the bg_type_text fallback still works.
-                    if let Some(idx) = focus_target_idx {
-                        if let Some(r) =
-                            crate::computer_use::macos_ax_dump::cached_ref_loose(activate_pid, idx)
-                        {
-                            let _ = crate::computer_use::macos_ax_write::try_ax_focus(r);
-                        }
-                    }
-                    Ok::<_, BitFunError>(())
-                })
-            })
-            .await;
             let txt = text.to_string();
             // Use bg_type_text_auto which routes to terminal-safe key-event
             // typing when the target is a terminal emulator.
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 macos::catch_objc(|| {
                     crate::computer_use::macos_bg_input::bg_type_text_auto(pid, &txt)
                 })
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            Ok(())
         }
         #[cfg(target_os = "windows")]
         {
-            // Click the focus target first (if any) so keystrokes land in the
-            // right control, then deliver the text. Cloaked `SendInput` is the
-            // most reliable path (works for both classic Win32 edit controls and
-            // modern XAML/WinUI/WPF surfaces that ignore posted `WM_CHAR`); it
-            // falls back to `PostMessage(WM_CHAR)` internally when foreground
-            // cannot be claimed.
-            if let Some(target) = focus {
-                let click = AppClickParams {
-                    app: app.clone(),
-                    target,
-                    click_count: 1,
-                    mouse_button: "left".to_string(),
-                    modifier_keys: vec![],
-                    wait_ms_after: None,
-                };
-                let _ = self.app_click(click).await?;
-            }
-            let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
-            if hwnd_raw == 0 {
-                return Err(BitFunError::tool(
-                    "app_type_text: no foreground window to target on Windows.".to_string(),
-                ));
-            }
-            let txt = text.to_string();
-            log::info!(
-                target: "computer_use::app_type_text",
-                "app_type_text.windows char_count={}",
-                txt.chars().count()
-            );
-            tokio::task::spawn_blocking(move || {
-                let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
-                crate::computer_use::windows_bg_input::inject_text_cloaked(hwnd, &txt)
+            let (pid, hwnd_raw) = self.windows_target(&app).await?;
+            let (index, point) = match focus {
+                Some(ClickTarget::NodeIdx { idx }) => (Some(idx), None),
+                Some(ClickTarget::ImageXy { x, y, screenshot_id }) => (None, Some(self.map_app_image_coords_to_pointer_f64(pid, x, y, screenshot_id.as_deref())?)),
+                Some(ClickTarget::ScreenXy { x, y }) => (None, Some((x,y))),
+                None => (None, None),
+                _ => return Err(BitFunError::tool("[BACKGROUND_TEXT_UNAVAILABLE] Windows text targeting requires an observed node, image pixel or bound native focus")),
+            };
+            let text = text.to_owned();
+            crate::computer_use::control_session::spawn_blocking(move || match index {
+                Some(idx) => {
+                    crate::computer_use::windows_ax_ui::insert_cached_text(hwnd_raw, idx, &text)
+                }
+                None => crate::computer_use::windows_ax_ui::insert_text_at_bound_target(
+                    hwnd_raw, point, &text,
+                ),
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            Ok(())
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
         {
-            let _ = (app, text, focus);
-            Err(BitFunError::tool(
-                LINUX_LEGACY_AX_UNAVAILABLE.to_string(),
-            ))
+            let Some(ClickTarget::NodeIdx { idx }) = focus else {
+                return Err(BitFunError::tool("[BACKGROUND_TEXT_UNAVAILABLE] Linux background text insertion requires an explicit observed EditableText node; implicit system focus is not used."));
+            };
+            crate::computer_use::linux_control_ax::insert_text(&app, idx, text).await?;
+            Ok(())
         }
+    }
+
+    /// Resolve an observed pointer target without pressing, focusing, or raising it.
+    #[cfg(target_os = "macos")]
+    async fn resolve_macos_pointer_target(
+        &self,
+        pid: i32,
+        target: &ClickTarget,
+        node_coordinates: Option<(f64, f64)>,
+        image_coordinates: Option<(f64, f64)>,
+    ) -> BitFunResult<(f64, f64)> {
+        Ok(match target {
+            ClickTarget::ScreenXy { x, y } => (*x, *y),
+            ClickTarget::ImageXy {
+                x,
+                y,
+                screenshot_id,
+            } => match image_coordinates {
+                Some(point) => point,
+                None => {
+                    self.map_app_image_coords_to_pointer_f64(pid, *x, *y, screenshot_id.as_deref())?
+                }
+            },
+            ClickTarget::ImageGrid { screenshot_id, .. } => {
+                let (ix, iy) = Self::image_grid_target_to_xy(target)?.ok_or_else(|| {
+                    BitFunError::tool("invalid image_grid target".to_string())
+                })?;
+                self.map_app_image_coords_to_pointer_f64(pid, ix, iy, screenshot_id.as_deref())?
+            }
+            ClickTarget::VisualGrid {
+                rows,
+                cols,
+                row,
+                col,
+                intersections,
+                wait_ms_after_detection,
+            } => {
+                let shot = self.screenshot_for_app_pid(pid).await?;
+                let (x0, y0, width, height) =
+                    detect_regular_grid_rect_from_screenshot(&shot, *rows, *cols)?;
+                let target = ClickTarget::ImageGrid {
+                    x0,
+                    y0,
+                    width,
+                    height,
+                    rows: *rows,
+                    cols: *cols,
+                    row: *row,
+                    col: *col,
+                    intersections: *intersections,
+                    screenshot_id: shot.screenshot_id.clone(),
+                };
+                let (ix, iy) = Self::image_grid_target_to_xy(&target)?.ok_or_else(|| {
+                    BitFunError::tool("invalid detected visual_grid target".to_string())
+                })?;
+                if let Some(wait) = wait_ms_after_detection {
+                    if *wait > 0 {
+                        tokio::time::sleep(Duration::from_millis(*wait as u64)).await;
+                    }
+                }
+                self.map_app_image_coords_to_pointer_f64(
+                    pid,
+                    ix,
+                    iy,
+                    shot.screenshot_id.as_deref(),
+                )?
+            }
+            ClickTarget::NodeIdx { idx } => match node_coordinates {
+                Some(point) => point,
+                None => {
+                    let idx = *idx;
+                    crate::computer_use::control_session::spawn_blocking(move || {
+                        macos::catch_objc(|| resolve_macos_node_click(pid, idx, false))
+                    })
+                    .await
+                    .map_err(|error| BitFunError::tool(error.to_string()))??
+                    .ok_or_else(|| {
+                        BitFunError::tool("AX_NODE_STALE: target has no observed coordinates")
+                    })?
+                }
+            },
+            ClickTarget::OcrText { needle } => {
+                // Codex parity: when the AX tree doesn't expose the
+                // target widget (Canvas, WebGL, custom-drawn cell),
+                // fall back to OCR-on-screenshot. We screenshot the
+                // bound target window so covering applications cannot
+                // contribute OCR matches or change the click target.
+                let matches = self.ocr_find_text_matches(needle, None).await?;
+                let best = matches.into_iter().max_by(|a, b| {
+                    a.confidence
+                        .partial_cmp(&b.confidence)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                let m = best.ok_or_else(|| {
+                    BitFunError::tool(format!(
+                        "NOT_FOUND: no OCR match for needle {:?}",
+                        needle
+                    ))
+                })?;
+                (m.center_x, m.center_y)
+            }
+        })
     }
 
     pub(super) async fn app_scroll_impl(
@@ -639,74 +848,62 @@ impl DesktopComputerUseHost {
         dx: i32,
         dy: i32,
     ) -> BitFunResult<AppStateSnapshot> {
+        self.dispatch_app_scroll_impl(app.clone(), focus, dx, dy)
+            .await?;
+        self.observe_after_app_input(app).await
+    }
+
+    async fn dispatch_app_scroll_impl(
+        &self,
+        app: AppSelector,
+        focus: Option<ClickTarget>,
+        dx: i32,
+        dy: i32,
+    ) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
             let pid = resolve_pid_macos(self, &app).await?;
             if let Some(target) = focus {
-                let click = AppClickParams {
-                    app: app.clone(),
-                    target,
-                    click_count: 1,
-                    mouse_button: "left".to_string(),
-                    modifier_keys: vec![],
-                    wait_ms_after: None,
-                };
-                let _ = self.app_click(click).await?;
+                let (x, y) = self
+                    .resolve_macos_pointer_target(pid, &target, None, None)
+                    .await?;
+                let window = crate::computer_use::macos_capture::bound_window_id(pid)
+                    .map_err(BitFunError::tool)?;
+                let [wx, wy, width, height] =
+                    crate::computer_use::macos_capture::window_bounds(pid, window)
+                        .map_err(BitFunError::tool)?;
+                if !x.is_finite()
+                    || !y.is_finite()
+                    || x < wx
+                    || y < wy
+                    || x >= wx + width
+                    || y >= wy + height
+                {
+                    return Err(BitFunError::tool("TARGET_COORDINATES_OUTSIDE_WINDOW: Scroll anchor is outside the bound window"));
+                }
+                // Scrolling at a point never implies pressing the control there.
+                crate::computer_use::control_session::record_pointer(x, y, false);
             }
             require_macos_background_input()?;
-            let activate_pid = pid;
-            let _ = tokio::task::spawn_blocking(move || {
-                macos::catch_objc(|| {
-                    let wid = crate::computer_use::macos_bg_input::frontmost_window_id_for_pid(
-                        activate_pid,
-                    );
-                    crate::computer_use::macos_bg_input::activate_pid_macos_with_window(
-                        activate_pid,
-                        wid,
-                    )
-                })
-            })
-            .await;
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 macos::catch_objc(|| crate::computer_use::macos_bg_input::bg_scroll(pid, dx, dy))
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            Ok(())
         }
         #[cfg(target_os = "windows")]
         {
-            let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
-            if hwnd_raw == 0 {
-                return Err(BitFunError::tool(
-                    "app_scroll: no foreground window to target on Windows.".to_string(),
-                ));
-            }
-            // Anchor point: the focus target's center when given, else the
-            // foreground window center. `post_scroll_screen` resolves the
-            // deepest child at that point and posts WM_VSCROLL / WM_HSCROLL.
-            let (sx, sy) = if let Some(target) = &focus {
-                let (x, y) = self.resolve_click_target_windows(target).await?;
-                (x.round() as i32, y.round() as i32)
-            } else {
-                Self::windows_foreground_window_center(hwnd_raw).ok_or_else(|| {
-                    BitFunError::tool(
-                        "app_scroll: could not resolve foreground window center.".to_string(),
-                    )
-                })?
+            let Some(ClickTarget::NodeIdx { idx }) = focus else {
+                return Err(BitFunError::tool("[FOREGROUND_REQUIRED] Background scrolling requires an explicitly observed scrollable node"));
             };
-            log::info!(
-                target: "computer_use::app_scroll",
-                "app_scroll.windows sx={} sy={} dx={} dy={}",
-                sx, sy, dx, dy
-            );
-            tokio::task::spawn_blocking(move || {
-                let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
-                crate::computer_use::windows_bg_input::post_scroll_screen(hwnd, sx, sy, dx, dy)
+            let (_, hwnd_raw) = self.windows_target(&app).await?;
+            crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::windows_ax_ui::scroll_cached_node(hwnd_raw, idx, dx, dy)
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            Ok(())
         }
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
@@ -717,88 +914,62 @@ impl DesktopComputerUseHost {
         }
     }
 
+    #[cfg(target_os = "windows")]
     pub(super) async fn app_key_chord_impl(
         &self,
         app: AppSelector,
         keys: Vec<String>,
         focus_idx: Option<u32>,
     ) -> BitFunResult<AppStateSnapshot> {
+        self.dispatch_app_key_chord_impl(app.clone(), keys, focus_idx)
+            .await?;
+        self.observe_after_app_input(app).await
+    }
+
+    async fn dispatch_app_key_chord_impl(
+        &self,
+        app: AppSelector,
+        keys: Vec<String>,
+        focus_idx: Option<u32>,
+    ) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
             let pid = resolve_pid_macos(self, &app).await?;
             if let Some(idx) = focus_idx {
-                let click = AppClickParams {
-                    app: app.clone(),
-                    target: ClickTarget::NodeIdx { idx },
-                    click_count: 1,
-                    mouse_button: "left".to_string(),
-                    modifier_keys: vec![],
-                    wait_ms_after: None,
-                };
-                let _ = self.app_click(click).await?;
+                if !self
+                    .try_focus_macos_text_target(pid, &ClickTarget::NodeIdx { idx })
+                    .await?
+                {
+                    let click = AppClickParams {
+                        app: app.clone(),
+                        target: ClickTarget::NodeIdx { idx },
+                        click_count: 1,
+                        mouse_button: "left".to_string(),
+                        modifier_keys: vec![],
+                        wait_ms_after: None,
+                    };
+                    self.dispatch_app_click_impl(click).await?;
+                }
             }
             require_macos_background_input()?;
-            let activate_pid = pid;
-            let _ = tokio::task::spawn_blocking(move || {
-                macos::catch_objc(|| {
-                    let wid = crate::computer_use::macos_bg_input::frontmost_window_id_for_pid(
-                        activate_pid,
-                    );
-                    crate::computer_use::macos_bg_input::activate_pid_macos_with_window(
-                        activate_pid,
-                        wid,
-                    )
-                })
-            })
-            .await;
-            tokio::task::spawn_blocking(move || -> BitFunResult<()> {
-                macos::catch_objc(|| {
-                    let (mods, kc) =
-                        crate::computer_use::macos_bg_input::parse_key_sequence(&keys)?;
-                    crate::computer_use::macos_bg_input::bg_key_chord(pid, &mods, kc)?;
-                    Ok(())
-                })
-            })
+            crate::computer_use::control_session::spawn_blocking(
+                move || -> BitFunResult<()> {
+                    macos::catch_objc(|| {
+                        let (mods, kc) =
+                            crate::computer_use::macos_bg_input::parse_key_sequence(&keys)?;
+                        crate::computer_use::macos_bg_input::bg_key_chord(pid, &mods, kc)?;
+                        Ok(())
+                    })
+                },
+            )
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            Ok(())
         }
         #[cfg(target_os = "windows")]
         {
-            // Focus the target node first (if any) so the chord lands in the
-            // right control.
-            if let Some(idx) = focus_idx {
-                let click = AppClickParams {
-                    app: app.clone(),
-                    target: ClickTarget::NodeIdx { idx },
-                    click_count: 1,
-                    mouse_button: "left".to_string(),
-                    modifier_keys: vec![],
-                    wait_ms_after: None,
-                };
-                let _ = self.app_click(click).await?;
-            }
-            let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
-            if hwnd_raw == 0 {
-                return Err(BitFunError::tool(
-                    "app_key_chord: no foreground window to target on Windows.".to_string(),
-                ));
-            }
-            let keys_for_parse = keys.clone();
-            log::info!(
-                target: "computer_use::app_key_chord",
-                "app_key_chord.windows keys={:?}",
-                keys
-            );
-            tokio::task::spawn_blocking(move || -> BitFunResult<()> {
-                let (mods, keycode) =
-                    crate::computer_use::windows_bg_input::parse_key_chord(&keys_for_parse)?;
-                let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
-                crate::computer_use::windows_bg_input::inject_key_cloaked(hwnd, keycode, &mods)
-            })
-            .await
-            .map_err(|e| BitFunError::tool(e.to_string()))??;
-            self.get_app_state(app, 32, false).await
+            let _ = (app, keys, focus_idx);
+            Err(BitFunError::tool("[FOREGROUND_REQUIRED] Windows keyboard chords require an explicitly authorized foreground input action; no focus click was sent"))
         }
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
@@ -816,109 +987,45 @@ impl DesktopComputerUseHost {
         timeout_ms: u32,
         poll_ms: u32,
     ) -> BitFunResult<AppStateSnapshot> {
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         {
             let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
             let poll = Duration::from_millis(poll_ms.max(50) as u64);
-            // Polling loop — skip the screenshot per iteration to keep
-            // poll latency tight; the snapshot we ultimately return gets
-            // an auto-attached screenshot below.
-            let baseline = self
-                .get_app_state_inner(app.clone(), 32, false, false)
-                .await?;
             loop {
-                let snap = self
+                // The caller's previous digest is the comparison baseline.
+                // Taking a new baseline here would miss a change that already
+                // completed between the mutation and this wait call.
+                let mut snap = self
                     .get_app_state_inner(app.clone(), 32, false, false)
                     .await?;
-                let ok = match &pred {
-                    AppWaitPredicate::DigestChanged { prev_digest } => {
-                        snap.digest != *prev_digest && snap.digest != baseline.digest
-                    }
-                    AppWaitPredicate::TitleContains { needle } => snap
-                        .window_title
-                        .as_deref()
-                        .map(|t| t.contains(needle.as_str()))
-                        .unwrap_or(false),
-                    AppWaitPredicate::RoleEnabled { role } => snap
-                        .nodes
-                        .iter()
-                        .any(|n| n.role.as_str() == role && n.enabled),
-                    AppWaitPredicate::NodeEnabled { idx } => snap
-                        .nodes
-                        .iter()
-                        .find(|n| n.idx == *idx)
-                        .map(|n| n.enabled)
-                        .unwrap_or(false),
-                };
-                if ok || Instant::now() >= deadline {
-                    // Final returned snap — auto-attach screenshot for parity
-                    // with the rest of the `app_*` family.
-                    let mut snap = snap;
-                    if let Ok(pid) = resolve_pid_macos(self, &app).await {
-                        if let Ok(shot) = self.screenshot_for_app_pid(pid).await {
-                            snap.screenshot = Some(shot);
-                        }
-                    }
-                    if snap.screenshot.is_none() {
-                        if let Ok(shot) = self.screenshot_peek_full_display().await {
-                            snap.screenshot = Some(shot);
-                        }
-                    }
+                if app_wait_observation_ready(&snap, &pred, Instant::now() >= deadline, timeout_ms)?
+                {
+                    // Capture only the identity that satisfied the predicate.
+                    // A failed window capture must never expose desktop pixels
+                    // or return success without the expected final observation.
+                    let pid = snap.app.pid.ok_or_else(|| {
+                        BitFunError::tool(
+                            "[WAIT_TARGET_UNAVAILABLE] Matched application has no process identity",
+                        )
+                    })?;
+                    #[cfg(target_os = "macos")]
+                    let capture = self.screenshot_for_app_pid(pid).await;
+                    #[cfg(target_os = "windows")]
+                    let capture = {
+                        let target = AppSelector {
+                            pid: Some(pid),
+                            ..Default::default()
+                        };
+                        let (_, hwnd) = self.windows_target(&target).await?;
+                        self.screenshot_for_foreground_window(pid, hwnd).await
+                    };
+                    snap.screenshot = Some(capture.map_err(|error| BitFunError::tool(format!(
+                        "[WAIT_OBSERVATION_UNAVAILABLE] Predicate matched; target capture failed: {error}. Last observed digest: {}. Do not repeat the preceding mutation based on this capture failure.", snap.digest,
+                    )))?);
                     return Ok(snap);
                 }
-                tokio::time::sleep(poll).await;
-            }
-        }
-        #[cfg(target_os = "windows")]
-        {
-            let deadline = Instant::now() + Duration::from_millis(timeout_ms as u64);
-            let poll = Duration::from_millis(poll_ms.max(50) as u64);
-            let baseline = self
-                .get_app_state_inner(app.clone(), 32, false, false)
-                .await?;
-            loop {
-                let snap = self
-                    .get_app_state_inner(app.clone(), 32, false, false)
-                    .await?;
-                let ok = match &pred {
-                    AppWaitPredicate::DigestChanged { prev_digest } => {
-                        snap.digest != *prev_digest && snap.digest != baseline.digest
-                    }
-                    AppWaitPredicate::TitleContains { needle } => snap
-                        .window_title
-                        .as_deref()
-                        .map(|t| t.contains(needle.as_str()))
-                        .unwrap_or(false),
-                    AppWaitPredicate::RoleEnabled { role } => snap
-                        .nodes
-                        .iter()
-                        .any(|n| n.role.as_str() == role && n.enabled),
-                    AppWaitPredicate::NodeEnabled { idx } => snap
-                        .nodes
-                        .iter()
-                        .find(|n| n.idx == *idx)
-                        .map(|n| n.enabled)
-                        .unwrap_or(false),
-                };
-                if ok || Instant::now() >= deadline {
-                    // Final returned snap — auto-attach a window screenshot for
-                    // parity with the rest of the `app_*` family.
-                    let mut snap = snap;
-                    if snap.screenshot.is_none() {
-                        let pid = Self::windows_foreground_pid();
-                        let hwnd_raw =
-                            crate::computer_use::windows_ax_ui::foreground_window_handle();
-                        if hwnd_raw != 0 {
-                            if let Ok(shot) =
-                                self.screenshot_for_foreground_window(pid, hwnd_raw).await
-                            {
-                                snap.screenshot = Some(shot);
-                            }
-                        }
-                    }
-                    return Ok(snap);
-                }
-                tokio::time::sleep(poll).await;
+                tokio::time::sleep(poll.min(deadline.saturating_duration_since(Instant::now())))
+                    .await;
             }
         }
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -1064,7 +1171,7 @@ impl DesktopComputerUseHost {
             // failure, fall back to a pointer click at the element's
             // image-pixel center if we have one.
             let click_res = self
-                .app_click(AppClickParams {
+                .app_click_impl(AppClickParams {
                     app: app.clone(),
                     target: ClickTarget::NodeIdx { idx: node_idx },
                     click_count: params.click_count.max(1),
@@ -1084,7 +1191,7 @@ impl DesktopComputerUseHost {
                         ix, iy, e
                     );
                     let s = self
-                        .app_click(AppClickParams {
+                        .app_click_impl(AppClickParams {
                             app: app.clone(),
                             target: ClickTarget::ImageXy {
                                 x: ix,
@@ -1149,7 +1256,7 @@ impl DesktopComputerUseHost {
                 }
                 #[cfg(target_os = "windows")]
                 {
-                    let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
+                    let (_, hwnd_raw) = self.windows_target(&app).await?;
                     if hwnd_raw != 0 {
                         if let Ok(shot) = self.screenshot_for_foreground_window(pid, hwnd_raw).await
                         {
@@ -1252,7 +1359,7 @@ impl DesktopComputerUseHost {
             };
 
             let snapshot = self
-                .app_click(AppClickParams {
+                .app_click_impl(AppClickParams {
                     app: app.clone(),
                     target: ClickTarget::ImageXy {
                         x: mark.x,
@@ -1309,7 +1416,7 @@ impl DesktopComputerUseHost {
             if params.clear_first {
                 if let Some(target) = focus.clone() {
                     let _ = self
-                        .app_click(AppClickParams {
+                        .app_click_impl(AppClickParams {
                             app: app.clone(),
                             target,
                             click_count: 1,
@@ -1324,59 +1431,69 @@ impl DesktopComputerUseHost {
                 #[cfg(target_os = "macos")]
                 {
                     let pid = resolve_pid_macos(self, &app).await?;
-                    tokio::task::spawn_blocking(move || -> BitFunResult<()> {
-                        macos::catch_objc(|| {
-                            let (m1, k1) =
-                                crate::computer_use::macos_bg_input::parse_key_sequence(&[
-                                    "cmd".to_string(),
-                                    "a".to_string(),
-                                ])?;
-                            crate::computer_use::macos_bg_input::bg_key_chord(pid, &m1, k1)?;
-                            let (m2, k2) =
-                                crate::computer_use::macos_bg_input::parse_key_sequence(&[
-                                    "delete".to_string(),
-                                ])?;
-                            crate::computer_use::macos_bg_input::bg_key_chord(pid, &m2, k2)?;
-                            Ok(())
-                        })
-                    })
+                    crate::computer_use::control_session::spawn_blocking(
+                        move || -> BitFunResult<()> {
+                            macos::catch_objc(|| {
+                                let (m1, k1) =
+                                    crate::computer_use::macos_bg_input::parse_key_sequence(&[
+                                        "cmd".to_string(),
+                                        "a".to_string(),
+                                    ])?;
+                                crate::computer_use::macos_bg_input::bg_key_chord(pid, &m1, k1)?;
+                                let (m2, k2) =
+                                    crate::computer_use::macos_bg_input::parse_key_sequence(&[
+                                        "delete".to_string(),
+                                    ])?;
+                                crate::computer_use::macos_bg_input::bg_key_chord(pid, &m2, k2)?;
+                                Ok(())
+                            })
+                        },
+                    )
                     .await
                     .map_err(|e| BitFunError::tool(e.to_string()))??;
                 }
                 #[cfg(target_os = "windows")]
                 {
                     let _ = self
-                        .app_key_chord(app.clone(), vec!["ctrl".to_string(), "a".to_string()], None)
+                        .app_key_chord_impl(
+                            app.clone(),
+                            vec!["ctrl".to_string(), "a".to_string()],
+                            None,
+                        )
                         .await?;
                     let _ = self
-                        .app_key_chord(app.clone(), vec!["delete".to_string()], None)
+                        .app_key_chord_impl(app.clone(), vec!["delete".to_string()], None)
                         .await?;
                 }
             }
 
-            let snapshot = self.app_type_text(app.clone(), &params.text, focus).await?;
+            let snapshot = self
+                .app_type_text_impl(app.clone(), &params.text, focus)
+                .await?;
 
             if params.press_enter_after {
                 #[cfg(target_os = "macos")]
                 {
                     let pid = resolve_pid_macos(self, &app).await?;
-                    tokio::task::spawn_blocking(move || -> BitFunResult<()> {
-                        macos::catch_objc(|| {
-                            let (m, k) =
-                                crate::computer_use::macos_bg_input::parse_key_sequence(&[
-                                    "return".to_string(),
-                                ])?;
-                            crate::computer_use::macos_bg_input::bg_key_chord(pid, &m, k)?;
-                            Ok(())
-                        })
-                    })
+                    crate::computer_use::control_session::spawn_blocking(
+                        move || -> BitFunResult<()> {
+                            macos::catch_objc(|| {
+                                let (m, k) =
+                                    crate::computer_use::macos_bg_input::parse_key_sequence(&[
+                                        "return".to_string(),
+                                    ])?;
+                                crate::computer_use::macos_bg_input::bg_key_chord(pid, &m, k)?;
+                                Ok(())
+                            })
+                        },
+                    )
                     .await
                     .map_err(|e| BitFunError::tool(e.to_string()))??;
                 }
                 #[cfg(target_os = "windows")]
                 {
                     let _ = self
-                        .app_key_chord(app.clone(), vec!["return".to_string()], None)
+                        .app_key_chord_impl(app.clone(), vec!["return".to_string()], None)
                         .await?;
                 }
             }
@@ -1424,7 +1541,7 @@ impl DesktopComputerUseHost {
                 None
             };
             let snapshot = self
-                .app_scroll(app.clone(), focus, params.dx, params.dy)
+                .app_scroll_impl(app.clone(), focus, params.dx, params.dy)
                 .await?;
             if let Some(wait) = params.wait_ms_after {
                 tokio::time::sleep(Duration::from_millis(wait.min(5_000) as u64)).await;
@@ -1450,6 +1567,88 @@ impl DesktopComputerUseHost {
                 LINUX_LEGACY_AX_UNAVAILABLE.to_string(),
             ))
         }
+    }
+}
+
+/// Evaluate the current observation against the caller's predicate before
+/// considering the deadline: an already satisfied condition needs no polling.
+#[cfg(any(test, target_os = "macos", target_os = "windows"))]
+fn app_wait_observation_ready(
+    snap: &AppStateSnapshot,
+    pred: &AppWaitPredicate,
+    deadline_reached: bool,
+    timeout_ms: u32,
+) -> BitFunResult<bool> {
+    let matched = match pred {
+        AppWaitPredicate::DigestChanged { prev_digest } => snap.digest != *prev_digest,
+        AppWaitPredicate::TitleContains { needle } => {
+            snap.window_title
+                .as_deref()
+                .is_some_and(|title| title.contains(needle))
+                || snap.nodes.iter().any(|node| {
+                    node.title
+                        .as_deref()
+                        .is_some_and(|title| title.contains(needle))
+                })
+        }
+        AppWaitPredicate::RoleEnabled { role } => snap
+            .nodes
+            .iter()
+            .any(|node| node.role == *role && node.enabled),
+        AppWaitPredicate::NodeEnabled { idx } => snap
+            .nodes
+            .iter()
+            .any(|node| node.idx == *idx && node.enabled),
+    };
+    if matched {
+        return Ok(true);
+    }
+    if deadline_reached {
+        return Err(BitFunError::tool(format!(
+            "[WAIT_TIMEOUT] Predicate {pred:?} was not satisfied within {timeout_ms} ms. Last observed digest: {}. Re-observe the target; timeout does not prove the preceding mutation failed.", snap.digest,
+        )));
+    }
+    Ok(false)
+}
+
+#[cfg(test)]
+mod app_wait_tests {
+    use super::*;
+
+    fn snapshot(digest: &str) -> AppStateSnapshot {
+        serde_json::from_value(serde_json::json!({
+            "app":{"name":"Fixture","pid":421,"running":true},
+            "tree_text":"", "digest":digest, "captured_at_ms":1
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn app_wait_already_changed_succeeds_on_first_observation() {
+        let pred = AppWaitPredicate::DigestChanged {
+            prev_digest: "before".into(),
+        };
+        assert!(app_wait_observation_ready(&snapshot("after"), &pred, false, 1000).unwrap());
+        assert!(app_wait_observation_ready(&snapshot("after"), &pred, true, 0).unwrap());
+    }
+
+    #[test]
+    fn app_wait_unsatisfied_deadline_is_an_error_with_last_digest() {
+        let pred = AppWaitPredicate::DigestChanged {
+            prev_digest: "unchanged".into(),
+        };
+        assert!(!app_wait_observation_ready(&snapshot("unchanged"), &pred, false, 1000).unwrap());
+        let error = app_wait_observation_ready(&snapshot("unchanged"), &pred, true, 1000)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("WAIT_TIMEOUT"));
+        assert!(error.contains("Last observed digest: unchanged"));
+    }
+
+    #[test]
+    fn app_wait_missing_requested_node_does_not_match() {
+        let pred = AppWaitPredicate::NodeEnabled { idx: 3 };
+        assert!(!app_wait_observation_ready(&snapshot("state"), &pred, false, 1000).unwrap());
     }
 }
 

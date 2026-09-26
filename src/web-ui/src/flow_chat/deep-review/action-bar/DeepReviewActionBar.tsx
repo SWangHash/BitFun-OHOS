@@ -1,6 +1,7 @@
 import { Icon, Textarea, type IconName } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useI18n } from '@/infrastructure/i18n';
 import {
   AlertTriangle,
   AlertCircle,
@@ -188,6 +189,15 @@ const PHASE_CONFIG: Record<ReviewActionPhase, {
 
 export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId: scopedChildSessionId }) => {
   const { t } = useTranslation('flow-chat');
+  const { t: translateError } = useI18n('errors');
+  const localizeActionError = useCallback((error: unknown, fallback: string) => {
+    const rawMessage = normalizeActionErrorMessage(error);
+    const launchMessage = getReviewActionErrorMessage(error, t, fallback);
+    if (launchMessage !== rawMessage.trim()) return launchMessage;
+    const presentation = getAiErrorPresentation({ rawMessage });
+    const title = presentation.category === 'unknown' ? fallback : translateError(presentation.titleKey);
+    return `${title} ${translateError(presentation.messageKey)}`;
+  }, [t, translateError]);
   const store = useReviewActionBarStore();
   const scopedState = scopedChildSessionId
     ? getReviewActionBarStateForSession(store, scopedChildSessionId)
@@ -522,13 +532,13 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       store.updatePhase(isTimeout ? 'fix_timeout' : 'fix_failed', message, childSessionId);
       store.restore(childSessionId ?? undefined);
       notificationService.error(
-        message,
-        { duration: 5000 },
+        localizeActionError(error, t('deepReviewActionBar.fixFailed')),
+        { duration: 5000, metadata: { rawError: msg } },
       );
     } finally {
       store.setActiveAction(null, undefined, childSessionId);
     }
-  }, [reviewData, childSessionId, childSession, selectedRemediationIds, remediationItems, completedRemediationIds, customInstructions, reviewMode, isDeepReview, decisionSelections, store, t]);
+  }, [reviewData, childSessionId, childSession, selectedRemediationIds, remediationItems, completedRemediationIds, customInstructions, reviewMode, isDeepReview, decisionSelections, store, t, localizeActionError]);
 
   const handleReviewFixes = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -659,8 +669,11 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         reviewMode,
         error,
       });
-      const message = getReviewActionErrorMessage(error, t, t('deepReviewActionBar.actionStartFailed'));
-      notificationService.error(message, { duration: 5000 });
+      const message = normalizeActionErrorMessage(error);
+      notificationService.error(localizeActionError(error, t('deepReviewActionBar.reviewError')), {
+        duration: 5000,
+        metadata: { rawError: message },
+      });
     } finally {
       store.setActiveAction(null, undefined, childSessionId);
     }
@@ -668,6 +681,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
     childSession,
     childSessionId,
     confirmDeepReviewLaunch,
+    localizeActionError,
     parentSessionId,
     remediationModifiedFilePaths,
     remediationScopeRequiresWorkspaceFallback,
@@ -723,12 +737,15 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       store.minimize(childSessionId);
     } catch (error) {
       log.error('Failed to start DeepReview retry coverage', { childSessionId, error });
-      const message = getReviewActionErrorMessage(error, t, t('deepReviewActionBar.retryIncompleteFailed'));
-      notificationService.error(message, { duration: 5000 });
+      const message = normalizeActionErrorMessage(error);
+      notificationService.error(localizeActionError(error, t('deepReviewActionBar.retryIncompleteFailed')), {
+        duration: 5000,
+        metadata: { rawError: message },
+      });
     } finally {
       store.setActiveAction(null, undefined, childSessionId);
     }
-  }, [childSessionId, retryableSlices, store, t]);
+  }, [childSessionId, retryableSlices, store, t, localizeActionError]);
 
   const handleFillBackInput = useCallback(async () => {
     if (!reviewData) return;
@@ -799,7 +816,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       const message = t('deepReviewActionBar.resumeFailedMessage');
       store.updatePhase('resume_failed', message, childSessionId ?? undefined);
       store.restore(childSessionId ?? undefined);
-      notificationService.error(message, { duration: 5000 });
+      notificationService.error(message, { duration: 5000, metadata: { rawError: normalizeActionErrorMessage(error) } });
     } finally {
       store.setActiveAction(null, undefined, childSessionId ?? undefined);
     }
@@ -829,11 +846,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
     }
   }, []);
 
-  const displayErrorMessage = useMemo(() => {
-    if (!errorMessage) return null;
 
-    return getReviewActionErrorMessage(errorMessage, t, t('deepReviewActionBar.actionStartFailed'));
-  }, [errorMessage, t]);
 
   const handleCopyDiagnostics = useCallback(async () => {
     const detail = interruption?.errorDetail;
@@ -926,11 +939,16 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       onTouchMove={stopNestedScrollPropagation}
     >
       <ReviewActionHeader
+        isReviewRunning={phase === 'review_running'}
         reviewData={reviewData}
         PhaseIcon={PhaseIcon}
         phaseIconClass={phaseConfig.iconClass}
         phaseTitle={phaseTitle}
-        errorMessage={displayErrorMessage}
+        errorMessage={errorMessage}
+        errorSummary={errorMessage
+          ? localizeActionError(errorMessage, phaseTitle)
+          : undefined}
+        errorDetailsLabel={t('deepReviewActionBar.diagnosticsTechnicalDetails')}
         minimizeLabel={t('deepReviewActionBar.minimize')}
         onMinimize={handleMinimize}
       />

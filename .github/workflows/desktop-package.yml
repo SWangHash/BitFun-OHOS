@@ -266,6 +266,11 @@ jobs:
             xdg-utils \
             libglib2.0-dev \
             libgtk-3-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-pipewire \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             fcitx5-frontend-gtk3 \
             libxdo-dev \
             "$WEBKIT_PKG" \
@@ -622,7 +627,11 @@ jobs:
       needs.publish-relay-image.result == 'success'
     runs-on: ubuntu-latest
     env:
-      REQUIRED_UPDATER_PLATFORMS: windows-x86_64,darwin-x86_64,darwin-aarch64,linux-x86_64,linux-aarch64
+      # Bundle-type Linux keys are load-bearing: tauri-plugin-updater on a deb
+      # (or rpm) install rejects every non-deb (non-rpm) payload with
+      # "invalid updater binary format", so the manifest MUST carry
+      # linux-*-deb / linux-*-rpm entries alongside the AppImage keys.
+      REQUIRED_UPDATER_PLATFORMS: windows-x86_64,darwin-x86_64,darwin-aarch64,linux-x86_64,linux-aarch64,linux-x86_64-deb,linux-aarch64-deb,linux-x86_64-rpm,linux-aarch64-rpm
 
     steps:
       - name: Checkout
@@ -772,18 +781,18 @@ jobs:
             relay-image-assets/relay-image.json.sig
 
       # Old Desktop and CLI clients follow GitHub Latest. Keep their feeds on
-      # the final 0.2 release; only versioned manifests may advertise 1.x.
+      # the pinned legacy manifests checked into the repository; only versioned
+      # manifests may advertise 1.x.
       - name: Preserve legacy update feeds
         if: needs.prepare.outputs.release_channel == 'stable'
         shell: bash
         run: |
           set -euo pipefail
-          for manifest in latest.json linux-binaries.json; do
-            curl -fsSL --retry 5 --retry-delay 3 \
-              "https://github.com/GCWing/BitFun/releases/download/v0.2.19/${manifest}" \
-              -o "release-upload-assets/${manifest}"
-            jq -e '.version == "0.2.19"' "release-upload-assets/${manifest}" >/dev/null
-          done
+          cp scripts/fixtures/legacy-update-feeds/latest.json \
+            release-upload-assets/latest.json
+          cp scripts/fixtures/legacy-update-feeds/linux-binaries.json \
+            release-upload-assets/linux-binaries.json
+          node -e 'const fs=require("node:fs");for(const f of ["release-upload-assets/latest.json","release-upload-assets/linux-binaries.json"]){const m=JSON.parse(fs.readFileSync(f,"utf8"));if(f.endsWith("latest.json")){if(m.version!=="0.2.20"||typeof m.notes!=="string"||m.notes.length===0)process.exit(1);}else if(m.version!=="0.2.19")process.exit(1);}'
 
       - name: Upload to release
         shell: bash
@@ -826,12 +835,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for manifest in latest.json linux-binaries.json; do
-            curl -fsSL --retry 5 --retry-delay 3 \
-              "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.release_tag }}/${manifest}" \
-              -o "legacy-${manifest}"
-            cmp "release-upload-assets/${manifest}" "legacy-${manifest}"
-          done
+          curl -fsSL --retry 5 --retry-delay 3 \
+            "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.release_tag }}/latest.json" \
+            -o legacy-latest.json
+          cmp release-upload-assets/latest.json legacy-latest.json
+          curl -fsSL --retry 5 --retry-delay 3 \
+            "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.release_tag }}/linux-binaries.json" \
+            -o legacy-linux-binaries.json
+          cmp release-upload-assets/linux-binaries.json legacy-linux-binaries.json
 
       - name: Verify published updater manifest
         run: |

@@ -42,6 +42,13 @@ type AXValueRef = *const c_void;
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
     fn AXUIElementCreateApplication(pid: i32) -> AXUIElementRef;
+    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
+    fn AXUIElementCopyElementAtPosition(
+        element: AXUIElementRef,
+        x: f32,
+        y: f32,
+        result: *mut AXUIElementRef,
+    ) -> i32;
     fn AXUIElementCopyAttributeValue(
         element: AXUIElementRef,
         attribute: CFStringRef,
@@ -61,6 +68,7 @@ unsafe extern "C" {
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn CFRetain(cf: CFTypeRef) -> CFTypeRef;
+    fn CFEqual(a: CFTypeRef, b: CFTypeRef) -> u8;
     fn CFBooleanGetValue(boolean: CFBooleanRef) -> u8;
     fn CFStringGetTypeID() -> CFTypeID;
     fn CFNumberGetTypeID() -> CFTypeID;
@@ -133,6 +141,215 @@ pub(crate) fn cached_ref(pid: i32, expected_digest: Option<&str>, idx: u32) -> O
 /// re-snapshot (e.g. `app_wait_for` polling).
 pub(crate) fn cached_ref_loose(pid: i32, idx: u32) -> Option<AxRef> {
     cached_ref(pid, None, idx)
+}
+
+/// A retained reference to the exact observed node. Unlike a borrowed cache
+/// pointer, this remains alive if a later observation replaces the cache.
+pub(crate) struct RetainedCachedTarget(AxRef);
+
+impl RetainedCachedTarget {
+    pub(crate) fn reference(&self) -> AxRef {
+        self.0
+    }
+
+    pub(crate) fn role(&self) -> Option<String> {
+        unsafe { read_cf_string_attr(self.0 .0, "AXRole") }
+    }
+
+    pub(crate) fn is_focused(&self) -> bool {
+        (unsafe { read_cf_bool_attr(self.0 .0, "AXFocused") }) == Some(true)
+    }
+
+    pub(crate) fn is_text_input(&self) -> bool {
+        matches!(
+            self.role().as_deref(),
+            Some("AXTextField" | "AXTextArea" | "AXSearchField")
+        )
+    }
+
+    /// Only controls whose primary activation is independent of the exact
+    /// point can replace a plain coordinate click with AXPress. Text, sliders,
+    /// containers and custom canvases retain their coordinate semantics.
+    pub(crate) fn supports_point_press(&self) -> bool {
+        matches!(
+            self.role().as_deref(),
+            Some("AXButton" | "AXCheckBox" | "AXRadioButton" | "AXLink")
+        ) && unsafe { read_cf_bool_attr(self.0 .0, "AXEnabled") } != Some(false)
+            && unsafe { read_action_names(self.0 .0) }
+                .iter()
+                .any(|action| action == "AXPress")
+    }
+
+    pub(crate) fn frame_global(&self) -> Option<(f64, f64, f64, f64)> {
+        unsafe { read_global_frame(self.0 .0) }
+    }
+}
+
+impl Drop for RetainedCachedTarget {
+    fn drop(&mut self) {
+        self.0.release();
+    }
+}
+
+pub(crate) fn retained_cached_target(pid: i32, idx: u32) -> Option<RetainedCachedTarget> {
+    let cache = snapshot_cache().lock().ok()?;
+    let reference = *cache.get(&pid)?.refs.get(idx as usize)?;
+    if reference.0.is_null() {
+        return None;
+    }
+    unsafe {
+        CFRetain(reference.0 as CFTypeRef);
+    }
+    Some(RetainedCachedTarget(reference))
+}
+
+pub(crate) fn validate_bound_target(pid: i32, target: AxRef) -> BitFunResult<()> {
+    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+    let bound = super::macos_capture::bound_window_id(pid).map_err(BitFunError::tool)?;
+    let mut actual_pid = 0;
+    if unsafe { AXUIElementGetPid(target.0, &mut actual_pid) } != 0 || actual_pid != pid {
+        return Err(BitFunError::tool(
+            "AX_TARGET_MISMATCH: Accessibility target belongs to a different application",
+        ));
+    }
+    let allowed = match element_window_id(target) {
+        Some(actual) => actual == bound,
+        None => is_application_menu_item(target),
+    };
+    if !allowed {
+        return Err(BitFunError::tool(
+            "AX_TARGET_MISMATCH: Accessibility target does not belong to the captured window",
+        ));
+    }
+    super::control_session::target_allowed(&format!("pid:{pid}/window:{bound}"))
+        .map_err(BitFunError::tool)
+}
+
+pub(crate) fn element_window_id(target: AxRef) -> Option<u32> {
+    unsafe {
+        super::macos_ax_ui::ax_window_id(target.0)
+            .filter(|id| *id != 0)
+            .or_else(|| {
+                let owner = ax_copy_attr(target.0, "AXWindow")?;
+                let id =
+                    super::macos_ax_ui::ax_window_id(owner as AXUIElementRef).filter(|id| *id != 0);
+                ax_release(owner);
+                id
+            })
+    }
+}
+
+pub(crate) fn is_application_menu_item(target: AxRef) -> bool {
+    unsafe {
+        matches!(
+            read_cf_string_attr(target.0, "AXRole").as_deref(),
+            Some("AXMenuItem" | "AXMenuBarItem")
+        )
+    }
+}
+
+/// Native application-scoped hit testing ignores other applications' covering
+/// windows. The result must belong to the captured window; another same-app
+/// window is never substituted. Rectangle ranking is not a valid fallback.
+pub(crate) fn retained_target_at_point(
+    pid: i32,
+    x: f64,
+    y: f64,
+) -> BitFunResult<Option<RetainedCachedTarget>> {
+    if !x.is_finite() || !y.is_finite() {
+        return Ok(None);
+    }
+    let window_id = super::macos_capture::bound_window_id(pid).map_err(BitFunError::tool)?;
+    super::control_session::target_allowed(&format!("pid:{pid}/window:{window_id}"))
+        .map_err(BitFunError::tool)?;
+    unsafe {
+        let app = AXUIElementCreateApplication(pid);
+        if app.is_null() {
+            return Ok(None);
+        }
+        let mut hit = std::ptr::null();
+        let status = AXUIElementCopyElementAtPosition(app, x as f32, y as f32, &mut hit);
+        ax_release(app as CFTypeRef);
+        if status != 0 {
+            ax_release(hit as CFTypeRef);
+            // Only a documented absence of hit-testing/content permits a
+            // visual fallback. Messaging/permission failures are not evidence
+            // that a pointer click will focus the intended text field.
+            return if matches!(status, -25208 | -25212) {
+                Ok(None)
+            } else {
+                Err(BitFunError::tool(format!(
+                    "AX_HIT_TEST_FAILED: Application hit testing failed (status={status})"
+                )))
+            };
+        }
+        if hit.is_null() {
+            return Ok(None);
+        }
+        let target = RetainedCachedTarget(AxRef(hit));
+        let mut hit_pid = 0;
+        if AXUIElementGetPid(hit, &mut hit_pid) != 0 || hit_pid != pid {
+            return Ok(None);
+        }
+        let owning_window = element_window_id(target.reference());
+        if owning_window != Some(window_id) {
+            return Ok(None);
+        }
+        let Some((left, top, width, height)) = target.frame_global() else {
+            return Ok(None);
+        };
+        if width <= 0.0
+            || height <= 0.0
+            || x < left
+            || y < top
+            || x >= left + width
+            || y >= top + height
+        {
+            return Ok(None);
+        }
+        Ok(Some(target))
+    }
+}
+
+/// Evidence check after a visual focus attempt. `false` means no proven
+/// mismatch, not verified delivery: custom canvases may expose no AX focus.
+pub(crate) fn focused_text_target_mismatch(pid: i32, x: f64, y: f64) -> BitFunResult<bool> {
+    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+    let bound = super::macos_capture::bound_window_id(pid).map_err(BitFunError::tool)?;
+    unsafe {
+        let app = AXUIElementCreateApplication(pid);
+        if app.is_null() {
+            return Ok(false);
+        }
+        let attr = CFString::new("AXFocusedUIElement");
+        let mut value: CFTypeRef = std::ptr::null();
+        let status = AXUIElementCopyAttributeValue(app, attr.as_concrete_TypeRef(), &mut value);
+        ax_release(app as CFTypeRef);
+        if status != 0 {
+            ax_release(value);
+            return if matches!(status, -25205 | -25208 | -25212) {
+                Ok(false)
+            } else {
+                Err(BitFunError::tool(format!("AX_FOCUS_CHECK_FAILED: Cannot inspect the current text destination (status={status})")))
+            };
+        }
+        if value.is_null() {
+            return Ok(false);
+        }
+        let target = RetainedCachedTarget(AxRef(value as AXUIElementRef));
+        if !target.is_text_input() {
+            return Ok(false);
+        }
+        if element_window_id(target.reference()).is_some_and(|window| window != bound) {
+            return Ok(true);
+        }
+        if let Some((left, top, width, height)) = target.frame_global() {
+            if width > 0.0 && height > 0.0 {
+                return Ok(x < left || y < top || x >= left + width || y >= top + height);
+            }
+        }
+        Ok(false)
+    }
 }
 
 // ── Low-level CF / AX helpers (intentionally separate from macos_ax_ui.rs
@@ -498,23 +715,40 @@ pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnap
         }
     }
 
-    // Pick the root we'll walk.
+    // A captured window and its AX nodes must describe the same surface, even
+    // if a second ordinary window or the sharing indicator becomes focused.
+    let bound_window = super::control_session::snapshot()
+        .target
+        .as_deref()
+        .and_then(|target| target.strip_prefix(&format!("pid:{pid}/window:")))
+        .and_then(|id| id.parse::<u32>().ok());
     let root = if opts.focus_window_only {
-        unsafe {
-            try_focused_window(app).unwrap_or_else(|| {
-                // Retain the app element so we can drop both consistently.
-                CFRetain(app as CFTypeRef) as AXUIElementRef
-            })
+        if let Some(window_id) = bound_window {
+            match unsafe { super::macos_ax_ui::try_window_element_by_id(app, window_id) } {
+                Some(window) => window,
+                None => {
+                    unsafe { ax_release(app as CFTypeRef) };
+                    return Err(BitFunError::tool("AX_BOUND_WINDOW_UNAVAILABLE: Accessibility cannot identify the captured window; another application window was not substituted"));
+                }
+            }
+        } else {
+            unsafe {
+                try_focused_window(app)
+                    .unwrap_or_else(|| CFRetain(app as CFTypeRef) as AXUIElementRef)
+            }
         }
     } else {
         unsafe { CFRetain(app as CFTypeRef) as AXUIElementRef }
     };
-
-    let window_title = unsafe { try_focused_window(app) }.and_then(|w| {
-        let t = unsafe { read_cf_string_attr(w, "AXTitle") };
-        unsafe { ax_release(w as CFTypeRef) };
-        t
-    });
+    let window_title = if opts.focus_window_only {
+        unsafe { read_cf_string_attr(root, "AXTitle") }
+    } else {
+        unsafe { try_focused_window(app) }.and_then(|window| {
+            let title = unsafe { read_cf_string_attr(window, "AXTitle") };
+            unsafe { ax_release(window as CFTypeRef) };
+            title
+        })
+    };
 
     // We're done with the app handle for now (root is independently retained).
     unsafe { ax_release(app as CFTypeRef) };
@@ -603,11 +837,15 @@ pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnap
         } else {
             &["AXChildren"]
         };
-        let mut seen_ptrs: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut seen_refs: Vec<AXUIElementRef> = Vec::new();
         for attr_name in attrs {
             let children_ref = unsafe { ax_copy_attr(cur.elem, attr_name) };
             let Some(ch) = children_ref else { continue };
             unsafe {
+                if CFGetTypeID(ch) != core_foundation::array::CFArrayGetTypeID() {
+                    ax_release(ch);
+                    continue;
+                }
                 let arr = CFArray::<*const c_void>::wrap_under_create_rule(ch as CFArrayRef);
                 for i in 0..arr.len() {
                     let Some(slot) = arr.get(i) else { continue };
@@ -615,13 +853,12 @@ pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnap
                     if child.is_null() {
                         continue;
                     }
-                    // Deduplicate by raw pointer identity (AXChildren and
-                    // AXWindows may return the same window elements).
-                    let ptr_key = child as usize;
-                    if seen_ptrs.contains(&ptr_key) {
+                    // AXChildren and AXWindows return distinct proxy pointers for
+                    // the same remote element. CFEqual compares AX identity.
+                    if seen_refs.iter().any(|known| CFEqual(*known, child) != 0) {
                         continue;
                     }
-                    seen_ptrs.insert(ptr_key);
+                    seen_refs.push(child);
                     let retained = CFRetain(child as CFTypeRef) as AXUIElementRef;
                     if !retained.is_null() {
                         queue.push_back(Queued {
@@ -640,6 +877,10 @@ pub(super) fn dump_app_ax(pid: i32, opts: DumpOpts) -> BitFunResult<AppStateSnap
     }
 
     let mut tree_text = render_tree_text(&nodes);
+    if window_tree_has_only_chrome(&nodes) {
+        tree_text.push_str("\n[note] AX_WINDOW_CONTENT_UNAVAILABLE: The application exposes window chrome but no accessible content controls. This tree cannot identify content or prove its absence. Use the same target window screenshot/OCR; repeated AX searches cannot reveal controls the app does not expose.\n");
+    }
+
     // Say that menus were skipped on purpose, and where to get them. Otherwise
     // an agent that needs a menu command sees a bare `AXMenu` leaf and has no
     // way to tell "pruned" from "this app has no menu items".
@@ -690,21 +931,36 @@ equivalents, or AXPress the menu first.\n",
     })
 }
 
-/// Best-effort: prefer `AXFocusedWindow`, then `AXMainWindow`. Returns a
+/// Prefer the focused/main application window, excluding system sharing chrome. Returns a
 /// retained ref the caller must release (or hand to the cache).
 unsafe fn try_focused_window(app: AXUIElementRef) -> Option<AXUIElementRef> {
-    unsafe {
-        for key in ["AXFocusedWindow", "AXMainWindow"] {
-            if let Some(v) = ax_copy_attr(app, key) {
-                let elem = v as AXUIElementRef;
-                if !elem.is_null() {
-                    return Some(elem);
-                }
-                ax_release(v);
-            }
+    unsafe { super::macos_ax_ui::try_frontmost_window_element(app) }
+}
+
+/// Detect an exposed window whose descendants consist only of native chrome.
+/// This reports observation quality rather than assuming a node-count threshold.
+fn window_tree_has_only_chrome(nodes: &[AxNode]) -> bool {
+    let mut ancestry: HashMap<u32, (bool, bool)> = HashMap::new();
+    let mut has_window = false;
+    for n in nodes {
+        let (parent_window, parent_chrome) = n
+            .parent_idx
+            .and_then(|idx| ancestry.get(&idx).copied())
+            .unwrap_or_default();
+        let is_window = n.role == "AXWindow";
+        let chrome = parent_chrome
+            || matches!(
+                n.subrole.as_deref(),
+                Some("AXCloseButton" | "AXMinimizeButton" | "AXZoomButton" | "AXFullScreenButton")
+            )
+            || n.title.as_deref() == Some("WindowSharingSessionButton");
+        has_window |= is_window;
+        ancestry.insert(n.idx, (is_window || parent_window, chrome));
+        if parent_window && !chrome && !matches!(n.role.as_str(), "AXWindow" | "AXGroup") {
+            return false;
         }
-        None
     }
+    has_window
 }
 
 /// Render a Codex-style indented tree.
@@ -848,6 +1104,26 @@ mod tests {
             .unwrap();
         let snapshot = dump_app_ax(pid, DumpOpts::default()).expect("native AX dump");
         assert_eq!(snapshot.app.pid, Some(pid));
+        // AXChildren/AXWindows may expose different CF proxies for one window.
+        for title in ["Save report", "Delete draft"] {
+            assert_eq!(
+                snapshot
+                    .nodes
+                    .iter()
+                    .filter(|n| n.title.as_deref() == Some(title))
+                    .count(),
+                1,
+                "the same native element must not be emitted twice"
+            );
+        }
+        let query = bitfun_core::agentic::tools::computer_use_host::UiElementLocateQuery {
+            text_contains: Some("Save report".into()),
+            ..Default::default()
+        };
+        let located = super::super::macos_ax_ui::locate_ui_element_center_for_pid(pid, &query)
+            .expect("explicit application locate");
+        assert_eq!(located.matched_title.as_deref(), Some("Save report"));
+
         for title in ["Save report", "Delete draft", "Unavailable action"] {
             assert!(
                 snapshot.tree_text.contains(title),
@@ -874,6 +1150,22 @@ mod tests {
                 n.idx
             );
         }
+        let save = snapshot
+            .nodes
+            .iter()
+            .find(|node| node.title.as_deref() == Some("Save report"))
+            .unwrap();
+        let retained = retained_cached_target(pid, save.idx).expect("observed target retained");
+        let frame = retained.frame_global().expect("observed target frame");
+        snapshot_cache().lock().unwrap().remove(&pid);
+        assert!(cached_ref_loose(pid, save.idx).is_none());
+        assert_eq!(
+            retained.frame_global(),
+            Some(frame),
+            "cache replacement must not release an in-flight target reference"
+        );
+        dump_app_ax(pid, DumpOpts::default()).expect("restore fixture observation cache");
+
         let elements = crate::computer_use::interactive_filter::build_interactive_elements(
             &snapshot.nodes,
             None,
@@ -967,6 +1259,18 @@ mod tests {
             Some((0.0, 0.0, 0.0, 0.0))
         ));
         assert!(!is_closed_menu_container("AXMenuItem", None));
+    }
+
+    #[test]
+    fn chrome_only_quality_does_not_depend_on_node_count() {
+        let mut nodes = vec![
+            n(0, None, "AXWindow", Some("Fixture")),
+            n(1, Some(0), "AXButton", None),
+        ];
+        nodes[1].subrole = Some("AXCloseButton".into());
+        assert!(window_tree_has_only_chrome(&nodes));
+        nodes.push(n(2, Some(0), "AXTextField", Some("Search")));
+        assert!(!window_tree_has_only_chrome(&nodes));
     }
 
     #[test]

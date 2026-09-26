@@ -17,6 +17,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 ts-rs = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
 bitfun-agent-workflows = { path = "../../execution/agent-workflows", optional = true }
 bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
@@ -547,6 +548,7 @@ product-full = [
     "web-tools",
     "workspace-search",
 ]
+skillhub = ["bitfun-services-core/tls-provider", "reqwest", "reqwest/json", "reqwest/query", "reqwest/rustls-no-provider", "reqwest/stream", "zip", "tempfile", "tokio/fs", "tokio/io-util"]
 ssh_config = ["dep:ssh_config"]
 
 [dev-dependencies]

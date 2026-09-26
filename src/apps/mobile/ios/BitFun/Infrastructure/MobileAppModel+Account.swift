@@ -200,6 +200,12 @@ extension MobileAppModel {
         // device; a signed-out core would otherwise wipe it on launch.
         guard !accountLoginPreview, !localActionPreview, !remoteCreatePreview, !directoryFixturePreview,
               generation == accountGeneration else { return }
+        defer {
+            if launchAccountRestored == nil,
+               !(state is AccountUiStateIdle), !(state is AccountUiStateRestoring) {
+                launchAccountRestored = state is AccountUiStateReady
+            }
+        }
         accountGeneration = generation
         if let ready = state as? AccountUiStateReady, let failure = ready.refreshFailure {
             accountDirectoryError = accountErrorMessage(failure.name, stage: "DEVICE_LIST")

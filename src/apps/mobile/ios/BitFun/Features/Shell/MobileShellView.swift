@@ -176,7 +176,25 @@ struct MobileShellView: View {
         let compactSidebarWidth = min(280, max(220, viewportWidth * 0.68))
 
         ZStack(alignment: .leading) {
+            // The open drawer's fill is a floor under the whole shell, not a
+            // panel the width of the sidebar. The content card's rounded
+            // corners have to curve onto something: a fill that stopped at the
+            // card's left edge left them curving onto the page white, so a
+            // square-cornered grey block sat against a rounded card with a
+            // white wedge between them.
             if !sidebarVisible {
+                BitFunTheme.sidebarBg
+                    .ignoresSafeArea()
+                    .opacity(model.drawerOpen ? 1 : 0)
+                    .allowsHitTesting(false)
+                    // Matched to the content card rather than to the sidebar
+                    // panel: the card must never finish moving before the floor
+                    // it curves onto has finished fading, in either direction.
+                    .animation(
+                        .easeOut(duration: model.drawerOpen ? 0.32 : 0.25),
+                        value: model.drawerOpen
+                    )
+
                 SidebarView(model: model)
                     .frame(width: compactSidebarWidth)
                     .opacity(model.drawerOpen ? 1 : 0)

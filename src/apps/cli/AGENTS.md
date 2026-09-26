@@ -165,3 +165,11 @@ guide.
 For unattended question lifecycle changes, run `cargo test --locked -p bitfun-cli --bin bitfun shared_runtime::` and `cargo test --locked -p bitfun-agent-runtime-ipc protocol_contract_tests::`.
 
 For Pages account adapters, use the focused Core command in its guide and `cargo check -p bitfun-cli`.
+For Pages account adapters, use the focused Core command in its guide and `cargo check -p bitfun-cli`.
+
+For `/goal` prompt routing (including the pending-session guard):
+
+```bash
+cargo test --locked -p bitfun-cli --bin bitfun goal_prompts_
+cargo test --locked -p bitfun-cli --bin bitfun -- modes::exec::tests:: dispatch::worker::tests::
+```

@@ -231,7 +231,7 @@ export const AgentControlToolCard: React.FC<ToolCardProps> = ({
           <SubagentAvatar
             sessionId={linkedSubagentSessionId}
             name={agentName}
-            size={28}
+            size={20}
             status={lifecycle}
           />
         ) : undefined}

@@ -27,8 +27,8 @@ Connect to this host from mobile, a bot, or another BitFun device to inspect ses
   - Configure Feishu, Telegram, WeChat, and other bots, and stop a bot independently
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 使用 GitHub 登录、退出并查看身份状态
   - Sign in with GitHub, sign out, and inspect identity status
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出、连接、查看在线状态和删除同账户设备
-  - List, connect, inspect online status, and remove same-account devices
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 列出、连接、查看设备型号与系统、设置别名和删除同账户设备
+  - List, connect, inspect model and OS, set aliases, and remove same-account devices
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面
   - Enter Peer Device Mode and use another BitFun device as the command and event data plane
 

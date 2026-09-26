@@ -1621,16 +1621,6 @@
         }
       }
     },
-    "正在发送": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sending"
-          }
-        }
-      }
-    },
     "正在回复": {
       "localizations": {
         "en": {
@@ -6857,16 +6847,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Send instruction"
-          }
-        }
-      }
-    },
-    "已发送，等待桌面端响应": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sent. Waiting for the desktop."
           }
         }
       }

@@ -6,16 +6,15 @@ import { RemoteI18n } from '../../i18n/RemoteI18n';
 import {
   CARD,
   INK,
-  LINE,
-  MUTED,
-  PAGE_BG,
-  PAGE_BG_FADE,
-  SCRIM,
   SHADOW_FAINT,
-  SHADOW_SUBTLE,
-  SOFT,
-  SUBTLE,
-  TRANSPARENT
+  SIDEBAR_BG,
+  SIDEBAR_BG_FADE,
+  SIDEBAR_HOVER,
+  SIDEBAR_INK,
+  SIDEBAR_LINE,
+  SIDEBAR_RAISED,
+  SIDEBAR_SUBTLE,
+  TRANSPARENT,
 } from './Theme';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { SessionActionPresentation, SessionActionSurface } from './SessionActionSurface';
@@ -121,7 +120,7 @@ export struct AppSidebar {
                 Text(RemoteI18n.t('miniapp.title'))
                   .fontSize(MobileDesignTypography.bodyLarge.size)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor(INK)
+                  .fontColor(SIDEBAR_INK)
                 Blank()
               }.width('100%').alignItems(VerticalAlign.Center)
             }
@@ -157,7 +156,7 @@ export struct AppSidebar {
             .hitTestBehavior(HitTestMode.None)
             .linearGradient({
               angle: 180,
-              colors: [[PAGE_BG_FADE, 0.0], [PAGE_BG, 0.62]]
+              colors: [[SIDEBAR_BG_FADE, 0.0], [SIDEBAR_BG, 0.62]]
             })
         }
 
@@ -172,10 +171,8 @@ export struct AppSidebar {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 20, right: 20, top: 4, bottom: 16 })
-    .backgroundColor(PAGE_BG)
-    .bindSheet($$this.showSessionActionSheet, this.SessionActionSheet(), this.sessionActionSheetOptions())
-    .bindSheet($$this.showSessionDetails, this.SessionDetailsSheet(), this.sessionDetailsSheetOptions())
+    .padding({ left: 20, right: 20, top: 0, bottom: 16 })
+    .backgroundColor(SIDEBAR_BG)
   }
 
   @Builder
@@ -249,7 +246,7 @@ export struct AppSidebar {
       Text('BitFun')
         .fontSize(MobileDesignTypography.headlineMedium.size)
         .fontWeight(FontWeight.Medium)
-        .fontColor(INK)
+        .fontColor(SIDEBAR_INK)
       Blank()
       // Right-aligned so the search and collapse controls keep the same
       // position whether or not the source-specific view-settings entry shows.
@@ -276,8 +273,8 @@ export struct AppSidebar {
         .width(44)
         .height(44)
         .padding(0)
-        .backgroundColor(CARD)
-        .border({ width: 0.5, color: LINE })
+        .backgroundColor(SIDEBAR_RAISED)
+        .border({ width: 0.5, color: SIDEBAR_LINE })
         .borderRadius(22)
         .shadow({ radius: 18, color: SHADOW_FAINT, offsetY: 5 })
         .stateEffect(true)
@@ -306,10 +303,10 @@ export struct AppSidebar {
         .width('100%')
         .height(42)
         .fontSize(MobileDesignTypography.bodyMedium.size)
-        .fontColor(INK)
-        .placeholderColor(SUBTLE)
+        .fontColor(SIDEBAR_INK)
+        .placeholderColor(SIDEBAR_SUBTLE)
         .padding(0)
-        .backgroundColor(SOFT)
+        .backgroundColor(SIDEBAR_HOVER)
         .borderRadius(8)
         .margin({ top: 12 })
         .onChange((value: string) => {
@@ -329,13 +326,13 @@ export struct AppSidebar {
       Row({ space: 14 }) {
         SymbolGlyph($r('sys.symbol.desktop'))
           .fontSize(23)
-          .fontColor([INK])
+          .fontColor([SIDEBAR_INK])
           .width(24)
           .height(24)
         Text(RemoteI18n.t('sidebar.devices'))
           .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
-          .fontColor(INK)
+          .fontColor(SIDEBAR_INK)
       }
       .layoutWeight(1)
       .height(50)
@@ -424,15 +421,15 @@ export struct AppSidebar {
           Text(RemoteI18n.t('sidebar.scanToConnect'))
             .fontSize(MobileDesignTypography.bodyMedium.size)
             .fontWeight(FontWeight.Medium)
-            .fontColor(INK)
+            .fontColor(SIDEBAR_INK)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Clip })
         }
           .width('100%')
           .height(48)
           .padding(0)
-          .backgroundColor(CARD)
-          .border({ width: 1, color: LINE })
+          .backgroundColor(SIDEBAR_RAISED)
+          .border({ width: 1, color: SIDEBAR_LINE })
           .borderRadius(16)
           .onClick(() => {
             this.onScanDesktop();

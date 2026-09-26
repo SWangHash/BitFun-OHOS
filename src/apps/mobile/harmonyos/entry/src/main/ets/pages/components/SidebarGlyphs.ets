@@ -1,11 +1,11 @@
-import { CARD, STATUS_SUCCESS, INK, MUTED } from './Theme';
+import { SIDEBAR_INK, SIDEBAR_MUTED, SIDEBAR_RAISED, STATUS_SUCCESS } from './Theme';
 import { TemplateIcon } from './TemplateIcon';
 
 @ComponentV2
 export struct SidebarGlyph {
   @Param kind: string = '';
   @Param connectionState: string = '';
-  @Param tint: ResourceColor = INK;
+  @Param tint: ResourceColor = SIDEBAR_INK;
 
   build() {
     if (this.kind === 'session_more') {
@@ -34,9 +34,9 @@ export struct SidebarGlyph {
   @Builder
   private MoreDots() {
     Row({ space: 3 }) {
-      Text('').width(3.5).height(3.5).backgroundColor(MUTED).borderRadius(2)
-      Text('').width(3.5).height(3.5).backgroundColor(MUTED).borderRadius(2)
-      Text('').width(3.5).height(3.5).backgroundColor(MUTED).borderRadius(2)
+      Text('').width(3.5).height(3.5).backgroundColor(SIDEBAR_MUTED).borderRadius(2)
+      Text('').width(3.5).height(3.5).backgroundColor(SIDEBAR_MUTED).borderRadius(2)
+      Text('').width(3.5).height(3.5).backgroundColor(SIDEBAR_MUTED).borderRadius(2)
     }
     .height(8)
     .alignItems(VerticalAlign.Center)
@@ -50,7 +50,7 @@ export struct SidebarGlyph {
         Text('').width(8).height(8).backgroundColor(STATUS_SUCCESS).borderRadius(4)
           .position({ x: 24, y: 22 })
       } else {
-        TemplateIcon({ src: $r('app.media.remote_logo'), iconWidth: 34, iconHeight: 34, tint: MUTED })
+        TemplateIcon({ src: $r('app.media.remote_logo'), iconWidth: 34, iconHeight: 34, tint: SIDEBAR_MUTED })
       }
     }
     .width(35).height(34)
@@ -59,17 +59,17 @@ export struct SidebarGlyph {
   @Builder
   private Search() {
     SymbolGlyph($r('sys.symbol.magnifyingglass'))
-      .fontSize(22).fontColor([INK]).width(24).height(24)
+      .fontSize(22).fontColor([SIDEBAR_INK]).width(24).height(24)
   }
 
   @Builder
   private Notebook() {
     Stack() {
-      Text('').width(22).height(24).borderRadius(5).border({ width: 1.5, color: INK })
+      Text('').width(22).height(24).borderRadius(5).border({ width: 1.5, color: SIDEBAR_INK })
         .position({ x: 8, y: 5 })
-      Text('').width(4).height(4).borderRadius(2).backgroundColor(INK)
+      Text('').width(4).height(4).borderRadius(2).backgroundColor(SIDEBAR_INK)
         .position({ x: 5, y: 11 })
-      Text('').width(4).height(4).borderRadius(2).backgroundColor(INK)
+      Text('').width(4).height(4).borderRadius(2).backgroundColor(SIDEBAR_INK)
         .position({ x: 5, y: 20 })
     }
     .width(34).height(34)
@@ -78,11 +78,11 @@ export struct SidebarGlyph {
   @Builder
   private Clock() {
     Stack() {
-      Text('').width(26).height(26).borderRadius(13).border({ width: 1.5, color: INK })
+      Text('').width(26).height(26).borderRadius(13).border({ width: 1.5, color: SIDEBAR_INK })
         .position({ x: 4, y: 4 })
-      Text('').width(1.5).height(9).backgroundColor(INK).borderRadius(2)
+      Text('').width(1.5).height(9).backgroundColor(SIDEBAR_INK).borderRadius(2)
         .position({ x: 18, y: 10 })
-      Text('').width(9).height(1.5).backgroundColor(INK).borderRadius(2)
+      Text('').width(9).height(1.5).backgroundColor(SIDEBAR_INK).borderRadius(2)
         .position({ x: 18, y: 20 })
     }
     .width(34).height(34)
@@ -101,15 +101,15 @@ export struct SidebarGlyph {
   @Builder
   private CodeFlower() {
     Stack() {
-      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: INK })
-        .backgroundColor(CARD).position({ x: 9, y: 1 })
-      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: INK })
-        .backgroundColor(CARD).position({ x: 17, y: 9 })
-      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: INK })
-        .backgroundColor(CARD).position({ x: 9, y: 17 })
-      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: INK })
-        .backgroundColor(CARD).position({ x: 1, y: 9 })
-      Text('').width(14).height(14).borderRadius(7).backgroundColor(CARD)
+      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: SIDEBAR_INK })
+        .backgroundColor(SIDEBAR_RAISED).position({ x: 9, y: 1 })
+      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: SIDEBAR_INK })
+        .backgroundColor(SIDEBAR_RAISED).position({ x: 17, y: 9 })
+      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: SIDEBAR_INK })
+        .backgroundColor(SIDEBAR_RAISED).position({ x: 9, y: 17 })
+      Text('').width(16).height(16).borderRadius(8).border({ width: 1.5, color: SIDEBAR_INK })
+        .backgroundColor(SIDEBAR_RAISED).position({ x: 1, y: 9 })
+      Text('').width(14).height(14).borderRadius(7).backgroundColor(SIDEBAR_RAISED)
         .position({ x: 10, y: 10 })
     }
     .width(34).height(34)
@@ -125,7 +125,7 @@ export struct SidebarGlyph {
 
   @Builder
   private Dot() {
-    Text('').width(5).height(5).borderRadius(3).backgroundColor(INK)
+    Text('').width(5).height(5).borderRadius(3).backgroundColor(SIDEBAR_INK)
   }
 
   @Builder

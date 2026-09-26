@@ -30,7 +30,7 @@ test("Icon is decorative by default and renders the named Lucide glyph", () => {
   assert.match(markup, /data-size="lg"/);
   assert.match(markup, /aria-hidden="true"/);
   assert.match(markup, /lucide-search/);
-  assert.match(markup, /stroke-width="1.6"/);
+  assert.match(markup, /stroke-width="var\(--bitfun-control-icon-stroke-width\)"/);
   assert.doesNotMatch(markup, /mask-image/);
 });
 
@@ -63,7 +63,7 @@ test("Icon normalizes Lucide fallbacks without exposing product-owned line weigh
   assert.match(markup, /data-bitfun-tone="secondary"/);
   assert.match(markup, /role="img"/);
   assert.match(markup, /aria-label="Network"/);
-  assert.match(markup, /<svg[^>]*stroke-width="1.6"/);
+  assert.match(markup, /<svg[^>]*stroke-width="var\(--bitfun-control-icon-stroke-width\)"/);
   assert.match(markup, /<svg[^>]*aria-hidden="true"/);
   assert.doesNotMatch(markup, /mask-image/);
 });
@@ -127,7 +127,7 @@ test("every general-purpose named icon renders Lucide and only the reviewed exce
       assert.doesNotMatch(markup, /<svg/, name);
     } else {
       assert.match(markup, /class="lucide lucide-/, name);
-      assert.match(markup, /stroke-width="1.6"/, name);
+      assert.match(markup, /stroke-width="var\(--bitfun-control-icon-stroke-width\)"/, name);
       assert.doesNotMatch(markup, /mask-image/, name);
     }
   }

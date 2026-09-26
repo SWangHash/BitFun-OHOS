@@ -1,4 +1,4 @@
-@layer bitfun.components {
+@layer openbitfun.components {
   .root,
   .context,
   .surface,
@@ -64,10 +64,8 @@
   }
 
   .surface:focus-within {
-    border-color: var(--bitfun-color-field-border-focus);
-    box-shadow:
-      var(--bitfun-shadow-composer),
-      0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
+    border-color: var(--bitfun-color-field-border-active);
+    box-shadow: var(--bitfun-shadow-composer);
   }
 
   .root[data-invalid="true"] > .surface {

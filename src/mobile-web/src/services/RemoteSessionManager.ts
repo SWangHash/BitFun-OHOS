@@ -1,15 +1,15 @@
-import { normalizeWorkspaceRouting } from './workspaceIdentity';
+import { HostDialogQueue, type QueueSnapshot } from '../../../shared/dialog-queue/HostDialogQueue';
+import { normalizeWorkspaceRouting, projectWorkspaceCatalog, type WorkspaceCatalog } from './workspaceIdentity';
 import {
   REMOTE_CAPABILITY_HOST_STREAM_V1, UNSUPPORTED_HOST_MESSAGE,
   type HostStreamOptions, type SessionStreamHandle,
 } from '../../../shared/relay-transport/HostStream';
 import { translateAgentIdentityFields } from '../../../shared/agent-harness/wire';
-/**
- * Manages remote sessions by sending commands to the desktop via the relay.
- * Commands use the shared authenticated realtime RPC connection.
- *
- * Durable session events drive presentation synchronization.
- */
+import {
+  RelayHttpClient,
+  type ControlTargetSnapshot,
+} from './RelayHttpClient';
+import { getControlClientIdentity } from './controlClientIdentity';
 
 import {
   RelayHttpClient,
@@ -214,6 +214,8 @@ export interface ChatImageAttachment {
 
 export interface ChatMessage {
   turn_id?: string;
+  /** Storage turn index for `turn_id`, used as the rollback staleness guard. */
+  turn_index?: number;
   status?: string;
   error?: string;
   id: string;
@@ -225,6 +227,13 @@ export interface ChatMessage {
   thinking?: string;
   items?: ChatMessageItem[];
   images?: ChatImageAttachment[];
+}
+
+export interface SessionRollbackResult {
+  retired_turn_ids: string[];
+  restored_files: string[];
+  composer_text?: string;
+  changed: boolean;
 }
 
 export interface ActiveTurnSnapshot {
@@ -744,6 +753,28 @@ export class RemoteSessionManager {
     };
   }
 
+  private queueClients = new Map<string, HostDialogQueue>();
+
+  dialogQueue(sessionId: string): HostDialogQueue {
+    const target = this.client.getControlTargetSnapshot();
+    const account = this.client.accountUserId;
+    const epoch = this.controlTargetEpoch;
+    const scope = JSON.stringify([account, target.deviceId, sessionId]);
+    const key = JSON.stringify([scope, this.controlTargetEpoch]);
+    let queue = this.queueClients.get(key);
+    if (!queue) {
+      queue = new HostDialogQueue(scope, sessionId, async request => {
+        if (this.client.accountUserId !== account || this.controlTargetEpoch !== epoch) throw new Error('Queue target changed');
+        if (!this.supportsHostCapability('dialog_queue_v1')) throw new Error('Host message queue is unsupported');
+        const response = await this.request<{ snapshot: QueueSnapshot }>({ cmd: 'dialog_queue', request }, target);
+        if (this.client.accountUserId !== account || this.controlTargetEpoch !== epoch) throw new Error('Queue target changed');
+        return response.snapshot;
+      });
+      this.queueClients.set(key, queue);
+    }
+    return queue;
+  }
+
   async sendMessage(
     sessionId: string,
     content: string,
@@ -756,6 +787,15 @@ export class RemoteSessionManager {
       metadata?: Record<string, unknown>;
     }>,
   ): Promise<string> {
+    if (this.supportsHostCapability('dialog_queue_v1')) {
+      const result = await this.dialogQueue(sessionId).submit({ content, agentType: agentType || 'Standard',
+        attachments: (imageContexts ?? []).map(image => ({ kind: 'remote_image', id: image.id,
+          metadata: { ...(image.data_url ? { dataUrl: image.data_url } : {}),
+            ...(image.image_path ? { imagePath: image.image_path } : {}), mimeType: image.mime_type,
+            metadata: image.metadata } })), metadata: {} });
+      if (!result.receipt) throw new Error('Host did not acknowledge the submitted message');
+      return result.receipt.turnId;
+    }
     const resp = await this.request<{ resp: string; turn_id: string }>({
       cmd: 'send_message',
       session_id: sessionId,
@@ -796,6 +836,49 @@ export class RemoteSessionManager {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.request({ cmd: 'delete_session', session_id: sessionId });
+  }
+
+  /**
+   * Retire `targetTurnId` and every turn after it on the host and restore the files
+   * those turns wrote. `expectedStorageTurnIndex` comes from the same message
+   * the user targeted, so a transcript that moved since it was loaded fails
+   * instead of rolling back a different turn.
+   */
+  async rollbackSessionToTurn(
+    sessionId: string,
+    targetTurnId: string,
+    expectedStorageTurnIndex?: number,
+  ): Promise<SessionRollbackResult> {
+    if (!this.supportsHostCapability('session_rollback_v1')) {
+      throw new Error('This host does not support session rollback. Update the host to use this action.');
+    }
+    const resp = await this.request<{
+      resp: string;
+      session_id: string;
+      retired_turn_ids?: string[];
+      restored_files?: string[];
+      composer_text?: string;
+      changed?: boolean;
+    }>({
+      cmd: 'rollback_session_to_turn',
+      session_id: sessionId,
+      target_turn_id: targetTurnId,
+      expected_storage_turn_index: expectedStorageTurnIndex,
+    });
+    if (resp.resp !== 'session_rolled_back' || resp.session_id !== sessionId
+      || !Array.isArray(resp.retired_turn_ids) || !Array.isArray(resp.restored_files)
+      || !resp.retired_turn_ids.every(id => typeof id === 'string')
+      || !resp.restored_files.every(path => typeof path === 'string')
+      || (resp.composer_text !== undefined && typeof resp.composer_text !== 'string')
+      || typeof resp.changed !== 'boolean') {
+      throw new Error('Invalid session rollback response');
+    }
+    return {
+      retired_turn_ids: resp.retired_turn_ids,
+      restored_files: resp.restored_files,
+      composer_text: resp.composer_text,
+      changed: resp.changed ?? false,
+    };
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {

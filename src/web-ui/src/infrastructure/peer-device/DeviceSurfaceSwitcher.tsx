@@ -8,7 +8,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { OverflowText, ActionItem, Icon, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
+import { subscribeOverlayInteraction, OverflowText, ActionItem, Icon, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
 import { Monitor, MonitorSmartphone, Loader2, Unplug } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -143,8 +143,8 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
         setOpen(false);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    const removeOverlayKeydown0 = subscribeOverlayInteraction(popoverRef, 'keydown', onKeyDown);
+    return () => removeOverlayKeydown0?.();
   }, [open]);
 
   if (!loggedIn || !peerDevice) {

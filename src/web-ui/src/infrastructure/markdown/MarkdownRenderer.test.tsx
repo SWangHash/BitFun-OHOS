@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MenuItem } from '@/shared/context-menu-system/types';
-import { MarkdownRenderer } from './MarkdownRenderer';
+import { MarkdownRenderer, ThinkingMarkdownRenderer } from './MarkdownRenderer';
 import { useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores/canvasStore';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContentResourceStore } from '@/app/workbench/contentResourceStore';
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   openFileInBestTarget: vi.fn(),
   openHtmlFileInExternalBrowser: vi.fn(),
   renderMath: vi.fn(),
+  renderHighlighter: vi.fn(),
   showContextMenu: vi.fn(),
 }));
 
@@ -60,7 +61,10 @@ vi.mock('./MarkdownMathRenderer', () => ({
 }));
 
 vi.mock('./AsyncPrismSyntaxHighlighter', () => ({
-  AsyncPrismSyntaxHighlighter: ({ children }: { children: React.ReactNode }) => <pre>{children}</pre>,
+  AsyncPrismSyntaxHighlighter: ({ children, preferFallback }: { children: React.ReactNode; preferFallback?: boolean }) => {
+    mocks.renderHighlighter();
+    return <pre data-fallback={String(preferFallback)}>{children}</pre>;
+  },
 }));
 
 vi.mock('@/shared/context-menu-system/core/ContextMenuController', () => ({
@@ -155,6 +159,7 @@ describe('Markdown file links', () => {
     mocks.openFileInBestTarget.mockReset();
     mocks.openHtmlFileInExternalBrowser.mockReset();
     mocks.renderMath.mockReset();
+    mocks.renderHighlighter.mockReset();
     mocks.showContextMenu.mockReset();
     mocks.getCurrentWorkspacePath.mockResolvedValue(EXAMPLE_WORKSPACE);
     mocks.readFileContent.mockResolvedValue('cmVsdS1wbmc=');
@@ -170,6 +175,162 @@ describe('Markdown file links', () => {
     useContentResourceStore.setState({ resources: {} });
     useSceneStore.getState().resetForPeerSwitch();
     vi.clearAllMocks();
+  });
+
+  it.each([
+    { name: 'thinking', Renderer: ThinkingMarkdownRenderer, scans: false },
+    { name: 'response', Renderer: MarkdownRenderer, scans: true },
+  ])('runs arrival DOM scanning only for response Markdown: $name', async ({ Renderer, scans }) => {
+    await import('./ThinkingMarkdown');
+    const scan = vi.spyOn(document, 'createTreeWalker');
+    try {
+      await act(async () => root.render(<Renderer content="First" isStreaming />));
+      await act(async () => root.render(<Renderer content="First appended" isStreaming />));
+      await act(async () => root.render(<Renderer content="First appended" />));
+      const markdownRoot = container.querySelector('.markdown-renderer');
+      expect(markdownRoot?.textContent).toBe('First appended');
+      expect(scan.mock.calls.some(([node]) => node === markdownRoot)).toBe(scans);
+    } finally {
+      scan.mockRestore();
+    }
+  });
+
+  it('preserves thinking code controls and image identity across stream completion', async () => {
+    // Resolve the lazy entry before asserting its product DOM.
+    await import('./ThinkingMarkdown');
+    const content = '![Thinking preview](thinking-preview.png)\n\n```ts\nconst value = 1;\n';
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content} isStreaming basePath="/srv/thinking" />));
+    const image = container.querySelector('img');
+    const toolbar = container.querySelector('.code-block-toolbar');
+    expect(image).not.toBeNull();
+    expect(toolbar?.querySelector('button')).not.toBeNull();
+    expect(container.querySelector('.code-block-wrapper')?.getAttribute('data-bitfun-state')).toBe('streaming');
+    const lightweight = container.querySelector('pre.code-block-fallback');
+    expect(lightweight).not.toBeNull();
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content + '```'} basePath="/srv/thinking" />));
+    expect(container.querySelector('img')).toBe(image);
+    expect(container.querySelector('.code-block-toolbar')).toBe(toolbar);
+    expect(container.querySelector('.code-block-wrapper')?.hasAttribute('data-bitfun-state')).toBe(false);
+    expect(container.querySelector('pre')).toBe(lightweight);
+    expect(container.querySelector('pre code > span:last-child')?.textContent).toBe('const value = 1;');
+    expect(mocks.renderHighlighter).not.toHaveBeenCalled();
+    expect(mocks.readFileContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps completed 100K thinking code lightweight after remounting', async () => {
+    const code = 'const value = 1;\n'.repeat(6500).trimEnd();
+    const content = `\`\`\`ts\n${code}\n\`\`\``;
+    for (let mount = 0; mount < 2; mount++) {
+      await act(async () => root.render(<ThinkingMarkdownRenderer content={content} />));
+      expect(container.querySelector('pre.code-block-fallback')).not.toBeNull();
+      expect(container.querySelector('pre code > span:last-child')?.textContent).toBe(code);
+      expect(container.querySelectorAll('pre code span')).toHaveLength(2);
+      expect(container.querySelector('.code-block-toolbar button')).not.toBeNull();
+      expect(mocks.renderHighlighter).not.toHaveBeenCalled();
+      await act(async () => root.render(null));
+    }
+  });
+
+  it('keeps response code on the highlighter path after streaming', async () => {
+    const content = '```ts\nconst value = 1;\n```';
+    await act(async () => root.render(<MarkdownRenderer content={content} isStreaming />));
+    expect(container.querySelector('pre[data-fallback]')?.getAttribute('data-fallback')).toBe('true');
+    await act(async () => root.render(<MarkdownRenderer content={content} />));
+    expect(container.querySelector('pre[data-fallback]')?.getAttribute('data-fallback')).toBe('false');
+    expect(mocks.renderHighlighter).toHaveBeenCalled();
+  });
+
+  it('keeps thinking file navigation and latest HTTP callbacks', async () => {
+    const firstClick = vi.fn();
+    const latestClick = vi.fn(() => true);
+    const content = '[Source](computer:///srv/project/main.ts#L12) [Web](https://example.com)';
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content} onFileViewRequest={onFileViewRequest} onHttpLinkClick={firstClick} />));
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content + ' more'} onFileViewRequest={onFileViewRequest} onHttpLinkClick={latestClick} />));
+    act(() => container.querySelector('.file-link')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+    expect(onFileViewRequest).toHaveBeenCalledWith('/srv/project/main.ts', 'main.ts', { start: 12, end: undefined });
+    act(() => container.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+    expect(latestClick).toHaveBeenCalledTimes(1);
+    expect(firstClick).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'd2', 'infographic'])('keeps thinking fences on the product code renderer: %s', async language => {
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={`\`\`\`${language}\none line\n\`\`\``} />));
+    expect(container.querySelector('.code-block-toolbar button')).not.toBeNull();
+    expect(container.querySelector('pre code > span:last-child')?.textContent).toBe('one line');
+  });
+
+  it('shows thinking Mermaid as lightweight source while preserving response diagrams', async () => {
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={'```mermaid\ngraph TD; A-->B\n```'} />));
+    expect(container.querySelector('[data-testid="mermaid-block"]')).toBeNull();
+    expect(container.querySelector('pre code > span:last-child')?.textContent).toBe('graph TD; A-->B');
+    expect(mocks.renderHighlighter).not.toHaveBeenCalled();
+    await act(async () => root.render(<MarkdownRenderer content={'```mermaid\ngraph TD; A-->B\n```'} />));
+    expect(container.querySelector('[data-testid="mermaid-block"]')).not.toBeNull();
+  });
+
+  it('sanitizes thinking HTML and keeps inline HTML inside its paragraph', async () => {
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={'Text <b>bold</b> tail\n\n<details><summary>More</summary><img src="https://example.com/a.png" onerror="alert(1)"><script>alert(1)</script></details>'} />));
+    expect(container.querySelector('p b')?.textContent).toBe('bold');
+    expect(container.querySelector('details summary')?.textContent).toBe('More');
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+    expect(container.querySelector('p p')).toBeNull();
+  });
+
+  it('routes thinking file images through the owning remote reader', async () => {
+    await act(async () => root.render(<ThinkingMarkdownRenderer content="![Remote thinking](file:///srv/thinking/remote.png)" basePath="/srv/thinking" remoteConnectionId="thinking-remote" />));
+    expect(container.innerHTML).toContain('<img');
+    expect(mocks.readFileContent).toHaveBeenCalledWith('/srv/thinking/remote.png', 'base64', 'thinking-remote');
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,cmVsdS1wbmc=');
+  });
+
+  it('refreshes settled thinking images when resource ownership changes', async () => {
+    const content = '![Owned thinking](owned-thinking.png)\n\nTail';
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content} basePath="/srv/first" remoteConnectionId="first-host" isStreaming />));
+    expect(mocks.readFileContent).toHaveBeenCalledWith('/srv/first/owned-thinking.png', 'base64', 'first-host');
+    mocks.readFileContent.mockResolvedValueOnce('bmV3');
+    await act(async () => root.render(<ThinkingMarkdownRenderer content={content + ' grows'} basePath="/srv/second" remoteConnectionId="second-host" isStreaming />));
+    expect(mocks.readFileContent).toHaveBeenCalledWith('/srv/second/owned-thinking.png', 'base64', 'second-host');
+    expect(container.querySelector('img')?.src).toBe('data:image/png;base64,bmV3');
+  });
+
+  it('keeps callback-only thinking images away from the controller filesystem', async () => {
+    await act(async () => root.render(<ThinkingMarkdownRenderer content="![Target](private-thinking.png)" fileActionsViaCallbackOnly />));
+    expect(mocks.readFileContent).not.toHaveBeenCalled();
+    expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('components:markdown.remoteImageUnavailable');
+  });
+
+  it('preserves same-tag sibling matches for generated and raw HTML content', async () => {
+    const content = `First paragraph.
+
+Second paragraph.
+
+- First item
+  - Nested item
+  - Next nested item
+- Second item
+
+| A | B |
+| - | - |
+| C | D |
+
+<div align="center"><p>One</p><!-- comment -->text<p>Two</p><hr><p>Three</p></div>
+<table><tbody><tr><th>A</th><td>B</td><td>C</td><th>D</th><th>E</th></tr></tbody></table>`;
+    await act(async () => root.render(<MarkdownRenderer content={content} />));
+    for (const [tag, className] of [
+      ['p', 'markdown-paragraph'], ['li', 'markdown-list-item'],
+      ['th', 'markdown-header-cell'], ['td', 'markdown-data-cell'],
+    ]) {
+      const oldMatches = [...container.querySelectorAll(`${tag} + ${tag}`)];
+      expect(oldMatches.length).toBeGreaterThan(0);
+      expect([...container.querySelectorAll(`${tag}:where(.${className}) + ${tag}:where(.${className})`)])
+        .toEqual(oldMatches);
+      expect([...container.querySelectorAll(tag)].every(node => node.classList.contains(className))).toBe(true);
+    }
+    expect([...container.querySelectorAll('div[align="center"] > p:where(.markdown-paragraph) + p:where(.markdown-paragraph)')]
+      .map(node => node.textContent)).toEqual(['Two']);
   });
 
   it.each([false, true])('keeps fullwidth parentheses outside bare web links (escaped=%s)', async escaped => {
@@ -687,6 +848,42 @@ describe('Markdown file links', () => {
     expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
   });
 
+  it('keeps streamed table link labels visible until the actual destination closes', async () => {
+    const prefix = 'Intro\n\n| File | Description |\n| --- | --- |\n| ';
+    const unfinished = `${prefix}[**Guide**](/srv/docs/long-directory/Guide.md`;
+    const render = async (content: string, isStreaming: boolean) => {
+      await act(async () => root.render(<MarkdownRenderer
+        content={content}
+        isStreaming={isStreaming}
+        sourceRange={{ start: 7, end: content.length, idPrefix: 'stream-table-' }}
+        fileActionsViaCallbackOnly
+        onFileViewRequest={onFileViewRequest}
+      />));
+    };
+
+    await render(unfinished, true);
+    const table = container.querySelector('table');
+    const cell = container.querySelector('td');
+    expect(cell?.textContent).toBe('Guide');
+    expect(cell?.querySelector('strong')?.textContent).toBe('Guide');
+    expect(cell?.querySelector('button, a')).toBeNull();
+    expect(mocks.readFileContent).not.toHaveBeenCalled();
+    expect(mocks.getCurrentWorkspacePath).not.toHaveBeenCalled();
+
+    await render(unfinished + ') | Explanation |', true);
+    expect(container.querySelector('table')).toBe(table);
+    expect(container.querySelector('td')).toBe(cell);
+    expect(cell?.textContent).toBe('Guide');
+    const link = cell?.querySelector<HTMLButtonElement>('button.file-link');
+    expect(link).not.toBeNull();
+    act(() => link?.click());
+    expect(onFileViewRequest).toHaveBeenCalledWith('/srv/docs/long-directory/Guide.md', 'Guide.md', undefined);
+
+    await render(unfinished, false);
+    expect(cell?.textContent).toContain('](/srv/docs/long-directory/Guide.md');
+    expect(cell?.querySelector('button, a')).toBeNull();
+  });
+
   it('preserves existing markdown nodes while streaming content is appended', async () => {
     const initialContent = [
       'Before image',
@@ -844,5 +1041,100 @@ describe('Markdown file links', () => {
       'base64',
       'remote-connection-1',
     );
+  });
+
+  it('previews the resolved bytes of a markdown image and closes on the scrim or the close button', async () => {
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={'![ReLU 图像](relu.png)'}
+          basePath={EXAMPLE_WORKSPACE}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const image = container.querySelector<HTMLImageElement>('img[alt="ReLU 图像"]');
+    expect(image?.classList.contains('markdown-image--previewable')).toBe(true);
+
+    act(() => image?.click());
+
+    const overlay = document.querySelector<HTMLElement>('.image-lightbox');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute('data-bitfun-native-webview-occlusion')).toBe('true');
+    // The preview shows the bytes the inline image resolved, not the raw path.
+    const preview = overlay?.querySelector<HTMLImageElement>('img');
+    expect(preview?.getAttribute('src')).toBe('data:image/png;base64,cmVsdS1wbmc=');
+    expect(preview?.getAttribute('data-bitfun-part')).toBe('image');
+    const surface = overlay?.querySelector<HTMLElement>('.image-lightbox-surface');
+    expect(surface?.getAttribute('aria-label')).toBe('ReLU 图像');
+
+    // Clicking the previewed image itself must not dismiss the overlay.
+    act(() => preview?.click());
+    expect(document.querySelector('.image-lightbox')).not.toBeNull();
+
+    act(() => surface?.click());
+    expect(document.querySelector('.image-lightbox')).toBeNull();
+
+    act(() => image?.click());
+    act(() => document.querySelector<HTMLButtonElement>('.image-lightbox-close')?.click());
+    expect(document.querySelector('.image-lightbox')).toBeNull();
+  });
+
+  it('leaves images owned by a markdown link to that link', async () => {
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={'[![Badge](data:image/png;base64,YQ==)](README.md)'}
+          basePath={EXAMPLE_WORKSPACE}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const image = container.querySelector<HTMLImageElement>('img[alt="Badge"]');
+    expect(image?.classList.contains('markdown-image--previewable')).toBe(true);
+
+    act(() => image?.click());
+
+    expect(document.querySelector('.image-lightbox')).toBeNull();
+    // The file link still owns the click.
+    expect(onFileViewRequest).toHaveBeenCalled();
+  });
+
+  it('does not offer a preview before an inline image resolves', async () => {
+    mocks.readFileContent.mockImplementationOnce(() => new Promise<string>(() => {}));
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={'![Pending](pending.png)'}
+          basePath={EXAMPLE_WORKSPACE}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const image = container.querySelector<HTMLImageElement>('img[alt="Pending"]');
+    expect(image?.classList.contains('markdown-image--previewable')).toBe(false);
+    act(() => image?.click());
+    expect(document.querySelector('.image-lightbox')).toBeNull();
+  });
+
+  it('closes an open image preview when the surface switches hosts', async () => {
+    await act(async () => {
+      root.render(<MarkdownRenderer content={'![Preview](data:image/png;base64,YQ==)'} />);
+    });
+
+    act(() => container.querySelector<HTMLImageElement>('img')?.click());
+    expect(document.querySelector('.image-lightbox')).not.toBeNull();
+
+    await act(async () => activateSurface('peer:output-second'));
+
+    // The previewed bytes belonged to the previous host.
+    expect(document.querySelector('.image-lightbox')).toBeNull();
   });
 });

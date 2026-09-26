@@ -54,6 +54,7 @@ import com.bitfun.mobile.app.ui.remote.ConnectView
 import com.bitfun.mobile.app.ui.settings.GeneralSettingsScreen
 import com.bitfun.mobile.app.ui.settings.SettingsScreen
 import com.bitfun.mobile.app.ui.shell.sidebar.AppSidebar
+import com.bitfun.mobile.app.ui.theme.openBitFunColors
 import com.bitfun.mobile.app.viewmodel.AccountViewModel
 import com.bitfun.mobile.core.feature.account.AccountIntent
 import com.bitfun.mobile.core.feature.account.AccountUiState
@@ -69,6 +70,7 @@ import com.bitfun.mobile.core.feature.layout.SettingsPlacementPolicy
 import com.bitfun.mobile.core.feature.layout.SettingsSheetKind
 import com.bitfun.mobile.core.feature.session.RemoteSessionUiState
 import com.bitfun.mobile.core.feature.session.RemoteSessionIntent
+import com.bitfun.mobile.core.feature.session.WorkspaceSessionDirectoryUiState
 import com.bitfun.mobile.core.feature.workspace.RemoteFilePreviewUiState
 import com.bitfun.mobile.core.feature.workspace.RemoteFileDownloadUiState
 import com.bitfun.mobile.core.feature.workspace.RemoteWorkspaceIntent
@@ -123,7 +125,7 @@ private fun PaneSeparator(gapWidth: Int) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MobileScreen() {
+internal fun MobileScreen(onAccountRestored: (Boolean) -> Unit = {}) {
     var compactDrawerOpen by rememberSaveable { mutableStateOf(false) }
     val shell = rememberAppShellState()
 
@@ -133,6 +135,11 @@ internal fun MobileScreen() {
     val accountRemoteState by accountViewModel.remoteState.collectAsStateWithLifecycle()
     val accountPhase by accountViewModel.connectionPhase.collectAsStateWithLifecycle()
     val readyAccount = accountState as? AccountUiState.Ready
+    LaunchedEffect(accountState) {
+        if (accountState !is AccountUiState.Idle && accountState !is AccountUiState.Restoring) {
+            onAccountRestored(readyAccount?.userId?.isNotBlank() == true)
+        }
+    }
     val linkContext = androidx.compose.ui.platform.LocalContext.current
     var pendingDeviceLink by rememberSaveable { mutableStateOf<String?>(null) }
     val connectDeviceLink: (String) -> Unit = { url ->
@@ -491,6 +498,10 @@ internal fun MobileScreen() {
                 if (sidebarWidth > 0) {
                     PermanentDrawerSheet(
                         Modifier.width(sidebarWidth.dp).testTag(MASTER_DETAIL_TEST_TAG),
+                        // Material fills a drawer sheet from surfaceContainerLow;
+                        // the rail paints its own chrome, so the sheet gets out
+                        // of the way rather than tinting a second layer under it.
+                        drawerContainerColor = openBitFunColors.sidebar.background,
                     ) { sidebar() }
                     PaneSeparator(
                         if (previewVisible) {

@@ -1,4 +1,5 @@
 import { buttonAppearanceDescriptor } from '@/component-library/components/Button/appearance';
+import { imageLightboxAppearanceDescriptor } from '@/shared/ui/ImageLightbox.appearance';
 import { cardAppearanceDescriptor } from '@/component-library/components/Card/appearance';
 import { inputAppearanceDescriptor } from '@/component-library/components/Input/appearance';
 import { modalAppearanceDescriptor } from '@/component-library/components/Modal/appearance';
@@ -298,6 +299,7 @@ import { turnCompletionNoticeAppearanceDescriptor } from '@/flow_chat/components
 import { turnFailureNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnFailureNoticeItem.appearance';
 import { virtualItemAppearanceDescriptor } from '@/flow_chat/components/modern/VirtualItemRenderer.appearance';
 import { AppearanceRegistry } from './AppearanceRegistry';
+import { computerUseControlAppearanceDescriptor } from '@/app/components/ComputerUseControlCard.appearance';
 
 export function createDefaultAppearanceRegistry(): AppearanceRegistry {
   return new AppearanceRegistry()
@@ -380,6 +382,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(mcpToolDisplayAppearanceDescriptor)
     .registerComponent(skillsConfigAppearanceDescriptor)
     .registerComponent(diffEditorAppearanceDescriptor)
+    .registerComponent(computerUseControlAppearanceDescriptor)
     .registerComponent(agentCompanionDesktopPetAppearanceDescriptor)
     .registerComponent(toolGroupPickerAppearanceDescriptor)
     .registerComponent(inlineDiffPreviewAppearanceDescriptor)
@@ -404,6 +407,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(contextMenuAppearanceDescriptor)
     .registerComponent(contextListAppearanceDescriptor)
     .registerComponent(notificationAppearanceDescriptor)
+    .registerComponent(imageLightboxAppearanceDescriptor)
     .registerComponent(canvasToolAppearanceDescriptor)
     .registerComponent(generativeWidgetAppearanceDescriptor)
     .registerComponent(editorToolAppearanceDescriptor)

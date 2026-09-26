@@ -21,7 +21,7 @@ import {
 } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FolderOpen, Layers, Loader2, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 
 import { GalleryDetailModal, GalleryPageHeader } from '@/app/components';
@@ -43,7 +43,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { getCardGradient } from '@/shared/utils/cardGradients';
 import { useInstalledSkills } from './hooks/useInstalledSkills';
 import { useSkillMarket } from './hooks/useSkillMarket';
-import { useMatrixSkillMarket } from './hooks/useMatrixSkillMarket';
+import { SkillMarketSettings } from '@/infrastructure/config/components/SkillMarketSettings';
 import SkillCard from './components/SkillCard';
 import SkillGroupsView from './components/SkillGroupsView';
 import { useUserSkillGroups } from '@/features/skill-groups/useUserSkillGroups';
@@ -54,6 +54,7 @@ import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/Matrix
 import './SkillsScene.scss';
 import { useSkillsSceneStore, type SkillsView } from './skillsSceneStore';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
+import { useMatrixSkillMarket } from './hooks/useMatrixSkillMarket';
 
 const log = createLogger('SkillsScene');
 
@@ -107,8 +108,10 @@ const CATEGORIES: CategoryInfo[] = [
 ];
 
 const SkillsScene: React.FC = () => {
-  const { t } = useTranslation('scenes/skills');
-  const { t: tComponents, formatNumber } = useI18n('components');
+  const { t, formatNumber } = useI18n('scenes/skills');
+  const { t: tComponents } = useI18n('components');
+  const { t: tSettings } = useI18n('settings/skills');
+  const { t: tCommon } = useI18n('common');
   const notification = useNotification();
   const peerDevice = usePeerDeviceModeOptional();
   const remoteConnectionActive = peerDevice?.peerMode.active === true;
@@ -128,6 +131,8 @@ const SkillsScene: React.FC = () => {
     toggleAddForm,
   } = useSkillsSceneStore();
 
+  const [marketSettingsOpen, setMarketSettingsOpen] = useState(false);
+  useEffect(() => { if (!desktopConfigAvailable) setMarketSettingsOpen(false); }, [desktopConfigAvailable]);
   const [activeTab, setActiveTab] = useState<SkillTab>('installed');
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');
@@ -654,24 +659,35 @@ const SkillsScene: React.FC = () => {
                               </span>
                             </div>
 
-                            <div
-                              className="skills-card__level"
-                              data-bitfun-scene="skills"
-                              data-bitfun-part="installedCardLevel"
-                            >
-                              {skill.level === 'user'
-                                ? <Icon name="user" size="xs" />
-                                : <Icon glyph={FolderOpen} size="xs" />}
-                              <OverflowText title="">
-                                {market.isRemoteWorkspace
-                                  ? skill.level === 'user'
-                                    ? t('list.item.localUser')
-                                    : t('list.item.remoteProject')
-                                  : skill.level === 'user'
-                                    ? t('list.item.user')
-                                    : t('list.item.project')}
-                              </OverflowText>
-                            </div>
+                              <div
+                                className="skills-card__global-toggle"
+                                role="cell"
+                                data-bitfun-scene="skills"
+                                data-bitfun-part="installedCardStatus"
+                              >
+                                {installed.canToggleSkill(skill) ? (
+                                  <div className="skills-card__availability" title={t(installed.globallyDisabledSkillKeys.has(skill.key) ? 'list.item.globalDisabled' : 'list.item.globalEnabled')}>
+                                    <Switch
+                                      checked={!installed.globallyDisabledSkillKeys.has(skill.key)}
+                                      disabled={installed.savingGlobalSkillKey !== null}
+                                      aria-busy={installed.savingGlobalSkillKey === skill.key}
+                                      aria-label={t('list.item.globalToggleLabel', { name: skill.name })}
+                                      onChange={(event) => {
+                                        void installed.handleGlobalSkillToggle(skill, event.target.checked);
+                                      }}
+                                    />
+                                  </div>
+                                ) : !skill.isShadowed && (
+                                  <span className="skills-card__status-unavailable" aria-hidden="true">—</span>
+                                )}
+                                {skill.isShadowed && (
+                                  <StatusPill tone="warning" title={t('list.item.shadowedTooltip', {
+                                    source: coverageSourceBySkillKey.get(skill.key) ?? t('list.item.unknownSource'),
+                                  })} leading={<Icon glyph={ShieldAlert} />}>
+                                    {t('list.item.shadowed')}
+                                  </StatusPill>
+                                )}
+                              </div>
 
                             <div
                               className="skills-card__global-toggle"
@@ -738,7 +754,7 @@ const SkillsScene: React.FC = () => {
 
         {desktopConfigAvailable && activeTab === 'discover' && (
           <div className="skills-discover" data-bitfun-scene="skills" data-bitfun-part="discover">
-            <div className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="discoverHero">
+            <header className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="discoverHero">
               <div className="skills-discover__hero-content" data-bitfun-scene="skills" data-bitfun-part="discoverHeroContent">
                 <h1 className="skills-discover__title" data-bitfun-scene="skills" data-bitfun-part="discoverTitle">{t('market.title')}</h1>
                 <p className="skills-discover__subtitle" data-bitfun-scene="skills" data-bitfun-part="discoverSubtitle">
@@ -762,20 +778,20 @@ const SkillsScene: React.FC = () => {
                   />
                 </div>
               </div>
-            </div>
+              <Button size="sm" variant="outline" onClick={() => setMarketSettingsOpen(true)}>
+                {tSettings('market.settings.title')}
+              </Button>
+            </header>
 
             <ScrollArea className="skills-discover__content">
-              {market.marketLoading && (
-                <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bitfun-scene="skills" data-bitfun-part="loading">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div
-                      key={`mkt-sk-${i}`}
-                      className="skills-discover__skeleton-card"
-                      style={{ '--surface-stagger-index': i } as React.CSSProperties}
-                      data-bitfun-scene="skills"
-                      data-bitfun-part="skeleton"
-                    />
-                  ))}
+              {!market.marketLoading && market.sourceErrors.length > 0 && (
+                <div className="skills-discover__state" role="alert">
+                  {market.sourceErrors.map(error => <p key={error}>{error}</p>)}
+                </div>
+              )}
+              {!market.marketLoading && !market.marketError && marketQuery && market.totalLoaded > 0 && (
+                <div className="skills-discover__results-info" data-bitfun-scene="skills" data-bitfun-part="resultsInfo" role="status">
+                  <OverflowText>{t('market.resultsInfo', { query: marketQuery, count: market.totalLoaded })}</OverflowText>
                 </div>
               )}
 
@@ -830,7 +846,8 @@ const SkillsScene: React.FC = () => {
                           data-skill-name={skill.name}
                           data-skill-installed={isInstalled ? 'true' : 'false'}
                           name={skill.name}
-                          description={skill.description}
+                          description={skill.description || t('market.item.noDescription')}
+                          source={skill.marketName ? `${skill.marketName} · ${skill.source}` : skill.source}
                           index={index}
                           accentSeed={skill.installId}
                           iconKind="market"
@@ -1333,6 +1350,16 @@ const SkillsScene: React.FC = () => {
           </div>
         </div>
               </DialogBody>
+      </Dialog>
+
+      <Dialog open={marketSettingsOpen && desktopConfigAvailable} onOpenChange={setMarketSettingsOpen} size="md">
+        <DialogHeader>
+          <DialogHeading><DialogTitle>{tSettings('market.settings.title')}</DialogTitle></DialogHeading>
+          <DialogClose />
+        </DialogHeader>
+        <DialogBody>
+          {marketSettingsOpen && desktopConfigAvailable && <SkillMarketSettings onSaved={() => setMarketSettingsOpen(false)} />}
+        </DialogBody>
       </Dialog>
 
       <ConfirmDialog

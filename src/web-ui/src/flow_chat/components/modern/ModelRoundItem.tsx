@@ -10,7 +10,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 import { CircleAlert } from 'lucide-react';
 import type { ModelRound, ModelRoundAttempt, ModelRoundAttemptDiagnostic, FlowItem, FlowTextItem, FlowToolItem, FlowThinkingItem, ToolRejectOptions } from '../../types/flow-chat';
 import { useI18n } from '@/infrastructure/i18n';
@@ -48,6 +48,7 @@ import { canvasArtifactReferenceFromToolItem } from '../../utils/canvasArtifactP
 import { areModelRoundItemPropsEqual, type ModelRoundItemProps } from './modelRoundItemMemo';
 import './ModelRoundItem.scss';
 import './SubagentItems.scss';
+import { subscribeOverlayInteraction, Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 
 const log = createLogger('ModelRoundItem');
 
@@ -387,7 +388,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         setIsCopyMenuOpen(false);
       };
 
-      document.addEventListener('mousedown', handleClickOutside);
+      const removeOverlayMousedown0 = subscribeOverlayInteraction(copyMenuRef, 'mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
@@ -402,7 +403,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         }
       };
 
-      document.addEventListener('keydown', handleKeyDown);
+      const removeOverlayKeydown1 = subscribeOverlayInteraction(copyMenuRef, 'keydown', handleKeyDown);
       return () => {
         document.removeEventListener('keydown', handleKeyDown);
       };

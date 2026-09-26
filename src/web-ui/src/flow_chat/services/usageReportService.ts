@@ -7,7 +7,7 @@ import {
   showSessionUsageModalReport,
 } from '../components/usage/sessionUsageModalState';
 import type { Session } from '../types/flow-chat';
-import { requireSessionWorkspaceId } from '../utils/sessionWorkspace';
+import { requireSessionOwningWorkspaceId } from '../utils/sessionOrdering';
 import { i18nService } from '@/infrastructure/i18n';
 import {
   formatCacheHitRate,
@@ -75,7 +75,7 @@ export async function runUsageReportCommand(
       ? await params.fetchReport()
       : await sessionAPI.getSessionUsageReport({
         sessionId: params.session.sessionId,
-        workspaceId: requireSessionWorkspaceId(params.session),
+        workspaceId: requireSessionOwningWorkspaceId(params.session),
         includeHiddenSubagents: true,
       });
     const report = enrichUsageReportModelIdentity(rawReport, params.session);

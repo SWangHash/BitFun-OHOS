@@ -120,6 +120,7 @@ test("FlowChat gallery renders only the real migrated tool-card components", asy
     "WriteStdin",
     "ExecControl",
     "ContextCompression",
+    "Cron",
     "ControlHub",
     "FinalizeMiniApp",
     "PublishMiniApp",

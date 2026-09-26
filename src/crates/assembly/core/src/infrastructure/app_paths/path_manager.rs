@@ -364,7 +364,16 @@ impl PathManager {
         self.user_cron_dir().join("jobs.json")
     }
 
-    /// Get miniapps root directory: ~/.config/bitfun/data/miniapps/
+    /// Lease file identifying the process that owns scheduled job scheduling.
+    ///
+    /// It sits beside `jobs.json` because it guards exactly that store: the
+    /// holder is the only process allowed to schedule jobs and write the file.
+    /// The file itself is inert — ownership is the OS lock on it.
+    pub fn cron_scheduler_lease_file(&self) -> PathBuf {
+        self.user_cron_dir().join("scheduler.lock")
+    }
+
+        /// Get miniapps root directory: ~/.config/bitfun/data/miniapps/
     pub fn miniapps_dir(&self) -> PathBuf {
         self.user_data_dir().join("miniapps")
     }

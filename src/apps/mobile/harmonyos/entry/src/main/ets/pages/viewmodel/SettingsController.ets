@@ -8,7 +8,8 @@ import {
   CloudAccountClient,
   CloudAccountDevice,
   CloudAccountRequestError,
-  CloudAccountSession
+  CloudAccountSession,
+  isDeviceControllable
 } from '../../services/CloudAccountClient';
 import { CloudAccountSessionStore, PersistedCloudAccountSession } from '../../services/CloudAccountSessionStore';
 import { ConnectionErrorPolicy } from '../../services/ConnectionErrorPolicy';
@@ -464,7 +465,8 @@ export class SettingsController {
         deviceId: target.deviceId,
         deviceName: target.deviceName || targetDeviceName || target.deviceId,
         online: target.online,
-        lastSeenAt: target.lastSeenAt
+        lastSeenAt: target.lastSeenAt,
+        compatible: target.compatible
       }, navigateHome);
     } catch (err) {
       RemoteLogger.warn(`cloud target restore failed: ${err instanceof Error ? err.message : 'unknown error'}`);
@@ -500,6 +502,10 @@ export class SettingsController {
     const session = this.cloudSession;
     if (!device.online) {
       throw new Error(RemoteI18n.t('remote.settings.deviceOffline'));
+    }
+    // A confirmed-incompatible device stays listed but is never a target.
+    if (!isDeviceControllable(device)) {
+      throw new Error(RemoteI18n.t('remote.settings.deviceIncompatible'));
     }
     if (!session || this.cloudRelayUrl.length === 0) {
       throw new Error(RemoteI18n.t('remote.settings.accountNotSignedIn'));

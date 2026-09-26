@@ -14,6 +14,10 @@ export enum ComposerPrimaryAction {
 }
 
 export class ChatComposerPolicy {
+  static canStop(isTurnRunning: boolean, requiresRemoteConnection: boolean, connectionState: string): boolean {
+    return isTurnRunning && (!requiresRemoteConnection || connectionState === 'connected');
+  }
+
   static canSend(
     text: string,
     attachmentCount: number,
@@ -23,7 +27,7 @@ export class ChatComposerPolicy {
   ): boolean {
     const hasContent = text.trim().length > 0 || attachmentCount > 0;
     const remoteAvailable = !requiresRemoteConnection ||
-      connectionState === 'connected' || connectionState === 'reconnecting';
+      connectionState === 'connected';
     return hasContent && !isBusy && remoteAvailable;
   }
 

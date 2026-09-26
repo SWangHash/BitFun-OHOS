@@ -23,10 +23,32 @@ const slots = [
   ["Select", "indicator", "inline-size", "100%"],
   ["StatusPill", "leading", "inline-size", "100%"],
   ["Avatar", "content", "inline-size", "55%"],
-  ["Empty", "media", "max-inline-size", "100%"],
+  ["Empty", "media", "inline-size", "var(--_empty-icon-size)"],
   ["ConfirmDialog", "icon", "inline-size", "var(--bitfun-layout-confirm-dialog-icon-glyph-size)"],
   ["Listbox", "leading", "inline-size", "100%"],
   ["Listbox", "indicator", "inline-size", "100%"],
+];
+
+const markedSlotSources = [
+  ["ActionCard/ActionCard.tsx", 1],
+  ["ActionItem/ActionItem.tsx", 1],
+  ["ActivityItem/ActivityItem.tsx", 1],
+  ["Avatar/Avatar.tsx", 1],
+  ["Button/Button.tsx", 2],
+  ["Combobox/Combobox.tsx", 2],
+  ["ConfirmDialog/ConfirmDialog.tsx", 1],
+  ["Empty/Empty.tsx", 1],
+  ["IconButton/IconButton.tsx", 1],
+  ["Input/Input.tsx", 2],
+  ["KeyHint/KeyHint.tsx", 1],
+  ["LauncherButton/LauncherButton.tsx", 1],
+  ["Listbox/Listbox.tsx", 2],
+  ["Menu/MenuPopover.tsx", 1],
+  ["SearchField/SearchField.tsx", 1],
+  ["SegmentedControl/SegmentedControl.tsx", 1],
+  ["Select/Select.tsx", 2],
+  ["StatusPill/StatusPill.tsx", 1],
+  ["TabGroup/TabGroup.tsx", 1],
 ];
 
 test("sized slots apply the same geometry to SVG and catalog icons, regardless of stylesheet order", async () => {
@@ -68,7 +90,43 @@ test("buttons constrain normalized line fallbacks through the same icon slot", (
     const markup = renderToStaticMarkup(createElement(Component, props));
     assert.match(markup, /data-bitfun-component="icon"/);
     assert.match(markup, /data-bitfun-source="line"/);
-    assert.match(markup, /<svg[^>]*stroke-width="1.6"/);
+    assert.match(markup, /<svg[^>]*stroke-width="var\(--bitfun-control-icon-stroke-width\)"/);
+  }
+});
+
+test("public icon slots normalize default Lucide weight without changing custom artwork", async () => {
+  const layers = await readFile(new URL("../src/styles/layers.css", import.meta.url), "utf8");
+  const rule = [...layers.matchAll(/([^{}]+)\{([^{}]+)\}/g)]
+    .find(([, selectors]) => selectors.includes('[data-bitfun-icon-slot="true"]'));
+
+  assert.ok(rule, "shared icon-slot normalization rule must exist");
+  assert.match(rule[1], /svg\.lucide\[stroke-width="2"\]/);
+  assert.match(rule[2], /color:\s*inherit/);
+  assert.match(rule[2], /stroke-width:\s*1\.6/);
+
+  for (const [Component, props] of [
+    [Button, { children: "Network", leadingIcon: createElement(Network) }],
+    [IconButton, { "aria-label": "Network", icon: createElement(Network) }],
+  ]) {
+    const markup = renderToStaticMarkup(createElement(Component, props));
+    const svg = markup.match(/<svg[^>]*>/)?.[0] ?? "";
+    assert.match(markup, /data-bitfun-icon-slot="true"/);
+    assert.match(svg, /class="lucide lucide-network"/);
+    assert.match(svg, /stroke-width="2"/);
+  }
+
+  const customMarkup = renderToStaticMarkup(createElement(IconButton, {
+    "aria-label": "Filled network",
+    icon: createElement(Network, { fill: "currentColor", strokeWidth: 0 }),
+  }));
+  assert.match(customMarkup, /<svg[^>]*stroke-width="0"/);
+});
+
+test("every public sized icon wrapper opts into the shared slot contract", async () => {
+  for (const [file, expectedCount] of markedSlotSources) {
+    const source = await readFile(new URL(`../src/components/${file}`, import.meta.url), "utf8");
+    const count = source.match(/data-bitfun-icon-slot="true"/g)?.length ?? 0;
+    assert.equal(count, expectedCount, file);
   }
 });
 

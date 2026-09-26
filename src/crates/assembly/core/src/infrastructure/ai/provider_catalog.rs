@@ -80,14 +80,6 @@ pub(crate) fn resolve_builtin_provider_catalog(
     source: ProviderCatalogSource,
 ) -> ProviderCatalog {
     let overlay = parse_overlay().expect("built-in AI provider overlay must be valid");
-    let has_bound_catalog_data = models_dev.is_some_and(|catalog| {
-        overlay.providers.iter().any(|provider| {
-            provider
-                .catalog_provider_ids
-                .iter()
-                .any(|provider_id| catalog.provider_facts(provider_id).is_some())
-        })
-    });
     let mut providers = overlay
         .providers
         .iter()
@@ -100,12 +92,52 @@ pub(crate) fn resolve_builtin_provider_catalog(
     });
     ProviderCatalog {
         revision: resolved_catalog_revision(&revision),
-        source: if has_bound_catalog_data && source == ProviderCatalogSource::BitFun {
-            ProviderCatalogSource::Mixed
-        } else {
-            source
-        },
+        source: promoted_catalog_source(&overlay, models_dev, source),
         providers,
+    }
+}
+
+/// The identity of the built-in provider catalog without projecting its
+/// providers.
+///
+/// A caller that must not ship the projected bodies — a peer answer, a session
+/// poll, a mobile or bot controller — still has to report the same `revision`
+/// and `source` the full build would: the revision drives
+/// `RemoteModelCatalog::version`, and an attached controller only accepts a new
+/// catalog when that version moves. Projecting the providers themselves is the
+/// expensive part, so the slim build keeps the identity and drops the bodies.
+pub(crate) fn builtin_provider_catalog_identity(
+    models_dev: Option<&ModelsDevCatalog>,
+    revision: String,
+    source: ProviderCatalogSource,
+) -> ProviderCatalog {
+    let overlay = parse_overlay().expect("built-in AI provider overlay must be valid");
+    ProviderCatalog {
+        revision: resolved_catalog_revision(&revision),
+        source: promoted_catalog_source(&overlay, models_dev, source),
+        providers: Vec::new(),
+    }
+}
+
+/// A models.dev snapshot that contributes provider bindings makes the catalog
+/// mixed even when the caller passed the BitFun-only source.
+fn promoted_catalog_source(
+    overlay: &ProviderOverlayDocument,
+    models_dev: Option<&ModelsDevCatalog>,
+    source: ProviderCatalogSource,
+) -> ProviderCatalogSource {
+    let has_bound_catalog_data = models_dev.is_some_and(|catalog| {
+        overlay.providers.iter().any(|provider| {
+            provider
+                .catalog_provider_ids
+                .iter()
+                .any(|provider_id| catalog.provider_facts(provider_id).is_some())
+        })
+    });
+    if has_bound_catalog_data && source == ProviderCatalogSource::BitFun {
+        ProviderCatalogSource::Mixed
+    } else {
+        source
     }
 }
 
@@ -180,6 +212,7 @@ fn validate_overlay(overlay: &ProviderOverlayDocument) -> Result<(), String> {
     let mut provider_ids = BTreeSet::new();
     let mut catalog_provider_owners = BTreeMap::<String, String>::new();
     let mut trusted_urls = BTreeMap::<String, String>::new();
+    let mut trusted_routes = BTreeSet::new();
     for provider in &overlay.providers {
         if provider.id.trim().is_empty() || !provider_ids.insert(provider.id.as_str()) {
             return Err(format!("duplicate or empty provider ID '{}'", provider.id));
@@ -307,11 +340,19 @@ fn validate_overlay(overlay: &ProviderOverlayDocument) -> Result<(), String> {
                             provider.id, endpoint.id
                         ));
                     }
+                    // One provider may expose multiple protocols at the same base,
+                    // but ownership and each protocol's binding must be unambiguous.
+                    let unique_route = trusted_routes.insert((
+                        normalized.clone(),
+                        endpoint.api_format.trim().to_ascii_lowercase(),
+                    ));
                     if let Some(previous) = trusted_urls.insert(normalized, provider.id.clone()) {
-                        return Err(format!(
-                            "trusted endpoint is claimed by providers '{previous}' and '{}'",
-                            provider.id
-                        ));
+                        if previous != provider.id || !unique_route {
+                            return Err(format!(
+                                "trusted endpoint is claimed by providers '{previous}' and '{}'",
+                                provider.id
+                            ));
+                        }
                     }
                 }
             }
@@ -542,6 +583,28 @@ mod tests {
         ModelPolicyMode,
     };
     use bitfun_ai_adapters::models_dev::ModelsDevCatalog;
+
+    #[test]
+    fn trusted_urls_allow_distinct_protocols_only_within_one_provider() {
+        let overlay = parse_overlay().expect("valid overlay with MiMo protocols");
+        let index = overlay
+            .providers
+            .iter()
+            .position(|p| p.id == "xiaomi")
+            .unwrap();
+        let mut duplicate = overlay.clone();
+        // A second spelling of the same protocol/normalized URL is ambiguous.
+        duplicate.providers[index].endpoints[1].api_format = " OpenAI ".into();
+        assert!(super::validate_overlay(&duplicate).is_err());
+
+        let mut cross_provider = overlay.clone();
+        let mut other = overlay.providers[index].clone();
+        other.id = "other-provider".into();
+        other.endpoints.truncate(1);
+        other.endpoints[0].api_format = "gemini".into();
+        cross_provider.providers.push(other);
+        assert!(super::validate_overlay(&cross_provider).is_err());
+    }
 
     #[test]
     fn overlay_is_valid_and_keeps_product_endpoint_decisions() {

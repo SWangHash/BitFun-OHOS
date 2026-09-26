@@ -125,6 +125,8 @@ internal fun ComposerBar(
     draft: String,
     images: List<ComposerImage>,
     busy: Boolean,
+    /** The draft may be edited while a newly opened session is hydrating. */
+    inputEnabled: Boolean = !busy,
     streaming: Boolean,
     phase: ConnectionPhase,
     model: ModelOption?,
@@ -273,7 +275,7 @@ internal fun ComposerBar(
                     }
                     ComposerField(
                         draft = draft,
-                        enabled = !busy,
+                        enabled = inputEnabled,
                         expanded = expanded,
                         placeholder = placeholder,
                         onDraftChange = onDraftChange,
@@ -290,6 +292,7 @@ internal fun ComposerBar(
                         }
                         PrimaryActionButton(
                             action = action,
+                            stopEnabled = ChatComposerPolicy.canStop(streaming, capabilities.requiresRemoteConnection, phase),
                             onVoice = onVoice,
                             onSend = onSend,
                             onStop = onStop,
@@ -669,13 +672,14 @@ private const val DimmedAlpha: Float = 0.38f
 @Composable
 private fun PrimaryActionButton(
     action: ComposerPrimaryAction,
+    stopEnabled: Boolean = true,
     onVoice: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     testTag: String = COMPOSER_SEND_TEST_TAG,
 ) {
     val colors = MaterialTheme.colorScheme
-    val enabled = action == ComposerPrimaryAction.STOP ||
+    val enabled = (action == ComposerPrimaryAction.STOP && stopEnabled) ||
         action == ComposerPrimaryAction.SEND ||
         action == ComposerPrimaryAction.VOICE
     val description = when (action) {
@@ -759,7 +763,7 @@ private fun AttachmentStrip(
     ) {
         items(images, key = { it.id }) { image ->
             Box(modifier = Modifier.size(64.dp)) {
-                val bitmap = remember(image.dataUrl) { decodeInlineImage(image.dataUrl) }
+                val bitmap = rememberInlineImage(image.dataUrl)
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),

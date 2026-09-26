@@ -101,6 +101,26 @@ cargo test -p bitfun-services-core --no-default-features --features token-usage-
 cargo test -p bitfun-services-core --no-default-features --features process-runtime --test process_runtime_contracts
 cargo test -p bitfun-services-core --no-default-features --features process-runtime --lib process_tree::tests::
 cargo test --locked -p bitfun-services-core --no-default-features --features tls-provider --lib tls_provider::tests
+cargo check -p bitfun-services-core --no-default-features
+cargo test -p bitfun-services-core --no-default-features --features pet-packages --lib pet_packages
+cargo test -p bitfun-services-core --no-default-features --features asar --lib asar
+cargo test -p bitfun-services-core --no-default-features --features process-runtime --lib system::info::tests
+cargo test -p bitfun-services-core --no-default-features --features credential-vault --lib credential_vault::tests::
+cargo check -p bitfun-services-core --no-default-features --features filesystem
+cargo test -p bitfun-services-core --no-default-features --features filesystem --lib filesystem::tree::tests::large_files_remain_visible_in_metadata_listings
+cargo test -p bitfun-services-core --no-default-features --features diagnostics --lib diagnostics::contract_tests::
+cargo test -p bitfun-services-core --no-default-features --features diff --lib diff::contract_tests::
+cargo test -p bitfun-services-core --no-default-features --features workspace-text-runtime --lib workspace_text::tests::
+cargo test -p bitfun-services-core --no-default-features --features workspace-runtime --lib workspace::tests::
+cargo test -p bitfun-services-core --no-default-features --features local-storage --test session_contracts session_metadata_contracts::
+cargo test -p bitfun-services-core --no-default-features --features local-storage --lib session::metadata
+cargo test -p bitfun-services-core --no-default-features --features local-storage --test session_write_lock_contracts
+cargo test -p bitfun-services-core --no-default-features --features local-storage --test exclusive_file_lease_contracts
+cargo test -p bitfun-services-core --no-default-features --features memory-store --lib memory_store::tests::
+cargo test -p bitfun-services-core --no-default-features --features token-usage-statistics --lib token_usage::
+cargo test -p bitfun-services-core --no-default-features --features process-runtime --test process_runtime_contracts
+cargo test -p bitfun-services-core --no-default-features --features process-runtime --lib process_tree::tests::
+cargo test --locked -p bitfun-services-core --no-default-features --features tls-provider --lib tls_provider::tests
 pnpm run check:core-boundaries
 ```
 

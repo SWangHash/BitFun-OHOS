@@ -83,7 +83,7 @@ const NavBar: React.FC<NavBarProps> = ({
             onClick={onExpandNav}
             aria-label={t('header.expandLeftPanel')}
           >
-            <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
+            <Icon name="sidebar-left" size="sm" />
           </button>
         </Tooltip>
       </div>
@@ -101,7 +101,7 @@ const NavBar: React.FC<NavBarProps> = ({
           onClick={onExpandNav}
           aria-label={t('header.collapseLeftPanel')}
         >
-          <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
+          <Icon name="sidebar-left" size="sm" />
         </button>
       </Tooltip>
 

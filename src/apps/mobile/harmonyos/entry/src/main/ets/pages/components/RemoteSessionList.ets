@@ -87,6 +87,30 @@ export struct RemoteSessionList {
   // none of which a selection touches.
   private readonly projectionCache: SessionListProjectionCache = new SessionListProjectionCache();
 
+  // Keyed rows keep their identity; resolve their content from the latest snapshot.
+  @Computed
+  get sessionIndex(): Map<string, RemoteSession> {
+    const index = new Map<string, RemoteSession>();
+    this.sessions.forEach((item: RemoteSession) => { index.set(`${item.deviceId || ''}:${item.id}`, item); });
+    return index;
+  }
+
+  private currentSession(item: RemoteSession): RemoteSession {
+    return this.sessionIndex.get(`${item.deviceId || ''}:${item.id}`) || item;
+  }
+
+  // Keyed rows keep their identity; resolve their content from the latest snapshot.
+  @Computed
+  get projectIndex(): Map<string, RecentWorkspaceEntry> {
+    const index = new Map<string, RecentWorkspaceEntry>();
+    this.projectEntries().forEach((item: RecentWorkspaceEntry) => { index.set(this.sectionKey(item), item); });
+    return index;
+  }
+
+  private currentProject(item: RecentWorkspaceEntry): RecentWorkspaceEntry {
+    return this.projectIndex.get(this.sectionKey(item)) || item;
+  }
+
   @Monitor('isBusy', 'workspacePath')
   onWorkspaceContextChanged(): void {
     this.createMenuKey = '';
@@ -169,9 +193,9 @@ export struct RemoteSessionList {
         this.todayCollapsed = !this.todayCollapsed;
       })
       if (!this.todayCollapsed) {
-        ForEach(this.sessionsForTimeBucket('today'), (item: RemoteSession) => {
-          this.SessionRow(item)
-        }, (item: RemoteSession) => item.id)
+        ForEach(this.sessionsForTimeBucket('today'), (row: RemoteSession) => {
+          this.SessionRow(row)
+        }, (item: RemoteSession): string => `${item.deviceId || ''}:${item.id}`)
       }
     }
     .width('100%')
@@ -185,9 +209,9 @@ export struct RemoteSessionList {
         this.yesterdayCollapsed = !this.yesterdayCollapsed;
       })
       if (!this.yesterdayCollapsed) {
-        ForEach(this.sessionsForTimeBucket('yesterday'), (item: RemoteSession) => {
-          this.SessionRow(item)
-        }, (item: RemoteSession) => item.id)
+        ForEach(this.sessionsForTimeBucket('yesterday'), (row: RemoteSession) => {
+          this.SessionRow(row)
+        }, (item: RemoteSession): string => `${item.deviceId || ''}:${item.id}`)
       }
     }
     .width('100%')
@@ -201,9 +225,9 @@ export struct RemoteSessionList {
         this.earlierCollapsed = !this.earlierCollapsed;
       })
       if (!this.earlierCollapsed) {
-        ForEach(this.sessionsForTimeBucket('earlier'), (item: RemoteSession) => {
-          this.SessionRow(item)
-        }, (item: RemoteSession) => item.id)
+        ForEach(this.sessionsForTimeBucket('earlier'), (row: RemoteSession) => {
+          this.SessionRow(row)
+        }, (item: RemoteSession): string => `${item.deviceId || ''}:${item.id}`)
       }
     }
     .width('100%')
@@ -253,7 +277,7 @@ export struct RemoteSessionList {
       .width('100%')
       .height(44)
       .alignItems(VerticalAlign.Center)
-      ForEach(this.visibleProjectEntries(), (project: RecentWorkspaceEntry) => {
+      ForEach(this.visibleProjectEntries(), (row: RecentWorkspaceEntry) => {
         Column({ space: 2 }) {
           Row({ space: 10 }) {
             SymbolGlyph($r('sys.symbol.folder'))
@@ -261,7 +285,7 @@ export struct RemoteSessionList {
               .fontColor([INK])
               .width(24)
               .height(24)
-            Text(project.name || this.basename(project.path))
+            Text(this.currentProject(row).name || this.basename(this.currentProject(row).path))
               .fontSize(MobileDesignTypography.titleSmall.size)
               .fontColor(INK)
               .layoutWeight(1)
@@ -272,23 +296,23 @@ export struct RemoteSessionList {
             // the left edge of any box forced wider than its natural,
             // half-width advance box.
             Stack({ alignContent: Alignment.Center }) {
-              SymbolGlyph(this.isWorkspaceCollapsed(this.sectionKey(project)) ?
+              SymbolGlyph(this.isWorkspaceCollapsed(this.sectionKey(this.currentProject(row))) ?
                 $r('sys.symbol.chevron_right') : $r('sys.symbol.chevron_down'))
                 .fontSize(14)
                 .fontColor([MUTED])
             }
             .width(18)
             .height(18)
-            if (project.path.length > 0) {
+            if (this.currentProject(row).path.length > 0) {
               SymbolGlyph($r('sys.symbol.square_and_pencil'))
                 .fontSize(18)
                 .fontColor([MUTED])
                 .width(22)
                 .height(22)
                 .opacity(0.52)
-                .bindPopup(this.createMenuKey.length > 0 && this.createMenuKey === this.sectionKey(project), {
+                .bindPopup(this.createMenuKey.length > 0 && this.createMenuKey === this.sectionKey(this.currentProject(row)), {
                   builder: () => {
-                    this.ProjectCreateMenu(project)
+                    this.ProjectCreateMenu(row)
                   },
                   placement: Placement.Top,
                   popupColor: TRANSPARENT,
@@ -303,7 +327,7 @@ export struct RemoteSessionList {
                   }
                 })
                 .onClick(() => {
-                  const key = this.sectionKey(project);
+                  const key = this.sectionKey(this.currentProject(row));
                   this.createMenuKey = this.createMenuKey === key ? '' : key;
                 })
             }
@@ -311,10 +335,10 @@ export struct RemoteSessionList {
           .width('100%')
           .height(44)
           .onClick(() => {
-            this.toggleWorkspace(this.sectionKey(project));
+            this.toggleWorkspace(this.sectionKey(this.currentProject(row)));
           })
-          if (!this.isWorkspaceCollapsed(this.sectionKey(project))) {
-            this.projectPreview(project)
+          if (!this.isWorkspaceCollapsed(this.sectionKey(this.currentProject(row)))) {
+            this.projectPreview(row)
           }
         }
         .width('100%')
@@ -337,19 +361,19 @@ export struct RemoteSessionList {
   }
 
   @Builder
-  private ProjectCreateMenu(project: RecentWorkspaceEntry) {
+  private ProjectCreateMenu(row: RecentWorkspaceEntry) {
     if (this.supportsHarnessProfiles) {
       HarnessProfileMenu({
         includeCowork: true,
         onSelect: (agentType: string) => {
           this.createMenuKey = '';
-          this.onCreateInWorkspace(project.path, agentType, project.remoteConnectionId, project.remoteSshHost, project.workspaceId);
+          this.onCreateInWorkspace(this.currentProject(row).path, agentType, this.currentProject(row).remoteConnectionId, this.currentProject(row).remoteSshHost, this.currentProject(row).workspaceId);
         }
       })
     } else {
       Column({ space: 2 }) {
-        this.ProjectCreateMenuItem('Code', 'code', project)
-        this.ProjectCreateMenuItem('Cowork', 'Cowork', project)
+        this.ProjectCreateMenuItem('Code', 'code', row)
+        this.ProjectCreateMenuItem('Cowork', 'Cowork', row)
       }
       .width(150)
       .padding({ top: 8, bottom: 8 })
@@ -373,7 +397,7 @@ export struct RemoteSessionList {
     .padding({ left: 18, right: 18 })
     .onClick(() => {
       this.createMenuKey = '';
-      this.onCreateInWorkspace(project.path, agentType, project.remoteConnectionId, project.remoteSshHost, project.workspaceId);
+      this.onCreateInWorkspace(this.currentProject(project).path, agentType, this.currentProject(project).remoteConnectionId, this.currentProject(project).remoteSshHost, this.currentProject(project).workspaceId);
     })
   }
 
@@ -418,9 +442,9 @@ export struct RemoteSessionList {
       if (this.visibleChatSessions().length === 0) {
         this.EmptySessions()
       } else if (!this.chatsCollapsed) {
-        ForEach(this.visibleChatSessions().slice(0, this.chatVisibleCount), (item: RemoteSession) => {
-          this.SessionRow(item)
-        })
+        ForEach(this.visibleChatSessions().slice(0, this.chatVisibleCount), (row: RemoteSession) => {
+          this.SessionRow(row)
+        }, (item: RemoteSession): string => `${item.deviceId || ''}:${item.id}`)
         if (this.chatVisibleCount < this.visibleChatSessions().length) {
           Text(RemoteI18n.f('remote.sessions.showMore', String(this.nextChatBatchSize())))
             .fontSize(MobileDesignTypography.bodySmall.size)
@@ -439,19 +463,19 @@ export struct RemoteSessionList {
   }
 
   @Builder
-  private projectPreview(project: RecentWorkspaceEntry) {
-    ForEach(this.visibleProjectSessions(project), (item: RemoteSession) => {
-      this.SessionRow(item, true)
-    })
-    if (this.projectVisibleCount(project) < this.projectSessions(project).length) {
-      Text(RemoteI18n.f('remote.sessions.showMore', String(this.nextProjectBatchSize(project))))
+  private projectPreview(row: RecentWorkspaceEntry) {
+    ForEach(this.visibleProjectSessions(this.currentProject(row)), (row: RemoteSession) => {
+      this.SessionRow(row, true)
+    }, (item: RemoteSession): string => `${item.deviceId || ''}:${item.id}`)
+    if (this.projectVisibleCount(this.currentProject(row)) < this.projectSessions(this.currentProject(row)).length) {
+      Text(RemoteI18n.f('remote.sessions.showMore', String(this.nextProjectBatchSize(this.currentProject(row)))))
         .fontSize(MobileDesignTypography.titleSmall.size)
         .fontColor(MUTED)
         .height(44)
         .width('100%')
         .textAlign(TextAlign.Center)
         .onClick(() => {
-          this.projectVisibleSteps = this.projectVisibleSteps.concat([this.sectionKey(project)]);
+          this.projectVisibleSteps = this.projectVisibleSteps.concat([this.sectionKey(this.currentProject(row))]);
         })
     }
   }
@@ -565,18 +589,18 @@ export struct RemoteSessionList {
   }
 
   @Builder
-  private SessionRow(item: RemoteSession, nested: boolean = false) {
+  private SessionRow(row: RemoteSession, nested: boolean = false) {
     RemoteSessionRow({
-      session: item,
-      metadata: this.metadataText(item),
+      session: this.currentSession(row),
+      metadata: this.metadataText(this.currentSession(row)),
       nested,
-      selected: this.isSessionSelected(item.id),
+      selected: this.isSessionSelected(this.currentSession(row).id),
       busy: this.isBusy,
       actionPresentation: this.actionPresentation,
-      showActionPopover: this.activeActionSessionId === item.id,
+      showActionPopover: this.activeActionSessionId === this.currentSession(row).id,
       actionsPopup: () => { this.SessionActionPopover() },
       onPressStateChange: (pressed: boolean) => {
-        this.optimisticSelectedSessionId = pressed ? item.id : '';
+        this.optimisticSelectedSessionId = pressed ? this.currentSession(row).id : '';
       },
       onOpen: (session: RemoteSession) => {
         this.optimisticSelectedSessionId = session.id;

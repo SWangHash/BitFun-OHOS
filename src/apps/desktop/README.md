@@ -3,6 +3,106 @@
 For development commands, see [AGENTS.md](AGENTS.md) and the repository
 [contribution guide](../../../CONTRIBUTING.md).
 
+## Computer Use control
+
+Computer Use opens a visible control session. Its status card shows the current
+target and mode, with a preview and **Stop control** button. The preview displays
+the agent's virtual pointer separately from the captured application pixels.
+Stopping from the card, the operating system, or task cancellation revokes the
+session; a new explicit start is required. Sharing also ends when the turn ends.
+
+The tool's `start_control` action selects `observe`, `background` (the default),
+or `foreground`. Observation cannot send input. Background actions preserve your
+foreground application and physical pointer where the application supports
+semantic or directed input. A request that needs the desktop keyboard/mouse seat
+returns a foreground requirement rather than silently switching control mode.
+On macOS, native accessibility actions and an exact-window directed-input route
+support background operation without taking over the human foreground window.
+The directed route prepares only the target's internal focus, preserving the
+requested mouse modifiers. Foreground mode remains separate and can use your
+physical pointer and focused keyboard input.
+
+The directed route passed a full five-action Tool/native program on a dedicated
+canvas: click, text, menu shortcut, scroll and emoji input, with one final
+observation. The observer kept its foreground focus and window order; its input
+and the human cursor were untouched. The measured 466 ms includes observation,
+not model reasoning. This proves the tested controls, not universal support for
+every application.
+
+Claw, Cowork, Standard and Creative agents can use ComputerUse directly; the
+ComputerUse subagent is optional. Known input sequences can use `app_batch` with
+one final observation. Every step is checked before the first input, including
+image identities, coordinate ranges and grid indices. A partial failure retains completed input receipts so
+already submitted text or commands are not replayed. Visual models can target
+unlabeled controls and canvases using pixels from the bound window screenshot;
+missing accessibility labels do not by themselves prevent visual observation.
+The capabilities reported by `control_status` describe available backend routes,
+not support for every control or gesture. For a known search field that submits
+on Return, combine text with `focus` and a Return key step, then inspect the
+results before selecting one. Focus-and-type by itself is already one call;
+batching cannot repair an unavailable input route.
+
+On macOS, persistent ScreenCaptureKit window sharing uses the system's sharing
+controls. macOS 12.3 or newer is required for capture; system indicator appearance
+depends on the OS version. Hidden or minimized targets must be restored before
+observation. On Windows, Windows.Graphics.Capture retains the native capture
+border. Background controls use UI Automation and supported window messages;
+standard Edit/RichEdit fields preserve unselected text when inserting or
+replacing the current selection. A field may be selected by its observed node,
+image coordinates, or the bound window’s existing focused native edit control.
+Unsupported providers return a capability error. These Windows paths have
+cross-compilation coverage; interactive Windows acceptance is still pending. Windows does not
+have the macOS Sharing menu.
+
+See the [cross-platform control contract](../../../docs/architecture/computer-use-control.md)
+for platform limits, lifecycle guarantees, and native verification scenarios.
+
+### Ubuntu
+
+On Ubuntu GNOME, Computer Use uses the system desktop portal for screen sharing
+and foreground input. Start a control session, then approve the surface and
+input devices in the system dialog on the machine running Desktop. GNOME owns
+its sharing indicator and stop control. Stopping sharing revokes further input;
+BitFun never falls back from Wayland to X11 input after denial or disconnect.
+Foreground portal input controls the desktop seat and can move your real pointer.
+
+Background application operations use AT-SPI semantic actions and EditableText
+when the application exposes them. Read the application state first, then use
+its node index. Background coordinate clicks, arbitrary key chords, and games
+without accessibility support require foreground mode. A portal-selected image
+is bound when portal authorization completes and is not automatically assumed
+to belong to an AT-SPI application selected by PID. A running session cannot
+silently rebind its stream within the same generation.
+Applications must expose accessibility information for semantic control.
+
+The `.deb` package declares GStreamer and portal runtime dependencies. For an
+AppImage or a directly launched development binary on Ubuntu, install:
+
+```bash
+sudo apt install gstreamer1.0-pipewire gstreamer1.0-plugins-base gstreamer1.0-plugins-good xdg-desktop-portal xdg-desktop-portal-gnome
+```
+
+Source builds additionally need `libgstreamer1.0-dev` and
+`libgstreamer-plugins-base1.0-dev`. A running user D-Bus, PipeWire, and a compatible
+desktop portal backend are required. Other desktops must install their own
+matching portal backend; installing GNOME's backend does not give a headless
+server a desktop. Missing plugins or portal capabilities produce explicit errors.
+
+Remote controllers see the execution host's authorization state. System portal
+consent may require a person at that host. SSH workspaces and headless CLI jobs
+do not acquire a GUI or control the controller's local desktop implicitly.
+
+For focused Linux verification, run
+`node scripts/test-linux-computer-use-native.mjs -- --test-threads=1`.
+`bash scripts/test-linux-computer-use-atspi.sh` creates its own GTK controls and
+checks semantic activation and Unicode selection replacement while preserving
+unselected text.
+For a headless fixture run, use
+`dbus-run-session -- xvfb-run -a bash -lc 'export NO_AT_BRIDGE=0; bash scripts/test-linux-computer-use-atspi.sh'`. `bash scripts/test-linux-computer-use-portal.sh` requires a
+real desktop and asks you to select its dedicated fixture window in the system
+picker. These fixtures require Node.js 22/24, Rust, `python3-gi` and GTK 3; the
+portal fixture also needs the runtime packages listed above.
+
 ## macOS menu bar
 
 The menu bar uses the solid ring brand mark as a transparent template logo that follows the system's light
@@ -154,3 +254,63 @@ pwsh -NoProfile -File scripts/ci/sign-windows.test.ps1
 
 The PowerShell test uses mocked signing results; a Windows build with the real
 certificate is still required to prove cloud signing and timestamp/trust validation.
+
+## Marketplace sources
+
+Open the **Skills** scene, choose **Skill Marketplace**, then **Marketplace sources**.
+The default source is the enabled official `https://skills.sh` marketplace. You can
+edit, disable or remove it, add sources, and save an empty list to stop searching.
+Each source has its own name, API format (**skills.sh** or **SkillHub**), deployment
+root URL, optional Bearer API token and enabled state. Include any deployment
+subpath, but do not append `/api/search` or `/api/v1` to the root URL.
+
+All enabled sources are searched concurrently. Results are interleaved, labelled
+with their market name, and retain their installation identity. Errors from one
+source are shown without hiding successful sources. The original `SKILLS_API_URL`
+environment override applies to the default official skills.sh URL; an explicitly
+configured custom URL takes precedence. Disabling or deleting the official source
+also disables its environment override.
+
+SkillHub uses its ClawHub-compatible search API and native ZIP download API, and
+installs supporting files into BitFun's user or project Skills directory. An
+existing destination is preserved and reported as a conflict. skills.sh-compatible
+sources use the existing repository-based `npx skills` installer: a custom search
+API does not supply a custom ZIP download protocol.
+
+Tokens are stored in the serving host's application configuration; browser login
+sessions are not shared with BitFun. The market is currently available in the
+local Desktop scene. Peer mode and older hosts show unsupported states. SSH/Docker
+project installation remains unsupported; choose user scope to install on the
+serving host. Mobile/bot controls, CLI peers and Detached Dispatch do not gain a
+marketplace configuration or installation entry point.
+
+## WeChat session result notifications
+
+While the WeChat bot is running, completed turns in its currently selected local
+session can send their text to WeChat without a new incoming message. This includes
+scheduled jobs and turns started in the desktop window. Turns started by that same
+WeChat bot retain their normal reply path and are not pushed a second time. Failed
+turns and empty output are not pushed. Use a dedicated session if desktop activity
+should not appear in WeChat.
+
+Delivery still needs a valid WeChat reply context and available channel quota;
+this feature does not bypass either restriction or impose an additional daily
+three-message limit. Several queued results are combined into one reply of at most
+4,000 UTF-8 bytes, favoring the newest results. Longer output is truncated; the full
+answer remains in the session. These pushes share the channel quota with normal
+replies, including any split replies.
+
+Unavailable reply context and send failures keep output in a bounded, in-memory
+queue for retry. Sending another WeChat message refreshes the reply context and
+wakes the sender. The queue holds at most 20 results per recipient for 24 hours;
+older entries are discarded. Restarting or replacing the bot clears pending output.
+This is best-effort notification, not a durable message inbox. Switching sessions
+or devices discards output from the previous selection before sending.
+
+Proactive notifications currently require the session runtime and WeChat bot to
+run on the same BitFun host. A session on that host may use an SSH workspace;
+this does not make it an account-device session. When switching the bot to another
+account device, the existing reply includes an explicit notice that proactive
+scheduled-job and desktop-result notifications are unavailable there. Ordinary
+WeChat-initiated requests keep their existing cross-device reply path. This feature
+does not add cross-host Peer Device or Detached Dispatch result delivery.

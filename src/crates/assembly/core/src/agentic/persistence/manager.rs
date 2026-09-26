@@ -3785,6 +3785,103 @@ impl PersistenceManager {
             .await
     }
 
+    /// Read one historical turn by storage position without parsing unrelated bodies.
+    /// Filename indices remain authoritative even when a legacy sidecar is absent
+    /// or stale. `next` is exclusive, and respects the current undo boundary.
+    pub async fn load_visible_history_turn(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        before: Option<usize>,
+    ) -> BitFunResult<(Vec<DialogTurnData>, Option<usize>)> {
+        Self::validate_session_id(session_id)?;
+        let _writer = match self.lock_session_write_operation(workspace_path, session_id) {
+            Ok(lock) => Some(lock),
+            Err(BitFunError::SessionInUse { .. }) => None,
+            Err(error) => return Err(error),
+        };
+        let boundary = self
+            .load_session_revert_state(workspace_path, session_id)
+            .await?
+            .map(|state| state.boundary_turn)
+            .unwrap_or(usize::MAX);
+        let ceiling = before.unwrap_or(usize::MAX).min(boundary);
+        let mut paths = self
+            .list_indexed_turn_paths(workspace_path, session_id)
+            .await?;
+        paths.retain(|(index, _)| *index < ceiling);
+        paths.sort_by_key(|(index, _)| *index);
+        let Some((index, path)) = paths.pop() else {
+            return Ok((Vec::new(), None));
+        };
+        let file = self
+            .read_json_optional::<StoredDialogTurnFile>(&path)
+            .await?
+            .ok_or_else(|| BitFunError::NotFound("History changed during page read".into()))?;
+        if file.turn.session_id != session_id || file.turn.turn_index != index {
+            return Err(BitFunError::Validation(
+                "History turn identity mismatch".into(),
+            ));
+        }
+        Ok((vec![file.turn], (!paths.is_empty()).then_some(index)))
+    }
+
+    /// Load one visible turn through the derived catalog when its entry is available.
+    ///
+    /// A missing or stale catalog deliberately returns `None` so callers can
+    /// preserve the full transcript fallback. Persisted turn files and the
+    /// revert boundary remain authoritative.
+    pub async fn load_visible_session_turn(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        turn_id: &str,
+    ) -> BitFunResult<Option<DialogTurnData>> {
+        Self::validate_session_id(session_id)?;
+        let _session_write = match self.lock_session_write_operation(workspace_path, session_id) {
+            Ok(lock) => Some(lock),
+            Err(BitFunError::SessionInUse { .. }) => None,
+            Err(error) => return Err(error),
+        };
+        let boundary_turn = self
+            .load_session_revert_state(workspace_path, session_id)
+            .await?
+            .map(|state| state.boundary_turn);
+        let Some(catalog) = self
+            .read_session_turn_catalog_cache(workspace_path, session_id)
+            .await
+        else {
+            return Ok(None);
+        };
+        let Some(entry) = catalog
+            .entries
+            .iter()
+            .find(|entry| entry.turn_id.as_deref() == Some(turn_id))
+        else {
+            return Ok(None);
+        };
+        if boundary_turn.is_some_and(|boundary| entry.storage_turn_index >= boundary) {
+            return Ok(None);
+        }
+        let Some(file) = self
+            .read_json_optional::<StoredDialogTurnFile>(&self.turn_path(
+                workspace_path,
+                session_id,
+                entry.storage_turn_index,
+            ))
+            .await?
+        else {
+            return Ok(None);
+        };
+        if file.turn.session_id != session_id
+            || file.turn.turn_id != turn_id
+            || file.turn.turn_index != entry.storage_turn_index
+        {
+            return Ok(None);
+        }
+        Ok(Some(file.turn))
+    }
+
     async fn project_visible_session_turns(
         &self,
         workspace_path: &Path,
@@ -4671,8 +4768,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn legacy_minimal_profile_restores_as_minimal_mode_and_clears_the_marker() {
+    #[tokio::test]
+    async fn legacy_minimal_profile_restores_as_minimal_mode_and_clears_the_marker() {
         let metadata = SessionMetadata::new(
             "legacy-minimal".to_string(),
             "Legacy Minimal".to_string(),
@@ -4696,7 +4793,9 @@ mod tests {
             metadata,
             Some(stored_state),
             &[],
-        );
+        )
+        .await
+        .expect("persisted legacy minimal session restores");
 
         assert_eq!(restored.agent_type, "minimal");
         assert!(!restored.config.legacy_minimal_agent);
@@ -6276,6 +6375,183 @@ mod tests {
         assert_eq!(rebuilt.entries[2].preview.as_deref(), Some("prompt 2"));
     }
 
+    /// Opt-in measurement: real persisted files, identical first-page content,
+    /// and fresh stream hubs on each sample. No timing assertion in CI.
+    #[cfg(feature = "remote-connect")]
+    #[tokio::test]
+    #[ignore = "local first-page performance comparison"]
+    async fn history_page_benchmark_against_full_materialization() {
+        use bitfun_services_integrations::remote_connect::{
+            host_stream::{HistoryBatch, HostStreamHub, HostStreamNotifier, StreamReadRequest},
+            session_records::records_from_turns,
+        };
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        struct Quiet;
+        impl HostStreamNotifier for Quiet {
+            fn notify(&self, _: &str, _: serde_json::Value) {}
+        }
+        let workspace = TestWorkspace::new();
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let id = Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            id.clone(),
+            "History benchmark".into(),
+            "Standard".into(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().into()),
+                ..Default::default()
+            },
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .unwrap();
+        for index in 0..128 {
+            manager
+                .save_dialog_turn(
+                    workspace.path(),
+                    &DialogTurnData::new(
+                        format!("turn-{index}"),
+                        index,
+                        id.clone(),
+                        user_message(&"x".repeat(128 * 1024)),
+                    ),
+                )
+                .await
+                .unwrap();
+        }
+        let request = StreamReadRequest {
+            stream_id: id.clone(),
+            subscribe: true,
+            ..Default::default()
+        };
+        let mut old_times = Vec::new();
+        let mut new_times = Vec::new();
+        for _ in 0..5 {
+            let legacy = HostStreamHub::start(Arc::new(Quiet));
+            legacy.activate(&id);
+            let start = std::time::Instant::now();
+            legacy
+                .synchronize_records(id.clone(), true, || async {
+                    let turns = manager
+                        .load_visible_session_turns(workspace.path(), &id)
+                        .await?;
+                    records_from_turns(&turns, &|_| None)
+                })
+                .await
+                .unwrap();
+            let old_page = legacy.read("phone", &request).unwrap();
+            old_times.push(start.elapsed().as_micros());
+            let paged = HostStreamHub::start(Arc::new(Quiet));
+            let reads = AtomicUsize::new(0);
+            let start = std::time::Instant::now();
+            let new_page = paged
+                .read_history("phone", &request, |before| {
+                    reads.fetch_add(1, Ordering::SeqCst);
+                    let manager = &manager;
+                    let workspace = &workspace;
+                    let id = &id;
+                    async move {
+                        let (turns, before) = manager
+                            .load_visible_history_turn(workspace.path(), id, before)
+                            .await?;
+                        Ok(HistoryBatch {
+                            records: records_from_turns(&turns, &|_| None)?,
+                            before,
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            new_times.push(start.elapsed().as_micros());
+            let content = |events: Vec<
+                bitfun_services_integrations::remote_connect::host_stream::StreamEvent,
+            >| {
+                events
+                    .into_iter()
+                    .map(|event| {
+                        let mut payload = event.payload;
+                        payload.as_object_mut().unwrap().remove("revision");
+                        payload
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(content(old_page.events), content(new_page.events));
+            assert_eq!(old_page.has_more, new_page.has_more);
+            assert!(reads.load(Ordering::SeqCst) < 128);
+            eprintln!(
+                "history comparison: full_us={} paged_us={} full_turns=128 paged_turns={}",
+                old_times.last().unwrap(),
+                new_times.last().unwrap(),
+                reads.load(Ordering::SeqCst)
+            );
+        }
+        old_times.sort_unstable();
+        new_times.sort_unstable();
+        eprintln!(
+            "history median: full_us={} paged_us={}",
+            old_times[2], new_times[2]
+        );
+    }
+
+    #[tokio::test]
+    async fn history_page_reads_only_selected_body_without_a_catalog() {
+        let workspace = TestWorkspace::new();
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let id = Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            id.clone(),
+            "Paged".into(),
+            "Standard".into(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().into()),
+                ..Default::default()
+            },
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .unwrap();
+        for index in [0, 3, 9] {
+            manager
+                .save_dialog_turn(
+                    workspace.path(),
+                    &DialogTurnData::new(
+                        format!("turn-{index}"),
+                        index,
+                        id.clone(),
+                        user_message("page"),
+                    ),
+                )
+                .await
+                .unwrap();
+        }
+        std::fs::remove_file(manager.turn_catalog_path(workspace.path(), &id)).unwrap();
+        std::fs::write(manager.turn_path(workspace.path(), &id, 0), "invalid json").unwrap();
+        let (latest, next) = manager
+            .load_visible_history_turn(workspace.path(), &id, None)
+            .await
+            .unwrap();
+        assert_eq!(latest[0].turn_index, 9);
+        assert_eq!(next, Some(9));
+        let (older, next) = manager
+            .load_visible_history_turn(workspace.path(), &id, next)
+            .await
+            .unwrap();
+        assert_eq!(older[0].turn_index, 3);
+        assert_eq!(next, Some(3));
+        assert!(
+            manager
+                .load_visible_history_turn(workspace.path(), &id, next)
+                .await
+                .is_err(),
+            "corrupt selected history must not silently disappear"
+        );
+    }
+
     #[tokio::test]
     async fn staged_revert_catalog_projection_hides_the_physical_suffix() {
         let workspace = TestWorkspace::new();
@@ -6329,6 +6605,37 @@ mod tests {
             )
             .await
             .expect("staged revert should save");
+
+        assert!(manager
+            .load_visible_session_turn(workspace.path(), &session_id, "turn-1")
+            .await
+            .expect("hidden lookup")
+            .is_none());
+        std::fs::write(
+            manager.turn_path(workspace.path(), &session_id, 1),
+            "invalid json",
+        )
+        .unwrap();
+        assert_eq!(
+            manager
+                .load_visible_session_turn(workspace.path(), &session_id, "turn-0")
+                .await
+                .expect("indexed lookup")
+                .expect("visible turn")
+                .turn_id,
+            "turn-0"
+        );
+        assert!(manager
+            .load_visible_session_turn(workspace.path(), &session_id, "unknown")
+            .await
+            .expect("missing lookup")
+            .is_none());
+        let (page, next) = manager
+            .load_visible_history_turn(workspace.path(), &session_id, None)
+            .await
+            .unwrap();
+        assert_eq!(page[0].turn_id, "turn-0");
+        assert_eq!(next, None);
 
         let projected = manager
             .load_session_turn_catalog(

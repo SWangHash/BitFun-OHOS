@@ -25,6 +25,10 @@
         {
           "type": "generic",
           "path": "src/apps/relay-server/Cargo.toml"
+        },
+        {
+          "type": "generic",
+          "path": "src/apps/mobile/harmonyos/AppScope/app.json5"
         }
       ]
     }

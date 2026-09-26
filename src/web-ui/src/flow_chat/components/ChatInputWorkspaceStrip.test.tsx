@@ -864,6 +864,44 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     ).toBeNull();
   });
 
+  it('reports an unreadable session mode instead of passing the default off as its own', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip workspaceId="workspace-1"
+          repositoryPath=""
+          workspaceLabel=""
+          permissionControl={{
+            // The read failed, so this is the user-level default, not a choice
+            // the Session made.
+            mode: 'ask',
+            overridden: false,
+            unread: true,
+            onChange: vi.fn(),
+          }}
+        />
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-permission-trigger"]',
+    );
+    expect(trigger?.dataset.permissionUnread).toBe('true');
+    expect(trigger?.getAttribute('data-tooltip')).toBe('chatInput.permissionMode.unreadTooltip');
+
+    await act(async () => {
+      trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // No radio is marked, because the Session's own mode is unknown; the notice
+    // says why the list is bare.
+    expect(
+      document.querySelector('[data-testid="chat-input-permission-selected-ask"]'),
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-testid="chat-input-permission-unread-notice"]'),
+    ).not.toBeNull();
+  });
+
   it('shows ACP ownership without exposing native permission choices', async () => {
     await act(async () => {
       root.render(

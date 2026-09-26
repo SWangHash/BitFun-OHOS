@@ -30,7 +30,11 @@ const QR_POLL_TIMEOUT_SECS: u64 = 35;
 const QR_SESSION_TTL_MS: i64 = 5 * 60_000;
 pub const WEIXIN_SESSION_EXPIRED_ERRCODE: i64 = -14;
 const SESSION_PAUSE_SECS: u64 = 3600;
-const MAX_TEXT_CHUNK: usize = 4000;
+/// Largest text payload the channel accepts in one reply.
+///
+/// A longer reply is split, and the channel counts every part against its
+/// reply quota, so callers that budget replies need this size.
+pub const MAX_TEXT_CHUNK: usize = 4000;
 const MAX_QR_REFRESH: u32 = 3;
 const DEFAULT_CDN_BASE_URL: &str = "https://novac2c.cdn.weixin.qq.com/c2c";
 pub const MAX_WEIXIN_FILE_BYTES: u64 = 30 * 1024 * 1024;
@@ -1660,6 +1664,16 @@ fn chunk_text_for_weixin(text: &str) -> Vec<String> {
     out
 }
 
+/// Number of replies the channel spends to deliver `text`.
+///
+/// The channel counts every split part of a long reply against its reply
+/// quota, so a caller that budgets replies must predict this before sending.
+/// Defined on top of [`chunk_text_for_weixin`] so the count cannot drift from
+/// what `send_text_chunks` actually sends.
+pub fn weixin_reply_count(text: &str) -> usize {
+    chunk_text_for_weixin(text).len()
+}
+
 fn is_weixin_media_item_type(type_id: i64) -> bool {
     matches!(type_id, 2..=5)
 }
@@ -2006,6 +2020,25 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].len(), MAX_TEXT_CHUNK);
         assert_eq!(chunks[1], "a");
+    }
+
+    #[test]
+    fn reply_count_follows_the_part_boundary() {
+        assert_eq!(weixin_reply_count(&"a".repeat(MAX_TEXT_CHUNK)), 1);
+        assert_eq!(weixin_reply_count(&"a".repeat(MAX_TEXT_CHUNK + 1)), 2);
+        assert_eq!(weixin_reply_count(&"a".repeat(MAX_TEXT_CHUNK * 2)), 2);
+        assert_eq!(weixin_reply_count(&"a".repeat(MAX_TEXT_CHUNK * 2 + 1)), 3);
+        // Empty text still spends one reply, so a caller that budgets replies
+        // must refuse to send it.
+        assert_eq!(weixin_reply_count(""), 1);
+    }
+
+    #[test]
+    fn reply_count_measures_bytes_not_characters() {
+        // The splitter cuts on bytes, so a CJK body spends more replies than
+        // its character count suggests.
+        assert_eq!(weixin_reply_count(&"\u{5b57}".repeat(1333)), 1);
+        assert_eq!(weixin_reply_count(&"\u{5b57}".repeat(1334)), 2);
     }
 
     #[test]

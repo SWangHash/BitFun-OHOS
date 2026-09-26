@@ -550,7 +550,28 @@ const ModelSettingsPage: React.FC = () => {
 
   const loadModelCatalog = useCallback(async () => {
     try {
-      setModelCatalog(await aiApi.getModelCatalog());
+      // Host-owned facts (configured models, defaults, session selection) come
+      // from the rendered host. The provider templates and the reasoning
+      // catalog describe the public models.dev catalog instead, so this
+      // controller composes them from its own snapshot: shipping a peer's copy
+      // would put a multi-MiB body on the connection for every settings open,
+      // and that data is identical by construction. Per-model reasoning
+      // projections stay host-computed, so they still describe the host config
+      // that is being edited.
+      const [hostCatalog, localCatalogs] = await Promise.all([
+        aiApi.getModelCatalog(),
+        aiApi.getLocalModelsDevCatalogs().catch((error: unknown) => {
+          log.warn('Failed to load local models.dev catalogs', { error });
+          return null;
+        }),
+      ]);
+      setModelCatalog(localCatalogs
+        ? {
+            ...hostCatalog,
+            provider_catalog: localCatalogs.provider_catalog,
+            models_dev_reasoning_catalog: localCatalogs.models_dev_reasoning_catalog,
+          }
+        : hostCatalog);
     } catch (error) {
       setModelCatalog(null);
       log.warn('Failed to load model reasoning catalog', { error });

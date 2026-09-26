@@ -1104,6 +1104,29 @@ final class StreamingPresentationUITests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testHistoryPageKeepsPositionAndDoesNotQueueMoreDrags() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--streaming-regression", "--history-pagination-regression"]
+        app.launch()
+        XCTAssertTrue(app.buttons["fixture.shortHistory"].waitForExistence(timeout: 15))
+        app.buttons["fixture.shortHistory"].tap()
+        let scroll = app.scrollViews.firstMatch
+        // Multiple gestures while the page is in flight must not queue work.
+        for _ in 0..<3 { scroll.swipeDown() }
+        let requests = app.staticTexts["fixture.historyRequests"]
+        XCTAssertEqual(requests.label, "History requests: 1")
+        let row = app.staticTexts["History row 0"]
+        XCTAssertTrue(row.exists)
+        let top = row.frame.minY
+        app.buttons["fixture.deliverHistory"].tap()
+        let settled = NSPredicate { _, _ in app.buttons["timeline.loadOlder"].isEnabled }
+        expectation(for: settled, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        XCTAssertEqual(row.frame.minY, top, accuracy: 4, "Prepending must preserve the existing visible row")
+        XCTAssertEqual(requests.label, "History requests: 1", "Layout must not drain another page")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testPrependingHistoryPreservesVisibleRowOffset() {
         let app = XCUIApplication()
         app.launchArguments = ["--streaming-regression"]

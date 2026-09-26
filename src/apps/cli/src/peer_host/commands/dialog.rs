@@ -502,3 +502,17 @@ mod image_attachment_tests {
         assert!(peer_image_attachments(&json!({"imageContexts": "bad"})).is_err());
     }
 }
+
+pub(crate) async fn manage_dialog_queue(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = serde_json::from_value(request_value(args).clone())
+        .map_err(|e| format!("Invalid queue request: {e}"))?;
+    let snapshot = state
+        .agent_runtime
+        .manage_dialog_queue(request)
+        .await
+        .map_err(|e| e.into_message())?;
+    serde_json::to_value(snapshot).map_err(|e| e.to_string())
+}

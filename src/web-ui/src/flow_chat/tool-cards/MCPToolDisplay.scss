@@ -52,6 +52,20 @@
       flex-direction: column;
     }
 
+    .image-content-preview {
+      display: block;
+      max-inline-size: 100%;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: zoom-in;
+
+      img {
+        display: block;
+        max-inline-size: 100%;
+      }
+    }
+
     .mcp-copyable-content {
       position: relative;
       min-width: 0;

@@ -182,6 +182,43 @@
     }
   ],
   "implementationOnlyCommands": {
+    "forkPlatformIntegration": [
+      "acknowledge_feedback",
+      "browser_webview_close",
+      "browser_webview_hide",
+      "browser_webview_set_focus",
+      "browser_webview_show",
+      "check_for_updates_ohos",
+      "check_matrix_skill_checksum",
+      "delete_workspace",
+      "detect_local_model_service",
+      "feedback_get_access_state",
+      "get_clipboard",
+      "get_skill_descriptions",
+      "install_matrix_skill",
+      "list_feedback",
+      "list_local_models",
+      "list_matrix_categories",
+      "list_matrix_organizations",
+      "list_matrix_skills",
+      "list_matrix_tags",
+      "open_external_ohos",
+      "open_feedback_conversation",
+      "pause_local_model_download",
+      "privacy_accept",
+      "privacy_apply_collection_policy",
+      "privacy_enter_not_accepted",
+      "privacy_get_status",
+      "privacy_initialize",
+      "privacy_mark_viewed",
+      "pull_local_model",
+      "read_file_binary",
+      "read_file_content_prefix",
+      "reply_feedback",
+      "save_text_file_dialog",
+      "set_clipboard",
+      "submit_feedback"
+    ],
     "publicMarketImageCache": [
       "market_image_load"
     ],
@@ -193,11 +230,11 @@
       "check_commands_exist"
     ],
     "runtimeLifecycle": [
-      "ensure_assistant_bootstrap",
-      "ensure_coordinator_session",
+      "record_voice_exchange",
       "ensure_control_conversation",
       "create_control_conversation",
-      "record_voice_exchange",
+      "ensure_assistant_bootstrap",
+      "ensure_coordinator_session",
       "initialize_ai",
       "initialize_mcp_servers",
       "initialize_mcp_servers_non_destructive",
@@ -210,6 +247,9 @@
       "get_config",
       "get_configs",
       "set_config"
+    ],
+    "modelCatalogEnrichment": [
+      "get_local_models_dev_catalogs"
     ],
     "persistencePrimitives": [
       "save_session_metadata",
@@ -383,8 +423,7 @@
             "command:frontend_update_candidate_ready",
             "command:get_frontend_update_status",
             "command:confirm_frontend_update",
-            "command:rollback_frontend_update",
-            "command:frontend_update_candidate_failed"
+            "command:rollback_frontend_update"
           ]
         },
         {
@@ -399,6 +438,7 @@
           },
           "evidence": [
             "command:start_dialog_turn",
+            "command:manage_dialog_queue",
             "command:steer_dialog_turn",
             "command:interrupt_dialog_turn",
             "command:cancel_dialog_turn",
@@ -1539,6 +1579,7 @@
           },
           "evidence": [
             "command:get_clipboard_files",
+            "command:get_clipboard_image",
             "command:resolve_browser_dropped_file_paths",
             "command:set_file_drop_preview_target",
             "command:upload_image_contexts",
@@ -2580,12 +2621,14 @@
       "highlightsZh": [
         "启用或停用 Computer Use",
         "连接或断开受支持的浏览器",
-        "检查并打开系统权限设置"
+        "检查并打开系统权限设置",
+        "查看当前控制目标与预览，并随时停止控制"
       ],
       "highlightsEn": [
         "Enable or disable Computer Use",
         "Connect or disconnect a supported browser",
-        "Inspect and open OS permission settings"
+        "Inspect and open OS permission settings",
+        "Inspect the current control target and preview, and stop control at any time"
       ],
       "items": [
         {
@@ -2695,6 +2738,45 @@
           },
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#computerUse.sectionDescription"
+          ]
+        },
+        {
+          "id": "control-session-preview",
+          "titleZh": "在控制状态卡片查看当前目标、模式与授权画面预览",
+          "titleEn": "Inspect the current target, mode, and authorized capture preview in the control card",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在控制状态卡片查看当前目标、模式与授权画面预览”需要活动会话及用户展开卡片；预览仅包含当前授权目标和虚拟指针。设置入口仅用于配置，不会启动控制。远程设备需要对应 Desktop 宿主支持，不可回退到本机画面。",
+            "reasonEn": "“Inspect the current target, mode, and authorized capture preview in the control card” requires an active session and expanding its card; the preview contains only the authorized target and virtual pointer. The settings entry only configures the feature and does not start control. Remote devices require a supporting Desktop host, without falling back to local capture."
+          },
+          "evidence": [
+            "command:computer_use_control_status",
+            "command:computer_use_control_preview",
+            "source:src/web-ui/src/app/components/ComputerUseControlCard.tsx#ComputerUseControlCard"
+          ]
+        },
+        {
+          "id": "stop-control-session",
+          "titleZh": "停止当前桌面控制会话并释放捕获与输入资源",
+          "titleEn": "Stop the current desktop-control session and release capture and input resources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "ComputerUse"
+            ],
+            "workflowZh": [
+              "通过 ComputerUse control_status 确认当前会话的目标、所有者与模式；没有活动会话时不要启动新会话",
+              "使用 ComputerUse stop_control 释放该工具拥有的会话；用户也可在执行端控制卡片点击停止，按钮只针对显示的会话代次，不停止后来创建的会话"
+            ],
+            "workflowEn": [
+              "Use ComputerUse control_status to inspect the current target, owner, and mode; do not start a session when none is active",
+              "Use ComputerUse stop_control to release the tool-owned session. Users can also stop from the executing Desktop control card; its button addresses the displayed generation rather than a subsequently created session."
+            ]
+          },
+          "evidence": [
+            "command:computer_use_control_stop",
+            "source:src/web-ui/src/app/components/ComputerUseControlCard.tsx#ComputerUseControlCard"
           ]
         }
       ],
@@ -4247,20 +4329,6 @@
           },
           "evidence": [
             "command:ssh_list_docker_containers"
-          ]
-        },
-        {
-          "id": "wsl",
-          "titleZh": "选择 Windows 主机上的 WSL 发行版作为工作区",
-          "titleEn": "Choose a WSL distribution on the Windows host as a workspace",
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“选择 Windows 主机上的 WSL 发行版作为工作区”需要读取执行主机的发行版列表，并由用户选择 Linux 用户和工作区目录；智能体可打开连接入口，但当前没有覆盖完整配置流程的结构化 Command。",
-            "reasonEn": "“Choose a WSL distribution on the Windows host as a workspace” requires live distribution discovery on the executing host and user selection of a Linux user and workspace directory; the Agent can open the connection dialog, but no structured Command covers the complete setup workflow."
-          },
-          "evidence": [
-            "command:ssh_list_wsl_distributions"
           ]
         },
         {
@@ -9533,6 +9601,15 @@
     "shell": "feature.terminal"
   },
   "implementationOwners": {
+    "html_preview": {
+      "capabilityId": "feature.files-editor"
+    },
+    "update": {
+      "capabilityId": "setting.application.general"
+    },
+    "matrix_skill": { "capabilityId": "feature.skills" },
+    "privacy": { "capabilityId": "setting.application.general" },
+    "feedback": { "capabilityId": "setting.application.general" },
     "commands": {
       "capabilityId": "feature.projects"
     },
@@ -9575,9 +9652,6 @@
     "system": {
       "capabilityId": "setting.application.general"
     },
-    "update": {
-      "capabilityId": "setting.application.general"
-    },
     "miniapp_market": {
       "capabilityId": "feature.miniapps"
     },
@@ -9613,9 +9687,6 @@
     },
     "browser": {
       "capabilityId": "feature.browser"
-    },
-    "html_preview": {
-      "capabilityId": "feature.files-editor"
     },
     "announcement": {
       "capabilityId": "setting.application.general"

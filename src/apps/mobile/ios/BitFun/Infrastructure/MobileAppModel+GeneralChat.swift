@@ -83,7 +83,6 @@ extension MobileAppModel {
             blocks: [],
             streaming: false,
             typing: false,
-            pending: false,
             showRetry: false,
             error: nil
         )
@@ -102,7 +101,6 @@ extension MobileAppModel {
             blocks: row.blocks.map(mapBlock),
             streaming: row.streaming,
             typing: row.typing,
-            pending: row.pending,
             showRetry: row.showRetry,
             error: row.error,
             live: row.live

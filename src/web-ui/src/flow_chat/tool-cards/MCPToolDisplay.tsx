@@ -20,6 +20,7 @@ import type { ToolInfo } from '@/shared/types/agent-api';
 import { ToolCardCopyAction } from './ToolCardCopyAction';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { useFlowChatContext } from '../components/modern/FlowChatContext';
+import { ImageLightbox, type ImageLightboxState } from '@/shared/ui/ImageLightbox';
 import './MCPToolDisplay.scss';
 
 const log = createLogger('MCPToolDisplay');
@@ -204,6 +205,8 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
   } = toolItem;
   const [isExpanded, setIsExpanded] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
+  // Tool-result images are inline content of this card, so the card owns their overlay.
+  const [imagePreview, setImagePreview] = useState<ImageLightboxState | null>(null);
   const toolId = toolItem.id ?? toolCall?.id;
   const { cardRootRef, applyExpandedState, dispatchToolCardToggle } = useToolCardHeightContract({
     toolId,
@@ -821,7 +824,18 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
               )}
               {item.type === 'image' && item.data && (
                 <div className="image-content" data-bitfun-component="mcp-tool-display" data-bitfun-part="image">
-                  <img src={`data:${item.mime_type ?? 'image/png'};base64,${item.data}`} alt="" />
+                  <button
+                    type="button"
+                    className="image-content-preview"
+                    aria-label={t('toolCards.common.viewDetails')}
+                    onClick={(event) => {
+                      // The card itself toggles on click; the preview owns this click.
+                      event.stopPropagation();
+                      setImagePreview({ source: `data:${item.mime_type ?? 'image/png'};base64,${item.data}` });
+                    }}
+                  >
+                    <img src={`data:${item.mime_type ?? 'image/png'};base64,${item.data}`} alt="" />
+                  </button>
                 </div>
               )}
               {item.type === 'resource' && item.resource && (
@@ -866,6 +880,7 @@ export const MCPToolDisplay: React.FC<ToolCardProps> = ({
         requiresConfirmation={needsConfirmation}
         toggleTestId="mcp-tool-card-toggle"
       />
+      <ImageLightbox image={imagePreview} onClose={() => setImagePreview(null)} />
     </div>
   );
 };

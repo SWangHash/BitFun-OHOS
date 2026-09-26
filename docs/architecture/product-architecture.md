@@ -215,6 +215,8 @@ Logical 与 Development 的主要映射如下，映射是多对多关系：
 
 Assembly 是唯一组装根，只选择下层能力和实现，不能反向依赖 app。每个生态 adapter 独立保留外部格式和顺序语义，再映射到 BitFun owner；生态 adapter 之间不能形成兄弟依赖。
 
+Computer Use 的控制会话、系统共享提示、后台输入边界与 macOS / Windows / Ubuntu 原生实现见 [Computer Use control-session SPEC](computer-use-control.md)。平台资源由 Desktop 持有，模式、状态和动作契约保持可移植；共享 Core 通过 host port 管理任务结束与取消时的释放。
+
 各层的静态职责按下表执行。层间只允许由上向下依赖；同层依赖必须有明确的单向 owner 关系，不能为了复用方便形成环。
 
 | 层 | 负责 | 不负责 |

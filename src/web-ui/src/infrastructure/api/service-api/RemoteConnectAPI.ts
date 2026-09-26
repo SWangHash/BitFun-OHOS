@@ -14,6 +14,12 @@ export interface DeviceDirectoryMetadata {
   device_os?: string | null;
   device_os_version?: string | null;
   /**
+   * Kind the device reported to the Relay (`desktop`, `cli`, `mobile`,
+   * `watch`). Absent for a device that never reported one and for older Relays;
+   * absent means unknown, which is not the same as "not a host".
+   */
+  device_kind?: string | null;
+  /**
    * Client build the device reported to the Relay. The host projection emits
    * `device_client_version`; the Relay's own snake_case spelling is
    * `client_version`. Both are read, exactly like the Relay/backend tolerance,

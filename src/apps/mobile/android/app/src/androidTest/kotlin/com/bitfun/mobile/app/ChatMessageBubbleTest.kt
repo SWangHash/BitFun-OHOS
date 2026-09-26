@@ -258,7 +258,6 @@ class ChatMessageBubbleTest {
         tools = emptyList(),
         blocks = blocks,
         streaming = streaming,
-        pending = false,
         typing = typing,
         showRetry = showRetry,
         error = null,

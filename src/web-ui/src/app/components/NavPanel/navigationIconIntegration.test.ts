@@ -9,7 +9,7 @@ describe('navigation icon integration', () => {
       'utf8',
     );
     const entryStart = source.indexOf('data-testid="agent-skill-entry"');
-    const entryEnd = source.indexOf('</button>', entryStart);
+    const entryEnd = source.indexOf('</NavigationPanelItem>', entryStart);
     const entryMarkup = source.slice(entryStart, entryEnd);
 
     expect(entryStart).toBeGreaterThanOrEqual(0);
@@ -27,7 +27,7 @@ describe('navigation icon integration', () => {
       'utf8',
     );
     const entryStart = source.indexOf('data-testid="nav-todos-btn"');
-    const entryEnd = source.indexOf('</button>', entryStart);
+    const entryEnd = source.indexOf('</NavigationPanelItem>', entryStart);
     const entryMarkup = source.slice(entryStart, entryEnd);
 
     expect(entryStart).toBeGreaterThanOrEqual(0);
@@ -44,7 +44,8 @@ describe('navigation icon integration', () => {
 
     expect(source).toContain("import { List, ListTree } from 'lucide-react'");
     expect(source).toContain('const ViewIcon = isAll ? List : ListTree');
-    expect(source).toContain('size={16}');
+    expect(source).toContain('glyph={ViewIcon}');
+    expect(source).toContain('size="sm"');
     expect(source).toContain('data-session-view-icon={grouping}');
     expect(source).toContain('data-testid="nav-workspace-session-view-toggle"');
     expect(source).not.toContain('NavigationSessionView');
@@ -56,12 +57,37 @@ describe('navigation icon integration', () => {
       'utf8',
     );
     const actionStart = source.indexOf('data-testid="nav-workspace-add-btn"');
-    const actionEnd = source.indexOf('</button>', actionStart);
-    const actionMarkup = source.slice(actionStart, actionEnd);
+    const componentStart = source.lastIndexOf('<IconButton', actionStart);
+    const actionEnd = source.indexOf('\n                      />', actionStart);
+    const actionMarkup = source.slice(componentStart, actionEnd);
 
     expect(actionStart).toBeGreaterThanOrEqual(0);
+    expect(componentStart).toBeGreaterThanOrEqual(0);
     expect(actionEnd).toBeGreaterThan(actionStart);
-    expect(actionMarkup).toContain('<FolderPlus size={14}');
+    expect(actionMarkup).toContain('<Icon glyph={FolderPlus} size="sm"');
+    expect(actionMarkup).toContain('size="xs"');
+    expect(actionMarkup).toContain('variant="quiet"');
+  });
+
+  it('uses one IconButton contract for all session header actions', () => {
+    const groupingSource = readFileSync(
+      fileURLToPath(new URL('./components/WorkspaceSessionGroupingToggle.tsx', import.meta.url)),
+      'utf8',
+    );
+    const filterSource = readFileSync(
+      fileURLToPath(new URL('./components/WorkspaceSessionFilterMenu.tsx', import.meta.url)),
+      'utf8',
+    );
+    const mainNavSource = readFileSync(
+      fileURLToPath(new URL('./MainNav.tsx', import.meta.url)),
+      'utf8',
+    );
+
+    for (const source of [groupingSource, filterSource, mainNavSource]) {
+      expect(source).toContain('<IconButton');
+      expect(source).toContain('size="xs"');
+      expect(source).toContain('variant="quiet"');
+    }
   });
 
   it('uses stable standard icons for every session-group type', () => {

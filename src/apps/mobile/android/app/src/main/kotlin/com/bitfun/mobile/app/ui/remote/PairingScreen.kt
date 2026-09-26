@@ -250,7 +250,7 @@ internal fun RemoteCompactHome(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = MobileDesignGeometry.RecentHomeGutter, vertical = 24.dp),
         ) {
-            WelcomeBrandFlow(Modifier.align(Alignment.CenterHorizontally).size(MobileDesignGeometry.RecentHomeMarkSize), sweep = true)
+            com.bitfun.mobile.app.ui.shell.ColdStartHomeMark(Modifier.align(Alignment.CenterHorizontally).size(MobileDesignGeometry.RecentHomeMarkSize))
             Text(stringResource(R.string.home_recent_title), fontSize = 25.sp,
                 fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 32.dp))
@@ -264,7 +264,7 @@ internal fun RemoteCompactHome(
                 if (onBrowse != null) TextButton(onClick = onBrowse) { Text(stringResource(R.string.home_recent_all), fontSize = 12.sp) }
             }
             recent.forEach { session ->
-                Column(Modifier.fillMaxWidth().clickable(enabled = !ready!!.busy) { onOpen(session.id) }
+                Column(Modifier.fillMaxWidth().clickable { onOpen(session.id) }
                     .padding(vertical = MobileDesignGeometry.RecentHomeRowPadding)) {
                     Text(session.title, fontSize = 15.sp, maxLines = 2)
                     val workspace = session.workspaceName?.takeIf { it.isNotBlank() }

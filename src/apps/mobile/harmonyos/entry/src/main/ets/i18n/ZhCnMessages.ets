@@ -347,6 +347,7 @@ export const ZH_CN_MESSAGES: [string, string][] = [
   ['remote.settings.deviceLoadFailed', '设备列表加载失败，请稍后重试。'],
   ['remote.settings.accountExpired', '云账号已失效，请重新登录。'],
   ['remote.settings.deviceUnavailable', '目标桌面暂时不可用，请刷新设备列表后重试。'],
+  ['remote.settings.deviceIncompatible', '客户端版本不兼容，无法互控。'],
   ['remote.settings.deviceName', '设备'],
   ['remote.settings.deviceManagementBody', '此设备的账号凭据已使用 HUKS 加密保存。退出账号后会立即清理。'],
   ['remote.settings.githubId', 'Account ID: {0}'],

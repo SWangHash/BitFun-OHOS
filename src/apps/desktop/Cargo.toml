@@ -14,6 +14,7 @@ name = "bitfun-desktop"
 path = "src/main.rs"
 
 [build-dependencies]
+cc = { workspace = true }
 tauri-build = { workspace = true }
 serde_json = { workspace = true }
 
@@ -25,9 +26,9 @@ bitfun-relay-service = { path = "../../crates/services/relay-service" }
 bitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features = ["agent-runtime"] }
 bitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }
 bitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["appearance-market"] }
-bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "remote-ssh-concrete", "speech", "speech-realtime", "feedback", "privacy"] }
+bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "skillhub", "remote-ssh-concrete", "speech", "speech-realtime", "feedback", "privacy"] }
 bitfun-core-types = { path = "../../crates/contracts/core-types" }
-bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token"] }
+bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token", "computer-use-contract"] }
 bitfun-transport = { path = "../../crates/adapters/transport", features = ["tauri-adapter"] }
 bitfun-events = { path = "../../crates/contracts/events" }
 bitfun-webdriver = { path = "../../crates/adapters/webdriver" }
@@ -99,7 +100,7 @@ foreign-types = { workspace = true }
 libc = { workspace = true }
 objc2 = { workspace = true, features = ["exception"] }
 objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "NSDictionary", "NSError", "NSString"] }
-objc2-app-kit = { workspace = true }
+objc2-app-kit = { workspace = true, features = ["std", "libc", "NSWorkspace", "NSRunningApplication"] }
 objc2-vision = { workspace = true, features = ["std", "VNRecognizeTextRequest", "VNRequest", "VNObservation", "VNRequestHandler", "VNUtils", "VNTypes", "objc2-core-foundation"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -122,9 +123,11 @@ windows = { workspace = true, features = [
   "Win32_Graphics_Dxgi",
   "Win32_Graphics_Dxgi_Common",
   "Win32_Graphics_Gdi",
+  "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_LibraryLoader",
   "Win32_System_SystemServices",
+  "Win32_System_Threading",
   "Win32_Storage_Xps",
   "Win32_System_Com",
   "Win32_System_Ole",
@@ -186,3 +189,9 @@ napi-derive-ohos = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "computer_use_native_roundtrip"
+path = "tests/computer_use_native_roundtrip.rs"
+harness = false
+required-features = ["devtools"]

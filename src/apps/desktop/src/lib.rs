@@ -38,6 +38,8 @@ pub mod tray;
 mod webview_recovery;
 #[cfg(not(target_env = "ohos"))]
 mod window_state_support;
+#[cfg(target_os = "windows")]
+mod window_webview_geometry;
 
 use bitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
@@ -1426,6 +1428,8 @@ pub async fn _run() {
         })
         .on_window_event({
             move |window, event| {
+                #[cfg(target_os = "windows")]
+                window_webview_geometry::handle_event(window, event);
                 #[cfg(not(target_env = "ohos"))]
                 if window.label() == "main"
                     && !MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst)
@@ -1503,6 +1507,19 @@ pub async fn _run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            api::remote_connect_api::account_relay_capabilities,
+            api::remote_connect_api::account_update_device_alias,
+            api::config_api::clear_web_search_credential,
+            api::agentic_api::create_control_conversation,
+            api::update_api::download_update,
+            api::agentic_api::ensure_control_conversation,
+            api::update_api::get_pending_update,
+            api::config_api::get_web_search_credential_status,
+            api::html_preview_api::html_preview_create,
+            api::html_preview_api::html_preview_release,
+            api::update_api::install_pending_update,
+            api::agentic_api::record_voice_exchange,
+            api::config_api::save_web_search_credential,
             appearance::show_main_window,
             frontend_workbench::frontend_update_candidate_ready,
             frontend_workbench::get_frontend_update_status,
@@ -1543,6 +1560,7 @@ pub async fn _run() {
             api::agentic_api::interrupt_dialog_turn,
             api::agentic_api::recover_interrupted_dialog_turn,
             api::agentic_api::steer_dialog_turn,
+            api::agentic_api::manage_dialog_queue,
             api::agentic_api::control_deep_review_queue,
             api::agentic_api::cancel_session,
             api::agentic_api::set_subagent_timeout,
@@ -1690,6 +1708,7 @@ pub async fn _run() {
             stop_file_watch,
             get_watched_paths,
             get_clipboard_files,
+            get_clipboard_image,
             api::browser_file_drop_api::resolve_browser_dropped_file_paths,
             api::file_drop_preview_api::set_file_drop_preview_target,
             paste_files,
@@ -1698,6 +1717,9 @@ pub async fn _run() {
             get_config,
             get_configs,
             computer_use_get_status,
+            computer_use_control_status,
+            computer_use_control_stop,
+            computer_use_control_preview,
             computer_use_request_permissions,
             computer_use_open_system_settings,
             set_config,
@@ -1908,6 +1930,7 @@ pub async fn _run() {
             get_global_config_status,
             get_model_configs,
             get_ai_model_catalog,
+            get_local_models_dev_catalogs,
             project_ai_model_reasoning_catalog,
             get_models_dev_catalog_status,
             refresh_models_dev_catalog_now,
@@ -2408,10 +2431,6 @@ async fn init_agentic_system(
                 session_manager.clone(),
             ),
         ),
-    );
-    event_router.subscribe_internal(
-        "thread_goal_tokens".to_string(),
-        Arc::new(bitfun_core::agentic::goal_mode::ThreadGoalTokenSubscriber),
     );
 
     log::info!("Token usage service initialized and subscriber registered");
@@ -3345,4 +3364,11 @@ mod event_loop_driver_tests {
         driver.abort();
         producer.abort();
     }
+}
+
+/// Opt-in native regression entry; requires a disposable fixture launched by
+/// scripts/test-macos-control-roundtrip.mjs and a pumping macOS main run loop.
+#[cfg(all(feature = "devtools", target_os = "macos"))]
+pub async fn run_native_computer_use_roundtrip_fixture() {
+    computer_use::native_control_roundtrip::run().await;
 }

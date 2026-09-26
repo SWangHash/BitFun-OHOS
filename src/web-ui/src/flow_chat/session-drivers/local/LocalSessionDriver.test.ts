@@ -5,11 +5,13 @@ import type { DialogTurn } from '../../types/flow-chat';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { consumeSubmittedMessageArrival } from '../../services/submittedMessagePresentation';
 
-const { mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockTransition, mockUpdateSessionMetadata } = vi.hoisted(() => ({
+const { mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockTransition, mockUpdateSessionMetadata, mockGetMode, mockUpdateMode } = vi.hoisted(() => ({
   mockStartAcpDialogTurn: vi.fn(),
   mockStartAgenticDialogTurn: vi.fn(),
   mockTransition: vi.fn(),
   mockUpdateSessionMetadata: vi.fn(),
+  mockGetMode: vi.fn(),
+  mockUpdateMode: vi.fn(),
 }));
 
 vi.mock('@/infrastructure/api/service-api/ACPClientAPI', () => ({
@@ -17,7 +19,11 @@ vi.mock('@/infrastructure/api/service-api/ACPClientAPI', () => ({
 }));
 
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
-  agentAPI: { startDialogTurn: mockStartAgenticDialogTurn },
+  agentAPI: {
+    startDialogTurn: mockStartAgenticDialogTurn,
+    getSessionPermissionMode: mockGetMode,
+    updateSessionPermissionMode: mockUpdateMode,
+  },
 }));
 
 vi.mock('@/infrastructure/api/service-api/SessionAPI', () => ({ sessionAPI: {} }));
@@ -164,5 +170,73 @@ describe('localSessionDriver.startTurn on an ACP session', () => {
       createdLocalTurnId: null, hostAcceptedTurn: false,
     })).rejects.toThrow('offline');
     expect(mockUpdateSessionMetadata).not.toHaveBeenCalled();
+  });
+});
+
+describe('localSessionDriver review repair permissions', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockTransition.mockResolvedValue(true);
+    mockStartAgenticDialogTurn.mockResolvedValue(undefined);
+    mockGetMode.mockResolvedValue({ mode: 'auto_approve' });
+  });
+
+  it('waits for parent permission inheritance before starting the repair', async () => {
+    const { context, session } = createHarness([]);
+    Object.assign(session, { sessionKind: 'review', parentSessionId: 'parent', mode: 'agentic' });
+    let finishUpdate!: () => void;
+    mockUpdateMode.mockImplementation(() => new Promise<void>((resolve) => { finishUpdate = resolve; }));
+    const submission = localSessionDriver.startTurn(context, {
+      ...startTurnInput(session), acpClientId: undefined, currentAgentType: 'ReviewFixer',
+    }, { createdLocalTurnId: null, hostAcceptedTurn: false });
+    await vi.waitFor(() => expect(mockUpdateMode).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: SESSION_ID, mode: 'auto_approve' }),
+    ));
+    expect(mockStartAgenticDialogTurn).not.toHaveBeenCalled();
+    finishUpdate();
+    await submission;
+    expect(mockStartAgenticDialogTurn).toHaveBeenCalledTimes(1);
+    expect(mockStartAgenticDialogTurn).toHaveBeenCalledWith(expect.objectContaining({
+      agentType: 'ReviewFixer',
+    }));
+  });
+
+  it('does not start repair with stale permissions if inheritance fails', async () => {
+    const { context, session } = createHarness([]);
+    Object.assign(session, { sessionKind: 'deep_review', parentSessionId: 'parent', mode: 'agentic' });
+    mockUpdateMode.mockRejectedValue(new Error('permission update failed'));
+    await expect(localSessionDriver.startTurn(context, {
+      ...startTurnInput(session), acpClientId: undefined, currentAgentType: 'ReviewFixer',
+    }, { createdLocalTurnId: null, hostAcceptedTurn: false })).rejects.toThrow('permission update failed');
+    expect(mockStartAgenticDialogTurn).not.toHaveBeenCalled();
+  });
+});
+
+
+const queueMocks = vi.hoisted(() => ({ supported: vi.fn(() => false), submit: vi.fn() }));
+vi.mock('../../services/hostDialogQueue', () => ({
+  hostQueueSupported: queueMocks.supported,
+  hostDialogQueue: () => ({ submit: queueMocks.submit }),
+  queueImageAttachments: () => [],
+}));
+
+describe('host queue submissions', () => {
+  beforeEach(() => { vi.clearAllMocks(); queueMocks.supported.mockReturnValue(true); queueMocks.submit.mockResolvedValue({ receipt: { status: 'queued' } }); });
+  it('lets authoritative host events start a turn without clearing an existing active presentation', async () => {
+    const { context, session, addedTurns } = createHarness([]);
+    session.mode = 'Standard';
+    context.contentBuffers.set(SESSION_ID, 'active output');
+    context.activeTextItems.set(SESSION_ID, 'active item');
+    const input = { ...startTurnInput(session), acpClientId: undefined, currentAgentType: 'Standard', isFirstMessage: false,
+      options: { turnId: 'stable-request-id' } };
+    const tracker = { createdLocalTurnId: null, hostAcceptedTurn: false };
+    await localSessionDriver.startTurn(context, input, tracker);
+    expect(queueMocks.submit).toHaveBeenCalledWith(expect.objectContaining({ content: 'hello' }), expect.any(Object), 'stable-request-id');
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(mockStartAgenticDialogTurn).not.toHaveBeenCalled();
+    expect(context.contentBuffers.get(SESSION_ID)).toBe('active output');
+    expect(context.activeTextItems.get(SESSION_ID)).toBe('active item');
+    expect(addedTurns).toHaveLength(0);
+    expect(tracker.hostAcceptedTurn).toBe(true);
   });
 });

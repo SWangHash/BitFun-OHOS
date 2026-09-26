@@ -1,3 +1,6 @@
+import { HostPendingQueuePanel } from './HostPendingQueuePanel';
+import { hostQueueSupported, hostDialogQueue } from '../services/hostDialogQueue';
+import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 /**
  * Pending queue panel
  *
@@ -52,7 +55,7 @@ interface PendingQueuePanelProps {
   onRestoreToComposer: (item: QueuedMessage) => boolean;
 }
 
-export function PendingQueuePanel({
+function LegacyPendingQueuePanel({
   sessionId,
   className,
   onRestoreToComposer,
@@ -374,3 +377,17 @@ export function PendingQueuePanel({
 }
 
 export default PendingQueuePanel;
+
+
+export function PendingQueuePanel(props: PendingQueuePanelProps): JSX.Element | null {
+  const [, setRevision] = useState(0);
+  useEffect(() => onSurfaceActivated(() => setRevision(value => value + 1)), []);
+  const supported = props.sessionId && hostQueueSupported(props.sessionId);
+  const scope = getActiveSurfaceScope();
+  const { t } = useTranslation('flow-chat');
+  return <>
+    {supported && props.sessionId && pendingQueueManager.list(props.sessionId).length > 0 && <p>{t('hostQueue.legacy')}</p>}
+    {supported && props.sessionId && <HostPendingQueuePanel key={`${scope.surfaceId}:${scope.epoch}:${props.sessionId}`} queue={hostDialogQueue(props.sessionId)} onRestore={props.onRestoreToComposer} />}
+    <LegacyPendingQueuePanel {...props} />
+  </>;
+}

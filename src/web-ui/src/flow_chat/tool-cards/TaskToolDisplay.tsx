@@ -827,7 +827,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
           <SubagentAvatar
             sessionId={linkedSubagentSessionId}
             name={taskAgentTypeLabel}
-            size={28}
+            size={20}
             status={subagentAvatarStatus}
           />
         ) : <Split size={16} />}

@@ -91,19 +91,25 @@ describe('AppearancePackageConfigSection', () => {
     expect(html).toContain('data-testid="appearance-builtin-theme-select"');
     expect(html.match(/data-testid="appearance-builtin-theme-option"/g)).toHaveLength(3);
     expect(html.match(/class="appearance-package-config__selected-mark"/g)).toHaveLength(1);
-    expect(html).toContain('package.market.open');
-    expect(html).toContain('package.import');
     expect(html).toContain('aria-label="package.export"');
     expect(html).toContain('aria-label="package.delete"');
-    expect(html).toContain('accept=".bitfun-appearance,.zip,application/zip"');
     expect(html).toContain('data-bitfun-part="packageSection"');
     expect(html).toContain('data-bitfun-part="packageActions"');
-    expect(html).toContain('data-bitfun-component="button"');
-    expect(html.match(/data-bitfun-variant="outline"/g)).toHaveLength(2);
-    expect(html).not.toContain('data-size="md"');
+    expect(html).toContain('data-bitfun-component="icon-button"');
     expect(html).toContain('bitfun-config-page-section');
     expect(html).not.toContain('appearance-package-config__action-button');
     expect(html).not.toContain('.bitfun-skin');
+  });
+
+  it('hides the Skin market and appearance package import entry points', () => {
+    const html = renderToStaticMarkup(<AppearancePackageConfigSection />);
+
+    expect(html).not.toContain('package.market.open');
+    expect(html).not.toContain('package.import');
+    expect(html).not.toContain('accept=".bitfun-appearance,.zip,application/zip"');
+    expect(html).not.toContain('appearance-package-config__file-input');
+    expect(html).toContain('aria-label="package.export"');
+    expect(html).toContain('aria-label="package.delete"');
   });
 
   it('uses high-density artwork and a separate selection mark for the built-in package card', () => {

@@ -52,6 +52,18 @@ describe('AssistantAvatar', () => {
     expect(resolveAssistantAvatarPreset(undefined).id).toBe('claw');
   });
 
+  it('maps semantic sizes to shared control-height tokens', () => {
+    act(() => {
+      root.render(<AssistantAvatar presetId="claw" size="lg" />);
+    });
+
+    const avatar = container.querySelector<HTMLElement>(
+      '[data-bitfun-component="assistant-avatar"]',
+    );
+    expect(avatar?.dataset.size).toBe('lg');
+    expect(avatar?.hasAttribute('style')).toBe(false);
+  });
+
   it('renders the new default avatar without discarding the accessible identity', () => {
     act(() => {
       root.render(

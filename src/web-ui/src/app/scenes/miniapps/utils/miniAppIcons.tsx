@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon, type IconName, type IconSize } from '@bitfun/ui';
+import { Icon, type IconName, type IconSize, type IconSource } from '@bitfun/ui';
 import codingFootprintShowcase from '@/assets/miniapps/showcases/coding-footprint.webp';
 import dailyDivinationShowcase from '@/assets/miniapps/showcases/daily-divination.webp';
 import gomokuShowcase from '@/assets/miniapps/showcases/gomoku.webp';
@@ -78,7 +78,7 @@ export function getMiniAppShowcaseAsset(id: string): string | undefined {
   return BUILTIN_MINI_APP_SHOWCASE_ASSETS[id];
 }
 
-export function renderMiniAppIcon(name: string, size = 28): React.ReactNode {
+export function renderMiniAppIcon(name: string, size: number | IconSize = 28): React.ReactNode {
   const key = name
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -95,9 +95,16 @@ export function renderMiniAppIcon(name: string, size = 28): React.ReactNode {
   }
   const LucideGlyph = MINI_APP_ICONS[key];
 
-  return LucideGlyph
-    ? <LucideGlyph size={size} strokeWidth={1.5} />
-    : <Box size={size} strokeWidth={1.5} />;
+  const style = typeof size === 'number' ? { width: size, height: size } : undefined;
+  const iconSize: IconSize = typeof size === 'number' ? 'lg' : size;
+
+  return (
+    <Icon
+      {...iconSource}
+      size={iconSize}
+      style={style}
+    />
+  );
 }
 
 export function getMiniAppIconGradient(icon: string): string {

@@ -14,14 +14,14 @@ const BUILTIN_PET_DISPLAY_NAMES = builtinPetMetadata.displayNames;
 export const AGENT_COMPANION_PETS_CHANGED = 'agent-companion-pets-changed';
 
 export const DEFAULT_AGENT_COMPANION_PET: AgentCompanionPetSelection = {
-  id: 'blue-golden',
-  displayName: BUILTIN_PET_DISPLAY_NAMES.blueGolden,
-  description:
-    'A sweet, round-faced blue-golden shaded cat with wide bright eyes and soft silver-blue fur warmed by creamy-gold highlights.',
+  id: 'bitblob',
+  displayName: 'BitBlob',
+  description: 'Rounded lavender companion with a soft antenna and curious eyes.',
   source: 'preset',
-  packagePath: `${BUILTIN_PET_BASE}/blue-golden`,
-  spritesheetPath: `${BUILTIN_PET_BASE}/blue-golden/spritesheet.png`,
-  spritesheetMimeType: 'image/png',
+  packagePath: `${BUILTIN_PET_BASE}/bitblob`,
+  spritesheetPath: `${BUILTIN_PET_BASE}/bitblob/spritesheet.webp`,
+  spritesheetMimeType: 'image/webp',
+  spriteVersionNumber: 2,
 };
 
 /** Cache: absolute file path → blob URL (prevents re-reading the same file). */
@@ -68,6 +68,16 @@ export function releaseAgentCompanionPetPreviewBlobs(
 const BUILTIN_PETS: AgentCompanionPetSelection[] = [
   {
     ...DEFAULT_AGENT_COMPANION_PET,
+  },
+  {
+    id: 'blue-golden',
+    displayName: BUILTIN_PET_DISPLAY_NAMES.blueGolden,
+    description:
+      'A sweet, round-faced blue-golden shaded cat with wide bright eyes and soft silver-blue fur warmed by creamy-gold highlights.',
+    source: 'preset',
+    packagePath: `${BUILTIN_PET_BASE}/blue-golden`,
+    spritesheetPath: `${BUILTIN_PET_BASE}/blue-golden/spritesheet.png`,
+    spritesheetMimeType: 'image/png',
   },
   {
     id: 'bitfun-girl',

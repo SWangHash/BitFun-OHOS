@@ -1,3 +1,4 @@
+import { hostQueueSupported, hostDialogQueue, queueImageAttachments } from '../hostDialogQueue';
 /**
  * Message handling module
  * Shared submission choreography: busy-gate planning, queueing, mode
@@ -267,6 +268,19 @@ export async function sendMessage(
       if (plan.kind === 'steer') {
         await driverForSession(sessionId, session).steer(context, sessionId, draft);
         return;
+      }
+      if (hostQueueSupported(sessionId)) {
+        beginSubmission();
+        try {
+          const queue = hostDialogQueue(sessionId);
+          await queue.submit({ content: message, displayContent: displayMessage,
+            agentType: agentType?.trim() || session.mode || 'Standard',
+            attachments: queueImageAttachments(options?.imageContexts), metadata: options?.userMessageMetadata ?? {} },
+            { composerDraft: options?.pendingQueueDraft, imageContexts: options?.imageContexts, imageDisplayData: options?.imageDisplayData });
+          surfaceScopeAtSend.assertCurrent('accept queued message');
+          completeSessionSend(sendCoordinationKey, sendAttempt);
+          return;
+        } finally { endSubmission(); }
       }
       try {
         const item = pendingQueueManager.enqueue({
@@ -546,6 +560,7 @@ export async function drainPendingQueue(
   sessionId: string,
   options?: { allowInterruptedRecoveryAbandon?: boolean },
 ): Promise<void> {
+  if (hostQueueSupported(sessionId) && !options?.allowInterruptedRecoveryAbandon) return;
   if (isRuntimeSessionAttachmentInFlight(getActiveSurfaceId(), sessionId) ||
       isRuntimeSessionProjectionStale(getActiveSurfaceId(), sessionId)) {
     return;

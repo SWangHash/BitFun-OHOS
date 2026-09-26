@@ -1,7 +1,14 @@
 /**
  * User message item styles (BEM).
  */
+@use '../../transcript-layout' as transcriptLayout;
+
 .user-message-item-shell {
+  @include transcriptLayout.content-column;
+
+  --_user-message-radius: calc(var(--bitfun-control-flow-chat-card-radius) + 2px);
+  --_user-message-padding-inline: var(--_user-message-radius);
+
   position: relative;
   margin:
     0.06rem
@@ -18,16 +25,20 @@
 .user-message-item {
   box-sizing: border-box;
   /*
-   * Fills the reading column instead of hugging its text: the bubble shares the
-   * exact leading and trailing edge as the tool-call bars and body text below
-   * it, so a turn reads as one column rather than a right-floating chat bubble.
+   * The shell owns the same reading column as replies. Keep the bubble surface
+   * on that column's content edge — the edge the tool cards and the composer
+   * card end on. Extending the bubble by its radius instead (so the rounded
+   * surface overhung the column while its text met the column) left the sent
+   * message one radius past the trailing edge of both.
    */
-  width: auto;
-  padding: 0.46rem 0.68rem;
+  width: fit-content;
+  max-width: min(72%, 48rem);
+  padding: 0.46rem var(--_user-message-padding-inline);
   background: var(--bitfun-color-action-quiet-hover);
-  border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default) 72%, transparent);
-  border-radius: calc(var(--bitfun-control-flow-chat-card-radius) + 2px);
-  margin: 0;
+  border: none;
+  border-radius: var(--_user-message-radius);
+  margin-block: 0;
+  margin-inline: auto 0;
   box-shadow: none;
   transition: opacity 140ms ease;
   /*
@@ -320,12 +331,13 @@
   }
 }
 
-// Image thumbnails (WeChat-style).
+// Image thumbnails (WeChat-style). The gallery is a sibling of the bubble, so it
+// ends on the same reading-column content edge the bubble surface ends on.
 .user-message-item__images {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-block: 0 6px;
 }
 
 .user-message-item__image-thumb {

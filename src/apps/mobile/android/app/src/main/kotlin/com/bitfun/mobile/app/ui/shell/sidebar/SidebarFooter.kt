@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bitfun.mobile.app.R
 import com.bitfun.mobile.app.ui.common.SignedOutConnectionActions
+import com.bitfun.mobile.app.ui.theme.openBitFunColors
 
 internal const val SIDEBAR_NEW_CHAT_TEST_TAG: String = "app-sidebar-new-chat"
 internal const val SIDEBAR_SETTINGS_TEST_TAG: String = "app-sidebar-settings"
@@ -47,8 +47,8 @@ internal fun SidebarAuthenticatedFooter(onOpenTools: () -> Unit, onOpenSettings:
                 .widthIn(min = 104.dp)
                 .height(48.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
+                .background(openBitFunColors.sidebar.raised)
+                .border(1.dp, openBitFunColors.sidebar.line, RoundedCornerShape(24.dp))
                 .clickable(role = Role.Button, onClick = onOpenTools)
                 .semantics(mergeDescendants = true) {
                     contentDescription = toolsLabel
@@ -61,14 +61,14 @@ internal fun SidebarAuthenticatedFooter(onOpenTools: () -> Unit, onOpenSettings:
             Icon(
                 painterResource(R.drawable.ic_symbol_wrench_and_screwdriver),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = openBitFunColors.sidebar.ink,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 toolsLabel,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = openBitFunColors.sidebar.ink,
             )
         }
         Box(Modifier.weight(1f))
@@ -98,5 +98,8 @@ internal fun SidebarSignedOutFooter(
         onScan = onScanDesktop,
         onOpenAccount = onOpenAccount,
         showScan = showScan,
+        quietBackground = openBitFunColors.sidebar.raised,
+        quietBorder = openBitFunColors.sidebar.line,
+        quietContent = openBitFunColors.sidebar.ink,
     )
 }

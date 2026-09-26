@@ -3,7 +3,7 @@
  * Used to browse and select remote directory as workspace
  */
 
-import { Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -152,8 +152,8 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         setContextMenu({ show: false, x: 0, y: 0, entry: null });
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(contextMenuRef, 'mousedown', handleClickOutside);
+    return () => removeOverlayMousedown0?.();
   }, []);
 
   const navigateTo = (path: string) => {

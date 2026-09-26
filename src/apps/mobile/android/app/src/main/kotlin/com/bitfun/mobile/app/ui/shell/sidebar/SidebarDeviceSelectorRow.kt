@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bitfun.mobile.app.R
 import com.bitfun.mobile.app.ui.common.labelRes
+import com.bitfun.mobile.app.ui.theme.openBitFunColors
 import com.bitfun.mobile.core.feature.connection.ConnectionPhase
 
 @Composable
@@ -48,7 +48,7 @@ internal fun SidebarDeviceSelectorRow(
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface.copy(alpha = 0f))
+            .background(if (selected) openBitFunColors.sidebar.selection else openBitFunColors.transparent)
             .clickable(enabled = online || (selected && phase in listOf(ConnectionPhase.FAILED, ConnectionPhase.DISCONNECTED)), role = Role.Button, onClick = onSelect)
             .semantics(mergeDescendants = true) {
                 this.selected = selected
@@ -62,21 +62,21 @@ internal fun SidebarDeviceSelectorRow(
         Icon(
             painterResource(R.drawable.ic_symbol_desktop),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = openBitFunColors.sidebar.ink,
             modifier = Modifier.size(21.dp),
         )
         Text(
             deviceName,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = openBitFunColors.sidebar.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (loading) {
             CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = openBitFunColors.sidebar.muted,
                 strokeWidth = 1.5.dp,
                 modifier = Modifier.size(14.dp),
             )

@@ -1,4 +1,4 @@
-import { Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 ;
@@ -13,6 +13,7 @@ import type { IdentitySaveStatus } from '@/app/scenes/my-agent/useAgentIdentityD
 import { ASSISTANT_EMOJI_PRESETS, firstAvatarGrapheme } from './assistantAvatar';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
+import { subscribeOverlayInteraction, Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 
 interface AssistantAvatarPickerProps {
   presetValue?: string;
@@ -73,8 +74,8 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
       triggerRef.current?.focus();
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(popoverRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(popoverRef, 'keydown', handleKeyDown);
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);

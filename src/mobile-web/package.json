@@ -18,6 +18,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:realtime-sync": "node --test tests/realtime-sync.test.mjs",
+    "test:host-queue": "node --test tests/host-dialog-queue.test.mjs tests/host-dialog-queue-browser.test.mjs",
+    "test:host-stream": "node --test tests/host-stream.test.mjs tests/host-catalog-subscription.test.mjs",
     "test:session-stream-browser": "node --test tests/session-stream-browser.test.mjs",
     "test:runtime-files": "node --test tests/runtime-file-upload.test.mjs tests/runtime-file-download.test.mjs",
     "test:interaction-mailbox": "node --test tests/interaction-mailbox-browser.test.mjs",

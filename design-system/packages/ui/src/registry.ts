@@ -82,6 +82,7 @@ import {
 import { readFileToolCardMeta } from "./flow-chat/tool-cards/ReadFileToolCard.meta";
 import {
   agentWaitToolCardMeta,
+  cronToolCardMeta,
   defaultToolCardMeta,
   directoryListToolCardMeta,
   getToolSpecToolCardMeta,
@@ -124,6 +125,7 @@ export const componentRegistry = [
   comboboxMeta,
   confirmDialogMeta,
   contextCompressionToolCardMeta,
+  cronToolCardMeta,
   defaultToolCardMeta,
   disclosureMeta,
   emptyMeta,

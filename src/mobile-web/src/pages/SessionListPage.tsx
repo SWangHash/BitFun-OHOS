@@ -1,33 +1,8 @@
 import { subscribeHostCatalog } from '../services/HostCatalogSubscription';
-import {
-  AppWindow as LucideAppWindow,
-  Check as LucideCheck,
-  ChevronRight as LucideChevronRight,
-  ChevronsUpDown as LucideChevronsUpDown,
-  Ellipsis as LucideEllipsis,
-  Folder as LucideFolder,
-  FolderOpen as LucideFolderOpen,
-  Laptop as LucideLaptop,
-  LoaderCircle as LucideLoaderCircle,
-  LogOut as LucideLogOut,
-  MessageSquare as LucideMessageSquare,
-  MessageCircle as LucideMessageCircle,
-  Monitor as LucideMonitor,
-  Moon as LucideMoon,
-  Plus as LucidePlus,
-  RefreshCw as LucideRefreshCw,
-  Search as LucideSearch,
-  Server as LucideServer,
-  Settings as LucideSettings,
-  Sun as LucideSun,
-  Terminal as LucideTerminal,
-  User as LucideUser,
-  Users as LucideUsers,
-  Wrench as LucideWrench,
-  X as LucideX,
-} from 'lucide-react';
+import { AppWindow as LucideAppWindow, Check as LucideCheck, ChevronRight as LucideChevronRight, ChevronsUpDown as LucideChevronsUpDown, Ellipsis as LucideEllipsis, Folder as LucideFolder, FolderOpen as LucideFolderOpen, LoaderCircle as LucideLoaderCircle, LogOut as LucideLogOut, MessageSquare as LucideMessageSquare, MessageCircle as LucideMessageCircle, Monitor as LucideMonitor, Moon as LucideMoon, Plus as LucidePlus, RefreshCw as LucideRefreshCw, Search as LucideSearch, Settings as LucideSettings, Sun as LucideSun, Terminal as LucideTerminal, User as LucideUser, Users as LucideUsers, Wrench as LucideWrench, X as LucideX, Laptop as LucideLaptop, Server as LucideServer } from 'lucide-react';
 import { useGitHubAccountProfile } from '../hooks/useGitHubAccountProfile';
 import AccountAvatar from '../components/AccountAvatar';
+import { DeviceSystemMark } from '../components/DeviceSystemMark';
 import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
 import {
   MobileButton,
@@ -59,7 +34,6 @@ import {
 import { useMobileStore } from '../services/store';
 import { createRemoteCacheScope, remoteCache } from '../services/RemoteCache';
 import { describeRemoteError } from '../services/remoteErrorPresentation';
-// Device-directory read failures share the device pages' relay-failure copy.
 import { deviceFailurePresentation } from '../services/deviceFailureCopy';
 import {
   sameWorkspace,
@@ -76,6 +50,7 @@ import {
   type RelayDeviceInfo,
   deviceDisplayName,
 } from '../services/RelayHttpClient';
+import { isDeviceControllable } from '../services/accountDeviceSelection';
 import { isDeviceControllable } from '../services/accountDeviceSelection';
 
 const PAGE_SIZE = 30;
@@ -249,23 +224,6 @@ function SessionTypeIcon({ agentType }: { agentType: string }) {
 
   return (
     <LucideMessageSquare width="18" height="18" stroke="currentColor" aria-hidden="true" />
-  );
-}
-
-function CompactDeviceIcon({ name }: { name: string }) {
-  const normalized = name.toLocaleLowerCase();
-  if (/(macbook|laptop|notebook)/.test(normalized)) {
-    return (
-      <LucideLaptop width="22" height="22" stroke="currentColor" aria-hidden="true" />
-    );
-  }
-  if (/(server|ecs|cloud|host)/.test(normalized)) {
-    return (
-      <LucideServer width="22" height="22" stroke="currentColor" aria-hidden="true" />
-    );
-  }
-  return (
-    <LucideMonitor width="22" height="22" stroke="currentColor" aria-hidden="true" />
   );
 }
 
@@ -1620,7 +1578,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                     onClick={() => void handleSelectCompactDevice(device)}
                   >
                     <span className="harmony-sidebar__device-icon" aria-hidden="true">
-                      <CompactDeviceIcon name={deviceDisplayName(device)}/>
+                      <DeviceSystemMark deviceKind={device.device_kind} os={device.device_os} size={22} />
                     </span>
                     <span className="harmony-sidebar__row-label">{deviceDisplayName(device)}</span>
                     {isSwitching
@@ -1766,7 +1724,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
           onSelectDevice={(device) => void handleSelectCompactDevice(device)}
           onToggleTheme={toggleTheme}
           open={compactSettingsOpen}
-          renderDeviceIcon={(name) => <CompactDeviceIcon name={name} />}
+          renderDeviceIcon={(device) => <DeviceSystemMark deviceKind={device.device_kind} os={device.device_os} size={22} />}
           selectedDeviceId={compactSelectedDeviceId}
         />
 

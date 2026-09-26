@@ -83,6 +83,11 @@ export function parseRegisteredCommands(source) {
   const entries = stripRustComments(match[1])
     .split(',')
     .map((entry) => entry.trim())
+    .filter(Boolean)
+    // Platform-gated registrations (e.g. `#[cfg(target_env = "ohos")]` above the
+    // command path) are not command entries themselves; drop the attribute text.
+    .filter((entry) => !entry.startsWith('#'))
+    .map((entry) => entry.replace(/^(?:#\[[^\]]*\]\s*)+/, '').trim())
     .filter(Boolean);
   const invalid = entries.filter((entry) => !/^[A-Za-z0-9_:]+$/u.test(entry));
   if (invalid.length) throw new Error(`Unsupported invoke_handler entries: ${invalid.join(', ')}`);

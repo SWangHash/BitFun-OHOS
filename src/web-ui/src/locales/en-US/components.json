@@ -55,6 +55,9 @@
     "copyLink": "Copy link",
     "copyFilePath": "Copy file path"
   },
+  "imageLightbox": {
+    "label": "Image preview"
+  },
   "mermaidBlock": {
     "renderFailed": "Diagram render failed",
     "codeIncomplete": "Code incomplete, waiting for more content...",

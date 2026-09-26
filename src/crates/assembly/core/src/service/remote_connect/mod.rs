@@ -1193,13 +1193,16 @@ pub async fn handle_host_stream_command(
                         .to_string(),
                 });
             };
-            if is_session_stream(&request.stream_id) && hub.needs_full_synchronization(request) {
-                // A fresh subscriber, or one whose epoch the host no longer holds,
-                // needs the runtime's stable records before its first page.
-                hub.activate(&request.stream_id);
-                if let Err(error) = synchronize_session_records(hub, &request.stream_id).await {
-                    return Some(RemoteResponse::Error { message: error });
-                }
+            if is_session_stream(&request.stream_id) {
+                let page = hub.read_history(source_device_id, request, |before| {
+                    crate::service_agent_runtime::CoreServiceAgentRuntime::load_relay_history_batch(&request.stream_id, before)
+                }).await;
+                return Some(match page {
+                    Ok(page) => RemoteResponse::StreamPage { page },
+                    Err(error) => RemoteResponse::Error {
+                        message: error.to_string(),
+                    },
+                });
             }
             Some(match hub.read(source_device_id, request) {
                 Ok(page) => RemoteResponse::StreamPage { page },

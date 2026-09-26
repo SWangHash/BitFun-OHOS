@@ -1,7 +1,7 @@
 // The transcript reserves a lane for turn navigation before sizing its column.
 // Keep the lane geometry shared with the rail so narrow panes cannot overlap it.
 $turn-rail-offset: 4px;
-$turn-rail-width: 30px;
+$turn-rail-width: 20px;
 
 @mixin viewport {
   container: flow-chat-transcript / inline-size;
@@ -14,14 +14,20 @@ $turn-rail-width: 30px;
   max-width: 900px;
   margin-inline: auto;
 
-  // Reserve only the rail side plus a small opposite inset. Wide columns stay
-  // centered; neither the composer nor the welcome surface needs this lane.
+  // The column shares the panel axis with the composer, the header, and the
+  // welcome surface, so both lateral insets stay equal: the rail lane is split
+  // evenly instead of riding on the rail side alone.
+  //
+  // Reserve only the rail side plus a small opposite inset and the column stays
+  // centred only while the centring slack covers the lane. Below that width the
+  // lane won and moved the whole column — cards, text, tool metadata — up to
+  // 10px to the trailing side of the axis the composer was still centred on.
+  //
+  // The rail still clears the column content: rail offset + rail width is 24px,
+  // and the content starts 18px of inset plus 12px of content padding, so 30px,
+  // from the panel edge.
   @container flow-chat-transcript (min-width: 0px) {
     width: calc(100% - #{$turn-rail-offset + $turn-rail-width} - var(--bitfun-space-1) - var(--bitfun-space-2));
-    margin-inline-start: max(
-      calc(#{$turn-rail-offset + $turn-rail-width} + var(--bitfun-space-1)),
-      calc((100% - 900px) / 2)
-    );
   }
 }
 

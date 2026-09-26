@@ -182,6 +182,18 @@ export interface AIModelCatalog {
   session_model_id?: string;
 }
 
+/**
+ * This machine's own models.dev projections.
+ *
+ * They describe the public models.dev catalog, which every host refreshes for
+ * itself, so a controller rendering Model Settings while a peer is selected
+ * enriches locally instead of pulling the peer's multi-MiB copy over the wire.
+ */
+export interface LocalModelsDevCatalogs {
+  provider_catalog?: ProviderCatalog;
+  models_dev_reasoning_catalog?: ModelsDevReasoningCatalog;
+}
+
 export interface ReasoningCatalogProjectionRequest {
   provider: string;
   modelName: string;
@@ -261,11 +273,31 @@ export class AIApi {
     }
   }
 
+  /**
+   * Model catalog of the host that renders the current surface.
+   *
+   * It carries the configured models, defaults and the session selection. The
+   * models.dev projections never travel — they describe the public models.dev
+   * catalog, which every host refreshes for itself — so a surface that needs
+   * them composes them with {@link getLocalModelsDevCatalogs}.
+   */
   async getModelCatalog(): Promise<AIModelCatalog> {
     try {
       return await api.invoke<AIModelCatalog>('get_ai_model_catalog', {});
     } catch (error) {
       throw createTauriCommandError('get_ai_model_catalog', error);
+    }
+  }
+
+  /**
+   * This machine's own models.dev projections. Controller-local: the Product
+   * Operation Registry never proxies it to a peer.
+   */
+  async getLocalModelsDevCatalogs(): Promise<LocalModelsDevCatalogs> {
+    try {
+      return await api.invoke<LocalModelsDevCatalogs>('get_local_models_dev_catalogs', {});
+    } catch (error) {
+      throw createTauriCommandError('get_local_models_dev_catalogs', error);
     }
   }
 

@@ -1,7 +1,7 @@
 //! Cross-platform `ComputerUseHost` via `screenshots` + `enigo`.
 
 mod screenshot;
-use screenshot::{ComputerUseNavFocus, PointerMap, ScreenshotCacheEntry};
+use screenshot::PointerMap;
 
 use async_trait::async_trait;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -9,14 +9,13 @@ use log::debug;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use bitfun_core::agentic::tools::computer_use_host::VisualMark;
 use bitfun_core::agentic::tools::computer_use_host::{
-    ActionRecord, AppClickParams, AppInfo, AppSelector, AppShortcutsSnapshot, AppStateSnapshot,
-    AppWaitPredicate, ClickTarget, ComputerScreenshot, ComputerUseDisplayInfo, ComputerUseHost,
-    ComputerUseInteractionScreenshotKind, ComputerUseInteractionState, ComputerUseLastMutationKind,
-    ComputerUsePermissionSnapshot, ComputerUseScreenshotParams, ComputerUseScreenshotRefinement,
-    ComputerUseSessionSnapshot, InteractiveActionResult, InteractiveClickParams,
-    InteractiveScrollParams, InteractiveTypeTextParams, InteractiveView, InteractiveViewOpts,
-    LoopDetectionResult, UiElementLocateQuery, UiElementLocateResult, VisualActionResult,
-    VisualClickParams, VisualMarkView, VisualMarkViewOpts,
+    ActionRecord, AppInfo, AppSelector, AppShortcutsSnapshot, AppStateSnapshot, AppWaitPredicate,
+    ComputerScreenshot, ComputerUseDisplayInfo, ComputerUseHost, ComputerUseInteractionState,
+    ComputerUseLastMutationKind, ComputerUsePermissionSnapshot, ComputerUseScreenshotParams,
+    ComputerUseScreenshotRefinement, ComputerUseSessionSnapshot, InteractiveActionResult,
+    InteractiveClickParams, InteractiveScrollParams, InteractiveTypeTextParams, InteractiveView,
+    InteractiveViewOpts, LoopDetectionResult, UiElementLocateQuery, UiElementLocateResult,
+    VisualActionResult, VisualClickParams, VisualMarkView, VisualMarkViewOpts,
 };
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use bitfun_core::agentic::tools::computer_use_host::{
@@ -29,10 +28,9 @@ use screenshots::display_info::DisplayInfo;
 use screenshots::Screen;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
 
 /// Error text when `click_needs_fresh_screenshot` blocks `click` or Enter `key_chord` (single source of truth).
-const STALE_CAPTURE_TOOL_MESSAGE: &str = "Computer use refused: call **`screenshot`** first. Use a **bare** `screenshot` (do not set `screenshot_reset_navigation`) — the host applies a **~500×500** crop around the **mouse**. Before Return/Enter in a focused text field, set **`screenshot_implicit_center`**: **`text_caret`**. This is required after the pointer moved since the last capture, before **`click`** or before **`key_chord`** that includes Return/Enter.";
+const STALE_CAPTURE_TOOL_MESSAGE: &str = "[STALE_CAPTURE] Observe the authorized target with screenshot or get_app_state before sending coordinate input. Use the returned screenshot_id; input is rejected after target or geometry changes.";
 
 static SCREENSHOT_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -358,21 +356,9 @@ struct ComputerUseSessionMutableState {
     /// When true, a fresh `screenshot_display` is required before `click` and before `key_chord` that sends Return/Enter
     /// (set after pointer moves / click; cleared after screenshot).
     click_needs_fresh_screenshot: bool,
-    /// Last `screenshot_display` scope (full screen vs point crop) for tool hints and click rules.
-    last_shot_refinement: Option<ComputerUseScreenshotRefinement>,
-    /// Drill / crop context for the next `screenshot` (see [`ComputerUseNavFocus`]).
-    navigation_focus: Option<ComputerUseNavFocus>,
-    /// Cached full-screen screenshot for fast consecutive crops.
-    screenshot_cache: Option<ScreenshotCacheEntry>,
-    /// After `screenshot`, block `pointer_move_rel` until an absolute move
-    /// from AX/OCR/globals (`mouse_move`, `move_to_text`, `click_element`) clears this.
-    block_vision_pixel_nudge_after_screenshot: bool,
     /// After click / key / type / scroll / drag: recommend a **`screenshot`** to confirm UI state (Cowork verify).
     /// Cleared on the next successful `screenshot_display`.
     pending_verify_screenshot: bool,
-    /// After `move_to_text` (global OCR coordinates): next guarded **`click`** may run without a prior
-    /// `screenshot_display` / fine-crop basis — same idea as `click_element` relaxed guard.
-    pointer_trusted_after_ocr_move: bool,
     /// Action optimizer for loop detection, history, and visual verification.
     optimizer: ComputerUseOptimizer,
     /// Most-recent action **kind** that mutated UI / pointer state. Surfaced
@@ -403,6 +389,8 @@ struct ComputerUseSessionMutableState {
     /// addressing basis for arbitrary visual targets because it survives
     /// interleaved app_state / screenshot / interactive_view calls.
     screenshot_pointer_maps: std::collections::HashMap<String, PointerMap>,
+    screenshot_targets: std::collections::HashMap<String, String>,
+    app_pointer_targets: std::collections::HashMap<i32, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -426,12 +414,7 @@ impl ComputerUseSessionMutableState {
         Self {
             pointer_map: None,
             click_needs_fresh_screenshot: true,
-            last_shot_refinement: None,
-            navigation_focus: None,
-            screenshot_cache: None,
-            block_vision_pixel_nudge_after_screenshot: false,
             pending_verify_screenshot: false,
-            pointer_trusted_after_ocr_move: false,
             optimizer: ComputerUseOptimizer::new(),
             last_mutation_kind: None,
             preferred_display_id: None,
@@ -442,30 +425,22 @@ impl ComputerUseSessionMutableState {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             app_pointer_maps: std::collections::HashMap::new(),
             screenshot_pointer_maps: std::collections::HashMap::new(),
+            screenshot_targets: std::collections::HashMap::new(),
+            app_pointer_targets: std::collections::HashMap::new(),
         }
     }
 
     /// Called after a successful screenshot capture.
-    fn transition_after_screenshot(
-        &mut self,
-        map: PointerMap,
-        refinement: ComputerUseScreenshotRefinement,
-        nav_focus: Option<ComputerUseNavFocus>,
-    ) {
+    fn transition_after_screenshot(&mut self, map: PointerMap) {
         self.pointer_map = Some(map);
-        self.last_shot_refinement = Some(refinement);
-        self.navigation_focus = nav_focus;
         self.click_needs_fresh_screenshot = false;
         self.pending_verify_screenshot = false;
-        self.pointer_trusted_after_ocr_move = false;
-        self.block_vision_pixel_nudge_after_screenshot = true;
         self.last_mutation_kind = Some(ComputerUseLastMutationKind::Screenshot);
     }
 
     /// Called after pointer mutation (move, step, relative), click, scroll, key_chord, or type_text.
     fn transition_after_pointer_mutation(&mut self) {
         self.click_needs_fresh_screenshot = true;
-        self.pointer_trusted_after_ocr_move = false;
         // Note: `last_mutation_kind` is set explicitly by the calling
         // action (PointerMove / Click / Scroll / KeyChord / TypeText / Drag)
         // so we do not overwrite it here with a generic value.
@@ -475,7 +450,6 @@ impl ComputerUseSessionMutableState {
     fn transition_after_click(&mut self) {
         self.click_needs_fresh_screenshot = true;
         self.pending_verify_screenshot = true;
-        self.pointer_trusted_after_ocr_move = false;
         self.last_mutation_kind = Some(ComputerUseLastMutationKind::Click);
     }
 
@@ -572,12 +546,6 @@ impl DesktopComputerUseHost {
             log::info!(
                 "AX-first background input is macOS-only in this build; legacy screen-coordinate desktop actions remain available"
             );
-        }
-    }
-
-    fn clear_vision_pixel_nudge_block(&self) {
-        if let Ok(mut s) = self.state.lock() {
-            s.block_vision_pixel_nudge_after_screenshot = false;
         }
     }
 
@@ -1068,7 +1036,7 @@ impl DesktopComputerUseHost {
                 "After granting, retry `desktop.get_app_state` and the AX tree will include all WebView subtree nodes.",
             )?;
             let pid = resolve_pid_macos(self, &app).await?;
-            let mut snap = tokio::task::spawn_blocking(move || {
+            let mut snap = crate::computer_use::control_session::spawn_blocking(move || {
                 // Wrap in @try/@catch — AX APIs can throw NSException for
                 // sandboxed / partially-loaded / dying processes, and an
                 // unwound foreign exception aborts the whole bitfun process
@@ -1103,10 +1071,9 @@ impl DesktopComputerUseHost {
                         snap.screenshot = Some(shot);
                     }
                     Err(e) => {
-                        debug!(
-                            "computer_use.app_state: screenshot capture failed (non-fatal): {}",
-                            e
-                        );
+                        snap.tree_text.push_str(&format!(
+                            "\n[note] CAPTURE_UNAVAILABLE: {e}. Accessibility facts remain available; no substitute window was captured.\n"
+                        ));
                     }
                 }
             }
@@ -1123,31 +1090,9 @@ impl DesktopComputerUseHost {
         }
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            let (_, hwnd_raw) = self.windows_target(&app).await?;
 
-            let hwnd_raw = {
-                let target_hwnd = if app_selector_is_unspecified(&app) {
-                    unsafe { GetForegroundWindow() }
-                } else {
-                    let pid = resolve_pid(self, &app).await? as u32;
-                    crate::computer_use::windows_list_apps::find_top_window_for_pid(pid)
-                        .ok_or_else(|| {
-                            BitFunError::tool(format!(
-                                "APP_NOT_FOUND: no visible top-level window for pid={pid} (app={app:?})"
-                            ))
-                        })?
-                };
-
-                if target_hwnd.is_invalid() {
-                    return Err(BitFunError::tool(
-                        "No target window for get_app_state (invalid HWND).".to_string(),
-                    ));
-                }
-
-                target_hwnd.0 as isize
-            };
-
-            let mut snap = tokio::task::spawn_blocking(move || {
+            let mut snap = crate::computer_use::control_session::spawn_blocking(move || {
                 let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
                 crate::computer_use::windows_ax_ui::get_app_state_snapshot_for_window(
                     hwnd,
@@ -1178,10 +1123,9 @@ impl DesktopComputerUseHost {
                         snap.screenshot = Some(shot);
                     }
                     Err(e) => {
-                        debug!(
-                            "computer_use.app_state: window screenshot failed (non-fatal): {}",
-                            e
-                        );
+                        snap.tree_text.push_str(&format!(
+                            "\n[note] CAPTURE_UNAVAILABLE: {e}. Accessibility facts remain available; no substitute window was captured.\n"
+                        ));
                     }
                 }
             }
@@ -1194,11 +1138,16 @@ impl DesktopComputerUseHost {
             );
             Ok(snap)
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
+        {
+            let _ = capture_screenshot;
+            crate::computer_use::linux_control_ax::snapshot(app, max_depth, focus_window_only).await
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             let _ = (app, max_depth, focus_window_only, capture_screenshot);
             Err(BitFunError::tool(
-                LINUX_LEGACY_AX_UNAVAILABLE.to_string(),
+                "[CONTROL_UNSUPPORTED] No accessibility provider",
             ))
         }
     }
@@ -1221,13 +1170,14 @@ impl DesktopComputerUseHost {
             // app has no shortcuts" instead of "BitFun lacks permission".
             macos::require_ax_trust_for("After granting, retry `desktop.get_app_shortcuts`.")?;
             let pid = resolve_pid_macos(self, &app).await?;
-            let (shortcuts, menu_items_without_shortcut) = tokio::task::spawn_blocking(move || {
-                macos::catch_objc(|| {
-                    crate::computer_use::macos_ax_shortcuts::dump_app_menu_shortcuts(pid)
+            let (shortcuts, menu_items_without_shortcut) =
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    macos::catch_objc(|| {
+                        crate::computer_use::macos_ax_shortcuts::dump_app_menu_shortcuts(pid)
+                    })
                 })
-            })
-            .await
-            .map_err(|e| BitFunError::tool(e.to_string()))??;
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
 
             let captured_at_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1252,12 +1202,14 @@ impl DesktopComputerUseHost {
                     ))
                 })?;
 
-            let (shortcuts, menu_items_without_shortcut) = tokio::task::spawn_blocking(move || {
-                let hwnd = windows::Win32::Foundation::HWND(hwnd_isize as *mut std::ffi::c_void);
-                crate::computer_use::windows_ax_shortcuts::get_app_menu_shortcuts(hwnd)
-            })
-            .await
-            .map_err(|e| BitFunError::tool(e.to_string()))??;
+            let (shortcuts, menu_items_without_shortcut) =
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    let hwnd =
+                        windows::Win32::Foundation::HWND(hwnd_isize as *mut std::ffi::c_void);
+                    crate::computer_use::windows_ax_shortcuts::get_app_menu_shortcuts(hwnd)
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))??;
 
             let captured_at_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1292,17 +1244,156 @@ fn require_macos_background_input() -> BitFunResult<()> {
 
 #[async_trait]
 impl ComputerUseHost for DesktopComputerUseHost {
-    async fn permission_snapshot(&self) -> BitFunResult<ComputerUsePermissionSnapshot> {
-        Ok(tokio::task::spawn_blocking(Self::permission_sync)
+    async fn dispatch_app_input(
+        &self,
+        app: AppSelector,
+        action: bitfun_core::agentic::tools::computer_use_host::AppInputAction,
+    ) -> BitFunResult<()> {
+        self.dispatch_app_input_impl(app, action).await
+    }
+
+    fn capture_scope(&self) -> Option<&'static str> {
+        let target = crate::computer_use::control_session::snapshot().target?;
+        if target.starts_with("pid:") && target.contains("/window:") {
+            Some("window")
+        } else if target.starts_with("portal:") {
+            Some("authorized_portal_stream")
+        } else {
+            None
+        }
+    }
+
+    async fn prepare_control_target(&self, mut app: AppSelector) -> BitFunResult<()> {
+        if app.is_empty() {
+            if let Some(pid) = crate::computer_use::control_session::snapshot()
+                .target
+                .as_deref()
+                .and_then(|t| t.strip_prefix("pid:"))
+                .and_then(|t| t.split('/').next())
+                .and_then(|p| p.parse::<i32>().ok())
+            {
+                app = AppSelector::by_pid(pid);
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let pid = resolve_pid_macos(self, &app).await?;
+            crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::macos_capture::ensure_capture(pid, None)
+            })
             .await
-            .map_err(|e| BitFunError::tool(e.to_string()))?)
+            .map_err(|e| BitFunError::tool(e.to_string()))?
+            .map_err(BitFunError::tool)?;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let (pid, window) = self.windows_target(&app).await?;
+            crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::control_session::bind_target(format!(
+                    "pid:{pid}/window:{window}"
+                ))
+                .map_err(BitFunError::tool)?;
+                crate::computer_use::windows_wgc_capture::ensure_window_capture(
+                    windows::Win32::Foundation::HWND(window as *mut _),
+                )
+            })
+            .await
+            .map_err(|e| BitFunError::tool(e.to_string()))??;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            if !app.is_empty() {
+                crate::computer_use::linux_control_ax::bind_app_selector(&app).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn start_control(
+        &self,
+        owner: &str,
+        request: bitfun_core::agentic::tools::computer_use_host::ControlStartRequest,
+    ) -> BitFunResult<bitfun_core::agentic::tools::computer_use_host::ControlSnapshot> {
+        let snapshot = crate::computer_use::control_session::start(owner, request.mode)
+            .map_err(BitFunError::tool)?;
+        if let Ok(mut state) = self.state.lock() {
+            state.screenshot_pointer_maps.clear();
+            state.screenshot_targets.clear();
+            state.app_pointer_targets.clear();
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            state.app_pointer_maps.clear();
+            state.pointer_map = None;
+        }
+        #[cfg(target_os = "linux")]
+        if let Err(error) = crate::computer_use::linux_control::start_session(
+            request.mode == bitfun_agent_tools::computer_use_control::ControlMode::Foreground,
+        )
+        .await
+        {
+            let _ = crate::computer_use::control_session::stop_checked(
+                Some(owner),
+                Some(snapshot.generation),
+                &error,
+            );
+            return Err(BitFunError::tool(error));
+        }
+        Ok(snapshot)
+    }
+    fn control_snapshot(
+        &self,
+    ) -> bitfun_core::agentic::tools::computer_use_host::ControlSnapshot {
+        crate::computer_use::control_session::snapshot()
+    }
+    async fn stop_control(
+        &self,
+        owner: &str,
+    ) -> BitFunResult<bitfun_core::agentic::tools::computer_use_host::ControlSnapshot> {
+        crate::computer_use::control_session::stop(Some(owner), "user_stopped")
+            .map_err(BitFunError::tool)
+    }
+    async fn stop_control_generation(
+        &self,
+        owner: &str,
+        generation: u64,
+    ) -> BitFunResult<bitfun_core::agentic::tools::computer_use_host::ControlSnapshot> {
+        crate::computer_use::control_session::stop_checked(
+            Some(owner),
+            Some(generation),
+            "task_cancelled",
+        )
+        .map_err(BitFunError::tool)
+    }
+    async fn acquire_control_action(
+        &self,
+        owner: &str,
+        action: &str,
+    ) -> BitFunResult<
+        Option<Box<dyn bitfun_core::agentic::tools::computer_use_host::ComputerUseActionLease>>,
+    > {
+        if matches!(
+            action,
+            "list_apps" | "list_displays" | "get_os_info" | "clipboard_get" | "control_status"
+        ) {
+            return Ok(None);
+        }
+        crate::computer_use::control_session::acquire(owner, action)
+            .map(Some)
+            .map_err(BitFunError::tool)
+    }
+
+    async fn permission_snapshot(&self) -> BitFunResult<ComputerUsePermissionSnapshot> {
+        Ok(
+            crate::computer_use::control_session::spawn_blocking(Self::permission_sync)
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))?,
+        )
     }
 
     fn computer_use_interaction_state(&self) -> ComputerUseInteractionState {
-        let (last_ref, click_needs_fresh, pending_verify, last_mutation, preferred_display_id) = {
+        let (has_capture, click_needs_fresh, pending_verify, last_mutation, preferred_display_id) = {
             let s = self.state.lock().unwrap();
             (
-                s.last_shot_refinement,
+                s.pointer_map.is_some(),
                 s.click_needs_fresh_screenshot,
                 s.pending_verify_screenshot,
                 s.last_mutation_kind.clone(),
@@ -1320,40 +1411,9 @@ impl ComputerUseHost for DesktopComputerUseHost {
                 .or_else(|| displays.iter().find(|d| d.is_primary).map(|d| d.display_id))
         });
 
-        let (click_ready, screenshot_kind, mut recommended_next_action) =
-            match last_ref {
-                Some(ComputerUseScreenshotRefinement::RegionAroundPoint { .. }) => (
-                    !click_needs_fresh,
-                    Some(ComputerUseInteractionScreenshotKind::RegionCrop),
-                    None,
-                ),
-                Some(ComputerUseScreenshotRefinement::QuadrantNavigation {
-                    click_ready, ..
-                }) if click_ready => (
-                    !click_needs_fresh,
-                    Some(ComputerUseInteractionScreenshotKind::QuadrantTerminal),
-                    None,
-                ),
-                Some(ComputerUseScreenshotRefinement::QuadrantNavigation { .. }) => (
-                    false,
-                    Some(ComputerUseInteractionScreenshotKind::QuadrantDrill),
-                    Some("screenshot_navigate_quadrant_until_click_ready".to_string()),
-                ),
-                Some(ComputerUseScreenshotRefinement::FullDisplay) => (
-                    !click_needs_fresh,
-                    Some(ComputerUseInteractionScreenshotKind::FullDisplay),
-                    if click_needs_fresh {
-                        Some("screenshot".to_string())
-                    } else {
-                        None
-                    },
-                ),
-                None => (false, None, Some("screenshot".to_string())),
-            };
-
-        if pending_verify && recommended_next_action.is_none() {
-            recommended_next_action = Some("screenshot".to_string());
-        }
+        let click_ready = has_capture && !click_needs_fresh;
+        let recommended_next_action =
+            (!has_capture || click_needs_fresh || pending_verify).then(|| "screenshot".to_string());
 
         // `interaction_state` rides on *every* ComputerUse result, and the
         // display list is the bulk of it. On a single-screen machine it is pure
@@ -1373,7 +1433,8 @@ impl ComputerUseHost for DesktopComputerUseHost {
             requires_fresh_screenshot_before_click: click_needs_fresh,
             requires_fresh_screenshot_before_enter: click_needs_fresh,
             recommend_screenshot_to_verify_last_action: pending_verify,
-            last_screenshot_kind: screenshot_kind,
+            // Native capture_scope carries window/portal identity; the old enum cannot.
+            last_screenshot_kind: None,
             last_mutation,
             recommended_next_action,
             displays,
@@ -1384,7 +1445,7 @@ impl ComputerUseHost for DesktopComputerUseHost {
     async fn request_accessibility_permission(&self) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
-            tokio::task::spawn_blocking(macos::request_ax_prompt)
+            crate::computer_use::control_session::spawn_blocking(macos::request_ax_prompt)
                 .await
                 .map_err(|e| BitFunError::tool(e.to_string()))?;
         }
@@ -1394,7 +1455,7 @@ impl ComputerUseHost for DesktopComputerUseHost {
     async fn request_screen_capture_permission(&self) -> BitFunResult<()> {
         #[cfg(target_os = "macos")]
         {
-            tokio::task::spawn_blocking(|| {
+            crate::computer_use::control_session::spawn_blocking(|| {
                 let _ = macos::request_screen_capture();
             })
             .await
@@ -1412,6 +1473,13 @@ impl ComputerUseHost for DesktopComputerUseHost {
 
     async fn screenshot_peek_full_display(&self) -> BitFunResult<ComputerScreenshot> {
         self.screenshot_peek_full_display_impl().await
+    }
+
+    async fn read_screen_text(
+        &self,
+    ) -> BitFunResult<Vec<bitfun_core::agentic::tools::computer_use_host::OcrTextMatch>>
+    {
+        self.read_screen_text_impl().await
     }
 
     async fn ocr_find_text_matches(
@@ -1433,8 +1501,11 @@ impl ComputerUseHost for DesktopComputerUseHost {
     > {
         #[cfg(target_os = "macos")]
         {
-            let hit = tokio::task::spawn_blocking(move || {
-                crate::computer_use::macos_ax_ui::accessibility_hit_at_global_point(gx, gy)
+            let pid = resolve_pid_macos(self, &AppSelector::default()).await?;
+            let hit = crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::macos_ax_ui::accessibility_hit_at_global_point_for_pid(
+                    pid, gx, gy,
+                )
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))?;
@@ -1442,8 +1513,11 @@ impl ComputerUseHost for DesktopComputerUseHost {
         }
         #[cfg(target_os = "windows")]
         {
-            return tokio::task::spawn_blocking(move || {
-                crate::computer_use::windows_ax_ui::accessibility_hit_at_global_point(gx, gy)
+            let (pid, hwnd) = self.windows_target(&AppSelector::default()).await?;
+            return crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::windows_ax_ui::accessibility_hit_at_global_point_for_window(
+                    hwnd, pid as u32, gx, gy,
+                )
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))?;
@@ -1471,26 +1545,32 @@ impl ComputerUseHost for DesktopComputerUseHost {
     }
 
     fn last_screenshot_refinement(&self) -> Option<ComputerUseScreenshotRefinement> {
-        self.state.lock().ok().and_then(|s| s.last_shot_refinement)
+        None
     }
 
     async fn locate_ui_element_screen_center(
         &self,
         query: UiElementLocateQuery,
     ) -> BitFunResult<UiElementLocateResult> {
-        Self::ensure_input_automation_allowed()?;
         #[cfg(target_os = "macos")]
         {
-            return tokio::task::spawn_blocking(move || {
-                crate::computer_use::macos_ax_ui::locate_ui_element_center(&query)
+            macos::require_ax_trust_for(
+                "Observe an accessible application before locating its controls.",
+            )?;
+            let pid = resolve_pid_macos(self, &AppSelector::default()).await?;
+            return crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::macos_ax_ui::locate_ui_element_center_for_pid(pid, &query)
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))?;
         }
         #[cfg(target_os = "windows")]
         {
-            return tokio::task::spawn_blocking(move || {
-                crate::computer_use::windows_ax_ui::locate_ui_element_center(&query)
+            let (pid, hwnd) = self.windows_target(&AppSelector::default()).await?;
+            return crate::computer_use::control_session::spawn_blocking(move || {
+                crate::computer_use::windows_ax_ui::locate_ui_element_center_for_window(
+                    hwnd, pid as u32, &query,
+                )
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))?;
@@ -1512,14 +1592,20 @@ impl ComputerUseHost for DesktopComputerUseHost {
         #[cfg(target_os = "macos")]
         {
             const UI_TREE_MAX_ELEMENTS: usize = 50;
-            tokio::task::spawn_blocking(move || {
+            let pid = resolve_pid_macos(self, &AppSelector::default())
+                .await
+                .ok()?;
+            crate::computer_use::control_session::spawn_blocking(move || {
                 // AX tree traversal can throw `NSException` from a misbehaving
                 // frontmost app; the @try/@catch wrapper turns that into a
                 // missing UI-tree text rather than crashing the whole process.
                 macos::catch_objc(|| {
-                    Ok(crate::computer_use::macos_ax_ui::enumerate_ui_tree_text(
-                        UI_TREE_MAX_ELEMENTS,
-                    ))
+                    Ok(
+                        crate::computer_use::macos_ax_ui::enumerate_ui_tree_text_for_pid(
+                            pid,
+                            UI_TREE_MAX_ELEMENTS,
+                        ),
+                    )
                 })
                 .unwrap_or_else(|e| {
                     debug!("UI-tree enumeration suppressed by ObjC catch: {}", e);
@@ -1544,9 +1630,9 @@ impl ComputerUseHost for DesktopComputerUseHost {
 
         #[cfg(target_os = "macos")]
         {
-            let result = tokio::task::spawn_blocking(move || -> BitFunResult<OpenAppResult> {
-                Self::open_app_macos(name)
-            })
+            let result = crate::computer_use::control_session::spawn_blocking(
+                move || -> BitFunResult<OpenAppResult> { Self::open_app_macos(name) },
+            )
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
             return Ok(result);
@@ -1554,32 +1640,34 @@ impl ComputerUseHost for DesktopComputerUseHost {
 
         #[cfg(target_os = "windows")]
         {
-            let result = tokio::task::spawn_blocking(move || -> BitFunResult<OpenAppResult> {
-                let output = bitfun_core::util::process_manager::create_command("cmd")
-                    .args(["/c", "start", "", &name])
-                    .output()
-                    .map_err(|e| BitFunError::tool(format!("open_app: {}", e)))?;
-                Ok(OpenAppResult {
-                    app_name: name,
-                    success: output.status.success(),
-                    process_id: None,
-                    error_message: if output.status.success() {
-                        None
-                    } else {
-                        Some(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                    },
-                    // `start` hands off to the shell and returns immediately
-                    // without telling us what it launched, so there is no pid
-                    // to resolve identity or window count from. Left as `None`
-                    // (the "not measured" value) rather than faked — the model
-                    // reads `window_count: Some(0)` as a definite windowless
-                    // app and would act on it.
-                    bundle_id: None,
-                    process_name: None,
-                    window_count: None,
-                    launch_path: Some("shell_start".to_string()),
-                })
-            })
+            let result = crate::computer_use::control_session::spawn_blocking(
+                move || -> BitFunResult<OpenAppResult> {
+                    let output = bitfun_core::util::process_manager::create_command("cmd")
+                        .args(["/c", "start", "", &name])
+                        .output()
+                        .map_err(|e| BitFunError::tool(format!("open_app: {}", e)))?;
+                    Ok(OpenAppResult {
+                        app_name: name,
+                        success: output.status.success(),
+                        process_id: None,
+                        error_message: if output.status.success() {
+                            None
+                        } else {
+                            Some(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                        },
+                        // `start` hands off to the shell and returns immediately
+                        // without telling us what it launched, so there is no pid
+                        // to resolve identity or window count from. Left as `None`
+                        // (the "not measured" value) rather than faked — the model
+                        // reads `window_count: Some(0)` as a definite windowless
+                        // app and would act on it.
+                        bundle_id: None,
+                        process_name: None,
+                        window_count: None,
+                        launch_path: Some("shell_start".to_string()),
+                    })
+                },
+            )
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
             return Ok(result);
@@ -1587,31 +1675,33 @@ impl ComputerUseHost for DesktopComputerUseHost {
 
         #[cfg(target_os = "linux")]
         {
-            let result = tokio::task::spawn_blocking(move || -> BitFunResult<OpenAppResult> {
-                let output = std::process::Command::new("xdg-open")
-                    .arg(&name)
-                    .output()
-                    .or_else(|_| std::process::Command::new(&name).output())
-                    .map_err(|e| BitFunError::tool(format!("open_app: {}", e)))?;
-                Ok(OpenAppResult {
-                    app_name: name,
-                    success: output.status.success(),
-                    process_id: None,
-                    error_message: if output.status.success() {
-                        None
-                    } else {
-                        Some(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                    },
-                    // Linux is the legacy tier: no AX layer, so there is no pid
-                    // to resolve identity or window count from. `None` means
-                    // "not measured" — do not substitute `Some(0)`, which the
-                    // model reads as a definite windowless app.
-                    bundle_id: None,
-                    process_name: None,
-                    window_count: None,
-                    launch_path: Some("xdg_open".to_string()),
-                })
-            })
+            let result = crate::computer_use::control_session::spawn_blocking(
+                move || -> BitFunResult<OpenAppResult> {
+                    let output = std::process::Command::new("xdg-open")
+                        .arg(&name)
+                        .output()
+                        .or_else(|_| std::process::Command::new(&name).output())
+                        .map_err(|e| BitFunError::tool(format!("open_app: {}", e)))?;
+                    Ok(OpenAppResult {
+                        app_name: name,
+                        success: output.status.success(),
+                        process_id: None,
+                        error_message: if output.status.success() {
+                            None
+                        } else {
+                            Some(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                        },
+                        // Linux is the legacy tier: no AX layer, so there is no pid
+                        // to resolve identity or window count from. `None` means
+                        // "not measured" — do not substitute `Some(0)`, which the
+                        // model reads as a definite windowless app.
+                        bundle_id: None,
+                        process_name: None,
+                        window_count: None,
+                        launch_path: Some("xdg_open".to_string()),
+                    })
+                },
+            )
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))??;
             return Ok(result);
@@ -1697,13 +1787,15 @@ impl ComputerUseHost for DesktopComputerUseHost {
     }
 
     async fn wait_ms(&self, ms: u64) -> BitFunResult<()> {
-        tokio::time::sleep(Duration::from_millis(ms.max(1))).await;
+        crate::computer_use::control_session::wait(ms)
+            .await
+            .map_err(BitFunError::tool)?;
         ComputerUseHost::computer_use_record_mutation(self, ComputerUseLastMutationKind::Wait);
         Ok(())
     }
 
     async fn computer_use_session_snapshot(&self) -> ComputerUseSessionSnapshot {
-        tokio::task::spawn_blocking(Self::collect_session_snapshot_sync)
+        crate::computer_use::control_session::spawn_blocking(Self::collect_session_snapshot_sync)
             .await
             .unwrap_or_else(|_| ComputerUseSessionSnapshot::default())
     }
@@ -1745,7 +1837,6 @@ impl ComputerUseHost for DesktopComputerUseHost {
         if let Ok(mut s) = self.state.lock() {
             // `mouse_move` already set click_needs; OCR globals are authoritative like AX.
             s.click_needs_fresh_screenshot = false;
-            s.pointer_trusted_after_ocr_move = true;
         }
     }
 
@@ -1772,14 +1863,6 @@ impl ComputerUseHost for DesktopComputerUseHost {
                 STALE_CAPTURE_TOOL_MESSAGE.to_string(),
             ));
         }
-        if s.pointer_trusted_after_ocr_move {
-            return Ok(());
-        }
-        // Crop / quadrant-drilling is gone — every screenshot is either the
-        // focused window or the full display, both of which are sufficient
-        // bases for a click. The only remaining guard is the cache freshness
-        // check above (`click_needs_fresh_screenshot`).
-        let _ = s.last_shot_refinement;
         Ok(())
     }
 
@@ -1852,7 +1935,6 @@ impl ComputerUseHost for DesktopComputerUseHost {
             // from the old one — drop it so the next screenshot path picks
             // a fresh frame from the chosen screen.
             if display_id.is_some() {
-                s.screenshot_cache = None;
                 s.click_needs_fresh_screenshot = true;
             }
         }
@@ -1886,7 +1968,7 @@ impl ComputerUseHost for DesktopComputerUseHost {
     }
 
     fn supports_ax_tree(&self) -> bool {
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
         {
             true
         }
@@ -1895,7 +1977,7 @@ impl ComputerUseHost for DesktopComputerUseHost {
             // Windows uses UI Automation (UIA) for the AX tree.
             true
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             false
         }
@@ -1904,7 +1986,7 @@ impl ComputerUseHost for DesktopComputerUseHost {
     async fn list_apps(&self, include_hidden: bool) -> BitFunResult<Vec<AppInfo>> {
         #[cfg(target_os = "macos")]
         {
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 crate::computer_use::macos_list_apps::list_running_apps(include_hidden)
             })
             .await
@@ -1912,16 +1994,23 @@ impl ComputerUseHost for DesktopComputerUseHost {
         }
         #[cfg(target_os = "windows")]
         {
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 crate::computer_use::windows_list_apps::list_running_apps(include_hidden)
             })
             .await
             .map_err(|e| BitFunError::tool(e.to_string()))?
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
         {
             let _ = include_hidden;
-            Ok(Vec::new())
+            crate::computer_use::linux_control_ax::list_apps().await
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            let _ = include_hidden;
+            Err(BitFunError::tool(
+                "[CONTROL_UNSUPPORTED] No application enumeration provider",
+            ))
         }
     }
 
@@ -1952,38 +2041,6 @@ impl ComputerUseHost for DesktopComputerUseHost {
 
     async fn get_app_shortcuts(&self, app: AppSelector) -> BitFunResult<AppShortcutsSnapshot> {
         self.get_app_shortcuts_inner(app).await
-    }
-
-    async fn app_click(&self, params: AppClickParams) -> BitFunResult<AppStateSnapshot> {
-        self.app_click_impl(params).await
-    }
-
-    async fn app_type_text(
-        &self,
-        app: AppSelector,
-        text: &str,
-        focus: Option<ClickTarget>,
-    ) -> BitFunResult<AppStateSnapshot> {
-        self.app_type_text_impl(app, text, focus).await
-    }
-
-    async fn app_scroll(
-        &self,
-        app: AppSelector,
-        focus: Option<ClickTarget>,
-        dx: i32,
-        dy: i32,
-    ) -> BitFunResult<AppStateSnapshot> {
-        self.app_scroll_impl(app, focus, dx, dy).await
-    }
-
-    async fn app_key_chord(
-        &self,
-        app: AppSelector,
-        keys: Vec<String>,
-        focus_idx: Option<u32>,
-    ) -> BitFunResult<AppStateSnapshot> {
-        self.app_key_chord_impl(app, keys, focus_idx).await
     }
 
     async fn app_wait_for(
@@ -2064,6 +2121,16 @@ fn app_selector_is_unspecified(app: &AppSelector) -> bool {
     app.pid.is_none() && app.name.is_none() && app.bundle_id.is_none()
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn control_target_pid() -> Option<i32> {
+    crate::computer_use::control_session::snapshot()
+        .target
+        .as_deref()
+        .and_then(|t| t.strip_prefix("pid:"))
+        .and_then(|t| t.split('/').next())
+        .and_then(|pid| pid.parse().ok())
+}
+
 /// Resolve an `AppSelector` to a concrete `pid`, cross-platform.
 ///
 /// macOS: `pid > bundle_id > name`. Windows: `pid > name` (exact, then
@@ -2077,7 +2144,9 @@ async fn resolve_pid(host: &DesktopComputerUseHost, app: &AppSelector) -> BitFun
     #[cfg(target_os = "windows")]
     {
         if app_selector_is_unspecified(app) {
-            return Ok(DesktopComputerUseHost::windows_foreground_pid());
+            return Ok(
+                control_target_pid().unwrap_or_else(DesktopComputerUseHost::windows_foreground_pid)
+            );
         }
         if let Some(pid) = app.pid {
             return Ok(pid);
@@ -2114,6 +2183,15 @@ async fn resolve_pid_macos(
 ) -> BitFunResult<i32> {
     if let Some(pid) = app.pid {
         return Ok(pid);
+    }
+    if app.is_empty() {
+        return control_target_pid()
+            .or_else(crate::computer_use::macos_bg_input::frontmost_pid_macos)
+            .ok_or_else(|| {
+                BitFunError::tool(
+                    "[TARGET_REQUIRED] No current application; select one from list_apps",
+                )
+            });
     }
     let apps = host.list_apps(true).await?;
     if let Some(bid) = app.bundle_id.as_deref() {

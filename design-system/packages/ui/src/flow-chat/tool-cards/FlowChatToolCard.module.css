@@ -8,6 +8,12 @@
     --_tool-card-action-size: var(--bitfun-space-6);
     --_flow-chat-tool-card-icon-size: var(--bitfun-font-size-xl);
     --_tool-card-transition: var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    /* One inset owns both ends of a summary row, so trailing metadata (+N -N
+       counts, status summaries) keeps the same distance to the card edge as the
+       leading icon or action label. Only the revealed action region serves
+       itself; a separate row end inset for that gutter pulls metadata to the
+       edge as soon as the region is hidden. */
+    --_tool-card-summary-inset: var(--bitfun-space-3);
 
     box-sizing: border-box;
     display: flex;
@@ -31,6 +37,10 @@
     transition:
       border-color var(--_tool-card-transition),
       background-color var(--_tool-card-transition);
+  }
+
+  .prominentRoot[data-bitfun-tool-card="agent-control"] {
+    --_flow-chat-tool-card-icon-size: var(--bitfun-space-5);
   }
 
   .prominentRoot:is(:hover, :focus-within),
@@ -81,7 +91,7 @@
     min-block-size: var(--bitfun-control-height-sm);
     gap: var(--bitfun-space-2);
     padding-block: var(--bitfun-space-1);
-    padding-inline: var(--bitfun-space-3) var(--bitfun-space-1);
+    padding-inline: var(--_tool-card-summary-inset);
     line-height: var(--bitfun-type-heading-page-line-height);
   }
 
@@ -116,6 +126,11 @@
     color: var(--bitfun-color-content-primary);
     font-weight: var(--_tool-card-title-font-weight);
     white-space: nowrap;
+  }
+
+  .prominentRoot[data-bitfun-tool-card="agent-control"] .prominentSummary:has(> .content) .actionLabel {
+    /* Share the row with a task summary; a standalone name can use the full row. */
+    max-inline-size: min(18rem, 38%);
   }
 
   .content {
@@ -158,6 +173,18 @@
     font-weight: var(--_tool-card-content-font-weight);
   }
 
+  /* A fragment whose conditions are all false still mounts the slot, so an empty
+     extra must stay inert: no row gap, and no divider for the status icon. */
+  .extra:empty {
+    display: none;
+  }
+
+  .extra:empty + .statusIcon[data-divider="true"] {
+    margin-inline-start: 0;
+    padding-inline-start: 0;
+    border-inline-start-width: 0;
+  }
+
   .changeSummary {
     display: inline-flex;
     flex: 0 0 auto;
@@ -180,17 +207,23 @@
 
   .actionRegion {
     overflow: hidden;
+    min-inline-size: 0;
     max-inline-size: 0;
     gap: var(--bitfun-space-1);
-    margin-inline-start: 0;
+    /* The hidden slot owns no row space: cancel the summary gap it would add, so
+       the released space goes to the text. Mirrors the summary gap, and never
+       claims the row's end inset, which belongs to trailing metadata. */
+    margin-inline-start: calc(-1 * var(--bitfun-space-2));
+    margin-inline-end: 0;
     padding-inline-start: 0;
-    border-inline-start: var(--bitfun-border-width-default) solid transparent;
+    border-inline-start: 0 solid transparent;
     opacity: 0;
     pointer-events: none;
     transform: translateX(var(--bitfun-space-1));
     transition:
       max-inline-size var(--_tool-card-transition),
       margin-inline-start var(--_tool-card-transition),
+      margin-inline-end var(--_tool-card-transition),
       padding-inline-start var(--_tool-card-transition),
       border-color var(--_tool-card-transition),
       opacity var(--_tool-card-transition),
@@ -203,7 +236,11 @@
   .prominentRoot[data-actions-visible="true"] .actionRegion {
     max-inline-size: 24rem;
     margin-inline-start: var(--bitfun-space-1);
+    /* Revealed actions keep their tight corner gutter, owned by the region
+       itself instead of by a smaller row inset. */
+    margin-inline-end: calc(-1 * var(--bitfun-space-2));
     padding-inline-start: var(--bitfun-space-2);
+    border-inline-start-width: var(--bitfun-border-width-default);
     border-inline-start-color: var(--bitfun-color-border-subtle);
     opacity: 1;
     pointer-events: auto;
@@ -279,6 +316,8 @@
     flex: 0 0 auto;
     inline-size: var(--_tool-card-action-size);
     block-size: var(--_tool-card-action-size);
+    min-inline-size: var(--_flow-chat-tool-card-icon-size);
+    min-block-size: var(--_flow-chat-tool-card-icon-size);
     align-items: center;
     justify-content: center;
     color: var(--bitfun-color-content-secondary);
@@ -521,7 +560,7 @@
     min-block-size: var(--bitfun-control-height-sm);
     gap: var(--bitfun-space-2);
     padding-block: var(--bitfun-space-1);
-    padding-inline: var(--bitfun-space-3) var(--bitfun-space-1);
+    padding-inline: var(--_tool-card-summary-inset);
     line-height: var(--bitfun-type-heading-page-line-height);
     color: var(--bitfun-color-content-primary);
   }

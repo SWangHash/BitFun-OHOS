@@ -49,6 +49,16 @@ export const agentWaitToolCardMeta = {
   tokens: ambientTokens,
 } as const satisfies ComponentMeta;
 
+export const cronToolCardMeta = {
+  category: "flow-chat",
+  description: "An ambient scheduled-job card with schedule, next-run, and payload details.",
+  maturity: "stable",
+  name: "CronToolCard",
+  props: expandableProps,
+  states: ["default", "hover", "loading", "expanded", "error"],
+  tokens: ambientTokens,
+} as const satisfies ComponentMeta;
+
 export const defaultToolCardMeta = {
   category: "flow-chat",
   description: "The fallback ambient card for a tool summary, sanitized input, result, and confirmation state.",

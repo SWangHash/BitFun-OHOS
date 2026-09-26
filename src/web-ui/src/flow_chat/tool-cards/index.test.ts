@@ -61,6 +61,7 @@ describe('tool card registry', () => {
       'GetFileDiff',
       'SessionControl',
       'SessionMessage',
+      'Cron',
       'RunCode',
       'ExecCommand',
       'WriteStdin',

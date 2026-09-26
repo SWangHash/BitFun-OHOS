@@ -260,8 +260,6 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!isSessionOverviewOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -284,8 +282,8 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       }
     };
 
-    removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
 
     return () => {
       removeOverlayMousedown0?.();
@@ -595,7 +593,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   );
   const rightActions = (
     <div
-      className="flowchat-header__actions"
+      className={`flowchat-header__actions${isSearchMode ? ' flowchat-header__actions--searching' : ''}`}
       data-bitfun-component="flow-chat-header"
       data-bitfun-part="actions"
     >

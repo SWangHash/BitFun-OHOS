@@ -3,7 +3,8 @@ import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogH
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
-import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
+import EcosystemAccounts from './EcosystemAccounts';
+import { ecosystemAccountProvider } from './ecosystemCompatibilityModel';
 import { presentEcosystemContent } from './ecosystemContentPresentation';
 import { ecosystemDiscoveryCache, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
 import { importErrorMessage } from './ecosystemSkillImport';
@@ -712,7 +713,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
                 : <p>{kind === 'instruction' && emptyState === 'discoveryUnavailable' && categoryItems[0]
                   ? stateDescription(categoryItems[0], emptyState)
                   : t(emptyState ? `import.states.${emptyState}` : 'content.noMatches')}</p>}
-              {canScanEmptyCategory ? <Button size="sm" variant="outline" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
+              {canScanEmptyCategory ? <Button size="sm" variant="primary" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
             </div>}
             {kind === 'instruction' && instructions?.failedEcosystems.some((id) => id === 'shared' || id === runtime.spec.ecosystemId) ? <p role="status">{t('content.instructions.partial')}</p> : null}
             </ScrollArea>

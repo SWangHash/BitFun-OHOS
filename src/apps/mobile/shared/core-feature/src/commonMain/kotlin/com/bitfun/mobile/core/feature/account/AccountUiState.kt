@@ -23,7 +23,18 @@ public data class AccountDeviceUi public constructor(
     public val name: String,
     public val online: Boolean,
     public val lastSeenAt: Long?,
-)
+    /**
+     * Relay-computed: whether this desktop and this client run matching
+     * builds. `false` is confirmed incompatible and is never a control target;
+     * null is an older Relay that does not gate, "unknown but usable".
+     */
+    public val compatible: Boolean? = null,
+) {
+    public constructor(id: String, name: String, online: Boolean, lastSeenAt: Long?) : this(id, name, online, lastSeenAt, null)
+
+    /** The single gate every control entry point reuses; see [compatible]. */
+    public val controllable: Boolean get() = compatible != false
+}
 
 public sealed interface AccountUiState {
     public data object Idle : AccountUiState

@@ -1,3 +1,4 @@
+import { requireSessionOwningWorkspaceId } from '../../utils/sessionOrdering';
 import { requireSessionWorkspaceId } from '../../utils/sessionWorkspace';
 /**
  * Session management module
@@ -133,7 +134,7 @@ async function hydrateHistoricalSession(
   const surfaceScope = getActiveSurfaceScope();
   const initialSession = context.flowChatStore.getState().sessions.get(sessionId);
   if (!initialSession) return;
-  const workspaceId = requireSessionWorkspaceId(initialSession);
+  const workspaceId = requireSessionOwningWorkspaceId(initialSession);
   const pendingKey = pendingHistoryLoadKey(sessionId, surfaceScope);
   const existing = context.pendingHistoryLoads.get(pendingKey);
   if (existing) {
@@ -540,7 +541,7 @@ export async function switchChatSession(
         }
         touchSessionActivity(
           sessionId,
-          requireSessionWorkspaceId(latestSession)
+          requireSessionOwningWorkspaceId(latestSession)
         ).catch(error => {
           if (isSurfaceChangedError(error)) {
             return;
@@ -566,6 +567,11 @@ export async function switchChatSession(
     if (shouldHydrateBeforeSwitch) {
       try {
         await hydrateHistoricalSession(context, sessionId, true, {
+          // Programmatic opens (including pet bubbles) hydrate before selection.
+          // An active-only hydrate would discard their restored records as stale
+          // and then activate a metadata-only session with no load left running.
+          // Also upgrades any speculative active-only preload we are reusing.
+          deferFullHistoryUntilActive: shouldActivateBeforeHydrate,
           isRetryStillRelevant: () => (
             surfaceScope.isCurrent() && switchRequestId === latestSwitchRequestId && isStillRelevant()
           ),
@@ -739,7 +745,7 @@ export async function reloadSessionTitle(
 
   const metadata = await sessionAPI.loadSessionMetadata(
     sessionId,
-    requireSessionWorkspaceId(session));
+    requireSessionOwningWorkspaceId(session));
   if (!metadata) return;
 
   const titleState = deriveSessionTitleStateFromMetadata(metadata);
@@ -782,7 +788,7 @@ export async function forkChatSession(
   const response = await sessionAPI.forkSession(
     sourceSessionId,
     sourceTurnId,
-    requireSessionWorkspaceId(sourceSession));
+    requireSessionOwningWorkspaceId(sourceSession));
 
   const currentState = context.flowChatStore.getState();
   if (!currentState.sessions.has(response.sessionId)) {

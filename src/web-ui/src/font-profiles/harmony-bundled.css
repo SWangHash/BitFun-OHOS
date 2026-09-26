@@ -85,6 +85,8 @@
   }
 
   :where([data-bitfun-design-system-root]):lang(zh-CN) {
+    /* Keep Latin code monospaced and use the same Chinese face as body text. */
+    --bitfun-font-family-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Cascadia Mono", "Cascadia Code", Consolas, "Liberation Mono", "Courier New", "BitFun HarmonyOS Sans SC", "BitFun HarmonyOS Sans", "Microsoft YaHei UI", monospace;
     --bitfun-font-family-sans: "BitFun HarmonyOS Sans SC", "BitFun HarmonyOS Sans", system-ui, "Microsoft YaHei UI", sans-serif;
     --bitfun-font-family-control: "BitFun HarmonyOS Sans SC", "BitFun HarmonyOS Sans", system-ui, "Microsoft YaHei UI", sans-serif;
   }

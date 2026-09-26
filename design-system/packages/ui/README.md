@@ -189,6 +189,18 @@ overrides that text; `title=""` opts out when a surrounding native title owns th
 content. An explicit enclosing `Tooltip` suppresses automatic nested tooltips.
 Do not use marquee as the sole way to access information on touch surfaces.
 
+Overflow measurement is deferred to a shared animation-frame queue per window.
+Mount, content, resize, and font notifications coalesce; all queued labels read
+geometry before publishing state. Unmounted labels cancel their pending work.
+Overflow indicators and automatic tooltips become available after that frame,
+while the complete accessible text is present immediately. This avoids forcing
+layout separately inside each label's React mount effect.
+Requests made during a batch survive for the next frame; cancellation also
+discards unpublished results. A failing label does not abort other labels,
+and its error is reported asynchronously. This scheduling contract does not
+claim an overall scrolling speedup; first-frame visual behavior requires
+browser validation.
+
 Multi-line descriptions should normally wrap. Editable fields, source code,
 structured paths that need to preserve their suffix, and native controls keep
 their appropriate text treatment instead of receiving a blanket fade rule.
@@ -555,6 +567,14 @@ dynamic metadata, and `actions` contains controls revealed on hover or keyboard
 focus. Use `ToolCardChangeSummary` for added/removed counts; domain icons and
 interaction affordances belong in `actions`, not in the summary.
 
+The summary row insets both ends with one value (`--_tool-card-summary-inset`),
+so trailing metadata keeps the same distance to the card edge as the leading
+icon or label. The reveal gutter of `actions` belongs to the action region
+itself: while hidden it occupies no row space, and while revealed it compensates
+for its own corner gutter instead of shrinking the row inset. A consumer slot
+that renders empty (a fragment whose conditions are all false) stays inert: it
+adds no row gap and no divider for the trailing status icon.
+
 Concrete tool-card views compose those frameworks without importing product
 state. The published families cover file and command execution, search and web
 results, agent and session activity, Git and review summaries, page lifecycle,
@@ -589,6 +609,12 @@ Flex gap only reaches immediate children, so a plain wrapper loses that contract
 Product code owns positioning and viewport limits, and must not patch private
 list/section-items/group-options gaps. A deliberate density variation belongs
 on the owning surface via `--bitfun-overlay-menu-row-gap`.
+
+Menus use `overlay.menu.inlineSize` by default. `Menu` / `MenuPopover` accept
+`inlineSize="content"` for short, product-owned surfaces such as a context menu:
+the surface then hugs its widest row, stays at or above
+`overlay.menu.minInlineSize`, and never exceeds the fixed token. Long menus that
+share a column with the same triggering control keep the fixed width.
 
 ActionItem hover and pressed surfaces use the semantic neutral hover fill;
 pressed text remains semibold. Menu and navigation captions consume the final

@@ -6,7 +6,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { useSubmenuIntent } from '@/shared/utils/useSubmenuIntent';
-import { Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Icon, IconButton, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
 import {
   DEFAULT_WORKSPACE_SESSION_VIEW,
   hasWorkspaceSessionFilters,
@@ -75,14 +75,15 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
     const anchor = buttonRef.current?.getBoundingClientRect();
     if (!anchor) return;
     const measuredHeight = menuRef.current?.offsetHeight ?? 422;
+    const menuWidth = menuRef.current?.offsetWidth || MAIN_MENU_WIDTH;
     const preferredRight = anchor.right + MENU_GAP;
-    const canOpenRight = preferredRight + MAIN_MENU_WIDTH <= window.innerWidth - VIEWPORT_PADDING;
+    const canOpenRight = preferredRight + menuWidth <= window.innerWidth - VIEWPORT_PADDING;
     setMenuPosition({
       top: clamp(anchor.top - 6, VIEWPORT_PADDING, window.innerHeight - measuredHeight - VIEWPORT_PADDING),
       left: clamp(
-        canOpenRight ? preferredRight : anchor.left - MENU_GAP - MAIN_MENU_WIDTH,
+        canOpenRight ? preferredRight : anchor.left - MENU_GAP - menuWidth,
         VIEWPORT_PADDING,
-        window.innerWidth - MAIN_MENU_WIDTH - VIEWPORT_PADDING,
+        window.innerWidth - menuWidth - VIEWPORT_PADDING,
       ),
     });
   }, []);
@@ -102,8 +103,8 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
       close();
     };
     const handleKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && close();
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     window.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition, true);
     return () => {
@@ -212,7 +213,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
         <span className="bitfun-nav-panel__session-filter-menu-value">
           {active ? <span className="bitfun-nav-panel__session-filter-active-dot" aria-hidden="true" /> : null}
           {value ? t(`nav.sessions.viewMenu.${submenu}.${value}`) : null}
-          <Icon name="chevron-right" size="md" aria-hidden="true" />
+          <Icon name="chevron-right" size="sm" aria-hidden="true" />
         </span>
       )}
       onClick={() => {
@@ -236,6 +237,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
       <Menu
         ref={menuRef}
         className="bitfun-nav-panel__session-filter-menu"
+        inlineSize="content"
         style={menuPosition}
         autoFocusFirstItem
         aria-label={t('nav.sessions.viewMenu.title')}
@@ -249,7 +251,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
           actions={[{
             id: 'reset',
             label: t('nav.sessions.viewMenu.filters.reset'),
-            icon: <RotateCcw size={12} aria-hidden="true" />,
+            icon: <Icon glyph={RotateCcw} size="sm" />,
             onClick: () => {
               setActiveSubmenu(null);
               view.resetFilters();
@@ -286,6 +288,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
         <Menu
           ref={submenuRef}
           className="bitfun-nav-panel__session-filter-submenu"
+          inlineSize="content"
           style={{
             top: submenuPosition.top,
             left: submenuPosition.left,
@@ -335,9 +338,8 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
   return (
     <>
       <Tooltip content={t('nav.sessions.viewMenu.tooltip')} placement="right" followCursor disabled={open}>
-        <button
+        <IconButton
           ref={buttonRef}
-          type="button"
           className={`bitfun-nav-panel__section-action${open || isCustomized ? ' is-active' : ''}`}
           data-bitfun-action="session-filter"
           data-bitfun-state={[open && 'open', isCustomized && 'filtered'].filter(Boolean).join(' ') || undefined}
@@ -346,9 +348,10 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
           aria-expanded={open}
           onClick={() => setOpen(current => !current)}
           data-testid="nav-session-filter-btn"
-        >
-          <Icon name="filter" size="lg" style={{ width: 13, height: 13 }} />
-        </button>
+          icon={<Icon name="filter" size="sm" />}
+          size="xs"
+          variant="quiet"
+        />
       </Tooltip>
       {menu}
     </>

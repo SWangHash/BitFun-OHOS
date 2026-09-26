@@ -28,6 +28,7 @@ const AMBIENT_TOOL_CARD_NAMES = new Set([
   'TerminalControl',
   'SessionControl',
   'SessionMessage',
+  'Cron',
   'RunCode',
   'ComputerUse',
   'view_image',
@@ -351,6 +352,17 @@ const TOOL_CARD_DEFINITIONS: Record<string, ToolCardDefinition> = {
     primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
   },
 
+  'Cron': {
+    toolName: 'Cron',
+    displayName: 'Scheduled Job',
+    icon: 'CRON',
+    requiresConfirmation: false,
+    resultDisplayType: 'summary',
+    description: 'Create, update, list, or run scheduled jobs',
+    displayMode: 'compact',
+    primaryColor: APPEARANCE_DOMAIN_TOKENS.toolIdentity.assistantAction
+  },
+
   // Code-mode agents (e.g. DeepSeek Harness's PTC preset) answer a step by
   // writing one program instead of calling one tool per action.
   'RunCode': {
@@ -644,6 +656,7 @@ export const DEDICATED_TOOL_CARD_NAMES = new Set([
   'CreatePlan',
   'SessionControl',
   'SessionMessage',
+  'Cron',
   'RunCode',
   'ExecCommand',
   'WriteStdin',

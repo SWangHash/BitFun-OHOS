@@ -29,10 +29,46 @@ mod native_fixture_tests {
         assert!((-450.0..-300.0).contains(&hit.center_x), "{hit:?}");
         assert!((150.0..190.0).contains(&hit.center_y), "{hit:?}");
         assert!(hit.bounds_width > 0.0 && hit.bounds_height > 0.0);
+        let all = read_text(&shot).expect("query-free Vision OCR");
+        assert!(all
+            .iter()
+            .any(|line| line.text.to_lowercase().contains("save report")));
+        assert!(
+            all.iter()
+                .any(|line| line.text.to_lowercase().contains("cancel")),
+            "read-all must retain text unrelated to the locate query: {all:?}"
+        );
+        assert!(all
+            .iter()
+            .all(|line| line.center_x.is_finite() && line.center_y.is_finite()));
     }
 }
 
 pub(super) use bitfun_core::agentic::tools::computer_use_host::OcrTextMatch;
+
+/// Read the best recognized text for every visible region. No search query,
+/// candidate ranking, or debug pixel persistence is involved.
+pub(super) fn read_text(shot: &ComputerScreenshot) -> BitFunResult<Vec<OcrTextMatch>> {
+    #[cfg(target_os = "macos")]
+    {
+        return macos::read_text(shot);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return windows_backend::read_text(shot);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return linux_backend::read_text(shot);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = shot;
+        Err(BitFunError::tool(
+            "[OCR_READ_UNSUPPORTED] Text reading is not available on this platform.",
+        ))
+    }
+}
 
 pub(super) fn find_text_matches(
     shot: &ComputerScreenshot,
@@ -57,12 +93,37 @@ pub(super) fn find_text_matches(
     ))
 }
 
-/// If unset or non-zero: write the exact JPEG passed to OCR into `computer_use_debug` under the app data dir (see implementation). Set `BITFUN_COMPUTER_USE_OCR_DEBUG=0` to disable.
+/// Persist OCR input pixels only when explicitly enabled for local diagnosis.
 fn ocr_debug_save_enabled() -> bool {
-    !matches!(
-        std::env::var("BITFUN_COMPUTER_USE_OCR_DEBUG"),
-        Ok(v) if v == "0" || v.eq_ignore_ascii_case("false")
+    ocr_debug_opt_in(
+        std::env::var("BITFUN_COMPUTER_USE_OCR_DEBUG")
+            .ok()
+            .as_deref(),
     )
+}
+
+fn ocr_debug_opt_in(value: Option<&str>) -> bool {
+    matches!(value, Some("1")) || value.is_some_and(|v| v.eq_ignore_ascii_case("true"))
+}
+
+#[cfg(test)]
+mod debug_policy_tests {
+    #[test]
+    fn screenshot_persistence_requires_explicit_opt_in() {
+        for value in [
+            None,
+            Some(""),
+            Some("0"),
+            Some("false"),
+            Some("yes"),
+            Some("2"),
+        ] {
+            assert!(!super::ocr_debug_opt_in(value));
+        }
+        for value in [Some("1"), Some("true"), Some("TRUE")] {
+            assert!(super::ocr_debug_opt_in(value));
+        }
+    }
 }
 
 /// Same directory as agent `screenshot` debug (`workspace/.bitfun/computer_use_debug`), when PathManager is available.
@@ -170,6 +231,40 @@ mod macos {
 
     /// Top-N candidates per observation; Chinese matches often appear below rank 1.
     const TOP_CANDIDATES_MAX: usize = 10;
+
+    pub(super) fn read_text(shot: &ComputerScreenshot) -> BitFunResult<Vec<OcrTextMatch>> {
+        let (_, _, width, height) = image_content_rect_or_full(shot);
+        if width == 0 || height == 0 {
+            return Err(BitFunError::tool(
+                "Screenshot content rect is empty; cannot run macOS Vision OCR.",
+            ));
+        }
+        let observations = recognize_text_observations(&shot.bytes)?;
+        let mut output = Vec::with_capacity(observations.len());
+        for observation in &observations {
+            let candidates = observation.topCandidates(1);
+            if candidates.is_empty() {
+                continue;
+            }
+            let candidate = unsafe { candidates.objectAtIndex_unchecked(0) };
+            let text = candidate.string().to_string();
+            if text.trim().is_empty() {
+                continue;
+            }
+            if let Some(hit) = project_observation(shot, observation, text, candidate.confidence())
+            {
+                output.push(hit);
+            }
+        }
+        // Image coordinates have a top-left origin. Preserve each full line;
+        // unlike a locate query, this is an observation rather than a ranking.
+        output.sort_by(|a, b| {
+            a.bounds_top
+                .total_cmp(&b.bounds_top)
+                .then_with(|| a.bounds_left.total_cmp(&b.bounds_left))
+        });
+        Ok(output)
+    }
 
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
@@ -315,7 +410,15 @@ mod macos {
         }
 
         let text = chosen_text?;
+        project_observation(shot, obs, text, chosen_confidence)
+    }
 
+    fn project_observation(
+        shot: &ComputerScreenshot,
+        obs: &VNRecognizedTextObservation,
+        text: String,
+        confidence: f32,
+    ) -> Option<OcrTextMatch> {
         // Vision bounding box is normalized to the **full** image (JPEG), not the content rect.
         let bounding = unsafe { obs.boundingBox() };
         let image_rect = unsafe {
@@ -332,15 +435,7 @@ mod macos {
         let width = image_rect.size.width;
         let height = image_rect.size.height;
 
-        image_box_to_global_match(
-            shot,
-            text,
-            chosen_confidence,
-            local_left,
-            local_top,
-            width,
-            height,
-        )
+        image_box_to_global_match(shot, text, confidence, local_left, local_top, width, height)
     }
 }
 
@@ -360,17 +455,28 @@ mod windows_backend {
     use windows::Media::Ocr::{OcrEngine, OcrWord};
     use windows::Storage::Streams::{DataWriter, InMemoryRandomAccessStream};
     use windows::Win32::System::Com::{
-        CoIncrementMTAUsage, CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED,
-        COINIT_DISABLE_OLE1DDE,
+        CoDecrementMTAUsage, CoIncrementMTAUsage, CoInitializeEx, CoUninitialize,
+        COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
     };
 
     fn w<T>(r: windows::core::Result<T>) -> BitFunResult<T> {
         r.map_err(|e| BitFunError::tool(format!("Windows OCR: {}", e)))
     }
 
+    pub(super) fn read_text(shot: &ComputerScreenshot) -> BitFunResult<Vec<OcrTextMatch>> {
+        recognize(shot, None)
+    }
+
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
         text_query: &str,
+    ) -> BitFunResult<Vec<OcrTextMatch>> {
+        recognize(shot, Some(text_query))
+    }
+
+    fn recognize(
+        shot: &ComputerScreenshot,
+        query: Option<&str>,
     ) -> BitFunResult<Vec<OcrTextMatch>> {
         let (content_left, content_top, content_width, content_height) =
             image_content_rect_or_full(shot);
@@ -384,7 +490,8 @@ mod windows_backend {
         // This must run on a thread initialized with COINIT_APARTMENTTHREADED
         // Windows.Media.Ocr requires STA thread
         let mut co_init = None;
-        if unsafe { CoIncrementMTAUsage() }.is_err() {
+        let mta_cookie = unsafe { CoIncrementMTAUsage() }.ok();
+        if mta_cookie.is_none() {
             let hr =
                 unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
             if hr.is_err() {
@@ -434,20 +541,63 @@ mod windows_backend {
             let mut raw_matches = Vec::new();
             for line in &lines {
                 let words = w(line.Words())?;
-                for word in &words {
-                    if let Some(m) = ocr_word_to_match(
-                        shot,
-                        text_query,
-                        &word,
-                        content_left,
-                        content_top,
-                        content_width,
-                        content_height,
-                    ) {
-                        raw_matches.push(m);
+                if let Some(text_query) = query {
+                    for word in &words {
+                        if let Some(hit) = ocr_word_to_match(
+                            shot,
+                            text_query,
+                            &word,
+                            content_left,
+                            content_top,
+                            content_width,
+                            content_height,
+                        ) {
+                            raw_matches.push(hit);
+                        }
+                    }
+                } else {
+                    let text = w(line.Text())?.to_string();
+                    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+                    for word in &words {
+                        let rect = w(word.BoundingRect())?;
+                        let (left, top, right, bottom) = (
+                            f64::from(rect.X),
+                            f64::from(rect.Y),
+                            f64::from(rect.X + rect.Width),
+                            f64::from(rect.Y + rect.Height),
+                        );
+                        bounds = Some(match bounds {
+                            None => (left, top, right, bottom),
+                            Some((l, t, r, b)) => {
+                                (l.min(left), t.min(top), r.max(right), b.max(bottom))
+                            }
+                        });
+                    }
+                    if let Some((left, top, right, bottom)) = bounds {
+                        if !text.trim().is_empty() {
+                            if let Some(hit) = image_box_to_global_match(
+                                shot,
+                                text,
+                                0.8,
+                                left,
+                                top,
+                                right - left,
+                                bottom - top,
+                            ) {
+                                raw_matches.push(hit);
+                            }
+                        }
                     }
                 }
             }
+            let Some(text_query) = query else {
+                raw_matches.sort_by(|a, b| {
+                    a.bounds_top
+                        .total_cmp(&b.bounds_top)
+                        .then_with(|| a.bounds_left.total_cmp(&b.bounds_left))
+                });
+                return Ok(raw_matches);
+            };
 
             let ranked = filter_and_rank(text_query, raw_matches);
             if ranked.is_empty() {
@@ -459,6 +609,9 @@ mod windows_backend {
             Ok(ranked)
         })();
 
+        if let Some(cookie) = mta_cookie {
+            let _ = unsafe { CoDecrementMTAUsage(cookie) };
+        }
         // Uninitialize COM if we initialized it
         if co_init.is_some() {
             unsafe { CoUninitialize() };
@@ -503,16 +656,27 @@ mod windows_backend {
 mod linux_backend {
     use super::{
         filter_and_rank, fuzzy_text_matches_query, image_box_to_global_match,
-        image_content_rect_or_full, normalize_for_match, OcrTextMatch,
+        image_content_rect_or_full, normalize_for_match, tesseract_lines_from_tsv, OcrTextMatch,
     };
     use leptess::capi::TessPageIteratorLevel_RIL_WORD;
     use leptess::{leptonica, tesseract::TessApi};
     use bitfun_core::agentic::tools::computer_use_host::ComputerScreenshot;
     use bitfun_core::util::errors::{BitFunError, BitFunResult};
 
+    pub(super) fn read_text(shot: &ComputerScreenshot) -> BitFunResult<Vec<OcrTextMatch>> {
+        recognize(shot, None)
+    }
+
     pub(super) fn find_text_matches(
         shot: &ComputerScreenshot,
         text_query: &str,
+    ) -> BitFunResult<Vec<OcrTextMatch>> {
+        recognize(shot, Some(text_query))
+    }
+
+    fn recognize(
+        shot: &ComputerScreenshot,
+        query: Option<&str>,
     ) -> BitFunResult<Vec<OcrTextMatch>> {
         let (content_left, content_top, content_width, content_height) =
             image_content_rect_or_full(shot);
@@ -561,6 +725,13 @@ mod linux_backend {
             ));
         }
 
+        let Some(text_query) = query else {
+            let tsv = api.get_tsv_text(0).map_err(|error| {
+                BitFunError::tool(format!("Linux OCR: Invalid text encoding: {error}"))
+            })?;
+            return Ok(tesseract_lines_from_tsv(shot, &tsv));
+        };
+
         let boxa = api
             .get_component_images(TessPageIteratorLevel_RIL_WORD, true)
             .ok_or_else(|| {
@@ -587,7 +758,7 @@ mod linux_backend {
                 Err(_) => continue,
             };
             let confidence = api.mean_text_conf() as f32 / 100.0;
-            if let Some(m) = tesseract_word_to_match(
+            if let Some(hit) = tesseract_word_to_match(
                 shot,
                 text_query,
                 &text,
@@ -601,7 +772,7 @@ mod linux_backend {
                 content_width,
                 content_height,
             ) {
-                raw_matches.push(m);
+                raw_matches.push(hit);
             }
         }
 

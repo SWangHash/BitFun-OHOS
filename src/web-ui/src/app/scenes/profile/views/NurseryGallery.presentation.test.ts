@@ -43,9 +43,18 @@ describe('Nursery gallery presentation', () => {
     const source = readSibling('./NurseryGallery.tsx');
     const end = source.indexOf('className="nursery-defaults__action"');
     const action = source.slice(source.lastIndexOf('<Button', end), source.indexOf('</Button>', end));
-    expect(action).toContain('variant="secondary"');
+    expect(action).toContain('variant="outline"');
     expect(action).toContain('size="sm"');
     expect(action).toContain('onClick={openDefaults}');
+  });
+
+  it('keeps assistant identity metadata close to its title', () => {
+    const stylesheet = readSibling('./NurseryView.scss');
+    const headerStart = stylesheet.indexOf('.acp-left-header {');
+    const headerEnd = stylesheet.indexOf('.acp-avatar-picker {', headerStart);
+    const headerSection = stylesheet.slice(headerStart, headerEnd);
+
+    expect(headerSection).toMatch(/&__info\s*\{[^}]*gap:\s*0;/s);
   });
 
   it('uses one borderless design-system surface with distinct actions', () => {
@@ -56,7 +65,8 @@ describe('Nursery gallery presentation', () => {
     const cardSection = stylesheet.slice(cardStart, cardEnd);
 
     expect(cardSection).toContain('&__main {');
-    expect(cardSection).toContain('min-height: 148px;');
+    expect(cardSection).toContain('align-self: start;');
+    expect(cardSection).not.toContain('min-height: 148px;');
     expect(cardSection).toContain('background: var(--bitfun-color-action-neutral-surface-hover);');
     expect(cardSection).toContain('&__session-actions {');
     expect(cardSection).not.toContain('border-color: var(--bitfun-color-border-subtle);');

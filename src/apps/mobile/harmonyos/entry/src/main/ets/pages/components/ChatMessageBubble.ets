@@ -337,10 +337,11 @@ export struct ChatMessageBubble {
   }
 
   @Builder
-  SubagentGroup(entry: ConversationUiMessageItem, _path: string, activeScope: boolean = false) {
+  SubagentGroup(entry: ConversationUiMessageItem, path: string, activeScope: boolean = false) {
     SubagentTaskCard({
       interactionMailbox: this.interactionMailbox,
       title: this.subagentTitle(entry),
+      path: path,
       status: entry.tool?.status || (activeScope ? 'running' : 'completed'),
       items: entry.subItems || [],
       renderRevision: this.renderRevision,

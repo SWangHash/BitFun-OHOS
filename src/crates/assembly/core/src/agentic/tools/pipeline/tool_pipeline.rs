@@ -6231,6 +6231,70 @@ mod tests {
         assert!(!assistant_text.contains("completed with error"));
     }
 
+    #[cfg(feature = "tools-computer-use")]
+    #[test]
+    fn computer_use_observations_reach_provider_messages_with_images_and_references() {
+        use crate::agentic::core::message::Message;
+        use crate::agentic::tools::implementations::computer_use_presentation::complete_model_results;
+        use crate::util::types::Message as AIMessage;
+        use bitfun_agent_tools::ToolImageAttachment;
+
+        // These deliberately have the brief summaries that previously hid the
+        // entire app list and AX tree from the model. Check the final provider
+        // message, not merely ToolResult::content() (the UI-only data path).
+        let cases = [
+            (
+                json!({"action":"list_apps", "apps":[{"pid":421,"name":"WeChat","bundle_id":"com.tencent.xinWeChat"}]}),
+                "1 app(s) listed",
+                vec!["WeChat", "com.tencent.xinWeChat", "421"],
+            ),
+            (
+                json!({"action":"get_app_state", "tree_text":"[7] AXTextField Search", "nodes":[{"idx":7,"role":"AXTextField","title":"Search"}], "screenshot_id":"capture-2", "image_width":800, "image_height":600}),
+                "34 nodes",
+                vec!["[7] AXTextField Search", "capture-2", "image_width"],
+            ),
+            (
+                json!({"action":"describe_screen", "ax_tree_text":"[9] AXButton Confirm", "truncation_note":"tree limited to visible nodes"}),
+                "Screen described",
+                vec!["[9] AXButton Confirm", "tree limited to visible nodes"],
+            ),
+            (
+                json!({"action":"move_to_text", "disambiguation_required":true, "candidates":[{"match_index":2,"ocr_text":"Search","preview_image_attachment_index":0}], "instruction":"Choose a match_index; pointer was not moved."}),
+                "Several OCR matches",
+                vec![
+                    "match_index",
+                    "preview_image_attachment_index",
+                    "pointer was not moved",
+                ],
+            ),
+        ];
+        for (data, summary, expected) in cases {
+            let mut results = vec![FrameworkToolResult::ok_with_images(
+                data.clone(),
+                Some(summary.into()),
+                vec![ToolImageAttachment {
+                    mime_type: "image/jpeg".into(),
+                    data_base64: "image-bytes-stay-out-of-text".into(),
+                }],
+            )];
+            complete_model_results(&mut results);
+            let converted =
+                convert_tool_result(results.remove(0), "call-1", "ComputerUse", "ComputerUse");
+            assert_eq!(converted.result, data, "stored/UI result must be unchanged");
+            let message = AIMessage::from(Message::tool_result(converted));
+            let content = message.content.unwrap();
+            assert!(content.contains(summary));
+            for field in expected {
+                assert!(content.contains(field), "missing {field} in {content}");
+            }
+            assert!(!content.contains("image-bytes-stay-out-of-text"));
+            assert_eq!(message.tool_call_id.as_deref(), Some("call-1"));
+            let images = message.tool_image_attachments.unwrap();
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].data_base64, "image-bytes-stay-out-of-text");
+        }
+    }
+
     #[test]
     fn typed_ok_false_result_is_a_semantic_tool_error() {
         let result = convert_tool_result(

@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,6 +38,11 @@ internal fun SignedOutConnectionActions(
     buttonHeight: Dp = 48.dp,
     spacing: Dp = 10.dp,
     fontSize: Int = 16,
+    // The quiet half of the pair. On a page it is a card; in the sidebar it is
+    // chrome, so the layer is the caller's to name rather than assumed here.
+    quietBackground: Color = MaterialTheme.colorScheme.surface,
+    quietBorder: Color = MaterialTheme.colorScheme.outlineVariant,
+    quietContent: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val shape = RoundedCornerShape(buttonHeight / 2)
     Column(
@@ -49,8 +55,8 @@ internal fun SignedOutConnectionActions(
                     .fillMaxWidth()
                     .height(buttonHeight)
                     .clip(shape)
-                    .background(if (primaryScan) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                    .border(1.dp, if (primaryScan) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
+                    .background(if (primaryScan) MaterialTheme.colorScheme.primary else quietBackground)
+                    .border(1.dp, if (primaryScan) MaterialTheme.colorScheme.primary else quietBorder, shape)
                     .clickable(enabled = enabled, role = Role.Button, onClick = onScan)
                     .semantics(mergeDescendants = true) {
                         contentDescription = scanLabel
@@ -61,7 +67,7 @@ internal fun SignedOutConnectionActions(
                     scanLabel,
                     fontSize = fontSize.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (primaryScan) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    color = if (primaryScan) MaterialTheme.colorScheme.onPrimary else quietContent,
                 )
             }
         }
@@ -70,8 +76,8 @@ internal fun SignedOutConnectionActions(
                 .fillMaxWidth()
                 .height(buttonHeight)
                 .clip(shape)
-                .background(if (primaryScan) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary)
-                .border(1.dp, if (primaryScan) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary, shape)
+                .background(if (primaryScan) quietBackground else MaterialTheme.colorScheme.primary)
+                .border(1.dp, if (primaryScan) quietBorder else MaterialTheme.colorScheme.primary, shape)
                 .clickable(enabled = enabled, role = Role.Button, onClick = onOpenAccount)
                 .semantics(mergeDescendants = true) {
                     contentDescription = accountLabel
@@ -82,7 +88,7 @@ internal fun SignedOutConnectionActions(
                 accountLabel,
                 fontSize = fontSize.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (primaryScan) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+                color = if (primaryScan) quietContent else MaterialTheme.colorScheme.onPrimary,
             )
         }
     }

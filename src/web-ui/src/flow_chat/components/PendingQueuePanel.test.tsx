@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   steerDialogTurn: vi.fn(),
 }));
 
+vi.mock('../services/hostDialogQueue', () => ({ hostQueueSupported: () => false }));
+vi.mock('./HostPendingQueuePanel', () => ({ HostPendingQueuePanel: () => null }));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

@@ -20,12 +20,13 @@ vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({
 
 vi.mock('./AgentCompanionPetService', () => ({
   DEFAULT_AGENT_COMPANION_PET: {
-    id: 'blue-golden',
-    displayName: '困困',
+    id: 'bitblob',
+    displayName: 'BitBlob',
     source: 'preset',
-    packagePath: '/agent-companion-pets/blue-golden',
-    spritesheetPath: '/agent-companion-pets/blue-golden/spritesheet.png',
-    spritesheetMimeType: 'image/png',
+    packagePath: '/agent-companion-pets/bitblob',
+    spritesheetPath: '/agent-companion-pets/bitblob/spritesheet.webp',
+    spritesheetMimeType: 'image/webp',
+    spriteVersionNumber: 2,
   },
 }));
 
@@ -64,7 +65,7 @@ describe('AIExperienceConfigService startup behavior', () => {
     expect(configManagerMock.getConfig).toHaveBeenCalledWith('app.ai_experience');
   });
 
-  it('uses the blue-golden cat when no companion pet has been configured', async () => {
+  it('uses BitBlob when no companion pet has been configured', async () => {
     configManagerMock.getConfig.mockResolvedValueOnce({
       enable_agent_companion: true,
     });
@@ -73,10 +74,10 @@ describe('AIExperienceConfigService startup behavior', () => {
     const settings = await aiExperienceConfigService.getSettingsAsync();
 
     expect(settings.agent_companion_pet).toMatchObject({
-      id: 'blue-golden',
-      displayName: '困困',
-      packagePath: '/agent-companion-pets/blue-golden',
-      spritesheetPath: '/agent-companion-pets/blue-golden/spritesheet.png',
+      id: 'bitblob',
+      displayName: 'BitBlob',
+      packagePath: '/agent-companion-pets/bitblob',
+      spritesheetPath: '/agent-companion-pets/bitblob/spritesheet.webp',
     });
   });
 

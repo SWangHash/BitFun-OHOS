@@ -23,6 +23,7 @@ import {
   STATUS_DANGER,
 } from './Theme';
 import { ChatMessageBubble, ChatUserMessageRow } from './ChatMessageBubble';
+import { HistoryPageArrivalTracker } from '../policy/HistoryPageArrivalTracker';
 import { RemoteLogger } from '../../services/RemoteLogger';
 
 /**
@@ -115,9 +116,18 @@ struct ChatAssistantTimelineRow {
 export struct ChatTimeline {
   @Param interactionMailbox: InteractionMailboxState = new InteractionMailboxState();
   private readonly listScroller: Scroller = new Scroller();
+  private readonly historyArrival: HistoryPageArrivalTracker = new HistoryPageArrivalTracker();
   private followTimerId: number = 0;
   private followedActiveTurnKey: string = '';
   private userScrollActive: boolean = false;
+  private historyTouchActive: boolean = false;
+  private firstVisibleIndex: number = 0;
+  private historyRestoreKey: string = '';
+  private historyRestoreTop: number = 0;
+  private lastVisibleIndex: number = 0;
+  private historyRestoreTimer: number = 0;
+  private historyRestoreAttempts: number = 0;
+  private historyStableFrames: number = 0;
   // Whether new content should pull the viewport down with it. True until the
   // user scrolls up to read back through the transcript: at that point taking
   // the viewport away from them would be worse than letting the reply grow off
@@ -169,13 +179,15 @@ export struct ChatTimeline {
   aboutToDisappear(): void {
     RemoteLogger.info(`chat timeline disposed items=${this.timelineItems.length}`);
     this.clearFollowTimer();
+    this.cancelHistoryAnchor();
   }
 
   // A new turn means the user has just sent a message and expects to follow its
   // answer even if opening the keyboard changed the List viewport. Subsequent
   // revisions keep following only until the user deliberately scrolls away.
-  @Monitor('timelineRevision')
+  @Monitor('timelineRevision', 'historyLoading')
   onTimelineChanged(): void {
+    this.restoreHistoryAnchorIfNeeded();
     this.logTimelineProjection('revision');
     const activeTurnKey = this.activeTurnKey();
     if (activeTurnKey.length > 0 && activeTurnKey !== this.followedActiveTurnKey) {
@@ -201,7 +213,12 @@ export struct ChatTimeline {
               .width('100%')
               .padding({ top: 10, bottom: 10 })
               .onClick(() => {
-                if (!this.historyLoading) this.onLoadOlder();
+                if (!this.historyLoading) {
+                  this.historyArrival.cancelArrival();
+                  this.stickToBottom = false;
+                  this.captureHistoryAnchor();
+                  this.onLoadOlder();
+                }
               })
           }
         }
@@ -332,18 +349,33 @@ export struct ChatTimeline {
       // contentPadding and SwiftUI's safeAreaInset.
       .contentStartOffset(this.topInset)
       .contentEndOffset(this.bottomInset)
-      // A streaming reply grows in place rather than arriving as a new item, so
-      // the bottom of the list has to be the anchor — otherwise the text the
-      // agent is writing right now renders below the fold and never comes back.
-      .stackFromEnd(true)
+      // Keep short transcripts at the content start. Active turns and explicit
+      // follow-to-bottom calls still place streaming content at the tail.
+      .stackFromEnd(false)
+      .id('chat-timeline-list')
       // Keeps the read position when older messages are prepended above.
-      .maintainVisibleContentPosition(true)
+      .maintainVisibleContentPosition(false)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .scrollBar(BarState.Off)
       .cachedCount(4)
+      .onTouch((event: TouchEvent) => {
+        if (event.type === TouchType.Down) {
+          if (!this.historyLoading) this.cancelHistoryAnchor();
+          this.historyTouchActive = true;
+          this.historyArrival.beginGesture();
+          RemoteLogger.info(`history gesture begin loading=${this.historyLoading} offset=${this.listScroller.currentOffset().yOffset}`);
+        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+          this.historyTouchActive = false;
+        }
+      })
       .onWillScroll((_scrollOffset: number, _scrollState: ScrollState, scrollSource: ScrollSource) => {
         if (this.isUserScrollSource(scrollSource)) {
           this.userScrollActive = true;
         }
+      })
+      .onScrollIndex((start: number, end: number, _center: number) => {
+        this.firstVisibleIndex = start;
+        this.lastVisibleIndex = end;
       })
       .onDidScroll((_scrollOffset: number, scrollState: ScrollState) => {
         if (this.listScroller.isAtEnd()) {
@@ -351,6 +383,7 @@ export struct ChatTimeline {
         } else if (this.userScrollActive) {
           this.stickToBottom = false;
         }
+        this.evaluateHistoryStart();
         if (scrollState === ScrollState.Idle) {
           this.userScrollActive = false;
         }
@@ -362,6 +395,7 @@ export struct ChatTimeline {
             .fontSize(18)
             .fontColor([INK])
         }
+        .id('chat-timeline-jump')
         .width(42)
         .height(42)
         .backgroundColor(CARD)
@@ -434,8 +468,122 @@ export struct ChatTimeline {
     return ChatTimelineRevisionTracker.itemKey(activeItems[activeItems.length - 1]);
   }
 
+  /**
+   * Asks for the next history page when the reader arrives at the start.
+   *
+   * What counts is the reader's position, not the content's: the list keeps the
+   * visible content in place while a page is prepended above it, so the arrival
+   * it answered is spent by it and reaching the start again is a deliberate
+   * scroll back. A timeline still following the tail is excluded — a first page
+   * that does not fill the viewport sits at the start without the reader having
+   * gone there — except while the reader is dragging, where the arrival is
+   * theirs even if the drag never leaves the end.
+   */
+  private evaluateHistoryStart(): void {
+    const atStart: boolean = this.listScroller.currentOffset().yOffset <= 0;
+    const readerOwnsPosition: boolean = this.historyTouchActive && this.userScrollActive;
+    if (atStart && this.historyTouchActive) {
+      RemoteLogger.info(`history start check owns=${readerOwnsPosition} loading=${this.historyLoading} hasMore=${this.hasMoreMessages} failed=${this.historyFailed}`);
+    }
+    if (!this.historyArrival.arrived(atStart && readerOwnsPosition)) {
+      return;
+    }
+    if (this.hasMoreMessages && !this.historyLoading && !this.historyFailed) {
+      this.stickToBottom = false;
+      this.captureHistoryAnchor();
+      this.onLoadOlder();
+      return;
+    }
+    // A drag made while busy is consumed, not queued for after completion.
+  }
+
+  private cancelHistoryAnchor(): void {
+    if (this.historyRestoreTimer !== 0) clearTimeout(this.historyRestoreTimer);
+    this.historyRestoreTimer = 0;
+    this.historyRestoreKey = '';
+    this.historyRestoreAttempts = 0;
+    this.historyStableFrames = 0;
+  }
+
+  private captureHistoryAnchor(): void {
+    const history = this.historyTimelineItems();
+    const header = this.hasMoreMessages ? 1 : 0;
+    // A page can extend the first assistant row upwards without adding rows.
+    // Preserve the lower visible row's trailing edge, not that row's changing head.
+    const index = Math.min(history.length - 1, Math.max(0, this.lastVisibleIndex - header));
+    const item = history[index];
+    if (!item) return;
+    try {
+      const rect = this.listScroller.getItemRect(index + header);
+      if (rect.height <= 0) return;
+      this.historyRestoreKey = ChatTimelineRevisionTracker.itemKey(item);
+      this.historyRestoreTop = rect.y + rect.height;
+      this.historyRestoreAttempts = 0;
+      this.historyStableFrames = 0;
+      this.clearFollowTimer();
+      this.stickToBottom = false;
+      RemoteLogger.info(
+        `history viewport capture key=${this.historyRestoreKey} index=${index} bottom=${this.historyRestoreTop} rows=${history.length}`
+      );
+    } catch (_) {
+      RemoteLogger.warn('History viewport capture unavailable');
+    }
+  }
+
+  private restoreHistoryAnchorIfNeeded(): void {
+    if (!this.historyRestoreKey || this.historyLoading || this.historyRestoreTimer !== 0) return;
+    this.historyRestoreTimer = setTimeout(() => {
+      this.historyRestoreTimer = 0;
+      const key = this.historyRestoreKey;
+      const history = this.historyTimelineItems();
+      const index = history.findIndex((item: ObservableChatTimelineItem) =>
+        ChatTimelineRevisionTracker.itemKey(item) === key);
+      if (index < 0 || this.historyFailed) {
+        this.cancelHistoryAnchor();
+        return;
+      }
+      this.historyRestoreAttempts++;
+      try {
+        const listIndex = index + (this.hasMoreMessages ? 1 : 0);
+        const rect = this.listScroller.getItemRect(listIndex);
+        if (rect.height <= 0) {
+          // Mount the identity's new virtual position before measuring it.
+          this.listScroller.scrollToIndex(listIndex, false, ScrollAlign.END);
+          this.historyStableFrames = 0;
+        } else {
+          const actual = rect.y + rect.height;
+          const delta = actual - this.historyRestoreTop;
+          RemoteLogger.info(
+            `history viewport measure key=${key} rows=${history.length} actual=${actual} expected=${this.historyRestoreTop} delta=${delta} attempt=${this.historyRestoreAttempts}`
+          );
+          if (Math.abs(delta) > 0.5) {
+            this.historyStableFrames = 0;
+            this.listScroller.scrollBy(0, delta);
+          } else {
+            this.historyStableFrames++;
+          }
+        }
+      } catch (_) {
+        this.listScroller.scrollToIndex(index + (this.hasMoreMessages ? 1 : 0), false, ScrollAlign.END);
+      }
+      if (this.historyStableFrames >= 3 || this.historyRestoreAttempts >= 30) {
+        RemoteLogger.info(`history viewport settle stable=${this.historyStableFrames} attempts=${this.historyRestoreAttempts}`);
+        this.cancelHistoryAnchor();
+      } else {
+        this.restoreHistoryAnchorIfNeeded();
+      }
+    }, 16);
+  }
+
   private requestFollowToBottom(reason: string): void {
-    if (!this.stickToBottom || this.followTimerId !== 0) {
+    // Explicit navigation supersedes a pending history-position restoration.
+    // Jump now even if the host response is still pending; ordinary revisions
+    // resume tail following when historyLoading clears, including on failure.
+    if (reason === 'jump-button') {
+      this.cancelHistoryAnchor();
+    }
+    if (this.historyRestoreKey || (this.historyLoading && reason !== 'jump-button') ||
+      !this.stickToBottom || this.followTimerId !== 0) {
       return;
     }
     this.followTimerId = setTimeout(() => {
@@ -464,6 +612,11 @@ export struct ChatTimeline {
   private isUserScrollSource(source: ScrollSource): boolean {
     return source === ScrollSource.DRAG || source === ScrollSource.FLING ||
       source === ScrollSource.EDGE_EFFECT || source === ScrollSource.OTHER_USER_INPUT;
+  }
+
+  private areaPosition(position: Object): number {
+    const value = (position as Record<string, Object>)?.y;
+    return this.areaLength(value === undefined ? 0 : value);
   }
 
   private areaLength(value: Object): number {

@@ -7,6 +7,7 @@ import {
   Archive,
   ArrowDownToLine,
   ArrowUp,
+  CalendarClock,
   CheckCircle2,
   Circle,
   Code2,
@@ -59,6 +60,7 @@ import {
   ChatComposerQueueTitle,
   CommandToolCard,
   ContextCompressionToolCard,
+  CronToolCard,
   DefaultToolCard,
   DirectoryListToolCard,
   FileDiffToolCard,
@@ -678,7 +680,7 @@ function SessionPreview({
 
 const PREVIEW_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'%3E%3Crect width='320' height='320' rx='32' fill='%23232a35'/%3E%3Cpath d='M60 235l64-76 42 45 31-36 63 67z' fill='%237e8ca3'/%3E%3Ccircle cx='224' cy='91' r='25' fill='%23c6cfdb'/%3E%3C/svg%3E";
 
-type StandardAmbientPreviewKind = "default" | "run-code" | "todo" | "view-image" | "web-fetch";
+type StandardAmbientPreviewKind = "cron" | "default" | "run-code" | "todo" | "view-image" | "web-fetch";
 
 function StandardAmbientPreview({
   interactive,
@@ -751,6 +753,25 @@ function StandardAmbientPreview({
         previewLabel="Open image preview"
         source={state === "loading" ? undefined : PREVIEW_IMAGE}
         statusText={state === "loading" ? t("components.preview.flowChat.running") : "Viewed image"}
+      />
+    );
+  } else if (kind === "cron") {
+    card = (
+      <CronToolCard
+        {...common}
+        action="Scheduled job:"
+        error={state === "error" ? t("components.preview.flowChat.failed") : undefined}
+        fields={[
+          { label: "Schedule:", value: "Every 30 minutes" },
+          { label: "Next run:", value: "Today 14:30" },
+          { label: "Enabled:", value: "Yes" },
+          { label: "Job id:", value: "job_7f3a91" },
+        ]}
+        message={isExpanded ? "Summarize the open pull requests and report blockers." : undefined}
+        messageLabel="Payload"
+        summary={state === "error"
+          ? t("components.preview.flowChat.failed")
+          : "Created Nightly repository review"}
       />
     );
   } else {
@@ -1049,6 +1070,14 @@ export const flowChatPreviewDefinitions = {
     render: (options) => <ContextCompressionPreview {...options} />,
     section: "tool-card",
     specimens: [{ tool: "ContextCompression" }],
+  },
+  CronToolCard: {
+    attention: "ambient",
+    codeSample: concreteCodeSample("CronToolCard"),
+    icon: CalendarClock,
+    render: (options) => <StandardAmbientPreview {...options} kind="cron" />,
+    section: "tool-card",
+    specimens: [{ tool: "Cron" }],
   },
   DefaultToolCard: {
     attention: "ambient",

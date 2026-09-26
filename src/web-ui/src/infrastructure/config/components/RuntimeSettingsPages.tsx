@@ -1053,6 +1053,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 const isSelected = pet.packagePath === selectedCompanionPetValue;
                 const isDisabled = isDeleting;
                 const previewStyle = {
+                  imageRendering: pet.source === 'preset' && pet.id === 'bitblob' ? 'auto' : undefined,
                   '--bitfun-pet-preview-src': `url("${pet.previewSrc}")`,
                   backgroundSize: `800% ${getPetSpriteLayout(pet.spriteVersionNumber).rows * 100}%`,
                 } as React.CSSProperties;

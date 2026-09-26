@@ -33,7 +33,7 @@
       },
       "mono": {
         "$type": "fontFamily",
-        "$value": "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Cascadia Code', Consolas, 'Liberation Mono', 'Courier New', monospace"
+        "$value": "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Cascadia Code', Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace"
       }
     },
     "size": {
@@ -543,12 +543,21 @@
       "expandedPaddingInline": { "$value": "0.625rem" }
     },
     "icon": {
-      "$type": "dimension",
-      "size2xs": { "$value": "8px" },
-      "sizeXs": { "$value": "12px" },
-      "sizeSm": { "$value": "14px" },
-      "sizeMd": { "$value": "16px" },
-      "sizeLg": { "$value": "24px" }
+      "size2xs": { "$type": "dimension", "$value": "8px" },
+      "sizeXs": { "$type": "dimension", "$value": "12px" },
+      "sizeSm": { "$type": "dimension", "$value": "14px" },
+      "sizeMd": { "$type": "dimension", "$value": "16px" },
+      "sizeLg": { "$type": "dimension", "$value": "24px" },
+      "strokeWidth": {
+        "$description": "Default optical line weight for Lucide-based interface icons.",
+        "$type": "number",
+        "$value": 1.6
+      },
+      "strokeWidthStrong": {
+        "$description": "Stronger optical line weight for compact navigation and other emphasized icon groups.",
+        "$type": "number",
+        "$value": 2
+      }
     },
     "height": {
       "$type": "dimension",
@@ -591,7 +600,7 @@
       "itemPaddingBlockSm": { "$value": "7px" },
       "itemPaddingInlineSm": { "$value": "{space.3}" },
       "itemActionSize": { "$value": "{space.5}" },
-      "itemActionInset": { "$value": "{space.2}" },
+      "itemActionInset": { "$value": "{space.1}" },
       "itemRadius": { "$value": "{radius.pill}" }
     },
     "segmentedControl": {
@@ -850,6 +859,10 @@
     "menu": {
       "$type": "dimension",
       "inlineSize": { "$value": "220px" },
+      "minInlineSize": {
+        "$description": "Lower bound for content-sized menus; overlay.menu.inlineSize stays their upper bound.",
+        "$value": "160px"
+      },
       "maxBlockSize": { "$value": "480px" },
       "surfacePadding": { "$value": "{space.2}" },
       "surfaceRadius": { "$value": "{radius.xl}" },

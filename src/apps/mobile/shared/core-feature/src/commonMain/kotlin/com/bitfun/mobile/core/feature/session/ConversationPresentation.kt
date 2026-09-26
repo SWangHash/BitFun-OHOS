@@ -4,6 +4,7 @@ import com.bitfun.mobile.core.domain.ChatMessage
 import com.bitfun.mobile.core.domain.ChatTimelineItemType
 import com.bitfun.mobile.core.domain.ChatTimelineProjector
 import com.bitfun.mobile.core.domain.ChatTimelineState
+import com.bitfun.mobile.core.domain.ChatTranscriptOrigin
 import com.bitfun.mobile.core.domain.ToolInputPolicy
 import com.bitfun.mobile.core.domain.ToolQuestionPolicy
 import com.bitfun.mobile.core.domain.ToolStatusPolicy
@@ -159,8 +160,6 @@ public data class ConversationRow public constructor(
     public val streaming: Boolean,
     /** Streaming, with nothing to show yet; apps draw the waiting indicator. */
     public val typing: Boolean,
-    /** Sent from this device but not yet echoed back by the desktop. */
-    public val pending: Boolean,
     /** The send failed and this is the row a retry would repeat. */
     public val showRetry: Boolean,
     /** A user-visible assistant failure returned by the desktop. */
@@ -210,11 +209,22 @@ public fun ChatTimelineState.conversationRows(): List<ConversationRow> =
             live = item.type == ChatTimelineItemType.ASSISTANT_LIVE_TURN,
             streaming = item.isStreaming,
             typing = message?.let { isTyping(it, item.isStreaming) } == true,
-            pending = item.type == ChatTimelineItemType.OPTIMISTIC_USER_MESSAGE,
             showRetry = item.showRetryAction,
             error = message?.error?.trim()?.takeIf(String::isNotEmpty),
         )
     }
+
+/**
+ * Whether this timeline is still the copy this device stored, rather than the
+ * host's answer for the session.
+ *
+ * The stored copy is worth showing at once, but it stops wherever the last write
+ * stopped — inside whatever turn was running when the app went away — so a wait
+ * for "the transcript" ends on the host's answer rather than on rows, and rows
+ * already on screen are labelled unconfirmed until it arrives.
+ */
+public fun ChatTimelineState.transcriptUnconfirmed(): Boolean =
+    origin != ChatTranscriptOrigin.HOST
 
 /**
  * What to print for a message.

@@ -1,5 +1,6 @@
 import { HostSessionStream, HostSessionCallbacks, HostSessionSource, HostStreamHint, HostStreamPage, HostStreamReadRequest, HostStreamHintPlaintext, parseHostStreamHint } from './HostSessionStream';
 import { AccountRealtime } from './AccountRealtime';
+import { CLIENT_PROTOCOL_VERSION, clientVersion } from './ClientBuild';
 import { normalizeAccountRelayUrl, OFFICIAL_RELAY_URL } from './AccountDeviceLink';
 import { http } from '@kit.NetworkKit';
 import { CloudAccountCrypto } from './CloudAccountCrypto';
@@ -22,6 +23,8 @@ interface GitHubPoll { status: string; tokens?: GitHubTokens; }
 interface LoginRequest {
   access_token: string; device_id: string; device_name: string; device_kind: string;
   public_key: string; request_id: string;
+  /** See ClientBuild.ets; the Relay stores both and gates on the protocol. */
+  clientVersion: string; clientProtocol: number;
 }
 interface PeerPublicKey { public_key: string; }
 interface RelayErrorResponse { error?: string; }
@@ -87,6 +90,20 @@ export interface CloudAccountDevice {
   deviceKind?: string;
   online: boolean;
   lastSeenAt?: number;
+  /**
+   * Relay-computed mutual-control compatibility of this device with this one.
+   *
+   * `false` means confirmed incompatible: either a client build/protocol
+   * mismatch or a peer that reported no version information (an older client).
+   * Absent only on an older Relay that does not gate at all, which must be
+   * treated as "unknown but usable", never as incompatible.
+   */
+  compatible?: boolean;
+}
+
+/** The single gate every control entry point must reuse; see `compatible`. */
+export function isDeviceControllable(device: CloudAccountDevice): boolean {
+  return device.compatible !== false;
 }
 
 /** A device credential minted for another device, never for this one. */
@@ -117,6 +134,7 @@ interface CloudAccountDeviceWire {
   device_kind?: string;
   online: boolean;
   last_seen_at?: number;
+  compatible?: boolean;
 }
 
 /** Default BitFun cloud relay used by the desktop account flow. */
@@ -124,6 +142,7 @@ export const DEFAULT_CLOUD_RELAY_URL: string = OFFICIAL_RELAY_URL;
 
 /** Device kinds the relay accepts; mirrors `relay-service/src/db.rs::DEVICE_KINDS`. */
 const DEVICE_KIND_DESKTOP: string = 'desktop';
+const DEVICE_KIND_CLI: string = 'cli';
 const DEVICE_KIND_MOBILE: string = 'mobile';
 const DEVICE_KIND_WATCH: string = 'watch';
 
@@ -140,19 +159,21 @@ const DEVICE_KIND_WATCH: string = 'watch';
 const KNOWN_NON_DESKTOP_DEVICE_NAMES: string[] = ['harmonyos phone', 'harmonyos watch'];
 
 /**
- * Whether a relay device row is a desktop, and so controllable from a phone.
+ * Whether a relay device row is a host, and so controllable from a phone.
  *
- * A row that reports its kind is taken at its word. A row without one predates
- * the relay learning about kinds, and is judged by two weaker signals: this
- * phone's own row is never a desktop, and neither is one carrying a name our
- * own builds register under. Anything else stays visible — hiding a real
- * desktop would strand the user, while a stale phone row disappears the next
- * time that phone logs in against a relay that stores kinds.
+ * A row that reports its kind is taken at its word: a desktop and a CLI host run
+ * the same control plane, so both are targets, while a phone or a watch is only
+ * ever a controller. A row without one predates the relay learning about kinds,
+ * and is judged by two weaker signals: this phone's own row is never a host, and
+ * neither is one carrying a name our own builds register under. Anything else
+ * stays visible — hiding a real host would strand the user, while a stale phone
+ * row disappears the next time that phone logs in against a relay that stores
+ * kinds.
  */
-function isDesktopDeviceRow(device: CloudAccountDeviceWire, selfDeviceId: string): boolean {
+function isHostDeviceRow(device: CloudAccountDeviceWire, selfDeviceId: string): boolean {
   const kind = (device.device_kind || '').trim();
   if (kind.length > 0) {
-    return kind === DEVICE_KIND_DESKTOP;
+    return kind === DEVICE_KIND_DESKTOP || kind === DEVICE_KIND_CLI;
   }
   if (selfDeviceId.length > 0 && device.device_id === selfDeviceId) {
     return false;
@@ -252,7 +273,8 @@ export class CloudAccountClient {
         const body: LoginRequest = {
           access_token: poll.tokens.accessToken, device_id: deviceId, device_name: 'HarmonyOS Phone',
           device_kind: DEVICE_KIND_MOBILE, public_key: Encoding.bytesToBase64(keys.publicKey),
-          request_id: Encoding.randomId('').slice(1)
+          request_id: Encoding.randomId('').slice(1),
+          clientVersion: clientVersion(), clientProtocol: CLIENT_PROTOCOL_VERSION
         };
         try {
           const auth = await this.post<AccountAuthResponse>(relayUrl, '/api/auth/login', body);
@@ -313,14 +335,15 @@ export class CloudAccountClient {
     selfDeviceId: string = ''
   ): Promise<CloudAccountDevice[]> {
     const devices = await this.request<CloudAccountDeviceWire[]>(relayUrl, '/api/devices', 'GET', undefined, session.token);
-    const desktops = devices.filter((device: CloudAccountDeviceWire): boolean =>
-      isDesktopDeviceRow(device, selfDeviceId));
-    return desktops.map((device: CloudAccountDeviceWire): CloudAccountDevice => ({
+    const hosts = devices.filter((device: CloudAccountDeviceWire): boolean =>
+      isHostDeviceRow(device, selfDeviceId));
+    return hosts.map((device: CloudAccountDeviceWire): CloudAccountDevice => ({
       deviceId: device.device_id,
       deviceName: device.device_name || device.device_id,
       deviceKind: device.device_kind,
       online: device.online,
-      lastSeenAt: device.last_seen_at
+      lastSeenAt: device.last_seen_at,
+      compatible: device.compatible
     }));
   }
 

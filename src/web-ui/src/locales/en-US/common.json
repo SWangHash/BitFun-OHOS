@@ -537,6 +537,9 @@
       "parentSession": "Parent session",
       "childSourceWithoutTurn": "From {{parentTitle}}",
       "childSourceWithTurn": "From {{parentTitle}} · Turn {{turnIndex}}",
+      "worktreeTooltip": "Runs in an isolated worktree at {{path}}",
+      "openWorktreeWorkspace": "Open worktree workspace",
+      "openWorktreeWorkspaceFailed": "Could not open the worktree folder as a workspace.",
       "reviewRunning": "Reviewing",
       "deepReviewRunning": "Reviewing",
       "unreadCompleted": "Completed — unread",
@@ -613,6 +616,7 @@
       "title": "Scheduled Jobs",
       "open": "Scheduled jobs",
       "shortLabel": "Schedule",
+      "badgeTooltip": "{{count}} scheduled job(s)",
       "listTitle": "Jobs",
       "assistantFallback": "Current assistant",
       "loading": "Loading scheduled jobs...",
@@ -661,8 +665,7 @@
         }
       },
       "targets": {
-        "session": "Session",
-        "newSession": "New session"
+        "session": "Session"
       },
       "status": {
         "idle": "Idle",
@@ -691,6 +694,11 @@
         "title": "Delete job \"{{name}}\"?"
       },
       "messages": {
+        "reviewAvailable": "Review available · open to view",
+        "reviewFailedInspect": "Review failed · open to inspect",
+        "reviewResultUnloaded": "Review complete · open to load result",
+        "reviewResultUnavailable": "Review complete · result unavailable · open to inspect",
+        "reviewError": "Review error",
         "loadFailed": "Failed to load scheduled jobs: {{error}}",
         "saveFailed": "Failed to save scheduled job: {{error}}",
         "updateFailed": "Failed to update scheduled job: {{error}}",
@@ -915,6 +923,7 @@
     "footerDistributedExecution": "{{count}} devices executing",
     "current": "Current",
     "currentUse": "In use",
+    "currentLocalDevice": "Current local device",
     "controlling": "Controlling",
     "executingTasks": "{{count}} tasks",
     "connectedDevices": "Connected devices",
@@ -2030,6 +2039,56 @@
       "minutesAgo": "{{count}}m ago",
       "hoursAgo": "{{count}}h ago",
       "daysAgo": "{{count}}d ago"
+    },
+    "errors": {
+      "gitUnavailable": "Git is unavailable. Install Git and ensure it is on PATH in the environment running this workspace, then retry.",
+      "loadFailed": "Failed to load pull requests",
+      "invalidRepository": "Cannot read this Git repository. Check the workspace path and access permissions.",
+      "repositoryUntrusted": "Git does not trust this repository. Confirm its ownership before retrying.",
+      "remoteNotFound": "The selected remote no longer exists. Refresh and select a remote.",
+      "unsupportedPlatform": "This repository provider is not supported.",
+      "providerFailed": "The repository provider could not complete the request. Retry or check the provider service.",
+      "authenticationRequired": "Authentication is required. Sign in or update the token and retry.",
+      "permissionDenied": "Access was denied. Check the account and token permissions.",
+      "notFound": "The requested repository or item was not found, or is not accessible to this account.",
+      "networkFailed": "Could not connect to the repository provider. Check the network and retry.",
+      "invalidResponse": "The repository provider returned an unreadable response.",
+      "staleTarget": "The pull request changed. Refresh it before continuing the review.",
+      "evidenceTooLarge": "The provider evidence exceeds the supported size. Reduce the review scope and retry.",
+      "targetIsPullRequest": "This item is a pull request. Open it as a pull request instead of an issue."
+    },
+    "messages": {
+      "noWorkspace": "No active workspace is available.",
+      "unsupportedLink": "This link is not a supported pull request URL.",
+      "detailsFailed": "Failed to load pull request details.",
+      "ciLogFailed": "Failed to load CI error log.",
+      "chatRequired": "Open or create a chat session before sending PR context.",
+      "reviewChatRequired": "Open or create a chat session before reviewing this pull request.",
+      "reviewUncertain": "Review started, but its start acknowledgement is uncertain.",
+      "reviewFailed": "Failed to start pull request Review.",
+      "tokenRequired": "Token is required.",
+      "saveTokenFailed": "Failed to save token.",
+      "clearTokenFailed": "Failed to clear token.",
+      "openAuthFailed": "Failed to open GitHub CLI authentication.",
+      "copyAuthFailed": "Failed to copy GitHub CLI login command.",
+      "unresolvedPullRequest": "This pull request could not be resolved from the remotes of the current workspace.",
+      "ghAuthRequired": "GitHub CLI authentication required",
+      "tokenRequiredTitle": "Token required",
+      "tokenScopeTitle": "Token permissions required",
+      "tokenUpdateTitle": "Token update required",
+      "headUnavailable": "GitHub pull request head SHA was not available.",
+      "noActionsJob": "No matching GitHub Actions job was found for this check run.",
+      "noActionsJobId": "The matching GitHub Actions job does not expose a job id.",
+      "authError": "Auth error",
+      "reviewFailedInspect": "Review failed · open to inspect",
+      "reviewResultUnavailable": "Review complete · result unavailable · open to inspect",
+      "reviewError": "Review error"
+    },
+    "auth": {
+      "github": "Authenticate GitHub in the workspace environment, then retry: {{command}}",
+      "missing": "Add an access token for {{host}} to access this repository.",
+      "invalid": "The access token for {{host}} was rejected. Update it and retry.",
+      "insufficientScope": "The access token for {{host}} lacks required permissions. Update it and retry."
     }
   },
   "dispatch": {
@@ -2109,5 +2168,19 @@
     "nextMonth": "Next month",
     "now": "Now",
     "close": "Close"
+  },
+  "computerControl": {
+    "title": "Computer control",
+    "observe": "Observing",
+    "background": "Controlling in the background",
+    "foreground": "Controlling with desktop input",
+    "stopped": "Control stopped",
+    "unavailable": "Control status unavailable. You can still try to stop.",
+    "previewAlt": "Captured application window with agent pointer",
+    "previewUnavailable": "Window preview is unavailable.",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview",
+    "stop": "Stop control",
+    "stopping": "Stopping…"
   }
 }

@@ -1,4 +1,4 @@
-import { requireSessionWorkspaceId } from '../../utils/sessionWorkspace';
+import { requireSessionOwningWorkspaceId } from '../../utils/sessionOrdering';
 /**
  * Persistence module
  * Handles persistence operations for dialog turn saving and metadata management
@@ -325,7 +325,7 @@ async function performSaveDialogTurnToDisk(
     const turnData = convertDialogTurnToBackendFormat(dialogTurn, turnIndex);
     await sessionAPI.saveSessionTurn(
       turnData,
-      requireSessionWorkspaceId(session));
+      requireSessionOwningWorkspaceId(session));
     
     await updateSessionMetadata(context, sessionId);
     
@@ -566,7 +566,7 @@ export async function updateSessionMetadata(
       if (!fields) {
         existingMetadata = await sessionAPI.loadSessionMetadata(
           sessionId,
-          requireSessionWorkspaceId(session));
+          requireSessionOwningWorkspaceId(session));
       }
     } catch {
       // ignore
@@ -577,7 +577,7 @@ export async function updateSessionMetadata(
 
     await sessionAPI.saveSessionMetadata(
       metadata,
-      requireSessionWorkspaceId(session),
+      requireSessionOwningWorkspaceId(session),
       fields ?? [
         'sessionName',
         'tags',

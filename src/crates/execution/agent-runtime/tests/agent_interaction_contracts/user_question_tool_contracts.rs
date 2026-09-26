@@ -221,6 +221,7 @@ fn ask_user_question_validation_allows_single_option_only_for_template_questions
             &AskUserQuestionInput {
                 questions: vec![single.clone()],
                 template_id: Some("qt-migration-paths".to_string()),
+                timeout_seconds: bitfun_agent_runtime::user_questions::DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
             },
             true
         )
@@ -346,6 +347,7 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
 fn timeout_is_distinct_from_answer_or_cancellation() {
     let input = AskUserQuestionInput {
         questions: vec![question()],
+        template_id: None,
         timeout_seconds: 30,
     };
     let result =

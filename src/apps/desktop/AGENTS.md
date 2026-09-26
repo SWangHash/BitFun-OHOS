@@ -170,6 +170,13 @@ For peer system-info response compatibility, run
 `cargo test -p bitfun-desktop --lib system_info_home_contract`.
 For window geometry recovery, legacy state compatibility, and snapshot persistence,
 run `cargo test -p bitfun-desktop --lib window_state_support::tests`.
+run `cargo test -p bitfun-desktop --lib window_state_support::tests`.
+For Windows main-WebView minimize/restore size filtering, run
+`cargo test -p bitfun-desktop --no-default-features --lib window_webview_geometry::tests`.
+The desktop host owns main-WebView resizing on Windows so minimized client bounds
+do not trigger page reflow; embedded browser WebViews keep their existing owners.
+After rebuilding, manually compare taskbar minimize/restore with tray hide/show
+while a session is open, and check normal resize, maximize, and monitor DPI changes.
 For the matching startup wiring contract, run
 `pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts`.
 For native sidebar material and appearance bootstrap, run
@@ -212,3 +219,11 @@ For alternate dev-server ports and preview startup URL changes, run
 to the previous port. Desktop and Vite must use the same values. Development
 launchers reuse the locked Sherpa library/archive cache across Git worktrees,
 or download the archive through curl when absent; explicit SHERPA_ONNX overrides win.
+
+For the real macOS ComputerUse tool observation/input roundtrip, run
+`node scripts/test-macos-control-roundtrip.mjs`. This launches a disposable
+AppKit target and the `computer_use_native_roundtrip` test with `devtools`.
+The harness has its own main-thread CFRunLoop and exercises the production
+main-queue dispatcher; do not run this test through libtest or bypass that
+dispatcher. It requires local Accessibility and Screen Recording permission.
+To reuse the compiled harness, set `BITFUN_TEST_BINARY` to its absolute path.

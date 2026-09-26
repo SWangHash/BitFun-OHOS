@@ -8,7 +8,7 @@
       "textContentHover": { "$type": "color", "$value": "{color.accent.hover}" },
       "textContentDisabled": { "$type": "color", "$value": "{color.accent.disabled}" },
       "outlineBorder": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" },
-      "outlineBorderInteractive": { "$type": "color", "$value": "transparent" },
+      "outlineBorderInteractive": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" },
       "fillBackground": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" },
       "fillBackgroundHover": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" },
       "fillBackgroundPressed": { "$type": "color", "$value": "{color.action.neutral.surfaceHover}" },

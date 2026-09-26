@@ -4,8 +4,8 @@
 pub use crate::agentic::tools::computer_use_optimizer::{ActionRecord, LoopDetectionResult};
 pub use bitfun_agent_tools::computer_use::{
     clamp_point_crop_half_extent, parse_windows_accelerator_display,
-    suggested_point_crop_half_extent_from_native_bounds, AppClickParams, AppInfo, AppMenuShortcut,
-    AppSelector, AppShortcutsSnapshot, AppStateSnapshot, AppWaitPredicate, AxNode,
+    suggested_point_crop_half_extent_from_native_bounds, AppClickParams, AppInfo, AppInputAction,
+    AppMenuShortcut, AppSelector, AppShortcutsSnapshot, AppStateSnapshot, AppWaitPredicate, AxNode,
     ClickIndexTarget, ClickTarget, ComputerScreenshot, ComputerUseDisplayInfo,
     ComputerUseForegroundApplication, ComputerUseImageContentRect, ComputerUseImageGlobalBounds,
     ComputerUseImplicitScreenshotCenter, ComputerUseInteractionScreenshotKind,
@@ -23,9 +23,60 @@ pub use bitfun_agent_tools::computer_use::{
 
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
+pub use bitfun_agent_tools::computer_use_control::{
+    ControlMode, ControlSnapshot, ControlStartRequest,
+};
+
+/// A host resource lease. Dropping an unfinished lease cancels native control.
+pub trait ComputerUseActionLease: Send + Sync {
+    fn complete(&mut self);
+}
 
 #[async_trait]
 pub trait ComputerUseHost: Send + Sync + std::fmt::Debug {
+    /// Scope of the current native capture. None preserves older host behavior.
+    /// This is an observation fact, independent of the legacy navigation enum.
+    fn capture_scope(&self) -> Option<&'static str> {
+        None
+    }
+
+    async fn prepare_control_target(&self, _app: AppSelector) -> BitFunResult<()> {
+        Ok(())
+    }
+    async fn start_control(
+        &self,
+        _owner: &str,
+        _request: ControlStartRequest,
+    ) -> BitFunResult<ControlSnapshot> {
+        Err(BitFunError::tool(
+            "[CONTROL_UNSUPPORTED] This host has no control-session provider",
+        ))
+    }
+    fn control_snapshot(&self) -> ControlSnapshot {
+        ControlSnapshot::default()
+    }
+    async fn stop_control(&self, _owner: &str) -> BitFunResult<ControlSnapshot> {
+        Err(BitFunError::tool(
+            "[CONTROL_UNSUPPORTED] This host has no control-session provider",
+        ))
+    }
+    async fn stop_control_generation(
+        &self,
+        owner: &str,
+        generation: u64,
+    ) -> BitFunResult<ControlSnapshot> {
+        let _ = (owner, generation);
+        Err(BitFunError::tool(
+            "[CONTROL_UNSUPPORTED] Conditional stop is unavailable on this host",
+        ))
+    }
+    async fn acquire_control_action(
+        &self,
+        _owner: &str,
+        _action: &str,
+    ) -> BitFunResult<Option<Box<dyn ComputerUseActionLease>>> {
+        Ok(None)
+    }
     async fn permission_snapshot(&self) -> BitFunResult<ComputerUsePermissionSnapshot>;
 
     /// Platform-specific prompt (e.g. macOS accessibility dialog).
@@ -59,6 +110,14 @@ pub trait ComputerUseHost: Send + Sync + std::fmt::Debug {
         let _ = (text_query, region_native);
         Err(BitFunError::tool(
             "OCR text recognition is not available on this host.".to_string(),
+        ))
+    }
+
+    /// Read all visible text from the authorized target window without a search
+    /// query. Coordinates refer to the captured frame's global bounds.
+    async fn read_screen_text(&self) -> BitFunResult<Vec<OcrTextMatch>> {
+        Err(BitFunError::tool(
+            "[OCR_READ_UNSUPPORTED] Full-frame text reading is not available on this host.",
         ))
     }
 
@@ -406,50 +465,15 @@ pub trait ComputerUseHost: Send + Sync + std::fmt::Debug {
     /// (`AXUIElementPerformAction`) and falls back to a PID-scoped
     /// synthetic mouse event. Returns the after-state snapshot so the
     /// model can verify the change in a single round-trip.
-    async fn app_click(&self, _params: AppClickParams) -> BitFunResult<AppStateSnapshot> {
-        Err(BitFunError::tool(
-            "app_click is not available on this host.".to_string(),
-        ))
-    }
-
-    /// Type text into a target application, optionally focusing a node
-    /// first via AX `kAXValue`/`kAXFocused`. Returns the after-state.
-    async fn app_type_text(
+    /// Submit one app input without taking an observation. Batch orchestration
+    /// observes once after the sequence; unsupported older providers fail explicitly.
+    async fn dispatch_app_input(
         &self,
         _app: AppSelector,
-        _text: &str,
-        _focus: Option<ClickTarget>,
-    ) -> BitFunResult<AppStateSnapshot> {
+        _action: AppInputAction,
+    ) -> BitFunResult<()> {
         Err(BitFunError::tool(
-            "app_type_text is not available on this host.".to_string(),
-        ))
-    }
-
-    /// Scroll inside a target application; `dx`/`dy` are pixel deltas in
-    /// host pointer space. Optional `focus` narrows the scroll target via
-    /// AX `kAXScrollPosition`.
-    async fn app_scroll(
-        &self,
-        _app: AppSelector,
-        _focus: Option<ClickTarget>,
-        _dx: i32,
-        _dy: i32,
-    ) -> BitFunResult<AppStateSnapshot> {
-        Err(BitFunError::tool(
-            "app_scroll is not available on this host.".to_string(),
-        ))
-    }
-
-    /// Send a key chord (e.g. `["command", "f"]`) to a target application
-    /// via PID-scoped events. Optional `focus_idx` first focuses an AX node.
-    async fn app_key_chord(
-        &self,
-        _app: AppSelector,
-        _keys: Vec<String>,
-        _focus_idx: Option<u32>,
-    ) -> BitFunResult<AppStateSnapshot> {
-        Err(BitFunError::tool(
-            "app_key_chord is not available on this host.".to_string(),
+            "[APP_INPUT_UNSUPPORTED] This provider does not expose observation-free app input",
         ))
     }
 

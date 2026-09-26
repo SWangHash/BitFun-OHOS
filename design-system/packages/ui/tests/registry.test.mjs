@@ -29,6 +29,7 @@ test("registry exposes only the formal stable components", () => {
       "Combobox",
       "ConfirmDialog",
       "ContextCompressionToolCard",
+      "CronToolCard",
       "DefaultToolCard",
       "Disclosure",
       "Empty",

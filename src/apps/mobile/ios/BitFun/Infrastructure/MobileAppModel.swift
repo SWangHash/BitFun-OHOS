@@ -22,6 +22,10 @@ final class MobileAppModel: ObservableObject {
     @Published var remoteHasMoreMessages = false
     @Published var remoteHistoryLoading = false
     @Published var remoteHistoryFailed = false
+    /// The rows on screen are this device's stored copy, not the host's
+    /// transcript: a reopened session shows them at once, and the host has not
+    /// answered for it yet. See `ChatTranscriptOrigin`.
+    @Published var remoteTranscriptUnconfirmed = false
     @Published var permissionMailbox: PermissionMailboxUiState?
     @Published var remoteConversationLoading = false
     @Published var remotePermissionMode = "ASK"
@@ -33,7 +37,9 @@ final class MobileAppModel: ObservableObject {
     @Published var remoteCreateSubmitting = false
     @Published var remoteCreateError: String?
     @Published var remoteCreateDeviceError: String?
-    @Published var selectedSessionID: String
+    @Published var selectedSessionID: String {
+        didSet { if selectedSessionID != oldValue { composerDraftRevision &+= 1 } }
+    }
     @Published var messages: [ChatMessage]
     @Published private var renderedTimelineRows: [MobileConversationRow] = []
     var timelineRows: [MobileConversationRow] {
@@ -43,7 +49,11 @@ final class MobileAppModel: ObservableObject {
             if next != renderedTimelineRows { renderedTimelineRows = next }
         }
     }
-    @Published var draft = ""
+    @Published var draft = "" {
+        didSet { if draft != oldValue { composerDraftRevision &+= 1 } }
+    }
+    // Includes edits later erased and session round trips, not just current contents.
+    var composerDraftRevision: UInt64 = 0
     var lastAppliedRemoteSendID: String?
     var pendingComposerSend: PendingComposerSend?
     @Published var composerSendGeneration: UInt64 = 0
@@ -55,7 +65,9 @@ final class MobileAppModel: ObservableObject {
     @Published var connectionPhase: ConnectionPhase = .connected
     @Published var isSending = false
     @Published var busy = false
-    @Published var composerImages: [ComposerAttachment] = []
+    @Published var composerImages: [ComposerAttachment] = [] {
+        didSet { if composerImages != oldValue { composerDraftRevision &+= 1 } }
+    }
     @Published var modelOptions: [ComposerModelOption] = []
     @Published var toastMessage: String?
     @Published var remoteConnected = false
@@ -68,6 +80,7 @@ final class MobileAppModel: ObservableObject {
     @Published var pairingBusy = false
     @Published var pairingError: String?
     @Published var coreErrorMessage: String?
+    @Published var launchAccountRestored: Bool? = nil
     @Published var accountUser: String?
     @Published var accountUserID: String?
     @Published var localDeviceID = ""
@@ -405,7 +418,7 @@ final class MobileAppModel: ObservableObject {
     }
 
     func stopSending() {
-        guard remoteSessionSelected else { return }
+        guard remoteSessionSelected, remoteConnected, connectionPhase == .connected else { return }
         coreAdapter?.cancelRemoteTurn(sessionID: selectedSessionID, turnID: activeTurnID)
     }
 

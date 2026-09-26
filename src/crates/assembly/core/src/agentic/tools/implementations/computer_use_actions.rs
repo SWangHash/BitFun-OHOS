@@ -5,9 +5,9 @@
 //! types, but it no longer owns these Computer Use behaviors.
 
 use crate::agentic::tools::computer_use_host::{
-    AppClickParams, AppSelector, AppWaitPredicate, ClickTarget, ComputerUseForegroundApplication,
-    ComputerUseHostRef, InteractiveClickParams, InteractiveScrollParams, InteractiveTypeTextParams,
-    InteractiveViewOpts, VisualClickParams, VisualMarkViewOpts,
+    AppSelector, AppWaitPredicate, ClickTarget, ComputerUseHostRef, InteractiveClickParams,
+    InteractiveScrollParams, InteractiveTypeTextParams, InteractiveViewOpts, VisualClickParams,
+    VisualMarkViewOpts,
 };
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::util::errors::{BitFunError, BitFunResult};
@@ -18,80 +18,9 @@ use serde_json::{json, Value};
 
 use super::control_hub::{coded_tool_error, err_response, ControlHubError, ErrorCode};
 
-/// Per-PID consecutive-failure tracker for the AX-first `app_*` actions.
-/// Key = target PID, value = `(target_signature, before_digest, count)`.
-/// When the same `(action,target)` lands on an unchanged digest twice in a
-/// row the dispatcher injects an `app_state.loop_warning` so the model is
-/// forced off the failing path on its **next** turn (see the observe → act →
-/// verify guidance in `computer_use_mode.md`).
-type AppLoopTracker =
-    std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<i32, (String, String, u32)>>>;
-
-static APP_LOOP_TRACKER: AppLoopTracker = std::sync::OnceLock::new();
-
-fn loop_tracker_observe(
-    pid: Option<i32>,
-    action: &str,
-    target_sig: &str,
-    before_digest: &str,
-    after_digest: &str,
-    text_only: bool,
-) -> Option<String> {
-    let pid = pid?;
-    // A digest change means the action mutated the tree — that is real
-    // progress and resets the streak even if the model picks the same
-    // target name on purpose (e.g. clicking "Next" repeatedly).
-    let progressed = before_digest != after_digest;
-    let sig = format!("{action}:{target_sig}");
-    let mut guard = APP_LOOP_TRACKER
-        .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-        .lock()
-        .ok()?;
-    let entry = guard
-        .entry(pid)
-        .or_insert_with(|| (String::new(), String::new(), 0));
-    if progressed {
-        *entry = (sig, after_digest.to_string(), 1);
-        return None;
-    }
-    if entry.0 == sig && entry.1 == before_digest {
-        entry.2 = entry.2.saturating_add(1);
-    } else {
-        *entry = (sig, before_digest.to_string(), 1);
-    }
-    if entry.2 >= 2 {
-        // The primary model cannot consume screenshot images, so the classic
-        // "just take a screenshot to see what's wrong" recovery is **not**
-        // available — pointing the model at `screenshot` here would send it
-        // into a hard-reject loop (the `screenshot` action is gated to
-        // multimodal providers). Route it to the text-only observation +
-        // targeting fallbacks instead so the agent always has a live path.
-        let recovery = if text_only {
-            "NEXT TURN you MUST switch tactic (do NOT call `screenshot` — the primary model is text-only and that action is rejected): \
-             (1) re-run `get_app_state` for the frontmost app and pick a different `node_idx` (or `text_contains` / `title_contains` / `role_substring`), \
-             (2) locate the visible text with `move_to_text` + `move_to_text_match_index`, or `click_target` with `target_text`, \
-             (3) drive the app with `key_chord` shortcuts (e.g. command+F search, Tab focus, Return confirm), \
-             (4) for messaging apps use `paste` (clipboard) + `key_chord` to submit, or `run_apple_script` (macOS) to drive the app directly."
-        } else {
-            "NEXT TURN you MUST: (1) run `desktop.screenshot { screenshot_window: false }` to see the full display, (2) switch tactic — different `node_idx`, different `ocr_text` needle, or a keyboard shortcut."
-        };
-        Some(format!(
-            "Detected {} consecutive `{}` calls on the same target ({}) without any AX tree mutation (digest unchanged). The target is almost certainly invisible / disabled / in a Canvas-WebGL surface that AX cannot describe. {}",
-            entry.2, action, target_sig, recovery
-        ))
-    } else {
-        None
-    }
-}
-
-/// Routing note attached to successful `system.open_url` results. The URL
-/// opens in the user's default browser, which the agent can neither observe
-/// nor control — without this note models routinely follow `open_url` with
-/// desktop clicks at the browser window (exactly what the desktop browser
-/// guard rejects).
-const OPEN_URL_ROUTING_NOTE: &str = "The page is now open in the user's default browser; \
-     BitFun cannot observe or control that window. To read or interact with the page yourself, \
-     use ControlHub domain=\"browser\" instead (browser.connect, then snapshot).";
+/// Opening a URL gives no observation; page tools are preferred, while native
+/// browser chrome and dialogs remain available through desktop control.
+const OPEN_URL_ROUTING_NOTE: &str = "The page opened in the user's default browser; this result gives no observation. Prefer ControlHub domain=\"browser\" for page content (browser.connect, then snapshot). For native browser chrome or dialogs, use ComputerUse with the intended application and a fresh observation.";
 
 /// Routing note attached to successful `system.open_file` results. The file
 /// opens in an external application window the agent cannot see from this
@@ -99,37 +28,6 @@ const OPEN_URL_ROUTING_NOTE: &str = "The page is now open in the user's default 
 const OPEN_FILE_ROUTING_NOTE: &str = "The file is now open in an external application window; \
      this result gives no view into it. To interact with that window, use ComputerUse desktop \
      actions (take a screenshot first to observe it).";
-
-/// Chromium-family **application identities**: macOS bundle ids and executable
-/// basenames. Matched whole (bundle ids additionally match their channel
-/// suffixes, e.g. `com.google.chrome.canary`) — never as a bare substring,
-/// because "arc" is a substring of "search" and "edge" of "knowledge".
-const CHROMIUM_APP_IDENTITIES: &[&str] = &[
-    // macOS bundle ids
-    "com.google.chrome",
-    "org.chromium.chromium",
-    "com.microsoft.edgemac",
-    "com.brave.browser",
-    "company.thebrowser.browser",
-    // Windows / Linux executable basenames
-    "chrome",
-    "chrome.exe",
-    "chromium",
-    "chromium.exe",
-    "google-chrome",
-    "msedge",
-    "msedge.exe",
-    "brave",
-    "brave.exe",
-    "brave-browser",
-    "arc",
-    "arc.exe",
-];
-
-/// Product tokens unambiguous enough to identify a Chromium browser from a
-/// human-readable name alone. "edge" and "arc" are ordinary English words and
-/// are handled separately (see [`ComputerUseActions::name_suggests_chromium`]).
-const CHROMIUM_NAME_TOKENS: &[&str] = &["chrome", "chromium", "brave"];
 
 pub(crate) struct ComputerUseActions;
 
@@ -144,193 +42,6 @@ impl ComputerUseActions {
         Self
     }
 
-    fn desktop_browser_guard_error(
-        action: &str,
-        foreground: Option<&ComputerUseForegroundApplication>,
-    ) -> ControlHubError {
-        let app_name = foreground
-            .and_then(|app| app.name.as_deref())
-            .unwrap_or("a Chromium-family browser");
-        ControlHubError::new(
-            ErrorCode::GuardRejected,
-            format!(
-                "ComputerUse `{}` is blocked because it would drive {}, a Chromium-family browser — not because your task is browser-related. No ComputerUse input action may drive such a browser, including the `app_*`, `interactive_*` and `visual_*` variants; use ControlHub domain=\"browser\" instead. Non-Chromium browsers (Firefox/Safari) and native apps stay desktop-controllable.",
-                action, app_name
-            ),
-        )
-        .with_hints([
-            "If your target is NOT the browser: the guard only looks at the app this action would drive, so switch focus with `key_chord` [\"alt\",\"tab\"] / [\"command\",\"tab\"] (never guarded) or `open_app`, or skip focus entirely and pass an explicit non-browser `app` selector ({pid|bundle_id|name}, from `list_apps`) to `app_click` / `app_type_text` / `app_scroll` / `app_key_chord`",
-            "Page content: call ControlHub browser.connect first — Chrome 144+ and Edge use a user-approved connection to the current real profile; other supported Chromium browsers reuse a real-profile endpoint when available and otherwise fall back to BitFun's persistent managed profile — then drive the page with snapshot/click/fill/press_key",
-            "Browser chrome (address bar, tabs, back/forward, reload, downloads): use browser.navigate / tab_new / switch_page / back / forward / reload / close instead of mouse+keyboard",
-            "File picker or <input type=file>: do NOT drive the native dialog — use browser.set_file_input_files { selector, files: [\"/abs/path\"] }. For JS alert/confirm/prompt use browser.dialog",
-            "For Chrome or Edge login/cookies/extensions, keep using the guarded CDP path; for one-time setup, ask the user to click Enable default CDP in BitFun Settings > Browser control, enable Remote debugging in the browser-owned page, and approve BitFun",
-            "For isolated project Web UI testing, use the headless browser flow instead of desktop automation",
-        ])
-    }
-
-    /// Structured app identity: macOS bundle id, or the executable basename on
-    /// platforms that report one. Deliberately **not** the display name: on
-    /// Windows `foreground.name` is the foreground *window title*
-    /// (`GetWindowTextW`), which is user content, not an app identity.
-    fn app_identity(foreground: &ComputerUseForegroundApplication) -> Option<&str> {
-        foreground
-            .bundle_id
-            .as_deref()
-            .or(foreground.process_name.as_deref())
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-    }
-
-    fn identity_is_chromium(identity: &str) -> bool {
-        let id = identity.trim().to_ascii_lowercase();
-        CHROMIUM_APP_IDENTITIES.iter().any(|known| {
-            id == *known
-                // Channel variants: com.google.chrome.canary, com.brave.browser.beta …
-                || (known.contains('.')
-                    && !known.ends_with(".exe")
-                    && id.starts_with(&format!("{known}.")))
-        })
-    }
-
-    /// Whole-token match on a human-readable app name or window title, used only
-    /// when no structured identity is available. Substring matching is not an
-    /// option here: "Search" contains "arc", "Knowledge Base" contains "edge".
-    fn name_suggests_chromium(name: &str) -> bool {
-        let name = name.to_ascii_lowercase();
-        let tokens: Vec<&str> = name
-            .split(|c: char| !c.is_ascii_alphanumeric())
-            .filter(|token| !token.is_empty())
-            .collect();
-        tokens.iter().any(|token| CHROMIUM_NAME_TOKENS.contains(token))
-            // "edge" needs the product phrase, "arc" the trailing-app-name shape
-            // Chromium browsers give their windows ("Page title — Arc").
-            || tokens.windows(2).any(|pair| matches!(pair, ["microsoft", "edge"]))
-            || matches!(tokens.last(), Some(&"arc"))
-    }
-
-    fn is_probably_browser_app(foreground: &ComputerUseForegroundApplication) -> bool {
-        // Only Chromium-family browsers are guarded: they are the only ones the
-        // ControlHub browser domain can drive over CDP. Firefox/Safari (and other
-        // non-Chromium browsers) have no CDP path, so desktop control must stay
-        // allowed for them — blocking both surfaces would leave no control path.
-        match Self::app_identity(foreground) {
-            Some(identity) => Self::identity_is_chromium(identity),
-            None => Self::name_suggests_chromium(foreground.name.as_deref().unwrap_or("")),
-        }
-    }
-
-    /// Identifiers carried by an explicit `app` selector. `{"pid":N}` carries
-    /// none, so it cannot be classified here.
-    fn selector_labels(app: &Value) -> Vec<&str> {
-        match app {
-            Value::String(name) => vec![name.as_str()],
-            Value::Object(_) => ["name", "bundle_id"]
-                .iter()
-                .filter_map(|key| app.get(*key).and_then(Value::as_str))
-                .filter(|label| !label.trim().is_empty())
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    fn selector_is_chromium(app: &Value) -> bool {
-        Self::selector_labels(app)
-            .iter()
-            .any(|label| Self::identity_is_chromium(label) || Self::name_suggests_chromium(label))
-    }
-
-    /// `alt+tab` / `command+tab` and their shift variants: the OS app switcher.
-    /// It is the only way to move focus off a browser with the keyboard, so
-    /// guarding it would leave a non-browser task with no way to reach its
-    /// target app.
-    fn is_focus_switch_chord(action: &str, params: &Value) -> bool {
-        if action != "key_chord" {
-            return false;
-        }
-        let Some(keys) = params.get("keys").and_then(Value::as_array) else {
-            return false;
-        };
-        let keys: Vec<String> = keys
-            .iter()
-            .filter_map(Value::as_str)
-            .map(|key| key.trim().to_ascii_lowercase())
-            .collect();
-        keys.iter().any(|key| key == "tab")
-            && keys.iter().all(|key| {
-                matches!(
-                    key.as_str(),
-                    "tab"
-                        | "alt"
-                        | "option"
-                        | "command"
-                        | "cmd"
-                        | "meta"
-                        | "super"
-                        | "shift"
-                        | "control"
-                        | "ctrl"
-                )
-            })
-    }
-
-    /// Rejects physical input actions that would drive a CDP-drivable browser.
-    /// Read-only observation actions (`screenshot`, `locate`, `describe_screen`,
-    /// `get_app_state`, `build_*_view`, …) and scripts stay allowed. Called by
-    /// `ComputerUseTool::call_impl` before dispatch.
-    pub(crate) async fn desktop_action_targets_browser(
-        &self,
-        action: &str,
-        params: &Value,
-        context: &ToolUseContext,
-    ) -> Option<ControlHubError> {
-        // Every action that produces physical input, app-scoped and
-        // interactive/visual variants included: guarding only the frontmost
-        // primitives would let the model bypass the boundary by renaming the
-        // same click (`app_click` with an explicit browser selector).
-        const GUARDED_ACTIONS: &[&str] = &[
-            "click",
-            "click_target",
-            "click_element",
-            "move_to_target",
-            "mouse_move",
-            "pointer_move_rel",
-            "scroll",
-            "drag",
-            "key_chord",
-            "type_text",
-            "paste",
-            "move_to_text",
-            "app_click",
-            "app_type_text",
-            "app_scroll",
-            "app_key_chord",
-            "interactive_click",
-            "interactive_type_text",
-            "interactive_scroll",
-            "visual_click",
-        ];
-        if !GUARDED_ACTIONS.contains(&action) || Self::is_focus_switch_chord(action, params) {
-            return None;
-        }
-        if let Some(app) = params.get("app") {
-            if Self::selector_is_chromium(app) {
-                return Some(Self::desktop_browser_guard_error(action, None));
-            }
-            // A selector naming another app drives that app whatever is
-            // frontmost — and answering from the selector alone also skips the
-            // host round-trip. A pid-only selector names nothing: fall through.
-            if !Self::selector_labels(app).is_empty() {
-                return None;
-            }
-        }
-        let host = context.computer_use_host.as_ref()?;
-        let snapshot = host.computer_use_session_snapshot().await;
-        let foreground = snapshot.foreground_application.as_ref()?;
-        if Self::is_probably_browser_app(foreground) {
-            return Some(Self::desktop_browser_guard_error(action, Some(foreground)));
-        }
-        None
-    }
     // ── Desktop domain ─────────────────────────────────────────────────
 
     pub(crate) async fn handle_desktop(
@@ -468,6 +179,8 @@ impl ComputerUseActions {
             "list_apps"
             | "get_app_state"
             | "get_app_shortcuts"
+            | "app_batch"
+            | "app_drag"
             | "app_click"
             | "app_type_text"
             | "app_scroll"
@@ -481,7 +194,7 @@ impl ComputerUseActions {
             | "visual_click" => {
                 let text_only = !context.primary_model_supports_image_understanding();
                 return self
-                    .handle_desktop_ax(host, action, params, text_only)
+                    .handle_desktop_ax(host, action, params, text_only, Some(context))
                     .await;
             }
             "focus_display" => {
@@ -559,6 +272,7 @@ impl ComputerUseActions {
         action: &str,
         params: &Value,
         text_only: bool,
+        context: Option<&ToolUseContext>,
     ) -> BitFunResult<Vec<ToolResult>> {
         // ── Helpers ─────────────────────────────────────────────────
         fn parse_selector(v: &Value) -> BitFunResult<AppSelector> {
@@ -591,7 +305,14 @@ impl ComputerUseActions {
                 });
             }
             if let Some(idx) = v.get("node_idx").and_then(|x| x.as_u64()) {
-                return Ok(ClickTarget::NodeIdx { idx: idx as u32 });
+                return Ok(ClickTarget::NodeIdx {
+                    idx: u32::try_from(idx).map_err(|_| {
+                        coded_tool_error(
+                            ErrorCode::InvalidParams,
+                            "node_idx exceeds the supported index range",
+                        )
+                    })?,
+                });
             }
             if let Some(obj) = v.get("screen_xy") {
                 let x = obj.get("x").and_then(|x| x.as_f64()).ok_or_else(|| {
@@ -622,8 +343,18 @@ impl ComputerUseActions {
                     )
                 })?;
                 return Ok(ClickTarget::ImageXy {
-                    x: x as i32,
-                    y: y as i32,
+                    x: i32::try_from(x).map_err(|_| {
+                        coded_tool_error(
+                            ErrorCode::InvalidParams,
+                            "image_xy x exceeds the supported coordinate range",
+                        )
+                    })?,
+                    y: i32::try_from(y).map_err(|_| {
+                        coded_tool_error(
+                            ErrorCode::InvalidParams,
+                            "image_xy y exceeds the supported coordinate range",
+                        )
+                    })?,
                     screenshot_id: obj
                         .get("screenshot_id")
                         .and_then(|v| v.as_str())
@@ -747,17 +478,6 @@ impl ComputerUseActions {
             Err(coded_tool_error(ErrorCode::InvalidParams, "unsupported app_wait_for predicate. Use {\"kind\":\"digest_changed\",\"prev_digest\":\"...\"} or shorthand {\"digest_changed\":{\"prev_digest\":\"...\"}}."))
         }
 
-        fn parse_keys(v: &Value) -> Vec<String> {
-            match v.get("keys").or_else(|| v.get("key")) {
-                Some(Value::Array(arr)) => arr
-                    .iter()
-                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
-                    .collect(),
-                Some(Value::String(s)) => vec![s.to_string()],
-                _ => Vec::new(),
-            }
-        }
-
         // Build the JSON view of an AppStateSnapshot for the model. Excludes
         // the heavy `screenshot` payload (it is attached out-of-band as a
         // multimodal image, not as base64 inside the JSON tree, to keep token
@@ -804,7 +524,7 @@ impl ComputerUseActions {
                     "mime_type": shot.mime_type,
                     "image_content_rect": shot.image_content_rect,
                     "image_global_bounds": shot.image_global_bounds,
-                        "coordinate_hint": "For visual surfaces, click pixels in this attached image with app_click target {kind:\"image_xy\", x, y, screenshot_id}. For known boards/grids/canvases, prefer {kind:\"image_grid\", x0, y0, width, height, rows, cols, row, col, intersections, screenshot_id}. If the grid rectangle is unknown, use {kind:\"visual_grid\", rows, cols, row, col, intersections}; the host detects the grid from app pixels.",
+                        "coordinate_hint": "Use pixels in this image with image_xy {x,y,screenshot_id}. Coordinates are relative to this image, not the desktop. Native background-delivery capabilities still apply: a visible target does not authorize foreground takeover.",
                     });
                     obj.insert("screenshot_meta".to_string(), meta);
                 }
@@ -1079,7 +799,7 @@ impl ComputerUseActions {
                 let focus_window_only = params
                     .get("focus_window_only")
                     .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+                    .unwrap_or(true);
                 let snap = host
                     .get_app_state(app.clone(), max_depth, focus_window_only)
                     .await?;
@@ -1120,182 +840,112 @@ impl ComputerUseActions {
                     Some(summary),
                 )])
             }
-            "app_click" => {
+            "app_batch" | "app_drag" | "app_click" | "app_type_text" | "app_scroll"
+            | "app_key_chord" => {
                 let app = parse_selector(params)?;
-                let target_v = params.get("target").cloned().ok_or_else(|| {
-                    coded_tool_error(
-                        ErrorCode::InvalidParams,
-                        "app_click requires 'target' ({node_idx|image_xy|screen_xy|ocr_text})",
-                    )
-                })?;
-                let target = parse_click_target(&target_v)?;
-                let click_count = params
-                    .get("click_count")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1) as u8;
-                let mouse_button = params
-                    .get("mouse_button")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("left")
-                    .to_string();
-                let modifier_keys: Vec<String> = params
-                    .get("modifier_keys")
-                    .and_then(|v| v.as_array())
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let wait_ms_after = params
-                    .get("wait_ms_after")
-                    .or_else(|| params.get("post_click_wait_ms"))
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v.min(5_000) as u32);
-
-                let before = host
-                    .get_app_state(app.clone(), 8, false)
-                    .await
-                    .ok()
-                    .map(|s| s.digest);
-
-                let mut after = host
-                    .app_click(AppClickParams {
-                        app: app.clone(),
-                        target: target.clone(),
-                        click_count,
-                        mouse_button,
-                        modifier_keys,
-                        wait_ms_after,
-                    })
-                    .await?;
-
-                if after.loop_warning.is_none() {
-                    let target_sig = serde_json::to_string(&target).unwrap_or_default();
-                    after.loop_warning = loop_tracker_observe(
-                        app.pid,
-                        "app_click",
-                        &target_sig,
-                        before.as_deref().unwrap_or(""),
-                        &after.digest,
-                        text_only,
-                    );
-                }
-
-                let data = json!({
-                    "target_app": app,
-                    "click_target": target,
-                    "background_input": bg,
-                    "before_digest": before,
-                    "app_state": snap_state_json(&after),
-                    "loop_warning": after.loop_warning,
-                });
-                Ok(vec![snap_result(data, Some("clicked".to_string()), &after)])
-            }
-            "app_type_text" => {
-                let app = parse_selector(params)?;
-                let text = params
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        coded_tool_error(ErrorCode::InvalidParams, "app_type_text requires 'text'")
+                // Legacy single-action calls are syntax aliases for a one-step
+                // input program. No separate input+capture execution path exists.
+                let raw = if action == "app_batch" {
+                    params.get("steps").cloned().ok_or_else(|| {
+                        coded_tool_error(ErrorCode::InvalidParams, "app_batch requires steps")
                     })?
-                    .to_string();
-                let focus: Option<ClickTarget> = match params.get("focus") {
-                    Some(v) if !v.is_null() => Some(parse_click_target(v)?),
-                    _ => None,
+                } else {
+                    let fields: &[&str] = match action {
+                        "app_click" => &[
+                            "target",
+                            "click_count",
+                            "mouse_button",
+                            "modifier_keys",
+                            "wait_ms_after",
+                        ],
+                        "app_type_text" => &["text", "focus"],
+                        "app_scroll" => &["dx", "dy", "focus"],
+                        "app_key_chord" => &["keys", "focus_idx"],
+                        "app_drag" => &["from", "to", "mouse_button", "duration_ms"],
+                        _ => unreachable!(),
+                    };
+                    let mut step = json!({"action":action});
+                    for field in fields {
+                        if let Some(value) = params.get(*field) {
+                            step[*field] = if matches!(*field, "target" | "focus" | "from" | "to")
+                                && !value.is_null()
+                            {
+                                serde_json::to_value(parse_click_target(value)?)?
+                            } else {
+                                value.clone()
+                            };
+                        }
+                    }
+                    if action == "app_click" && step.get("wait_ms_after").is_none() {
+                        if let Some(value) = params.get("post_click_wait_ms") {
+                            step["wait_ms_after"] = value.clone();
+                        }
+                    }
+                    if action == "app_key_chord" {
+                        if step.get("keys").is_none() {
+                            if let Some(value) = params.get("key") {
+                                step["keys"] = value.clone();
+                            }
+                        }
+                        if let Some(value) =
+                            step.get("keys").and_then(Value::as_str).map(str::to_owned)
+                        {
+                            step["keys"] = json!([value]);
+                        }
+                    }
+                    json!([step])
                 };
-                let before = host
-                    .get_app_state(app.clone(), 8, false)
-                    .await
-                    .ok()
-                    .map(|s| s.digest);
-                let mut after = host
-                    .app_type_text(app.clone(), &text, focus.clone())
-                    .await?;
-                if after.loop_warning.is_none() {
-                    let target_sig = format!(
-                        "focus={};len={}",
-                        serde_json::to_string(&focus).unwrap_or_default(),
-                        text.chars().count()
-                    );
-                    after.loop_warning = loop_tracker_observe(
-                        app.pid,
-                        "app_type_text",
-                        &target_sig,
-                        before.as_deref().unwrap_or(""),
-                        &after.digest,
-                        text_only,
-                    );
-                }
-                let data = json!({
-                    "target_app": app,
-                    "background_input": bg,
-                    "char_count": text.chars().count(),
-                    "focus": focus,
-                    "before_digest": before,
-                    "app_state": snap_state_json(&after),
-                    "loop_warning": after.loop_warning,
-                });
-                Ok(vec![snap_result(
-                    data,
-                    Some(format!("typed {} chars", text.chars().count())),
-                    &after,
-                )])
-            }
-            "app_scroll" => {
-                let app = parse_selector(params)?;
-                let dx = params.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                let dy = params.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                let focus: Option<ClickTarget> = match params.get("focus") {
-                    Some(v) if !v.is_null() => Some(parse_click_target(v)?),
-                    _ => None,
-                };
-                let after = host.app_scroll(app.clone(), focus.clone(), dx, dy).await?;
-                let data = json!({
-                    "target_app": app,
-                    "background_input": bg,
-                    "dx": dx,
-                    "dy": dy,
-                    "focus": focus,
-                    "app_state": snap_state_json(&after),
-                    "loop_warning": after.loop_warning,
-                });
-                Ok(vec![snap_result(
-                    data,
-                    Some(format!("scrolled ({},{})", dx, dy)),
-                    &after,
-                )])
-            }
-            "app_key_chord" => {
-                let app = parse_selector(params)?;
-                let keys = parse_keys(params);
-                if keys.is_empty() {
+                // Validate every step before any mutation, including single-action
+                // aliases. Integer overflow and malformed key arrays are errors.
+                let steps: Vec<crate::agentic::tools::computer_use_host::AppInputAction> =
+                    serde_json::from_value(raw).map_err(|e| {
+                        coded_tool_error(
+                            ErrorCode::InvalidParams,
+                            format!("Invalid app program: {e}"),
+                        )
+                    })?;
+                if steps.is_empty() {
                     return Err(coded_tool_error(
                         ErrorCode::InvalidParams,
-                        "app_key_chord requires non-empty 'keys'",
+                        "steps must not be empty",
                     ));
                 }
-                let focus_idx: Option<u32> = params
-                    .get("focus_idx")
-                    .and_then(|v| v.as_u64())
-                    .map(|n| n as u32);
-                let after = host
-                    .app_key_chord(app.clone(), keys.clone(), focus_idx)
-                    .await?;
-                let data = json!({
-                    "target_app": app,
-                    "background_input": bg,
-                    "keys": keys,
-                    "focus_idx": focus_idx,
-                    "app_state": snap_state_json(&after),
-                    "loop_warning": after.loop_warning,
-                });
-                Ok(vec![snap_result(
-                    data,
-                    Some("key chord sent".to_string()),
-                    &after,
-                )])
+                for step in &steps {
+                    super::computer_use_program::validate_step(step)
+                        .map_err(|e| coded_tool_error(ErrorCode::InvalidParams, e))?;
+                }
+                let result =
+                    super::computer_use_program::execute(host.as_ref(), app, steps, context).await;
+                let mut data = result.receipt;
+                data["action"] = json!(action);
+                data["background_input"] = json!(bg);
+                if action != "app_batch" {
+                    let step = data["steps"]
+                        .as_array()
+                        .and_then(|steps| steps.first())
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    data["action_status"] = step
+                        .get("status")
+                        .cloned()
+                        .unwrap_or_else(|| data["status"].clone());
+                    for key in ["error", "input_may_have_been_submitted"] {
+                        if let Some(value) = step.get(key) {
+                            data[key] = value.clone();
+                        }
+                    }
+                    data["before_digest"] = params
+                        .get("app_state_digest")
+                        .or_else(|| params.get("before_digest"))
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                }
+                if let Some(snapshot) = result.snapshot.as_ref() {
+                    data["app_state"] = snap_state_json(snapshot);
+                    Ok(vec![snap_result(data, None, snapshot)])
+                } else {
+                    Ok(vec![ToolResult::ok(data, None)])
+                }
             }
             "app_wait_for" => {
                 let app = parse_selector(params)?;
@@ -1804,58 +1454,271 @@ fn error_code_from_local(code: &str) -> ErrorCode {
 
 #[cfg(test)]
 mod tests {
-    use super::loop_tracker_observe;
-    use super::ComputerUseActions;
+    use super::{ComputerUseActions, BitFunError, ToolResult};
     use super::{OPEN_FILE_ROUTING_NOTE, OPEN_URL_ROUTING_NOTE};
     use crate::agentic::tools::computer_use_host::ComputerUseForegroundApplication;
     use serde_json::json;
 
-    // A unique PID avoids interference with the shared APP_LOOP_TRACKER state
-    // across tests in the same process.
-    const TEXT_ONLY_PID: i32 = 9_999_001;
-    const VISUAL_PID: i32 = 9_999_002;
+    use crate::agentic::tools::computer_use_host as h;
+    use crate::util::errors::BitFunResult;
+    use std::sync::{Arc, Mutex};
 
-    fn first_warning(text_only: bool, pid: i32) -> String {
-        // First call seeds (count=1, no warning). Second consecutive identical
-        // (unchanged digest) call trips the guard (count>=2) and returns the hint.
-        let _ = loop_tracker_observe(Some(pid), "app_click", "[1]", "d0", "d0", text_only);
-        loop_tracker_observe(Some(pid), "app_click", "[1]", "d0", "d0", text_only)
-            .expect("second consecutive no-progress call should warn")
+    #[derive(Debug, Default)]
+    struct CachedTargetHost {
+        calls: Mutex<Vec<String>>,
+        fail_input: bool,
+        fail_observation: bool,
+        stopped: bool,
     }
 
-    /// Text-only recovery hint must NOT send the model to `screenshot` (that
-    /// action is hard-rejected for text-only models and would loop forever).
-    #[test]
-    fn text_only_loop_warning_never_points_at_screenshot() {
-        let warning = first_warning(true, TEXT_ONLY_PID);
-        assert!(
-            !warning.contains("desktop.screenshot") && !warning.contains("run `screenshot`"),
-            "text-only loop warning must not tell the model to screenshot: {}",
-            warning
-        );
-        assert!(
-            warning.contains("describe_screen")
-                || warning.contains("get_app_state")
-                || warning.contains("move_to_text")
-                || warning.contains("key_chord"),
-            "text-only loop warning should offer a text-only recovery path: {}",
-            warning
-        );
+    fn unchanged_snapshot() -> h::AppStateSnapshot {
+        serde_json::from_value(json!({
+            "app": {"name":"Fixture","pid":73,"running":true},
+            "window_title":"Fixture", "tree_text":"window chrome", "digest":"observed-digest", "captured_at_ms":1
+        })).unwrap()
     }
 
-    /// Visual-capable models keep the classic screenshot recovery hint.
-    #[test]
-    fn visual_loop_warning_keeps_screenshot_recovery() {
-        let warning = first_warning(false, VISUAL_PID);
-        assert!(
-            warning.contains("screenshot"),
-            "visual loop warning should still offer screenshot recovery: {}",
-            warning
-        );
+    #[async_trait::async_trait]
+    impl h::ComputerUseHost for CachedTargetHost {
+        fn control_snapshot(&self) -> h::ControlSnapshot {
+            let mut snapshot = h::ControlSnapshot::default();
+            if self.stopped && !self.calls.lock().unwrap().is_empty() {
+                snapshot.supported = true;
+                snapshot.state = "stopped".into();
+            }
+            snapshot
+        }
+        async fn permission_snapshot(&self) -> BitFunResult<h::ComputerUsePermissionSnapshot> {
+            panic!("unexpected permission request")
+        }
+        async fn request_accessibility_permission(&self) -> BitFunResult<()> {
+            panic!("unexpected permission request")
+        }
+        async fn request_screen_capture_permission(&self) -> BitFunResult<()> {
+            panic!("unexpected permission request")
+        }
+        async fn screenshot_display(
+            &self,
+            _: h::ComputerUseScreenshotParams,
+        ) -> BitFunResult<h::ComputerScreenshot> {
+            panic!("unexpected capture")
+        }
+        fn map_image_coords_to_pointer(&self, _: i32, _: i32) -> BitFunResult<(i32, i32)> {
+            panic!("unexpected coordinate conversion")
+        }
+        fn map_normalized_coords_to_pointer(&self, _: i32, _: i32) -> BitFunResult<(i32, i32)> {
+            panic!("unexpected coordinate conversion")
+        }
+        async fn mouse_move(&self, _: i32, _: i32) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn pointer_move_relative(&self, _: i32, _: i32) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn mouse_click(&self, _: &str) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn scroll(&self, _: i32, _: i32) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn key_chord(&self, _: Vec<String>) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn type_text(&self, _: &str) -> BitFunResult<()> {
+            panic!("unexpected global input")
+        }
+        async fn wait_ms(&self, _: u64) -> BitFunResult<()> {
+            panic!("unexpected wait")
+        }
+        async fn list_apps(&self, _: bool) -> BitFunResult<Vec<h::AppInfo>> {
+            Ok(serde_json::from_value(json!([
+                {"name":"Fixture","pid":73,"bundle_id":"example.fixture","running":true},
+                {"name":"Google Chrome","pid":74,"bundle_id":"com.google.Chrome","running":true}
+            ]))
+            .unwrap())
+        }
+        async fn computer_use_session_snapshot(&self) -> h::ComputerUseSessionSnapshot {
+            h::ComputerUseSessionSnapshot {
+                foreground_application: Some(foreground("Google Chrome", "com.google.Chrome")),
+                pointer_global: None,
+            }
+        }
+        async fn get_app_state(
+            &self,
+            _: h::AppSelector,
+            _: u32,
+            _: bool,
+        ) -> BitFunResult<h::AppStateSnapshot> {
+            assert!(
+                self.calls
+                    .lock()
+                    .unwrap()
+                    .last()
+                    .is_some_and(|event| event.starts_with("input:")),
+                "observation must follow input and never rebuild a target before it is consumed"
+            );
+            self.calls
+                .lock()
+                .unwrap()
+                .push("recover observation".into());
+            if self.fail_observation {
+                return Err(BitFunError::tool("FIXTURE_OBSERVATION_FAILED"));
+            }
+            let mut snapshot = unchanged_snapshot();
+            snapshot.screenshot = Some(serde_json::from_value(json!({
+                "bytes":[137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 20, 0, 0, 0, 10, 8, 6, 0, 0, 0, 180, 85, 126, 230, 0, 0, 0, 23, 73, 68, 65, 84, 120, 156, 99, 48, 78, 155, 249, 159, 154, 152, 97, 212, 192, 81, 3, 135, 163, 129, 0, 136, 162, 182, 88, 58, 123, 198, 249, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130], "mime_type":"image/png", "screenshot_id":"recovered-frame",
+                "image_width":20,"image_height":10,"native_width":20,"native_height":10,
+                "display_origin_x":0,"display_origin_y":0,"vision_scale":1.0
+            })).unwrap());
+            Ok(snapshot)
+        }
+        async fn dispatch_app_input(
+            &self,
+            app: h::AppSelector,
+            action: h::AppInputAction,
+        ) -> BitFunResult<()> {
+            assert_eq!(app.pid, Some(73));
+            match &action {
+                h::AppInputAction::Click { target, .. } => {
+                    assert!(matches!(target, h::ClickTarget::NodeIdx { idx: 17 }))
+                }
+                h::AppInputAction::TypeText { text, focus } => {
+                    assert_eq!(text, "fixture text");
+                    assert!(matches!(focus, Some(h::ClickTarget::NodeIdx { idx: 17 })));
+                }
+                _ => {}
+            }
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("input:{}", action.name()));
+            if self.fail_input {
+                return Err(BitFunError::tool("FIXTURE_POST_INPUT_FAILED"));
+            }
+            Ok(())
+        }
     }
 
-    fn foreground(name: &str, bundle_id: &str) -> ComputerUseForegroundApplication {
-        ComputerUseForegroundApplication {
+    #[tokio::test]
+    async fn failed_app_input_preserves_receipt_and_recovers_pixels_without_replaying() {
+        for action in ["app_click", "app_type_text", "app_scroll", "app_key_chord"] {
+            for (fail_observation, stopped) in [(false, false), (true, false), (false, true)] {
+                let recorded = Arc::new(CachedTargetHost {
+                    fail_input: true,
+                    fail_observation,
+                    stopped,
+                    ..Default::default()
+                });
+                let host: h::ComputerUseHostRef = recorded.clone();
+                let result = ComputerUseActions::new().handle_desktop_ax(&host, action,
+                    &json!({"app":{"pid":73},"target":{"node_idx":17},"focus":{"node_idx":17},"text":"fixture text","keys":["return"],"dy":80}), true, None).await.unwrap();
+                let data = result[0].content();
+                assert_eq!(data["action_status"], "failed");
+                assert_eq!(data["input_may_have_been_submitted"], true);
+                assert!(data["error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("FIXTURE_POST_INPUT_FAILED"));
+                assert!(data.get("success").is_none());
+                let calls = recorded.calls.lock().unwrap();
+                assert_eq!(calls.len(), if stopped { 1 } else { 2 });
+                if !stopped {
+                    assert_eq!(calls[1], "recover observation");
+                }
+                let ToolResult::Result {
+                    image_attachments, ..
+                } = &result[0]
+                else {
+                    panic!("result")
+                };
+                if fail_observation || stopped {
+                    assert!(data["app_state"].is_null());
+                    assert!(data["observation_error"].is_string());
+                    assert!(image_attachments.is_none());
+                } else {
+                    assert_eq!(
+                        data["app_state"]["screenshot_meta"]["screenshot_id"],
+                        "recovered-frame"
+                    );
+                    assert_eq!(data["app_state"]["screenshot_meta"]["image_width"], 20);
+                    assert_eq!(image_attachments.as_ref().unwrap()[0].data_base64, "iVBORw0KGgoAAAANSUhEUgAAABQAAAAKCAYAAAC0VX7mAAAAF0lEQVR4nGMwTpv5n5qYYdTAUQOHo4EAiKK2WDp7xvkAAAAASUVORK5CYII=");
+                    assert!(data["observation_error"].is_null());
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_preserves_cached_targets_and_does_not_infer_failure_from_unchanged_ax() {
+        let recorded = Arc::new(CachedTargetHost::default());
+        let host: h::ComputerUseHostRef = recorded.clone();
+        let dispatcher = ComputerUseActions::new();
+        for action in ["app_click", "app_type_text"] {
+            for supplied in [
+                json!(null),
+                json!({"app_state_digest":"caller-observation"}),
+                json!({"before_digest":"legacy-observation"}),
+            ] {
+                let mut params = json!({"app":{"pid":73}, "target":{"node_idx":17}, "focus":{"node_idx":17}, "text":"fixture text"});
+                if let Some(fields) = supplied.as_object() {
+                    params.as_object_mut().unwrap().extend(fields.clone());
+                }
+                // Repeated identical AX digests are legitimate for custom-rendered apps.
+                for _ in 0..3 {
+                    let result = dispatcher
+                        .handle_desktop_ax(&host, action, &params, true, None)
+                        .await
+                        .unwrap();
+                    let data = result[0].content();
+                    let expected = params
+                        .get("app_state_digest")
+                        .or_else(|| params.get("before_digest"))
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null);
+                    assert_eq!(data["before_digest"], expected);
+                    assert_eq!(data["app_state"]["digest"], "observed-digest");
+                    assert_eq!(data["action_status"], "submitted");
+                    assert!(data["loop_warning"].is_null());
+                }
+            }
+        }
+        let calls = recorded.calls.lock().unwrap();
+        assert_eq!(calls.len(), 36);
+        for pair in calls.chunks_exact(2) {
+            assert!(pair[0].starts_with("input:"));
+            assert_eq!(pair[1], "recover observation");
+        }
+    }
+
+    #[tokio::test]
+    async fn single_input_rejects_malformed_arguments_before_any_native_work() {
+        let recorded = Arc::new(CachedTargetHost::default());
+        let host: h::ComputerUseHostRef = recorded.clone();
+        for (action, params) in [
+            (
+                "app_click",
+                json!({"app":{"pid":73},"target":{"node_idx":17},"click_count":4294967296u64}),
+            ),
+            (
+                "app_key_chord",
+                json!({"app":{"pid":73},"keys":["return",42]}),
+            ),
+            ("app_scroll", json!({"app":{"pid":73},"dy":2147483648u64})),
+            ("app_type_text", json!({"app":{"pid":73},"text":42})),
+        ] {
+            assert!(
+                ComputerUseActions::new()
+                    .handle_desktop_ax(&host, action, &params, true, None)
+                    .await
+                    .is_err(),
+                "{action}"
+            );
+        }
+        assert!(recorded.calls.lock().unwrap().is_empty());
+    }
+
+    fn foreground(name: &str, bundle_id: &str) -> h::ComputerUseForegroundApplication {
+        h::ComputerUseForegroundApplication {
             name: Some(name.to_string()),
             bundle_id: Some(bundle_id.to_string()),
             process_name: None,
@@ -1863,201 +1726,10 @@ mod tests {
         }
     }
 
-    /// A host that reports no app identity — on Windows `name` is the
-    /// foreground *window title*, not an application name.
-    fn titled(window_title: &str) -> ComputerUseForegroundApplication {
-        ComputerUseForegroundApplication {
-            name: Some(window_title.to_string()),
-            bundle_id: None,
-            process_name: None,
-            process_id: Some(1),
-        }
-    }
-
-    /// Windows shape: window title in `name`, executable basename in
-    /// `process_name`.
-    fn windows_app(window_title: &str, exe: &str) -> ComputerUseForegroundApplication {
-        ComputerUseForegroundApplication {
-            name: Some(window_title.to_string()),
-            bundle_id: None,
-            process_name: Some(exe.to_string()),
-            process_id: Some(1),
-        }
-    }
-
-    /// Only Chromium-family browsers are CDP-drivable via the ControlHub
-    /// browser domain. Firefox/Safari must NOT trip the desktop browser guard
-    /// or the user would have no control path at all.
-    #[test]
-    fn browser_guard_matches_only_chromium_family() {
-        assert!(ComputerUseActions::is_probably_browser_app(&foreground(
-            "Google Chrome",
-            "com.google.Chrome"
-        )));
-        assert!(ComputerUseActions::is_probably_browser_app(&foreground(
-            "Microsoft Edge",
-            "com.microsoft.edgemac"
-        )));
-        assert!(ComputerUseActions::is_probably_browser_app(&foreground(
-            "Google Chrome Canary",
-            "com.google.Chrome.canary"
-        )));
-        assert!(!ComputerUseActions::is_probably_browser_app(&foreground(
-            "Firefox",
-            "org.mozilla.firefox"
-        )));
-        assert!(!ComputerUseActions::is_probably_browser_app(&foreground(
-            "Safari",
-            "com.apple.Safari"
-        )));
-    }
-
-    /// The identity wins over the display name: an editor window whose title
-    /// happens to contain a browser word is still an editor.
-    #[test]
-    fn browser_guard_prefers_identity_over_display_name() {
-        assert!(!ComputerUseActions::is_probably_browser_app(&foreground(
-            "chrome-devtools.ts — Code",
-            "com.microsoft.VSCode"
-        )));
-    }
-
-    /// Window titles are user content, not app identities. Substring hints on
-    /// them locked desktop input out of ordinary Windows apps ("Knowledge Base"
-    /// contains "edge", "Search Results" contains "arc").
-    #[test]
-    fn browser_guard_ignores_window_titles_that_merely_contain_browser_words() {
-        for title in [
-            "Knowledge Base - Obsidian",
-            "edge_cases.ts - proj - Visual Studio Code",
-            "Search Results in Documents",
-            "Monarch",
-            "Archive Utility",
-            "Ledger Live",
-        ] {
-            assert!(
-                !ComputerUseActions::is_probably_browser_app(&titled(title)),
-                "`{title}` is not a browser"
-            );
-        }
-    }
-
-    /// Without an identity the window title is the only signal left, so real
-    /// Chromium windows must still be recognised from it.
-    #[test]
-    fn browser_guard_still_matches_chromium_window_titles() {
-        for title in [
-            "Google - Google Chrome",
-            "Inbox - Microsoft Edge",
-            "BitFun docs — Arc",
-            "New Tab - Brave",
-        ] {
-            assert!(
-                ComputerUseActions::is_probably_browser_app(&titled(title)),
-                "`{title}` is a Chromium browser window"
-            );
-        }
-    }
-
-    /// Windows/Linux report an executable basename rather than a bundle id.
-    #[test]
-    fn browser_guard_matches_executable_basenames() {
-        assert!(ComputerUseActions::is_probably_browser_app(&foreground(
-            "Google - Google Chrome",
-            "chrome.exe"
-        )));
-        assert!(ComputerUseActions::is_probably_browser_app(&foreground(
-            "Inbox - Microsoft Edge",
-            "msedge.exe"
-        )));
-        assert!(!ComputerUseActions::is_probably_browser_app(&foreground(
-            "edge_cases.ts - Visual Studio Code",
-            "Code.exe"
-        )));
-        assert!(!ComputerUseActions::is_probably_browser_app(&foreground(
-            "Knowledge Base - Obsidian",
-            "obsidian.exe"
-        )));
-    }
-
-    /// An explicit `app` selector is classified without asking the host, so
-    /// `app_click { app: { name: "Google Chrome" } }` cannot be used to reach
-    /// the browser from the desktop side.
-    #[test]
-    fn app_selector_naming_a_chromium_browser_is_recognised() {
-        assert!(ComputerUseActions::selector_is_chromium(
-            &json!({ "name": "Google Chrome" })
-        ));
-        assert!(ComputerUseActions::selector_is_chromium(
-            &json!({ "bundle_id": "com.microsoft.edgemac" })
-        ));
-        assert!(ComputerUseActions::selector_is_chromium(&json!(
-            "Brave Browser"
-        )));
-        assert!(!ComputerUseActions::selector_is_chromium(
-            &json!({ "name": "WeChat" })
-        ));
-        // pid-only carries no identity — the frontmost check decides instead.
-        assert!(!ComputerUseActions::selector_is_chromium(
-            &json!({ "pid": 123 })
-        ));
-    }
-
-    /// The app switcher must stay callable while a browser is frontmost: it is
-    /// the escape hatch for tasks whose target is not the browser at all.
-    #[test]
-    fn app_switcher_chords_are_never_guarded() {
-        assert!(ComputerUseActions::is_focus_switch_chord(
-            "key_chord",
-            &json!({ "keys": ["alt", "tab"] })
-        ));
-        assert!(ComputerUseActions::is_focus_switch_chord(
-            "key_chord",
-            &json!({ "keys": ["command", "shift", "tab"] })
-        ));
-        assert!(!ComputerUseActions::is_focus_switch_chord(
-            "key_chord",
-            &json!({ "keys": ["command", "t"] })
-        ));
-        assert!(!ComputerUseActions::is_focus_switch_chord(
-            "type_text",
-            &json!({ "keys": ["alt", "tab"] })
-        ));
-    }
-
-    /// The rejection must lead somewhere: a non-browser escape route, the
-    /// ControlHub actions that own browser chrome / file pickers / dialogs, and
-    /// no contradiction with `browser.connect`'s guarded approval flow.
-    #[test]
-    fn browser_guard_hints_offer_an_executable_way_out() {
-        let error = ComputerUseActions::desktop_browser_guard_error("click", None);
-        assert!(
-            error
-                .message
-                .contains("not because your task is browser-related"),
-            "{}",
-            error.message
-        );
-        let hints = error.hints.join(" | ");
-        assert!(hints.contains("browser.connect"), "{hints}");
-        assert!(hints.contains("browser.set_file_input_files"), "{hints}");
-        assert!(hints.contains("browser.dialog"), "{hints}");
-        assert!(hints.contains("browser.navigate"), "{hints}");
-        assert!(hints.contains("open_app"), "{hints}");
-        assert!(hints.contains("app_click"), "{hints}");
-        assert!(
-            !hints.contains("test port enabled") && !hints.contains("--remote-debugging-port"),
-            "must not teach the unsafe legacy default-profile debug-port flow: {hints}"
-        );
-    }
-
-    /// `open_url` hands the page to the user's default browser, which the
-    /// agent can neither observe nor control. The success note must say so
-    /// and route follow-up page work to the ControlHub browser domain —
-    /// never to desktop clicks (those trip the desktop browser guard).
     #[test]
     fn open_url_routing_note_points_at_browser_domain() {
-        assert!(OPEN_URL_ROUTING_NOTE.contains("cannot observe or control"));
+        assert!(OPEN_URL_ROUTING_NOTE.contains("no observation"));
+        assert!(OPEN_URL_ROUTING_NOTE.contains("ComputerUse"));
         assert!(OPEN_URL_ROUTING_NOTE.contains("ControlHub domain=\"browser\""));
         assert!(OPEN_URL_ROUTING_NOTE.contains("browser.connect"));
         assert!(OPEN_URL_ROUTING_NOTE.contains("snapshot"));
@@ -2072,15 +1744,5 @@ mod tests {
         assert!(OPEN_FILE_ROUTING_NOTE.contains("ComputerUse desktop"));
         assert!(OPEN_FILE_ROUTING_NOTE.contains("screenshot"));
         assert!(!OPEN_FILE_ROUTING_NOTE.contains("browser"));
-    }
-
-    /// A genuine tree mutation (digest changes) must NOT trigger the warning,
-    /// even on the same target — progress resets the streak.
-    #[test]
-    fn progressed_action_does_not_warn() {
-        let pid = 9_999_003;
-        let _ = loop_tracker_observe(Some(pid), "app_click", "[2]", "d0", "d1", true);
-        let second = loop_tracker_observe(Some(pid), "app_click", "[2]", "d1", "d2", true);
-        assert!(second.is_none(), "digest change = progress, no warning");
     }
 }

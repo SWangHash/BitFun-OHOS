@@ -19,6 +19,13 @@ $_section-header-height: 22px;
 .bitfun-nav-panel {
   @include shell-surfaces.sidebar-background;
 
+  --_nav-icon-color: var(--bitfun-color-content-secondary);
+  --_nav-icon-slot-size: var(--bitfun-control-icon-button-xs-size);
+  --_nav-icon-size: var(--bitfun-control-icon-size-sm);
+  --_nav-icon-size-prominent: var(--bitfun-control-icon-size-md);
+  --bitfun-control-icon-stroke-width: var(--bitfun-control-icon-stroke-width-strong);
+  --bitfun-opacity-icon-artwork: 1;
+
   width: 100%;
   flex: 1;
   min-height: 0;
@@ -305,13 +312,13 @@ $_section-header-height: 22px;
     }
 
     &--pro .bitfun-nav-panel__mode-pill-segment-icon {
-      width: 22px;
-      height: 22px;
+      width: var(--_nav-icon-slot-size);
+      height: var(--_nav-icon-slot-size);
     }
 
     &--assistant .bitfun-nav-panel__mode-pill-segment-icon {
-      width: 24px;
-      height: 24px;
+      width: var(--bitfun-control-icon-size-lg);
+      height: var(--bitfun-control-icon-size-lg);
     }
   }
 
@@ -672,6 +679,27 @@ $_section-header-height: 22px;
     margin: 0;
   }
 
+  &__miniapp-item {
+    display: flex;
+    // Anchors the trailing app bubbles, which trail as an overlay.
+    position: relative;
+    width: 100%;
+    min-height: var(--bitfun-layout-navigation-panel-item-height);
+    padding: 0;
+    background: transparent;
+  }
+
+  // Every nav row paints its hover/selected pill on the ActionItem trigger. This
+  // row's root also lays the trailing actions region out in flow, so the root gap
+  // plus that region's own inset pushed the trigger 12px off the row's right edge
+  // and the pill stopped short with it. Trailing the region as an overlay keeps
+  // the bubbles on their existing gutter and lets the pill span the full row.
+  &__miniapp-item > [data-bitfun-part='actions'] {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: var(--bitfun-space-2);
+  }
+
   &__miniapp-entry {
     position: relative;
     width: 100%;
@@ -714,6 +742,14 @@ $_section-header-height: 22px;
       box-shadow: 0 2px 8px color-mix(in srgb, var(--bitfun-color-content-on-light) 8%, transparent);
     }
 
+    &:hover,
+    &:focus-visible,
+    &.is-active {
+      .bitfun-nav-panel__miniapp-entry-icon {
+        color: var(--bitfun-color-content-primary);
+      }
+    }
+
     &.has-customizing-apps {
       color: var(--bitfun-color-content-primary);
 
@@ -747,24 +783,11 @@ $_section-header-height: 22px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
-    color: inherit;
-  }
-
-  &__miniapp-entry-copy {
-    min-width: 0;
-    display: inline;
-  }
-
-  &__miniapp-entry-title {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: var(--bitfun-type-label-md-font-size);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-    line-height: var(--bitfun-type-display-sm-line-height);
+    flex: 0 0 var(--_nav-icon-slot-size);
+    width: var(--_nav-icon-slot-size);
+    height: var(--_nav-icon-slot-size);
+    color: var(--_nav-icon-color);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__miniapp-entry-apps {
@@ -790,6 +813,9 @@ $_section-header-height: 22px;
     border: none;
     box-shadow: none;
     overflow: hidden;
+    --_icon-button-background: transparent;
+    --_icon-button-background-hover: transparent;
+    --_icon-button-background-active: transparent;
     transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 filter var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
@@ -815,21 +841,23 @@ $_section-header-height: 22px;
     &.is-customizing {
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 42%, transparent),
                   0 8px 18px color-mix(in srgb, var(--bitfun-color-content-on-light) 20%, transparent);
+
+      &::after {
+        position: absolute;
+        right: 2px;
+        bottom: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: var(--bitfun-radius-pill);
+        background: var(--bitfun-color-accent-default);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--bitfun-color-content-on-light) 28%, transparent), 0 0 7px color-mix(in srgb, var(--bitfun-color-accent-default) 72%, transparent);
+        content: '';
+        pointer-events: none;
+      }
     }
 
     &.is-active.is-customizing {
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 42%, transparent);
-    }
-
-    &-customize-dot {
-      position: absolute;
-      right: 2px;
-      bottom: 2px;
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
-      background: var(--bitfun-color-accent-default);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bitfun-color-content-on-light) 28%, transparent), 0 0 7px color-mix(in srgb, var(--bitfun-color-accent-default) 72%, transparent);
     }
 
     &--more {
@@ -935,42 +963,33 @@ $_section-header-height: 22px;
   }
 
   &__section-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--bitfun-color-content-primary);
-    cursor: pointer;
-    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-                background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    // The header's three actions sit directly above the workspace row's three hover
+    // actions and read as one set of icon columns, so the cluster uses the row's
+    // compact 20px box instead of the 22px `--_nav-icon-slot-size` slot. The row
+    // pitch is 20px + the 4px `__section-actions` gap below, and only that pair
+    // puts every icon centre on the row's column centres. The `size="sm"` glyph
+    // stays 14px and remains centred inside the smaller box.
+    flex: 0 0 20px;
+    inline-size: 20px;
+    block-size: 20px;
+    color: var(--_nav-icon-color);
 
     &:hover {
       color: var(--bitfun-color-content-primary);
-      background: var(--bitfun-color-action-quiet-hover);
     }
 
     &.is-active {
       color: var(--bitfun-color-content-primary);
       background: var(--bitfun-color-action-quiet-hover);
     }
-
-    &:active {
-      background: var(--bitfun-color-action-neutral-surface-hover);
-    }
-
-    &:focus-visible {
-      outline: 1px solid var(--bitfun-color-accent-default);
-      outline-offset: 1px;
-    }
   }
 
   &__workspace-action-wrap {
     position: relative;
+    display: inline-flex;
+    align-items: center;
+    inline-size: 20px;
+    block-size: 20px;
   }
 
   /* Positioning-only overrides; the design-system Menu owns the surface look. */
@@ -1176,7 +1195,7 @@ $_section-header-height: 22px;
       color: var(--bitfun-color-content-primary);
 
       .bitfun-nav-panel__item-icon {
-        opacity: 0.8;
+        color: var(--_nav-icon-color);
       }
     }
 
@@ -1190,7 +1209,9 @@ $_section-header-height: 22px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    opacity: 0.78;
+    inline-size: var(--_nav-icon-size);
+    block-size: var(--_nav-icon-size);
+    color: var(--_nav-icon-color);
     transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
@@ -1438,6 +1459,11 @@ $_section-header-height: 22px;
 
   > svg {
     flex-shrink: 0;
+    // A line box is split by the font's ascent and descent, not by the glyphs
+    // drawn in it, so centring the mark on that box leaves its ink about a pixel
+    // above the text's own ink centre. One pixel, measured in the browser, puts
+    // the two on one optical centre.
+    transform: translateY(1px);
   }
 
   &:hover,
@@ -1465,20 +1491,22 @@ $_section-header-height: 22px;
 }
 
 // Attached remote parties are shown once per device kind with unframed icons.
-// Message-app marks inherit the theme foreground; connection state is already
-// communicated by the device overview rather than by recoloring the brand.
+// One row of peers is one set of marks, so they all take the theme foreground: a
+// brand, system or kind silhouette drawn a step quieter reads as a disabled or
+// offline party instead of as another drawing. Connection state is communicated
+// by the device overview, never by recoloring a mark.
 .bitfun-nav-panel__footer-device-status-attached {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
   margin-left: 1px;
-  color: var(--bitfun-color-content-secondary);
+  color: var(--bitfun-color-content-primary);
 }
 
 .bitfun-nav-panel__footer-device-status-attached-group {
-  width: 20px;
-  height: 20px;
+  width: var(--_nav-icon-slot-size);
+  height: var(--_nav-icon-slot-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1489,7 +1517,6 @@ $_section-header-height: 22px;
   &[data-bitfun-device-kind='message-app'] {
     border: 0;
     background: transparent;
-    color: var(--bitfun-color-content-primary);
   }
 }
 
@@ -1578,14 +1605,14 @@ $_section-header-height: 22px;
 // Footer icon buttons: default icon fades to alternate on hover / focus-visible
 .bitfun-nav-panel__footer-btn-icon-swap {
   position: relative;
-  width: 15px;
-  height: 15px;
+  width: var(--_nav-icon-size);
+  height: var(--_nav-icon-size);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  > svg {
+  > [data-bitfun-component='icon'] {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -1640,7 +1667,6 @@ $_section-header-height: 22px;
 /* Positioning-only overrides; the design-system Menu owns the surface look. */
 .bitfun-nav-panel__footer-menu {
   position: fixed;
-  min-width: 148px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
   z-index: var(--bitfun-layer-popover);
@@ -1925,17 +1951,22 @@ $_section-header-height: 22px;
   .bitfun-device-overview__carousel-track { transition: none; }
 }
 
-.bitfun-device-overview__connect-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  z-index: 1;
+// The action sits under the artwork, in the flow, for the same reason it is not
+// centred on it: the system mark owns the screen. Nothing is layered here, so it
+// needs no frosted surface — there is no artwork behind it to separate from.
+// Height comes from the button the card always renders here, never from the
+// state, so this machine and a peer keep one card height (see
+// DeviceStatusControl's connect action).
+.bitfun-device-overview__connect-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bitfun-space-2) var(--bitfun-space-4) 0;
+}
 
-  > button {
-    pointer-events: auto;
-  }
+.bitfun-device-overview__connect-reserved {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .bitfun-device-overview__artwork {
@@ -1966,10 +1997,32 @@ $_section-header-height: 22px;
   mask: url('./assets/device.svg') center / contain no-repeat;
 }
 
+// A headless host is drawn, not a system: the row mark's three rack units, which
+// are a tall stack where every other artwork here is a landscape laptop. It takes
+// less of the width and more of the height instead, so it carries the same weight
+// in the 2:1 artwork as the silhouettes beside it.
 .bitfun-device-overview__artwork[data-artwork='server'] .bitfun-device-overview__artwork-glyph {
-  width: 38.11849%;
-  aspect-ratio: 91.484375 / 70.7421875;
+  width: 30%;
+  aspect-ratio: 24 / 29.4629;
   mask-image: url('./assets/server.svg');
+}
+
+// The system variants keep the neutral device.svg silhouette and size, so only
+// the mask source differs; an unplaceable system falls back to device.svg.
+.bitfun-device-overview__artwork[data-artwork='windows'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/windows.svg');
+}
+
+.bitfun-device-overview__artwork[data-artwork='macos'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/macos.svg');
+}
+
+.bitfun-device-overview__artwork[data-artwork='linux'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/linux.svg');
+}
+
+.bitfun-device-overview__artwork[data-artwork='harmonyos'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/harmonyos.svg');
 }
 
 .bitfun-device-overview__device-name {
@@ -2310,17 +2363,29 @@ $_section-header-height: 22px;
 }
 
 // Align with section headers: __section-header margin-x 8 + padding-x 8 → label starts 16px from panel; __top-actions pad-x 8 + button pl 8 → icon column starts at 16px.
+.bitfun-nav-panel__top-action-item {
+  display: flex;
+  width: 100%;
+  min-height: var(--bitfun-layout-navigation-panel-item-height);
+  padding: 0;
+  background: transparent;
+}
+
+.bitfun-nav-panel__top-action-item--sub {
+  min-height: var(--bitfun-layout-navigation-panel-item-height);
+}
+
 .bitfun-nav-panel__top-action-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--bitfun-space-2);
   width: 100%;
   padding: 0 var(--bitfun-space-2) 0 var(--bitfun-space-2);
-  height: 32px;
+  height: var(--bitfun-layout-navigation-panel-item-height);
   border: none;
   border-radius: var(--bitfun-radius-base);
   background: transparent;
-  color: var(--bitfun-color-content-secondary);
+  color: var(--_nav-icon-color);
   font-size: var(--bitfun-type-label-md-font-size);
   font-weight: var(--bitfun-type-label-sm-font-weight);
   cursor: pointer;
@@ -2328,8 +2393,9 @@ $_section-header-height: 22px;
   transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
               color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
-  // Only the label span:not([data-overflow-content]) should grow; icon / chevron wrappers must NOT get flex: 1
-  > span:not([data-overflow-content]):not(.bitfun-nav-panel__top-action-icon-circle):not(.bitfun-nav-panel__top-action-icon-slot):not(.bitfun-nav-panel__top-action-expand-icons):not(.bitfun-nav-panel__count-badge):not(.bitfun-nav-panel__top-action-unseen) {
+  // Follow the ActionItem anatomy explicitly so component-library slots are not
+  // mistaken for labels when new spans are added to the component.
+  > [data-bitfun-part='label'] {
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -2339,18 +2405,23 @@ $_section-header-height: 22px;
   svg { flex-shrink: 0; }
 
   .bitfun-nav-panel__top-action-icon-slot {
-    width: 22px;
-    min-width: 22px;
-    height: 22px;
-    flex: 0 0 22px;
+    width: var(--_nav-icon-slot-size);
+    min-width: var(--_nav-icon-slot-size);
+    height: var(--_nav-icon-slot-size);
+    flex: 0 0 var(--_nav-icon-slot-size);
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: var(--_nav-icon-color);
   }
 
   &:hover {
     background: var(--bitfun-color-action-quiet-hover);
     color: var(--bitfun-color-content-primary);
+
+    .bitfun-nav-panel__top-action-icon-slot {
+      color: var(--bitfun-color-content-primary);
+    }
   }
 
   &:focus-visible {
@@ -2361,20 +2432,42 @@ $_section-header-height: 22px;
   &.is-active {
     background: var(--bitfun-color-action-quiet-hover);
     color: var(--bitfun-color-content-primary);
+
+    .bitfun-nav-panel__top-action-icon-slot {
+      color: var(--bitfun-color-content-primary);
+    }
   }
 
   &--sub {
-    // Start the visible 15px child icon on the parent label column:
-    // parent inline padding (8px) + parent icon slot (22px) + gap (8px).
-    padding-left: calc(var(--bitfun-space-2) + 30px);
+    // Start the child icon on the parent label column.
+    padding-left: calc(var(--bitfun-space-2) + var(--_nav-icon-slot-size) + var(--bitfun-space-2));
 
     .bitfun-nav-panel__top-action-icon-slot {
-      width: 15px;
-      min-width: 15px;
-      flex-basis: 15px;
+      width: var(--_nav-icon-size);
+      min-width: var(--_nav-icon-size);
+      height: var(--_nav-icon-size);
+      flex-basis: var(--_nav-icon-size);
       justify-content: flex-start;
     }
   }
+}
+
+// Keep every primary navigation entry on the same token-owned icon column.
+// ActionItem's leading slot is a direct child of the trigger; the icon wrappers
+// inside it inherit this fixed geometry instead of participating in label growth.
+.bitfun-nav-panel__top-action-btn,
+.bitfun-nav-panel__miniapp-entry {
+  > [data-bitfun-part='leading'] {
+    flex: 0 0 var(--_nav-icon-slot-size);
+    inline-size: var(--_nav-icon-slot-size);
+    block-size: var(--_nav-icon-slot-size);
+  }
+}
+
+.bitfun-nav-panel__top-action-btn--sub > [data-bitfun-part='leading'] {
+  flex-basis: var(--_nav-icon-size);
+  inline-size: var(--_nav-icon-size);
+  block-size: var(--_nav-icon-size);
 }
 
 .bitfun-nav-panel__top-action-unseen {
@@ -2385,7 +2478,7 @@ $_section-header-height: 22px;
   background: var(--bitfun-color-accent-default);
 }
 
-// 扩展：默认 Blocks，悬停时图标位切换为 Chevron；展开时箭头朝上
+// 扩展：默认 Puzzle，悬停时图标位切换为 Chevron；展开时箭头朝上
 .bitfun-nav-panel__top-action-expand-icons {
   position: relative;
 
@@ -2401,9 +2494,7 @@ $_section-header-height: 22px;
 
   .bitfun-nav-panel__top-action-expand-icon-default {
     opacity: 1;
-    // The puzzle glyph's filled mass sits left of its viewBox center. At the
-    // 14px navigation size, a 1px optical correction aligns it with the row.
-    transform: translate(calc(-50% + 1px), -50%);
+    transform: translate(-50%, -50%);
   }
 
   .bitfun-nav-panel__top-action-expand-icon-chevron {
@@ -2426,10 +2517,10 @@ $_section-header-height: 22px;
 }
 
 .bitfun-nav-panel__top-action-icon-circle {
-  width: 22px;
-  min-width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: var(--_nav-icon-slot-size);
+  min-width: var(--_nav-icon-slot-size);
+  height: var(--_nav-icon-slot-size);
+  flex: 0 0 var(--_nav-icon-slot-size);
   align-self: center;
   display: inline-flex;
   align-items: center;
@@ -2451,6 +2542,14 @@ $_section-header-height: 22px;
     color: var(--bitfun-color-action-primary-content);
     box-shadow: var(--bitfun-shadow-xs);
   }
+}
+
+.bitfun-nav-panel__menu-loading-icon {
+  inline-size: var(--bitfun-control-icon-size-sm);
+  block-size: var(--bitfun-control-icon-size-sm);
+  color: var(--bitfun-color-content-secondary);
+  opacity: var(--bitfun-opacity-muted);
+  animation: bitfun-nav-session-spin 1s linear infinite;
 }
 
 // ──────────────────────────────────────────────
@@ -2564,7 +2663,7 @@ $_section-header-height: 22px;
     }
 
     &--sub {
-      padding-left: calc(var(--bitfun-space-2) + 30px);
+      padding-left: calc(var(--bitfun-space-2) + var(--_nav-icon-slot-size) + var(--bitfun-space-2));
       color: var(--bitfun-color-content-muted);
     }
   }
@@ -2605,6 +2704,13 @@ $_section-header-height: 22px;
     height: 22px;
     margin: 0 6px;
     padding: 0 var(--bitfun-space-2);
+    // Trailing edge of the shared action column, not the header's own padding
+    // gutter. The sessions list below starts at the 6px list inset and every row
+    // ends its last action 4px inside its own 1px row border, so the header has to
+    // reach one border-width further in than its 8px gutter to land on that
+    // column. Without it the header icons sit 3px inside the workspace row
+    // actions and read as a second, accidental axis.
+    padding-right: calc(var(--bitfun-space-1) + var(--bitfun-border-width-default));
     border-radius: var(--bitfun-radius-sm);
     opacity: 1;
     transition:
@@ -2924,8 +3030,7 @@ $_section-header-height: 22px;
     @include shell-surfaces.navigation-hover-feedback;
   }
 
-  &__assistant-entry-label,
-  &__miniapp-entry-title {
+  &__assistant-entry-label {
     font-size: inherit;
     font-weight: inherit;
     line-height: inherit;

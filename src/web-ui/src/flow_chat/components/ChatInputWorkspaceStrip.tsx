@@ -65,6 +65,12 @@ export interface ChatInputWorkspaceStripProps {
      * two sessions sitting on different modes is legible rather than confusing.
      */
     overridden?: boolean;
+    /**
+     * The Session's own mode could not be read, so `mode` is the user-level
+     * default rather than this Session's selection. Reported instead of passed
+     * off as that selection.
+     */
+    unread?: boolean;
     /** Clears the session's own selection and follows the default again. */
     onResetToDefault?: () => void | Promise<void>;
     /** Opens the settings page that owns the default this row follows. */
@@ -287,8 +293,6 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   }, [permissionMenuOpen, permissionMenuView]);
 
   useEffect(() => {
-    let removeOverlayPointerdown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!permissionMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -313,8 +317,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       }
     };
 
-    removeOverlayPointerdown0 = subscribeOverlayInteraction(permissionMenuRef, 'pointerdown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(permissionMenuRef, 'keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(permissionMenuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(permissionMenuRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayPointerdown0?.();
       removeOverlayKeydown1?.();
@@ -327,8 +331,6 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
   ]);
 
   useEffect(() => {
-    let removeOverlayPointerdown2: (() => void) | undefined;
-    let removeOverlayKeydown3: (() => void) | undefined;
     if (!workspaceMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -346,8 +348,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
       }
     };
 
-    removeOverlayPointerdown2 = subscribeOverlayInteraction(workspaceMenuRef, 'pointerdown', handlePointerDown);
-    removeOverlayKeydown3 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleKeyDown);
+    const removeOverlayPointerdown2 = subscribeOverlayInteraction(workspaceMenuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown3 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayPointerdown2?.();
       removeOverlayKeydown3?.();
@@ -427,6 +429,9 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     || permissionControl?.saving
     || permissionMode === 'acp';
   const permissionOverridden = !!permissionControl?.overridden && permissionMode !== 'acp';
+  // A Session whose own mode could not be read has no selection to mark; the
+  // default it displays is a fallback, not a choice it made.
+  const permissionUnread = !!permissionControl?.unread && permissionMode !== 'acp';
   const permissionNextTurnMode = permissionMode === 'acp'
     ? null
     : permissionControl?.nextTurnMode ?? null;
@@ -447,6 +452,8 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         )
       : permissionOverridden
         ? t('chatInput.permissionMode.currentSessionOverride', { mode: permissionModeLabel })
+      : permissionUnread
+        ? t('chatInput.permissionMode.unreadTooltip', { mode: permissionModeLabel })
       : t('chatInput.permissionMode.current', { mode: permissionModeLabel });
   const PermissionIcon = PERMISSION_MODE_ICONS[permissionDisplayMode];
   const PermissionSessionIcon = PERMISSION_MODE_ICONS[permissionMode];
@@ -716,7 +723,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
     const oneOff = selectionScope === 'turn';
     const selected = oneOff
       ? permissionNextTurnMode === mode
-      : permissionMode === mode;
+      : permissionMode === mode && !permissionUnread;
     const copy = permissionCopy[mode];
     const OptionIcon = PERMISSION_MODE_ICONS[mode];
     const accessibleLabel = oneOff
@@ -867,6 +874,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 data-testid="chat-input-permission-trigger"
                 data-permission-mode={permissionDisplayMode}
                 data-permission-overridden={permissionOverridden ? 'true' : undefined}
+                data-permission-unread={permissionUnread ? 'true' : undefined}
                 data-permission-next-turn={permissionNextTurnArmed ? 'true' : undefined}
                 data-permission-active-turn={permissionActiveTurn ? 'true' : undefined}
                 onClick={event => {
@@ -937,6 +945,17 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                       data-bitfun-component="chat-input-workspace-strip"
                       data-bitfun-part="permissionOptions"
                     >
+                      {/* With no readable Session mode there is no honest
+                          checkmark to place, so say why the list is unmarked. */}
+                      {permissionUnread ? (
+                        <MenuItem
+                          disabled
+                          leading={<Icon name="info" size="sm" aria-hidden />}
+                          data-testid="chat-input-permission-unread-notice"
+                        >
+                          {t('chatInput.permissionMode.unreadMenuNotice')}
+                        </MenuItem>
+                      ) : null}
                       {permissionModes.map(mode => renderPermissionModeOption(mode, 'session'))}
                     </MenuSection>
                     {permissionControl.onChangeForNextTurn ? (

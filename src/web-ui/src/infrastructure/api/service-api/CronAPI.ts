@@ -107,6 +107,19 @@ export interface UpdateCronJobRequest {
 }
 
 export class CronAPI {
+  /**
+   * Register a listener for backend scheduled-job change hints. The backend
+   * emits these when the job set or a job's run state changes (agent tool
+   * calls, scheduler runs, session cleanup); the payload is only a hint, so
+   * consumers re-read the job list. Returns an unlisten function.
+   */
+  onJobsChanged(callback: (payload: { reason?: string; jobId?: string | null }) => void): () => void {
+    return api.listen<{ reason?: string; jobId?: string | null }>(
+      'cron://jobs-changed',
+      callback,
+    );
+  }
+
   async notifyHostReady(): Promise<void> {
     if (!isTauriRuntime()) {
       return;

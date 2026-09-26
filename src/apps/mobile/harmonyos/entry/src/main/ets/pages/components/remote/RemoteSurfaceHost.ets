@@ -22,7 +22,7 @@ import {
   SettingsPlacementPolicy,
   SettingsSheetKind
 } from '../../policy/SettingsPlacementPolicy';
-import { CARD, STATUS_SUCCESS, INK, LINE, MUTED, PAGE_BG, PRIMARY_ACTION, CONTENT_ON_ACTION, STATUS_DANGER } from '../Theme';
+import { CARD, STATUS_SUCCESS, INK, MUTED, PAGE_BG, PRIMARY_ACTION, CONTENT_ON_ACTION, STATUS_DANGER } from '../Theme';
 
 export enum RemoteSurfaceMode {
   Master = 'master',
@@ -120,7 +120,9 @@ export struct RemoteSurfaceHost {
           showStatusMetadata: this.presentationState.showStatusMetadata,
           supportsHarnessProfiles: this.supportsHarnessProfiles(),
           hasMoreSessions: this.remotePageState.hasMoreSessions,
-          isBusy: this.remotePageState.conversation.isBusy || this.remotePageState.isLoadingSessions,
+          // Opening a transcript is supersedable; keep rows tappable while that
+          // request hydrates so a second choice is not silently swallowed.
+          isBusy: this.remotePageState.isLoadingSessions,
           // A pending id means a row was tapped, whether or not the open is slow
           // enough to have raised a skeleton. Keying the highlight off the
           // loading flag instead used to tie selection to how long the load took.
@@ -266,8 +268,11 @@ export struct RemoteSurfaceHost {
         .layoutWeight(1).alignItems(HorizontalAlign.Center)
         Blank().width(48).height(48)
       }
+      // No hairline under the welcome header. The compact header does not draw
+      // one and neither does the desktop client; the wide surface is the same
+      // page, not a sheet, so it should not grow a divider just because it is
+      // wider.
       .width('100%').height(76).padding({ left: 16, right: 16, top: 14, bottom: 12 })
-      .border({ width: { bottom: 1 }, color: LINE })
 
       this.CompactEmptyState()
 

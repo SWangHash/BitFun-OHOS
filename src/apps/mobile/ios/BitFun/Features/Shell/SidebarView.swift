@@ -84,7 +84,7 @@ struct SidebarView: View {
                 .layoutPriority(-1)
                 .clipped()
                 .accessibilityIdentifier("sidebar.workspaces")
-                footer.background(BitFunTheme.page)
+                footer.background(BitFunTheme.sidebarBg)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -94,7 +94,7 @@ struct SidebarView: View {
                 height: proxy.size.height,
                 alignment: .topLeading
             )
-            .background(BitFunTheme.page)
+            .background(BitFunTheme.sidebarBg)
         }
         .sheet(item: $compactActionSession) { session in
             let detentHeight: CGFloat = model.surface == .local ? 330 : 230
@@ -214,16 +214,16 @@ struct SidebarView: View {
         HStack(spacing: 6) {
             Text(verbatim: "BitFun")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(BitFunTheme.ink)
+                .foregroundStyle(BitFunTheme.sidebarInk)
             Spacer(minLength: 0)
             if let onCollapse {
                 Button(action: onCollapse) {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                         .frame(width: 38, height: 38)
-                        .background(BitFunTheme.card)
-                        .overlay(Circle().stroke(BitFunTheme.line, lineWidth: 1))
+                        .background(BitFunTheme.sidebarRaised)
+                        .overlay(Circle().stroke(BitFunTheme.sidebarLine, lineWidth: 1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -237,8 +237,8 @@ struct SidebarView: View {
                     .font(.system(size: 18, weight: .regular))
                     .frame(width: 22, height: 22)
                     .frame(width: 44, height: 44)
-                    .background(BitFunTheme.card)
-                    .overlay(Circle().stroke(BitFunTheme.line, lineWidth: 0.5))
+                    .background(BitFunTheme.sidebarRaised)
+                    .overlay(Circle().stroke(BitFunTheme.sidebarLine, lineWidth: 0.5))
                     .clipShape(Circle())
                     .shadow(color: MobileDesignColors.shadowFaint, radius: 9, y: 3)
             }
@@ -257,7 +257,7 @@ struct SidebarView: View {
                     Text(model.localized("连接桌面端"))
                         .font(.system(size: 15, weight: .medium))
                 }
-                .foregroundStyle(BitFunTheme.ink)
+                .foregroundStyle(BitFunTheme.sidebarInk)
                 .frame(height: 42)
             }
             .buttonStyle(.plain)
@@ -266,10 +266,10 @@ struct SidebarView: View {
                 Button(action: onCollapse) {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                         .frame(width: 38, height: 38)
-                        .background(BitFunTheme.card)
-                        .overlay(Circle().stroke(BitFunTheme.line, lineWidth: 1))
+                        .background(BitFunTheme.sidebarRaised)
+                        .overlay(Circle().stroke(BitFunTheme.sidebarLine, lineWidth: 1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -282,10 +282,10 @@ struct SidebarView: View {
     private var searchField: some View {
         TextField(model.localized("搜索对话"), text: $search)
             .font(.system(size: 14))
-            .foregroundStyle(BitFunTheme.ink)
+            .foregroundStyle(BitFunTheme.sidebarInk)
             .padding(.horizontal, 14)
             .frame(height: 42)
-            .background(BitFunTheme.soft)
+            .background(BitFunTheme.sidebarHover)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.top, 12)
             .onChange(of: search) { value in
@@ -305,7 +305,7 @@ struct SidebarView: View {
             HStack {
                 Text(model.localized("设备"))
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(BitFunTheme.muted)
+                    .foregroundStyle(BitFunTheme.sidebarMuted)
                 Spacer()
                 if model.accountUser != nil {
                     Button { model.refreshRemoteDevices() } label: {
@@ -314,7 +314,7 @@ struct SidebarView: View {
                         } else {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(BitFunTheme.muted)
+                                .foregroundStyle(BitFunTheme.sidebarMuted)
                         }
                     }
                     .buttonStyle(.plain)
@@ -335,7 +335,7 @@ struct SidebarView: View {
             if directoryEntries.isEmpty {
                 Text(model.localized("尚未连接桌面设备"))
                     .font(.system(size: 13))
-                    .foregroundStyle(BitFunTheme.muted)
+                    .foregroundStyle(BitFunTheme.sidebarMuted)
                     .padding(.horizontal, 10)
                     .frame(height: 42, alignment: .leading)
             }
@@ -348,7 +348,7 @@ struct SidebarView: View {
                 HStack {
                     Text(model.localized("工作区"))
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                     Spacer(minLength: 0)
                     Button {
                         workspacePickerDevice = selectedDirectoryEntry
@@ -356,7 +356,7 @@ struct SidebarView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 18, weight: .regular))
-                            .foregroundStyle(selectedDirectoryEntry.online ? BitFunTheme.ink : BitFunTheme.muted)
+                            .foregroundStyle(selectedDirectoryEntry.online ? BitFunTheme.sidebarInk : BitFunTheme.sidebarSubtle)
                             .frame(width: 34, height: 34)
                     }
                     .buttonStyle(.plain)
@@ -374,33 +374,38 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func directoryDeviceSelector(_ device: MobileDeviceDirectoryEntry) -> some View {
-        let selected = selectedDirectoryEntry?.id == device.id
-        Button { selectDirectoryDevice(device) } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "desktopcomputer")
-                    .font(.system(size: 18, weight: .regular))
-                    .frame(width: 24, height: 20)
-                Text(device.name)
-                    .font(.system(size: 15, weight: selected ? .medium : .regular))
-                    .foregroundStyle(device.online ? BitFunTheme.ink : BitFunTheme.muted)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if device.status == "LOADING" {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Circle()
-                        .fill(device.online ? BitFunTheme.statusSuccess : BitFunTheme.muted)
-                        .frame(width: 8, height: 8)
-                }
-                Image(systemName: selected ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(device.online ? BitFunTheme.ink : BitFunTheme.muted)
-                    .frame(width: 20, height: 24)
-            }
-            .padding(.leading, 8)
-            .padding(.trailing, 4)
-            .frame(height: 52)
-            .contentShape(Rectangle())
+        let current = isCurrentDevice(device)
+        return SidebarDeviceRow(
+            name: device.name,
+            current: current,
+            enabled: device.online || (current && model.connectionPhase == .disconnected),
+            loading: device.status == "LOADING",
+            statusColor: current ? activeConnectionColor :
+                (device.online ? BitFunTheme.statusSuccess : BitFunTheme.sidebarMuted),
+            statusLabel: current ? activeConnectionLabel :
+                (device.online ? model.localized("在线") : model.localized("离线")),
+            accessibilityID: "sidebar.device.\(device.id)",
+            onSelect: { selectDirectoryDevice(device) }
+        )
+    }
+
+    private func isCurrentDevice(_ device: MobileDeviceDirectoryEntry) -> Bool {
+        device.id == (model.accountSelectedDeviceID ?? normalizedDeviceKey(model.remoteExpectedDeviceKey))
+    }
+
+    private var activeConnectionLabel: String {
+        switch model.connectionPhase {
+        case .connected: return model.localized("已连接")
+        case .reconnecting: return model.localized("正在恢复连接")
+        case .disconnected: return model.localized("已断开")
+        }
+    }
+
+    private var activeConnectionColor: Color {
+        switch model.connectionPhase {
+        case .connected: return BitFunTheme.statusSuccess
+        case .reconnecting: return BitFunTheme.sidebarMuted
+        case .disconnected: return BitFunTheme.statusDanger
         }
         .buttonStyle(.plain)
         .disabled(!device.online)
@@ -426,8 +431,14 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func directoryDeviceBody(_ device: MobileDeviceDirectoryEntry) -> some View {
+        if device.catalogSource == "RECENT" {
+            Text(model.localized("旧版设备：显示最近访问的工作区"))
+                .font(.system(size: 12))
+                .foregroundStyle(BitFunTheme.sidebarMuted)
+                .padding(.horizontal, 10)
+        }
         if device.status == "LOADING" && device.workspaces.isEmpty && device.sessions.isEmpty {
-            HStack(spacing: 8) { ProgressView().controlSize(.small); Text(model.localized("正在加载工作区")).font(.system(size: 13)).foregroundStyle(BitFunTheme.muted) }
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text(model.localized("正在加载工作区")).font(.system(size: 13)).foregroundStyle(BitFunTheme.sidebarMuted) }
                 .padding(.horizontal, 18).frame(height: 42)
         } else if device.status == "FAILED" {
             Button { model.retryDeviceDirectory(device) } label: {
@@ -437,7 +448,7 @@ struct SidebarView: View {
         } else if device.status == "READY" && device.online && device.workspaces.isEmpty && device.sessions.isEmpty {
             Text(model.localized("这台电脑还没有工作区"))
                 .font(.system(size: 13))
-                .foregroundStyle(BitFunTheme.muted)
+                .foregroundStyle(BitFunTheme.sidebarMuted)
                 .padding(.horizontal, 18)
                 .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
                 .accessibilityIdentifier("sidebar.emptyWorkspaces")
@@ -498,7 +509,7 @@ struct SidebarView: View {
                     "还有 %lld 个工作区",
                     Int64(device.workspaces.count - visibleWorkspaceCount)
                 ))
-                    .font(.system(size: 13)).foregroundStyle(BitFunTheme.muted).padding(.leading, 42).frame(height: 36, alignment: .leading)
+                    .font(.system(size: 13)).foregroundStyle(BitFunTheme.sidebarMuted).padding(.leading, 42).frame(height: 36, alignment: .leading)
             }.buttonStyle(.plain)
         }
     }
@@ -510,7 +521,7 @@ struct SidebarView: View {
                     ProgressView().controlSize(.small)
                     Text(model.localized("正在加载工作区"))
                         .font(.system(size: 13))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                 }
                 .padding(.horizontal, 10)
                 .frame(height: 42)
@@ -531,7 +542,7 @@ struct SidebarView: View {
         if model.remoteHasMore {
             Button { model.loadMoreRemoteSessions() } label: {
                 Text(model.localized(model.busy ? "正在加载" : "加载更多会话"))
-                    .font(.system(size: 13)).foregroundStyle(BitFunTheme.muted)
+                    .font(.system(size: 13)).foregroundStyle(BitFunTheme.sidebarMuted)
                     .frame(maxWidth: .infinity, minHeight: 42)
             }
             .buttonStyle(.plain).disabled(model.busy)
@@ -547,7 +558,7 @@ struct SidebarView: View {
         if visibleSessions.isEmpty && !model.workspaceLoading {
             Text(model.localized(hasActiveRemoteViewFilter ? "没有匹配的会话" : "暂无远程会话"))
                 .font(.system(size: 13))
-                .foregroundStyle(BitFunTheme.muted)
+                .foregroundStyle(BitFunTheme.sidebarMuted)
                 .padding(.horizontal, 10)
                 .frame(height: 42, alignment: .leading)
         } else {
@@ -625,7 +636,7 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(model.localized(bucket.title))
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(BitFunTheme.muted)
+                    .foregroundStyle(BitFunTheme.sidebarMuted)
                     .padding(.top, 12)
                     .padding(.bottom, 4)
                 ForEach(bucket.sessions) { session in
@@ -655,13 +666,13 @@ struct SidebarView: View {
                     HStack(spacing: 8) {
                         Text(model.localized("连接桌面端"))
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(BitFunTheme.muted)
+                            .foregroundStyle(BitFunTheme.sidebarMuted)
                         Text(verbatim: "\(sessions.count)")
                             .font(.system(size: 12))
-                            .foregroundStyle(BitFunTheme.muted)
+                            .foregroundStyle(BitFunTheme.sidebarMuted)
                         Image(systemName: remoteChatsCollapsed ? "chevron.right" : "chevron.down")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(BitFunTheme.muted)
+                            .foregroundStyle(BitFunTheme.sidebarMuted)
                     }
                 }
                 .buttonStyle(.plain)
@@ -669,7 +680,7 @@ struct SidebarView: View {
                 Button { model.createRemoteAssistantSession() } label: {
                     Image(systemName: "folder.badge.gearshape")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                         .frame(width: 40, height: 40)
                 }
                 .buttonStyle(.plain)
@@ -782,7 +793,7 @@ struct SidebarView: View {
                     .frame(width: 22, height: 18)
                 Text(name)
                     .font(.system(size: 15))
-                    .foregroundStyle(BitFunTheme.ink)
+                    .foregroundStyle(BitFunTheme.sidebarInk)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Circle().fill(BitFunTheme.statusSuccess).frame(width: 7, height: 7)
@@ -829,7 +840,7 @@ struct SidebarView: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(BitFunTheme.ink)
+                .foregroundStyle(BitFunTheme.sidebarInk)
                 .frame(width: 30, height: 40)
         })
     }
@@ -854,7 +865,7 @@ struct SidebarView: View {
         Button(action: action) {
             Text(verbatim: title)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(BitFunTheme.ink)
+                .foregroundStyle(BitFunTheme.sidebarInk)
                 .frame(maxWidth: .infinity, minHeight: MobileDesignGeometry.compactPopoverActionHeight, alignment: .leading)
                 .padding(.horizontal, 18)
                 .contentShape(Rectangle())
@@ -939,13 +950,13 @@ private struct SidebarRecentRow: View {
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.title)
-                        .font(.system(size: 15, weight: selected ? .medium : .regular))
-                        .foregroundStyle(BitFunTheme.ink)
+                        .font(.system(size: 13, weight: selected ? .bold : .regular))
+                        .foregroundStyle(BitFunTheme.sidebarInk)
                         .lineLimit(1)
                     if let metadata, !metadata.isEmpty {
                         Text(metadata)
                             .font(MobileDesignTypography.labelSmall.font)
-                            .foregroundStyle(BitFunTheme.muted)
+                            .foregroundStyle(BitFunTheme.sidebarMuted)
                             .lineLimit(1)
                     }
                 }
@@ -959,9 +970,9 @@ private struct SidebarRecentRow: View {
                 onActions()
             } label: {
                 HStack(spacing: 3) {
-                    Circle().fill(BitFunTheme.muted).frame(width: 3.5, height: 3.5)
-                    Circle().fill(BitFunTheme.muted).frame(width: 3.5, height: 3.5)
-                    Circle().fill(BitFunTheme.muted).frame(width: 3.5, height: 3.5)
+                    Circle().fill(BitFunTheme.sidebarMuted).frame(width: 3.5, height: 3.5)
+                    Circle().fill(BitFunTheme.sidebarMuted).frame(width: 3.5, height: 3.5)
+                    Circle().fill(BitFunTheme.sidebarMuted).frame(width: 3.5, height: 3.5)
                 }
                 .frame(width: 34, height: 40)
                 .opacity(0.62)
@@ -977,7 +988,7 @@ private struct SidebarRecentRow: View {
         .padding(.leading, 12)
         .padding(.trailing, 4)
         .frame(minHeight: metadata == nil ? 44 : 56)
-        .background(selected ? BitFunTheme.soft : BitFunTheme.transparent)
+        .background(selected ? BitFunTheme.sidebarSelection : BitFunTheme.transparent)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
@@ -1033,7 +1044,7 @@ private struct SidebarWorkspaceRow: View {
                             .frame(width: 24, height: 20)
                         Text(workspace.name)
                             .font(.system(size: 15, weight: workspace.selected ? .medium : .regular))
-                            .foregroundStyle(BitFunTheme.ink)
+                            .foregroundStyle(BitFunTheme.sidebarInk)
                             .lineLimit(1)
                     }
                     .contentShape(Rectangle())
@@ -1049,7 +1060,7 @@ private struct SidebarWorkspaceRow: View {
                         Button(action: onToggleCreate) {
                             Image(systemName: "plus")
                                 .font(.system(size: 17, weight: .regular))
-                                .foregroundStyle(BitFunTheme.ink)
+                                .foregroundStyle(BitFunTheme.sidebarInk)
                                 .frame(width: 30, height: 40)
                         }
                     }
@@ -1074,7 +1085,7 @@ private struct SidebarWorkspaceRow: View {
                         ProgressView().controlSize(.small)
                         Text(MobileLocalization.text("正在加载"))
                             .font(.system(size: 13))
-                            .foregroundStyle(BitFunTheme.muted)
+                            .foregroundStyle(BitFunTheme.sidebarMuted)
                     }
                     .padding(.leading, 42)
                     .frame(height: 40, alignment: .leading)
@@ -1082,10 +1093,10 @@ private struct SidebarWorkspaceRow: View {
                     Button(action: { onRetryDirectoryLoad?() }) {
                         HStack(spacing: 8) {
                             Text(MobileLocalization.text("这台电脑暂时无法读取"))
-                                .foregroundStyle(BitFunTheme.muted)
+                                .foregroundStyle(BitFunTheme.sidebarMuted)
                             Spacer(minLength: 0)
                             Text(MobileLocalization.text("重试"))
-                                .foregroundStyle(BitFunTheme.ink)
+                                .foregroundStyle(BitFunTheme.sidebarInk)
                         }
                         .font(.system(size: 13))
                         .padding(.leading, 42)
@@ -1096,7 +1107,7 @@ private struct SidebarWorkspaceRow: View {
                 } else if workspace.sessions.isEmpty && directoryLoadStatus == "READY" {
                     Text(MobileLocalization.text("此工作区暂无会话"))
                         .font(.system(size: 13))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                         .padding(.leading, 42)
                         .frame(height: 38, alignment: .leading)
                 }
@@ -1106,7 +1117,7 @@ private struct SidebarWorkspaceRow: View {
                             HStack(spacing: 10) {
                             Image(systemName: "doc")
                                 .font(.system(size: 17, weight: .regular))
-                                .foregroundStyle(BitFunTheme.muted)
+                                .foregroundStyle(BitFunTheme.sidebarMuted)
                                 .frame(width: 19, height: 19)
                                 .overlay(alignment: .bottomLeading) {
                                     if ["running", "active", "in_progress"].contains(session.status.lowercased()) {
@@ -1119,12 +1130,12 @@ private struct SidebarWorkspaceRow: View {
                                         size: 15,
                                         weight: isSelected(session) ? .medium : .regular
                                     ))
-                                    .foregroundStyle(BitFunTheme.ink)
+                                    .foregroundStyle(BitFunTheme.sidebarInk)
                                     .lineLimit(1)
                                 if let detail = metadata(session), !detail.isEmpty {
                                     Text(detail)
                                         .font(MobileDesignTypography.labelSmall.font)
-                                        .foregroundStyle(BitFunTheme.muted)
+                                        .foregroundStyle(BitFunTheme.sidebarMuted)
                                         .lineLimit(1)
                                 }
                             }
@@ -1137,7 +1148,7 @@ private struct SidebarWorkspaceRow: View {
                         .accessibilityAddTraits(isSelected(session) ? .isSelected : [])
                         Button { onActions(session) } label: {
                             Image(systemName: "ellipsis")
-                                .font(.system(size: 13, weight: .medium)).foregroundStyle(BitFunTheme.muted)
+                                .font(.system(size: 13, weight: .medium)).foregroundStyle(BitFunTheme.sidebarMuted)
                                 .frame(width: 36, height: 40)
                         }
                         .buttonStyle(.plain)
@@ -1151,7 +1162,7 @@ private struct SidebarWorkspaceRow: View {
                     .padding(.leading, 44)
                     .padding(.trailing, 4)
                     .frame(minHeight: metadata(session) == nil ? 44 : 56)
-                    .background(isSelected(session) ? BitFunTheme.soft : BitFunTheme.transparent)
+                    .background(isSelected(session) ? BitFunTheme.sidebarSelection : BitFunTheme.transparent)
                     .clipShape(RoundedRectangle(cornerRadius: 9))
                 }
                 if workspace.sessions.count > visibleSessionCount {
@@ -1166,7 +1177,7 @@ private struct SidebarWorkspaceRow: View {
                             )
                         )
                         .font(.system(size: 13))
-                        .foregroundStyle(BitFunTheme.muted)
+                        .foregroundStyle(BitFunTheme.sidebarMuted)
                         .padding(.leading, 42)
                         .frame(height: 36, alignment: .leading)
                     }

@@ -276,6 +276,44 @@ it('accepts the negotiated alias capability and displays only alias plus metadat
   expect(container.textContent).toContain('Studio');
   expect(container.textContent).toContain('Model');
 });
+it('marks each row with the system it reported, a server for a CLI host, and the neutral mark when it is unknown', async () => {
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  mocks.accountListDevices.mockResolvedValue([
+    { device_id: 'win', device_name: 'lwb_winpc', device_os: 'Windows 11', device_kind: 'desktop', online: true },
+    { device_id: 'mac', device_name: 'lwb_macbook', device_os: 'macOS 15.7.3', device_kind: 'desktop', online: true },
+    { device_id: 'srv', device_name: 'lwb_server', device_os: 'Linux', device_kind: 'cli', online: true },
+    { device_id: 'legacy', device_name: 'lwb_legacy', online: true },
+  ]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+
+  const rowFor = (name: string) => Array.from(
+    container.querySelectorAll('[data-bitfun-part="deviceCard"]'),
+  ).find(row => row.textContent?.includes(name));
+
+  expect(rowFor('lwb_winpc')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('windows');
+  expect(rowFor('lwb_macbook')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('macos');
+  // A CLI host has no system silhouette to draw, whatever machine it runs on.
+  expect(rowFor('lwb_server')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('server');
+  // No system reported: this list keeps the neutral mark it always drew.
+  expect(rowFor('lwb_legacy')?.querySelector('[data-system]')).toBeNull();
+  expect(rowFor('lwb_legacy')?.querySelector('svg')).not.toBeNull();
+});
+
+it('keeps the unsupported notice hidden while the capability answer is pending', async () => {
+  // An unanswered capability read used to render as an unsupported relay, which
+  // flashed the notice on every panel entry while `/api/info` was in flight.
+  mocks.accountRelayCapabilities.mockImplementation(() => new Promise(() => {}));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).toContain('My computer');
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+});
+it('keeps the unsupported notice hidden when the capability read fails', async () => {
+  // Relay reachability owns its own banner; a transport error is not evidence
+  // that the relay lacks the capability.
+  mocks.accountRelayCapabilities.mockRejectedValue(new Error('network down'));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+});
 
 /** Emit a presence signal to every listener the panel registered for this epoch. */
 async function emitPresence(devices: Array<Record<string, unknown>>) {

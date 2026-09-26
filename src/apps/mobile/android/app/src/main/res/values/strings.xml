@@ -80,6 +80,7 @@
     <string name="general_chat_invalid_response">The model service returned an unrecognized response.</string>
     <string name="general_chat_network">Could not reach the provider.</string>
     <string name="chat_load_older_messages">Load earlier messages</string>
+    <string name="chat_transcript_syncing">Syncing</string>
 
     <string name="model_service_title">Model</string>
     <string name="model_service_local_title">Local custom model</string>
@@ -383,7 +384,6 @@
     <string name="chat_empty_title">No messages yet</string>
     <string name="chat_empty_hint">Ask the agent anything about this workspace.</string>
     <string name="chat_empty_loading">Loading conversation…</string>
-    <string name="chat_pending">Sending…</string>
     <string name="chat_send_failed">Send failed. Check the connection and retry.</string>
     <!-- The agent's reply started and stopped partway; the user's never left the device. -->
     <string name="chat_reply_interrupted">Reply interrupted.</string>

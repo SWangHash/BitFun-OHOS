@@ -472,7 +472,7 @@ export struct ToolStatusList {
     const entries: ToolRenderEntry[] = [];
     ActivityGroupPolicy.weaveRows(groups, parts, showThinking).forEach((row: ActivityRowPlan) => {
       if (row.kind === 'thinking') {
-        entries.push(this.thinkingEntry(parts[row.index], row.index));
+        entries.push(this.thinkingEntry(parts[row.index]));
         return;
       }
       entries.push(this.entryFromGroup(groups[row.index]));
@@ -480,10 +480,10 @@ export struct ToolStatusList {
     return entries;
   }
 
-  private thinkingEntry(part: ActivityThinkingPart, index: number): ToolRenderEntry {
+  private thinkingEntry(part: ActivityThinkingPart): ToolRenderEntry {
     return {
       type: 'thinking',
-      key: `thinking-${index}-${part.beforeToolIndex}-${part.streamKey}`,
+      key: part.streamKey,
       thinking: part,
       tools: [],
       readCount: 0,

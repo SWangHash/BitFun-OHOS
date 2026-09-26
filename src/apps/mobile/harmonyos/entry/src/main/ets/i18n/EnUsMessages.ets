@@ -347,6 +347,7 @@ export const EN_US_MESSAGES: [string, string][] = [
   ['remote.settings.deviceLoadFailed', 'Could not load devices. Try again later.'],
   ['remote.settings.accountExpired', 'The cloud account expired. Sign in again.'],
   ['remote.settings.deviceUnavailable', 'The target desktop is unavailable. Refresh the device list and retry.'],
+  ['remote.settings.deviceIncompatible', 'Incompatible client — this device cannot be controlled here'],
   ['remote.settings.deviceName', 'Device'],
   ['remote.settings.deviceManagementBody', 'This device stores account credentials encrypted with HUKS. Signing out clears them immediately.'],
   ['remote.settings.githubId', 'Account ID: {0}'],

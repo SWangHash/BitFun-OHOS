@@ -461,3 +461,8 @@ mod tests {
         assert!(json.get("providerId").is_none());
     }
 }
+
+#[cfg(feature = "agent-api")]
+mod dialog_queue;
+#[cfg(feature = "agent-api")]
+pub use dialog_queue::*;

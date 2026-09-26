@@ -26,10 +26,18 @@ its tag automatically. Release creation and editing use GitHub CLI without
 
 Desktop 1.x reads `latest-v1.json`; CLI 1.x reads `linux-binaries-v1.json`,
 from GitHub Latest or `/release/` on the mirror. Every stable release also carries
-unchanged `latest.json` and `linux-binaries.json` from **v0.2.19**, the final
-legacy release. Publication rejects legacy feeds whose version is not 0.2.19.
-Thus installed 0.2.x clients continue to see only 0.2.x, even after GitHub Latest
-moves to 1.x. Do not rename the 1.x manifests back to the legacy filenames.
+the pinned legacy feeds `latest.json` and `linux-binaries.json` from
+`scripts/fixtures/legacy-update-feeds/`. The desktop feed carries version 0.2.20
+with a release note that points 0.2.x users to the manual 1.x download and the
+Data Migrator; its `platforms` block still resolves to the final 0.2.19
+artifacts, so the notice never installs 1.x into a 0.2.x client. The CLI feed
+stays byte-for-byte on 0.2.19 because the legacy CLI manifest has no note field.
+Preservation validates the copied manifests with an inline Node check (the
+desktop feed must be version 0.2.20 with non-empty notes; the CLI feed must be
+0.2.19) and the publication step byte-compares the uploaded feeds against the
+pinned fixtures, so a drifting fixture or a stale upload fails the run. Do not
+rename the 1.x manifests back to the legacy
+filenames, and keep the pinned fixtures' `platforms` signatures unchanged.
 
 The mirror writes only the versioned 1.x feeds and keeps the two newest
 version directories. It does not retain 0.2.x artifact trees; 0.2.x clients

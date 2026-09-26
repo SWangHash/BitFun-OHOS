@@ -170,6 +170,17 @@
         "intlOpenai": "Global - OpenAI Compatible"
       }
     },
+    "xiaomi": {
+      "name": "Xiaomi MiMo",
+      "description": "Xiaomi MiMo models. API and Token Plan keys are separate.",
+      "urlOptions": {
+        "default": "API - OpenAI Chat Completions - Default",
+        "responses": "API - OpenAI Responses",
+        "anthropic": "API - Anthropic Messages",
+        "tokenPlan": "China - Token Plan - OpenAI",
+        "tokenPlanAnthropic": "China - Token Plan - Anthropic"
+      }
+    },
     "moonshot": {
       "name": "Moonshot AI",
       "description": "Moonshot Kimi series models",

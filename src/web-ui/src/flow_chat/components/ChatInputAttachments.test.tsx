@@ -17,11 +17,14 @@ vi.mock('@/shared/notification-system', () => ({ notificationService: { warning:
 vi.mock('../store/FlowChatStore', () => ({ flowChatStore: {
   getState: () => ({ sessions: new Map([['main', { sessionId: 'main', dialogTurns: [] }]]) }),
 } }));
-vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({
-  formatNumber: (number: number) => String(number),
-  t: (key: string, values?: Record<string, string>) => key === 'selection.numbered' ? `Annotation ${values?.number}`
-    : key === 'selection.removeNumbered' ? `Remove ${values?.annotation}` : key,
-}) }));
+vi.mock('@/infrastructure/i18n', () => ({
+  useI18n: () => ({
+    formatNumber: (number: number) => String(number),
+    t: (key: string, values?: Record<string, string>) => key === 'selection.numbered' ? `Annotation ${values?.number}`
+      : key === 'selection.removeNumbered' ? `Remove ${values?.annotation}` : key,
+  }),
+  i18nService: { t: (key: string) => key },
+}));
 
 const excerpt: ConversationExcerptContext = {
   id: 'annotation-1', type: 'conversation-excerpt', timestamp: 1, annotationNumber: 1,

@@ -174,6 +174,7 @@ pub struct BotStrings {
     pub auto_push_intro_many_fmt: &'static str,
     pub auto_push_skip_too_large_fmt: &'static str,
     pub auto_push_failed_fmt: &'static str,
+    pub weixin_remote_push_unsupported: &'static str,
 
     // ── Multi-device control ─────────────────────────────────────
     pub devices_title: &'static str,
@@ -336,6 +337,7 @@ const STRINGS_ZH: BotStrings = BotStrings {
     auto_push_intro_many_fmt: "正在为你发送 {n} 个文件……",
     auto_push_skip_too_large_fmt: "已跳过「{name}」：{size} 超过 {limit} 上限，请改用桌面端获取。",
     auto_push_failed_fmt: "发送「{name}」失败：{err}",
+    weixin_remote_push_unsupported: "微信暂不支持主动推送其他设备上的定时任务或桌面会话结果。你从微信发起的请求仍会正常回复。",
 
     devices_title: "多设备控制",
     devices_account_required: "所连接的桌面端尚未使用 GitHub 登录，无法使用多设备控制。请在桌面端的账号登录对话框中登录，机器人会自动继承账号身份。",
@@ -497,6 +499,7 @@ const STRINGS_ZH_TW: BotStrings = BotStrings {
     auto_push_intro_many_fmt: "正在為你發送 {n} 個文件……",
     auto_push_skip_too_large_fmt: "已跳過「{name}」：{size} 超過 {limit} 上限，請改用桌面端獲取。",
     auto_push_failed_fmt: "發送「{name}」失敗：{err}",
+    weixin_remote_push_unsupported: "微信暫不支援主動推送其他裝置上的排程任務或桌面會話結果。你從微信發起的請求仍會正常回覆。",
 
     devices_title: "多裝置控制",
     devices_account_required: "所連接的桌面端尚未使用 GitHub 登入，無法使用多裝置控制。請在桌面端的帳號登入對話框中登入，機器人會自動繼承帳號身份。",
@@ -659,6 +662,7 @@ Open Remote Connect in BitFun Desktop and send the 6-digit pairing code here to 
     auto_push_intro_many_fmt: "Sending {n} files for you…",
     auto_push_skip_too_large_fmt: "Skipping \"{name}\": {size} exceeds the {limit} limit. Please grab it from BitFun Desktop instead.",
     auto_push_failed_fmt: "Failed to send \"{name}\": {err}",
+    weixin_remote_push_unsupported: "WeChat cannot proactively push scheduled-job or desktop-session results from another device yet. Requests you send from WeChat still receive replies.",
 
     devices_title: "Multi-device Control",
     devices_account_required: "The paired desktop is not logged into a GitHub account, so multi-device control is unavailable. Log in via the desktop's Account Login dialog and the bot will inherit the account identity.",

@@ -97,6 +97,7 @@ describe('FlowChat search highlight ownership', () => {
     secondOwner.update(null, [second]);
     expect([...registry.get('bitfun-flowchat-search-current')!]).toEqual([first]);
     expect([...registry.get('bitfun-flowchat-search-match')!]).toEqual([second]);
+    expect([...registry.keys()].at(-1)).toBe('bitfun-flowchat-search-current');
 
     firstOwner.dispose();
     expect(registry.has('bitfun-flowchat-search-current')).toBe(false);

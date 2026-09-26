@@ -396,38 +396,41 @@ impl CronTool {
         }
     }
 
-    fn build_list_result_for_assistant(
-        &self,
-        workspace: &str,
-        session_id: &str,
-        jobs: &[CronJob],
-    ) -> String {
+    fn build_list_result_for_assistant(&self, workspace: &str, jobs: &[CronJob]) -> String {
         if jobs.is_empty() {
-            return format!(
-                "No scheduled jobs found for session '{}' in workspace '{}'.",
-                session_id, workspace
-            );
+            return format!("No scheduled jobs found in workspace '{}'.", workspace);
         }
 
         let mut lines = vec![format!(
-            "Found {} scheduled job(s) for session '{}' in workspace '{}'.",
+            "Found {} scheduled job(s) in workspace '{}'.",
             jobs.len(),
-            session_id,
             workspace,
         )];
         lines.push(String::new());
-        lines.push("| job_id | name | enabled | schedule |".to_string());
-        lines.push("| --- | --- | --- | --- |".to_string());
+        lines.push("| job_id | name | enabled | schedule | target |".to_string());
+        lines.push("| --- | --- | --- | --- | --- |".to_string());
         for job in jobs {
             lines.push(format!(
-                "| {} | {} | {} | {} |",
+                "| {} | {} | {} | {} | {} |",
                 Self::escape_markdown_table_cell(&job.id),
                 Self::escape_markdown_table_cell(&job.name),
                 if job.enabled { "true" } else { "false" },
                 Self::escape_markdown_table_cell(&Self::schedule_summary(&job.schedule)),
+                Self::escape_markdown_table_cell(&Self::target_summary(job)),
             ));
         }
         lines.join("\n")
+    }
+
+    /// Which conversation a job delivers into. The list is workspace-scoped, so
+    /// the agent needs this to tell its own jobs from another session's.
+    fn target_summary(job: &CronJob) -> String {
+        match &job.target {
+            CronJobTarget::Session { session_id, .. } => format!("session {}", session_id),
+            CronJobTarget::Workspace { launch, .. } => {
+                format!("new session ({})", launch.agent_type)
+            }
+        }
     }
 }
 
@@ -681,7 +684,7 @@ Defaults:
 
 Actions:
 - "get_time": Return the current local time including timezone information.
-- "list": List all jobs for the effective session scope.
+- "list": List every job in the workspace, including jobs that belong to other sessions. Each row reports its target, and "job_id" from here works with "update", "remove", and "run".
 - "add": Create a job. Requires "job". When "job.name" is omitted, uses "Cron job".
 - "update": Update a job. Requires "job_id" and "patch".
 - "remove": Delete a job. Requires "job_id".
@@ -725,7 +728,7 @@ Patch schema for "update":
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "Optional target session ID. Defaults to the current session for list/add."
+                    "description": "Optional session ID. Defaults to the current session; for add it is the session the payload is delivered to, for list it selects the workspace to report on."
                 },
                 "action": {
                     "type": "string",
@@ -1085,13 +1088,30 @@ Patch schema for "update":
                     .resolve_effective_workspace_for_session(&session_id, context)
                     .await?;
                 let workspace = workspace_ref.workspace_path.clone();
-                let mut jobs = cron_service
-                    .list_jobs_filtered(
-                        workspace_ref.workspace_id.as_deref(),
-                        Some(&session_id),
-                        Some(CronJobTargetKind::Session),
-                    )
-                    .await;
+                // Workspace scope, not session scope: the product surfaces list
+                // every job in the workspace, and a session-only list made the
+                // agent report "no scheduled jobs" while the UI showed them.
+                let workspace_id = workspace_ref.workspace_id.as_deref();
+                let mut jobs = match workspace_id {
+                    Some(workspace_id) => {
+                        cron_service
+                            .list_jobs_filtered(Some(workspace_id), None, None)
+                            .await
+                    }
+                    // A workspace without a stable id cannot be filtered by id,
+                    // and the service refuses to match unmigrated records by
+                    // path. Reporting every workspace would be worse than
+                    // reporting only this session's jobs.
+                    None => {
+                        cron_service
+                            .list_jobs_filtered(
+                                None,
+                                Some(&session_id),
+                                Some(CronJobTargetKind::Session),
+                            )
+                            .await
+                    }
+                };
                 jobs.sort_by(|left, right| {
                     left.created_at_ms
                         .cmp(&right.created_at_ms)
@@ -1099,15 +1119,28 @@ Patch schema for "update":
                 });
                 let serialized_jobs = Self::serialize_jobs(&jobs)?;
 
-                let result_for_assistant =
-                    self.build_list_result_for_assistant(&workspace, &session_id, &jobs);
+                let mut result_for_assistant =
+                    self.build_list_result_for_assistant(&workspace, &jobs);
+                if workspace_id.is_none() {
+                    result_for_assistant.push_str(&format!(
+                        "\n\nScope note: this workspace has no stable id, so only jobs targeting session '{}' are listed.",
+                        session_id
+                    ));
+                }
+                if !cron_service.is_scheduling_owner() {
+                    // Two instances can share one user data directory. Saying so
+                    // here stops the agent from presenting a standby list as the
+                    // state that will actually run.
+                    result_for_assistant.push_str(
+                        "\n\nScheduling note: another running BitFun instance owns scheduled job execution right now, so these jobs run there and edits or manual runs are refused in this instance.",
+                    );
+                }
 
                 Ok(vec![ToolResult::Result {
                     data: json!({
                         "success": true,
                         "action": "list",
                         "workspace": workspace,
-                        "session_id": session_id,
                         "count": jobs.len(),
                         "jobs": serialized_jobs,
                     }),
@@ -1532,5 +1565,69 @@ mod tests {
         let summary =
             CronTool::add_result_summary(&job_with_schedule(every_30_minutes(), "session_1"), None);
         assert!(!summary.contains("end your turn"), "got: {summary}");
+    }
+
+    fn workspace_target_job(id: &str) -> CronJob {
+        CronJob {
+            id: id.to_string(),
+            name: "nightly report".to_string(),
+            schedule: every_30_minutes(),
+            payload: CronJobPayload {
+                text: "summarize the day".to_string(),
+            },
+            enabled: true,
+            target: CronJobTarget::Workspace {
+                workspace: CronWorkspaceRef {
+                    workspace_id: None,
+                    workspace_path: "/home/wsp/projects/test".to_string(),
+                    project_workspace_path: None,
+                    execution_target: None,
+                    remote_connection_id: None,
+                    remote_ssh_host: None,
+                },
+                launch: Default::default(),
+            },
+            created_at_ms: 0,
+            config_updated_at_ms: 0,
+            updated_at_ms: 0,
+            state: Default::default(),
+        }
+    }
+
+    #[test]
+    fn list_summary_covers_every_job_in_the_workspace_with_its_target() {
+        // The list is workspace-scoped, so a job another session owns is still
+        // reported — hiding it made the agent deny jobs the UI was showing.
+        let tool = CronTool::new();
+        let mut other_session_job = job_with_schedule(every_30_minutes(), "session_other");
+        other_session_job.id = "cron_aaaaaaaa".to_string();
+        let jobs = vec![other_session_job, workspace_target_job("cron_bbbbbbbb")];
+
+        let summary = tool.build_list_result_for_assistant("/home/wsp/projects/test", &jobs);
+
+        assert!(
+            summary.contains("Found 2 scheduled job(s)"),
+            "got: {summary}"
+        );
+        assert!(
+            summary.contains("workspace '/home/wsp/projects/test'"),
+            "got: {summary}"
+        );
+        assert!(!summary.contains("for session"), "got: {summary}");
+        // Each row says which conversation the job delivers into.
+        assert!(summary.contains("session session_other"), "got: {summary}");
+        assert!(summary.contains("new session ("), "got: {summary}");
+    }
+
+    #[test]
+    fn list_summary_reports_an_empty_workspace() {
+        let tool = CronTool::new();
+
+        let summary = tool.build_list_result_for_assistant("/home/wsp/projects/test", &[]);
+
+        assert_eq!(
+            summary,
+            "No scheduled jobs found in workspace '/home/wsp/projects/test'."
+        );
     }
 }

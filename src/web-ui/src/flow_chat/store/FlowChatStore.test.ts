@@ -19,6 +19,26 @@ import {
   askUserQuestionDraftStore,
 } from './askUserQuestionDraftStore';
 
+vi.mock('@/shared/notification-system', () => ({
+  notificationService: { error: vi.fn(), warning: vi.fn() },
+}));
+
+vi.mock('../session-drivers/registry', () => ({
+  driverForSession: () => ({ id: 'local' }),
+}));
+
+const workspaceFixtures = vi.hoisted(() => new Map<string, any>());
+vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
+  workspaceManager: { getState: () => ({ openedWorkspaces: workspaceFixtures, recentWorkspaces: [] }) },
+}));
+function fixtureWorkspaceId(rootPath: string, connectionId?: string, sshHost?: string) {
+  const existing = [...workspaceFixtures.values()].find(record => record.rootPath === rootPath && record.connectionId === connectionId && record.sshHost === sshHost);
+  if (existing) return existing.id;
+  const id = `test-workspace-${workspaceFixtures.size}`;
+  workspaceFixtures.set(id, { id, rootPath, workspaceKind: connectionId ? 'remote' : 'normal', connectionId, sshHost });
+  return id;
+}
+
 const apiMocks = vi.hoisted(() => ({
   getSessionInteractionMailbox: vi.fn(async (sessionId: string) => ({sessionId, userQuestions:{revision:0,questions:[]}, permissions:{revision:0,requests:[]}})),
   subscribeRelaySession: vi.fn(),
@@ -300,6 +320,108 @@ describe('FlowChatStore lazy worktree preference', () => {
       flowChatStore.getState().sessions.get(session.sessionId)?.config
         .worktreeIsolationRequested,
     ).toBeUndefined();
+  });
+
+  it('adopts the project identity reported by a worktree binding', () => {
+    const session = createSession({
+      config: {
+        agentType: 'Standard',
+        workspacePath: '/repo',
+        projectWorkspacePath: '/repo',
+        executionTarget: { kind: 'local', rootPath: '/repo' },
+      },
+      workspacePath: '/repo',
+      projectWorkspacePath: '/repo',
+      workspaceId: 'workspace-project',
+    });
+    flowChatStore.setState(() => ({
+      sessions: new Map([[session.sessionId, session]]),
+      activeSessionId: session.sessionId,
+    }));
+
+    flowChatStore.updateSessionExecutionTarget(session.sessionId, {
+      workspacePath: '/worktrees/streams-cli',
+      projectWorkspacePath: '/repo',
+      workspaceId: 'workspace-worktree',
+      projectWorkspaceId: 'workspace-project',
+      executionTarget: {
+        kind: 'managedWorktree',
+        worktreeId: 'workspace-worktree',
+        rootPath: '/worktrees/streams-cli',
+      },
+    });
+
+    expect(flowChatStore.getState().sessions.get(session.sessionId)).toMatchObject({
+      workspacePath: '/worktrees/streams-cli',
+      workspaceId: 'workspace-worktree',
+      projectWorkspaceId: 'workspace-project',
+      config: { workspaceId: 'workspace-worktree', projectWorkspaceId: 'workspace-project' },
+    });
+  });
+
+  it('keeps the previous project identity when a binding reports none', () => {
+    const session = createSession({
+      config: {
+        agentType: 'Standard',
+        workspacePath: '/repo',
+        projectWorkspacePath: '/repo',
+        executionTarget: { kind: 'local', rootPath: '/repo' },
+      },
+      workspacePath: '/repo',
+      projectWorkspacePath: '/repo',
+      workspaceId: 'workspace-project',
+      projectWorkspaceId: 'workspace-project',
+    });
+    flowChatStore.setState(() => ({
+      sessions: new Map([[session.sessionId, session]]),
+      activeSessionId: session.sessionId,
+    }));
+
+    flowChatStore.updateSessionExecutionTarget(session.sessionId, {
+      workspacePath: '/repo',
+      projectWorkspacePath: '/repo',
+      executionTarget: { kind: 'local', rootPath: '/repo' },
+    });
+
+    expect(flowChatStore.getState().sessions.get(session.sessionId)).toMatchObject({
+      workspaceId: 'workspace-project',
+      projectWorkspaceId: 'workspace-project',
+    });
+  });
+
+  it('owns a worktree session through the workspace it moved away from', () => {
+    const session = createSession({
+      config: {
+        agentType: 'Standard',
+        workspacePath: '/repo',
+        projectWorkspacePath: '/repo',
+        executionTarget: { kind: 'local', rootPath: '/repo' },
+      },
+      workspacePath: '/repo',
+      projectWorkspacePath: '/repo',
+      workspaceId: 'workspace-project',
+    });
+    flowChatStore.setState(() => ({
+      sessions: new Map([[session.sessionId, session]]),
+      activeSessionId: session.sessionId,
+    }));
+
+    flowChatStore.updateSessionExecutionTarget(session.sessionId, {
+      workspacePath: '/worktrees/streams-cli',
+      projectWorkspacePath: '/repo',
+      workspaceId: 'workspace-worktree',
+      executionTarget: {
+        kind: 'managedWorktree',
+        worktreeId: 'workspace-worktree',
+        rootPath: '/worktrees/streams-cli',
+      },
+    });
+
+    expect(flowChatStore.getState().sessions.get(session.sessionId)).toMatchObject({
+      workspaceId: 'workspace-worktree',
+      projectWorkspaceId: 'workspace-project',
+      config: { workspaceId: 'workspace-worktree', projectWorkspaceId: 'workspace-project' },
+    });
   });
 });
 
@@ -1632,6 +1754,58 @@ describe('FlowChatStore historical session hydration state', () => {
     await flowChatStore.loadSessionHistory('history-1', 'D:/workspace/BitFun');
 
     expect(order).toEqual(['restore']);
+  });
+
+  it('reads worktree session history through the project that owns it', async () => {
+    const projectWorkspaceId = fixtureWorkspaceId('/repo');
+    const worktreeWorkspaceId = fixtureWorkspaceId('/worktrees/streams-cli');
+    apiMocks.restoreSessionView.mockResolvedValueOnce({
+      session: {
+        sessionId: 'history-1',
+        sessionName: 'History 1',
+        agentType: 'Standard',
+        state: 'Idle',
+        turnCount: 0,
+        createdAt: 1,
+      },
+      turns: [],
+      contextRestoreState: 'ready',
+    });
+    const session = createSession({
+      sessionId: 'history-1',
+      isHistorical: true,
+      historyState: 'metadata-only',
+      workspaceId: worktreeWorkspaceId,
+      projectWorkspaceId,
+      workspacePath: '/worktrees/streams-cli',
+      projectWorkspacePath: '/repo',
+      config: {
+        agentType: 'Standard',
+        workspaceId: worktreeWorkspaceId,
+        projectWorkspaceId,
+        workspacePath: '/worktrees/streams-cli',
+        projectWorkspacePath: '/repo',
+        executionTarget: {
+          kind: 'managedWorktree',
+          worktreeId: worktreeWorkspaceId,
+          rootPath: '/worktrees/streams-cli',
+        },
+      },
+    });
+    flowChatStore.setState(() => ({
+      sessions: new Map([['history-1', session]]),
+      activeSessionId: 'history-1',
+    }));
+
+    await flowChatStore.loadSessionHistory('history-1');
+
+    expect(apiMocks.restoreSessionView).toHaveBeenCalledWith(
+      'history-1',
+      projectWorkspaceId,
+      expect.any(String),
+      undefined,
+      expect.any(Number),
+    );
   });
 
 
@@ -4207,6 +4381,57 @@ describe('FlowChatStore historical session hydration state', () => {
       });
       expect(flowChatStore.hasDeferredSessionHistoryProjection('history-1')).toBe(false);
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, true])('opens an inactive historical session without a sidebar pointer intent (preload: %s)', async (preload) => {
+    vi.useFakeTimers();
+    try {
+      const { switchChatSession, preloadHistoricalSessionForOpen, pendingHistoryLoadKey } =
+        await import('../services/flow-chat-manager/SessionModule');
+      const session = createSession({
+        sessionId: 'history-1', isHistorical: true, historyState: 'metadata-only',
+      });
+      flowChatStore.setState(() => ({
+        sessions: new Map([[session.sessionId, session]]),
+        activeSessionId: null,
+      }));
+      apiMocks.restoreSessionView.mockResolvedValue({
+        session: {
+          sessionId: session.sessionId, sessionName: 'Saved session',
+          agentType: 'Standard', state: 'Idle', turnCount: 1, createdAt: 1,
+        },
+        turns: [{
+          turnId: 'saved-turn', turnIndex: 0, sessionId: session.sessionId,
+          timestamp: 1, startTime: 1, status: 'completed', modelRounds: [],
+          userMessage: { id: 'saved-message', content: 'Saved prompt', timestamp: 1 },
+        }],
+        contextRestoreState: 'ready', isPartial: false,
+        loadedTurnCount: 1, totalTurnCount: 1,
+      });
+      // Exercise the real manager/store boundary used by pet and other
+      // programmatic openers; mocking loadSessionHistory hid this regression.
+      const context = {
+        flowChatStore, pendingHistoryLoads: new Map(),
+      } as unknown as import('../services/flow-chat-manager/types').FlowChatContext;
+      if (preload) {
+        const competingKey = pendingHistoryLoadKey('other-session');
+        context.pendingHistoryLoads.set(competingKey, Promise.resolve());
+        preloadHistoricalSessionForOpen(context, session.sessionId);
+        context.pendingHistoryLoads.delete(competingKey);
+      }
+      await switchChatSession(context, session.sessionId);
+
+      expect(flowChatStore.getState().activeSessionId).toBe(session.sessionId);
+      expect(flowChatStore.getState().sessions.get(session.sessionId)).toMatchObject({
+        historyState: 'ready',
+        dialogTurns: [expect.objectContaining({ id: 'saved-turn' })],
+      });
+      expect(context.pendingHistoryLoads.size).toBe(0);
+      expect(apiMocks.restoreSessionView).toHaveBeenCalledTimes(preload ? 2 : 1);
+    } finally {
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });

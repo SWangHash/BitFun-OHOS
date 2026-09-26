@@ -69,6 +69,7 @@ struct RemoteConnectedHomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 WelcomeBrandFlowView(sweep: true)
                     .frame(width: MobileDesignGeometry.recentHomeMarkSize, height: MobileDesignGeometry.recentHomeMarkSize)
+                    .anchorPreference(key: ColdStartHomeMarkPreference.self, value: .bounds) { $0 }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 20)
                 Text(model.localized("今天，想做点什么？"))

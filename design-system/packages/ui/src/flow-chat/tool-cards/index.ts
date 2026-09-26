@@ -61,8 +61,10 @@ export {
   type SearchToolCardResult,
 } from "./SearchResultsToolCards";
 export {
+  CronToolCard,
   SessionControlToolCard,
   SessionMessageToolCard,
+  type CronToolCardProps,
   type SessionControlToolCardProps,
   type SessionMessageToolCardProps,
   type SessionToolCardField,

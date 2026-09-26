@@ -56,6 +56,7 @@ import com.bitfun.mobile.core.feature.session.QuestionAnswer
 import com.bitfun.mobile.core.feature.session.RemoteSessionIntent
 import com.bitfun.mobile.core.feature.session.RemoteSessionUiState
 import com.bitfun.mobile.core.feature.session.conversationRows
+import com.bitfun.mobile.core.feature.session.transcriptUnconfirmed
 import com.bitfun.mobile.core.feature.session.modelOptions
 import com.bitfun.mobile.core.feature.session.selectedModelOption
 import com.bitfun.mobile.core.feature.workspace.RemoteFileDownloadUiState
@@ -147,7 +148,7 @@ internal fun ConversationView(
     // The remote composer's single source of truth is the store's draft. Typing,
     // voice, and send all round-trip through `state.draft` so a half-written
     // message survives session switches and process restarts via DraftStore.
-    var submittedDraft by remember(attachmentOwner, state.selectedSessionId) { mutableStateOf<String?>(null) }
+    var submittedDraft by rememberSaveable(attachmentOwner, state.selectedSessionId) { mutableStateOf<String?>(null) }
     val draft = if (submittedDraft == state.draft) "" else state.draft
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -225,7 +226,7 @@ internal fun ConversationView(
             ConversationHeader(
                 title = state.sessions.firstOrNull { it.id == sessionId }?.title.orEmpty(),
                 contextTitle = contextTitle,
-                canStop = activeTurn != null,
+                canStop = activeTurn != null && phase == ConnectionPhase.CONNECTED,
                 enabled = !state.busy && sessionId.isNotEmpty(),
                 onBack = onBack,
                 onOpenSidebar = onOpenSidebar,
@@ -263,6 +264,10 @@ internal fun ConversationView(
                     ConversationTimelineView(
                         rows = visibleRows,
                         hasMoreMessages = state.hasMoreMessages,
+                        transcriptUnconfirmed = state.timeline
+                            ?.takeIf { it.sessionId == state.selectedSessionId }
+                            ?.transcriptUnconfirmed() == true,
+                        historyLoadState = state.historyLoadState,
                         onLoadOlder = { onIntent(RemoteSessionIntent.LoadOlderMessages) },
                         enabled = !state.busy,
                         onApproveTool = { toolId, updatedInput ->
@@ -310,6 +315,11 @@ internal fun ConversationView(
                 images = images,
                 // An empty session id would send nowhere, so it reads as busy.
                 busy = state.busy || preparingImage || attachmentsBlocked || sessionId.isEmpty(),
+                // Session hydration must not make the draft field require
+                // repeated taps. Sending and attachment actions remain
+                // guarded by `busy`; typing can start as soon as a session
+                // has been selected and the draft survives hydration.
+                inputEnabled = sessionId.isNotEmpty() && !preparingImage && !attachmentsBlocked,
                 streaming = activeTurn != null,
                 phase = phase,
                 model = timeline?.selectedModelOption(stringResource(R.string.models_unnamed)),

@@ -1166,14 +1166,14 @@ async fn external_mcp_import_options_survive_load_save_and_legacy_round_trip() {
         assert_eq!(loaded.oauth_enabled, config.oauth_enabled);
     }
     let legacy = serde_json::json!({"mcpServers":{"legacy":{"command":"old-server"}}});
-    let parsed = parse_cursor_format(&legacy);
+    let parsed = parse_cursor_format(&legacy, ConfigLocation::User);
     assert_eq!(parsed.len(), 1);
     assert!(parsed[0].timeouts.is_empty());
     assert!(parsed[0].working_directory.is_none());
     assert!(parsed[0].oauth_enabled.is_none());
     let round_trip =
         serde_json::json!({"mcpServers":{"legacy": config_to_cursor_format(&parsed[0])}});
-    let reloaded = parse_cursor_format(&round_trip);
+    let reloaded = parse_cursor_format(&round_trip, ConfigLocation::User);
     assert_eq!(reloaded[0].command, parsed[0].command);
     assert!(reloaded[0].timeouts.is_empty());
 }
@@ -2110,7 +2110,7 @@ fn mcp_cursor_oauth_policy_survives_validation_and_roundtrip() {
             .extend(options.as_object().unwrap().clone());
         let input = serde_json::json!({ "mcpServers": { "test": server } });
         validate_mcp_json_config(&input).unwrap();
-        let parsed = parse_cursor_format(&input);
+        let parsed = parse_cursor_format(&input, ConfigLocation::User);
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].oauth_enabled, expected);
         assert_eq!(parsed[0].remote_oauth_enabled(), expected.unwrap_or(true));
@@ -2121,7 +2121,7 @@ fn mcp_cursor_oauth_policy_survives_validation_and_roundtrip() {
         }
         let saved = serde_json::json!({ "mcpServers": { "test": exported } });
         validate_mcp_json_config(&saved).unwrap();
-        let reparsed = parse_cursor_format(&saved);
+        let reparsed = parse_cursor_format(&saved, ConfigLocation::User);
         assert_eq!(reparsed[0].oauth_enabled, expected);
         assert_eq!(
             serde_json::to_value(&reparsed[0].oauth).unwrap(),
@@ -2155,10 +2155,10 @@ fn mcp_cursor_oauth_validation_rejects_invalid_or_conflicting_policy() {
 fn mcp_cursor_oauth_policy_is_part_of_config_identity() {
     let disabled = parse_cursor_format(&serde_json::json!({
         "mcpServers": { "disabled": { "url": "https://example.test/mcp", "oauth": false } }
-    }));
+    }), ConfigLocation::User);
     let legacy = parse_cursor_format(&serde_json::json!({
         "mcpServers": { "legacy": { "url": "https://example.test/mcp" } }
-    }));
+    }), ConfigLocation::User);
     let merged = merge_mcp_server_config_sources([disabled, legacy]);
     assert_eq!(merged.len(), 2);
     assert!(!merged[0].remote_oauth_enabled());
@@ -2226,4 +2226,103 @@ fn mcp_cursor_format_helpers_preserve_cursor_compatibility_contract() {
     assert_eq!(parsed[0].server_type, MCPServerType::Remote);
     assert_eq!(parsed[0].transport, Some(MCPServerTransport::Sse));
     assert_eq!(parsed[0].location, ConfigLocation::User);
+}
+
+#[test]
+fn mcp_config_accepts_camel_case_streamable_http_type() {
+    // Cursor, Cline, and other MCP clients emit `type: "streamableHttp"`.
+    // BitFun must accept it (and other casings) as streamable HTTP.
+    let config = serde_json::json!({
+        "mcpServers": {
+            "remote": {
+                "type": "streamableHttp",
+                "url": "https://example.com/mcp"
+            }
+        }
+    });
+
+    validate_mcp_json_config(&config).expect("camelCase streamableHttp type must validate");
+
+    let parsed = parse_cursor_format(&config, ConfigLocation::User);
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(parsed[0].server_type, MCPServerType::Remote);
+    assert_eq!(
+        parsed[0].transport,
+        Some(MCPServerTransport::StreamableHttp)
+    );
+
+    for alias in [
+        "streamable-http",
+        "streamable_http",
+        "streamablehttp",
+        "HTTP",
+    ] {
+        validate_mcp_json_config(&serde_json::json!({
+            "mcpServers": {
+                "alias": { "type": alias, "url": "https://example.com/mcp" }
+            }
+        }))
+        .unwrap_or_else(|error| panic!("type '{}' must validate: {}", alias, error));
+    }
+}
+
+#[test]
+fn mcp_config_normalizes_token_case_for_type_transport_and_source() {
+    // The visual editor lowercases `type`, `transport`, and `source` before
+    // matching. The core validator and parser must agree, otherwise a config
+    // the form renders happily fails again when the document is saved.
+    let cases = [
+        (
+            serde_json::json!({ "type": "StreamableHTTP", "url": "https://example.com/mcp" }),
+            "streamable-http",
+            MCPServerTransport::StreamableHttp,
+        ),
+        (
+            serde_json::json!({
+                "transport": "STREAMABLE-HTTP",
+                "url": "https://example.com/mcp"
+            }),
+            "streamable-http",
+            MCPServerTransport::StreamableHttp,
+        ),
+        (
+            serde_json::json!({
+                "source": "REMOTE",
+                "transport": "SSE",
+                "url": "https://example.com/sse"
+            }),
+            "sse",
+            MCPServerTransport::Sse,
+        ),
+        (
+            serde_json::json!({ "source": "Local", "command": "npx", "args": ["-y", "server"] }),
+            "stdio",
+            MCPServerTransport::Stdio,
+        ),
+    ];
+
+    for (server, canonical_type, transport) in cases {
+        let config = serde_json::json!({ "mcpServers": { "case": server.clone() } });
+
+        validate_mcp_json_config(&config)
+            .unwrap_or_else(|error| panic!("'{}' must validate: {}", server, error));
+
+        let parsed = parse_cursor_format(&config, ConfigLocation::User);
+        assert_eq!(
+            parsed.len(),
+            1,
+            "'{}' must be parsed instead of silently dropped",
+            server
+        );
+        assert_eq!(parsed[0].transport, Some(transport), "for '{}'", server);
+
+        // Accepting a spelling must not change the canonical token we persist.
+        let written = config_to_cursor_format(&parsed[0]);
+        assert_eq!(
+            written["type"].as_str(),
+            Some(canonical_type),
+            "'{}' must persist the canonical token",
+            server
+        );
+    }
 }

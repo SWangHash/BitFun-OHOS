@@ -80,7 +80,11 @@
     color: var(--bitfun-color-content-muted);
     font-size: var(--bitfun-type-meta-font-size);
 
-    svg {
+    .bitfun-nav-panel__inline-loading-icon {
+      inline-size: var(--bitfun-control-icon-size-xs);
+      block-size: var(--bitfun-control-icon-size-xs);
+      color: var(--bitfun-color-content-secondary);
+      opacity: var(--bitfun-opacity-muted);
       flex: 0 0 auto;
       animation: bitfun-nav-session-spin 1s linear infinite;
     }
@@ -348,8 +352,33 @@
     letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
     white-space: nowrap;
 
-    svg {
+    .bitfun-nav-panel__inline-item-review-icon {
+      inline-size: var(--bitfun-control-icon-size2xs);
+      block-size: var(--bitfun-control-icon-size2xs);
+      color: var(--bitfun-color-content-secondary);
+      opacity: var(--bitfun-opacity-muted);
       animation: bitfun-nav-session-spin 1s linear infinite;
+    }
+  }
+
+  &__inline-item-worktree-badge {
+    flex: 0 0 auto;
+    // Icon-only circle sized like the neighbouring background-subagent badge, so
+    // the marker reads at a normal icon size without a label beside the title.
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--bitfun-control-icon-size-md);
+    block-size: var(--bitfun-control-icon-size-md);
+    border: 1px dashed var(--bitfun-color-border-subtle);
+    border-radius: 999px;
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-secondary);
+    // Kill the inline strut so the icon stays optically centered in the circle.
+    line-height: 0;
+
+    .bitfun-nav-panel__inline-item-worktree-icon {
+      inline-size: var(--bitfun-control-icon-size-xs);
+      block-size: var(--bitfun-control-icon-size-xs);
     }
   }
 
@@ -360,8 +389,8 @@
     place-items: center;
     justify-items: center;
     align-items: center;
-    width: 16px;
-    height: 16px;
+    width: var(--bitfun-control-icon-size-md);
+    height: var(--bitfun-control-icon-size-md);
     padding: 0;
     border: 1px solid var(--bitfun-color-status-success-border);
     border-radius: 999px;
@@ -377,8 +406,10 @@
     grid-area: 1 / 1;
     place-self: center;
     display: block;
-    width: 10px;
-    height: 10px;
+    inline-size: var(--bitfun-control-icon-size-xs);
+    block-size: var(--bitfun-control-icon-size-xs);
+    color: var(--bitfun-color-content-secondary);
+    opacity: var(--bitfun-opacity-muted);
     flex-shrink: 0;
     transform-origin: center center;
     transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
@@ -530,8 +561,23 @@
     }
   }
 
+  // The toggle is a lighter sibling of `__inline-item`, so its state icon needs
+  // the row's 20px trailing cell as well: the cell ends on the row inset and the
+  // glyph centres inside it. Flushing the bare 12px icon to the padding edge put
+  // its centre half a cell off the column the dots above and below it share.
+  &__inline-toggle-trailing {
+    display: grid;
+    flex: 0 0 var(--bitfun-space-5);
+    place-items: center;
+    inline-size: var(--bitfun-space-5);
+  }
+
   &__inline-toggle-spinner {
     flex: 0 0 auto;
+    inline-size: var(--bitfun-control-icon-size-xs);
+    block-size: var(--bitfun-control-icon-size-xs);
+    color: var(--bitfun-color-content-secondary);
+    opacity: var(--bitfun-opacity-muted);
     animation: bitfun-nav-session-spin 1s linear infinite;
   }
 
@@ -808,7 +854,9 @@
   &__inline-item {
     height: 30px;
     gap: var(--bitfun-space-2);
-    padding-right: var(--bitfun-space-2);
+    // Trailing edge of the row, not the reading gutter: it has to match the
+    // workspace rows and the group toggle so all trailing actions end on one column.
+    padding-right: var(--bitfun-space-1);
     border-radius: var(--bitfun-radius-base);
     @include nav-font.nav-panel-text-row;
 

@@ -96,6 +96,8 @@
     --bitfun-control-icon-size-md: 16px;
     --bitfun-control-icon-size-sm: 14px;
     --bitfun-control-icon-size-xs: 12px;
+    --bitfun-control-icon-stroke-width: 1.6;
+    --bitfun-control-icon-stroke-width-strong: 2;
     --bitfun-control-icon-button-standard-icon-size: 16px;
     --bitfun-control-icon-button-standard-size: 30px;
     --bitfun-control-icon-button-xs-icon-size: 14px;

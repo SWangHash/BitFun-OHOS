@@ -137,6 +137,42 @@
       "light": "#F7F7F5",
       "dark": "#1E1E1C"
     },
+    "sidebar_bg": {
+      "light": "#F8F8F9",
+      "dark": "#0E0E10"
+    },
+    "sidebar_bg_fade": {
+      "light": "#00F8F8F9",
+      "dark": "#000E0E10"
+    },
+    "sidebar_raised": {
+      "light": "#FFFFFF",
+      "dark": "#1C1C1F"
+    },
+    "sidebar_line": {
+      "light": "#14101A27",
+      "dark": "#1FFFFFFF"
+    },
+    "sidebar_hover": {
+      "light": "#F3F3F5",
+      "dark": "#0FFFFFFF"
+    },
+    "sidebar_selection": {
+      "light": "#14000000",
+      "dark": "#1FFFFFFF"
+    },
+    "sidebar_ink": {
+      "light": "#CC000000",
+      "dark": "#E8E8E8"
+    },
+    "sidebar_muted": {
+      "light": "#99000000",
+      "dark": "#B0B0B0"
+    },
+    "sidebar_subtle": {
+      "light": "#66000000",
+      "dark": "#858585"
+    },
     "status_success": {
       "light": "#27C46A",
       "dark": "#3BD47B"
@@ -297,6 +333,11 @@
       "weight": 500
     }
   },
+  "text_scale": {
+    "reference_logical_dpi": 153.3,
+    "min_factor": 0.85,
+    "max_factor": 1
+  },
   "geometry": {
     "conversation_header_height": 76,
     "conversation_header_compact_height": 64,
@@ -389,6 +430,7 @@
   "motion": {
     "quick": 180,
     "structure": 220,
-    "startup_brand": 6800
+    "startup_brand": 6800,
+    "cold_start_home": 2400
   }
 }

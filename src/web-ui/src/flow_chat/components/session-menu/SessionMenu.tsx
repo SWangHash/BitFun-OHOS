@@ -164,26 +164,35 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
             data-bitfun-part="scroll"
             aria-label={t('session.switchSession')}
           >
-            {sessions.map((session) => (
-              <MenuItem
-                key={session.sessionId}
-                type="button"
-                role="menuitemradio"
-                checked={session.sessionId === activeSessionId}
-                className={[
-                  'bitfun-session-menu__item-row',
-                  session.sessionId === activeSessionId ? 'bitfun-session-menu__item-row--active' : '',
-                ].filter(Boolean).join(' ')}
-                data-bitfun-component="session-menu"
-                data-bitfun-part="item"
-                data-bitfun-item-kind="session"
-                data-bitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
-                onMouseDown={(e) => switchSession(e, session.sessionId)}
-              >
-                <OverflowText>{resolveSessionTitle(session, t)}</OverflowText>
-                <SessionTitleNumber number={titleNumbers?.get(session.sessionId)} />
-              </MenuItem>
-            ))}
+            {sessions.map((session) => {
+              const titleNumber = titleNumbers?.get(session.sessionId);
+              return (
+                <MenuItem
+                  key={session.sessionId}
+                  type="button"
+                  role="menuitemradio"
+                  checked={session.sessionId === activeSessionId}
+                  className={[
+                    'bitfun-session-menu__item-row',
+                    session.sessionId === activeSessionId ? 'bitfun-session-menu__item-row--active' : '',
+                  ].filter(Boolean).join(' ')}
+                  data-bitfun-component="session-menu"
+                  data-bitfun-part="item"
+                  data-bitfun-item-kind="session"
+                  data-bitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
+                  // Root cause: the index used to be a MenuItem child, which ActionItem
+                  // nests inside the label's own overflow slot. That slot is a block box,
+                  // so a wider index wrapped onto its own line and jammed against the row
+                  // edge instead of holding a trailing column. The metadata prop renders it
+                  // in ActionItem's dedicated trailing slot (flex: 0 0 auto, nowrap), so the
+                  // menu reserves and aligns that space without pushing the label.
+                  metadata={titleNumber ? <SessionTitleNumber number={titleNumber} /> : undefined}
+                  onMouseDown={(e) => switchSession(e, session.sessionId)}
+                >
+                  <OverflowText>{resolveSessionTitle(session, t)}</OverflowText>
+                </MenuItem>
+              );
+            })}
           </div>
         </Menu>,
         getAppearanceOverlayHost(),

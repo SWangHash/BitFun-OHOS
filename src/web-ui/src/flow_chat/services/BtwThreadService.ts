@@ -183,6 +183,11 @@ export async function createBtwChildSession(params: {
       reviewTargetFilePaths: params.reviewTargetFilePaths,
       projectWorkspacePath:
         createdSession?.projectWorkspacePath || projectWorkspacePath,
+      // The child owns the parent's project, so navigation and persistence
+      // resolve both to the same group.
+      projectWorkspaceId:
+        parentSession?.projectWorkspaceId
+        || parentSession?.config.projectWorkspaceId,
       executionTarget:
         createdSession?.executionTarget || inheritedExecutionTarget,
       workspaceId: createdSession?.workspaceId || workspaceId,

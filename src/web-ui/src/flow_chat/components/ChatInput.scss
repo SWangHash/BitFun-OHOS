@@ -18,8 +18,31 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 0 var(--bitfun-space-2);
+  /*
+   * The composer card is a panel of the transcript, so it takes the transcript
+   * content inset. A space-2 inset here stopped the card 4px short of the text
+   * and tool-card column it sits under.
+   *
+   * This zone is centred on the panel, so the transcript scroller has to
+   * reserve its scrollbar gutter on both edges; a one-sided gutter would centre
+   * the reading column half a scrollbar to the leading side of this card.
+   */
+  padding: 0 var(--bitfun-control-flow-chat-content-padding-inline);
   pointer-events: auto !important;
+
+  @media (max-width: 768px) {
+    padding-inline: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
+  }
+
+  // Reserve the composer's actual height so the transcript ends above it.
+  &.bitfun-chat-input-drop-zone--conversation {
+    position: relative;
+    inset: auto;
+    transform: none;
+    max-width: none;
+    z-index: auto;
+    padding: var(--bitfun-space-2) var(--bitfun-space-3) var(--bitfun-space-3);
+  }
 
   &.bitfun-context-drop-zone--can-accept {
     .bitfun-chat-input__composer {

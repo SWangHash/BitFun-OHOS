@@ -161,6 +161,7 @@ pub(crate) fn dispatch<'a>(
         "get_session_files" => Box::pin(snapshot::get_session_files(state, args)),
 
         // Dialog / tools
+        "manage_dialog_queue" => Box::pin(dialog::manage_dialog_queue(state, args)),
         "start_dialog_turn" => Box::pin(dialog::start_dialog_turn(state, args)),
         "cancel_dialog_turn" => Box::pin(dialog::cancel_dialog_turn(state, args)),
         "start_user_question_interaction" => Box::pin(dialog::start_user_question_interaction(state, args)),
@@ -336,6 +337,7 @@ pub(crate) const HANDLED_COMMANDS: &[&str] = &[
     "set_external_tool_targets_enabled_command",
     "set_active_workspace",
     "start_dialog_turn",
+    "manage_dialog_queue",
     "submit_user_answers",
     "start_user_question_interaction",
     "subscribe_permission_requests",

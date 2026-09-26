@@ -20,9 +20,9 @@ impl Default for StandardHarness {
 
 impl StandardHarness {
     pub fn new() -> Self {
-        Self {
-            default_tools: standard_harness_tools(),
-        }
+        let mut default_tools = standard_harness_tools();
+        default_tools.push("ComputerUse".to_string());
+        Self { default_tools }
     }
 }
 
@@ -50,6 +50,10 @@ impl Agent for StandardHarness {
 
     fn default_tools(&self) -> Vec<String> {
         self.default_tools.clone()
+    }
+
+    fn tool_exposure_overrides(&self) -> &crate::agentic::agents::AgentToolPolicyOverrides {
+        crate::agentic::agents::direct_computer_use_policy()
     }
 
     fn user_context_policy(&self) -> UserContextPolicy {

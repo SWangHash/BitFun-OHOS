@@ -50,14 +50,14 @@ vi.mock('@bitfun/ui', async (importOriginal) => {
     Input: ({ size: _size, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Switch: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input type="checkbox" role="switch" {...props} />,
     Checkbox: ({ size: _size, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => <input type="checkbox" {...props} />,
-    Button: ({ children, disabled, onClick, 'aria-label': label }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button disabled={disabled} onClick={onClick} aria-label={label}>{children}</button>,
+    Button: ({ children, disabled, onClick, 'aria-label': label, variant }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => <button disabled={disabled} onClick={onClick} aria-label={label} data-bitfun-variant={variant}>{children}</button>,
     Select: ({ value, options, onValueChange, disabled }: { value: string; options: Array<{ value: string; label: string }>; onValueChange: (value: string) => void; disabled?: boolean }) => <select value={value} disabled={disabled} onChange={(event) => onValueChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>,
     SearchField: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Dialog: ({ open, children, onOpenChange, id, 'data-ecosystem-category': category }: React.PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; id?: string; 'data-ecosystem-category'?: string }>) => open ? <div role="dialog" id={id} data-ecosystem-category={category}><button onClick={() => onOpenChange(false)}>close</button>{children}</div> : null,
     DialogClose: () => null, DialogDescription: Wrapper, DialogHeaderActions: Wrapper, DialogFooter: Wrapper, DialogHeader: Wrapper, DialogHeading: Wrapper, DialogTitle: Wrapper, DialogBody: Wrapper,
     Icon: () => <span data-icon="true" />,
     IconButton: ({ icon, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ReactNode }) => <button {...props}>{icon}</button>,
-    Card: Wrapper, CardBody: Wrapper,
+    Card: ({ children, radius }: React.PropsWithChildren<{ radius?: string }>) => <div data-bitfun-component="card" data-radius={radius}>{children}</div>, CardBody: Wrapper,
     CardHeader: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) => <div>{title}{description}</div>,
     ScrollArea: Wrapper, LoadingState: Wrapper, OverflowText: Wrapper, StatusPill: Wrapper,
   };
@@ -167,6 +167,7 @@ describe('external agent content and explicit import boundary', () => {
     await render();
     await expand('account');
     const account = container.querySelector('[data-content-group="account"]')!;
+    expect(account.querySelector('[data-bitfun-component="card"]')?.getAttribute('data-radius')).toBe('none');
     expect(account.textContent).toContain('codex@example.test');
     expect(account.textContent).not.toContain('other@example.test');
     expect(account.textContent).toContain('content.accounts.labels.connected');
@@ -428,6 +429,7 @@ describe('external agent content and explicit import boundary', () => {
     expect(dialog.querySelector('[data-content-empty-state="notDetected"] p')?.textContent).toBe('import.states.notDetected');
     const scanButton = dialog.querySelector<HTMLButtonElement>('[data-content-empty-state] button');
     expect(scanButton?.textContent).toBe('content.scan');
+    expect(scanButton?.getAttribute('data-bitfun-variant')).toBe('primary');
     expect(scanButton?.disabled).toBe(false);
     expect(dialog.querySelector('[role="table"], [role="columnheader"], [data-import-kind], input')).toBeNull();
     expect(dialog.textContent).not.toMatch(/content\.(importCategory|importSelected|undoSelected|selectedCount|noMatches)/);

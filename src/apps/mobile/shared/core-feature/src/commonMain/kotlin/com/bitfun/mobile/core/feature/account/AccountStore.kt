@@ -716,7 +716,7 @@ private class CloudBackend(
     private fun AccountSessionData.toTransportSession(): CloudAccountSession =
         CloudAccountSession(token, userId, masterKey)
 
-    private fun CloudAccountDevice.toUi(): AccountDeviceUi = AccountDeviceUi(deviceId, deviceName, online, lastSeenAt)
+    private fun CloudAccountDevice.toUi(): AccountDeviceUi = AccountDeviceUi(deviceId, deviceName, online, lastSeenAt, compatible)
 }
 
 @Serializable

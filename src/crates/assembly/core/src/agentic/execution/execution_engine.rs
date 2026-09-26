@@ -2316,7 +2316,15 @@ impl ExecutionEngine {
                 }
                 MessageContent::ToolResult { .. } => {
                     if !attach_images {
-                        result.push(AIMessage::from(msg));
+                        let mut ai = AIMessage::from(msg);
+                        if ai
+                            .tool_image_attachments
+                            .take()
+                            .is_some_and(|images| !images.is_empty())
+                        {
+                            ai.content = Some(format!("{}\n\n[Tool image pixels were not sent: the resolved model does not support image inputs.]", ai.content.as_deref().unwrap_or("")));
+                        }
+                        result.push(ai);
                         continue;
                     }
                     let mut ai = AIMessage::from(msg.clone());
@@ -3087,6 +3095,7 @@ impl ExecutionEngine {
     ) -> BitFunResult<ExecutionResult> {
         let start_time = std::time::Instant::now();
         let dialog_turn_id = context.dialog_turn_id.clone();
+        let control_owner = context.session_id.clone();
         self.generation_messages
             .remove(&(context.session_id.clone(), dialog_turn_id.clone()));
         let is_subagent = context.subagent_parent_info.is_some();
@@ -3210,6 +3219,21 @@ impl ExecutionEngine {
                 turn_context.clone(),
             )
             .await;
+
+        // GUI capture/input is a turn-owned host resource. Release it on normal
+        // completion and errors as well as cancellation; never stop another task.
+        if let Some(host) = self.round_executor.computer_use_host() {
+            let control = host.control_snapshot();
+            if control.owner.as_deref() == Some(control_owner.as_str()) && control.state == "active"
+            {
+                if let Err(error) = host
+                    .stop_control_generation(&control_owner, control.generation)
+                    .await
+                {
+                    debug!("Computer use resource cleanup: {}", error);
+                }
+            }
+        }
 
         // Cleanup cancellation token
         self.round_executor
@@ -4496,15 +4520,12 @@ impl ExecutionEngine {
                 &round_result.assistant_message,
             );
 
+            // Publish the assistant message and all tool results as one context
+            // mutation.  A fork must never observe the assistant tool calls
+            // without their corresponding results.
+            let mut committed_round_messages = Vec::new();
             if !round_result.assistant_message_committed {
-                // Update the in-memory message caches immediately so subsequent rounds see it.
-                if let Err(e) = self
-                    .session_manager
-                    .add_message(&context.session_id, round_result.assistant_message.clone())
-                    .await
-                {
-                    warn!("Failed to update assistant message in memory: {}", e);
-                }
+                committed_round_messages.push(round_result.assistant_message.clone());
             }
 
             // Add tool result messages to history
@@ -4515,15 +4536,14 @@ impl ExecutionEngine {
                     &context.dialog_turn_id,
                     tool_result_msg,
                 );
-
-                // Update the in-memory message caches immediately so subsequent rounds see it.
-                if let Err(e) = self
-                    .session_manager
-                    .add_message(&context.session_id, tool_result_msg.clone())
-                    .await
-                {
-                    warn!("Failed to update tool result message in memory: {}", e);
-                }
+                committed_round_messages.push(tool_result_msg.clone());
+            }
+            if let Err(e) = self
+                .session_manager
+                .add_messages(&context.session_id, committed_round_messages)
+                .await
+            {
+                warn!("Failed to update round messages in memory: {}", e);
             }
 
             #[cfg(feature = "agent-runtime")]
@@ -4715,11 +4735,8 @@ impl ExecutionEngine {
                 }
             }
 
-            // User-steering messages submitted while this turn is running: drain and inject
-            // them as user messages into the working history before starting the next round
-            // (Codex-style mid-turn injection). This does NOT end the current turn: if the
-            // model wanted to finish but the user steered, we keep the turn running so the
-            // steering message gets a response.
+            // Human steering becomes the next persisted user turn. Runtime
+            // reminders still enter this turn through the injection channel.
             let mut injection_applied = false;
             if let Some(source) = context.round_injection.as_ref() {
                 let pending = source.take_pending(&context.session_id, &context.dialog_turn_id);
@@ -4814,6 +4831,17 @@ impl ExecutionEngine {
                         );
                         injection_applied = true;
                     }
+                }
+                if source.should_yield_to_user_turn(&context.session_id, &context.dialog_turn_id)
+                    && !self
+                        .round_executor
+                        .is_dialog_turn_cancelled(&dialog_turn_id)
+                {
+                    // Persist runtime reminders before handing off, so background
+                    // results arriving at this boundary stay in session context.
+                    // Already-started tools and results keep their original turn.
+                    finalization_reason = Some("user_steering");
+                    break;
                 }
             }
 
@@ -5245,7 +5273,7 @@ impl ExecutionEngine {
         let success = has_final_response
             || matches!(
                 effective_finish_reason,
-                "max_rounds" | "repeated_tool_failures"
+                "max_rounds" | "repeated_tool_failures" | "user_steering"
             );
 
         // Post-processing hook: when a DeepResearch dialog turn finishes
@@ -5256,7 +5284,7 @@ impl ExecutionEngine {
         {
             if bitfun_agent_workflows::deep_research::should_post_process_research_report(
                 &agent_type,
-                success,
+                success && effective_finish_reason != "user_steering",
             ) {
                 if let Some(workspace) = context.workspace.as_ref() {
                     if let Some(workspace_services) = context.workspace_services.as_ref() {
@@ -5444,6 +5472,140 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn computer_use_pixels_and_geometry_reach_real_provider_wire() {
+        use base64::Engine;
+        use bitfun_ai_adapters::providers::{
+            anthropic::AnthropicMessageConverter, gemini::GeminiMessageConverter,
+            openai::OpenAIMessageConverter,
+        };
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(6, 4)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let pixels = base64::engine::general_purpose::STANDARD.encode(png.into_inner());
+        let observation = json!({ "screenshot_id": "frame-visual", "image_width": 6, "image_height": 4,
+            "image_global_bounds": { "left": 200, "top": 100, "width": 60, "height": 40 }, "has_screenshot": true });
+        let source = Message::tool_result(ToolResult {
+            tool_id: "observe-visual".into(),
+            tool_name: "ComputerUse".into(),
+            effective_tool_name: None,
+            result: observation.clone(),
+            result_for_assistant: Some(observation.to_string()),
+            is_error: false,
+            duration_ms: Some(1),
+            image_attachments: Some(vec![crate::util::types::ToolImageAttachment {
+                mime_type: "image/png".into(),
+                data_base64: pixels.clone(),
+            }]),
+        })
+        .with_turn_id("visual-turn".into());
+        fn image_values(value: &serde_json::Value, output: &mut Vec<String>) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    for (key, value) in map {
+                        if key == "data" {
+                            if let Some(text) = value.as_str() {
+                                output.push(text.into());
+                            }
+                        } else {
+                            image_values(value, output);
+                        }
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    for value in values {
+                        image_values(value, output);
+                    }
+                }
+                serde_json::Value::String(text) => {
+                    if let Some(bytes) = text.strip_prefix("data:image/png;base64,") {
+                        output.push(bytes.into());
+                    }
+                }
+                _ => {}
+            }
+        }
+        fn find_geometry(value: &serde_json::Value) -> Option<serde_json::Value> {
+            if value
+                .get("screenshot_id")
+                .and_then(serde_json::Value::as_str)
+                == Some("frame-visual")
+            {
+                return Some(value.clone());
+            }
+            match value {
+                serde_json::Value::Object(map) => map.values().find_map(find_geometry),
+                serde_json::Value::Array(values) => values.iter().find_map(find_geometry),
+                serde_json::Value::String(text) => serde_json::from_str::<serde_json::Value>(text)
+                    .ok()
+                    .as_ref()
+                    .and_then(find_geometry),
+                _ => None,
+            }
+        }
+        for provider in ["openai", "responses", "anthropic", "gemini"] {
+            let messages = ExecutionEngine::build_ai_messages_for_send(
+                &[source.clone()],
+                provider,
+                None,
+                None,
+                "visual-turn",
+                true,
+                &[],
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                messages[0].content.as_deref(),
+                Some(observation.to_string().as_str())
+            );
+            let wire = match provider {
+                "openai" => json!(OpenAIMessageConverter::convert_messages(messages)),
+                "responses" => {
+                    json!(OpenAIMessageConverter::convert_messages_to_responses_input(messages).1)
+                }
+                "anthropic" => json!(AnthropicMessageConverter::convert_messages(messages).1),
+                _ => json!(GeminiMessageConverter::convert_messages(messages, "gemini-3-pro").1),
+            };
+            let mut encoded_images = Vec::new();
+            image_values(&wire, &mut encoded_images);
+            assert_eq!(
+                encoded_images,
+                vec![pixels.clone()],
+                "{provider}: exact image bytes must reach the wire"
+            );
+            let decoded = image::load_from_memory(
+                &base64::engine::general_purpose::STANDARD
+                    .decode(&encoded_images[0])
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!((decoded.width(), decoded.height()), (6, 4));
+            assert_eq!(find_geometry(&wire), Some(observation.clone()), "{provider}: screenshot ref and projection geometry must remain attached to these pixels");
+        }
+        let text_only = ExecutionEngine::build_ai_messages_for_send(
+            &[source.clone()],
+            "openai",
+            None,
+            None,
+            "visual-turn",
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(text_only[0].tool_image_attachments.is_none());
+        // Provider projection must not strip pixels from immutable stored history.
+        let crate::agentic::core::MessageContent::ToolResult {
+            image_attachments, ..
+        } = source.content
+        else {
+            panic!("tool result")
+        };
+        assert_eq!(image_attachments.unwrap()[0].data_base64, pixels);
+    }
 
     #[tokio::test]
     async fn image_inputs_keep_pixels_for_native_models_and_tool_paths_for_text_models() {

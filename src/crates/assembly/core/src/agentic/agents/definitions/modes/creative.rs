@@ -21,6 +21,7 @@ impl Default for CreativeHarness {
 impl CreativeHarness {
     pub fn new() -> Self {
         let mut default_tools = standard_harness_tools();
+        default_tools.push("ComputerUse".to_string());
         default_tools.extend(
             [
                 "InitMiniApp",
@@ -59,6 +60,10 @@ impl Agent for CreativeHarness {
 
     fn default_tools(&self) -> Vec<String> {
         self.default_tools.clone()
+    }
+
+    fn tool_exposure_overrides(&self) -> &crate::agentic::agents::AgentToolPolicyOverrides {
+        crate::agentic::agents::direct_computer_use_policy()
     }
 
     fn user_context_policy(&self) -> UserContextPolicy {

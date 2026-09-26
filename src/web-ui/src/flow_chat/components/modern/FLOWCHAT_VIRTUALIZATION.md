@@ -20,6 +20,31 @@ cancelled rounds precede it. That boundary prevents cross-round grouping from
 hiding the label; ordinary within-round tool folding remains available. Round ids
 and virtual row keys stay unchanged, with no viewport writes or mount animation.
 
+## Measurement compensation and cached offsets
+
+When the viewport owner accepts a shift for a measured row wholly above the
+reader, the virtualizer publishes the actual scroll offset after updating its
+size cache, before selecting the next rendered window. This applies during
+ordinary reading as well as opening reconciliation. Waiting for the native
+scroll event leaves the old offset paired with new row positions and can remove
+newly measured rows, then mount them again on that event. A refused shift does
+not trigger this readback. All viewport writes remain with the existing owner.
+`useFlowChatVirtualizer.initial-window.test.tsx` covers delayed scroll and
+scroll-end delivery using the real virtualizer and supplied geometry; it does
+not establish browser performance.
+
+## Collapsed thinking content lifetime
+
+Thinking cards mount their Markdown body only while expanded or finishing a
+collapse transition. Initially collapsed rows therefore do not parse or build
+hidden Markdown when virtualization remounts them. Closing content is released
+when the actual grid transition finishes or is cancelled; without a transition
+(including reduced motion), it is released immediately. Reopening invalidates
+the pending release. The typewriter and reveal gate retain their existing
+lifetime. `ModelThinkingDisplay.test.tsx` covers this lifecycle with supplied
+animation promises; browser animation fidelity and scroll performance still
+require runtime verification.
+
 ## Embedded session lifetime
 
 `BtwSessionPanel` keeps a lightweight tab-owned wrapper while its content is
@@ -47,6 +72,49 @@ one rule about rendering that only makes sense once a row's lifetime is shorter
 than its content's.
 
 ## What Belongs to the Virtualizer
+
+On a tail-following open, the virtualizer seeds its initial offset at the last
+item's estimated start. A desktop trace previously mounted rows 0..13 before
+moving to 22..33, with 372.3ms charged to the first head-row measurement. The
+seed selects a tail window without first mounting the head; real heights and
+the existing follow owner still determine the settled position. This is a
+one-time seed, not an ongoing tail lock. Initial empty hydration waits for items
+before consuming it. History-window presentation and saved reading-position
+restoration retain the default initial window. Tests cover window selection
+using the real virtualizer with supplied DOM geometry. A same-session desktop
+retest started at rows 27..33: rowRef total fell from 377.3ms to 4.2ms and the
+post-reveal probe completed at 806.7ms instead of 1540.3ms. This is a single-trace
+comparison, not paint timing or remote validation. The remaining tail-window
+contraction led to the measurement reconciliation described below.
+
+Opening measurement reconciliation now runs after a row size enters TanStack's
+cache and before the queued render chooses its next window. Only an active,
+unsuspended, still-opening transcript whose current owner is `follow-output`
+asks the existing follow scheduler to reconcile. The offset observer then
+publishes the actual scroll position without a synchronous React flush. No
+displacement permission is broadened, and historical reading, user takeover,
+and post-reveal streaming keep their existing rules. A pending debounced native
+scroll-end sample must not overwrite this publication with its older offset.
+The motivating trace measured a 729px shrink of rows 22..26 followed by window
+contraction/remount and 113.8ms of removal-related style work. Tests reproduce
+the contraction with reconciliation disabled and retain the same row nodes
+with it enabled, including a delayed native scroll event and scroll-end timer.
+A same-session desktop retest kept rows 22..33 mounted: row cleanup calls fell
+from five to zero, and the post-reveal probe completed at 596.4ms instead of
+786.8ms. This single-trace comparison does not establish paint timing or remote
+behavior; other main-thread stalls remain.
+
+Opening follow corrections also publish their immediate `scrollTop` readback
+through `syncViewportOffset`, including a target that is already reached. The
+list connects the follow callback to this adapter method; follow never imports
+the virtualizer. Only active, unsuspended opening follow with viewport ownership
+publishes, and refused writes publish nothing. Equal offsets do not notify React.
+This lets range selection proceed before the native scroll event without adding
+a synchronous flush or clearing measured sizes. Measurement reconciliation uses
+the same observer channel, with its pending flag cleared before calling follow
+to avoid recursive correction. Native events remain enabled. Tests withhold them
+and check window expansion, node retention, stale scroll-end delivery and user
+takeover; runtime savings and remote behavior still require separate validation.
 
 FlowChat virtualizes with **TanStack Virtual**, behind `useFlowChatVirtualizer.ts`.
 Nothing else imports it. The rest of FlowChat asks for offsets in scroller
@@ -349,6 +417,32 @@ Lab sequence own their own gaps. Thinking/Explore content has an 8px top inset;
 bounded Explore retains 8px bottom padding for its scroll fade. There is no
 negative adjacent-region margin. The resident runtime slot stays 24px high and
 continues to participate in the existing footer/reservation contract.
+
+## Selection and custom highlight paint
+
+Native transcript selections use the application selection style. Do not add
+descendant `::selection` overrides to the chat root: WebKitGTK reports show
+uncached highlight pseudo-style resolution during long-transcript repaint.
+
+Search, temporary excerpts and persistent annotations use `flowChatHighlights`
+to own both their CSS Highlight ranges and attributes on every intersecting text
+parent. A range can span Markdown links/emphasis; marking only its first parent
+loses paint. Each owner updates only its own parent set, shared parents are
+reference-counted per document and highlight kind, and disposal cannot clear
+another mounted row or pane. Attributes stay stable across unchanged updates
+and are outside the annotation geometry observer's attribute filter.
+
+The Appearance theme-token adapter projects the annotation accent's 30% tint
+and indirect mixes in search/native-selection color tokens to concrete colors
+when a theme is applied, including the chrome theme scope. Its renderer stylesheet supplies
+existing semantic colors for sparse/legacy themes and system colors in forced
+color mode; derived paint is not a persisted setting or a new theme token.
+Scoped highlight rules remain in place without an active range, as with streaming
+reveal. Moving color projection to its own stylesheet is an ownership decision,
+not evidence of WebKit stylesheet-matching isolation or a measured speedup.
+
+Linux/WebKitGTK long-session CPU and pseudo-style stacks still require runtime
+verification. DOM tests establish range/marker lifecycle, not renderer performance.
 
 ## Streaming glyph presentation
 

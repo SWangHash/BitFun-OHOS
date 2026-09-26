@@ -146,6 +146,10 @@ describe('Remote Connect safety contracts', () => {
       navPanelStyleSource.indexOf("&[data-bitfun-device-kind='message-app'] {"),
       navPanelStyleSource.indexOf('.bitfun-nav-panel__footer-device-status-attached-count'),
     );
+    const footerBrandColorStyle = navPanelStyleSource.slice(
+      navPanelStyleSource.indexOf('.bitfun-nav-panel__footer-device-status-attached {'),
+      navPanelStyleSource.indexOf('.bitfun-nav-panel__footer-device-status-attached-group'),
+    );
     const overviewMessageBrandStart = navPanelStyleSource.indexOf(
       "&[data-bitfun-device-kind='message-app'] .bitfun-device-overview__device-icon {",
     );
@@ -167,7 +171,7 @@ describe('Remote Connect safety contracts', () => {
     expect(connectedBrandStyle).not.toContain('background:');
     expect(footerMessageBrandStyle).toContain('border: 0');
     expect(footerMessageBrandStyle).toContain('background: transparent');
-    expect(footerMessageBrandStyle).toContain('--bitfun-color-content-primary');
+    expect(footerBrandColorStyle).toContain('--bitfun-color-content-primary');
     expect(overviewMessageBrandStyle).toContain('background: transparent');
     expect(overviewMessageBrandStyle).toContain('--bitfun-color-content-primary');
     expect(dialogSource).not.toContain('<Send size={28} />');

@@ -55,6 +55,9 @@
     "copyLink": "复制链接",
     "copyFilePath": "复制文件路径"
   },
+  "imageLightbox": {
+    "label": "图片预览"
+  },
   "mermaidBlock": {
     "renderFailed": "图表渲染失败",
     "codeIncomplete": "代码不完整，等待更多内容...",

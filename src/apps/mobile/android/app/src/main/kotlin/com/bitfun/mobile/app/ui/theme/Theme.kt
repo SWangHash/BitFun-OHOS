@@ -8,8 +8,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.bitfun.mobile.app.ui.theme.generated.MobileDesignColors
 import com.bitfun.mobile.app.ui.theme.generated.MobileDesignTypography
+import com.bitfun.mobile.app.ui.theme.generated.MobileTextScale
 
 /**
  * The palette, ported from the HarmonyOS client's `Theme.ets` plus its
@@ -138,7 +142,31 @@ internal data class BitFunColors(
     val heroSurface: Color,
     val heroAccent: Color,
     val heroSecondary: Color,
+    val sidebar: SidebarColors,
     val code: CodeSyntaxColors,
+)
+
+/**
+ * The navigation chrome, held apart from the page palette above.
+ *
+ * The desktop client paints its sidebar from a separate family — `surface.chrome`
+ * one step off the scene, hairlines and selection fills carried as alpha over it
+ * — so the rail reads as structure rather than as another sheet of paper. These
+ * are those roles, one for one, and they belong to the sidebar only: a page that
+ * borrows them stops looking like the desktop, not more like it.
+ *
+ * [selection], [line] and [hover] are translucent on purpose. They are meant to
+ * composite over [background]; flattening them loses the rail's depth.
+ */
+internal data class SidebarColors(
+    val background: Color,
+    val raised: Color,
+    val line: Color,
+    val hover: Color,
+    val selection: Color,
+    val ink: Color,
+    val muted: Color,
+    val subtle: Color,
 )
 
 /**
@@ -179,6 +207,16 @@ private val LightExtras = BitFunColors(
     heroSurface = LightTokens.ConnectHeroSurface,
     heroAccent = LightTokens.ConnectHeroAccent,
     heroSecondary = LightTokens.ConnectHeroSecondary,
+    sidebar = SidebarColors(
+        background = LightTokens.SidebarBg,
+        raised = LightTokens.SidebarRaised,
+        line = LightTokens.SidebarLine,
+        hover = LightTokens.SidebarHover,
+        selection = LightTokens.SidebarSelection,
+        ink = LightTokens.SidebarInk,
+        muted = LightTokens.SidebarMuted,
+        subtle = LightTokens.SidebarSubtle,
+    ),
     code = CodeSyntaxColors(
         lineNumber = LightTokens.CodeLineNumber,
         keyword = LightTokens.CodeKeyword,
@@ -210,6 +248,16 @@ private val DarkExtras = BitFunColors(
     heroSurface = DarkTokens.ConnectHeroSurface,
     heroAccent = DarkTokens.ConnectHeroAccent,
     heroSecondary = DarkTokens.ConnectHeroSecondary,
+    sidebar = SidebarColors(
+        background = DarkTokens.SidebarBg,
+        raised = DarkTokens.SidebarRaised,
+        line = DarkTokens.SidebarLine,
+        hover = DarkTokens.SidebarHover,
+        selection = DarkTokens.SidebarSelection,
+        ink = DarkTokens.SidebarInk,
+        muted = DarkTokens.SidebarMuted,
+        subtle = DarkTokens.SidebarSubtle,
+    ),
     code = CodeSyntaxColors(
         lineNumber = DarkTokens.CodeLineNumber,
         keyword = DarkTokens.CodeKeyword,
@@ -255,11 +303,29 @@ internal val bitFunColors: BitFunColors
 
 @Composable
 internal fun BitFunTheme(dark: Boolean, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalBitFunColors provides if (dark) DarkExtras else LightExtras) {
+    CompositionLocalProvider(
+        LocalBitFunColors provides if (dark) DarkExtras else LightExtras,
+        LocalDensity provides textScaledDensity(),
+    ) {
         MaterialTheme(
             colorScheme = if (dark) DarkScheme else LightScheme,
             typography = BitFunTypography,
             content = content,
         )
     }
+}
+
+/**
+ * The same ramp reads physically larger on a screen whose dp is bigger than the
+ * reference the sizes were tuned on, so every `sp` under the theme is folded by
+ * the display's own pitch. It rides on top of the user's font-size preference
+ * rather than replacing it, and dp geometry is untouched.
+ */
+@Composable
+@ReadOnlyComposable
+private fun textScaledDensity(): Density {
+    val base = LocalDensity.current
+    val metrics = LocalContext.current.resources.displayMetrics
+    val factor = MobileTextScale.resolve(xdpi = metrics.xdpi, density = metrics.density)
+    return if (factor == 1f) base else Density(base.density, base.fontScale * factor)
 }

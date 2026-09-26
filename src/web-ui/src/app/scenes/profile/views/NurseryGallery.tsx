@@ -254,7 +254,7 @@ const NurseryGallery: React.FC = () => {
             </div>
 
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
               className="nursery-defaults__action"
               leadingIcon={<Icon name="settings" size="sm" />}

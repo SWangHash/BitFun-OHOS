@@ -3,7 +3,7 @@ import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useMiniAppStore } from '@/app/scenes/miniapps/miniAppStore';
 import { useMiniAppActivity } from '@/app/scenes/miniapps/hooks/useMiniAppActivity';
 import { renderMiniAppIcon, getMiniAppIconGradient } from '@/app/scenes/miniapps/utils/miniAppIcons';
-import { OverflowText, Icon, Tooltip } from '@bitfun/ui';
+import { Icon, IconButton, NavigationPanelItem, Tooltip } from '@bitfun/ui';
 
 const MAX_VISIBLE_ACTIVE_APPS = 3;
 
@@ -45,84 +45,62 @@ const MiniAppEntry: React.FC<MiniAppEntryProps> = ({
 
   return (
     <div className="bitfun-nav-panel__miniapp-entry-wrap">
-      <div data-overflow-trigger
-        className={[
+      <NavigationPanelItem
+        className="bitfun-nav-panel__miniapp-item"
+        triggerClassName={[
           'bitfun-nav-panel__miniapp-entry',
           isActive && 'is-active',
           activeApps.length > 0 && 'has-running-apps',
           hasCustomizingApps && 'has-customizing-apps',
         ].filter(Boolean).join(' ')}
         onClick={onOpenMiniApps}
-        onKeyDown={(event) => {
-          if (event.currentTarget !== event.target) return;
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            onOpenMiniApps();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        data-testid="nav-miniapps-entry"
         aria-label={t('scenes.miniApps')}
+        data-testid="nav-miniapps-entry"
+        selected={isActive}
+        leading={(
+          <span className="bitfun-nav-panel__miniapp-entry-icon">
+            <Icon name="mini-app" size="sm" />
+          </span>
+        )}
+        actionContent={(
+          <span className="bitfun-nav-panel__miniapp-entry-apps">
+            {visibleApps.length > 0 ? (
+              <>
+                {visibleApps.map((app) => {
+                  const isAppActive = app.id === activeMiniAppId;
+                  return (
+                    <Tooltip key={app.id} content={app.name} placement="right">
+                      <IconButton
+                        className={[
+                          'bitfun-nav-panel__miniapp-bubble',
+                          isAppActive && 'is-active',
+                          customizingIdSet.has(app.id) && 'is-customizing',
+                        ].filter(Boolean).join(' ')}
+                        style={{ background: getMiniAppIconGradient(app.icon || 'box') }}
+                        onClick={() => onOpenMiniApp(app.id)}
+                        aria-label={app.name}
+                        data-testid="nav-miniapp-activity-item"
+                        data-miniapp-id={app.id}
+                        icon={renderMiniAppIcon(app.icon || 'box', 'sm')}
+                        shape="circle"
+                        size="xs"
+                        variant="quiet"
+                      />
+                    </Tooltip>
+                  );
+                })}
+                {overflowCount > 0 ? (
+                  <span className="bitfun-nav-panel__miniapp-bubble bitfun-nav-panel__miniapp-bubble--more">
+                    +{overflowCount}
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+          </span>
+        )}
       >
-        <span className="bitfun-nav-panel__miniapp-entry-main">
-          <span className="bitfun-nav-panel__miniapp-entry-icon" aria-hidden="true">
-            <Icon name="mini-app" size="md" />
-          </span>
-          <span className="bitfun-nav-panel__miniapp-entry-copy">
-            <OverflowText className="bitfun-nav-panel__miniapp-entry-title">{t('scenes.miniApps')}</OverflowText>
-          </span>
-        </span>
-
-        <span className="bitfun-nav-panel__miniapp-entry-apps">
-          {visibleApps.length > 0 ? (
-            <>
-              {visibleApps.map((app) => {
-                const isAppActive = app.id === activeMiniAppId;
-                return (
-                  <Tooltip key={app.id} content={app.name} placement="right">
-                    <span
-                      className={[
-                        'bitfun-nav-panel__miniapp-bubble',
-                        isAppActive && 'is-active',
-                        customizingIdSet.has(app.id) && 'is-customizing',
-                      ].filter(Boolean).join(' ')}
-                      style={{ background: getMiniAppIconGradient(app.icon || 'box') }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenMiniApp(app.id);
-                      }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={app.name}
-                      data-testid="nav-miniapp-activity-item"
-                      data-miniapp-id={app.id}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onOpenMiniApp(app.id);
-                        }
-                      }}
-                    >
-                      {renderMiniAppIcon(app.icon || 'box', 14)}
-                      {customizingIdSet.has(app.id) && (
-                        <span className="bitfun-nav-panel__miniapp-bubble-customize-dot" aria-hidden="true" />
-                      )}
-                    </span>
-                  </Tooltip>
-                );
-              })}
-              {overflowCount > 0 ? (
-                <span className="bitfun-nav-panel__miniapp-bubble bitfun-nav-panel__miniapp-bubble--more">
-                  +{overflowCount}
-                </span>
-              ) : null}
-            </>
-          ) : null}
-        </span>
-      </div>
+        {t('scenes.miniApps')}
+      </NavigationPanelItem>
     </div>
   );
 };

@@ -85,6 +85,17 @@ static EMPTY_AGENT_TOOL_POLICY_OVERRIDES: std::sync::LazyLock<AgentToolPolicyOve
 static EMPTY_PERMISSION_CONSTRAINTS: std::sync::LazyLock<PermissionConstraintLayer> =
     std::sync::LazyLock::new(PermissionConstraintLayer::default);
 
+/// Exposure policy for main modes that own desktop workflows. Availability and
+/// user allowlists are still resolved by the normal tool catalog.
+pub(crate) fn direct_computer_use_policy() -> &'static AgentToolPolicyOverrides {
+    static POLICY: std::sync::LazyLock<AgentToolPolicyOverrides> = std::sync::LazyLock::new(|| {
+        let mut policy = AgentToolPolicyOverrides::default();
+        policy.insert("ComputerUse".to_string(), ToolExposure::Direct);
+        policy
+    });
+    &POLICY
+}
+
 pub fn standard_harness_tools() -> Vec<String> {
     vec![
         "Task".to_string(),
@@ -313,7 +324,9 @@ mod tests {
     fn agentic_mode_uses_shared_coding_tools() {
         let shared_tools = standard_harness_tools();
 
-        assert_eq!(StandardHarness::new().default_tools(), shared_tools);
+        let mut expected = shared_tools;
+        expected.push("ComputerUse".to_string());
+        assert_eq!(StandardHarness::new().default_tools(), expected);
     }
 
     #[test]
@@ -321,5 +334,61 @@ mod tests {
         let shared_policy = standard_harness_user_context_policy();
 
         assert_eq!(StandardHarness::new().user_context_policy(), shared_policy);
+    }
+}
+
+#[cfg(test)]
+mod direct_desktop_policy_tests {
+    use super::*;
+    #[test]
+    fn main_desktop_modes_own_computer_use_without_forcing_it_into_readonly_modes() {
+        let modes: Vec<Box<dyn Agent>> = vec![
+            Box::new(ClawMode::new()),
+            Box::new(CoworkMode::new()),
+            Box::new(StandardHarness::new()),
+            Box::new(CreativeHarness::new()),
+        ];
+        for mode in modes {
+            assert!(
+                mode.default_tools()
+                    .iter()
+                    .any(|name| name == "ComputerUse"),
+                "{}",
+                mode.id()
+            );
+            assert_eq!(
+                mode.tool_exposure_overrides().get("ComputerUse"),
+                Some(&ToolExposure::Direct)
+            );
+        }
+        let config = crate::service::config::types::AgentProfileConfig {
+            removed_tools: vec!["ComputerUse".to_string()],
+            ..Default::default()
+        };
+        let defaults = ClawMode::new().default_tools();
+        let registered = defaults.iter().cloned().collect();
+        let resolved = crate::service::config::mode_config_canonicalizer::resolve_effective_tools(
+            &defaults,
+            Some(&config),
+            &registered,
+        );
+        assert!(
+            !resolved.iter().any(|name| name == "ComputerUse"),
+            "explicit user exclusion wins over the new default"
+        );
+        assert!(!ExploreAgent::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(!MinimalHarness::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(
+            !standard_harness_tools()
+                .iter()
+                .any(|name| name == "ComputerUse"),
+            "external/plugin baseline stays opt-in"
+        );
     }
 }

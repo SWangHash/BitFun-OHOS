@@ -10,6 +10,7 @@ import {
   AmbientToolCardHeader,
   CommandToolCard,
   ContextCompressionToolCard,
+  CronToolCard,
   DefaultToolCard,
   DirectoryListToolCard,
   FileDiffToolCard,
@@ -339,6 +340,53 @@ test("expanded ambient headers match prominent cards while collapsed traces stay
   assert.match(expandedIconRule, /--_flow-chat-tool-card-icon-size:\s*var\(--bitfun-font-size-xl\)/);
 });
 
+test("prominent summary rows keep one symmetric inset and inert empty slots", async () => {
+  const styles = await readFile(
+    new URL("../src/flow-chat/tool-cards/FlowChatToolCard.module.css", import.meta.url),
+    "utf8",
+  );
+  const rootRule = styles.match(/\.prominentRoot,\s*\.ambientRoot\s*\{([^}]*)\}/s)?.[1];
+  const prominentSummaryRule = styles.match(/\.prominentSummary\s*\{([^}]*)\}/s)?.[1];
+  const expandedAmbientSurfaceRule = styles.match(
+    /\.ambientExpandedShell \.ambientSurface\s*\{([^}]*)\}/s,
+  )?.[1];
+  const actionRegionRule = styles.match(/\.actionRegion\s*\{\s*overflow:\s*hidden;([^}]*)\}/s)?.[1];
+  const revealedActionRegionRule = styles.match(
+    /\.prominentRoot\[data-actions-visible="true"\] \.actionRegion\s*\{([^}]*)\}/s,
+  )?.[1];
+
+  assert.ok(rootRule, "root token block");
+  assert.ok(prominentSummaryRule, "prominent summary rule");
+  assert.ok(expandedAmbientSurfaceRule, "expanded ambient surface rule");
+  assert.ok(actionRegionRule, "hidden action region rule");
+  assert.ok(revealedActionRegionRule, "revealed action region rule");
+
+  // A single inset owns both ends of the row, so trailing metadata (+N -N counts,
+  // status summaries) keeps the same distance to the card edge as the leading
+  // slot. Declaring a start/end pair here is what let the hidden action region
+  // pull that metadata onto the card edge.
+  assert.match(rootRule, /--_tool-card-summary-inset:\s*var\(--bitfun-space-3\)/);
+  assert.match(prominentSummaryRule, /padding-inline:\s*var\(--_tool-card-summary-inset\);/);
+  assert.match(expandedAmbientSurfaceRule, /padding-inline:\s*var\(--_tool-card-summary-inset\);/);
+
+  // The hidden slot owns no row space and never claims the end inset; the
+  // revealed actions keep their own corner gutter (row inset minus one space
+  // step) and that gutter stays animated with the reveal.
+  assert.match(actionRegionRule, /margin-inline-end:\s*0;/);
+  assert.match(actionRegionRule, /transition:[\s\S]*margin-inline-end var\(--_tool-card-transition\)/);
+  assert.match(
+    revealedActionRegionRule,
+    /margin-inline-end:\s*calc\(-1 \* var\(--bitfun-space-2\)\);/,
+  );
+
+  // A fragment whose conditions are all false still mounts the slot.
+  assert.match(styles, /\.extra:empty\s*\{[^}]*display:\s*none/);
+  assert.match(
+    styles,
+    /\.extra:empty \+ \.statusIcon\[data-divider="true"\]\s*\{[^}]*border-inline-start-width:\s*0/,
+  );
+});
+
 test("ambient tool-card collapse has no delayed shell state or layout-changing shell chrome", async () => {
   const source = await readFile(
     new URL("../src/flow-chat/tool-cards/FlowChatToolCard.tsx", import.meta.url),
@@ -585,6 +633,11 @@ test("every migrated FlowChat tool view publishes a stable concrete card identit
       status: "completed",
       summary: "Completed",
       toolName: "custom_tool",
+    })],
+    ["cron", createElement(CronToolCard, {
+      action: "Scheduled job:",
+      status: "completed",
+      summary: "Created scheduled job",
     })],
     ["directory-list", createElement(DirectoryListToolCard, {
       results: [{ key: "src", title: "src/" }],

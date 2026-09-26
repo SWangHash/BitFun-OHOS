@@ -1218,6 +1218,7 @@ dependencies = [
  "bitfun-webdriver",
  "brotli-decompressor",
  "bzip2 0.5.2",
+ "cc",
  "chrono",
  "core-foundation 0.9.4",
  "core-graphics 0.23.2",

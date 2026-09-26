@@ -617,6 +617,10 @@ let main_url = if use_development_frontend() {
     let build_started_at = Instant::now();
     match builder.build() {
         Ok(window) => {
+            #[cfg(target_os = "windows")]
+            if let Err(error) = crate::window_webview_geometry::install(&window) {
+                error!("Failed to install main WebView geometry protection: {error}");
+            }
             #[cfg(not(target_env = "ohos"))]
             {
                 let reapply_maximized = crate::restore_main_window_state(&window);

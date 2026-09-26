@@ -170,6 +170,17 @@
         "intlOpenai": "海外-OpenAI兼容格式"
       }
     },
+    "xiaomi": {
+      "name": "Xiaomi MiMo",
+      "description": "小米 MiMo 系列模型，API 與 Token Plan 金鑰不可混用。",
+      "urlOptions": {
+        "default": "API - OpenAI Chat Completions（預設）",
+        "responses": "API - OpenAI Responses",
+        "anthropic": "API - Anthropic Messages",
+        "tokenPlan": "中國 - Token Plan - OpenAI",
+        "tokenPlanAnthropic": "中國 - Token Plan - Anthropic"
+      }
+    },
     "moonshot": {
       "name": "月之暗面",
       "description": "月之暗面 Kimi 系列模型",

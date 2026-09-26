@@ -14,6 +14,7 @@ export const servicesReqwestOwnerFeatures = [
   'remote-ssh-concrete',
   'review-platform',
   'speech',
+  'skillhub',
   'web-tools',
 ];
 
@@ -309,6 +310,7 @@ export const optionalDependencyFeatureOwnerRules = [
           'remote-ssh-concrete',
           'review-platform',
           'speech',
+          'skillhub',
           'web-tools',
           'workspace-search',
         ],
@@ -588,7 +590,8 @@ export const capabilityContractDependencyRules = [
         ],
       )],
       ['bitfun-desktop', capabilityConsumer([
-        capabilityEdge(['element-token']),
+        // Desktop owns native control resources and consumes portable control DTOs.
+        capabilityEdge(['computer-use-contract', 'element-token']),
       ])],
       ['bitfun-services-integrations', capabilityConsumer(
         [capabilityEdge([], { optional: true })],
