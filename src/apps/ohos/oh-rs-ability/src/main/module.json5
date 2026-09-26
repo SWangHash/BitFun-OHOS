@@ -1,6 +1,6 @@
 {
   "module": {
-    "name": "@ohos-rs/ability",
+    "name": "oh_rs_ability",
     "type": "har",
     "deviceTypes": [
       "default",

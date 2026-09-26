@@ -38,6 +38,18 @@
           ]
         }
       ]
+    },
+    {
+      "name": "oh_rs_ability",
+      "srcPath": "./oh-rs-ability",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
     }
   ]
 }

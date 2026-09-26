@@ -5,6 +5,7 @@
 **/build
 /.hvigor
 .cxx
+**/BuildProfile.ets
 /.clangd
 /.clang-format
 /.clang-tidy
