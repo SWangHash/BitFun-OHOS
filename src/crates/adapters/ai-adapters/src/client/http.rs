@@ -52,6 +52,8 @@ pub(crate) fn create_http_client(
         builder = builder.no_proxy();
     }
 
+    builder = super::ohos_dns::apply_platform_resolver(builder);
+
     match builder.build() {
         Ok(client) => client,
         Err(e) => {

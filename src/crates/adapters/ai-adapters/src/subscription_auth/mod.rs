@@ -454,7 +454,7 @@ pub(crate) fn build_http_client(
         builder = builder.no_proxy();
     }
 
-    builder
+    crate::client::ohos_dns::apply_platform_resolver(builder)
         .build()
         .with_context(|| format!("build {provider} subscription http client"))
 }
