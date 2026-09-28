@@ -2,6 +2,9 @@
 
 # UI Test IDs
 
+For HarmonyOS/OpenHarmony WebView short-test guidance, see
+[ohos-ui-testids-guide.zh-CN.md](ohos-ui-testids-guide.zh-CN.md).
+
 This document records stable `data-testid` values used by BitFun UI automation.
 Test IDs are grouped by product area and should be added only when an automated
 workflow needs a stable locator.
