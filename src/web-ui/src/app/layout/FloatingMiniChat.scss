@@ -281,7 +281,10 @@ $panel-height: 680px;
   width: $panel-width;
   height: $panel-height;
   max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
+  // The panel is anchored to the bottom, so its top edge is what can reach the
+  // workbench chrome row. Reserve that row as well, otherwise a small window
+  // lets the panel cover the in-app minimize/maximize/close controls.
+  max-height: calc(100vh - var(--bitfun-layout-toolbar-md-height) - 32px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
