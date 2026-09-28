@@ -103,6 +103,30 @@ safe_enum!(ModelClass {
     Vision => "vision",
     Other => "other",
 });
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedModelName(String);
+
+impl NormalizedModelName {
+    pub fn new(value: &str) -> Option<Self> {
+        let value = value.trim();
+        if value.is_empty()
+            || value.len() > 64
+            || value.starts_with('/')
+            || value.contains("..")
+            || !value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'/' | b':')
+            })
+        {
+            return None;
+        }
+        Some(Self(value.to_ascii_lowercase()))
+    }
+
+    fn into_string(self) -> String {
+        self.0
+    }
+}
 safe_enum!(InferenceProtocolClass {
     Responses => "responses",
     ChatCompletions => "chat_completions",
@@ -118,6 +142,13 @@ safe_enum!(InferenceContextClass {
 safe_enum!(InferenceAuthClass {
     ApiKey => "api_key",
     Subscription => "subscription",
+});
+safe_enum!(AuthRefreshResult {
+    Success => "success",
+    Expired => "expired",
+    Revoked => "revoked",
+    Denied => "denied",
+    Error => "error",
 });
 safe_enum!(InferenceStreamOutcomeClass {
     Complete => "complete",
@@ -753,10 +784,11 @@ pub fn start_round(
     ))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InferenceStartFacts {
     pub provider_class: ProviderClass,
     pub model_class: ModelClass,
+    pub model_name: Option<NormalizedModelName>,
     pub protocol_class: InferenceProtocolClass,
     pub context_class: InferenceContextClass,
     pub auth_class: Option<InferenceAuthClass>,
@@ -772,6 +804,7 @@ pub struct InferenceRequestFacts {
 pub struct InferenceFinishFacts {
     pub completion: CompletionFacts,
     pub attempt_bucket: AttemptBucket,
+    pub retry_count: u64,
     pub status_class: Option<StatusClass>,
     pub retryable: Option<bool>,
     pub ttft_ms: Option<u64>,
@@ -805,6 +838,10 @@ impl InferenceFinishFacts {
             "bitfun.inference.attempt.index_bucket",
             self.attempt_bucket.as_str(),
         )];
+        attributes.push(Attribute::u64(
+            "bitfun.retry_count",
+            self.retry_count.min(10),
+        ));
         if let Some(status_class) = self.status_class {
             attributes.push(Attribute::enumeration(
                 "bitfun.inference.request.http_status_class",
@@ -1008,7 +1045,7 @@ pub fn start_inference(
     InferenceObservation(telemetry.start_operation(
         OperationKind::Inference,
         || {
-            vec![
+            let mut attributes = vec![
                 Attribute::enumeration(
                     "bitfun.inference.provider_class",
                     facts.provider_class.as_str(),
@@ -1022,12 +1059,20 @@ pub fn start_inference(
                     "bitfun.inference.context_class",
                     facts.context_class.as_str(),
                 ),
-            ]
-            .into_iter()
-            .chain(facts.auth_class.map(|auth_class| {
-                Attribute::enumeration("bitfun.inference.auth_class", auth_class.as_str())
-            }))
-            .collect::<Vec<_>>()
+            ];
+            if let Some(model_name) = facts.model_name {
+                attributes.push(Attribute::string(
+                    "gen_ai.request.model",
+                    model_name.into_string(),
+                ));
+            }
+            if let Some(auth_class) = facts.auth_class {
+                attributes.push(Attribute::enumeration(
+                    "bitfun.inference.auth_class",
+                    auth_class.as_str(),
+                ));
+            }
+            attributes
         },
         parent,
     ))
@@ -1057,6 +1102,12 @@ pub fn start_inference_with_request_facts(
                     facts.context_class.as_str(),
                 ),
             ];
+            if let Some(model_name) = facts.model_name {
+                attributes.push(Attribute::string(
+                    "gen_ai.request.model",
+                    model_name.into_string(),
+                ));
+            }
             if let Some(auth_class) = facts.auth_class {
                 attributes.push(Attribute::enumeration(
                     "bitfun.inference.auth_class",
@@ -1082,9 +1133,39 @@ pub fn start_inference_with_request_facts(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthRefreshFinishFacts {
+    pub completion: CompletionFacts,
+    pub result: AuthRefreshResult,
+    pub retry_count: u64,
+}
+
+impl AuthRefreshFinishFacts {
+    fn into_parts(self) -> (Vec<Attribute>, SpanStatus, Severity) {
+        completion_attributes(
+            self.completion,
+            "bitfun.auth.refresh.outcome",
+            vec![
+                Attribute::enumeration("bitfun.auth.result", self.result.as_str()),
+                Attribute::u64("bitfun.retry_count", self.retry_count.min(10)),
+            ],
+        )
+    }
+}
+
+observation!(AuthRefreshObservation, AuthRefreshFinishFacts);
+
+pub fn start_auth_refresh(
+    telemetry: &Telemetry,
+    parent: Option<ObservationContext>,
+) -> AuthRefreshObservation {
+    AuthRefreshObservation(telemetry.start_operation(OperationKind::AuthRefresh, Vec::new, parent))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InferenceUsageFacts {
     pub provider_class: ProviderClass,
     pub model_class: ModelClass,
+    pub model_name: Option<NormalizedModelName>,
     pub subagent: bool,
     pub input_tokens: u64,
     pub output_tokens: Option<u64>,
@@ -1098,15 +1179,23 @@ pub fn record_inference_usage(telemetry: &Telemetry, facts: InferenceUsageFacts)
     if !telemetry.accepts_terminal_projection() {
         return;
     }
+    let model_name = facts.model_name.map(NormalizedModelName::into_string);
     let attributes = || {
-        vec![
+        let mut attributes = vec![
             Attribute::enumeration(
                 "bitfun.inference.provider_class",
                 facts.provider_class.as_str(),
             ),
             Attribute::enumeration("bitfun.inference.model_class", facts.model_class.as_str()),
             Attribute::boolean("bitfun.agent.turn.subagent", facts.subagent),
-        ]
+        ];
+        if let Some(model_name) = &model_name {
+            attributes.push(Attribute::string(
+                "gen_ai.request.model",
+                model_name.clone(),
+            ));
+        }
+        attributes
     };
     telemetry.record_token_metric(TokenMetricKind::Input, facts.input_tokens, attributes());
     if let Some(output_tokens) = facts.output_tokens {
@@ -1524,6 +1613,17 @@ mod tests {
     use crate::{AttributeValue, InMemorySink, PolicySnapshot, TelemetryLevel, ValidatedRecord};
     use std::sync::Arc;
 
+    #[test]
+    fn model_name_normalization_rejects_paths_and_free_text() {
+        assert_eq!(
+            NormalizedModelName::new(" GPT-5.2-Codex ").map(NormalizedModelName::into_string),
+            Some("gpt-5.2-codex".to_string())
+        );
+        assert!(NormalizedModelName::new("/Users/example/private-model").is_none());
+        assert!(NormalizedModelName::new("model name with spaces").is_none());
+        assert!(NormalizedModelName::new(&"x".repeat(65)).is_none());
+    }
+
     fn enum_attribute<'a>(record: &'a ValidatedRecord, key: &str) -> Option<&'a str> {
         record
             .attributes()
@@ -1641,6 +1741,7 @@ mod tests {
             InferenceStartFacts {
                 provider_class: ProviderClass::AnthropicCompatible,
                 model_class: ModelClass::Code,
+                model_name: None,
                 protocol_class: InferenceProtocolClass::Messages,
                 context_class: InferenceContextClass::Turn,
                 auth_class: Some(InferenceAuthClass::ApiKey),
@@ -1650,6 +1751,7 @@ mod tests {
         .finish(InferenceFinishFacts {
             completion: CompletionFacts::failed(SafeErrorType::RateLimited),
             attempt_bucket: AttemptBucket::Two,
+            retry_count: 1,
             status_class: Some(StatusClass::ClientError),
             retryable: Some(true),
             ttft_ms: None,
@@ -1990,6 +2092,7 @@ mod tests {
             InferenceStartFacts {
                 provider_class: ProviderClass::OpenAiCompatible,
                 model_class: ModelClass::Code,
+                model_name: None,
                 protocol_class: InferenceProtocolClass::Responses,
                 context_class: InferenceContextClass::Turn,
                 auth_class: Some(InferenceAuthClass::Subscription),
@@ -2015,6 +2118,7 @@ mod tests {
         inference.finish(InferenceFinishFacts {
             completion: CompletionFacts::completed(),
             attempt_bucket: AttemptBucket::One,
+            retry_count: 0,
             status_class: Some(StatusClass::Success),
             retryable: Some(false),
             ttft_ms: Some(3),

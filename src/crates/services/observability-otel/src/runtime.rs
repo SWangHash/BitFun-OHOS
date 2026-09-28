@@ -360,7 +360,11 @@ impl TelemetryRuntimeHandle {
             let _ = old.shutdown(false);
         }
         let (trace_sample_ratio, success_log_ratio) =
-            effective_sample_ratios(user_level, settings.sampling);
+            if settings.endpoint_layout == crate::TelemetryEndpointLayout::BitFunIngressV1 {
+                (1.0, 1.0)
+            } else {
+                effective_sample_ratios(user_level, settings.sampling)
+            };
         self.inner.control.apply(
             PolicySnapshot::new(user_level)
                 .with_signals(settings.signals)

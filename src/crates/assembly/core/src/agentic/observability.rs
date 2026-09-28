@@ -435,6 +435,7 @@ mod tests {
             InferenceStartFacts {
                 provider_class: ProviderClass::OpenAiCompatible,
                 model_class: ModelClass::GeneralReasoning,
+                model_name: None,
                 protocol_class: InferenceProtocolClass::Responses,
                 context_class: InferenceContextClass::Turn,
                 auth_class: Some(InferenceAuthClass::ApiKey),
@@ -444,6 +445,7 @@ mod tests {
         .finish(InferenceFinishFacts {
             completion: completion_from_error(&error),
             attempt_bucket: AttemptBucket::One,
+            retry_count: 0,
             status_class: Some(status_class(Some(&error))),
             retryable: Some(retryable_error(&error)),
             ttft_ms: None,
