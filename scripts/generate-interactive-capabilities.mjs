@@ -80,13 +80,35 @@ function stripRustComments(source) {
 export function parseRegisteredCommands(source) {
   const match = source.match(/\.invoke_handler\(tauri::generate_handler!\[([\s\S]*?)\]\)/u);
   if (!match) throw new Error('Desktop invoke_handler registration block was not found');
-  const entries = stripRustComments(match[1])
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const invalid = entries.filter((entry) => !/^[A-Za-z0-9_:]+$/u.test(entry));
+  const registrations = [];
+  const invalid = [];
+  // One registration per line; an attribute line gates the entry that follows it.
+  let conditional = false;
+  for (const rawLine of stripRustComments(match[1]).split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith('#[')) {
+      conditional = true;
+      continue;
+    }
+    if (!/^[A-Za-z0-9_:]+,?$/u.test(line)) {
+      invalid.push(line);
+      conditional = false;
+      continue;
+    }
+    // A gated registration (`#[cfg(target_env = "ohos")]`) only exists in that
+    // platform build, so it is not part of the audited command surface: the
+    // Product Operation Registry, the capability catalog, and the Web UI
+    // transport contract all describe the shared command set.
+    if (conditional) {
+      conditional = false;
+      continue;
+    }
+    const rustPath = line.replace(/,$/u, '');
+    registrations.push({ id: rustPath.split('::').at(-1), rustPath });
+  }
   if (invalid.length) throw new Error(`Unsupported invoke_handler entries: ${invalid.join(', ')}`);
-  return entries.map((rustPath) => ({ id: rustPath.split('::').at(-1), rustPath }));
+  return registrations;
 }
 
 function findBalancedFunctionEnd(source, start) {
