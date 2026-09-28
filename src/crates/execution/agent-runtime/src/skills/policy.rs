@@ -9,6 +9,7 @@ enum SkillModeId {
     Creative,
     ComputerUse,
     DeepResearch,
+    HarmonyFeature,
     Ultra,
     SwarmWorker,
     Other,
@@ -23,6 +24,7 @@ impl SkillModeId {
             "Creative" => Self::Creative,
             "ComputerUse" => Self::ComputerUse,
             "DeepResearch" => Self::DeepResearch,
+            "HarmonyFeature" => Self::HarmonyFeature,
             "Ultimate" => Self::Ultra,
             "SwarmWorker" => Self::SwarmWorker,
             _ => Self::Other,
@@ -132,6 +134,11 @@ const ENABLE_PLAN: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Enable,
 };
 
+const ENABLE_HARMONY_FEATURE_GUIDE: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::DirName("harmonyos-feature-guide"),
+    effect: PolicyEffect::Enable,
+};
+
 const ULTRA_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
     rules: &[ENABLE_PLAN, ENABLE_AGENT_BROWSER],
@@ -198,6 +205,11 @@ const DEEP_RESEARCH_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     rules: &[ENABLE_META, ENABLE_COORDINATION],
 };
 
+const HARMONY_FEATURE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[ENABLE_HARMONY_FEATURE_GUIDE],
+};
+
 fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
     let policy_scope = resolve_mode_config_profile_id(mode_id);
     match SkillModeId::parse(policy_scope.as_ref()) {
@@ -206,6 +218,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::Creative => CREATIVE_POLICY,
         SkillModeId::Cowork => COWORK_POLICY,
         SkillModeId::DeepResearch => DEEP_RESEARCH_POLICY,
+        SkillModeId::HarmonyFeature => HARMONY_FEATURE_POLICY,
         SkillModeId::Ultra => ULTRA_POLICY,
         SkillModeId::SwarmWorker => SWARM_WORKER_POLICY,
         SkillModeId::ComputerUse | SkillModeId::Other => OPEN_META_ONLY_POLICY,
@@ -332,6 +345,18 @@ mod tests {
                     mode_id
                 );
             }
+        }
+    }
+
+    #[test]
+    fn harmony_feature_expert_exposes_only_feature_guide_by_default() {
+        for spec in BUILTIN_SKILL_SPECS {
+            assert_eq!(
+                resolve_builtin_default_enabled(spec.dir_name, "HarmonyFeature"),
+                Some(spec.dir_name == "harmonyos-feature-guide"),
+                "HarmonyFeature has unexpected default exposure for {}",
+                spec.dir_name
+            );
         }
     }
 

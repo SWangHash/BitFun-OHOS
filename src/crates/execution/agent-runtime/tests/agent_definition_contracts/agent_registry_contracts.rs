@@ -204,6 +204,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             "Claw",
             "DeepResearch",
             "Ultimate",
+            "HarmonyFeature",
             "SwarmPlanner",
             "SwarmWorker",
             "SwarmReviewer",

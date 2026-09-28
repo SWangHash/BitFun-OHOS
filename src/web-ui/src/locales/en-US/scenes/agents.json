@@ -62,6 +62,23 @@
     "roleLabel": "Primary Use · ",
     "computerUseDisabledBadge": "Disabled in Settings"
   },
+  "industryAgentsZone": {
+    "title": "Industry Agents",
+    "subtitle": "Vertical-domain experts with built-in domain knowledge and workflows.",
+    "badge": "Industry Agent",
+    "empty": "No industry agents available",
+    "workflowLabel": "Built-in domain workflow",
+    "agents": {
+      "QtMigration": {
+        "name": "QT Migration Expert",
+        "description": "Qt 5.12/5.15 to HarmonyOS migration: assess, migrate, build, deploy, verify, and fix issues."
+      },
+      "HarmonyFeature": {
+        "name": "HarmonyOS Feature Enhancement Expert",
+        "description": "Uses the 70+ HarmonyOS feature guide to match features, Kits, and 2C categories, then helps implement platform capabilities."
+      }
+    }
+  },
   "agentsZone": {
     "title": "Agents",
     "subtitle": "Browse built-in, user, project, and external Agents in one place, then open a card to review or configure it.",
@@ -381,6 +398,7 @@
     "Standard": "General task execution with planning, tools, and delegated work.",
     "Ultimate": "Decompose complex tasks, coordinate parallel SubAgents, and review their results.",
     "Minimal": "A compact execution loop with a fixed, small tool set.",
-    "Creative": "Create and customize BitFun experiences and capabilities."
+    "Creative": "Create and customize BitFun experiences and capabilities.",
+    "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide."
   }
 }
