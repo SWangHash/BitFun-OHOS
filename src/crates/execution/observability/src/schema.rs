@@ -5,6 +5,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldType {
     Enum,
+    String,
     Bool,
     U64,
 }
@@ -69,6 +70,16 @@ const fn bool_field(key: &'static str, required: bool, label_eligible: bool) -> 
     FieldView {
         key,
         field_type: FieldType::Bool,
+        required,
+        enum_values: &[],
+        label_eligible,
+    }
+}
+
+const fn string_field(key: &'static str, required: bool, label_eligible: bool) -> FieldView {
+    FieldView {
+        key,
+        field_type: FieldType::String,
         required,
         enum_values: &[],
         label_eligible,
@@ -140,6 +151,7 @@ pub(crate) enum OperationKind {
     Round,
     Inference,
     InferenceAttempt,
+    AuthRefresh,
     Tool,
     PermissionEvaluate,
     PermissionConfirmation,
@@ -339,6 +351,7 @@ const COMPRESSION_TRIGGERS: &[&str] = &[
     "other",
 ];
 const COMPRESSION_SOURCES: &[&str] = &["model", "local_fallback", "none"];
+const AUTH_RESULTS: &[&str] = &["success", "expired", "revoked", "denied", "error"];
 
 const STARTUP_FIELDS: &[FieldView] = &[
     enum_field("bitfun.app.startup.outcome", true, OUTCOMES, true),
@@ -461,6 +474,7 @@ const INFERENCE_FIELDS: &[FieldView] = &[
         true,
     ),
     enum_field("bitfun.inference.model_class", false, MODEL_CLASSES, true),
+    string_field("gen_ai.request.model", false, true),
     enum_field(
         "bitfun.inference.protocol_class",
         false,
@@ -493,6 +507,7 @@ const INFERENCE_FIELDS: &[FieldView] = &[
     ),
     enum_field("bitfun.inference.request.outcome", true, OUTCOMES, true),
     bool_field("bitfun.inference.request.retryable", false, true),
+    u64_field("bitfun.retry_count", false),
     u64_field("bitfun.inference.request.duration_ms", false),
     u64_field("bitfun.inference.request.ttft_ms", false),
     u64_field("bitfun.inference.request.message_count", false),
@@ -564,6 +579,13 @@ const INFERENCE_ATTEMPT_FIELDS: &[FieldView] = &[
     enum_field("bitfun.inference.attempt.outcome", true, OUTCOMES, true),
     u64_field("bitfun.inference.attempt.ttft_ms", false),
     u64_field("bitfun.inference.attempt.duration_ms", false),
+    enum_field("error.type", false, ERROR_TYPES, true),
+];
+const AUTH_REFRESH_FIELDS: &[FieldView] = &[
+    enum_field("bitfun.auth.refresh.outcome", true, OUTCOMES, true),
+    enum_field("bitfun.auth.result", true, AUTH_RESULTS, true),
+    u64_field("bitfun.retry_count", false),
+    u64_field("bitfun.auth.refresh.duration_ms", false),
     enum_field("error.type", false, ERROR_TYPES, true),
 ];
 const TOOL_FIELDS: &[FieldView] = &[
@@ -759,6 +781,7 @@ const INFERENCE_METRIC_FIELDS: &[FieldView] = &[
         true,
     ),
     enum_field("bitfun.inference.model_class", false, MODEL_CLASSES, true),
+    string_field("gen_ai.request.model", false, true),
     enum_field(
         "bitfun.inference.context_class",
         true,
@@ -811,6 +834,11 @@ const INFERENCE_ATTEMPT_METRIC_FIELDS: &[FieldView] = &[
         TOOL_ARGUMENT_RECOVERIES,
         true,
     ),
+];
+const AUTH_REFRESH_METRIC_FIELDS: &[FieldView] = &[
+    enum_field("bitfun.auth.refresh.outcome", true, OUTCOMES, true),
+    enum_field("bitfun.auth.result", true, AUTH_RESULTS, true),
+    enum_field("error.type", false, ERROR_TYPES, true),
 ];
 const TOOL_METRIC_FIELDS: &[FieldView] = &[
     enum_field("bitfun.tool.execute.outcome", true, OUTCOMES, true),
@@ -904,6 +932,7 @@ const TOKEN_METRIC_FIELDS: &[FieldView] = &[
         true,
     ),
     enum_field("bitfun.inference.model_class", false, MODEL_CLASSES, true),
+    string_field("gen_ai.request.model", false, true),
     bool_field("bitfun.agent.turn.subagent", false, true),
 ];
 
@@ -1112,6 +1141,19 @@ descriptors!(
     128
 );
 descriptors!(
+    AUTH_REFRESH_SPAN,
+    AUTH_REFRESH_TOTAL,
+    AUTH_REFRESH_DURATION,
+    AUTH_REFRESH_LOG,
+    "bitfun.auth.refresh",
+    AUTH_REFRESH_FIELDS,
+    AUTH_REFRESH_METRIC_FIELDS,
+    "Anonymous access token refresh finished",
+    "anonymous-auth-service",
+    FrequencyClass::Low,
+    8
+);
+descriptors!(
     TOOL_SPAN,
     TOOL_TOTAL,
     TOOL_DURATION,
@@ -1237,6 +1279,10 @@ static REGISTRY: &[DescriptorView] = &[
     INFERENCE_ATTEMPT_TOTAL,
     INFERENCE_ATTEMPT_DURATION,
     INFERENCE_ATTEMPT_LOG,
+    AUTH_REFRESH_SPAN,
+    AUTH_REFRESH_TOTAL,
+    AUTH_REFRESH_DURATION,
+    AUTH_REFRESH_LOG,
     TOOL_SPAN,
     TOOL_TOTAL,
     TOOL_DURATION,
@@ -1302,6 +1348,12 @@ pub(crate) fn operation_schema(kind: OperationKind) -> OperationSchema {
             total: &INFERENCE_ATTEMPT_TOTAL,
             duration: &INFERENCE_ATTEMPT_DURATION,
             log: &INFERENCE_ATTEMPT_LOG,
+        },
+        OperationKind::AuthRefresh => OperationSchema {
+            span: &AUTH_REFRESH_SPAN,
+            total: &AUTH_REFRESH_TOTAL,
+            duration: &AUTH_REFRESH_DURATION,
+            log: &AUTH_REFRESH_LOG,
         },
         OperationKind::Tool => OperationSchema {
             span: &TOOL_SPAN,
@@ -1384,6 +1436,8 @@ pub enum PrivacyError {
     TypeMismatch,
     #[error("enum value is outside the registered finite set")]
     InvalidEnumValue,
+    #[error("bounded string value is invalid")]
+    InvalidStringValue,
     #[error("required attribute is missing")]
     MissingRequiredField,
     #[error("failed signal is missing a safe error type")]
@@ -1417,6 +1471,17 @@ pub(crate) fn validate(record: &ValidatedRecord) -> Result<(), PrivacyError> {
             (FieldType::Enum, AttributeValue::Enum(value)) => {
                 if !field.enum_values.contains(value) {
                     return Err(PrivacyError::InvalidEnumValue);
+                }
+            }
+            (FieldType::String, AttributeValue::String(value)) => {
+                if value.is_empty()
+                    || value.len() > 64
+                    || !value.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric()
+                            || matches!(byte, b'.' | b'_' | b'-' | b'/' | b':')
+                    })
+                {
+                    return Err(PrivacyError::InvalidStringValue);
                 }
             }
             (FieldType::Bool, AttributeValue::Bool(_))
@@ -1463,15 +1528,18 @@ mod tests {
         for descriptor in descriptor_registry() {
             assert!(matches!(
                 descriptor.name().split('.').nth(1),
-                Some("agent" | "app" | "inference" | "permission" | "tool")
+                Some("agent" | "app" | "auth" | "inference" | "permission" | "tool")
             ));
             assert!(descriptor.fields().iter().all(|field| {
                 field.key() == "error.type"
+                    || field.key() == "bitfun.retry_count"
                     || field.key().starts_with("bitfun.agent.")
                     || field.key().starts_with("bitfun.app.")
+                    || field.key().starts_with("bitfun.auth.")
                     || field.key().starts_with("bitfun.inference.")
                     || field.key().starts_with("bitfun.permission.")
                     || field.key().starts_with("bitfun.tool.")
+                    || field.key() == "gen_ai.request.model"
             }));
         }
     }

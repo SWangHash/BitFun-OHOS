@@ -254,6 +254,13 @@ bitfun.tool.execute             OTel Log，固定正文
 
 完整注册表位于 [`descriptor_registry`](../../src/crates/execution/observability/src/schema.rs#L1020)。Token 用量另外注册四个聚合 Histogram。
 
+这里的注册表是 portable 内核与标准自建 OTLP 部署的安全事实目录。使用
+`BitFunIngressV1` 时，`bitfun-observability-otel` 还会执行一层部署专属的
+云清洗 Schema v1 投影：仅发送云侧登记的 5 个 Span、10 个 Metric 和 7
+个 Event body，重命名对应字段并删除其余安全但未登记的属性。该投影不能
+放宽 portable 隐私校验；未登记的内部点位在端侧停止，不依赖云侧静默丢弃。
+完整映射见 [`observability-ohos-ingress.md`](observability-ohos-ingress.md)。
+
 每条记录发送前都经过 [`validate`](../../src/crates/execution/observability/src/schema.rs#L1141)：
 
 1. Descriptor 必须已注册。
@@ -554,7 +561,7 @@ Basic 模式不创建 Trace，但仍能生成 Metric 和经过采样的结构化
 
 ## 8. 现有点位、字段与通俗说明
 
-本节按当前 [`schema.rs`](../../src/crates/execution/observability/src/schema.rs) 的真实出站名称汇总，供评测、Collector 查询和代码验收使用。字段缺少类型化事实时直接省略，不用 `0`、空字符串或错误文本反推。除三个即时事件外，业务操作通常投影同名 Span、`<name>.total` Counter、`<name>.duration` Histogram 和固定正文 Log；Diagnostic 下安全 Trace 和成功 Log 按产品默认 `1.0` 全采样，Debug 下敏感 Debug Log 同样全采样，Metric 仍聚合发送。部署可以收紧 Diagnostic 比例。
+本节按当前 [`schema.rs`](../../src/crates/execution/observability/src/schema.rs) 的 portable/标准 OTLP 出站名称汇总，供评测、自建 Collector 查询和代码验收使用。BitFun 托管 ingress 使用上节说明的云清洗 Schema v1 投影，不直接发送本节全部名称。字段缺少类型化事实时直接省略，不用 `0`、空字符串或错误文本反推。除三个即时事件外，业务操作通常投影同名 Span、`<name>.total` Counter、`<name>.duration` Histogram 和固定正文 Log；Diagnostic 下安全 Trace 和成功 Log 按产品默认 `1.0` 全采样，Debug 下敏感 Debug Log 同样全采样，Metric 仍聚合发送。标准 OTLP 部署可以收紧 Diagnostic 比例；托管 ingress 在获得隐私同意后固定全量发送登记过的安全 Trace 和 Event。
 
 ### 8.1 安全业务点位
 
@@ -567,20 +574,20 @@ Basic 模式不创建 Trace，但仍能生成 Metric 和经过采样的结构化
 |`bitfun.agent.input_attachment`|统一提交边界接受或拒绝一批图片|`bitfun.agent.input_attachment.outcome`、`image_count`、`image_size_known_count`、`image_dimensions_known_count`、`image_total_size_bytes`、`image_max_size_bytes`、`image_max_width`、`image_max_height`、`image_has_png`、`image_has_jpeg`、`image_has_webp`、`image_has_gif`、`image_has_other`（均使用完整点位前缀）|看一次提交带了多少图片、图片规模和格式，以及最终是否被接受。|
 |`bitfun.agent.turn`|一个用户或系统 Turn 结束|`bitfun.agent.turn.mode_class`、`trigger`、`remote`、`subagent`、`sequence`、`input_length`、`output_length`、`outcome`、`finish_reason`、`round_count`、`tool_count`、`first_result_ms`、`modified_file_count`、`added_lines`、`deleted_lines`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看一轮任务从哪里触发、做了多少工作、改了多少代码、多久结束以及为什么结束。|
 |`bitfun.agent.round`|Turn 内一次模型 Round 结束|`bitfun.agent.round.index_bucket`、`subagent`、`has_tool_calls`、`attempt.index_bucket`、`outcome`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看当前是第几轮模型交互、有没有调用工具、尝试了几次以及是否成功。|
-|`bitfun.inference.request`|一次完整模型请求结束|`bitfun.inference.provider_class`、`model_class`、`protocol_class`、`context_class`、`auth_class`、`attempt.index_bucket`、`request.http_status_class`、`request.outcome`、`request.retryable`、`request.duration_ms`、`request.ttft_ms`、`request.message_count`、`request.tool_count`、`response.finish_reason`、`response.has_tool_calls`、`response.reasoning_present`、`response.stream_outcome`、`response.tool_argument_recovery`、`response.output_length`、`response.reasoning_length`、`response.output_line_count`、`response.reasoning_first_ms`、`response.reasoning_duration_ms`、`usage.input_tokens`、`usage.output_tokens`、`usage.reasoning_tokens`、`usage.cache_read_tokens`、`usage.cache_creation_tokens`、`usage.total_tokens`、`request.context_window_tokens`、`request.tool_definition_tokens_estimate`（均使用 `bitfun.inference.*` 完整前缀），以及 `error.type`|看一次模型请求用了什么类型的模型和上下文、返回了什么、消耗多少 Token、慢在哪里。|
+|`bitfun.inference.request`|一次完整模型请求结束|`bitfun.inference.provider_class`、`model_class`、`protocol_class`、`context_class`、`auth_class`、`attempt.index_bucket`、`request.http_status_class`、`request.outcome`、`request.retryable`、`request.duration_ms`、`request.ttft_ms`、`request.message_count`、`request.tool_count`、`response.finish_reason`、`response.has_tool_calls`、`response.reasoning_present`、`response.stream_outcome`、`response.tool_argument_recovery`、`response.output_length`、`response.reasoning_length`、`response.output_line_count`、`response.reasoning_first_ms`、`response.reasoning_duration_ms`、`usage.input_tokens`、`usage.output_tokens`、`usage.reasoning_tokens`、`usage.cache_read_tokens`、`usage.cache_creation_tokens`、`usage.total_tokens`、`request.context_window_tokens`、`request.tool_definition_tokens_estimate`（均使用 `bitfun.inference.*` 完整前缀），规范化 `gen_ai.request.model`，以及 `error.type`|看一次模型请求用了什么类型的模型和上下文、返回了什么、消耗多少 Token、慢在哪里。|
 |`bitfun.inference.attempt`|模型请求的一次底层尝试结束|`bitfun.inference.attempt.index_bucket`、`http_status_class`、`retryable`、`stream_outcome`、`tool_argument_recovery`、`outcome`、`ttft_ms`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看每次模型尝试为什么重试、流或工具参数有没有恢复以及这一尝试花了多久。|
 |`bitfun.tool.execute`|一次 Tool 执行结束|`bitfun.tool.class`、`bitfun.tool.source_class`、`bitfun.tool.kind`、`bitfun.tool.execute.parallel`、`remote`、`background`、`outcome`、`duration_ms`、`queue_ms`、`preflight_ms`、`confirmation_ms`、`execution_ms`、`failure_source`、`exit_status_class`、`retryable`、`bitfun.tool.arguments.state`、`bitfun.tool.arguments.truncated`、`bitfun.tool.content.length`、`bitfun.tool.content.truncated`、`bitfun.tool.programming_language`、`error.type`|看工具属于哪一类、经过哪些阶段、执行结果如何，但安全通道不记录参数、命令和结果正文。|
 |`bitfun.permission.evaluate`|权限策略完成评估|`bitfun.permission.evaluate.intent_count_bucket`、`delegated`、`decision`、`source`、`outcome`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看权限策略怎样判断一次工具请求，以及决定来自策略、授权记录还是用户。|
 |`bitfun.permission.confirmation`|权限确认完成|`bitfun.permission.confirmation.request_count_bucket`、`auto_approve`、`ui_surface`、`decision`、`source`、`outcome`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看需要确认时展示在哪里、用户如何决定以及等待了多久。|
 |`bitfun.agent.compression`|一次上下文压缩结束|`bitfun.agent.compression.trigger`、`threshold_tokens`、`turns_since_last`、`source`、`has_summary`、`tokens_before`、`tokens_after_estimate`、`usage.input_tokens`、`usage.output_tokens`、`usage.total_tokens`、`usage.cache_read_tokens`、`usage.cache_creation_tokens`、`outcome`、`duration_ms`（均使用完整点位前缀），以及 `error.type`|看上下文为什么压缩、采用模型还是本地兜底、压缩前后规模和成本是多少。|
 
-安全属性只接受有限枚举、布尔值和无符号整数；`error.type` 也是有限错误分类，不承载错误原文。`InferenceAttempt` 成功路径没有独立终态 Log/Metric，只在 Trace 中表示尝试；请求级 Inference 承担汇总终态和 Token Metric。
+安全属性只接受有限枚举、布尔值、无符号整数，以及专用于模型标识的 64 字节受限字符串；`error.type` 也是有限错误分类，不承载错误原文。`InferenceAttempt` 成功路径没有独立终态 Log/Metric，只在 Trace 中表示尝试；请求级 Inference 承担汇总终态和 Token Metric。
 
 ### 8.2 Token 聚合指标
 
 |指标|允许的有限维度|一句话说明|
 |---|---|---|
-|`bitfun.inference.usage.input_tokens`|`bitfun.inference.provider_class`、`bitfun.inference.model_class`、`bitfun.agent.turn.subagent`|聚合模型输入 Token。|
+|`bitfun.inference.usage.input_tokens`|`bitfun.inference.provider_class`、`bitfun.inference.model_class`、`gen_ai.request.model`、`bitfun.agent.turn.subagent`|聚合模型输入 Token。|
 |`bitfun.inference.usage.output_tokens`|同上|聚合模型输出 Token。|
 |`bitfun.inference.usage.reasoning_tokens`|同上|聚合模型推理 Token。|
 |`bitfun.inference.usage.cache_read_tokens`|同上|聚合从缓存读取的 Token。|
