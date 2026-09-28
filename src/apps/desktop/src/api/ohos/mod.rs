@@ -9,4 +9,5 @@ pub mod secure_credentials;
 #[cfg(target_env = "ohos")]
 pub mod telemetry_authorizer;
 pub mod update;
+pub mod update_stubs;
 pub mod window;

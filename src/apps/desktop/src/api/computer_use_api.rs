@@ -30,6 +30,10 @@ pub struct ComputerUseOpenSettingsRequest {
 pub async fn computer_use_get_status(
     state: State<'_, AppState>,
 ) -> Result<ComputerUseStatusResponse, String> {
+    let _ = state;
+    #[cfg(target_env = "ohos")]
+    return Err("Computer use is not supported on OHOS".to_string());
+    #[cfg(not(target_env = "ohos"))]
     Err("computer_use_get_status error".to_string())
 }
 
@@ -94,15 +98,22 @@ pub async fn computer_use_open_system_settings(
 }
 
 /// Resource state is owned by the executing Desktop, not a newly constructed host.
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
-pub async fn computer_use_control_status(
-) -> Result<bitfun_agent_tools::computer_use_control::ControlSnapshot, String> {
+pub async fn computer_use_control_status()
+-> Result<bitfun_agent_tools::computer_use_control::ControlSnapshot, String> {
     Ok(crate::computer_use::control_session::snapshot())
+}
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn computer_use_control_status() -> Result<(), String> {
+    Err("Computer use is not supported on OHOS".to_string())
 }
 #[derive(Debug, Deserialize)]
 pub struct ComputerUseControlRequest {
     pub generation: u64,
 }
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn computer_use_control_stop(
     request: ComputerUseControlRequest,
@@ -117,9 +128,20 @@ pub async fn computer_use_control_stop(
     .await
     .map_err(|e| e.to_string())?
 }
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn computer_use_control_stop() -> Result<(), String> {
+    Err("Computer use is not supported on OHOS".to_string())
+}
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn computer_use_control_preview(
     request: ComputerUseControlRequest,
 ) -> Result<Option<crate::computer_use::control_session::ControlPreview>, String> {
     crate::computer_use::control_session::preview(request.generation)
+}
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn computer_use_control_preview() -> Result<(), String> {
+    Err("Computer use is not supported on OHOS".to_string())
 }

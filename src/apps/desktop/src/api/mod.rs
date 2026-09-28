@@ -73,6 +73,8 @@ pub mod token_usage_api;
 pub mod tool_api;
 #[cfg(not(target_env = "ohos"))]
 pub mod update_api;
+#[cfg(target_env = "ohos")]
+pub use ohos::update_stubs as update_api;
 pub mod workspace_activation;
 pub mod worktree_api;
 
