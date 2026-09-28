@@ -167,6 +167,47 @@ describe('AppearanceService', () => {
     expect(service.hasAppliedPendingSelection('bitfun-dark')).toBe(false);
   });
 
+  it('reports a pending system selection that the system scheme moved past', async () => {
+    configMocks.getConfig.mockResolvedValue('bitfun-light');
+    const pendingWrite = deferred<void>();
+    configMocks.setConfig.mockReturnValueOnce(pendingWrite.promise);
+    let systemPrefersDark = false;
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn(() => ({
+        matches: systemPrefersDark,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+    const { service } = createService();
+    await service.initialize();
+
+    const selection = service.select('system');
+    await vi.waitFor(() => expect(configMocks.setConfig).toHaveBeenCalledOnce());
+
+    // The system scheme changes while the selection transaction is still waiting
+    // for its own host write, so re-deriving "system" no longer matches what the
+    // transaction applied.
+    systemPrefersDark = true;
+
+    expect(service.getSnapshot()).toMatchObject({
+      status: 'applying',
+      pendingSelectionId: 'system',
+    });
+    expect(service.isSelectionPersistPending()).toBe(true);
+    expect(service.hasAppliedPendingSelection('system')).toBe(true);
+
+    pendingWrite.resolve(undefined);
+    await selection;
+    expect(service.isSelectionPersistPending()).toBe(false);
+    expect(service.getSnapshot()).toMatchObject({
+      status: 'ready',
+      selectedAppearanceId: 'system',
+      resolvedAppearanceId: 'bitfun-light',
+    });
+    expect(service.hasAppliedPendingSelection('system')).toBe(false);
+  });
+
   it('reconciles externally persisted selections without writing them again', async () => {
     configMocks.getConfig.mockResolvedValueOnce('system').mockResolvedValueOnce('bitfun-dark');
     const { service } = createService();

@@ -143,8 +143,17 @@ export async function applyBitFunControlEffect(
     return { status: 'alreadyApplied' };
   }
 
+  const appearanceChanged = event.changedPaths.includes('appearance.selection');
+  if (appearanceChanged && appearanceService.isSelectionPersistPending()) {
+    // The Web UI is applying this same selection and is still waiting for its own
+    // host write, which the native side holds until this effect is acknowledged.
+    // Queueing a reconciliation behind that write would resolve only after the
+    // native timeout, so report the clash instead of deadlocking.
+    throw new Error('The Web UI is still applying another appearance selection');
+  }
+
   await configManager.applyExternalReload();
-  if (event.changedPaths.includes('appearance.selection')) {
+  if (appearanceChanged) {
     await appearanceService.reconcilePersistedState();
   }
   if (event.changedPaths.includes('app.language')) {

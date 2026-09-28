@@ -7,6 +7,7 @@ import {
 } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window, display } from '@kit.ArkUI';
+import { ColorMetrics } from '@ohos.arkui.node';
 import { RustAbility } from '@ohos-rs/ability';
 import { CommonEventListener } from '../utils/CommonEventListener';
 import { harmonyShare, systemShare } from '@kit.ShareKit';
@@ -109,6 +110,22 @@ interface MonitorAvoidArea {
 interface HaitaiBrowserLaunchRequest {
   port?: number;
   initialUrl?: string | null;
+}
+
+interface ThemeModeRequest {
+  mode: 'light' | 'dark' | 'system';
+  backgroundColor?: string;
+}
+
+function parseThemeModeRequest(value: string): ThemeModeRequest {
+  if (value === 'light' || value === 'dark' || value === 'system') {
+    return { mode: value };
+  }
+  const request = JSON.parse(value) as ThemeModeRequest;
+  if (request.mode !== 'light' && request.mode !== 'dark' && request.mode !== 'system') {
+    throw new Error('Invalid native theme mode');
+  }
+  return request;
 }
 
 export default class EntryAbility extends RustAbility {
@@ -769,28 +786,31 @@ export default class EntryAbility extends RustAbility {
       return '';
     });
     RustModule.registerArktsFunction('set_theme_mode', async (err: Error, arg: string): Promise<string> => {
-      // arg is the color mode the webview should adopt: 'light' | 'dark' | 'system'.
-      // - 'light'/'dark' pin the native override so the webview matches a fixed theme.
-      // - 'system' releases the override (COLOR_MODE_NOT_SET) and returns the real
-      //   system color mode ('light' | 'dark') so the web-ui can resolve a concrete
-      //   theme without relying on `prefers-color-scheme`, which the OHOS webview does
-      //   not update live (the web-ui also polls this return value to follow system).
-      // Fixed themes return '' — the web-ui already knows the resolved theme id.
+      // Accept legacy mode queries and committed appearance colors for the next launch.
+      const request = parseThemeModeRequest(arg);
       const appContext = this.context.getApplicationContext();
-      if (arg === 'light') {
-        this.nativeThemeMode = 'light';
+      this.nativeThemeMode = request.mode;
+      if (request.mode === 'light') {
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
-        return '';
-      }
-      if (arg === 'dark') {
-        this.nativeThemeMode = 'dark';
+      } else if (request.mode === 'dark') {
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
-        return '';
+      } else {
+        appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+        this.notifySystemColorMode();
       }
-      this.nativeThemeMode = 'system';
-      appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-      this.notifySystemColorMode();
-      return this.readSystemColorMode();
+      if (request.backgroundColor !== undefined) {
+        try {
+          if (!/^#[0-9a-fA-F]{6}$/.test(request.backgroundColor)) {
+            throw new Error('Invalid startup background color');
+          }
+          const color = ColorMetrics.resourceColor(request.backgroundColor);
+          await window.setStartWindowBackgroundColor('entry', 'EntryAbility', color);
+        } catch (error) {
+          hilog.warn(DOMAIN, 'window', 'Failed to sync startup background: ' + JSON.stringify(error));
+          throw error;
+        }
+      }
+      return request.mode === 'system' ? this.readSystemColorMode() : '';
     });
     this.voiceInputService.setContext(this.context);
     // FileShareService needs the UIAbilityContext to call

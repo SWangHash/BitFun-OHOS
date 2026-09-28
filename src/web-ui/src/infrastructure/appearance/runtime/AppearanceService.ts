@@ -146,6 +146,8 @@ export class AppearanceService {
   private reconciliationQueued = false;
   private activeSource: AppearanceSource | null = null;
   private persistedSelectionId: AppearanceSelectionId | null = null;
+  private pendingResolvedId: string | null = null;
+  private selectionPersistPending = false;
   private readonly sourceId = createEventId();
   private readonly seenSyncEvents = new Set<string>();
 
@@ -191,8 +193,23 @@ export class AppearanceService {
     if (this.snapshot.status !== 'applying' || this.snapshot.pendingSelectionId !== id) {
       return false;
     }
-    const resolvedId = id === SYSTEM_APPEARANCE_ID ? getSystemAppearanceId() : id;
+    // A selection transaction resolves "system" once, before it writes through the
+    // host. Recomputing the system appearance here can already disagree with the
+    // runtime because the system scheme moved on or a native surface reported it,
+    // so acknowledge against the id that transaction really applied.
+    const resolvedId = this.pendingResolvedId
+      ?? (id === SYSTEM_APPEARANCE_ID ? getSystemAppearanceId() : id);
     return this.runtime.getSnapshot()?.id === resolvedId;
+  }
+
+  /**
+   * True while a selection transaction is waiting for its own write through the
+   * host. That write is what the pending runtime effect answers, and it holds the
+   * mutation queue, so any queued mutation would wait on the effect it should
+   * unblock.
+   */
+  isSelectionPersistPending(): boolean {
+    return this.selectionPersistPending;
   }
 
   getPackage(id: string): Promise<AppearancePackage | null> {
@@ -497,12 +514,6 @@ export class AppearanceService {
       await this.refreshNativeSystemAppearance();
     } else if (selected !== SYSTEM_APPEARANCE_ID) {
       this.ohosSystemAppearanceId = null;
-      const selectedPackage = await this.resolvePackage(selected);
-      if (selectedPackage?.pkg.mode === 'light' || selectedPackage?.pkg.mode === 'dark') {
-        void workspaceAPI.setThemeMode(selectedPackage.pkg.mode).catch(error => {
-          log.debug('Native appearance mode sync is unavailable', { error });
-        });
-      }
     }
     const resolvedId = selected === SYSTEM_APPEARANCE_ID
       ? (this.ohosSystemAppearanceId ?? getSystemAppearanceId())
@@ -520,7 +531,7 @@ export class AppearanceService {
     const previousSnapshot = this.snapshot;
     const previousSource = this.activeSource;
     const previousPersistedSelectionId = this.persistedSelectionId;
-    this.setApplying(selected);
+    this.setApplying(selected, resolvedId);
     let runtimeApplied = false;
     let persistenceAttempted = false;
     try {
@@ -530,7 +541,7 @@ export class AppearanceService {
       runtimeApplied = true;
       if (options.persist) {
         persistenceAttempted = true;
-        await configAPI.setConfig(APPEARANCE_SELECTION_CONFIG_PATH, selected);
+        await this.writePersistedSelection(selected);
         this.persistedSelectionId = selected;
       }
       this.activeSource = resolved;
@@ -546,11 +557,16 @@ export class AppearanceService {
         current,
       });
       if (options.publish) await this.publishSelection(selected);
+      await workspaceAPI.setThemeMode(
+        selected === SYSTEM_APPEARANCE_ID ? 'system' : resolved.pkg.mode,
+      ).catch(error => {
+        log.debug('Native appearance mode sync is unavailable', { error });
+      });
     } catch (error) {
       const compensationErrors: string[] = [];
       if (persistenceAttempted && previousPersistedSelectionId !== null) {
         try {
-          await configAPI.setConfig(APPEARANCE_SELECTION_CONFIG_PATH, previousPersistedSelectionId);
+          await this.writePersistedSelection(previousPersistedSelectionId);
           this.persistedSelectionId = previousPersistedSelectionId;
         } catch (rollbackError) {
           compensationErrors.push(`selection rollback failed: ${errorMessage(rollbackError)}`);
@@ -884,7 +900,11 @@ export class AppearanceService {
     return result;
   }
 
-  private setApplying(pendingSelectionId?: AppearanceSelectionId): void {
+  private setApplying(
+    pendingSelectionId?: AppearanceSelectionId,
+    resolvedId?: string,
+  ): void {
+    this.pendingResolvedId = resolvedId ?? null;
     this.setSnapshot({
       ...this.snapshot,
       status: 'applying',
@@ -893,7 +913,22 @@ export class AppearanceService {
     });
   }
 
+  /**
+   * Write the selection through the host, which answers this write with the
+   * pending runtime effect. The mutation queue stays held for the whole write, so
+   * queued work must not depend on that effect being acknowledged first.
+   */
+  private async writePersistedSelection(selection: AppearanceSelectionId): Promise<void> {
+    this.selectionPersistPending = true;
+    try {
+      await configAPI.setConfig(APPEARANCE_SELECTION_CONFIG_PATH, selection);
+    } finally {
+      this.selectionPersistPending = false;
+    }
+  }
+
   private setSnapshot(snapshot: AppearanceServiceSnapshot): void {
+    if (snapshot.pendingSelectionId === undefined) this.pendingResolvedId = null;
     this.snapshot = Object.freeze({
       ...snapshot,
       persistedSelectionId: this.persistedSelectionId,

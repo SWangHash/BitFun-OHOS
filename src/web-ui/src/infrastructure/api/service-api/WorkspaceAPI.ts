@@ -1484,10 +1484,11 @@ export class WorkspaceAPI {
    * @returns the resolved system color mode for `system` (`"light"`/`"dark"`),
    * or `""` for fixed `light`/`dark` modes.
    */
-  async setThemeMode(mode: 'light' | 'dark' | 'system'): Promise<string> {
+  async setThemeMode(mode: 'light' | 'dark' | 'system', backgroundColor?: string): Promise<string> {
     try {
       const result = await api.invoke<string>('set_theme_mode', {
-        mode
+        mode,
+        ...(backgroundColor === undefined ? {} : { backgroundColor }),
       });
       return typeof result === 'string' ? result : '';
     } catch (error) {

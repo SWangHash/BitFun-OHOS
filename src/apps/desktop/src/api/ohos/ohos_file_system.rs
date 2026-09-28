@@ -25,7 +25,10 @@ pub async fn open_oh_file_dialog(options: Option<String>) -> Result<String, Stri
 ///   OHOS webview does not update live. The web-ui also polls this return value to
 ///   follow live system theme changes.
 #[tauri::command]
-pub async fn set_theme_mode(mode: String) -> Result<String, String> {
+pub async fn set_theme_mode(
+    mode: String,
+    background_color: Option<String>,
+) -> Result<String, String> {
     let function = {
         let lock = JS_THREADSAFE_FUNCTION.read();
         lock.get("set_theme_mode").cloned()
@@ -33,10 +36,19 @@ pub async fn set_theme_mode(mode: String) -> Result<String, String> {
     let Some(function) = function else {
         return Err("The Arkts has not register the function".to_owned());
     };
+    // Keep the legacy string payload for callers that only query the system mode.
+    let payload = match background_color {
+        Some(background_color) => serde_json::json!({
+            "mode": mode,
+            "backgroundColor": background_color,
+        })
+        .to_string(),
+        None => mode,
+    };
     // call_async + promise.await so the ArkTS callback's return value (the system
     // color mode for `system`) reaches the web-ui. Fixed modes return "".
     let promise = function
-        .call_async(Ok(mode))
+        .call_async(Ok(payload))
         .await
         .map_err(|e| e.to_string())?;
     let result = promise.await.map_err(|e| e.to_string())?;
