@@ -48,7 +48,7 @@ pub use desktop_host::DesktopComputerUseHost;
 /// macOS probes the real system state. The OHOS build does not compile this
 /// module at all.
 pub fn permission_probes() -> (bool, bool) {
-    desktop_host::permission_probes()
+    DesktopComputerUseHost::permission_probes()
 }
 
 #[cfg(test)]
