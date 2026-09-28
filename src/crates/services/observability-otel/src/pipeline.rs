@@ -1,5 +1,9 @@
 use crate::auth::TelemetryRequestAuthorizer;
 use crate::diagnostics::{TelemetryHealthSnapshot, TelemetryHealthState, TransportDiagnostics};
+use crate::ingress_schema::{
+    self, ProjectedAttribute, ProjectedMetric, ProjectedMetricValue, ProjectedSpanKind,
+    ProjectedValue,
+};
 use crate::scheduler::{BoundedBatchScheduler, SchedulerSnapshot};
 use crate::settings::{OtlpCompression, TelemetryCapabilities, ValidatedTelemetrySettings};
 use crate::transport::{GenerationGate, GuardedHttpClient};
@@ -95,7 +99,13 @@ impl MetricInstruments {
         }
     }
 
-    fn record(&self, record: MetricRecord) {
+    fn record(&self, record: MetricRecord, cloud_schema_v1: bool) {
+        if cloud_schema_v1 {
+            for projected in ingress_schema::project_metric(&record) {
+                self.record_projected(projected);
+            }
+            return;
+        }
         let attributes = otel_attributes(record.attributes());
         let unit = metric_unit(record.name());
         match record.value() {
@@ -127,11 +137,44 @@ impl MetricInstruments {
             }
         }
     }
+
+    fn record_projected(&self, record: ProjectedMetric) {
+        let attributes = projected_attributes(&record.attributes);
+        match record.value {
+            ProjectedMetricValue::Counter(value) => {
+                let mut counters = self
+                    .counters
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let counter = counters.entry(record.name).or_insert_with(|| {
+                    self.meter
+                        .u64_counter(record.name)
+                        .with_unit(record.unit)
+                        .build()
+                });
+                counter.add(value, &attributes);
+            }
+            ProjectedMetricValue::Histogram(value) => {
+                let mut histograms = self
+                    .histograms
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let histogram = histograms.entry(record.name).or_insert_with(|| {
+                    self.meter
+                        .f64_histogram(record.name)
+                        .with_unit(record.unit)
+                        .build()
+                });
+                histogram.record(value, &attributes);
+            }
+        }
+    }
 }
 
 pub(crate) struct OtelGeneration {
     generation: u64,
     user_level: TelemetryLevel,
+    cloud_schema_v1: bool,
     capabilities: TelemetryCapabilities,
     gate: Arc<GenerationGate>,
     diagnostics: Arc<TransportDiagnostics>,
@@ -169,6 +212,8 @@ impl OtelGeneration {
     ) -> Result<Arc<Self>, TelemetryRuntimeError> {
         let gate = Arc::new(GenerationGate::new());
         let diagnostics = Arc::new(TransportDiagnostics::default());
+        let cloud_schema_v1 =
+            settings.endpoint_layout == crate::TelemetryEndpointLayout::BitFunIngressV1;
         let otel_resource = otel_resource(&resource);
         let scope = instrumentation_scope();
 
@@ -250,7 +295,7 @@ impl OtelGeneration {
         };
 
         let (debug_log_scheduler, debug_logger_provider, debug_logger) =
-            if user_level == TelemetryLevel::Debug && settings.signals.logs() {
+            if user_level == TelemetryLevel::Debug && settings.signals.logs() && !cloud_schema_v1 {
                 let client = GuardedHttpClient::new(
                     settings,
                     gate.clone(),
@@ -333,6 +378,7 @@ impl OtelGeneration {
         Ok(Arc::new(Self {
             generation,
             user_level,
+            cloud_schema_v1,
             capabilities,
             gate,
             diagnostics,
@@ -356,18 +402,32 @@ impl OtelGeneration {
         match record {
             ValidatedRecord::Span(record) => {
                 if let Some(scheduler) = &self.trace_scheduler {
-                    let bytes = estimate_span_bytes(&record);
-                    scheduler.try_enqueue(span_data(record), bytes);
+                    for metric in self
+                        .cloud_schema_v1
+                        .then(|| ingress_schema::project_span_metrics(&record))
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(metrics) = &self.metrics {
+                            metrics.record_projected(metric);
+                        }
+                    }
+                    if let Some(data) = span_data(record, self.cloud_schema_v1) {
+                        let bytes = estimate_span_data_bytes(&data);
+                        scheduler.try_enqueue(data, bytes);
+                    }
                 }
             }
             ValidatedRecord::Metric(record) => {
                 if let Some(metrics) = &self.metrics {
-                    metrics.record(record);
+                    metrics.record(record, self.cloud_schema_v1);
                 }
             }
             ValidatedRecord::Log(record) => {
                 if let Some(logger) = &self.logger {
-                    logger.emit(log_data(logger, record));
+                    if let Some(data) = log_data(logger, record, self.cloud_schema_v1) {
+                        logger.emit(data);
+                    }
                 }
             }
         }
@@ -518,7 +578,13 @@ impl Drop for OtelGeneration {
     }
 }
 
-fn span_data(record: SpanRecord) -> SpanData {
+fn span_data(record: SpanRecord, cloud_schema_v1: bool) -> Option<SpanData> {
+    let projected = cloud_schema_v1
+        .then(|| ingress_schema::project_span(&record))
+        .flatten();
+    if cloud_schema_v1 && projected.is_none() {
+        return None;
+    }
     let mut links = SpanLinks::default();
     links.links = record
         .links()
@@ -526,17 +592,32 @@ fn span_data(record: SpanRecord) -> SpanData {
         .copied()
         .map(|context| Link::with_context(otel_span_context(context, false)))
         .collect();
-    SpanData {
+    let (name, span_kind, attributes) = match projected {
+        Some(projected) => (
+            projected.name,
+            match projected.kind {
+                ProjectedSpanKind::Internal => SpanKind::Internal,
+                ProjectedSpanKind::Client => SpanKind::Client,
+            },
+            projected_attributes(&projected.attributes),
+        ),
+        None => (
+            record.name(),
+            SpanKind::Internal,
+            otel_attributes(record.attributes()),
+        ),
+    };
+    Some(SpanData {
         span_context: otel_span_context(record.context(), false),
         parent_span_id: record
             .parent_span_id()
             .map_or(SpanId::INVALID, SpanId::from_bytes),
         parent_span_is_remote: false,
-        span_kind: SpanKind::Internal,
-        name: record.name().into(),
+        span_kind,
+        name: name.into(),
         start_time: system_time(record.started_unix_nanos()),
         end_time: system_time(record.ended_unix_nanos()),
-        attributes: otel_attributes(record.attributes()),
+        attributes,
         dropped_attributes_count: 0,
         events: SpanEvents::default(),
         links,
@@ -546,20 +627,42 @@ fn span_data(record: SpanRecord) -> SpanData {
             SpanStatus::Unset => Status::Unset,
         },
         instrumentation_scope: instrumentation_scope(),
-    }
+    })
 }
 
-fn log_data(logger: &SdkLogger, record: LogRecord) -> SdkLogRecord {
+fn log_data(logger: &SdkLogger, record: LogRecord, cloud_schema_v1: bool) -> Option<SdkLogRecord> {
+    let projected = cloud_schema_v1
+        .then(|| ingress_schema::project_event(&record))
+        .flatten();
+    if cloud_schema_v1 && projected.is_none() {
+        return None;
+    }
     let mut data = logger.create_log_record();
-    data.set_event_name(record.event_name());
+    data.set_event_name(
+        projected
+            .as_ref()
+            .map_or(record.event_name(), |event| event.body),
+    );
     data.set_timestamp(system_time(record.timestamp_unix_nanos()));
     data.set_observed_timestamp(system_time(record.observed_unix_nanos()));
-    data.set_severity_number(match record.severity() {
+    let severity = projected
+        .as_ref()
+        .map_or(record.severity(), |event| event.severity);
+    data.set_severity_number(match severity {
         Severity::Info => OtelSeverity::Info,
         Severity::Warn => OtelSeverity::Warn,
         Severity::Error => OtelSeverity::Error,
     });
-    data.set_body(AnyValue::from(record.body()));
+    if cloud_schema_v1 {
+        data.set_severity_text(match severity {
+            Severity::Info => "INFO",
+            Severity::Warn => "WARN",
+            Severity::Error => "ERROR",
+        });
+    }
+    data.set_body(AnyValue::from(
+        projected.as_ref().map_or(record.body(), |event| event.body),
+    ));
     if let Some(context) = record.span_context() {
         data.set_trace_context(
             TraceId::from_bytes(context.trace_id()),
@@ -567,10 +670,20 @@ fn log_data(logger: &SdkLogger, record: LogRecord) -> SdkLogRecord {
             context.is_sampled().then_some(TraceFlags::SAMPLED),
         );
     }
-    for attribute in record.attributes() {
-        data.add_attribute(attribute.key(), log_attribute_value(attribute.value()));
+    if let Some(projected) = projected {
+        data.add_attribute(
+            "bitfun.event_id",
+            AnyValue::from(uuid::Uuid::new_v4().hyphenated().to_string()),
+        );
+        for attribute in &projected.attributes {
+            data.add_attribute(attribute.key, projected_log_value(&attribute.value));
+        }
+    } else {
+        for attribute in record.attributes() {
+            data.add_attribute(attribute.key(), log_attribute_value(attribute.value()));
+        }
     }
-    data
+    Some(data)
 }
 
 fn debug_log_data(logger: &SdkLogger, record: DebugLogRecord) -> SdkLogRecord {
@@ -673,6 +786,7 @@ fn otel_attributes(attributes: &[Attribute]) -> Vec<KeyValue> {
         .iter()
         .map(|attribute| match attribute.value() {
             AttributeValue::Enum(value) => KeyValue::new(attribute.key(), *value),
+            AttributeValue::String(value) => KeyValue::new(attribute.key(), value.clone()),
             AttributeValue::Bool(value) => KeyValue::new(attribute.key(), *value),
             AttributeValue::U64(value) => {
                 KeyValue::new(attribute.key(), i64::try_from(*value).unwrap_or(i64::MAX))
@@ -681,9 +795,29 @@ fn otel_attributes(attributes: &[Attribute]) -> Vec<KeyValue> {
         .collect()
 }
 
+fn projected_attributes(attributes: &[ProjectedAttribute]) -> Vec<KeyValue> {
+    attributes
+        .iter()
+        .map(|attribute| match &attribute.value {
+            ProjectedValue::Text(value) => KeyValue::new(attribute.key, value.to_string()),
+            ProjectedValue::U64(value) => {
+                KeyValue::new(attribute.key, i64::try_from(*value).unwrap_or(i64::MAX))
+            }
+        })
+        .collect()
+}
+
+fn projected_log_value(value: &ProjectedValue) -> AnyValue {
+    match value {
+        ProjectedValue::Text(value) => AnyValue::from(value.to_string()),
+        ProjectedValue::U64(value) => AnyValue::from(i64::try_from(*value).unwrap_or(i64::MAX)),
+    }
+}
+
 fn log_attribute_value(value: &AttributeValue) -> AnyValue {
     match value {
         AttributeValue::Enum(value) => AnyValue::from(*value),
+        AttributeValue::String(value) => AnyValue::from(value.clone()),
         AttributeValue::Bool(value) => AnyValue::from(*value),
         AttributeValue::U64(value) => AnyValue::from(i64::try_from(*value).unwrap_or(i64::MAX)),
     }
@@ -708,6 +842,10 @@ fn metric_view(instrument: &opentelemetry_sdk::metrics::Instrument) -> Option<St
             "s" => vec![
                 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0,
                 120.0, 300.0,
+            ],
+            "ms" => vec![
+                1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1_000.0, 2_500.0, 5_000.0,
+                10_000.0, 30_000.0, 60_000.0, 120_000.0, 300_000.0,
             ],
             "{token}" => vec![1.0, 8.0, 32.0, 128.0, 512.0, 2_048.0, 8_192.0, 32_768.0],
             _ => vec![1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 1_000.0],
@@ -752,11 +890,11 @@ fn bounded_meter_call(
     receiver.recv_timeout(timeout).unwrap_or(false)
 }
 
-fn estimate_span_bytes(record: &SpanRecord) -> usize {
+fn estimate_span_data_bytes(record: &SpanData) -> usize {
     192usize
-        .saturating_add(record.name().len())
-        .saturating_add(record.attributes().len().saturating_mul(48))
-        .saturating_add(record.links().len().saturating_mul(32))
+        .saturating_add(record.name.len())
+        .saturating_add(record.attributes.len().saturating_mul(48))
+        .saturating_add(record.links.links.len().saturating_mul(32))
 }
 
 fn estimate_log_bytes(record: &SdkLogRecord) -> usize {
@@ -1050,5 +1188,71 @@ mod tests {
             attributes.get("bitfun.debug.truncated"),
             Some(&AnyValue::Boolean(false))
         );
+    }
+
+    #[test]
+    fn ingress_event_mapping_uses_closed_body_and_stable_record_id() {
+        use bitfun_observability::domains::{
+            start_turn, AgentModeClass, CompletionFacts, TurnFinishFacts, TurnStartFacts,
+            TurnTrigger,
+        };
+
+        let sink = Arc::new(bitfun_observability::InMemorySink::default());
+        let (telemetry, _) = bitfun_observability::Telemetry::build(
+            bitfun_observability::PolicySnapshot::new(TelemetryLevel::Diagnostic)
+                .with_trace_sample_ratio(1.0)
+                .with_success_log_sample_ratio(1.0),
+            sink.clone(),
+        );
+        start_turn(
+            &telemetry,
+            TurnStartFacts {
+                mode_class: AgentModeClass::Agentic,
+                trigger: TurnTrigger::User,
+                remote: false,
+                subagent: false,
+            },
+            None,
+        )
+        .finish(TurnFinishFacts {
+            completion: CompletionFacts::completed(),
+            finish_reason: None,
+            round_count: Some(1),
+            tool_count: Some(0),
+            first_result_ms: Some(10),
+            modified_file_count: Some(0),
+            added_lines: Some(0),
+            deleted_lines: Some(0),
+        });
+        let record = sink
+            .records()
+            .into_iter()
+            .find_map(|record| match record {
+                ValidatedRecord::Log(record) => Some(record),
+                _ => None,
+            })
+            .expect("turn event");
+        let provider = SdkLoggerProvider::builder().build();
+        let logger = provider.logger_with_scope(instrumentation_scope());
+        let data = log_data(&logger, record, true).expect("projected event");
+
+        assert_eq!(data.event_name(), Some("turn.completed"));
+        assert_eq!(data.body(), Some(&AnyValue::from("turn.completed")));
+        assert_eq!(data.severity_text(), Some("INFO"));
+        let attributes = data
+            .attributes_iter()
+            .map(|(key, value)| (key.as_str(), value.clone()))
+            .collect::<HashMap<_, _>>();
+        let event_id = match attributes.get("bitfun.event_id") {
+            Some(AnyValue::String(value)) => value.as_str(),
+            value => panic!("unexpected event id: {value:?}"),
+        };
+        assert!(uuid::Uuid::parse_str(event_id).is_ok());
+        assert_eq!(
+            attributes.get("bitfun.result"),
+            Some(&AnyValue::from("success"))
+        );
+        assert!(attributes.contains_key("bitfun.duration_ms"));
+        assert_eq!(attributes.len(), 3);
     }
 }
