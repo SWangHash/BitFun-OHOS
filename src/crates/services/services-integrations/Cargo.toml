@@ -19,6 +19,7 @@ ts-rs = { workspace = true, optional = true }
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
 bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
 bitfun-events = { path = "../../contracts/events" }
+bitfun-observability = { path = "../../execution/observability", optional = true }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
 bitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true }
@@ -91,6 +92,7 @@ default = []
 anonymous-auth = [
     "anyhow",
     "async-trait",
+    "dep:bitfun-observability",
     "chrono",
     "reqwest",
     "reqwest/json",

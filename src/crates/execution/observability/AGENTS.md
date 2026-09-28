@@ -74,9 +74,10 @@ The current APIs and outbound names are indexed in
 ## Privacy And Debug
 
 - Safe Trace, Metric, and Log facts may contain only schema-approved bounded
-  enums, booleans, and unsigned counts/durations. Never add prompts, responses,
-  tool arguments/results, paths, business or session IDs, user/machine identity,
-  endpoints, credentials, or raw errors.
+  enums, booleans, unsigned counts/durations, and the dedicated normalized
+  model-name type required by the cloud contract. Never add generic strings,
+  prompts, responses, tool arguments/results, paths, business or session IDs,
+  user/machine identity, endpoints, credentials, or raw errors.
 - Sensitive Debug telemetry is a separate, explicitly authorized channel. Add
   content only through a closed `DebugTelemetryRecord` variant owned by the
   real operation owner, preserving redaction, shared content budgets,

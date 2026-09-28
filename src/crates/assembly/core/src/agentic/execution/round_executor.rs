@@ -51,7 +51,8 @@ use bitfun_observability::domains::{
     start_inference_with_request_facts, start_round, CompletionFacts, InferenceAttemptFinishFacts,
     InferenceAttemptStartFacts, InferenceContextClass, InferenceFinishFacts, InferenceRequestFacts,
     InferenceResponseFacts, InferenceStartFacts, InferenceStreamOutcomeClass, InferenceUsageFacts,
-    RoundFinishFacts, RoundStartFacts, SafeErrorType, StatusClass, ToolArgumentRecoveryClass,
+    NormalizedModelName, RoundFinishFacts, RoundStartFacts, SafeErrorType, StatusClass,
+    ToolArgumentRecoveryClass,
 };
 use bitfun_observability::Telemetry;
 use bitfun_runtime_ports::PermissionRule;
@@ -461,6 +462,7 @@ impl RoundExecutor {
             InferenceStartFacts {
                 provider_class,
                 model_class,
+                model_name: NormalizedModelName::new(&context.effective_model_name),
                 protocol_class,
                 context_class: InferenceContextClass::Turn,
                 auth_class: context.telemetry_auth_class,
@@ -1172,6 +1174,7 @@ impl RoundExecutor {
                             CompletionFacts::completed()
                         },
                         attempt_bucket: attempt_bucket(lifecycle.attempts_started()),
+                        retry_count: u64::from(lifecycle.attempts_started().saturating_sub(1)),
                         status_class: Some(StatusClass::Success),
                         retryable: Some(false),
                         ttft_ms: result.0.first_visible_output_ms.or(result.0.first_chunk_ms),
@@ -1215,6 +1218,7 @@ impl RoundExecutor {
                 inference_observation.finish(InferenceFinishFacts {
                     completion: completion_from_error(&error),
                     attempt_bucket: attempt_bucket(lifecycle.attempts_started()),
+                    retry_count: u64::from(lifecycle.attempts_started().saturating_sub(1)),
                     status_class: Some(status_class(Some(&error))),
                     retryable: Some(retryable_error(&error)),
                     ttft_ms: None,
@@ -1712,6 +1716,7 @@ impl RoundExecutor {
             InferenceUsageFacts {
                 provider_class,
                 model_class,
+                model_name: NormalizedModelName::new(&context.effective_model_name),
                 subagent: is_subagent,
                 input_tokens: usage.prompt_token_count as u64,
                 output_tokens: Some(usage.candidates_token_count as u64),

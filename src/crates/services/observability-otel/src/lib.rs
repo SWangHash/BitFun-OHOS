@@ -9,6 +9,7 @@ mod diagnostics;
 mod environment;
 mod error;
 mod identity;
+mod ingress_schema;
 mod pipeline;
 mod runtime;
 mod scheduler;
