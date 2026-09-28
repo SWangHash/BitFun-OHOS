@@ -165,6 +165,7 @@ fn next_span_id() -> [u8; 8] {
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum AttributeValue {
     Enum(&'static str),
+    String(String),
     Bool(bool),
     U64(u64),
 }
@@ -195,6 +196,13 @@ impl Attribute {
         Self {
             key,
             value: AttributeValue::Bool(value),
+        }
+    }
+
+    pub(crate) fn string(key: &'static str, value: String) -> Self {
+        Self {
+            key,
+            value: AttributeValue::String(value),
         }
     }
 

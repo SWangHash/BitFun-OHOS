@@ -1795,6 +1795,7 @@ dependencies = [
  "bitfun-agent-workflows",
  "bitfun-core-types",
  "bitfun-events",
+ "bitfun-observability",
  "bitfun-product-domains",
  "bitfun-runtime-ports",
  "bitfun-services-core",

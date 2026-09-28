@@ -55,7 +55,8 @@ use bitfun_observability::domains::{
     start_inference_with_request_facts, start_round, CompletionFacts, InferenceAttemptFinishFacts,
     InferenceAttemptStartFacts, InferenceFinishFacts, InferenceRequestFacts,
     InferenceResponseFacts, InferenceStartFacts, InferenceStreamOutcomeClass, InferenceUsageFacts,
-    RoundFinishFacts, RoundStartFacts, SafeErrorType, StatusClass, ToolArgumentRecoveryClass,
+    NormalizedModelName, RoundFinishFacts, RoundStartFacts, SafeErrorType, StatusClass,
+    ToolArgumentRecoveryClass,
 };
 use bitfun_observability::{ObservationContext, Telemetry};
 use bitfun_runtime_ports::PermissionRule;
@@ -417,6 +418,7 @@ impl RoundExecutor {
             InferenceStartFacts {
                 provider_class,
                 model_class,
+                model_name: NormalizedModelName::new(&context.effective_model_name),
                 protocol_class,
                 context_class: inference_context_class(),
                 auth_class,
@@ -498,6 +500,7 @@ impl RoundExecutor {
             InferenceFinishFacts {
                 completion: inference_completion,
                 attempt_bucket: attempt_bucket(lifecycle.attempts_started()),
+                retry_count: u64::from(lifecycle.attempts_started().saturating_sub(1)),
                 status_class: Some(inference_status),
                 retryable: Some(inference_retryable),
                 ttft_ms: result
@@ -576,13 +579,9 @@ impl RoundExecutor {
             .await;
         }
 
-        let trace_config = prepare_model_exchange_trace(
-            &context,
-            &round_id,
-            ai_client.as_ref(),
-            &self.telemetry,
-        )
-        .await;
+        let trace_config =
+            prepare_model_exchange_trace(&context, &round_id, ai_client.as_ref(), &self.telemetry)
+                .await;
         // Resolve this user policy once for the entire round, before the
         // stream begins. The stream crate receives only this immutable fact;
         // it never reads product configuration directly.
@@ -1773,6 +1772,7 @@ impl RoundExecutor {
             InferenceUsageFacts {
                 provider_class,
                 model_class: context.observability_model_class,
+                model_name: NormalizedModelName::new(&context.effective_model_name),
                 subagent: is_subagent,
                 input_tokens: usage.prompt_token_count as u64,
                 output_tokens: Some(usage.candidates_token_count as u64),
