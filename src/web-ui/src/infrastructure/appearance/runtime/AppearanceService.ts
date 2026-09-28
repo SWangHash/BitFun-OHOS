@@ -191,8 +191,14 @@ export class AppearanceService {
     if (this.snapshot.status !== 'applying' || this.snapshot.pendingSelectionId !== id) {
       return false;
     }
-    const resolvedId = id === SYSTEM_APPEARANCE_ID ? getSystemAppearanceId() : id;
-    return this.runtime.getSnapshot()?.id === resolvedId;
+    // A local selection applies the runtime before persisting the selection. The
+    // native config transaction then sends its required presentation effect
+    // back to this same surface while that mutation is still awaiting the
+    // transaction result. Treat the pending local selection as applied to avoid
+    // enqueueing a reconciliation behind the mutation that is waiting for this
+    // acknowledgement.
+    if (id === SYSTEM_APPEARANCE_ID) return true;
+    return this.runtime.getSnapshot()?.id === id;
   }
 
   getPackage(id: string): Promise<AppearancePackage | null> {
