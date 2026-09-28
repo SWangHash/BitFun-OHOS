@@ -3,9 +3,9 @@ use super::visibility::SubagentVisibilityPolicy;
 use crate::agentic::agents::{
     Agent, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, CreativeHarness,
     DeepResearchMode, DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, GenerateDocAgent,
-    MinimalHarness, BitFunAgent, ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent,
-    ReviewWorkerAgent, StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent,
-    UltimateHarness,
+    HarmonyFeatureMode, MinimalHarness, BitFunAgent, ResearchSpecialistAgent, ReviewFixerAgent,
+    ReviewJudgeAgent, ReviewWorkerAgent, StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent,
+    SwarmWorkerAgent, UltimateHarness,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -53,6 +53,7 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "Claw" => || Arc::new(ClawMode::new()),
         "DeepResearch" => || Arc::new(DeepResearchMode::new()),
         "Ultimate" => || Arc::new(UltimateHarness::new()),
+        "HarmonyFeature" => || Arc::new(HarmonyFeatureMode::new()),
         "SwarmPlanner" => || Arc::new(SwarmPlannerAgent::new()),
         "SwarmWorker" => || Arc::new(SwarmWorkerAgent::new()),
         "SwarmReviewer" => || Arc::new(SwarmReviewerAgent::new()),

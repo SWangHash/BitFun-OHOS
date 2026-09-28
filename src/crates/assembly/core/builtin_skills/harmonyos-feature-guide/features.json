@@ -1,0 +1,1371 @@
+[
+  {
+    "id": 1,
+    "name": "3DGS渲染",
+    "description": "支撑应用接入AGP 3DGS渲染底座能力，渲染结果清晰度更高，材质表现力更强",
+    "kit": "Spatial Recon Kit",
+    "category": "高端精致",
+    "devEffort": 5,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/spatial-recon-api",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/spatial-recon-api",
+    "demoUrl": "",
+    "keywords": [
+      "3DGS渲染",
+      "DGS",
+      "Spatial Recon Kit",
+      "3DGS",
+      "高斯溅射",
+      "Gaussian Splatting",
+      "渲染"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "云镜-红枫直播",
+    "description": "拍摄采集能力：\n• 支持红枫原色，跟随产品硬件\n• 支持多摄切换（主摄、微距、长焦），提升全焦段清晰度，系\n统自动控制\n• 支持HDR VIVID视频流\n• 支持系统人像功能，需主播在控制中心开启\n音频采集能力：\n• 音频高清录音\n编解码能力：\n• 支持ROI编码，提升画质清晰\n• 支持动态帧率，满足画质和功耗的均衡\n稳定性：\n• 支持低功耗采集，降低系统功耗xx mA\n• 支持相机压力感知（应用和相机协同降低直播压力）",
+    "kit": "camera kit",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/camera-framerate-V5\n对焦：https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-camera#setzoomratio11\nHDRVivid：https://developer.huawei.com/consumer/cn/doc/best-practices/bpta-hdrvivid#section1809191617421",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/camera-framerate-V5\n对焦：https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-camera#setzoomratio11",
+    "demoUrl": "https://gitee.com/harmonyos_samples/AVCodecVideo",
+    "keywords": [
+      "云镜-红枫直播",
+      "云镜",
+      "红枫直播",
+      "camera kit",
+      "直播"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "隔空传送（一抓一放）",
+    "description": "隔空手势作为人机自然交互领域的重要方向，目标以手势为媒介，让交互更符合直觉。隔空传送指的是跨设备之间基于隔空手势交互的体验，生态伙伴可以基于隔空传送的交互，将手势交互体验从单设备带到多设备上，比如从手机到手机、从手机到PAD/PC等",
+    "kit": "Share Kit",
+    "category": "全场景协同",
+    "devEffort": 5,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/share-introduction",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/share-arkts",
+    "demoUrl": "",
+    "keywords": [
+      "隔空传送（一抓一放）",
+      "Share Kit",
+      "隔空传送",
+      "一抓一放",
+      "隔空手势",
+      "跨设备分享"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "应用智能体",
+    "description": "开发者可以通过鸿蒙智能体框架开发智能体，智能体可以在小艺app中使用，并可以将智能体集成到自己的鸿蒙应用/元服务中，提升鸿蒙应用/云服务的智能化体验。",
+    "kit": "AgentKit",
+    "category": "原生智能",
+    "devEffort": 15,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/service/quick-start-0000002270426102",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/service/quick-start-0000002270426102",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/best-practices/bpta-agent",
+    "keywords": [
+      "应用智能体",
+      "AgentKit",
+      "智能体",
+      "Agent",
+      "AI Agent",
+      "AI"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "大图预览画中画特性",
+    "description": "系统相机支持拍摄高清全景照片，新增“画中画”大图浏览功能，优化沉浸式看大图体验，尤其优化了大尺寸全景照片浏览体验。",
+    "kit": "Image kit",
+    "category": "高端精致",
+    "devEffort": 10,
+    "testEffort": 2,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/image-kit",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/image-kit",
+    "demoUrl": "",
+    "keywords": [
+      "大图预览画中画特性",
+      "Image kit",
+      "画中画",
+      "大图预览",
+      "PiP",
+      "预览"
+    ]
+  },
+  {
+    "id": 6,
+    "name": "通行密钥（Passkey）",
+    "description": "通行密钥是一种无密码登录的方式，用户可以通过终端设备的屏幕解锁方式（人脸、指纹等）转变成应用账号登录的凭据，并用作后续的登录方式。",
+    "kit": "Online Authentication Kit",
+    "category": "纯净安全",
+    "devEffort": 15,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/onlineauthentication-passkey",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/onlineauthentication-passkey-api",
+    "demoUrl": "https://gitee.com/harmonyos_samples/online-authenticationkit_sample_fido2clientdemo_arkts\nhttps://gitee.com/harmonyos_samples/online-authenticationkit_sample_fido2clientdemo_cpp",
+    "keywords": [
+      "通行密钥（Passkey）",
+      "Passkey",
+      "Online Authentication Kit",
+      "通行密钥",
+      "无密码登录",
+      "FIDO"
+    ]
+  },
+  {
+    "id": 7,
+    "name": "长隧道车道级定位",
+    "description": "提供长隧道车道级定位能力，全程精准速度提醒、高精位置输出，岔路不迷路。",
+    "kit": "Locaiton",
+    "category": "原生智能",
+    "devEffort": 20,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/location-guidelines",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/location-guidelines",
+    "demoUrl": "",
+    "keywords": [
+      "长隧道车道级定位",
+      "Locaiton",
+      "车道级定位",
+      "长隧道",
+      "高精度定位",
+      "导航"
+    ]
+  },
+  {
+    "id": 8,
+    "name": "百米扫码",
+    "description": "接入ScanKit实时扫码接口的应用在Pura80pro以上设备可实现50cm*50cm二维码百米直达。",
+    "kit": "Scan Kit",
+    "category": "简单易用",
+    "devEffort": 3,
+    "testEffort": 2,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/scan-kit-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/scan-scanbarcode-api#section829511911349\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references/scan-customscan-api#section",
+    "demoUrl": "https://gitee.com/harmonyos_samples/scan-kit_-sample-code_-clientdemo_-arkts",
+    "keywords": [
+      "百米扫码",
+      "Scan Kit",
+      "远距离扫码",
+      "长距扫码",
+      "扫码"
+    ]
+  },
+  {
+    "id": 9,
+    "name": "AR高精几何重建",
+    "description": "准实时输出环境高精度稠密点云，可用于体积/容积测量、三维重建等场景，时延<5s，点云精度误差<3%",
+    "kit": "AR Engine",
+    "category": "原生智能",
+    "devEffort": 15,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arengine-ability",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arengine-capi-arengine",
+    "demoUrl": "https://gitee.com/harmonyos_samples/arengine_-sample-code_-clientdemo_cpp",
+    "keywords": [
+      "AR高精几何重建",
+      "AR",
+      "AR Engine",
+      "AR几何重建",
+      "3D重建",
+      "点云"
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Ascend C自定义算子",
+    "description": "基于麒麟芯片的场景下，通过Ascend C 自定义NPU算子能力，可以使开发者基于自身业务算法灵活性场景实现AI算子、算法的极致性能功耗优化。实现超过其他非麒麟端侧平台的消费者交互体验，并节约开发者云侧计算成本。",
+    "kit": "CANN Kit",
+    "category": "极致流畅",
+    "devEffort": 20,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/cannkit-ascendc-operator-development",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/cann-api",
+    "demoUrl": "https://gitee.com/huawei-hiai-foundation/HiAIDemo",
+    "keywords": [
+      "Ascend C自定义算子",
+      "Ascend",
+      "C自定义算子",
+      "Ascend C",
+      "CANN Kit",
+      "自定义算子",
+      "NPU算子"
+    ]
+  },
+  {
+    "id": 11,
+    "name": "回旋镖",
+    "description": "面向图片分享，在图片中添加AppLink，是一种统一的基于图片的服务直达能力。通过截图所属源应用或元服务，提供快速跳转到所属应用和元服务的能力和体验。",
+    "kit": "Multimodal Awareness Kit",
+    "category": "原生智能",
+    "devEffort": 15,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/metadatabinding-guidelines",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-awareness-metadatabinding",
+    "demoUrl": "",
+    "keywords": [
+      "回旋镖",
+      "Multimodal Awareness Kit",
+      "AppLink",
+      "图片分享",
+      "截图分享",
+      "分享"
+    ]
+  },
+  {
+    "id": 12,
+    "name": "锁屏卡片",
+    "description": "2C：锁屏卡片呈现关键信息，无需解锁，高效查看，同时可直接点击进入，一键直达。2D：提高APP的曝光率和点击率，吸引用户，提升DAU。",
+    "kit": "From Kit",
+    "category": "简单易用",
+    "devEffort": 10,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-lockscreen-form-development",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-app-form-forminfo",
+    "demoUrl": "",
+    "keywords": [
+      "锁屏卡片",
+      "From Kit",
+      "锁屏",
+      "卡片"
+    ]
+  },
+  {
+    "id": 13,
+    "name": "互动卡片",
+    "description": "提供3D互动卡片框架能力，支持应用开发 3D Live互动卡片：\n1、用户价值 ：为用户提供全新的可互动的卡片体验\n2、产品价值 ：为多设备桌面提供3D互动能力",
+    "kit": "Form Kit",
+    "category": "高端精致",
+    "devEffort": 5,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-liveform-overview",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-app-form-liveformextensionability",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/best-practices/bpta-music-card#section162191816919",
+    "keywords": [
+      "互动卡片",
+      "Form Kit",
+      "3D卡片",
+      "Live卡片",
+      "卡片"
+    ]
+  },
+  {
+    "id": 14,
+    "name": "ArkData向量数据库",
+    "description": "提供向量数据库能力，帮助应用打造数据检索及语义化AI能力",
+    "kit": "ArkData",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/data-augmentation-rag-demo#section99612183389",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/dataaugmentation-rag-api",
+    "demoUrl": "https://gitee.com/harmonyos_samples/RAG_QA",
+    "keywords": [
+      "ArkData向量数据库",
+      "ArkData",
+      "向量数据库",
+      "RAG",
+      "语义检索"
+    ]
+  },
+  {
+    "id": 15,
+    "name": "网络上行加速",
+    "description": "通过多路径网络并发，实现网络上行加速",
+    "kit": "Network kit",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/networkboost-introduction",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/networkboost-arkts",
+    "demoUrl": "https://gitee.com/harmonyos_samples/network-boost-kit-sample-code-arkts",
+    "keywords": [
+      "网络上行加速",
+      "Network kit",
+      "上行加速",
+      "多路并发",
+      "网络加速"
+    ]
+  },
+  {
+    "id": 16,
+    "name": "数字盾服务",
+    "description": "通过Device Security KIT 提供金融盾的TUI PIN和TUI 交易确认能力，金融盾安全厂商可以通过数字盾服务与密钥管理、本地身份认证模块组成实现金融盾能力。",
+    "kit": "Device Security KIT",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/devicesecurity-trustedauth-service",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/devicesecurity-trusted-auth-api",
+    "demoUrl": "",
+    "keywords": [
+      "数字盾服务",
+      "Device Security KIT",
+      "数字盾",
+      "金融盾",
+      "TUI PIN",
+      "安全"
+    ]
+  },
+  {
+    "id": 17,
+    "name": "机主本人认证",
+    "description": "该特性主要是通过设备的SWING硬件能力来是识别是否是机主（6.0版本仅pura70系列、mate80系列、mate x7支持）， 应用根据数据的敏感内容对于非机主或多人注视等场景进行隐藏隐私， 实现对隐私的保护。",
+    "kit": "Device Security KIT",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/devicesecurity-dlpantipeep",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/devicesecurity-dlpantipeep-api",
+    "demoUrl": "https://gitee.com/harmonyos_samples/AntiPeep/tree/master",
+    "keywords": [
+      "机主本人认证",
+      "Device Security KIT",
+      "机主认证",
+      "防偷窥",
+      "防窥",
+      "安全"
+    ]
+  },
+  {
+    "id": 18,
+    "name": "左右手感知",
+    "description": "左右手感知和交互，可识别用户操作手机时的握持手和操作手情况；",
+    "kit": "Multimodal Awareness Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/motion-guidelines",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-awareness-motion",
+    "demoUrl": "",
+    "keywords": [
+      "左右手感知",
+      "Multimodal Awareness Kit",
+      "左右手",
+      "握持感知"
+    ]
+  },
+  {
+    "id": 19,
+    "name": "碰一碰",
+    "description": "在接入碰一碰分享的内容页，双方手机顶部“碰一碰”即可快速的完成分享",
+    "kit": "ShareKit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V13/harmony-share-overview-V13\nPC：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/knock-share-phone-to-pc",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V13/share-harmony-share-V13",
+    "demoUrl": "https://gitee.com/harmonyos_samples/share-kit_-sample-code_-clientdemo_-arkts/tree/master",
+    "keywords": [
+      "碰一碰",
+      "ShareKit",
+      "NFC分享",
+      "分享",
+      "多设备",
+      "协同"
+    ]
+  },
+  {
+    "id": 20,
+    "name": "跨设备剪贴板",
+    "description": "在一台设备进行复制，然后可在附近另一台登录相同华为账号的设备上粘贴。此功能需双方设备开启“跨设备剪贴版”、WLAN和蓝牙。",
+    "kit": "Basic Services Kit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/distributed-pasteboard-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-pasteboard-V5",
+    "demoUrl": "https://onebox.huawei.com/p/2fcddfca6b7d5aae82ffe84c928bb487",
+    "keywords": [
+      "跨设备剪贴板",
+      "Basic Services Kit",
+      "剪贴板同步",
+      "多设备",
+      "协同"
+    ]
+  },
+  {
+    "id": 21,
+    "name": "鸿蒙振感",
+    "description": "鸿蒙系统通过最大化开放马达器件能力，振动器模块服务拓展了原生马达服务，提供基础、高阶振动功能，实现了振动与交互融合设计，从而打造出细腻精致的一体化振动体验和差异化体验，提升应用与产品的用户交互效率、易用性及用户体验。",
+    "kit": "Sensor Service Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/vibrator-V5\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/using-audiohaptic-for-playback-V5",
+    "apiRefUrl": "https://gitee.com/openharmony/applications_app_samples/tree/master/code/BasicFeature/DeviceManagement/Vibrator/BasicVibration#-4\nhttps://gitee.com/openharmony/applications_app_samples/tree/master/code/BasicFeature/DeviceManagement/Vibrator/CustomHaptic",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/sensor-service-arkts-V5?catalogVersion=V5\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-audiohaptic-V5",
+    "keywords": [
+      "鸿蒙振感",
+      "Sensor Service Kit",
+      "振感",
+      "马达",
+      "触觉反馈",
+      "线性马达"
+    ]
+  },
+  {
+    "id": 22,
+    "name": "安全摄像头&安全地理位置",
+    "description": "创新能力\n能力1场景：针对基于摄像头做活体检测时相机的图像流容易被篡改的情况，导致活体识别欺诈。\n能力2场景：针对用户交易以及其他基于所处地理位置等进行风控的场景，防止用户被远程欺诈，也可以用于一些活动被异地用户薅羊毛，交易风险等",
+    "kit": "Device Security Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/devicesecurity-taas-dev-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/devicesecurity-taas-api-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_NEXT-DeviceSecurityKit-TrustedAppService",
+    "keywords": [
+      "安全摄像头&安全地理位置",
+      "Device Security Kit"
+    ]
+  },
+  {
+    "id": 23,
+    "name": "安全检测服务",
+    "description": "针对应该交易或敏感操作时的设备风险查询风控；用于防止被薅羊毛，交易风险等",
+    "kit": "Device Security Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/devicesecurity-safetydetect-develop-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/devicesecurity-safetydetect-api-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_NEXT-DeviceSecurityKit-SafetyDetect",
+    "keywords": [
+      "安全检测服务",
+      "Device Security Kit",
+      "安全检测",
+      "风险检测",
+      "防羊毛",
+      "安全"
+    ]
+  },
+  {
+    "id": 24,
+    "name": "AI算力开放",
+    "description": "CANN kit是端侧AI计算能力开放，NPU可以大幅提升AI计算的性能，降低手机功耗，实现CPU/GPU/NPU的异构计算，降低CPU/GPU负载压力。",
+    "kit": "CANN  Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/hiai-foundation-kit-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/hiai-foundation-api-V5",
+    "demoUrl": "https://gitee.com/huawei-hiai-foundation/HiAIDemo",
+    "keywords": [
+      "AI算力开放",
+      "AI",
+      "CANN  Kit",
+      "AI算力",
+      "NPU",
+      "异构计算"
+    ]
+  },
+  {
+    "id": 25,
+    "name": "DLP数据分享保护",
+    "description": "基于鸿蒙的系统安全机制和华为账号构建对应的文档策略，通过设置文档的查看，保存，编辑，截屏，共享屏幕，录屏，复制，打印，导出，修改文件的策略权限， 只有正确授权的用户才能获得相应的授权查看文档。",
+    "kit": "Data Protection Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/data-protection-kit-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-dlppermission-V5",
+    "demoUrl": "",
+    "keywords": [
+      "DLP数据分享保护",
+      "DLP",
+      "Data Protection Kit",
+      "数据保护",
+      "文档策略",
+      "分享",
+      "安全"
+    ]
+  },
+  {
+    "id": 26,
+    "name": "智感支付",
+    "description": "检测到扫码枪/扫码盒子，自动跳转支付宝/微信/云闪付的支付码界面",
+    "kit": "--",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "三方只需要提供支付页deeplink即可",
+    "apiRefUrl": "三方只需要提供支付页deeplink即可",
+    "demoUrl": "三方只需要提供支付页deeplink即可",
+    "keywords": [
+      "智感支付",
+      "--",
+      "扫码支付",
+      "自动支付",
+      "扫码",
+      "支付"
+    ]
+  },
+  {
+    "id": 27,
+    "name": "AR空间计算",
+    "description": "为应用提供AR空间计算能力，助力应用理解现实空间，打造创新的虚实融合视觉体验和空间计算应用场景。\n当前仅支持【运动跟踪】能力",
+    "kit": "AR Engine",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/ar-engine-kit-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ar-engine-api-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/arengine_-sample-code_-clientdemo_cpp",
+    "keywords": [
+      "AR空间计算",
+      "AR",
+      "AR Engine",
+      "运动跟踪"
+    ]
+  },
+  {
+    "id": 28,
+    "name": "低时延编解码，直播开播流畅",
+    "description": "为播放器提供窗口流畅切换、快速启动体验；为连麦直播，一对一对话业务提供低时延，高流畅，自适应带宽波动和抗丢包的硬件编解码能力",
+    "kit": "AvCodec",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/avcodec-kit-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/avcodec-c-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/video-codec",
+    "keywords": [
+      "低时延编解码，直播开播流畅",
+      "低时延编解码",
+      "直播开播流畅",
+      "AvCodec",
+      "低时延",
+      "直播",
+      "编解码"
+    ]
+  },
+  {
+    "id": 29,
+    "name": "统一文件下载",
+    "description": "对于文件下载常见的场景和应用，如IM类接受发送的文件下载、浏览器、下载工具、云盘类的应用中用户下载文件，为了用户能方便快捷找到下载的文件，需要应用将文件统一保存到 文管的“下载”目录中，由于鸿蒙系统目录权限管控，系统提供统一的下载控件和授权弹窗，用户确认后，系统自动给应用在“下载”目录下给创建专有目录，应用享有持久化的读写权限",
+    "kit": "core file kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "方式一，icon形式使用arkUI控件参考：\nhttps://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ohos-arkui-advanced-DownloadFileButton.md\n方式2，DocumentViewPicker.save API 参考：\nhttps://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-core-file-kit/js-apis-file-picker.md#save-3",
+    "apiRefUrl": "方式一，icon形式使用arkUI控件参考：\nhttps://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ohos-arkui-advanced-DownloadFileButton.md\n方式2，DocumentViewPicker.save API 参考：\nhttps://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-core-file-kit/js-apis-file-picker.md#save-3",
+    "demoUrl": "见 MyApplicationDownload.rar",
+    "keywords": [
+      "统一文件下载",
+      "core file kit",
+      "文件下载",
+      "DownloadButton",
+      "下载"
+    ]
+  },
+  {
+    "id": 30,
+    "name": "设备真实性证明服务",
+    "description": "基于硬件TEE的密钥管理服务和设备证书，只有真实的设备才有设备证书， 使用时通过使用设备证书对公钥进行签名证明，实现给应用业务服务器提供设备的证明能力，证明设备真实性。",
+    "kit": "Device Certificate Kit，Universal Keystore Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/device-attestation",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/universal-keystore-api",
+    "demoUrl": "",
+    "keywords": [
+      "设备真实性证明服务",
+      "Device Certificate Kit",
+      "Universal Keystore Kit"
+    ]
+  },
+  {
+    "id": 31,
+    "name": "通用密钥管理Keystore服务",
+    "description": "对标Android Keystore、iOS Keychain。向业务/应用提供密钥的统一安全操作，包括密钥生成/销毁、密钥导入、密钥证明、密钥协商、密钥派生及密钥加密/解密、签名/验签、访问控制等功能， 该特性基于硬件TEE保护，支持国密算法和国密认证，密钥不出安全区；可以解决很多伙伴使用三方白盒进行密钥管理的风险。",
+    "kit": "Universal Keystore KIT",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/it_uff08_u5bc6_u94a5_u7ba1_u7406_u670d_u52a1_uff09-0000001774120686",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/1_48universal-keystore-kit-api_u53c2_u8003-0000001774281782",
+    "demoUrl": "密钥生成（ArkTS）：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/huks-key-generation-arkts-0000001774280362\n密钥生成（C/C++）：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/huks-key-generation-ndk-0000001774120694\n密钥加密导入：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/huks-import-wrapped-key-arkts-0000001820880341",
+    "keywords": [
+      "通用密钥管理Keystore服务",
+      "Keystore",
+      "Universal Keystore KIT",
+      "密钥管理",
+      "国密",
+      "密码",
+      "加密"
+    ]
+  },
+  {
+    "id": 32,
+    "name": "Asset敏感资产存储",
+    "description": "基于硬件TEE级别的数据加密存储安全服务，提供了用户短敏感数据（如口令，Token，卡号等）本地的安全存储及管理能力，对标iOS 的Keychain， 短敏感数据可以是账号/密码、应用凭据、银行卡号等长度较短的用户敏感数据。",
+    "kit": "Asset Store Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/73_u952e_u8d44_u4ea7_u5b58_u50a8_u670d_u52a1_uff09-0000001863636669",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/1_12asset-store-kit-api_u53c2_u8003-0000001863636689",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/asset-js-add-0000001863796477",
+    "keywords": [
+      "Asset敏感资产存储",
+      "Asset",
+      "Asset Store Kit",
+      "Asset存储",
+      "敏感数据",
+      "Keychain",
+      "加密"
+    ]
+  },
+  {
+    "id": 33,
+    "name": "Device Verify匿名设备查询服务",
+    "description": "匿名设备查询服务（Device Verify）提供给应用用于在匿名的情况下对设备进行标记， 通过每次生成的匿名Token的方式提供给应用服务器到华为的服务器查询设备状态标记的一种服务， 通常用于应用对设备是否领取优惠券或者设备是否是新机进行标记的一种服务。",
+    "kit": "Device Security Kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/devicesecurity-deviceverify-develop-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/devicesecurity-deviceverify-api-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_NEXT-DeviceSecurityKit-DeviceVerify",
+    "keywords": [
+      "Device Verify匿名设备查询服务",
+      "Device",
+      "Verify匿名设备查询服务",
+      "Device Verify",
+      "Device Security Kit",
+      "匿名设备",
+      "设备标识"
+    ]
+  },
+  {
+    "id": 34,
+    "name": "智能图文提取-AI基础控件",
+    "description": "AI控件-实体识别 支持对常见文本实体的识别；  AI控件-webview 对图片中文字进行长按复制，主体进行分割； AI控件-视频video 画面文字提取， 对当前帧中的主体进行抠图； AI控件-Image 长按识别主体，可拖拽分享;",
+    "kit": "ArkUI",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "开发指南：\n一行代码即可使能，无需单独开发指南\nstep1.正常使用image组件、video组件、xcomponent组件\nstep2.使能AI识图（抠图、文字识别）功能，Image组件的enableAnalyzer属性设置为true\nweb组件是默认使能的，无需开发者关注和打开",
+    "apiRefUrl": "image:\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ts-basic-components-image-V5#enableanalyzer11\nxcomponent：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ts-basic-components-xcomponent-V5#enableanalyzer12\nvideo:\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ts-media-components-video-V5#enableanalyzer12",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/best-practices-V5/bpta-content-creation-V5#section4144207172817",
+    "keywords": [
+      "智能图文提取-AI基础控件",
+      "智能图文提取",
+      "AI基础控件",
+      "AI",
+      "ArkUI",
+      "图文提取",
+      "AI识图",
+      "enableAnalyzer"
+    ]
+  },
+  {
+    "id": 35,
+    "name": "扫码直达",
+    "description": "基于系统入口（控制中心“扫一扫”、相机、智感扫码等）扫码直达应用服务页面;",
+    "kit": "Scan Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/scan-directservice-V5",
+    "apiRefUrl": "",
+    "demoUrl": "参考如上附件",
+    "keywords": [
+      "扫码直达",
+      "Scan Kit",
+      "扫码服务",
+      "扫码"
+    ]
+  },
+  {
+    "id": 36,
+    "name": "音频低时延通路",
+    "description": "统一音频生态接口，同时满足低时延+非低时延播放要求，通过垂直打通硬件，达成最低20ms输出时延体验。主要场景：游戏和耳返;",
+    "kit": "Audio Kit",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "播放：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/using-ohaudio-for-playback-V5\n录制：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/using-ohaudio-for-recording-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_o_h_audio-V5#oh_audiostreambuilder_setlatencymode",
+    "demoUrl": "https://gitee.com/openharmony/applications_app_samples/tree/master/code/BasicFeature/Native/Audio\nhttps://gitee.com/openharmony/docs/blob/OpenHarmony-4.0-Release/zh-cn/application-dev/media/using-ohaudio-for-recording.md",
+    "keywords": [
+      "音频低时延通路",
+      "Audio Kit",
+      "低时延音频",
+      "音频通路",
+      "OhAudio"
+    ]
+  },
+  {
+    "id": 37,
+    "name": "拍照一致性",
+    "description": "场景模式化接口，帮助应用快速构建拍录业务，效果等同系统相机；提供三方应用相机自动对焦能力，效果等同系统相机;\n1、三方拍照效果和系统相机一致（Pipeline归一，拍摄流归一，管道化模型，旋转角度）；\n2、分段式拍照，均衡速度和质量（拍照速度提升，500ms出图）；\n3、开放夜景模式，提升三方夜景拍照效果；开放硬件多帧拍照能力，提升拍照效果；",
+    "kit": "Camera kit",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "ArkTS开发指导：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/2_3_u76f8_u673a_u5f00_u53d1_u6307_u5bfcarkts-V5\nC++开发指导：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/2_5_u76f8_u673a_u5f00_u53d1_u6307_u5bfccc-V5\n分段式开发指导：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/camera-deferred-capture-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-camera-V5#onphotoassetavailable12",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/samples/\nhttps://gitee.com/harmonyos_samples/camera",
+    "keywords": [
+      "拍照一致性",
+      "Camera kit",
+      "Pipeline归一",
+      "分段式拍照"
+    ]
+  },
+  {
+    "id": 38,
+    "name": "FFRT并行加速库(c/c++)",
+    "description": "鸿蒙系统提供的一种并发编程框架，提供以数据依赖的方式构建异步并发任务的能力，包括数据依赖管理、任务执行器、系统事件处理等。并采用基于协程的任务执行方式，可以提高任务并行度、提升线程利用率、降低系统线程总数；提升开发者性能收益与开发效率。;",
+    "kit": "Function Flow Runtime",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ffrt-kit",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/function-flow-runtime-api-V5",
+    "demoUrl": "",
+    "keywords": [
+      "FFRT并行加速库(c/c++)",
+      "FFRT",
+      "Function Flow Runtime",
+      "并行",
+      "并发框架"
+    ]
+  },
+  {
+    "id": 39,
+    "name": "小视频流畅优化",
+    "description": "解码器支持复用和surface技术，支持切换抖音等小视频滑动流畅;",
+    "kit": "AVcodec kit",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/video-decoding-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_video_decoder-V5#oh_videodecoder_setsurface",
+    "demoUrl": "",
+    "keywords": [
+      "小视频流畅优化",
+      "AVcodec kit",
+      "小视频",
+      "流畅",
+      "surface复用"
+    ]
+  },
+  {
+    "id": 40,
+    "name": "鸿蒙vivid标准能力开放",
+    "description": "双框架上已支持HDR Vivid视频标准，鸿蒙5.0继承，视频框架提供统一的HDR2SDR转码接口，保证应用兼容性 单框架计划新增HDR Vivid图片与Audio vividD标准 ;",
+    "kit": "Image kit，Media Kit ，Audio Kit",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "HDR vivid视频：\n开发指南：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/hdr-vivid-video-player-V5?catalogVersion=V5\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/native-window-guidelines-V5\nHDR vivid图片：\n开发指南：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/image-source-c-V5\nAudio vivid音频：\n开发指南：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/audio-playback-V5",
+    "apiRefUrl": "视频：\nAPI链接：\n1、视频解码\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_video_decoder-V5?catalogVersion=V5\n2、渲染显示\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_native_window-V5\n图片：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_image___native_module-V5\n音频：\n解封装：https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_a_v_demuxer-V5\n解码：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_audio_codec-V5\nAudio：https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/_o_h_audio-V5#oh_audiorenderer_writedatawithmetadatacallback",
+    "demoUrl": "视频：https://gitee.com/kairen-13/video-codec-sample\n图片：https://gitee.com/openharmony/codelabs/tree/master/Media/ImageEdit\n音频：\nAVCodec：https://gitee.com/kairen-13/AVCodecSample\nAudio：https://gitee.com/openharmony/applications_app_samples/tree/master/code/BasicFeature/Native/Audio",
+    "keywords": [
+      "鸿蒙vivid标准能力开放",
+      "vivid",
+      "Image kit",
+      "Media Kit",
+      "Audio Kit",
+      "HDR Vivid",
+      "Audio Vivid",
+      "Vivid"
+    ]
+  },
+  {
+    "id": 41,
+    "name": "手机车机导航流转",
+    "description": "导航服务在手机和座舱/HiCar之间通过碰一碰/摇一摇的交互进行流转。手机端带有地理位置信息的显示界面可通过碰一碰/摇一摇流转到座舱地图;\n场景1：导航流转（包含途经点、目的地等多个导航信息）\n场景2：地址流转",
+    "kit": "Car Kit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/car-kit-guide-0000001860483001",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/car-navigationinfomgr-0000001815313765",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_NEXT-CarKit-Navigation",
+    "keywords": [
+      "手机车机导航流转",
+      "Car Kit",
+      "导航流转",
+      "车机",
+      "导航",
+      "协同"
+    ]
+  },
+  {
+    "id": 42,
+    "name": "服务卡片",
+    "description": "2C：可在桌面组合自己喜欢的卡片，对桌面进行美化，同时可快速通过卡片进行内容查看及快捷控制 2D：一步直达APP内部，私域流量运营;",
+    "kit": "Form Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/design-guides-V1/service-widget-0000001093053568-V1\n服务卡片开发指南(HarmonyOS Next)\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/form-kit-V5\n服务卡片开发接口指导\nhttps://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/form/Readme-CN.md",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/form-kit-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/adaptive-service-widget\nhttps://gitee.com/harmonyos_samples/multi-travel-navigation(内含服务卡片Sample)",
+    "keywords": [
+      "服务卡片",
+      "Form Kit",
+      "桌面卡片",
+      "Widget",
+      "卡片"
+    ]
+  },
+  {
+    "id": 43,
+    "name": "统一链接跳转",
+    "description": "样式丰富，规则内免弹窗，安全好，体验也好 ;",
+    "kit": "App Linking Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/app-linking-startup-V5",
+    "apiRefUrl": "不涉及",
+    "demoUrl": "见附件AppLinkingDemo.rar",
+    "keywords": [
+      "统一链接跳转",
+      "App Linking Kit",
+      "统一链接",
+      "AppLinking",
+      "DeepLink"
+    ]
+  },
+  {
+    "id": 44,
+    "name": "未成年人模式",
+    "description": "系统级未成年保护模式为青少年用户营造纯净安全的用户体验。",
+    "kit": "account kit",
+    "category": "纯净安全",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/account-minorsprotection-0000001807152558-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/account-api-minorsprotection-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/accountkit-samplecode-clientdemo-arkts",
+    "keywords": [
+      "未成年人模式",
+      "account kit",
+      "未成年人保护",
+      "儿童模式"
+    ]
+  },
+  {
+    "id": 45,
+    "name": "VOIP一键接听",
+    "description": "一键接听VOIP消息;",
+    "kit": "Call Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/push-voip-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/push-arkts-V5",
+    "demoUrl": "codelab地址：https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_CallKit-Codelab-Voipcall-ArkTS\nsampleCode地址：https://gitee.com/harmonyos_samples/callkit-samplecode-voipdemo-arkts",
+    "keywords": [
+      "VOIP一键接听",
+      "VOIP",
+      "Call Kit",
+      "一键接听",
+      "来电"
+    ]
+  },
+  {
+    "id": 46,
+    "name": "LTPO可变帧率",
+    "description": "针对不同应用场景手机、平板PC等设备有不同的刷新率体验，在保证流畅性体验的前提下，增加设备的续航时间，减少不合理的发热场景;",
+    "kit": "ArkGraphics 2D",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/0d_u540c_u5185_u5bb9_u7684_u7ed8_u5236_u5e27_u7387-0000001826737473",
+    "apiRefUrl": "1、可变帧率（displaySync）：\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-graphics-displaysync-0000001813575980\n2、可变帧率（Native XComponent）：\n    1）OH_NativeXComponent_RegisterOnFrameCallback()：\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/_o_h___native_x_component-0000001774121558#ZH-       CN_TOPIC_0000001857877309__oh_nativexcomponent_registeronframecallback\n    2）OH_NativeXComponent_SetExpectedFrameRateRange()：\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/_o_h___native_x_component-0000001774121558#ZH-    CN_TOPIC_0000001857877309__oh_nativexcomponent_setexpectedframeraterange\n    3）OH_NativeXComponent_UnregisterOnFrameCallback()：\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/_o_h___native_x_component-0000001774121558#ZH-CN_TOPIC_0000001857877309__oh_nativexcomponent_unregisteronframecallback\n3、属性动画 (animation)\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-animatorproperty-0000001815927688\n4、显式动画 (animateTo)\n    https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-explicit-animation-0000001862687717",
+    "demoUrl": "https://gitee.com/openharmony/applications_app_samples/tree/master/code/BasicFeature/Graphics/DisplaySync",
+    "keywords": [
+      "LTPO可变帧率",
+      "LTPO",
+      "ArkGraphics 2D",
+      "可变帧率",
+      "displaySync"
+    ]
+  },
+  {
+    "id": 47,
+    "name": "流畅动效-一镜到底",
+    "description": "一镜到底是通过共享元素、容器等来进行转场过渡的一种编排方式，有助于提升用户操作任务的效率，增强视觉的流畅感，是转场设计中重点推荐的技法。开发者可以通过属性动画、Navigation自定义动画、geometryTransition共享元素接口等方式，实现各类场景中的一镜到底效果。",
+    "kit": "ArkUI",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/arkts-use-animation-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-universal-attributes-menu#%E7%A4%BA%E4%BE%8B10%E8%AE%BE%E7%BD%AE%E4%B8%80%E9%95%9C%E5%88%B0%E5%BA%95%E5%8A%A8%E6%95%88",
+    "demoUrl": "https://gitee.com/harmonyos_samples/transitions-collection",
+    "keywords": [
+      "流畅动效-一镜到底",
+      "流畅动效",
+      "一镜到底",
+      "ArkUI",
+      "转场动画",
+      "geometryTransition"
+    ]
+  },
+  {
+    "id": 48,
+    "name": "TaskPool任务池",
+    "description": "为开发者提供更简单易用的并发API;",
+    "kit": "ArkTS",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/concurrency-overview-V5",
+    "apiRefUrl": "《@ohos.taskpool（启动任务池）》https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-taskpool-V5",
+    "demoUrl": "",
+    "keywords": [
+      "TaskPool任务池",
+      "TaskPool",
+      "ArkTS",
+      "任务池",
+      "并发API",
+      "并发"
+    ]
+  },
+  {
+    "id": 49,
+    "name": "日历开放能力",
+    "description": "1、支撑将日程写入日历，同步提供日程Editor能力快速创建日程 2、支持一键服务，在日历中或到期提醒时可直接拉起应用 3、提供日程picker，可快速获取日程信息;",
+    "kit": "Calendar Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://gitee.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-calendar-kit/js-apis-calendarManager.md",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/calendarmanager-guidelines-0000001774280046",
+    "demoUrl": "",
+    "keywords": [
+      "日历开放能力",
+      "Calendar Kit",
+      "日历",
+      "Calendar",
+      "日程"
+    ]
+  },
+  {
+    "id": 50,
+    "name": "扫码能力开放",
+    "description": "基于单框架构建的统一扫码服务。 实现扫得快、扫的准、扫得远;",
+    "kit": "Scan Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/scan-introduction-0000001338497986-V5",
+    "apiRefUrl": "",
+    "demoUrl": "",
+    "keywords": [
+      "扫码能力开放",
+      "Scan Kit",
+      "扫码",
+      "ScanKit",
+      "扫码控件"
+    ]
+  },
+  {
+    "id": 51,
+    "name": "PC一步直达特性",
+    "description": "应用和系统工具高频操作的轻量化便捷入口，充分发挥大屏和键鼠精准操控优势，简化操作路径，为用户带来高效专注的沉浸式办公体验;",
+    "kit": "StatusBar Extension Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/statusbar-extension-introduction-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/statusbar-extension-arkts-V5",
+    "demoUrl": "已上传附件",
+    "keywords": [
+      "PC一步直达特性",
+      "PC",
+      "StatusBar Extension Kit",
+      "一步直达",
+      "StatusBar"
+    ]
+  },
+  {
+    "id": 52,
+    "name": "统一文件预览",
+    "description": "通过预览来快速查看图片、音乐、视频、 office文档、PDF文档、TXT文档、html文档，不跳转弹窗;",
+    "kit": "PreView Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/preview-filepreview-V5",
+    "apiRefUrl": "见主打胶片",
+    "demoUrl": "见主打胶片",
+    "keywords": [
+      "统一文件预览",
+      "PreView Kit",
+      "文件预览",
+      "PreView",
+      "QuickLook",
+      "预览"
+    ]
+  },
+  {
+    "id": 53,
+    "name": "手写体验",
+    "description": "提供笔刷效果、笔迹编辑、报点预测、一笔成形以及手写笔双击功能;",
+    "kit": "Pen Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/pen-kit-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/pen-api-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_PenKit-Next-Easy",
+    "keywords": [
+      "手写体验",
+      "Pen Kit",
+      "手写",
+      "笔迹",
+      "报点预测"
+    ]
+  },
+  {
+    "id": 54,
+    "name": "弱网感知&连接迁移感知",
+    "description": "基于蜂窝网络环境和连接质量感知的畅连体验优化，降低卡顿，提升体验。 目标场景：高铁、地铁、高速等弱网场景下，音视频应用体验提升;",
+    "kit": "Network Kit",
+    "category": "极致流畅",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/network-boost-kit-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/networkboost-netquality-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/network-boost-kit-sample-code-arkts",
+    "keywords": [
+      "弱网感知&连接迁移感知",
+      "Network Kit",
+      "弱网感知",
+      "连接迁移",
+      "网络质量"
+    ]
+  },
+  {
+    "id": 55,
+    "name": "意图框架",
+    "description": "聚合华为多模态系统流量入口，基于AI和HarmonyOS能力精准分发服务。为开发者提供全场景智慧分发方案，更高效精准触达目标用户。为用户创造场景化、个性化的服务体验，实现用户、开发者、华为的三方共赢。;",
+    "kit": "Intents Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/intents-kit-guide-0000001820913173",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/intents-api-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/codelabsPortal/carddetails/tutorials_IntentsKit-codelab-Clientdemo-ArkTS",
+    "keywords": [
+      "意图框架",
+      "Intents Kit",
+      "Intents",
+      "智慧分发",
+      "AI"
+    ]
+  },
+  {
+    "id": 56,
+    "name": "智能填充",
+    "description": "个人信息一次复制，自动填入 个人信息一次填入，处处适用，无需输入。同时可基于已登录账号的个人信息快速填充;",
+    "kit": "Account Kit，ArkUI",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/scenario-fusion-intelligent-filling-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ts-basic-components-textinput-V5#contenttype12",
+    "demoUrl": "https://gitee.com/harmonyos_samples/senario-fusion-kit_-sample-code_-auto-fill",
+    "keywords": [
+      "智能填充",
+      "Account Kit",
+      "ArkUI",
+      "自动填充",
+      "AutoFill",
+      "AI"
+    ]
+  },
+  {
+    "id": 57,
+    "name": "文档扫描-AI场景化控件",
+    "description": "在文档编创场景，把纸质文档快速扫描为高质量的PDF或图片，包含基础的文档边缘识别、文档矫正能力，以及进阶的去弯曲去阴影去褶皱等能力，体验与华为系统侧应用一致，生成的电子文档质量高，用户学习成本低;",
+    "kit": "Vision kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/vision-documentscanner-0000001869423501-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/vision-document-scanner-0000001869899241-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/vision-document-scanner-0000001869899241-V5",
+    "keywords": [
+      "文档扫描-AI场景化控件",
+      "文档扫描",
+      "AI场景化控件",
+      "AI",
+      "Vision kit",
+      "扫描",
+      "去弯矫正"
+    ]
+  },
+  {
+    "id": 58,
+    "name": "卡证识别-AI场景化控件",
+    "description": "卡证识别控件可以支持身份证、银行卡证件的结构化识别，在一些需要进行证件信息采集的应用中可以使用该控件，不仅可以降低用户输入 错误信息的概率，OCR识别能力增强，提升文字搜索召回率，同时提升交互体验 通过控件调起卡证识别服务，提取出卡号信息。 针对身份证，可;",
+    "kit": "Vision kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/vision-cardrecognition-0000001853857469-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/vision-card-recognition-0000001853918421-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/vision-card-recognition-0000001853918421-V5",
+    "keywords": [
+      "卡证识别-AI场景化控件",
+      "卡证识别",
+      "AI场景化控件",
+      "AI",
+      "Vision kit"
+    ]
+  },
+  {
+    "id": 59,
+    "name": "朗读-AI场景化控件",
+    "description": "几行代码，即可上线听新闻/听小说 听小说等听的功能 • 包体更小，不用集成SDK， 元服务都可以用 • 不需要再对接播控中心 断网可用 可以一次接入多处露出（胶囊、锁屏和播控中心）\";",
+    "kit": "Speech Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/speech-textreader-guide-0000001824151224-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/speech-textreader-api-0000001869537225-V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/speech-textreader-api-0000001869537225-V5\n\nhttps://gitee.com/harmonyos_samples/speech-kit-sample-code_-arkts",
+    "keywords": [
+      "朗读-AI场景化控件",
+      "朗读",
+      "AI场景化控件",
+      "AI",
+      "Speech Kit",
+      "TTS",
+      "TextReader"
+    ]
+  },
+  {
+    "id": 60,
+    "name": "AI字幕-AI场景化控件",
+    "description": "视频播放过程中为用户呈现原语种字幕，也可以呈现带实时翻译的双语字幕。;",
+    "kit": "Speech Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/speech-aicaption-guide-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/speech-aicaptioncomponent-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/sample-code_-aicaption-ark-ts",
+    "keywords": [
+      "AI字幕-AI场景化控件",
+      "AI字幕",
+      "AI场景化控件",
+      "AI",
+      "Speech Kit",
+      "字幕",
+      "Caption"
+    ]
+  },
+  {
+    "id": 61,
+    "name": "统一拖拽",
+    "description": "辅助拖拽、一键摘录等操作，在单窗口下，给信息一个目的地，可暂存数据，方便数据批量跨应用、跨设备中转，打造高效便捷的内容;",
+    "kit": "ArkUI",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-universal-events-drag-drop-0000001820880801",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-universal-attributes-drag-drop",
+    "demoUrl": "https://gitee.com/openharmony/docs/blob/dfe258b32c390e7ccb4e797cad51eb099e53d7a3/zh-cn/application-dev/ui/arkts-common-events-drag-event.md#%E9%80%9A%E7%94%A8%E6%8B%96%E6%8B%BD%E9%80%82%E9%85%8D",
+    "keywords": [
+      "统一拖拽",
+      "ArkUI",
+      "拖拽",
+      "DragDrop",
+      "跨应用拖拽"
+    ]
+  },
+  {
+    "id": 62,
+    "name": "视频&图片超分辨率",
+    "description": "超分辨率技术（Super Resolution），是通过硬件或软件的方法提高图像或视频帧的分辨率， 通过一系列低分辨率图像获取到高分辨率图像的过程。;",
+    "kit": "Media kit",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "图片：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/image-processing-arkts\n视频：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/generate-super-resolution-video",
+    "apiRefUrl": "",
+    "demoUrl": "",
+    "keywords": [
+      "视频&图片超分辨率",
+      "Media kit",
+      "超分辨率",
+      "Super Resolution",
+      "超分"
+    ]
+  },
+  {
+    "id": 63,
+    "name": "智能图片picker",
+    "description": "用户通过PhotoPicker选择图片，提供图片搜索的基础上，支持智能推荐，满足快速找到需要的照片 2C 推荐方式： - 显性：由APP传入需要的图片标签（如身份证、二维码），PhotoPicker启动时直接返回对应搜索结果进行推荐展示 - 隐性：系统进行;",
+    "kit": "MediaLibrary Kit",
+    "category": "原生智能",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/smart-photopicker-V5#section96982784617",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-photoaccesshelper-V5#recommendationoptions11",
+    "demoUrl": "先接入PhotoPicker，再接入智能picker\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-photoaccesshelper-V5",
+    "keywords": [
+      "智能图片picker",
+      "picker",
+      "MediaLibrary Kit",
+      "智能picker",
+      "PhotoPicker",
+      "图片推荐"
+    ]
+  },
+  {
+    "id": 64,
+    "name": "MovingPhoto",
+    "description": "鸿蒙生态社交App支持华为鸿蒙框架动态照片格式，以使其能以动态效果展示图片;",
+    "kit": "MediaLibrary Kit",
+    "category": "高端精致",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "1、拍摄moving photo：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/camera-moving-photo-V5\n2、显示播放moving photo：\nhttps://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ohos-multimedia-movingphotoview-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/js-apis-photoaccesshelper-V5?catalogVersion=V5",
+    "demoUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ohos-multimedia-movingphotoview-V5?catalogVersion=V5",
+    "keywords": [
+      "MovingPhoto",
+      "MediaLibrary Kit",
+      "动态照片",
+      "Live Photo"
+    ]
+  },
+  {
+    "id": 65,
+    "name": "服务互通",
+    "description": "服务互通相机可以让用户借助周边设备强大的拍照能力、图库能力、扫描能力及高清视频能力;",
+    "kit": "ServiceCollaboration Kit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/servicecollaborationkit-introduction-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/servicecollaboration-arkts-V5?catalogVersion=V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/service-collaboration-kit-sample-code-arkts",
+    "keywords": [
+      "服务互通",
+      "ServiceCollaboration Kit",
+      "ServiceCollaboration",
+      "跨设备相机",
+      "多设备",
+      "协同"
+    ]
+  },
+  {
+    "id": 66,
+    "name": "应用接续",
+    "description": "应用接续可以在其他设备上无缝衔接当前设备上的任务 1、用户在设备A上打开应用，在设备B的dock栏出现该应用图标，提示用户进入可接续状态，用户点击图标，在设备B上启动该应用，应用显示的内容与设备A上应用一致;",
+    "kit": "Ability Kit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/app-continuation-overview-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/ability-api-V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/continue-progress",
+    "keywords": [
+      "应用接续",
+      "Ability Kit",
+      "Continuation",
+      "跨设备接续",
+      "多设备",
+      "协同"
+    ]
+  },
+  {
+    "id": 67,
+    "name": "无线投屏&投播",
+    "description": "统一投播组件&在镜像投屏模式下，进入视频应用播放视频时，可自动切换到资源投播模式;",
+    "kit": "AVSession kit",
+    "category": "全场景协同",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/avsession-overview-0000001774280010",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ohos-multimedia-avcastpicker",
+    "demoUrl": "https://gitee.com/harmonyos_samples/VideoCast",
+    "keywords": [
+      "无线投屏&投播",
+      "AVSession kit",
+      "投屏",
+      "投播",
+      "AVCastPicker",
+      "镜像投屏"
+    ]
+  },
+  {
+    "id": 68,
+    "name": "智慧多窗-应用内分屏",
+    "description": "办公类应用，提供应用内分屏，方便应用内的任务并行（折叠机/PAD特有价值）;",
+    "kit": "ArkUI",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/multi-window-intro-V5",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-app-ability-abilityconstant#windowmode12",
+    "demoUrl": "https://gitee.com/harmonyos_codelabs/MultiShoppingPriceComparison",
+    "keywords": [
+      "智慧多窗-应用内分屏",
+      "智慧多窗",
+      "应用内分屏",
+      "ArkUI",
+      "分屏",
+      "多窗",
+      "MultiWindow"
+    ]
+  },
+  {
+    "id": 69,
+    "name": "智慧多窗-画中画",
+    "description": "视频播放、视频通话、视频会议、直播场景支持画中画能力 2、提供统一的画中画触发入口;",
+    "kit": "ArkUI",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "开发指南 ：https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/window-pipwindow-0000001731832928#section1424113911511",
+    "apiRefUrl": "https://gitee.com/openharmony/interface_sdk-js/blob/281b77e7e0fc88353321a6ca6eaf58e48395c328/api/@ohos.PiPWindow.d.ts",
+    "demoUrl": "https://gitee.com/harmonyos_samples/window-pip",
+    "keywords": [
+      "智慧多窗-画中画",
+      "智慧多窗",
+      "画中画",
+      "ArkUI",
+      "PiP",
+      "小窗"
+    ]
+  },
+  {
+    "id": 70,
+    "name": "实况窗",
+    "description": "实况窗是一种帮助用户聚焦正在进行的任务，方便快速查看和即时处理的通知形态，具有时段性、时效性、变化性的特点。\n在展示形态上，实况窗支持在锁屏、通知中心、状态栏等位置展示，主要有两种展示形式：胶囊态和卡片态。",
+    "kit": "LiveView Kit",
+    "category": "简单易用",
+    "devEffort": null,
+    "testEffort": null,
+    "guideUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/liveview-introduction-0000001775575577",
+    "apiRefUrl": "https://developer.huawei.com/consumer/cn/doc/harmonyos-references-V5/live-view-api-V5?catalogVersion=V5",
+    "demoUrl": "https://gitee.com/harmonyos_samples/live-view-kit_-sample-code_-clientdemo_-arkts",
+    "keywords": [
+      "实况窗",
+      "LiveView Kit",
+      "LiveView",
+      "胶囊通知"
+    ]
+  }
+]

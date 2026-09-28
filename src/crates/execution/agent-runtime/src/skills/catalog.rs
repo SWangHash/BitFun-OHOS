@@ -175,6 +175,10 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
+        dir_name: "harmonyos-feature-guide",
+        group: BuiltinSkillGroup::HarmonyOS,
+    },
+    BuiltinSkillSpec {
         dir_name: "arkui-knowledge",
         group: BuiltinSkillGroup::HarmonyOS,
     },

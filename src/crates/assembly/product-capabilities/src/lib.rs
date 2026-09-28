@@ -1036,6 +1036,7 @@ const CODE_AGENT_IDS: &[&str] = &[
     "Cowork",
     "Claw",
     "Ultimate",
+    "HarmonyFeature",
     "SwarmPlanner",
     "SwarmWorker",
     "SwarmReviewer",
