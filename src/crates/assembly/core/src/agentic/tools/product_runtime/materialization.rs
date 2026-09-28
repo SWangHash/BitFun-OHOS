@@ -88,6 +88,7 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "ControlHub",
     "ComputerUse",
     "Playbook",
+    "QtMigrationIntake",
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -156,7 +157,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "LaunchReviewAgent" => Some(Arc::new(LaunchReviewAgentTool::new())),
             "Skill" => Some(Arc::new(SkillTool::new())),
             "AskUserQuestion" => Some(Arc::new(AskUserQuestionTool::new())),
-            "AnalyzeMigrationRequest" => Some(Arc::new(AnalyzeMigrationRequestTool::new())),
+            "QtMigrationIntake" => Some(Arc::new(QtMigrationIntakeTool::new())),
             "TodoWrite" => Some(Arc::new(TodoWriteTool::new())),
             "get_goal" => Some(Arc::new(GetGoalTool::new())),
             "create_goal" => Some(Arc::new(CreateGoalTool::new())),
@@ -302,6 +303,26 @@ mod tests {
                         provider.provider_id()
                     );
                 }
+            }
+        }
+    }
+
+    /// Every tool name the provider plan advertises must have a registry order.
+    ///
+    /// `materialize` drops planned tools that are absent from
+    /// [`PRODUCT_TOOL_REGISTRATION_ORDER`] and fails the whole assembly. That
+    /// runs while the agent profile is selected, before the main window exists,
+    /// so the symptom is an app that starts with no window at all rather than a
+    /// tool that is merely missing.
+    #[test]
+    fn every_planned_tool_name_has_a_registration_order() {
+        for provider in product_tool_provider_group_plan() {
+            for tool_name in provider.tool_names() {
+                assert!(
+                    PRODUCT_TOOL_REGISTRATION_ORDER.contains(tool_name),
+                    "{tool_name} is planned under provider {} but has no registry order",
+                    provider.provider_id()
+                );
             }
         }
     }

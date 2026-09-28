@@ -3,7 +3,7 @@
 //! Provides unified management for all app storage paths, supporting user, project, and temporary levels
 
 use crate::util::errors::*;
-use log::{debug, error};
+use log::{debug, error, warn};
 use bitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -591,6 +591,22 @@ impl PathManager {
 
         for dir in dirs {
             self.ensure_dir(&dir).await?;
+        }
+
+        // Qt migration directories are mode-specific, so create them best-effort:
+        // a failure there must not abort application startup.
+        for dir in [
+            self.qt_migration_toolchains_dir(),
+            self.qt_migration_templates_dir(),
+            self.qt_migration_downloads_dir(),
+        ] {
+            if let Err(error) = self.ensure_dir(&dir).await {
+                warn!(
+                    "Failed to create Qt migration directory {}: {}",
+                    dir.display(),
+                    error
+                );
+            }
         }
 
         debug!("User-level directories initialized");

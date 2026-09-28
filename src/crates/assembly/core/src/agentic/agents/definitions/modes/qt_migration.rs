@@ -6,14 +6,12 @@
 //! dispatch helper subagents) with its own dedicated prompt template.
 
 use crate::agentic::agents::{
-    shared_coding_mode_tool_exposure_overrides, shared_coding_mode_tools,
-    shared_coding_mode_user_context_policy, Agent, AgentToolPolicyOverrides, UserContextPolicy,
+    standard_harness_tools, standard_harness_user_context_policy, Agent, UserContextPolicy,
 };
 use async_trait::async_trait;
 
 pub struct QtMigrationMode {
     default_tools: Vec<String>,
-    tool_exposure_overrides: AgentToolPolicyOverrides,
 }
 
 impl Default for QtMigrationMode {
@@ -24,14 +22,11 @@ impl Default for QtMigrationMode {
 
 impl QtMigrationMode {
     pub fn new() -> Self {
-        let mut default_tools = shared_coding_mode_tools();
+        let mut default_tools = standard_harness_tools();
         // Intake routing tool: decides whether a request needs the migration
         // path confirmation dialog. QtMigration-specific, not in the shared set.
-        default_tools.push("AnalyzeMigrationRequest".to_string());
-        Self {
-            default_tools,
-            tool_exposure_overrides: shared_coding_mode_tool_exposure_overrides(),
-        }
+        default_tools.push("QtMigrationIntake".to_string());
+        Self { default_tools }
     }
 }
 
@@ -58,11 +53,7 @@ impl Agent for QtMigrationMode {
     }
 
     fn user_context_policy(&self) -> UserContextPolicy {
-        shared_coding_mode_user_context_policy()
-    }
-
-    fn tool_exposure_overrides(&self) -> &AgentToolPolicyOverrides {
-        &self.tool_exposure_overrides
+        standard_harness_user_context_policy()
     }
 
     fn default_tools(&self) -> Vec<String> {

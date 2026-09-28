@@ -253,6 +253,7 @@
       "imageUnderstanding": "Image understanding",
       "interactionCanvas": "Interaction and canvas",
       "computerAutomation": "Computer use and automation",
+      "qtMigration": "QT migration",
       "extension": "Extension · {{provider}}",
       "other": "Other",
       "selectedCount": "{{count}} tools selected",
@@ -399,6 +400,7 @@
     "Ultimate": "Decompose complex tasks, coordinate parallel SubAgents, and review their results.",
     "Minimal": "A compact execution loop with a fixed, small tool set.",
     "Creative": "Create and customize BitFun experiences and capabilities.",
-    "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide."
+    "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide.",
+    "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
   }
 }

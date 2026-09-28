@@ -332,6 +332,8 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
             ref={outputRendererRef}
             content={outputText}
             maxRows={maxRows}
+            binarySuppressedText={(count) => t('terminalOutputGuard.binarySuppressed', { count })}
+            truncatedMarkerText={(count) => t('terminalOutputGuard.truncated', { count })}
           />
         ) : undefined}
         outputAction={outputText ? renderCopyOutputButton() : undefined}

@@ -14,8 +14,9 @@ use serde_json::{json, Value};
 
 // Use skills module
 use super::skills::{get_skill_registry, render_loaded_skill_for_assistant};
-use crate::agentic::tools::implementations::analyze_migration_request_tool::AnalyzeMigrationRequestTool;
-use bitfun_agent_runtime::intake_state::{IntakeStatus, LoadedSkillReceipt, OHOS_QT_SKILLS_DIR};
+use bitfun_agent_runtime::qt_migration_intake_state::{
+    QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QT_MIGRATION_SKILL_DIR,
+};
 use bitfun_agent_runtime::skills::BITFUN_SYSTEM_SKILL_SLOT;
 
 /// Skill tool
@@ -179,26 +180,8 @@ impl Tool for SkillTool {
     async fn validate_input(
         &self,
         input: &Value,
-        context: Option<&ToolUseContext>,
+        _context: Option<&ToolUseContext>,
     ) -> ValidationResult {
-        if let Some(context) = context {
-            if input
-                .get("command")
-                .and_then(Value::as_str)
-                .is_some_and(|name| {
-                    (name == OHOS_QT_SKILLS_DIR || name.ends_with("::ohos-qt-skills"))
-                        && context.custom_data.get("qt_migration_enabled")
-                            != Some(&Value::Bool(true))
-                })
-            {
-                return ValidationResult {
-                    result: false,
-                    message: Some("ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string()),
-                    error_code: Some(400),
-                    meta: None,
-                };
-            }
-        }
         if input
             .get("command")
             .and_then(|v| v.as_str())
@@ -248,30 +231,6 @@ impl Tool for SkillTool {
             .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| BitFunError::tool("command is required".to_string()))?;
-
-        let is_qt_migration_skill =
-            skill_name == OHOS_QT_SKILLS_DIR || skill_name.ends_with("::ohos-qt-skills");
-        if is_qt_migration_skill {
-            let enabled = context
-                .custom_data
-                .get("qt_migration_enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or_else(|| {
-                    context
-                        .custom_data
-                        .get("original_user_input")
-                        .and_then(Value::as_str)
-                        .is_some_and(|input| {
-                            AnalyzeMigrationRequestTool::analyze_request(input)["taskType"].as_str()
-                                == Some("app_migration")
-                        })
-                });
-            if !enabled {
-                return Err(BitFunError::tool(
-                    "ohos-qt-skills is available only for a classified Qt to HarmonyOS migration request".to_string(),
-                ));
-            }
-        }
 
         debug!("Skill tool executing skill: {}", skill_name);
 
@@ -397,7 +356,7 @@ async fn record_qt_migration_skill_receipt(
     content: &str,
     context: &ToolUseContext,
 ) {
-    if dir_name != OHOS_QT_SKILLS_DIR || source_slot != BITFUN_SYSTEM_SKILL_SLOT {
+    if dir_name != QT_MIGRATION_SKILL_DIR || source_slot != BITFUN_SYSTEM_SKILL_SLOT {
         return;
     }
     let Some(session_id) = context.session_id.as_deref() else {
@@ -407,24 +366,24 @@ async fn record_qt_migration_skill_receipt(
         return;
     };
     let session_manager = coordinator.get_session_manager();
-    let Some(mut snapshot) = session_manager.intake_state(session_id) else {
+    let Some(mut snapshot) = session_manager.qt_migration_intake_state(session_id) else {
         return;
     };
     // Receipt is intake-driven (not agent_type), matching the gate: a subagent
     // that inherited an activated intake may reload the skill and refresh its
     // receipt even when its own agent_type is not QtMigration. A session
     // without an activated intake is not a migration.
-    if snapshot.status == IntakeStatus::NotApplicable {
+    if snapshot.status == QtMigrationIntakeStatus::NotApplicable {
         return;
     }
-    snapshot.loaded_skill_receipt = Some(LoadedSkillReceipt {
+    snapshot.loaded_skill_receipt = Some(QtMigrationLoadedSkillReceipt {
         skill_key: skill_key.to_string(),
         source_slot: source_slot.to_string(),
         dir_name: dir_name.to_string(),
         content_hash: sha256_hex(content),
     });
     session_manager
-        .remember_intake_state(session_id, snapshot)
+        .remember_qt_migration_intake_state(session_id, snapshot)
         .await;
 }
 

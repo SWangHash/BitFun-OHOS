@@ -10,22 +10,44 @@
 use crate::agentic::coordination::get_global_coordinator;
 use crate::agentic::tools::framework::ToolUseContext;
 use crate::util::errors::{BitFunError, BitFunResult};
-use bitfun_agent_runtime::intake_state::{
-    is_valid_qt_migration_receipt, IntakeStateSnapshot, IntakeStatus, INTAKE_REQUIRED_FIELDS,
+use bitfun_agent_runtime::qt_migration_intake_state::{
+    is_valid_qt_migration_receipt, QtMigrationIntakeStateSnapshot, QtMigrationIntakeStatus,
+    QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
 };
+use serde_json::Value;
 
 /// Tools always allowed while the migration intake is incomplete: they are
 /// required to finish input collection or load the migration skill, and carry
 /// no migration side effects. Tools that mutate persistent state (TodoWrite,
 /// goal tools) stay gated.
 const BOOTSTRAP_ALLOWED_TOOLS: &[&str] = &[
-    "AnalyzeMigrationRequest",
+    "QtMigrationIntake",
     "AskUserQuestion",
     "Skill",
     "Read",
     "Grep",
     "Glob",
 ];
+
+/// The single shell command allowed through the gate while the intake is
+/// incomplete: the model resolves the session qmake (the toolchain the user
+/// configured into the environment) so the question card can offer it as the
+/// toolchain candidate. Read-only; anything else stays rejected until the
+/// four inputs are bound.
+const BOOTSTRAP_QMAKE_PROBE_COMMANDS: &[&str] = &["command -v qmake", "which qmake"];
+
+/// Whether `input` is exactly the bootstrap qmake resolution command
+/// (whitespace-normalized match on the ExecCommand `cmd` argument).
+fn bootstrap_qmake_probe_command(input: Option<&Value>) -> bool {
+    let Some(command) = input
+        .and_then(|input| input.get("cmd"))
+        .and_then(Value::as_str)
+    else {
+        return false;
+    };
+    let normalized = command.split_whitespace().collect::<Vec<_>>().join(" ");
+    BOOTSTRAP_QMAKE_PROBE_COMMANDS.contains(&normalized.as_str())
+}
 
 /// Stable rejection code surfaced to the model so it can recover.
 const REJECT_CODE_INPUT_REQUIRED: &str = "qt_migration_input_required";
@@ -64,8 +86,13 @@ impl QtMigrationAdmissionRejection {
 /// Check whether `tool_name` may execute under the current QtMigration
 /// admission state. Returns `Ok(())` when allowed, or a structured rejection
 /// error otherwise. Sessions without an activated intake are never gated
-/// (zero overhead for the rest of the product).
-pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> BitFunResult<()> {
+/// (zero overhead for the rest of the product). `input` is the tool call's
+/// arguments, used to recognize the bootstrap qmake resolution command.
+pub(crate) fn check_admission(
+    tool_name: &str,
+    input: Option<&Value>,
+    context: &ToolUseContext,
+) -> BitFunResult<()> {
     let Some(session_id) = context.session_id.as_deref() else {
         return Ok(());
     };
@@ -76,15 +103,15 @@ pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> BitF
         return Ok(());
     };
     let session_manager = coordinator.get_session_manager();
-    let migration_active = session_manager.migration_active(session_id);
+    let qt_migration_active = session_manager.qt_migration_active(session_id);
     let intake = session_manager
-        .intake_state(session_id)
-        .unwrap_or_else(IntakeStateSnapshot::empty);
+        .qt_migration_intake_state(session_id)
+        .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
     // A session marked as an active migration must fail closed when the intake
     // snapshot is missing or non-activated (e.g. an older persisted session
     // whose intake did not restore) instead of treating the absence as a
     // non-migration session and letting side effects through.
-    if migration_active && intake.status == IntakeStatus::NotApplicable {
+    if qt_migration_active && intake.status == QtMigrationIntakeStatus::NotApplicable {
         return Err(QtMigrationAdmissionRejection {
             code: REJECT_CODE_INPUT_REQUIRED,
             kind: "intake_lost",
@@ -93,19 +120,21 @@ pub(crate) fn check_admission(tool_name: &str, context: &ToolUseContext) -> BitF
         }
         .to_error());
     }
-    check_admission_for_intake(tool_name, &intake)
+    check_admission_for_intake(tool_name, input, &intake)
 }
 
 /// Pure decision: given the resolved intake, decide admission. The gate is
 /// driven by Session admission state, not agent_type: a non-migration session
 /// has no activated intake (None -> empty -> NotApplicable) so it is never
 /// gated; a subagent that inherited an activated intake from a QtMigration
-/// parent is gated regardless of its own agent_type.
+/// parent is gated regardless of its own agent_type. `input` is the tool
+/// call's arguments, used to recognize the bootstrap qmake resolution command.
 pub(crate) fn check_admission_for_intake(
     tool_name: &str,
-    intake: &IntakeStateSnapshot,
+    input: Option<&Value>,
+    intake: &QtMigrationIntakeStateSnapshot,
 ) -> BitFunResult<()> {
-    if intake.status == IntakeStatus::NotApplicable {
+    if intake.status == QtMigrationIntakeStatus::NotApplicable {
         return Ok(());
     }
     // Bootstrap tools are always allowed: they are required to finish input
@@ -117,7 +146,9 @@ pub(crate) fn check_admission_for_intake(
     // not accept further side effects even with a valid receipt — the
     // workflow has ended.
     match intake.status {
-        IntakeStatus::Blocked | IntakeStatus::Failed | IntakeStatus::Completed => {
+        QtMigrationIntakeStatus::Blocked
+        | QtMigrationIntakeStatus::Failed
+        | QtMigrationIntakeStatus::Completed => {
             return Err(QtMigrationAdmissionRejection {
                 code: REJECT_CODE_INPUT_REQUIRED,
                 kind: "terminal",
@@ -131,7 +162,7 @@ pub(crate) fn check_admission_for_intake(
     // Directly verify all four fields are at least Resolved, independent of the
     // derived status, so a corrupted snapshot with inconsistent status+fields
     // cannot bypass the gate.
-    let missing: Vec<&'static str> = INTAKE_REQUIRED_FIELDS
+    let missing: Vec<&'static str> = QT_MIGRATION_INTAKE_REQUIRED_FIELDS
         .iter()
         .copied()
         .filter(|field| {
@@ -143,11 +174,19 @@ pub(crate) fn check_admission_for_intake(
         })
         .collect();
     if !missing.is_empty() {
+        // Bootstrap escape hatch: before the inputs are bound the model may
+        // run exactly one read-only shell command — resolving the session
+        // qmake the user configured into the environment so the question
+        // card can offer it as the toolchain candidate. Everything else
+        // stays rejected with the missing-fields recovery.
+        if tool_name == "ExecCommand" && bootstrap_qmake_probe_command(input) {
+            return Ok(());
+        }
         return Err(QtMigrationAdmissionRejection {
             code: REJECT_CODE_INPUT_REQUIRED,
             kind: "input_required",
             missing_fields: missing,
-            recovery_action: "answer the qt-migration-paths question template via AskUserQuestion",
+            recovery_action: "run ExecCommand with exactly `command -v qmake` to resolve the session toolchain, then answer the qt-migration-paths question template via AskUserQuestion",
         }
         .to_error());
     }
@@ -178,24 +217,27 @@ pub(crate) fn check_admission_for_intake(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_agent_runtime::intake_state::{
-        FieldResolutionState, IntakeFieldState, LoadedSkillReceipt, INTAKE_REQUIRED_FIELDS,
-        OHOS_QT_SKILLS_DIR,
+    use bitfun_agent_runtime::qt_migration_intake_state::{
+        QtMigrationFieldResolutionState, QtMigrationIntakeFieldState,
+        QtMigrationLoadedSkillReceipt, QT_MIGRATION_INTAKE_REQUIRED_FIELDS, QT_MIGRATION_SKILL_DIR,
     };
     use std::collections::BTreeMap;
 
-    fn snapshot(status: IntakeStatus, fields_state: FieldResolutionState) -> IntakeStateSnapshot {
+    fn snapshot(
+        status: QtMigrationIntakeStatus,
+        fields_state: QtMigrationFieldResolutionState,
+    ) -> QtMigrationIntakeStateSnapshot {
         let mut fields = BTreeMap::new();
-        for field in INTAKE_REQUIRED_FIELDS {
+        for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
             fields.insert(
                 field.to_string(),
-                IntakeFieldState {
+                QtMigrationIntakeFieldState {
                     state: fields_state,
                     value: None,
                 },
             );
         }
-        IntakeStateSnapshot {
+        QtMigrationIntakeStateSnapshot {
             schema_version: 1,
             fields,
             status,
@@ -204,14 +246,14 @@ mod tests {
     }
 
     fn snapshot_with_receipt(
-        status: IntakeStatus,
-        fields_state: FieldResolutionState,
-    ) -> IntakeStateSnapshot {
+        status: QtMigrationIntakeStatus,
+        fields_state: QtMigrationFieldResolutionState,
+    ) -> QtMigrationIntakeStateSnapshot {
         let mut snap = snapshot(status, fields_state);
-        snap.loaded_skill_receipt = Some(LoadedSkillReceipt {
+        snap.loaded_skill_receipt = Some(QtMigrationLoadedSkillReceipt {
             skill_key: "bitfun-system::harmony::ohos-qt-skills".to_string(),
             source_slot: "bitfun-system".to_string(),
-            dir_name: OHOS_QT_SKILLS_DIR.to_string(),
+            dir_name: QT_MIGRATION_SKILL_DIR.to_string(),
             content_hash: "deadbeef".to_string(),
         });
         snap
@@ -219,17 +261,23 @@ mod tests {
 
     #[test]
     fn needs_input_rejects_side_effect_tool() {
-        let intake = snapshot(IntakeStatus::NeedsInput, FieldResolutionState::Missing);
-        let err = check_admission_for_intake("Write", &intake)
+        let intake = snapshot(
+            QtMigrationIntakeStatus::NeedsInput,
+            QtMigrationFieldResolutionState::Missing,
+        );
+        let err = check_admission_for_intake("Write", None, &intake)
             .expect_err("side effect must be rejected while inputs incomplete");
         assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
     }
 
     #[test]
     fn needs_input_allows_bootstrap_tools() {
-        let intake = snapshot(IntakeStatus::NeedsInput, FieldResolutionState::Missing);
+        let intake = snapshot(
+            QtMigrationIntakeStatus::NeedsInput,
+            QtMigrationFieldResolutionState::Missing,
+        );
         for tool in [
-            "AnalyzeMigrationRequest",
+            "QtMigrationIntake",
             "AskUserQuestion",
             "Skill",
             "Read",
@@ -237,7 +285,7 @@ mod tests {
             "Glob",
         ] {
             assert!(
-                check_admission_for_intake(tool, &intake).is_ok(),
+                check_admission_for_intake(tool, None, &intake).is_ok(),
                 "bootstrap tool {tool} must be allowed while inputs incomplete"
             );
         }
@@ -247,15 +295,21 @@ mod tests {
     fn not_applicable_status_is_not_gated() {
         // Not yet an active migration: side effects must not be blocked even
         // without a receipt (activation happens earlier).
-        let intake = snapshot(IntakeStatus::NotApplicable, FieldResolutionState::Resolved);
-        assert!(check_admission_for_intake("Write", &intake).is_ok());
+        let intake = snapshot(
+            QtMigrationIntakeStatus::NotApplicable,
+            QtMigrationFieldResolutionState::Resolved,
+        );
+        assert!(check_admission_for_intake("Write", None, &intake).is_ok());
     }
 
     #[test]
     fn resolved_inputs_without_receipt_rejects_skill_required() {
-        for status in [IntakeStatus::NeedsValidation, IntakeStatus::Ready] {
-            let intake = snapshot(status, FieldResolutionState::Resolved);
-            let err = check_admission_for_intake("Write", &intake)
+        for status in [
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationIntakeStatus::Ready,
+        ] {
+            let intake = snapshot(status, QtMigrationFieldResolutionState::Resolved);
+            let err = check_admission_for_intake("Write", None, &intake)
                 .expect_err("side effects must be rejected until the skill is loaded");
             assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
         }
@@ -263,10 +317,13 @@ mod tests {
 
     #[test]
     fn resolved_inputs_with_valid_receipt_allows_side_effects() {
-        for status in [IntakeStatus::NeedsValidation, IntakeStatus::Ready] {
-            let intake = snapshot_with_receipt(status, FieldResolutionState::Resolved);
+        for status in [
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationIntakeStatus::Ready,
+        ] {
+            let intake = snapshot_with_receipt(status, QtMigrationFieldResolutionState::Resolved);
             assert!(
-                check_admission_for_intake("Write", &intake).is_ok(),
+                check_admission_for_intake("Write", None, &intake).is_ok(),
                 "valid receipt must allow side effects for {status:?}"
             );
         }
@@ -276,31 +333,31 @@ mod tests {
     fn resolved_inputs_with_stale_receipt_rejects() {
         // A receipt from an unmanaged source slot is stale.
         let mut intake = snapshot(
-            IntakeStatus::NeedsValidation,
-            FieldResolutionState::Resolved,
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationFieldResolutionState::Resolved,
         );
-        intake.loaded_skill_receipt = Some(LoadedSkillReceipt {
+        intake.loaded_skill_receipt = Some(QtMigrationLoadedSkillReceipt {
             skill_key: "user::ohos-qt-skills".to_string(),
             source_slot: "user-home".to_string(),
-            dir_name: OHOS_QT_SKILLS_DIR.to_string(),
+            dir_name: QT_MIGRATION_SKILL_DIR.to_string(),
             content_hash: "deadbeef".to_string(),
         });
-        let err = check_admission_for_intake("Write", &intake)
+        let err = check_admission_for_intake("Write", None, &intake)
             .expect_err("unmanaged source receipt must be rejected");
         assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
 
         // A receipt with the wrong dir name is stale too.
         let mut intake2 = snapshot(
-            IntakeStatus::NeedsValidation,
-            FieldResolutionState::Resolved,
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationFieldResolutionState::Resolved,
         );
-        intake2.loaded_skill_receipt = Some(LoadedSkillReceipt {
+        intake2.loaded_skill_receipt = Some(QtMigrationLoadedSkillReceipt {
             skill_key: "bitfun-system::harmony::other".to_string(),
             source_slot: "bitfun-system".to_string(),
             dir_name: "other-skill".to_string(),
             content_hash: "deadbeef".to_string(),
         });
-        let err = check_admission_for_intake("Write", &intake2)
+        let err = check_admission_for_intake("Write", None, &intake2)
             .expect_err("wrong dir name receipt must be rejected");
         assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
     }
@@ -310,11 +367,11 @@ mod tests {
         // Bootstrap tools (including Skill itself) run even before the receipt
         // exists — loading the skill is the bootstrap action that produces it.
         let intake = snapshot(
-            IntakeStatus::NeedsValidation,
-            FieldResolutionState::Resolved,
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationFieldResolutionState::Resolved,
         );
         for tool in [
-            "AnalyzeMigrationRequest",
+            "QtMigrationIntake",
             "AskUserQuestion",
             "Skill",
             "Read",
@@ -322,7 +379,7 @@ mod tests {
             "Glob",
         ] {
             assert!(
-                check_admission_for_intake(tool, &intake).is_ok(),
+                check_admission_for_intake(tool, None, &intake).is_ok(),
                 "bootstrap tool {tool} must be allowed even without a receipt"
             );
         }
@@ -330,10 +387,14 @@ mod tests {
 
     #[test]
     fn rejection_lists_missing_fields() {
-        let mut intake = snapshot(IntakeStatus::NeedsInput, FieldResolutionState::Missing);
+        let mut intake = snapshot(
+            QtMigrationIntakeStatus::NeedsInput,
+            QtMigrationFieldResolutionState::Missing,
+        );
         // One field resolved, the rest still missing.
-        intake.fields.get_mut("source_project").unwrap().state = FieldResolutionState::Resolved;
-        let err = check_admission_for_intake("Edit", &intake)
+        intake.fields.get_mut("source_project").unwrap().state =
+            QtMigrationFieldResolutionState::Resolved;
+        let err = check_admission_for_intake("Edit", None, &intake)
             .expect_err("incomplete inputs must reject Edit");
         let message = err.to_string();
         assert!(
@@ -348,12 +409,12 @@ mod tests {
     #[test]
     fn terminal_states_reject_side_effects() {
         for status in [
-            IntakeStatus::Blocked,
-            IntakeStatus::Failed,
-            IntakeStatus::Completed,
+            QtMigrationIntakeStatus::Blocked,
+            QtMigrationIntakeStatus::Failed,
+            QtMigrationIntakeStatus::Completed,
         ] {
-            let intake = snapshot_with_receipt(status, FieldResolutionState::Resolved);
-            let err = check_admission_for_intake("Write", &intake)
+            let intake = snapshot_with_receipt(status, QtMigrationFieldResolutionState::Resolved);
+            let err = check_admission_for_intake("Write", None, &intake)
                 .expect_err("terminal state must reject side effects");
             assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
         }
@@ -364,12 +425,95 @@ mod tests {
         // Corrupted/hand-constructed snapshot: status claims Ready but a field
         // is still Missing — the gate must verify fields directly, not trust
         // status.
-        let mut intake = snapshot(IntakeStatus::Ready, FieldResolutionState::Resolved);
-        intake.fields.get_mut("toolchain").unwrap().state = FieldResolutionState::Missing;
-        let err = check_admission_for_intake("Write", &intake)
+        let mut intake = snapshot(
+            QtMigrationIntakeStatus::Ready,
+            QtMigrationFieldResolutionState::Resolved,
+        );
+        intake.fields.get_mut("toolchain").unwrap().state =
+            QtMigrationFieldResolutionState::Missing;
+        let err = check_admission_for_intake("Write", None, &intake)
             .expect_err("inconsistent status+fields must reject");
         let message = err.to_string();
         assert!(message.contains(REJECT_CODE_INPUT_REQUIRED));
         assert!(message.contains("toolchain"));
+    }
+
+    #[test]
+    fn bootstrap_qmake_probe_recognition() {
+        assert!(bootstrap_qmake_probe_command(Some(
+            &serde_json::json!({"cmd": "command -v qmake"})
+        )));
+        assert!(bootstrap_qmake_probe_command(Some(
+            &serde_json::json!({"cmd": "  command   -v qmake "})
+        )));
+        assert!(bootstrap_qmake_probe_command(Some(
+            &serde_json::json!({"cmd": "which qmake"})
+        )));
+        assert!(!bootstrap_qmake_probe_command(Some(&serde_json::json!(
+            {"cmd": "command -v qmake; rm -rf /"}
+        ))));
+        assert!(!bootstrap_qmake_probe_command(Some(
+            &serde_json::json!({"cmd": "cat /etc/passwd"})
+        )));
+        assert!(!bootstrap_qmake_probe_command(None));
+        assert!(!bootstrap_qmake_probe_command(Some(&serde_json::json!({}))));
+    }
+
+    #[test]
+    fn bootstrap_qmake_probe_is_allowed_while_inputs_missing() {
+        let intake = snapshot(
+            QtMigrationIntakeStatus::NeedsInput,
+            QtMigrationFieldResolutionState::Missing,
+        );
+        assert!(check_admission_for_intake(
+            "ExecCommand",
+            Some(&serde_json::json!({"cmd": "command -v qmake"})),
+            &intake,
+        )
+        .is_ok());
+        // Anything other than the exact probe command stays rejected.
+        let err = check_admission_for_intake(
+            "ExecCommand",
+            Some(&serde_json::json!({"cmd": "cat /etc/passwd"})),
+            &intake,
+        )
+        .expect_err("non-probe shell command must stay rejected");
+        assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+        // Bash is not the bootstrap probe vehicle.
+        let err = check_admission_for_intake(
+            "Bash",
+            Some(&serde_json::json!({"command": "command -v qmake"})),
+            &intake,
+        )
+        .expect_err("Bash must stay rejected while inputs are missing");
+        assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+    }
+
+    #[test]
+    fn bootstrap_qmake_probe_closes_once_inputs_are_bound() {
+        // All four bound + valid receipt → normal gate: ExecCommand flows
+        // through regardless (the escape hatch only covers the missing window).
+        let intake = snapshot_with_receipt(
+            QtMigrationIntakeStatus::NeedsValidation,
+            QtMigrationFieldResolutionState::Resolved,
+        );
+        assert!(check_admission_for_intake(
+            "ExecCommand",
+            Some(&serde_json::json!({"cmd": "command -v qmake"})),
+            &intake,
+        )
+        .is_ok());
+        // In terminal states even the probe stays rejected.
+        let terminal = snapshot_with_receipt(
+            QtMigrationIntakeStatus::Completed,
+            QtMigrationFieldResolutionState::Resolved,
+        );
+        let err = check_admission_for_intake(
+            "ExecCommand",
+            Some(&serde_json::json!({"cmd": "command -v qmake"})),
+            &terminal,
+        )
+        .expect_err("terminal state must reject even the bootstrap probe");
+        assert!(err.to_string().contains("terminal"));
     }
 }

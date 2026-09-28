@@ -93,6 +93,11 @@ const BUILTIN_TOOL_GROUPS: BuiltinToolGroupDefinition[] = [
     labelKey: 'agentsOverview.toolGroups.computerAutomation',
     toolNames: ['ComputerUse', 'ControlHub', 'Playbook'],
   },
+  {
+    id: 'builtin:qt-migration',
+    labelKey: 'agentsOverview.toolGroups.qtMigration',
+    toolNames: ['QtMigrationIntake'],
+  },
 ];
 
 function normalizeToolNames(value: unknown): string[] {

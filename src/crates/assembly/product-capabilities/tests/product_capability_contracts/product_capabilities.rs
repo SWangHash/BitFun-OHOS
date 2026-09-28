@@ -145,6 +145,7 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
             "core.pages",
             "core.creation",
             "core.canvas",
+            "core.qt-migration",
         ]
     );
 }
@@ -202,6 +203,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "core.pages",
         "core.creation",
         "core.canvas",
+        "core.qt-migration",
     ];
 
     for profile in [DeliveryProfile::ProductFull, DeliveryProfile::Desktop] {
@@ -866,6 +868,7 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "core.pages",
             "core.creation",
             "core.canvas",
+            "core.qt-migration"
         ]
     );
 }

@@ -748,11 +748,15 @@
       "rememberFailed": "執行框架已切換，但無法記住本次選擇。之後的新工作階段可能繼續使用原預設值。",
       "otherAgentsTitle": "智能體",
       "otherAgentsEmpty": "目前沒有可用的主智能體",
+      "industryAgentsTitle": "行業智能體",
       "unavailable": "無法使用",
       "agentUnavailable": "目前 Host 或設定不支援 {{name}}。",
       "profiles": {
         "other": {
           "name": "智能體"
+        },
+        "industry": {
+          "name": "行業智能體"
         },
         "Minimal": {
           "name": "$t(shared:agents.Minimal)"
@@ -1677,6 +1681,10 @@
     "separator": "，",
     "collapse": "收起命令列表"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "二進位輸出已攔截，未渲染（{{count}} 字元）。",
+    "truncated": "… 輸出已截斷，僅顯示前 {{count}} 字元。"
+  },
   "toolCards": {
     "file": {
       "write": "寫入檔案",
@@ -1909,6 +1917,7 @@
       "customInputHint": "提供自定義文字",
       "pleaseSpecify": "請輸入...",
       "submitPathNotFound": "{{field}}路徑不存在：{{path}}",
+      "submitOutputArtifact": "{{field}}指向歷史遷移產物，禁止覆蓋：{{path}}。請為本次遷移改用其他輸出目錄。",
       "fieldName": {
         "source_project": "原始工程",
         "output_project": "輸出工程",

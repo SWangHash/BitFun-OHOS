@@ -493,15 +493,17 @@ mod startup_appearance_tests {
 }
 
 fn use_development_frontend() -> bool {
-    #[cfg(debug_assertions)]
-    {
+    // An OHOS device cannot reach the desktop Vite dev server, so a `--debug`
+    // OHOS build must still load the packaged page. Without this the main window
+    // points at `build.devUrl` and the app shows an empty webview.
+    if cfg!(target_env = "ohos") {
+        false
+    } else if cfg!(debug_assertions) {
         // Isolated E2E can exercise the production protocol using a debug
         // executable and dist assets, without launching a development server.
         !(std::env::var("BITFUN_E2E_PACKAGED_FRONTEND").as_deref() == Ok("1")
             && std::env::var("BITFUN_E2E_STORAGE_GUARD").as_deref() == Ok("1"))
-    }
-    #[cfg(not(debug_assertions))]
-    {
+    } else {
         false
     }
 }
@@ -533,7 +535,7 @@ pub fn create_main_window(
         total_started_at.elapsed().as_millis()
     );
 
-let main_url = if use_development_frontend() {
+let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
         app_url(app_handle, "")
     } else {
         frontend_workbench.active_frontend_url()
@@ -741,8 +743,29 @@ fn app_url(app: &tauri::AppHandle, path: &str) -> WebviewUrl {
                 WebviewUrl::App(path.into())
             }
         }
+    } else if cfg!(target_env = "ohos") {
+        // OHOS packages the frontend as `resfile/dist` and its runtime serves it
+        // through Tauri's built-in asset protocol. The external frontend
+        // workbench resource (`frontend/dist`) is not part of the OHOS package,
+        // so the workbench never activates and its custom scheme would resolve
+        // to nothing, leaving the window blank.
+        WebviewUrl::App(builtin_frontend_path(path).into())
     } else {
         crate::frontend_workbench::custom_frontend_url(path)
+    }
+}
+
+/// Resolve the request path for Tauri's built-in asset protocol.
+///
+/// Mirrors the suffix handling of `frontend_workbench::custom_frontend_url` so
+/// the packaged page keeps the same entry semantics without the custom scheme.
+fn builtin_frontend_path(path: &str) -> String {
+    if path.is_empty() {
+        "index.html".to_string()
+    } else if path.starts_with('?') {
+        format!("index.html{path}")
+    } else {
+        path.trim_start_matches('/').to_string()
     }
 }
 

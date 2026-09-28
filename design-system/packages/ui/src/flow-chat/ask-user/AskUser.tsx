@@ -15,13 +15,14 @@ import {
   CircleAlert,
   CircleCheck,
   Disc2,
+  FolderSearch,
   LoaderCircle,
   Square,
   SquareCheckBig,
 } from "lucide-react";
 import { Button } from "../../components/Button";
-import { Input } from "../../components/Input";
 import { classNames } from "../../internal/classNames";
+import { isImeOwnedKeyboardEvent } from "../../internal/ime";
 import styles from "./AskUser.module.css";
 
 export type AskUserState =
@@ -46,7 +47,18 @@ export interface AskUserCustomOption extends AskUserOption {
 
 export interface AskUserQuestion {
   customOption?: AskUserCustomOption;
+  /**
+   * Optional per-question badge (the owner's own field label). Rendered as a
+   * chip ahead of the prompt so multi-question cards stay scannable.
+   */
+  header?: string;
   id: string;
+  /**
+   * Declares a free-text answer. The field is rendered below the options for the
+   * whole question and takes the place of the custom option, so a path or
+   * identifier can be typed or picked without a preceding click.
+   */
+  inputPlaceholder?: string;
   options: readonly AskUserOption[];
   prompt: ReactNode;
   selectionMode?: "multiple" | "single";
@@ -63,6 +75,8 @@ export interface AskUserCustomAnswerChangeMeta {
 export interface AskUserProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "children" | "onChange"> {
   answers?: AskUserAnswers;
+  /** Accessible name and title of the optional per-question picker button. */
+  browseCustomAnswerLabel?: string;
   customAnswers?: Readonly<Record<string, string | undefined>>;
   defaultExpanded?: boolean;
   disabled?: boolean;
@@ -70,6 +84,11 @@ export interface AskUserProps
   header?: ReactNode;
   headerTrailing?: ReactNode;
   onAnswersChange?: (questionId: string, values: readonly string[]) => void;
+  /**
+   * Renders a picker button beside every declared custom input. The component
+   * stays surface-agnostic: the owner owns the dialog and the resulting value.
+   */
+  onBrowseCustomAnswer?: (questionId: string) => void;
   onCustomAnswerChange?: (
     questionId: string,
     value: string,
@@ -123,6 +142,7 @@ function descriptionTitle(description: ReactNode): string | undefined {
 
 export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser({
   answers = {},
+  browseCustomAnswerLabel,
   className,
   customAnswers = {},
   defaultExpanded = false,
@@ -131,6 +151,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
   header,
   headerTrailing,
   onAnswersChange,
+  onBrowseCustomAnswer,
   onCustomAnswerChange,
   onExpandedChange,
   onSubmit,
@@ -281,6 +302,93 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
               const customSelected = customOption
                 ? selectedValues.includes(customOption.value)
                 : false;
+              const hasDeclaredInput = Boolean(question.inputPlaceholder);
+              const inputLabel = customOption?.inputLabel
+                ?? (typeof customOption?.label === "string"
+                  ? customOption.label
+                  : undefined)
+                ?? question.inputPlaceholder;
+              // The declared input is the question's own field, not the custom
+              // option it replaces, so its accessible name and hint come from the
+              // question whenever it declares one.
+              const declaredInputLabel = question.inputPlaceholder ?? inputLabel;
+              const declaredInputPlaceholder = question.inputPlaceholder
+                ?? customOption?.placeholder;
+              const isComposing = () => composingQuestionsRef.current.has(question.id);
+
+              /**
+               * A declared input owns the row for the whole question, so it never
+               * remounts (and never drops IME composition) when the custom option
+               * is toggled. The custom option only mounts its own row when the
+               * question declares no input.
+               */
+              const customInputRow = (standalone: boolean) => (
+                <span
+                  className={classNames(
+                    styles.customInput,
+                    standalone && styles.customInputRow,
+                  )}
+                  data-bitfun-part="custom-input"
+                >
+                  <input
+                    aria-label={standalone ? declaredInputLabel : inputLabel}
+                    autoFocus={!standalone}
+                    className={styles.customInputField}
+                    disabled={interactionDisabled}
+                    onChange={(event) => {
+                      onCustomAnswerChange?.(
+                        question.id,
+                        event.currentTarget.value,
+                        {
+                          isComposing: isComposing()
+                            || (event.nativeEvent as InputEvent).isComposing,
+                        },
+                      );
+                    }}
+                    onCompositionEnd={(event) => {
+                      onCustomAnswerChange?.(
+                        question.id,
+                        event.currentTarget.value,
+                        { isComposing: true },
+                      );
+                      queueMicrotask(() => {
+                        composingQuestionsRef.current.delete(question.id);
+                      });
+                    }}
+                    onCompositionStart={() => {
+                      composingQuestionsRef.current.add(question.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        (event.key === "Enter" || event.key === "Escape")
+                        && isImeOwnedKeyboardEvent(event, isComposing())
+                      ) {
+                        event.stopPropagation();
+                      }
+                    }}
+                    placeholder={standalone
+                      ? declaredInputPlaceholder
+                      : customOption?.placeholder ?? question.inputPlaceholder}
+                    type="text"
+                    value={customAnswers[question.id] ?? ""}
+                  />
+                  {/* The picker belongs to a declared input: a custom option's
+                      inline field stays a plain free-text answer. */}
+                  {standalone && onBrowseCustomAnswer !== undefined && (
+                    <button
+                      aria-label={browseCustomAnswerLabel}
+                      className={styles.browseButton}
+                      data-bitfun-part="browse"
+                      disabled={interactionDisabled}
+                      onClick={() => onBrowseCustomAnswer(question.id)}
+                      title={browseCustomAnswerLabel}
+                      type="button"
+                    >
+                      <FolderSearch aria-hidden="true" />
+                    </button>
+                  )}
+                </span>
+              );
 
               return (
                 <fieldset
@@ -290,7 +398,18 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                   key={question.id}
                 >
                   <legend className={styles.prompt} data-bitfun-part="prompt">
-                    {question.prompt}
+                    {question.header !== undefined && question.header !== null
+                      && question.header !== "" && (
+                        <span
+                          className={styles.questionHeader}
+                          data-bitfun-part="question-header"
+                        >
+                          {question.header}
+                        </span>
+                      )}
+                    <span className={styles.promptText} data-bitfun-part="prompt-text">
+                      {question.prompt}
+                    </span>
                   </legend>
                   <div className={styles.options} data-bitfun-part="options">
                     {question.options.map((option, optionIndex) => {
@@ -341,12 +460,12 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                       );
                     })}
 
-                    {customOption && (() => {
+                    {/* A declared input replaces the custom option entirely: the
+                        question already shows its own text field below the
+                        options, so a second "Other" row would only duplicate the
+                        same free-text answer. */}
+                    {customOption && !hasDeclaredInput && (() => {
                       const optionId = `${instanceId}-${questionIndex}-custom`;
-                      const inputLabel = customOption.inputLabel
-                        ?? (typeof customOption.label === "string"
-                          ? customOption.label
-                          : undefined);
 
                       return (
                         <div
@@ -390,44 +509,12 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                                 )}
                             </span>
                           </label>
-                          {customSelected && (
-                            <span className={styles.customInput} data-bitfun-part="custom-input">
-                              <Input
-                                aria-label={inputLabel}
-                                autoFocus
-                                disabled={interactionDisabled}
-                                onChange={(event) => {
-                                  onCustomAnswerChange?.(
-                                    question.id,
-                                    event.currentTarget.value,
-                                    {
-                                      isComposing: composingQuestionsRef.current.has(question.id)
-                                        || (event.nativeEvent as InputEvent).isComposing,
-                                    },
-                                  );
-                                }}
-                                onCompositionEnd={(event) => {
-                                  onCustomAnswerChange?.(
-                                    question.id,
-                                    event.currentTarget.value,
-                                    { isComposing: true },
-                                  );
-                                  queueMicrotask(() => {
-                                    composingQuestionsRef.current.delete(question.id);
-                                  });
-                                }}
-                                onCompositionStart={() => {
-                                  composingQuestionsRef.current.add(question.id);
-                                }}
-                                placeholder={customOption.placeholder}
-                                size="sm"
-                                value={customAnswers[question.id] ?? ""}
-                              />
-                            </span>
-                          )}
+                          {customSelected && customInputRow(false)}
                         </div>
                       );
                     })()}
+
+                    {hasDeclaredInput && customInputRow(true)}
                   </div>
                 </fieldset>
               );

@@ -5,6 +5,8 @@ import type {
 } from './TerminalOutputRenderer';
 import {
   buildTerminalOutputFallbackModel,
+  composeGuardedTerminalOutput,
+  guardTerminalOutput,
   type TerminalOutputFallbackModel,
 } from './terminalOutputPresentation';
 import './TerminalOutputRenderer.scss';
@@ -14,6 +16,13 @@ const DeferredTerminalOutputRenderer = React.lazy(() =>
     default: module.TerminalOutputRenderer,
   }))
 );
+
+export interface LazyTerminalOutputRendererProps extends TerminalOutputRendererProps {
+  /** Composes the placeholder shown instead of binary output. */
+  binarySuppressedText?: (totalChars: number) => string;
+  /** Composes the marker appended to truncated output. */
+  truncatedMarkerText?: (shownChars: number) => string;
+}
 export function TerminalOutputFallback({
   className,
   content,
@@ -41,21 +50,29 @@ export function TerminalOutputFallback({
 
 export const LazyTerminalOutputRenderer = forwardRef<
   TerminalOutputRendererHandle,
-  TerminalOutputRendererProps
+  LazyTerminalOutputRendererProps
 >((props, ref) => {
+  const { binarySuppressedText, truncatedMarkerText } = props;
+  const guard = useMemo(() => guardTerminalOutput(props.content), [props.content]);
+  const guardedContent = useMemo(
+    () => composeGuardedTerminalOutput(guard, binarySuppressedText, truncatedMarkerText),
+    [guard, binarySuppressedText, truncatedMarkerText],
+  );
+
   const initialFallback = useMemo<TerminalOutputFallbackModel>(
-    () => buildTerminalOutputFallbackModel(props.content, {
+    () => buildTerminalOutputFallbackModel(guardedContent, {
       minHeight: props.minHeight,
       maxHeight: props.maxHeight,
       maxRows: props.maxRows,
     }),
-    [props.content, props.maxHeight, props.maxRows, props.minHeight],
+    [guardedContent, props.maxHeight, props.maxRows, props.minHeight],
   );
 
   return (
-    <Suspense fallback={<TerminalOutputFallback {...props} />}>
+    <Suspense fallback={<TerminalOutputFallback {...props} content={guardedContent} />}>
       <DeferredTerminalOutputRenderer
         {...props}
+        content={guardedContent}
         ref={ref}
         initialFallback={initialFallback}
       />

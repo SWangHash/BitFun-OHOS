@@ -95,7 +95,7 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         | "WriteStdin" | "ExecControl" | "GetTime" | "ListModels" | "build_project"
         | "start_app" | "hdc_log" | "arkts_knowledge_search" | "check_arkts_files"
         | "check_cpp_files" | "switch_cwd" | "verify_ui" | "get_ui_verification_log"
-        | "save_ui_screenshot" => Some(ToolPackFeatureGroup::Basic),
+        | "save_ui_screenshot" | "QtMigrationIntake" => Some(ToolPackFeatureGroup::Basic),
         "Worktree" | "ReviewPlatform" | "GetFileDiff" => Some(ToolPackFeatureGroup::Git),
         "ListMCPResources" | "ReadMCPResource" | "ListMCPPrompts" | "GetMCPPrompt" => {
             Some(ToolPackFeatureGroup::Mcp)
@@ -169,6 +169,8 @@ const CORE_COMPUTER_USE_FEATURE_GROUPS: &[ToolPackFeatureGroup] =
 const CORE_MINIAPP_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::MiniApp];
 const CORE_CREATION_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::Creation];
 const CORE_OPENHARMONY_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::Basic];
+
+const CORE_QT_MIGRATION_FEATURE_GROUPS: &[ToolPackFeatureGroup] = &[ToolPackFeatureGroup::Basic];
 
 const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
     ToolProviderGroupPlan {
@@ -296,6 +298,11 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "get_ui_verification_log",
             "save_ui_screenshot",
         ],
+    },
+    ToolProviderGroupPlan {
+        provider_id: "core.qt-migration",
+        feature_groups: CORE_QT_MIGRATION_FEATURE_GROUPS,
+        tool_names: &["QtMigrationIntake"],
     },
 ];
 
@@ -521,7 +528,8 @@ mod tests {
                 "core.pages",
                 "core.creation",
                 "core.canvas",
-                "core.openharmony"
+                "core.openharmony",
+                "core.qt-migration"
             ]
         );
     }
@@ -607,6 +615,7 @@ mod tests {
                 "verify_ui",
                 "get_ui_verification_log",
                 "save_ui_screenshot",
+                "QtMigrationIntake",
             ]
         );
     }
@@ -643,6 +652,7 @@ mod tests {
                 ("core.creation", vec!["creation"]),
                 ("core.canvas", vec!["canvas"]),
                 ("core.openharmony", vec!["basic"]),
+                ("core.qt-migration", vec!["basic"]),
             ]
         );
     }

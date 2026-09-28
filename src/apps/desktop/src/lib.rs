@@ -476,7 +476,7 @@ pub fn run() {
     std::env::set_var("RUST_MIN_STACK", "8388308");
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(16)
-        .thread_stack_size( 8 * 1024 * 1024)
+        .thread_stack_size(8 * 1024 * 1024)
         .enable_all()
         .build()
         .expect("multi thread runtime failed");
@@ -2988,6 +2988,7 @@ fn init_services(app_handle: tauri::AppHandle, default_log_level: log::LevelFilt
 
         let event_system = infrastructure::events::get_global_event_system();
         event_system.set_emitter(emitter).await;
+        log::info!("Backend event emitter installed for the webview transport");
     });
 }
 

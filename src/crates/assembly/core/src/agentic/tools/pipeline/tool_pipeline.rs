@@ -1412,9 +1412,11 @@ impl ToolPipeline {
             };
             let tool_context = self.build_tool_use_context(&task, CancellationToken::new());
             #[cfg(feature = "agent-runtime")]
-            if let Err(error) =
-                crate::agentic::tools::qt_migration_gate::check_admission(&tool_name, &tool_context)
-            {
+            if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+                &tool_name,
+                Some(&task.invocation.effective_arguments),
+                &tool_context,
+            ) {
                 drafts.push((
                     task_id.clone(),
                     PermissionPlanDraft::Rejected {
@@ -2801,7 +2803,11 @@ impl ToolPipeline {
         // immediately before dispatch; the Tool::call hook checks again as the
         // final common boundary (Bash has the equivalent explicit check).
         #[cfg(feature = "agent-runtime")]
-        crate::agentic::tools::qt_migration_gate::check_admission(&tool_name, &tool_context)?;
+        crate::agentic::tools::qt_migration_gate::check_admission(
+            &tool_name,
+            Some(&tool_args),
+            &tool_context,
+        )?;
 
         debug!("Executing tool: tool_name={}", tool_name);
 

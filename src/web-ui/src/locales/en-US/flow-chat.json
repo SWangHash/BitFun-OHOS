@@ -751,11 +751,15 @@
       "rememberFailed": "The Harness changed, but this selection could not be remembered. New sessions may continue using the previous default.",
       "otherAgentsTitle": "Agents",
       "otherAgentsEmpty": "No main Agents are available",
+      "industryAgentsTitle": "Industry agents",
       "unavailable": "Unavailable",
       "agentUnavailable": "{{name}} is not available with the current Host or settings.",
       "profiles": {
         "other": {
           "name": "Agents"
+        },
+        "industry": {
+          "name": "Industry agents"
         },
         "Minimal": {
           "name": "$t(shared:agents.Minimal)"
@@ -1682,6 +1686,10 @@
     "separator": ", ",
     "collapse": "Collapse commands"
   },
+  "terminalOutputGuard": {
+    "binarySuppressed": "Binary output suppressed, not rendered ({{count}} characters).",
+    "truncated": "… output truncated (showing the first {{count}} characters)."
+  },
   "toolCards": {
     "file": {
       "write": "Write File",
@@ -1914,6 +1922,7 @@
       "customInputHint": "Provide custom text input",
       "pleaseSpecify": "Please specify...",
       "submitPathNotFound": "The {{field}} path does not exist: {{path}}",
+      "submitOutputArtifact": "The {{field}} path is a previous migration result and must not be overwritten: {{path}}. Choose a different output directory for this migration.",
       "fieldName": {
         "source_project": "Source project",
         "output_project": "Output project",

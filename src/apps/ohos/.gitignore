@@ -10,3 +10,5 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+# hvigor generates a BuildProfile.ets in each module root.
+**/BuildProfile.ets

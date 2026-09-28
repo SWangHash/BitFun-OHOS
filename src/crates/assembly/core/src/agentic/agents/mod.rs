@@ -19,7 +19,7 @@ pub use definitions::hidden::{
 };
 pub use definitions::modes::{
     ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyFeatureMode, MinimalHarness,
-    StandardHarness, UltimateHarness,
+    QtMigrationMode, StandardHarness, UltimateHarness,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;

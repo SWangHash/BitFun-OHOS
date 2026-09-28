@@ -8,6 +8,7 @@ export const agentsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'harnessPresentation' },
     { id: 'filters' },
     { id: 'catalogGrid' },
+    { id: 'industryGrid' },
     { id: 'detailSection' },
   ],
 };

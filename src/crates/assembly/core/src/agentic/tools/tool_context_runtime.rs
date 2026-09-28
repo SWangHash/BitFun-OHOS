@@ -225,6 +225,24 @@ pub(crate) async fn call_with_tool_runtime_hooks(
     context: &ToolUseContext,
     call_impl: impl Future<Output = BitFunResult<Vec<ToolResult>>>,
 ) -> BitFunResult<Vec<ToolResult>> {
+    // QtMigration admission gate (dispatch-time). Only active for QtMigration
+    // sessions with an incomplete intake; zero overhead for the rest of the
+    // product.
+    #[cfg(feature = "agent-runtime")]
+    {
+        if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+            tool_name,
+            Some(input),
+            context,
+        ) {
+            log::debug!(
+                "QtMigration admission gate rejected tool: tool={}, session={:?}",
+                tool_name,
+                context.session_id
+            );
+            return Err(error);
+        }
+    }
     let result = if let Some(cancellation_token) = context.cancellation_token() {
         tokio::select! {
             result = call_impl => {
@@ -426,6 +444,23 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
         };
         if let Some(value) = value {
             extension_custom_data.insert(key.to_string(), Value::Bool(value));
+        }
+    }
+    if let Some(enabled) = context.context_vars.get("qt_migration_enabled") {
+        extension_custom_data.insert(
+            "qt_migration_enabled".to_string(),
+            Value::Bool(enabled == "true"),
+        );
+    }
+    // Prompt-resolved Qt migration paths stashed by the execution engine's
+    // turn gate (semantic analyzer output). Projected as a JSON object so the
+    // AskUserQuestion backend can seed prompt-named candidates without
+    // relying on the model echoing them.
+    if let Some(raw) = context.context_vars.get("qt_migration_resolved_paths") {
+        if let Ok(value) = serde_json::from_str::<Value>(raw) {
+            if value.is_object() {
+                extension_custom_data.insert("qt_migration_resolved_paths".to_string(), value);
+            }
         }
     }
     build_tool_runtime_custom_data(ToolRuntimeCustomDataInput {

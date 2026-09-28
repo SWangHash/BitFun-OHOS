@@ -117,6 +117,7 @@ function enrichCapabilities(agent: AgentWithCapabilities): AgentWithCapabilities
     // if (id === 'computeruse') return { ...agent, capabilities: [{ category: 'ops', level: 5 }, { category: 'analysis', level: 3 }] }; // disabled for HarmonyOS
     if (id === 'deepresearch') return { ...agent, capabilities: [{ category: 'analysis', level: 5 }, { category: 'docs', level: 4 }] };
     if (id === 'harmonyfeature') return { ...agent, capabilities: [{ category: 'analysis', level: 5 }, { category: 'coding', level: 4 }] };
+    if (id === 'qtmigration') return { ...agent, capabilities: codingAnalysisCapabilities() };
   }
 
   if (id === 'explore' || id === 'researchspecialist') return { ...agent, capabilities: [{ category: 'analysis', level: 4 }] };

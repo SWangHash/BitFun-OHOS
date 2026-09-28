@@ -12,14 +12,24 @@ import { useSideAnchoredPopoverPosition } from '@/shared/utils/useSideAnchoredPo
 import './HarnessProfileSelector.scss';
 
 export type HarnessProfileId = KnownHarnessProfileId | (string & {});
-/** Includes the existing Agent submenu, which is navigation rather than an identity. */
-export type KnownHarnessProfileId = HarnessId | 'other';
+/**
+ * Includes the two navigation entries, which open an Agent page rather than
+ * naming an execution identity: the industry Agent list and the remaining
+ * Agent list.
+ */
+export type KnownHarnessProfileId = HarnessId | 'industry' | 'other';
 export type SelectableHarnessProfileId = HarnessId;
 
 export interface HarnessAgentOption {
   id: string;
   name: string;
   available?: boolean;
+  /**
+   * Optional grouping used by the top-level Agent entries. `industry` agents
+   * are listed behind their own entry; everything else stays in the catch-all
+   * Agent list. Defaults to `other`.
+   */
+  category?: 'industry' | 'other';
 }
 
 export type HarnessNewSessionSelection =
@@ -55,7 +65,7 @@ interface HarnessProfileSelectorProps {
   onSelectionComplete?: () => void;
 }
 
-const PROFILE_IDS: KnownHarnessProfileId[] = [...HARNESS_IDS, 'other'];
+const PROFILE_IDS: KnownHarnessProfileId[] = [...HARNESS_IDS, 'industry', 'other'];
 type DensityHarnessProfileId = 'Minimal' | 'Standard' | 'Ultimate';
 
 function isDensityProfile(profile: KnownHarnessProfileId): profile is DensityHarnessProfileId {
@@ -66,6 +76,13 @@ function isSelectableProfile(
   profile: KnownHarnessProfileId,
 ): profile is SelectableHarnessProfileId {
   return isDensityProfile(profile) || profile === 'Creative';
+}
+
+/** The two entries that navigate to an Agent page instead of naming an identity. */
+function isNavigationProfile(
+  profile: KnownHarnessProfileId,
+): profile is 'industry' | 'other' {
+  return profile === 'industry' || profile === 'other';
 }
 
 function sameAgent(left: string | null | undefined, right: string | null | undefined): boolean {
@@ -87,7 +104,7 @@ function HarnessProfileMark({
       data-harness-density={densityProfile ? HARNESS_PRESENTATION[densityProfile].gear : 0}
       aria-hidden
     >
-      {profile === 'other' ? (
+      {isNavigationProfile(profile) ? (
         <Icon
           name="user"
           className="bitfun-harness-selector__density-frame"
@@ -134,7 +151,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
     if (controlledOpen === undefined) setLocalOpen(nextOpen);
     onOpenChange?.(nextOpen);
   }, [controlledOpen, onOpenChange]);
-  const [page, setPage] = useState<'profiles' | 'agents'>('profiles');
+  const [page, setPage] = useState<'profiles' | 'agents' | 'industry'>('profiles');
   const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -205,6 +222,10 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
       setPage('agents');
       return;
     }
+    if (profileId === 'industry') {
+      setPage('industry');
+      return;
+    }
     if (fixedSession) {
       if (isSelectableProfile(profileId)) {
         void confirmNewSession(
@@ -246,6 +267,12 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
 
   const knownSelectedProfile = PROFILE_IDS.find(id => id === selectedProfile);
   const selectedAgent = otherAgents.find(agent => sameAgent(agent.id, selectedAgentId));
+  /**
+   * The caller projects every non-Harness Agent as the catch-all `other`
+   * profile, so the two navigation entries derive their own connected state
+   * from the selected Agent's category instead of from `selectedProfile`.
+   */
+  const selectedAgentIsIndustry = selectedAgent?.category === 'industry';
   const selectedProfileAvailable = Boolean(
     knownSelectedProfile
       && (
@@ -296,6 +323,50 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
     event.stopPropagation();
     close();
     requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+
+  const industryAgents = otherAgents.filter(agent => agent.category === 'industry');
+  const remainingAgents = otherAgents.filter(agent => agent.category !== 'industry');
+  const pageAgents = page === 'industry' ? industryAgents : remainingAgents;
+  const renderAgentRow = (agent: HarnessAgentOption) => {
+    const connected = !creatingNewSession
+      && selectedProfile === 'other'
+      && sameAgent(agent.id, selectedAgentId);
+    const state = connected
+      ? 'current'
+      : agent.available === false
+        ? 'unavailable'
+        : 'available';
+    return (
+      <span
+        key={agent.id}
+        className="bitfun-harness-selector__row-contract"
+        data-bitfun-component="harness-selector"
+        data-bitfun-part="agent"
+        data-bitfun-agent-id={agent.id}
+        data-bitfun-state={state}
+      >
+        <MenuItem
+          role={creatingNewSession ? 'menuitem' : 'menuitemradio'}
+          checked={!creatingNewSession && connected}
+          data-bitfun-agent-id={agent.id}
+          data-bitfun-state={state}
+          leading={<Icon name="user" size="md" aria-hidden />}
+          metadata={(
+            <span className="bitfun-harness-selector__profile-status">
+              {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
+              {agent.available === false
+                ? t('chatInput.harness.unavailable')
+                : null}
+            </span>
+          )}
+          onClick={() => handleSelectAgent(agent)}
+          data-testid={`harness-agent-${agent.id}`}
+        >
+          {agent.name}
+        </MenuItem>
+      </span>
+    );
   };
 
   return (
@@ -396,8 +467,12 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                 {PROFILE_IDS.map((id) => {
                   const name = t(`chatInput.harness.profiles.${id}.name`);
                   const connected = !creatingNewSession
-                    && id === selectedProfile
-                    && !legacySession;
+                    && !legacySession
+                    && (id === 'industry'
+                      ? selectedProfile === 'other' && selectedAgentIsIndustry
+                      : id === 'other'
+                        ? selectedProfile === 'other' && !selectedAgentIsIndustry
+                        : id === selectedProfile);
                   const state = connected
                     ? 'current'
                     : 'available';
@@ -419,10 +494,10 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                         metadata={(
                           <span className="bitfun-harness-selector__profile-status">
                             {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
-                            {id === 'other' ? (
+                            {isNavigationProfile(id) ? (
                               <>
                                 <span className="bitfun-harness-selector__agent-count">
-                                  {otherAgents.length}
+                                  {id === 'industry' ? industryAgents.length : remainingAgents.length}
                                 </span>
                                 <Icon name="chevron-right" size="sm" aria-hidden />
                               </>
@@ -443,55 +518,20 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                 <MenuItem
                   leading={<Icon name="chevron-left" size="sm" aria-hidden />}
                   onClick={() => setPage('profiles')}
-                  data-testid="harness-agent-back"
+                  data-testid={page === 'industry' ? 'harness-industry-back' : 'harness-agent-back'}
                 >
-                  {t('chatInput.harness.otherAgentsTitle')}
+                  {page === 'industry'
+                    ? t('chatInput.harness.industryAgentsTitle')
+                    : t('chatInput.harness.otherAgentsTitle')}
                 </MenuItem>
                 <MenuSeparator />
-                {otherAgents.length === 0 ? (
+                {pageAgents.length === 0 ? (
                   <div className="bitfun-harness-selector__empty">
                     {t('chatInput.harness.otherAgentsEmpty')}
                   </div>
-                ) : otherAgents.map(agent => {
-                  const connected = !creatingNewSession
-                    && selectedProfile === 'other'
-                    && sameAgent(agent.id, selectedAgentId);
-                  const state = connected
-                    ? 'current'
-                    : agent.available === false
-                      ? 'unavailable'
-                      : 'available';
-                  return (
-                    <span
-                      key={agent.id}
-                      className="bitfun-harness-selector__row-contract"
-                      data-bitfun-component="harness-selector"
-                      data-bitfun-part="agent"
-                      data-bitfun-agent-id={agent.id}
-                      data-bitfun-state={state}
-                    >
-                      <MenuItem
-                        role={creatingNewSession ? 'menuitem' : 'menuitemradio'}
-                        checked={!creatingNewSession && connected}
-                        data-bitfun-agent-id={agent.id}
-                        data-bitfun-state={state}
-                        leading={<Icon name="user" size="md" aria-hidden />}
-                        metadata={(
-                          <span className="bitfun-harness-selector__profile-status">
-                            {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
-                            {agent.available === false
-                              ? t('chatInput.harness.unavailable')
-                              : null}
-                          </span>
-                        )}
-                        onClick={() => handleSelectAgent(agent)}
-                        data-testid={`harness-agent-${agent.id}`}
-                      >
-                        {agent.name}
-                      </MenuItem>
-                    </span>
-                  );
-                })}
+                ) : (
+                  pageAgents.map(renderAgentRow)
+                )}
               </>
             )}
           </MenuSection>

@@ -33,6 +33,7 @@ import {
 } from '@/infrastructure/peer-device/deviceSurface';
 import { canSubmitUserQuestionsOnSurface } from '@/infrastructure/peer-device/peerCapabilityResolution';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { pickWorkspaceDirectory } from '@/infrastructure/peer-device/pickWorkspaceDirectory';
 import { createLogger } from '@/shared/utils/logger';
 import type { FlowToolItem, ToolCardProps } from '../types/flow-chat';
 import {
@@ -49,9 +50,82 @@ const OTHER_OPTION_VALUE = 'Other';
 const subscribeToSurfaceActivation = (listener: () => void): (() => void) =>
   onSurfaceActivated(() => listener());
 
+/**
+ * Backend rejections for migration answers. Stable machine formats emitted by
+ * the coordinator:
+ * - `qt_migration_path_not_found: field=<id>; path=<value>`
+ * - `qt_migration_output_is_artifact: field=<id>; path=<value>`
+ */
+const PATH_NOT_FOUND_PATTERN =
+  /qt_migration_path_not_found:\s*field=([^;]+);\s*path=(.+)/;
+const OUTPUT_ARTIFACT_PATTERN =
+  /qt_migration_output_is_artifact:\s*field=([^;]+);\s*path=(.+)/;
+
+type SubmitRejectionCode = 'path-not-found' | 'output-artifact';
+
+/** Static i18n keys for the migration field ids rejected by the backend. */
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  source_project: 'toolCards.askUser.fieldName.source_project',
+  output_project: 'toolCards.askUser.fieldName.output_project',
+  toolchain: 'toolCards.askUser.fieldName.toolchain',
+  template: 'toolCards.askUser.fieldName.template',
+};
+
+function parseSubmitRejection(
+  message: string,
+): { code: SubmitRejectionCode; field: string; path: string } | null {
+  const trimmed = message.trim();
+  const pathNotFound = PATH_NOT_FOUND_PATTERN.exec(trimmed);
+  if (pathNotFound) {
+    return {
+      code: 'path-not-found',
+      field: pathNotFound[1].trim(),
+      path: pathNotFound[2].trim(),
+    };
+  }
+  const outputArtifact = OUTPUT_ARTIFACT_PATTERN.exec(trimmed);
+  if (outputArtifact) {
+    return {
+      code: 'output-artifact',
+      field: outputArtifact[1].trim(),
+      path: outputArtifact[2].trim(),
+    };
+  }
+  return null;
+}
+
+/**
+ * Value a question option submits.
+ *
+ * Template questions (those carrying a `field` id) pair a display label
+ * ("Default path") with the concrete path in `description`; the backend rejects
+ * placeholder-looking answers, so the path must win. The official option
+ * instead carries an explicit `value` (`__official__`). Plain questions have
+ * neither and keep their label semantics.
+ */
+function optionValue(question: QuestionData | undefined, option: QuestionOption): string {
+  if (option.value?.trim()) return option.value.trim();
+  if (question?.field) {
+    const description = option.description.trim();
+    if (description) return description;
+  }
+  return option.label;
+}
+
+/** Template-owned text may carry a stable i18n key instead of literal copy. */
+function isLocalizableText(text: string): boolean {
+  return text.startsWith('askUser.qtMigration.');
+}
+
 interface QuestionOption {
   description: string;
   label: string;
+  /**
+   * Concrete submitted value. Template questions carry display labels ("Default
+   * path") next to the real path, so the path lives in `description`; plain
+   * questions have no separate value and keep their label semantics.
+   */
+  value?: string;
 }
 
 interface QuestionData {
@@ -59,13 +133,22 @@ interface QuestionData {
   multiSelect: boolean;
   options: QuestionOption[];
   question: string;
+  /** When present, the question shows a text input below the options. */
+  inputPlaceholder?: string;
+  /** Field id the backend template binds the answer to (template questions). */
+  field?: string;
+  /** Backend-declared requiredness (template policy; only backend may set it). */
+  required?: boolean;
 }
 
 type ToolAnswer = string | string[];
 
 function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
   if (!input || typeof input !== 'object') return [];
-  const rawQuestions = (input as Record<string, unknown>).questions;
+  const raw = input as Record<string, unknown>;
+  // Template-backed requests arrive as `resolvedQuestions` on the
+  // toolawaitinguserinput envelope; plain questions use `questions`.
+  const rawQuestions = raw.questions ?? raw.resolvedQuestions;
   if (!Array.isArray(rawQuestions)) return [];
 
   return rawQuestions.flatMap((candidate): QuestionData[] => {
@@ -83,16 +166,27 @@ function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
           ? rawOption.description
           : '',
         label: rawOption.label,
+        value: typeof rawOption.value === 'string' && rawOption.value.trim()
+          ? rawOption.value
+          : undefined,
       }];
     });
 
+    const rawField = typeof rawQuestion.field === 'string' ? rawQuestion.field.trim() : '';
+    const rawPlaceholder = typeof rawQuestion.inputPlaceholder === 'string'
+      ? rawQuestion.inputPlaceholder.trim()
+      : '';
+
     return [{
+      field: rawField || undefined,
       header: typeof rawQuestion.header === 'string' ? rawQuestion.header : '',
+      inputPlaceholder: rawPlaceholder || undefined,
       multiSelect: Boolean(rawQuestion.multiSelect),
       options,
       question: typeof rawQuestion.question === 'string'
         ? rawQuestion.question
         : '',
+      required: Boolean(rawQuestion.required),
     }];
   });
 }
@@ -136,6 +230,12 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   sessionId,
 }) => {
   const { t } = useTranslation('flow-chat');
+  // Template-owned text (question/header/labels/placeholders) may carry a
+  // stable i18n key under the `askUser.qtMigration.*` namespace. Render those
+  // through the flow-chat catalog; keep concrete values (paths) as-is.
+  const localize = useCallback((text: string) => {
+    return isLocalizableText(text) ? t(`toolCards.${text}`) : text;
+  }, [t]);
   const peerDevice = usePeerDeviceModeOptional();
   const activeSurfaceScope = useSyncExternalStore(
     subscribeToSurfaceActivation,
@@ -154,10 +254,16 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const failed = status === 'error' || toolResult?.success === false;
   const endedWithoutAnswer = timedOut || cancelled || rejected || failed;
   const finished = status === 'completed' || endedWithoutAnswer;
-  const questions = useMemo(
-    () => normalizeQuestionsFromParams(paramsSource),
-    [paramsSource],
-  );
+  // Template-backed requests arrive on `questionRequest` as the
+  // ToolAwaitingUserInput envelope the backend resolved; the raw model params
+  // only carry `templateId`, so reading them alone yields zero questions and an
+  // unusable card. Plain (non-template) questions keep using the model params.
+  const questions = useMemo(() => {
+    const fromEnvelope = normalizeQuestionsFromParams(toolItem.questionRequest);
+    return fromEnvelope.length > 0
+      ? fromEnvelope
+      : normalizeQuestionsFromParams(paramsSource);
+  }, [paramsSource, toolItem.questionRequest]);
   const awaitingPayload = !finished && isAwaitingQuestionPayload(
     isParamsStreaming,
     status,
@@ -213,6 +319,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const isSubmitting = submissionPhase === 'submitting';
   const isSubmitted = submissionPhase === 'submitted';
   const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [submissionErrorMessage, setSubmissionErrorMessage] = useState<string | null>(null);
   const [interactionFailed, setInteractionFailed] = useState(false);
   const interactionAttempt = useRef<number | null>(null);
   const startInteraction = useCallback(() => {
@@ -265,6 +372,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
   useEffect(() => {
     setSubmissionFailed(false);
+    setSubmissionErrorMessage(null);
     setInteractionFailed(false);
   }, [draftKey]);
 
@@ -294,8 +402,17 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
 
     for (let index = 0; index < questions.length; index += 1) {
       const answer = answers[index];
-      if (!answer) return false;
       const otherInput = otherInputs[index]?.trim() || '';
+      // A question that declares its own input accepts a typed or picked value
+      // on its own; its option list is a convenience, not a requirement.
+      if (questions[index]?.inputPlaceholder) {
+        const hasOption = Array.isArray(answer)
+          ? answer.some((value) => value !== OTHER_OPTION_VALUE || otherInput.length > 0)
+          : Boolean(answer);
+        if (otherInput.length === 0 && !hasOption) return false;
+        continue;
+      }
+      if (!answer) return false;
       if (
         Array.isArray(answer)
         && !answer.some((value) => value !== OTHER_OPTION_VALUE || otherInput.length > 0)
@@ -304,7 +421,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       if (answer === OTHER_OPTION_VALUE && otherInput.length === 0) return false;
     }
     return true;
-  }, [answers, otherInputs, questions.length]);
+  }, [answers, otherInputs, questions]);
 
   const handleSingleChange = useCallback((questionIndex: number, value: string) => {
     if (draftKey) {
@@ -351,6 +468,23 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       };
     });
   }, [draftKey]);
+
+  // Main opens a single-select question on its first (recommended) option so the
+  // Qt migration intake never presents an all-blank form, and so the submit rule
+  // and the pre-selection agree. A draft restored from the store — or the
+  // persisted answer of a finished card — always wins, and multi-select
+  // questions keep their opt-in semantics.
+  useEffect(() => {
+    if (finished || awaitingPayload) return;
+    questions.forEach((question, questionIndex) => {
+      if (
+        question.multiSelect
+        || question.options.length === 0
+        || answers[questionIndex] !== undefined
+      ) return;
+      handleSingleChange(questionIndex, optionValue(question, question.options[0]));
+    });
+  }, [answers, awaitingPayload, finished, handleSingleChange, questions]);
 
   const handleOtherInputChange = useCallback((
     questionIndex: number,
@@ -400,30 +534,75 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     });
   }, [draftKey]);
 
+  // Open a native directory picker (or the in-app peer browser in Peer Device
+  // Mode) and fill the question's input with the selected folder. Falls back to
+  // manual typing when the dialog is unavailable (e.g. web preview).
+  const handleBrowsePath = useCallback(async (questionIndex: number, title: string) => {
+    const currentValue = otherInputs[questionIndex] || '';
+    let selected: string | null = null;
+    try {
+      selected = await pickWorkspaceDirectory({
+        title,
+        defaultPath: currentValue || undefined,
+      });
+    } catch (error) {
+      log.error('Path picker unavailable', { questionIndex, error });
+      return;
+    }
+    if (!selected) return;
+    // The picked path is the answer, so any option highlight is cleared.
+    handleOtherInputChange(questionIndex, selected, true);
+    const currentAnswer = answers[questionIndex];
+    if (Array.isArray(currentAnswer)) {
+      currentAnswer.forEach((value) => handleMultiChange(questionIndex, value, false));
+      return;
+    }
+    handleSingleChange(questionIndex, '');
+  }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, otherInputs]);
+
+  const handleBrowseCustomAnswer = useCallback((questionId: string) => {
+    const questionIndex = Number(questionId);
+    const question = questions[questionIndex];
+    if (!Number.isInteger(questionIndex) || !question) return;
+    void handleBrowsePath(questionIndex, localize(question.question));
+  }, [handleBrowsePath, localize, questions]);
+
   const handleSubmit = useCallback(async () => {
     if (!canAnswer || !isAllAnswered() || isSubmitting || isSubmitted) return;
     const scope = submissionScope.current;
 
     setSubmissionFailed(false);
+    setSubmissionErrorMessage(null);
     setSubmissionPhase('submitting');
     try {
       activeSurfaceScope.assertCurrent('submitUserAnswers');
       const processedAnswers: Record<string, string | string[]> = {};
 
       for (let index = 0; index < questions.length; index += 1) {
+        const question = questions[index];
+        // Template-backed questions are submitted by field id so the backend
+        // re-validation binds answers to the exact waiting request; plain
+        // questions keep the positional key.
+        const answerKey = question?.field ?? String(index);
         const answer = answers[index];
         const otherInput = otherInputs[index]?.trim() || '';
 
         if (Array.isArray(answer)) {
-          processedAnswers[String(index)] = answer.flatMap((value) => (
+          processedAnswers[answerKey] = answer.flatMap((value) => (
             value === OTHER_OPTION_VALUE
               ? otherInput ? [otherInput] : []
               : [value]
           ));
         } else if (answer === OTHER_OPTION_VALUE) {
-          if (otherInput) processedAnswers[String(index)] = otherInput;
+          if (otherInput) processedAnswers[answerKey] = otherInput;
         } else {
-          processedAnswers[String(index)] = answer;
+          // A question that declares its own input owns the answer: the typed or
+          // picked value wins over an option highlight, mirroring the field that
+          // is always visible for that question.
+          const value = question?.inputPlaceholder
+            ? otherInput || answer
+            : answer || otherInput;
+          if (value) processedAnswers[answerKey] = value;
         }
       }
 
@@ -438,6 +617,27 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         return;
       }
       setSubmissionFailed(true);
+      const rawMessage = error instanceof Error && error.message.trim()
+        ? error.message
+        : '';
+      const rejection = parseSubmitRejection(rawMessage);
+      if (rejection) {
+        const fieldLabelKey = FIELD_LABEL_KEYS[rejection.field];
+        const fieldLabel = fieldLabelKey ? t(fieldLabelKey) : rejection.field;
+        setSubmissionErrorMessage(
+          rejection.code === 'output-artifact'
+            ? t('toolCards.askUser.submitOutputArtifact', {
+              field: fieldLabel,
+              path: rejection.path,
+            })
+            : t('toolCards.askUser.submitPathNotFound', {
+              field: fieldLabel,
+              path: rejection.path,
+            }),
+        );
+      } else {
+        setSubmissionErrorMessage(null);
+      }
       log.error('Failed to submit answers', { toolId, sessionId, error });
     }
   }, [
@@ -448,9 +648,10 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     isSubmitted,
     isSubmitting,
     otherInputs,
-    questions.length,
+    questions,
     setSubmissionPhase,
     sessionId,
+    t,
     toolId,
   ]);
 
@@ -465,12 +666,19 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       && typeof resultAnswers === 'object'
       && !Array.isArray(resultAnswers)
     ) {
-      return normalizeToolAnswer(
-        (resultAnswers as Record<string, unknown>)[String(questionIndex)],
-      );
+      // Template answers persist under their field id, plain ones positionally.
+      const persisted = resultAnswers as Record<string, unknown>;
+      const keys = [questions[questionIndex]?.field, String(questionIndex)]
+        .filter((key): key is string => Boolean(key));
+      for (const key of keys) {
+        const persistedAnswer = normalizeToolAnswer(persisted[key]);
+        if (persistedAnswer !== undefined && persistedAnswer !== '') {
+          return persistedAnswer;
+        }
+      }
     }
     return undefined;
-  }, [answers, resultAnswers, status]);
+  }, [answers, questions, resultAnswers, status]);
 
   const presentation = useMemo(() => {
     const nextAnswers: Record<string, readonly string[]> = {};
@@ -481,7 +689,9 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       const answerValues = Array.isArray(answer)
         ? answer
         : answer === undefined || answer === '' ? [] : [answer];
-      const knownValues = new Set(question.options.map((option) => option.label));
+      const knownValues = new Set(
+        question.options.map((option) => optionValue(question, option)),
+      );
       const selectedValues: string[] = [];
       const customValues: string[] = [];
 
@@ -515,19 +725,29 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
         description: t('toolCards.askUser.customInputHint'),
         inputLabel: t('toolCards.askUser.pleaseSpecify'),
         label: t('toolCards.askUser.other'),
-        placeholder: t('toolCards.askUser.pleaseSpecify'),
+        placeholder: question.inputPlaceholder
+          ? localize(question.inputPlaceholder)
+          : t('toolCards.askUser.pleaseSpecify'),
         value: OTHER_OPTION_VALUE,
       },
+      // The owner's field label is template-owned copy, so it is localized the
+      // same way as the prompt and the option labels.
+      header: question.header ? localize(question.header) : undefined,
       id: String(questionIndex),
+      // Declaring the placeholder keeps the answer field mounted for the whole
+      // question instead of only after the custom option is selected.
+      inputPlaceholder: question.inputPlaceholder
+        ? localize(question.inputPlaceholder)
+        : undefined,
       options: question.options.map((option) => ({
-        description: option.description,
-        label: option.label,
-        value: option.label,
+        description: localize(option.description),
+        label: localize(option.label),
+        value: optionValue(question, option),
       })),
-      prompt: question.question,
+      prompt: localize(question.question),
       selectionMode: question.multiSelect ? 'multiple' : 'single',
     })),
-    [questions, t],
+    [localize, questions, t],
   );
 
   const handleAnswersChange = useCallback((
@@ -555,7 +775,10 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
   const getAnswerDisplay = useCallback((questionIndex: number): string => {
     const answer = getEffectiveAnswer(questionIndex);
     const otherInput = otherInputs[questionIndex] || '';
-    if (!answer) return '';
+    // A declared input owns the display; a typed or picked value is the answer
+    // even when no option is highlighted.
+    if (questions[questionIndex]?.inputPlaceholder && otherInput) return otherInput;
+    if (!answer) return otherInput;
     if (Array.isArray(answer)) {
       return answer.map((value) => (
         value === OTHER_OPTION_VALUE ? otherInput || OTHER_OPTION_VALUE : value
@@ -564,7 +787,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     return answer === OTHER_OPTION_VALUE
       ? otherInput || OTHER_OPTION_VALUE
       : String(answer);
-  }, [getEffectiveAnswer, otherInputs]);
+  }, [getEffectiveAnswer, otherInputs, questions]);
 
   const answersSummary = useMemo(
     () => questions.map((question, questionIndex) => {
@@ -587,7 +810,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
           : interactionFailed
             ? t('toolCards.askUser.interactionFailed')
           : submissionFailed
-            ? t('toolCards.askUser.submitFailed')
+            ? submissionErrorMessage ?? t('toolCards.askUser.submitFailed')
             : t('toolCards.askUser.waitingAnswer');
 
   if (endedWithoutAnswer) {
@@ -650,6 +873,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
     <AskUser
       answers={presentation.answers}
       aria-label={t('toolCards.askUser.questionsCount', { count: questions.length })}
+      browseCustomAnswerLabel={t('toolCards.askUser.browsePath')}
       customAnswers={presentation.customAnswers}
       data-tool-card-id={toolId ?? ''}
       disabled={!canAnswer}
@@ -675,6 +899,7 @@ export const AskUserQuestionCard: React.FC<ToolCardProps> = ({
       ) : undefined}
       onFocusCapture={handleInteraction}
       onAnswersChange={handleAnswersChange}
+      onBrowseCustomAnswer={handleBrowseCustomAnswer}
       onCustomAnswerChange={(questionId, value, meta) => {
         handleOtherInputChange(Number(questionId), value, meta.isComposing);
       }}

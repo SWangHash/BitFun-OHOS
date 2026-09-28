@@ -10,7 +10,7 @@ import {
   activateSurface,
 } from '@/infrastructure/peer-device/deviceSurface';
 import { PeerDeviceContext } from '@/infrastructure/peer-device/peerDeviceContextState';
-import { askUserQuestionDraftStore } from '../store/askUserQuestionDraftStore';
+import { askUserQuestionDraftStore, askUserQuestionDraftKey } from '../store/askUserQuestionDraftStore';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...await importOriginal<typeof import('react-i18next')>(),
@@ -58,9 +58,15 @@ function questionTool(
           header: 'Database',
           question: 'Which database?',
           multiSelect,
+          // A single-select question opens on its first option, so the
+          // restore/isolation cases below select the alternate to keep the
+          // user's own choice distinguishable from the default.
           options: [{
             label: 'PostgreSQL',
             description: 'Use PostgreSQL',
+          }, {
+            label: 'SQLite',
+            description: 'Use SQLite',
           }],
         }],
       },
@@ -230,7 +236,9 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    const radio = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    // The first option is the default; pick the alternate so the restored value
+    // is unambiguously the user's own choice.
+    const radio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     expect(radio).not.toBeNull();
     act(() => radio?.click());
     expect(radio?.checked).toBe(true);
@@ -247,8 +255,11 @@ describe('AskUserQuestionCard', () => {
       );
     });
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(true);
 
     act(() => root.render(null));
     act(() => {
@@ -262,7 +273,7 @@ describe('AskUserQuestionCard', () => {
       );
     });
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(true);
   });
 
@@ -278,7 +289,9 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    const localRadio = container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]');
+    // The alternate option is the surface's own answer; the local surface's
+    // default must not be mistaken for it.
+    const localRadio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     act(() => localRadio?.click());
     expect(localRadio?.checked).toBe(true);
 
@@ -287,8 +300,11 @@ describe('AskUserQuestionCard', () => {
     });
 
     expect(
-      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+      container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
+    expect(
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
+    ).toBe(true);
   });
 
   it('explains why an older CLI peer cannot answer instead of exposing a dead form', () => {
@@ -597,6 +613,184 @@ describe('AskUserQuestionCard', () => {
     expect(container.textContent).toContain('toolCards.askUser.interactionFailed');
     await act(async () => container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button')?.click());
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledTimes(1);
+  });
+
+  // Qt migration intake: the backend resolves the template and emits it on the
+  // `resolvedQuestions` envelope. Options carry a display label plus the real
+  // path in `description`, and answers are re-validated by field id.
+  function qtMigrationTool(): FlowToolItem {
+    return {
+      id: 'question-tool-1',
+      type: 'tool',
+      toolName: 'AskUserQuestion',
+      timestamp: 1,
+      status: 'waiting',
+      toolCall: {
+        id: 'question-call-1',
+        // Runtime shape: the model sends only the template id. The resolved
+        // questions arrive on `questionRequest` from the ToolAwaitingUserInput
+        // event; routing them through `toolCall.input` here is what used to
+        // hide the card's missing envelope read.
+        input: { templateId: 'qt-migration-paths' },
+      },
+      questionRequest: {
+        templateId: 'qt-migration-paths',
+        templateVersion: '1',
+        resolvedQuestions: [
+          {
+            field: 'source_project',
+            header: 'askUser.qtMigration.field.sourceProject',
+            question: 'askUser.qtMigration.question.sourceProject',
+            inputPlaceholder: 'askUser.qtMigration.placeholder.sourceProject',
+            options: [
+              { label: 'askUser.qtMigration.option.default', description: 'D:/work/myqt' },
+            ],
+          },
+          {
+            field: 'toolchain',
+            header: 'askUser.qtMigration.field.toolchain',
+            question: 'askUser.qtMigration.question.toolchain',
+            inputPlaceholder: 'askUser.qtMigration.placeholder.toolchain',
+            options: [
+              {
+                label: 'askUser.qtMigration.option.officialToolchain',
+                description: 'askUser.qtMigration.option.officialDescription',
+                value: '__official__',
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  it('reads the resolvedQuestions envelope and localizes template-owned keys', () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The envelope parsed: two questions rendered from resolvedQuestions.
+    expect(container.textContent).toContain('toolCards.askUser.questionsCount:2');
+    // Template text is an i18n key; it must be resolved through the catalog
+    // rather than rendered literally.
+    expect(container.textContent).toContain('toolCards.askUser.qtMigration.question.sourceProject');
+  });
+
+  it('submits template answers by field id using the resolved path, not the display label', async () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The candidate option submits the probed path (description), not the
+    // "Default path" label the backend would reject as a placeholder.
+    const pathOption = container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]');
+    expect(pathOption).not.toBeNull();
+    act(() => pathOption?.click());
+
+    // The skill-managed option carries an explicit value.
+    const officialOption = container.querySelector<HTMLInputElement>('input[value="__official__"]');
+    expect(officialOption).not.toBeNull();
+    act(() => officialOption?.click());
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      'session-a',
+    );
+  });
+
+  it('restores completed template answers stored under field ids', () => {
+    const tool = qtMigrationTool();
+    tool.status = 'completed';
+    tool.toolResult = {
+      success: true,
+      result: {
+        answers: {
+          source_project: 'D:/work/myqt',
+          toolchain: '__official__',
+        },
+      },
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    // Both field-keyed answers are recognized as option selections, so the
+    // summary shows them instead of treating them as typed custom values.
+    expect(container.textContent).toContain('D:/work/myqt');
+    expect(container.textContent).not.toContain('toolCards.askUser.notAnswered');
+  });
+
+  it('pre-selects the first option of a single-select template question', async () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // The card opens on the backend's first candidate, so a template question is
+    // never presented blank and the submit rule agrees with what is shown.
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="__official__"]')?.checked)
+      .toBe(true);
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      'session-a',
+    );
+  });
+
+  it('keeps a restored draft instead of overwriting it with the default', () => {
+    askUserQuestionDraftStore.getState().setSingleAnswer(
+      askUserQuestionDraftKey('session-a', 'question-call-1'),
+      0,
+      'Other',
+    );
+    askUserQuestionDraftStore.getState().setOtherInput(
+      askUserQuestionDraftKey('session-a', 'question-call-1'),
+      0,
+      'CockroachDB',
+      true,
+    );
+
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation')}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+      .toBe(false);
+  });
+
+  it('leaves a multi-select question unselected until the user opts in', () => {
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation', true)}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    // Multi-select answers stay opt-in: only single-select questions open on a
+    // recommended default.
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+      .toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked)
+      .toBe(false);
   });
 
 });

@@ -1,25 +1,24 @@
 import React from 'react';
-import { Bot } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@bitfun/ui';
-import { Badge } from '@/component-library';
+import { useTranslation } from 'react-i18next';
 import type { AgentWithCapabilities } from '../agentsStore';
-import { AGENT_ICON_MAP } from '../agentsIcons';
-import { getCardGradient } from '@/shared/utils/cardGradients';
+import { getAgentIcon } from '../agentsIcons';
 import { getAgentDescription } from '../utils';
 import AgentCatalogCard from './AgentCatalogCard';
 import './AgentCatalogCard.scss';
 
 /**
- * Industry agent card —renders a real backend-registered agent (e.g.
- * QtMigration) with a vertical-domain presentation: localized name/description
- * and an "industry agent" badge. Reuses `.agent-card` styling and the shared
- * AGENT_ICON_MAP icon source so it renders consistently with AgentCard.
+ * Industry agent card.
+ *
+ * Renders a real backend-registered vertical-domain agent (QtMigration) with the
+ * shared catalog card anatomy plus an "industry agent" badge and its built-in
+ * domain workflow label. It reuses AgentCatalogCard and the AgentCard slot
+ * classes so it stays visually consistent with the rest of the catalog.
  */
 interface IndustryAgentCardProps {
   agent: AgentWithCapabilities;
   index?: number;
-  onOpenDetails?: (agent: AgentWithCapabilities) => void;
+  onOpenDetails: (agent: AgentWithCapabilities) => void;
 }
 
 const IndustryAgentCard: React.FC<IndustryAgentCardProps> = ({
@@ -28,7 +27,7 @@ const IndustryAgentCard: React.FC<IndustryAgentCardProps> = ({
   onOpenDetails,
 }) => {
   const { t } = useTranslation('scenes/agents');
-  const iconSource = AGENT_ICON_MAP[(agent.iconKey ?? 'bot') as keyof typeof AGENT_ICON_MAP] ?? { glyph: Bot };
+  const agentIcon = getAgentIcon(agent.iconKey);
   const name = t(`industryAgentsZone.agents.${agent.id}.name`, { defaultValue: agent.name });
   const description = t(
     `industryAgentsZone.agents.${agent.id}.description`,
@@ -38,50 +37,45 @@ const IndustryAgentCard: React.FC<IndustryAgentCardProps> = ({
   return (
     <AgentCatalogCard
       agent={{ ...agent, name }}
-      onOpenDetails={(selectedAgent) => onOpenDetails?.(selectedAgent)}
-      data-bitfun-component="industry-agent-card"
-      data-bitfun-part="root"
-      style={{
-        '--surface-stagger-index': index,
-        '--agent-card-gradient': getCardGradient(agent.id || agent.name),
-      } as React.CSSProperties}
+      onOpenDetails={onOpenDetails}
+      style={{ '--surface-stagger-index': index } as React.CSSProperties}
+      data-bitfun-product-component="industry-agent-card"
+      data-bitfun-product-part="root"
     >
       <CardHeader
         align="center"
         className="agent-catalog-card__header"
-        data-bitfun-component="industry-agent-card"
-        data-bitfun-part="header"
+        data-bitfun-product-component="industry-agent-card"
+        data-bitfun-product-part="header"
         title={(
-          <div className="agent-catalog-card__title" data-bitfun-component="industry-agent-card" data-bitfun-part="headerInfo">
-            <div className="agent-catalog-card__title-row" data-bitfun-component="industry-agent-card" data-bitfun-part="titleRow">
-              <OverflowText className="agent-catalog-card__name" data-bitfun-component="industry-agent-card" data-bitfun-part="name" data-testid="agent-list-item-title">
+          <div className="agent-catalog-card__title" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="headerInfo">
+            <div className="agent-catalog-card__title-row" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="titleRow">
+              <OverflowText className="agent-catalog-card__name" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="name" data-testid="agent-list-item-title">
                 {name}
               </OverflowText>
               <span className="agent-catalog-card__identity">
-                <span className="agent-catalog-card__icon" data-bitfun-component="industry-agent-card" data-bitfun-part="iconArea" aria-hidden="true">
-                  <span data-bitfun-component="industry-agent-card" data-bitfun-part="icon">
-                    <Icon {...iconSource} size="sm" />
+                <span className="agent-catalog-card__icon" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="iconArea" aria-hidden="true">
+                  <span data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="icon">
+                    <Icon {...agentIcon} size="sm" />
                   </span>
                 </span>
-                <span data-bitfun-component="industry-agent-card" data-bitfun-part="badges">
-                  <Badge variant="accent">{t('industryAgentsZone.badge')}</Badge>
-                </span>
+                <OverflowText behavior="marquee">
+                  <span data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="badges">{t('industryAgentsZone.badge')}</span>
+                </OverflowText>
               </span>
             </div>
           </div>
         )}
       />
-
-      <CardBody data-bitfun-component="industry-agent-card" data-bitfun-part="body">
-        <OverflowText as="p" lines={2} className="agent-catalog-card__description" data-bitfun-component="industry-agent-card" data-bitfun-part="description" data-testid="agent-list-item-description">
+      <CardBody data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="body">
+        <OverflowText as="p" lines={2} className="agent-catalog-card__description" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="description" data-testid="agent-list-item-description">
           {description}
         </OverflowText>
       </CardBody>
-
-      <CardFooter align="start" className="agent-catalog-card__footer" data-bitfun-component="industry-agent-card" data-bitfun-part="footer">
-        <span className="agent-catalog-card__identity" data-bitfun-component="industry-agent-card" data-bitfun-part="meta">
-          <Icon {...iconSource} size="xs" />
-          {t('industryAgentsZone.workflowLabel')}
+      <CardFooter align="start" className="agent-catalog-card__footer" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="footer">
+        <span className="agent-catalog-card__metric" data-bitfun-product-component="industry-agent-card" data-bitfun-product-part="meta">
+          <Icon {...agentIcon} size="2xs" aria-hidden="true" />
+          <span>{t('industryAgentsZone.workflowLabel')}</span>
         </span>
       </CardFooter>
     </AgentCatalogCard>

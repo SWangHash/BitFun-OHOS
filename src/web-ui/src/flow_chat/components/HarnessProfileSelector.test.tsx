@@ -238,7 +238,7 @@ describe('HarnessProfileSelector', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('offers three Harness gears, Creative, and the second-level Agents entry', async () => {
+  it('offers three Harness gears, Creative, the Industry entry, and the catch-all Agents entry', async () => {
     await act(async () => {
       root.render(
         <HarnessProfileSelector
@@ -265,9 +265,10 @@ describe('HarnessProfileSelector', () => {
       'Standard',
       'Ultimate',
       'Creative',
+      'industry',
       'other',
     ]);
-    expect(rows.map(row => density(row))).toEqual([1, 2, 3, 0, 0]);
+    expect(rows.map(row => density(row))).toEqual([1, 2, 3, 0, 0, 0]);
     expect(rows.slice(0, 4).map(row => row.querySelector<HTMLElement>(
       '.bitfun-harness-selector__density-mark [data-bitfun-component="icon"]',
     )?.dataset.bitfunName)).toEqual(['minimal', 'standard', 'ultimate', 'creative']);
@@ -277,7 +278,12 @@ describe('HarnessProfileSelector', () => {
     expect(creative?.querySelector('.bitfun-harness-selector__density-core')).toBeNull();
     expect(creative?.querySelector('[data-bitfun-name="creative"][data-size="md"]')).not.toBeNull();
     expect(creative?.dataset.bitfunState).toBe('available');
-    const other = rows[4];
+    const industry = rows[4];
+    expect(industry?.querySelector('.bitfun-harness-selector__density-core')).toBeNull();
+    expect(industry?.querySelector('[data-bitfun-name="user"][data-size="md"]')).not.toBeNull();
+    expect(industry?.querySelector('.bitfun-harness-selector__agent-count')?.textContent).toBe('0');
+    expect(industry?.dataset.bitfunState).toBe('available');
+    const other = rows[5];
     expect(other?.querySelector('.bitfun-harness-selector__density-core')).toBeNull();
     expect(other?.querySelector('[data-bitfun-name="user"][data-size="md"]')).not.toBeNull();
     expect(other?.querySelector('.bitfun-harness-selector__agent-count')?.textContent).toBe('3');
@@ -336,6 +342,142 @@ describe('HarnessProfileSelector', () => {
     expect(
       container.querySelector('[data-testid="harness-profile-selector"]')?.textContent,
     ).toBe('Deep Research');
+  });
+
+  it('lists Industry agents behind their own top-level entry', async () => {
+    await act(async () => {
+      root.render(
+        <HarnessProfileSelector
+          selectedProfile='Standard'
+          otherAgents={[
+            { id: 'DeepResearch', name: 'Deep Research' },
+            { id: 'QtMigration', name: 'Qt Migration', category: 'industry' },
+            { id: 'Plan', name: 'Plan' },
+          ]}
+          onSelectProfile={vi.fn()}
+        />,
+      );
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="harness-profile-selector"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const menu = document.querySelector<HTMLElement>('.bitfun-harness-selector__menu');
+    expect(menu).not.toBeNull();
+    // The section header inside the Agent page is superseded by the top-level row.
+    expect(menu?.querySelector('[data-bitfun-part="agentCategory"]')).toBeNull();
+
+    const industryRow = menu!.querySelector<HTMLElement>(
+      '[data-bitfun-part="profile"][data-bitfun-profile="industry"]',
+    );
+    expect(industryRow).not.toBeNull();
+    expect(industryRow?.querySelector('.bitfun-harness-selector__agent-count')?.textContent).toBe('1');
+    expect(industryRow?.querySelector('[data-bitfun-name="user"][data-size="md"]')).not.toBeNull();
+    expect(industryRow?.querySelector('[data-bitfun-name="chevron-right"]')).not.toBeNull();
+
+    const otherRow = menu!.querySelector<HTMLElement>(
+      '[data-bitfun-part="profile"][data-bitfun-profile="other"]',
+    );
+    expect(otherRow?.querySelector('.bitfun-harness-selector__agent-count')?.textContent).toBe('2');
+
+    await act(async () => {
+      menu!.querySelector<HTMLButtonElement>('[data-testid="harness-profile-industry"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(menu?.dataset.bitfunPage).toBe('industry');
+    expect(menu?.querySelector('[data-testid="harness-industry-back"]')?.textContent)
+      .toBe('chatInput.harness.industryAgentsTitle');
+    expect(Array.from(menu!.querySelectorAll<HTMLElement>('[data-bitfun-part="agent"]')).map(
+      row => row.dataset.bitfunAgentId,
+    )).toEqual(['QtMigration']);
+    expect(menu?.querySelector('[data-testid="harness-agent-DeepResearch"]')).toBeNull();
+    expect(menu?.querySelector('[data-testid="harness-agent-Plan"]')).toBeNull();
+
+    await act(async () => {
+      menu!.querySelector<HTMLButtonElement>('[data-testid="harness-industry-back"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(menu?.dataset.bitfunPage).toBe('profiles');
+
+    await act(async () => {
+      menu!.querySelector<HTMLButtonElement>('[data-testid="harness-profile-other"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(menu?.dataset.bitfunPage).toBe('agents');
+    expect(Array.from(menu!.querySelectorAll<HTMLElement>('[data-bitfun-part="agent"]')).map(
+      row => row.dataset.bitfunAgentId,
+    )).toEqual(['DeepResearch', 'Plan']);
+  });
+
+  it('keeps the Industry entry as a static category when no industry Agent exists', async () => {
+    await act(async () => {
+      root.render(
+        <HarnessProfileSelector
+          selectedProfile='Standard'
+          otherAgents={[
+            { id: 'DeepResearch', name: 'Deep Research' },
+            { id: 'Plan', name: 'Plan' },
+          ]}
+          onSelectProfile={vi.fn()}
+        />,
+      );
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="harness-profile-selector"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const menu = document.querySelector<HTMLElement>('.bitfun-harness-selector__menu');
+    const industryRow = menu!.querySelector<HTMLElement>('[data-testid="harness-profile-industry"]');
+    expect(industryRow).not.toBeNull();
+    expect(
+      industryRow?.closest<HTMLElement>('[data-bitfun-part="profile"]')?.dataset.bitfunProfile,
+    ).toBe('industry');
+    expect(industryRow?.querySelector('.bitfun-harness-selector__agent-count')?.textContent).toBe('0');
+
+    await act(async () => {
+      industryRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(menu?.dataset.bitfunPage).toBe('industry');
+    expect(menu?.querySelectorAll('[data-bitfun-part="agent"]')).toHaveLength(0);
+    // The component's existing empty-state convention is a quiet placeholder row.
+    expect(menu?.querySelector('.bitfun-harness-selector__empty')?.textContent)
+      .toBe('chatInput.harness.otherAgentsEmpty');
+  });
+
+  it('marks the Industry entry current and the catch-all entry idle for a selected industry Agent', async () => {
+    await act(async () => {
+      root.render(
+        <HarnessProfileSelector
+          selectedProfile="other"
+          selectedAgentId="QtMigration"
+          otherAgents={[
+            { id: 'DeepResearch', name: 'Deep Research' },
+            { id: 'QtMigration', name: 'Qt Migration', category: 'industry' },
+          ]}
+          onSelectProfile={vi.fn()}
+          onSelectAgent={vi.fn()}
+        />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="harness-profile-selector"]')?.textContent,
+    ).toBe('Qt Migration');
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="harness-profile-selector"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const menu = document.querySelector<HTMLElement>('.bitfun-harness-selector__menu');
+    const industryRow = menu!.querySelector<HTMLElement>('[data-bitfun-profile="industry"]');
+    expect(industryRow?.dataset.bitfunState).toBe('current');
+    expect(
+      menu?.querySelector<HTMLElement>('[data-testid="harness-profile-industry"]')
+        ?.getAttribute('aria-checked'),
+    ).toBe('true');
+    const otherRow = menu!.querySelector<HTMLElement>('[data-bitfun-profile="other"]');
+    expect(otherRow?.dataset.bitfunState).toBe('available');
   });
 
   it('activates every implemented profile including Creative', async () => {

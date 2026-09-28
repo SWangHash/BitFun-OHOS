@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use log::{error, trace, warn};
 use bitfun_events::{
     BackgroundCommandLifecycleInfo, EventEmitter, ToolExecutionProgressInfo, ToolTerminalReadyInfo,
 };
+use log::{error, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -66,7 +66,17 @@ impl BackendEventSystem {
         trace!("Emitting event: {:?}", event);
 
         let emitter = { self.emitter.lock().await.clone() };
-        if let Some(emitter) = emitter {
+        let Some(emitter) = emitter else {
+            // Dropping silently made "no emitter configured" indistinguishable
+            // from "delivered": the caller gets Ok either way and the frontend
+            // simply never sees the event.
+            warn!(
+                "Backend event dropped, no emitter configured: {}",
+                event.event_name()
+            );
+            return Ok(());
+        };
+        {
             let event_name = event.event_name();
             let event_data = match event.payload() {
                 Ok(value) => value,
