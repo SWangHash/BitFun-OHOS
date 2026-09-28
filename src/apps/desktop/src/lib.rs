@@ -713,10 +713,11 @@ pub async fn _run() {
             Arc::new(NoTelemetrySecrets),
             Arc::new(
                 api::ohos::telemetry_authorizer::OhosTelemetryRequestAuthorizer::new(
-                    anonymous_auth,
+                    anonymous_auth.clone(),
                 ),
             ),
         );
+        anonymous_auth.set_telemetry(runtime.telemetry());
         let controller = Arc::new(api::telemetry_api::OhosTelemetryController::new(
             runtime.clone(),
             deployment,
