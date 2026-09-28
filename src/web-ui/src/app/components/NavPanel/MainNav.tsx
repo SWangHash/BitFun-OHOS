@@ -18,6 +18,7 @@ import { OverflowText,
   KeyHint,
   Menu,
   MenuItem,
+  MenuList,
   MenuSection,
   MenuSeparator,
   NavigationPanel,
@@ -25,6 +26,7 @@ import { OverflowText,
   NavigationPanelContent,
   NavigationPanelHeader,
   NavigationPanelItem,
+  subscribeOverlayInteraction,
   ScrollArea,
   Tooltip,
 } from '@bitfun/ui';
@@ -60,7 +62,6 @@ import {
 import { useExternalAppAwareness } from '@/infrastructure/config/components/external-sources/useExternalAppAwareness';
 
 import './NavPanel.scss';
-import { subscribeOverlayInteraction, OverflowText } from '@bitfun/ui';
 
 const log = createLogger('MainNav');
 
@@ -221,11 +222,11 @@ const MainNav: React.FC<MainNavProps> = ({
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isImeOwnedKeyboardEvent(event)) closeWorkspaceMenu();
     };
-    const removeOverlayMousedown0 = subscribeOverlayInteraction(workspaceMenuRef, 'mousedown', handleClickOutside);
-    const removeOverlayKeydown1 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleEscape);
+    const removeOverlayMousedown = subscribeOverlayInteraction(workspaceMenuRef, 'mousedown', handleClickOutside);
+    const removeOverlayKeydown = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      removeOverlayMousedown();
+      removeOverlayKeydown();
     };
   }, [closeWorkspaceMenu, workspaceMenuOpen]);
 
