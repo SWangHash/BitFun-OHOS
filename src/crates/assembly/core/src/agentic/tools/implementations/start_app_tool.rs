@@ -35,7 +35,7 @@ impl Tool for StartAppTool {
     async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Run a HarmonyOS app on a connected device via devecocli.
 
-When `hvd` is omitted, lists connected devices. Use this after build_project to deploy and launch the app.
+When `hvd` is omitted, lists connected devices. Use this after a `devecocli build` to deploy and launch the app.
 
 Parameters:
 - hvd (optional, string): target device name or ID. Omit to list available targets.

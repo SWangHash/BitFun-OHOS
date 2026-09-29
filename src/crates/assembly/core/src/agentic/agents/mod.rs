@@ -349,10 +349,10 @@ mod tests {
     fn shared_coding_mode_tools_include_openharmony_provider_tools() {
         let tools = shared_coding_mode_tools();
 
-        assert!(tools.contains(&"build_project".to_string()));
         assert!(tools.contains(&"start_app".to_string()));
         assert!(tools.contains(&"hdc_log".to_string()));
-        assert!(tools.contains(&"arkts_knowledge_search".to_string()));
+        assert!(tools.contains(&"arkts_check".to_string()));
+        assert!(tools.contains(&"switch_cwd".to_string()));
     }
 
     #[test]

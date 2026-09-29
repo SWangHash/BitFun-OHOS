@@ -43,7 +43,7 @@ impl Tool for ArktsCheckTool {
 Detects compiler-level violations such as `arkts-no-standalone-this`, `arkts-no-obj-literals-as-types`, and other ArkTS spec issues. Returns structured diagnostics by file, line, column, severity, and rule.
 
 Call this tool:
-- After writing or editing any `.ets` file, before running `build_project`. Catches most ArkTS errors faster than a full build.
+- After writing or editing any `.ets` file, before running `devecocli build`. Catches most ArkTS errors faster than a full build.
 - When debugging compilation problems isolated to a specific page or component.
 
 Do NOT call this tool:

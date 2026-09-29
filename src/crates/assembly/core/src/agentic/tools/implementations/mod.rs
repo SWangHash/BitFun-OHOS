@@ -7,13 +7,10 @@ pub mod analyze_image_tool;
 pub mod appearance_publish_tool;
 pub mod arkts_check_tool;
 pub mod arkts_checker;
-pub mod arkts_knowledge_search_tool;
 pub mod ask_user_question_tool;
 pub mod bash_tool;
-pub mod build_project_tool;
 #[cfg(feature = "tools-canvas")]
 pub mod canvas_tools;
-pub mod check_cpp_files_tool;
 pub mod code_review_tool;
 #[cfg(feature = "tools-computer-use")]
 pub mod computer_use_actions;
@@ -29,7 +26,7 @@ pub mod create_plan_tool;
 #[cfg(feature = "tools-agent-control")]
 pub mod cron_tool;
 pub mod delete_file_tool;
-pub mod deveco_mcp_check;
+pub mod devecocli_bash_guard;
 pub mod devecocli_run;
 pub mod exec_command;
 pub mod file_edit_tool;
@@ -98,14 +95,11 @@ pub use agent_wait_tool::AgentWaitTool;
 pub use analyze_image_tool::AnalyzeImageTool;
 #[cfg(feature = "tools-miniapp")]
 pub use appearance_publish_tool::PublishAppearanceTool;
-pub use arkts_knowledge_search_tool::ArktsKnowledgeSearchTool;
+pub use arkts_check_tool::ArktsCheckTool;
 pub use ask_user_question_tool::AskUserQuestionTool;
 pub use bash_tool::BashTool;
-pub use build_project_tool::BuildProjectTool;
 #[cfg(feature = "tools-canvas")]
 pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
-pub use arkts_check_tool::ArktsCheckTool;
-pub use check_cpp_files_tool::CheckCppFilesTool;
 pub use code_review_tool::CodeReviewTool;
 #[cfg(feature = "tools-computer-use")]
 pub use computer_use_tool::ComputerUseTool;
