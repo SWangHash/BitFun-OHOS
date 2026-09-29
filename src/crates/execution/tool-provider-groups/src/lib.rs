@@ -95,12 +95,9 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         | "ExecControl"
         | "GetTime"
         | "ListModels"
-        | "build_project"
         | "start_app"
         | "hdc_log"
-        | "arkts_knowledge_search"
         | "arkts_check"
-        | "check_cpp_files"
         | "switch_cwd"
         | "verify_ui"
         | "get_ui_verification_log"
@@ -263,12 +260,9 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
         provider_id: "core.openharmony",
         feature_groups: CORE_OPENHARMONY_FEATURE_GROUPS,
         tool_names: &[
-            "build_project",
             "start_app",
             "hdc_log",
-            "arkts_knowledge_search",
             "arkts_check",
-            "check_cpp_files",
             "switch_cwd",
             "verify_ui",
             "get_ui_verification_log",
@@ -562,12 +556,9 @@ mod tests {
                 "ControlHub",
                 "ComputerUse",
                 "Playbook",
-                "build_project",
                 "start_app",
                 "hdc_log",
-                "arkts_knowledge_search",
                 "arkts_check",
-                "check_cpp_files",
                 "switch_cwd",
                 "verify_ui",
                 "get_ui_verification_log",

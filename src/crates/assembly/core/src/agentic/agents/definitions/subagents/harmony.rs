@@ -26,12 +26,10 @@ const VERIFY_TOOLS: &[&str] = &[
     "Glob",
     "Grep",
     "LS",
-    "build_project",
+    "ExecCommand",
     "start_app",
     "hdc_log",
-    "arkts_knowledge_search",
     "arkts_check",
-    "check_cpp_files",
     "verify_ui",
     "get_ui_verification_log",
     "save_ui_screenshot",
@@ -50,7 +48,6 @@ fn readonly_harmony_constraints() -> PermissionConstraintLayer {
     deny_layer(vec![
         deny("edit", "*"),
         deny("bash", "*"),
-        deny("custom_tool", "build_project"),
         deny("custom_tool", "start_app"),
         deny("custom_tool", "hdc_log"),
         deny("custom_tool", "verify_ui"),
@@ -59,7 +56,6 @@ fn readonly_harmony_constraints() -> PermissionConstraintLayer {
 
 fn implementation_constraints() -> PermissionConstraintLayer {
     deny_layer(vec![
-        deny("custom_tool", "build_project"),
         deny("custom_tool", "start_app"),
         deny("custom_tool", "hdc_log"),
         deny("custom_tool", "verify_ui"),
@@ -68,7 +64,11 @@ fn implementation_constraints() -> PermissionConstraintLayer {
 }
 
 fn verification_constraints() -> PermissionConstraintLayer {
-    deny_layer(vec![deny("edit", "*"), deny("bash", "*")])
+    // Verify may not edit files. Its `ExecCommand` is separately restricted to
+    // a single `devecocli` command by the agent-scoped devecocli-only guard, so
+    // no `bash` deny is needed here: a permission rule cannot express the
+    // cwd-wrapped `devecocli *` allow, and the guard runs before execution.
+    deny_layer(vec![deny("edit", "*")])
 }
 
 pub struct HarmonyPlanAgent {
@@ -220,7 +220,7 @@ pub fn harmony_goal_agent() -> HarmonyAgent {
             "Grep",
             "LS",
             "Skill",
-            "arkts_knowledge_search",
+            "ExecCommand",
         ],
         false,
     )
@@ -259,19 +259,19 @@ mod tests {
     use bitfun_runtime_ports::{PermissionEffect, PermissionEvaluator};
 
     #[test]
-    fn harmony_goal_includes_arkts_knowledge_search() {
+    fn harmony_goal_includes_devecocli_exec_command() {
         assert!(harmony_goal_agent()
             .default_tools()
-            .contains(&"arkts_knowledge_search".to_string()));
+            .contains(&"ExecCommand".to_string()));
     }
 
     #[test]
-    fn implementation_constraints_deny_build_but_allow_edit() {
+    fn implementation_constraints_deny_start_app_but_allow_edit() {
         let agent = harmony_spec_implementation_agent();
         let layer = agent.permission_constraints();
         let evaluator = PermissionEvaluator::for_current_platform();
         assert_eq!(
-            evaluator.evaluate_constraint_resource("custom_tool", "build_project", layer),
+            evaluator.evaluate_constraint_resource("custom_tool", "start_app", layer),
             PermissionEffect::Deny
         );
         assert_eq!(
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn verify_constraints_deny_edit_and_bash() {
+    fn verify_constraints_deny_edit_only() {
         let agent = harmony_spec_verify_agent();
         let layer = agent.permission_constraints();
         let evaluator = PermissionEvaluator::for_current_platform();
@@ -291,7 +291,7 @@ mod tests {
         );
         assert_eq!(
             evaluator.evaluate_constraint_resource("bash", "hvigorw assembleHap", layer),
-            PermissionEffect::Deny
+            PermissionEffect::Allow
         );
     }
 }

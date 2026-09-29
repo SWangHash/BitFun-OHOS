@@ -350,7 +350,11 @@ pub(crate) async fn resolve_product_get_tool_spec_results(
     let provider = ProductToolCatalogProvider;
     let normalized_input = normalize_get_tool_spec_input(input);
     GetToolSpecRuntime::new(&provider, get_tool_spec_tool_name)
-        .call_results(&normalized_input, &context.loaded_deferred_tool_specs, context)
+        .call_results(
+            &normalized_input,
+            &context.loaded_deferred_tool_specs,
+            context,
+        )
         .await
 }
 
@@ -359,11 +363,15 @@ pub(crate) async fn resolve_product_get_tool_spec_results(
 /// canonical tool spec.
 fn normalize_get_tool_spec_input(input: &Value) -> Value {
     if let Some(name) = input.get("tool_name").and_then(|v| v.as_str()) {
-        let canonical = crate::agentic::tools::pipeline::tool_pipeline::normalize_legacy_tool_name(name);
+        let canonical =
+            crate::agentic::tools::pipeline::tool_pipeline::normalize_legacy_tool_name(name);
         if canonical != name {
             let mut cloned = input.clone();
             if let Some(obj) = cloned.as_object_mut() {
-                obj.insert("tool_name".to_string(), Value::String(canonical.to_string()));
+                obj.insert(
+                    "tool_name".to_string(),
+                    Value::String(canonical.to_string()),
+                );
             }
             return cloned;
         }
@@ -923,10 +931,10 @@ mod tests {
 
         assert!(manifest
             .allowed_tool_names
-            .contains(&"build_project".to_string()));
+            .contains(&"start_app".to_string()));
         assert!(manifest
             .allowed_tool_names
-            .contains(&"arkts_knowledge_search".to_string()));
+            .contains(&"arkts_check".to_string()));
         assert!(manifest
             .allowed_tool_names
             .contains(&"ReviewPlatform".to_string()));
@@ -936,7 +944,7 @@ mod tests {
         assert!(manifest
             .tool_definitions
             .iter()
-            .any(|tool| tool.name == "build_project"));
+            .any(|tool| tool.name == "start_app"));
     }
 
     #[tokio::test]

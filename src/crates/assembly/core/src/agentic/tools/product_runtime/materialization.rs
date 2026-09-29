@@ -50,7 +50,6 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "GetTime" => Some(Arc::new(GetTimeTool::new())),
             "ListModels" => Some(Arc::new(ListModelsTool::new())),
             "arkts_check" => Some(Arc::new(ArktsCheckTool::new())),
-            "check_cpp_files" => Some(Arc::new(CheckCppFilesTool::new())),
             "switch_cwd" => Some(Arc::new(SwitchCwdTool::new())),
             "Task" => Some(Arc::new(TaskTool::new())),
             "AgentWait" => Some(Arc::new(AgentWaitTool::new())),
@@ -120,10 +119,8 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "ComputerUse" => Some(Arc::new(ComputerUseTool::new())),
             #[cfg(feature = "tools-miniapp")]
             "Playbook" => Some(Arc::new(PlaybookTool::new())),
-            "build_project" => Some(Arc::new(BuildProjectTool::new())),
             "start_app" => Some(Arc::new(StartAppTool::new())),
             "hdc_log" => Some(Arc::new(HdcLogTool::new())),
-            "arkts_knowledge_search" => Some(Arc::new(ArktsKnowledgeSearchTool::new())),
             "verify_ui" => Some(Arc::new(VerifyUiTool::new())),
             "get_ui_verification_log" => Some(Arc::new(GetUiVerificationLogTool::new())),
             "save_ui_screenshot" => Some(Arc::new(SaveUiScreenshotTool::new())),

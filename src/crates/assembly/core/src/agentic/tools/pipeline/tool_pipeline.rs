@@ -5303,12 +5303,15 @@ mod tests {
 
     #[test]
     fn normalize_legacy_tool_name_maps_check_arkts_files() {
-        assert_eq!(normalize_legacy_tool_name("check_arkts_files"), "arkts_check");
+        assert_eq!(
+            normalize_legacy_tool_name("check_arkts_files"),
+            "arkts_check"
+        );
     }
 
     #[test]
     fn normalize_legacy_tool_name_passes_through_unknown_names() {
-        assert_eq!(normalize_legacy_tool_name("build_project"), "build_project");
+        assert_eq!(normalize_legacy_tool_name("start_app"), "start_app");
         assert_eq!(normalize_legacy_tool_name("arkts_check"), "arkts_check");
         assert_eq!(normalize_legacy_tool_name("Read"), "Read");
         assert_eq!(normalize_legacy_tool_name(""), "");
