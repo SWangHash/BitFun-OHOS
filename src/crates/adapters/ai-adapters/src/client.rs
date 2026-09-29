@@ -7,6 +7,7 @@
 pub(crate) mod format;
 pub(crate) mod healthcheck;
 pub(crate) mod http;
+pub(crate) mod ohos_dns;
 pub(crate) mod quirks;
 mod request_capacity;
 pub(crate) mod response_aggregator;

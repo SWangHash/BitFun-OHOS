@@ -47,9 +47,17 @@ uuid = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 windows-native-keyring-store = { workspace = true, optional = true }
 
-[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+# HarmonyOS is unix, but it has no D-Bus Secret Service. Subscription
+# credentials go through the injected AssetStore vault instead.
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android", target_env = "ohos"))))'.dependencies]
 keyring-core = { workspace = true, optional = true }
 zbus-secret-service-keyring-store = { workspace = true, optional = true }
+
+# HarmonyOS model and subscription requests resolve through netmanager.
+# libc getaddrinfo reads /etc/resolv.conf, which can name servers the active
+# network does not answer.
+[target.'cfg(target_env = "ohos")'.dependencies]
+libc = { workspace = true }
 
 [features]
 subscription-auth = [

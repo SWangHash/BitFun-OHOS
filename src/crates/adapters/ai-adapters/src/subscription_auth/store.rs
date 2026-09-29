@@ -363,7 +363,7 @@ fn failing_backup_cleanup() -> &'static Mutex<HashSet<PathBuf>> {
     PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
 fn native_keyring_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -1096,21 +1096,35 @@ async fn read_secure_file(path: &Path) -> Result<SecureStoreFile> {
     parse_secure_file(&bytes, path)
 }
 
-#[cfg(not(target_os = "macos"))]
+// HarmonyOS is `unix` but has no D-Bus Secret Service. The desktop host
+// injects the AssetStore vault, and this direct keyring path must not
+// compile there — a second write was failing Codex login after the asset
+// write had already succeeded.
+#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
 fn open_native_keyring_entry(entry_name: &str) -> std::result::Result<keyring_core::Entry, String> {
     if keyring_core::get_default_store().is_none() {
         #[cfg(target_os = "windows")]
         let store = windows_native_keyring_store::Store::new();
         #[cfg(all(
             unix,
-            not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+            not(any(
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "android",
+                target_env = "ohos"
+            ))
         ))]
         let store = zbus_secret_service_keyring_store::Store::new();
         #[cfg(not(any(
             target_os = "windows",
             all(
                 unix,
-                not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+                not(any(
+                    target_os = "macos",
+                    target_os = "ios",
+                    target_os = "android",
+                    target_env = "ohos"
+                ))
             )
         )))]
         let store: keyring_core::Result<std::sync::Arc<keyring_core::CredentialStore>> =
@@ -1153,7 +1167,7 @@ async fn get_secret_bytes(entry_name: &str) -> Result<Option<Vec<u8>>> {
 /// applies to legacy desktop installs.
 async fn get_legacy_password(provider: &str) -> Result<Option<String>> {
     let vault = current_vault();
-    vault
+    let legacy = vault
         .get_legacy_secret_text(provider)
         .await
         .map_err(vault_unavailable)?;
@@ -1172,13 +1186,22 @@ async fn get_legacy_password(provider: &str) -> Result<Option<String>> {
             });
     }
 
+    // HarmonyOS has no Secret Service. The injected vault is the only store,
+    // and its legacy read is already `None` for a fresh install.
+    #[cfg(target_env = "ohos")]
+    {
+        return Ok(legacy);
+    }
+    #[cfg(not(target_env = "ohos"))]
+    let _ = legacy;
+
     #[cfg(target_os = "macos")]
     {
         return get_secret_bytes(provider)
             .await
             .map(|secret| secret.and_then(|bytes| String::from_utf8(bytes).ok()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let provider = provider.to_string();
         tokio::task::spawn_blocking(move || {
@@ -1229,6 +1252,15 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
         return Ok(());
     }
 
+    // The injected AssetStore vault above is the credential store on
+    // HarmonyOS. A following Secret Service write fails closed — there is
+    // no D-Bus session — and was reported as a Codex login credential
+    // failure even when the asset write succeeded.
+    #[cfg(target_env = "ohos")]
+    {
+        return Ok(());
+    }
+
     #[cfg(target_os = "macos")]
     {
         let path = store_path()?;
@@ -1237,7 +1269,7 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
             .await
             .map_err(|error| vault_unavailable(error.to_string()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let entry_name = entry_name.to_string();
         tokio::task::spawn_blocking(move || {
@@ -1278,6 +1310,11 @@ async fn delete_secret_entry(entry_name: &str) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(target_env = "ohos")]
+    {
+        return Ok(());
+    }
+
     #[cfg(target_os = "macos")]
     {
         let path = store_path()?;
@@ -1286,7 +1323,7 @@ async fn delete_secret_entry(entry_name: &str) -> Result<()> {
             .await
             .map_err(|error| vault_unavailable(error.to_string()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let entry_name = entry_name.to_string();
         tokio::task::spawn_blocking(move || {
