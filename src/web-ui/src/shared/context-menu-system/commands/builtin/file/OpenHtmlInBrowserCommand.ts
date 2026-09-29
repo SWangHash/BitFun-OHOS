@@ -44,7 +44,17 @@ export class OpenHtmlInBrowserCommand extends BaseCommand {
         return this.failure(t('errors:file.openInBrowserFailed'));
       }
 
-      await openHtmlFileInExternalBrowser(filePath);
+      // Serve the HTML file through the local preview gateway, then open its
+      // http URL in the system browser. Opening the raw file path (file://)
+      // launches the browser but fails to render the page (blank tab).
+      const resourceScope = context.resourceScope;
+      const workspacePath = 'workspacePath' in context
+        ? context.workspacePath
+        : resourceScope?.workspacePath;
+      await openHtmlFileInExternalBrowser(filePath, {
+        workspaceId: resourceScope?.workspaceId,
+        workspacePath,
+      });
       return this.success(t('common:file.openInBrowserOpening'), { path: filePath });
     } catch (error) {
       const t = i18nService.getT();

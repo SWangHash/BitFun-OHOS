@@ -7,13 +7,13 @@ import {
   Lightbulb,
   PackagePlus,
 } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { isRemoteWorkspace } from '@/shared/types';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
+import { workspaceAPI } from '@/infrastructure/api';
 import MiniAppCard from '../components/MiniAppCard';
 import MiniAppDetailModal from '../components/MiniAppDetailModal';
 import type { MiniAppMeta } from '@/infrastructure/api/service-api/MiniAppAPI';
@@ -256,7 +256,9 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
 
   const handleAddFromFolder = async () => {
     try {
-      const selected = await open({
+      // Platform-dispatched picker: the dialog plugin is not compiled into the
+      // OHOS runtime, so direct plugin-dialog calls fail there (ACL/build).
+      const selected = await workspaceAPI.openFileOrDirectoryDialog({
         directory: true,
         multiple: false,
         title: t('selectFolderTitle'),
@@ -287,7 +289,7 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
   }, [notification, t]);
 
   const handleAddPackage = async () => {
-    const selected = await open({
+    const selected = await workspaceAPI.openFileOrDirectoryDialog({
       directory: false,
       multiple: false,
       title: t('market.import.choose'),

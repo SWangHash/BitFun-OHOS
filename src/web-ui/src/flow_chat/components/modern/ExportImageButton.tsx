@@ -11,17 +11,15 @@ import { FlowChatStore } from '../../store/FlowChatStore';
 import { notificationService } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
-import { Button, Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
+import { Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
-import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { getBuiltinAppearanceThemeToken } from '@/infrastructure/appearance/builtins/catalog';
 import { withTimeout } from '@/shared/utils/timing';
-import { downloadDir, join } from '@tauri-apps/api/path';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { savePngBlob, notifyPngExportSuccess } from '@/flow_chat/utils/saveExportedPng';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
 import './ExportImageButton.scss';
 
@@ -532,44 +530,13 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
         .substring(0, 80);
       const namePrefix = safeTitle || i18nService.t('flow-chat:exportImage.fileNamePrefix');
       const fileName = `${namePrefix}_${timestampStr}.png`;
-      const downloadsPath = await downloadDir();
-      const filePath = await join(downloadsPath, fileName);
 
-      const arrayBuffer = await blob.arrayBuffer();
-      await writeFile(filePath, new Uint8Array(arrayBuffer));
-
-      const plainSuccessMessage = i18nService.t('flow-chat:exportImage.exportSuccess', { filePath });
-      const successPrefix = i18nService.t('flow-chat:exportImage.exportSuccessPrefix');
-
-      const revealExportedFile = async () => {
-        if (typeof window === 'undefined' || !('__TAURI__' in window)) {
-          return;
-        }
-        try {
-          await workspaceAPI.revealInExplorer(filePath);
-        } catch (error) {
-          log.error('Failed to reveal export path in file manager', { filePath, error });
-        }
-      };
-
-      notificationService.success(plainSuccessMessage, {
-        messageNode: (
-          <>
-            {successPrefix}
-            <Button labelBehavior="static" variant="text"
-              type="button"
-              className="notification-item__path-link"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void revealExportedFile();
-              }}
-            >
-              {filePath}
-            </Button>
-          </>
-        ),
-      });
+      // Route through the shared platform-aware saver: on OpenHarmony the
+      // Tauri path/fs plugins are not wired, so the blob must go through the
+      // native `save_file_to_downloads_ohos` bridge (desktop uses plugin-fs,
+      // plain browsers use the anchor-download fallback).
+      const pngSaveResult = await savePngBlob(blob, fileName);
+      notifyPngExportSuccess(pngSaveResult);
     } catch (error) {
       // Ensure DOM is always cleaned up on error.
       cleanupDom();

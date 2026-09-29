@@ -40,7 +40,11 @@ export type SessionMarkdownExportResult =
   | { status: 'failed' };
 
 function isTauriDesktop(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  // The OpenHarmony host also exposes __TAURI__ (for invoke routing) but the
+  // dialog/fs plugins are not wired there — never take the desktop path on it.
+  return typeof window !== 'undefined'
+    && '__TAURI__' in window
+    && !isOpenHarmonyRuntime();
 }
 
 const FILE_NAME_RESERVED_CHARS = '\\/:*?"<>|';

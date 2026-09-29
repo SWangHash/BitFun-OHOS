@@ -1184,7 +1184,10 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
           disabled: Boolean(remoteConnectionId),
           onClick: () => {
             if (remoteConnectionId) return;
-            void openHtmlFileInExternalBrowser(displayPath || filePath);
+            void openHtmlFileInExternalBrowser(displayPath || filePath, {
+              workspaceId: workspaceIdRef.current,
+              workspacePath,
+            });
           },
         },
       );

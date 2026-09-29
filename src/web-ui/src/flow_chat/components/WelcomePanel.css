@@ -191,6 +191,49 @@
   z-index: 360;
 }
 
+/* ── Workspace summary ── */
+
+.welcome-panel__summary {
+  margin-top: var(--bitfun-space-5);
+  padding: var(--bitfun-space-4) var(--bitfun-space-5);
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: 10px;
+  background: var(--bitfun-color-surface-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-3);
+  max-width: 560px;
+}
+
+.welcome-panel__summary-title {
+  font-size: var(--bitfun-type-label-sm-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  color: var(--bitfun-color-content-secondary);
+}
+
+.welcome-panel__summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5em;
+  row-gap: 0.25em;
+  font-size: var(--bitfun-type-body-sm-font-size);
+  color: var(--bitfun-color-content-secondary);
+}
+
+.welcome-panel__summary-stat-value {
+  color: var(--bitfun-color-content-primary);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+}
+
+.welcome-panel__summary-path {
+  font-size: var(--bitfun-type-body-sm-font-size);
+  color: var(--bitfun-color-content-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Cowork ── */
 
 .welcome-panel__cowork {

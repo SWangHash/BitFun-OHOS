@@ -102,7 +102,7 @@ export const CANVAS_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'canvas.splitVertical',
-    config: mod('\\', { shift: true, scope: 'canvas' }),
+    config: mod('|', { shift: true, scope: 'canvas' }),
     descriptionKey: 'keyboard.shortcuts.canvas.splitVertical',
   },
   {
@@ -112,7 +112,7 @@ export const CANVAS_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'canvas.maximize',
-    config: mod('M', { shift: true, scope: 'canvas' }),
+    config: mod('E', { shift: true, scope: 'canvas' }),
     descriptionKey: 'keyboard.shortcuts.canvas.maximize',
   },
   // Tab management

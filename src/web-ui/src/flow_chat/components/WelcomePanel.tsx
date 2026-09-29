@@ -16,6 +16,8 @@ import { useAgentIdentityDocument } from '@/app/scenes/my-agent/useAgentIdentity
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { useGitState } from '@/tools/git/hooks/useGitState';
+import { gitService } from '@/tools/git/services';
+import type { GitStatus } from '@/tools/git/types';
 import './WelcomePanel.css';
 import './WelcomePanelSurface.scss';
 
@@ -96,6 +98,40 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
     () => (isClawSession && workspaceId ? { id: workspaceId, rootPath: workspacePath } : null),
     [isClawSession, workspaceId, workspacePath],
   );
+
+  // Workspace summary: pending-change counts. The shared git state manager is
+  // unavailable on some hosts (e.g. OHOS), so probe the RPC directly once in
+  // that case; a real failure degrades the card to the workspace identity.
+  const [probedStatus, setProbedStatus] = useState<GitStatus | null>(null);
+  useEffect(() => {
+    if (!hasWorkspace) {
+      setProbedStatus(null);
+      return;
+    }
+    if (gitState) {
+      setProbedStatus(null);
+      return;
+    }
+    let cancelled = false;
+    void gitService
+      .getStatus({ workspaceId: activeWsId || '', repositoryPath: workspacePath })
+      .then((status) => {
+        if (!cancelled) setProbedStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setProbedStatus(null);
+      });
+    return () => { cancelled = true; };
+  }, [hasWorkspace, gitState, activeWsId, workspacePath]);
+
+  const summaryGit = gitState ?? (probedStatus
+    ? {
+      currentBranch: probedStatus.current_branch,
+      unstagedFiles: (probedStatus.unstaged?.length || 0) + (probedStatus.untracked?.length || 0),
+      stagedFiles: probedStatus.staged?.length || 0,
+      unpushedCommits: probedStatus.ahead || 0,
+    }
+    : null);
   const { document: identityDoc } = useAgentIdentityDocument(identityWorkspace);
   const assistantName = isClawSession ? (identityDoc.name || '') : '';
 
@@ -400,6 +436,36 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
             )}
           </p>
         </div>
+
+        {/* Workspace summary: pending changes plus the last few commits. */}
+        {hasWorkspace && (
+          <div data-bitfun-product-component="welcome-panel" data-bitfun-product-part="summary" className="welcome-panel__summary">
+            <div className="welcome-panel__summary-title">{t('welcome.summaryTitle')}</div>
+            {summaryGit ? (
+              <div className="welcome-panel__summary-stats">
+                <span className="welcome-panel__summary-stat">
+                  <span className="welcome-panel__summary-stat-value">
+                    {summaryGit.stagedFiles + summaryGit.unstagedFiles}
+                  </span>
+                  {t('welcome.summaryPending')}
+                </span>
+                {summaryGit.stagedFiles > 0 && (
+                  <span className="welcome-panel__summary-stat">{t('welcome.summaryStaged', { count: summaryGit.stagedFiles })}</span>
+                )}
+                {summaryGit.unstagedFiles > 0 && (
+                  <span className="welcome-panel__summary-stat">{t('welcome.summaryUnstaged', { count: summaryGit.unstagedFiles })}</span>
+                )}
+                {summaryGit.unpushedCommits > 0 && (
+                  <span className="welcome-panel__summary-stat">{t('welcome.summaryAhead', { count: summaryGit.unpushedCommits })}</span>
+                )}
+              </div>
+            ) : (
+              <div className="welcome-panel__summary-path" title={currentWorkspace?.rootPath}>
+                {currentWorkspace?.name || workspacePath}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Cowork examples */}
         {isCoworkSession && (

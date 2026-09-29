@@ -610,6 +610,7 @@ pub struct SearchFilesRequest {
     #[serde(default)]
     pub workspace_id: Option<String>,
     /// Upgrade-only input. Current callers send workspaceId.
+    #[serde(default)]
     pub root_path: String,
     pub pattern: String,
     pub search_content: bool,
@@ -635,6 +636,7 @@ pub struct SearchFilenamesRequest {
     #[serde(default)]
     pub workspace_id: Option<String>,
     /// Upgrade-only input. Current callers send workspaceId.
+    #[serde(default)]
     pub root_path: String,
     pub pattern: String,
     #[serde(default)]
@@ -691,6 +693,7 @@ pub struct SearchFileContentsRequest {
     #[serde(default)]
     pub workspace_id: Option<String>,
     /// Upgrade-only input. Current callers send workspaceId.
+    #[serde(default)]
     pub root_path: String,
     pub pattern: String,
     #[serde(default)]

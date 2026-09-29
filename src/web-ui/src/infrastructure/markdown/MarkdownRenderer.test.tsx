@@ -406,6 +406,7 @@ describe('Markdown file links', () => {
     await items[2].onClick?.(context);
     expect(mocks.openHtmlFileInExternalBrowser).toHaveBeenCalledWith(
       expect.stringMatching(/docs[\\/]index\.html$/),
+      expect.objectContaining({ workspacePath: EXAMPLE_WORKSPACE }),
     );
   });
 

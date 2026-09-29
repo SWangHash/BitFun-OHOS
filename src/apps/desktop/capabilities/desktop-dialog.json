@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop-dialog",
-  "description": "Native dialog permissions for desktop platforms where the dialog plugin is available",
+  "description": "Native dialog permissions for desktop platforms. The dialog plugin is not compiled into the OHOS runtime, and capability references must not name permissions it does not provide; OHOS hosts use the system DocumentViewPicker bridge instead.",
   "windows": ["main", "agent-companion-pet", "spotlight"],
   "permissions": ["dialog:default"],
   "platforms": ["macOS", "windows", "linux"]

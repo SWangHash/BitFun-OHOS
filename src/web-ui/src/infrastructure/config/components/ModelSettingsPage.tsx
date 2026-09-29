@@ -475,12 +475,6 @@ const ModelSettingsPage: React.FC = () => {
   const [selectedModelDrafts, setSelectedModelDrafts] = useState<SelectedModelDraft[]>([]);
   const [showModelValidation, setShowModelValidation] = useState(false);
   useEffect(() => { setShowModelValidation(false); }, [editingTargetKey, isEditing]);
-  const missingModelFields = {
-    name: !editingConfig?.name?.trim(),
-    baseUrl: !editingConfig?.base_url?.trim(),
-    apiKey: editingConfig?.auth?.type !== 'subscription' && !editingConfig?.api_key?.trim(),
-    model: selectedModelDrafts.length === 0 || selectedModelDrafts.some(draft => !draft.modelName.trim()),
-  };
 
   const [editingProviderModelIds, setEditingProviderModelIds] = useState<Set<string>>(new Set());
   const [manualModelInput, setManualModelInput] = useState('');
@@ -758,6 +752,15 @@ const ModelSettingsPage: React.FC = () => {
   // stale download list does not persist for a non-Ollama / invalid URL.
   const showLocalModelManager = isLocalModelProviderSelected
     && isLocalOllamaEndpointActive(editingConfig?.base_url);
+
+  const missingModelFields = {
+    name: !editingConfig?.name?.trim(),
+    baseUrl: !editingConfig?.base_url?.trim(),
+    apiKey: editingConfig?.auth?.type !== 'subscription'
+      && currentTemplate?.requiresApiKey !== false
+      && !editingConfig?.api_key?.trim(),
+    model: selectedModelDrafts.length === 0 || selectedModelDrafts.some(draft => !draft.modelName.trim()),
+  };
 
   const editingModalHasUnsavedChanges = useMemo(() => {
     if (!editingConfig) return false;

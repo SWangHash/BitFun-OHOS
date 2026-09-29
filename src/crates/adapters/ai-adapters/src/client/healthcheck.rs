@@ -116,21 +116,38 @@ pub(crate) async fn test_connection(
 ) -> Result<ConnectionTestResult> {
     let start_time = std::time::Instant::now();
 
+    // On-device model services (e.g. OHOS 端侧大模型) expose a simplified
+    // OpenAI-compatible endpoint that does not support tool definitions.
+    // Sending tools causes a 400 "content must be string" rejection because
+    // the service cannot serialize the tool schema. Skip tools for local
+    // endpoints so the connection test degrades to a plain-text round trip.
+    let is_local_endpoint = {
+        let base_url = client.config.base_url.as_str();
+        base_url.contains("localhost")
+            || base_url.contains("127.0.0.1")
+            || base_url.contains("0.0.0.0")
+            || base_url.contains("[::1]")
+    };
+
     let test_messages = vec![Message::user(
         "Call the get_weather tool for city=Beijing. Do not answer with plain text.".to_string(),
     )];
-    let tools = Some(vec![ToolDefinition {
-        name: "get_weather".to_string(),
-        description: "Get the weather of a city".to_string(),
-        parameters: serde_json::json!({
-            "type": "object",
-            "properties": {
-                "city": { "type": "string", "description": "The city to get the weather for" }
-            },
-            "required": ["city"],
-            "additionalProperties": false
-        }),
-    }]);
+    let tools = if is_local_endpoint {
+        None
+    } else {
+        Some(vec![ToolDefinition {
+            name: "get_weather".to_string(),
+            description: "Get the weather of a city".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "city": { "type": "string", "description": "The city to get the weather for" }
+                },
+                "required": ["city"],
+                "additionalProperties": false
+            }),
+        }])
+    };
 
     match client
         .send_test_message(test_messages, tools, max_attempts)

@@ -84,6 +84,42 @@
     }
   }
 
+  &__menu {
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid var(--bitfun-color-border-default);
+    border-radius: 8px;
+    background: var(--bitfun-color-surface-panel);
+    box-shadow: var(--bitfun-shadow-lg);
+  }
+
+  &__menu-item {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--bitfun-color-content-primary);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--bitfun-color-focus-ring);
+      outline-offset: -1px;
+    }
+  }
+
   /* Input bar shown inside the bubble the user replied from. */
   &__bubble-composer {
     flex: 0 0 auto;
