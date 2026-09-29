@@ -49,12 +49,9 @@ const BUILTIN_TOOL_GROUPS: BuiltinToolGroupDefinition[] = [
     id: 'builtin:harmonyos',
     labelKey: 'agentsOverview.toolGroups.harmonyos',
     toolNames: [
-      'build_project',
       'start_app',
       'hdc_log',
-      'arkts_knowledge_search',
       'arkts_check',
-      'check_cpp_files',
       'switch_cwd',
       'verify_ui',
       'get_ui_verification_log',

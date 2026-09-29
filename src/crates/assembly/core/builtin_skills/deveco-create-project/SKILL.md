@@ -13,7 +13,7 @@ Confirm the following parameters before execution. Ask the user if any required 
 
 | Parameter | Required | Default | Example |
 |------|---------|--------|------|
-| `projectPath` | Required | — | `/Users/yellow/Desktop/projects` |
+| `projectPath` | Required | — | `<workspace>/projects` |
 | `appName` | Required | — | `HelloWorld` |
 | `bundleName` | Auto-derived, no need to ask | `com.example.{appName lowercase}` | `com.example.helloworld` |
 | `apiLevel` | Optional | fallback to `22` | `21` |
@@ -87,11 +87,11 @@ If the script reports `source: "fallback"`, it used the OHOS default API level `
 
 ### Step 3: Switch to Project Directory
 
-After project creation succeeds, use `switch_cwd` to set the session working directory to the generated project root (`{projectPath}/{appName}`) before any `build_project` or `start_app` call.
+After project creation succeeds, use `switch_cwd` to set the session working directory to the generated project root (`{projectPath}/{appName}`) before any `devecocli build` or `start_app` call.
 
 Reason:
 
-- `build_project` / `start_app` must run from the directory that contains `build-profile.json5`.
+- `devecocli build` / `start_app` must run from the directory that contains `build-profile.json5`.
 - Without `switch_cwd` to the generated project, subsequent build/run may target the wrong directory.
 
 ### Step 4: Continue Feature Work in the Generated Project

@@ -74,7 +74,7 @@ pub(crate) async fn run_hdc_start_fallback(
     let hap = find_hap(&cwd, module, target).ok_or_else(|| {
         BitFunError::tool(format!(
             "No built .hap found under {} (looked for module \"{}\", target \"{}\"). \
-             Run build_project first, then start_app again.",
+             Run `devecocli build` first, then start_app again.",
             cwd.display(),
             module,
             target
@@ -163,7 +163,10 @@ async fn hdc_list_targets(context: &ToolUseContext) -> BitFunResult<Vec<String>>
             }
         )));
     }
-    Ok(parse_hdc_targets(&format!("{}\n{}", out.stdout, out.stderr)))
+    Ok(parse_hdc_targets(&format!(
+        "{}\n{}",
+        out.stdout, out.stderr
+    )))
 }
 
 enum TargetChoice {
@@ -195,7 +198,11 @@ fn resolve_hdc_target(hvd: Option<&str>, targets: &[String]) -> BitFunResult<Tar
     Err(BitFunError::tool(format!(
         "Device \"{}\" not found by hdc. hdc targets:\n{}",
         query,
-        targets.iter().map(|t| format!("- {}", t)).collect::<Vec<_>>().join("\n")
+        targets
+            .iter()
+            .map(|t| format!("- {}", t))
+            .collect::<Vec<_>>()
+            .join("\n")
     )))
 }
 
@@ -279,7 +286,12 @@ fn walk_into(dir: &Path, depth_left: usize, skip: &[&str], out: &mut Vec<PathBuf
             }
             walk_into(&path, depth_left - 1, skip, out);
         } else if ft.is_file() {
-            if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("hap")).unwrap_or(false) {
+            if path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("hap"))
+                .unwrap_or(false)
+            {
                 out.push(path);
             }
         }
@@ -406,7 +418,15 @@ async fn hdc_install(
         quoted,
     ];
     let argv: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_hdc(&argv, context, DevecocliOptions { timeout: HDC_START_TIMEOUT, ..Default::default() }).await
+    run_hdc(
+        &argv,
+        context,
+        DevecocliOptions {
+            timeout: HDC_START_TIMEOUT,
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 async fn hdc_aa_start(
@@ -427,7 +447,15 @@ async fn hdc_aa_start(
         bundle_name.to_string(),
     ];
     let argv: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_hdc(&argv, context, DevecocliOptions { timeout: HDC_START_TIMEOUT, ..Default::default() }).await
+    run_hdc(
+        &argv,
+        context,
+        DevecocliOptions {
+            timeout: HDC_START_TIMEOUT,
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 // ---------- helpers ----------
@@ -442,7 +470,11 @@ fn combine_output(out: &DevecocliOutput) -> String {
 }
 
 fn normalize(s: &str) -> String {
-    s.trim().to_lowercase().split_whitespace().collect::<Vec<_>>().join("")
+    s.trim()
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("")
 }
 
 /// Wrap a path in double quotes when it contains characters that a shell would
@@ -493,7 +525,10 @@ mod tests {
         assert!(parse_hdc_targets("[Empty]").is_empty());
         assert!(parse_hdc_targets("No device connected").is_empty());
         let out = parse_hdc_targets("Connect Key\n127.0.0.1:5555\nABC12345");
-        assert_eq!(out, vec!["127.0.0.1:5555".to_string(), "ABC12345".to_string()]);
+        assert_eq!(
+            out,
+            vec!["127.0.0.1:5555".to_string(), "ABC12345".to_string()]
+        );
     }
 
     #[test]
@@ -513,7 +548,11 @@ mod tests {
 
     #[test]
     fn resolve_hdc_target_matches_by_substring() {
-        let r = resolve_hdc_target(Some("5555"), &["127.0.0.1:5555".to_string(), "ABC".to_string()]).unwrap();
+        let r = resolve_hdc_target(
+            Some("5555"),
+            &["127.0.0.1:5555".to_string(), "ABC".to_string()],
+        )
+        .unwrap();
         match r {
             TargetChoice::Single(d) => assert_eq!(d, "127.0.0.1:5555"),
             _ => panic!("expected single"),
@@ -556,7 +595,10 @@ mod tests {
     #[test]
     fn quote_shell_arg_only_when_needed() {
         assert_eq!(quote_shell_arg("C:/build/x.hap"), "C:/build/x.hap");
-        assert_eq!(quote_shell_arg("C:/my build/x.hap"), "\"C:/my build/x.hap\"");
+        assert_eq!(
+            quote_shell_arg("C:/my build/x.hap"),
+            "\"C:/my build/x.hap\""
+        );
     }
 
     #[test]

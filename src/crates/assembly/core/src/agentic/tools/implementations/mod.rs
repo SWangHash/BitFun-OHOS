@@ -27,10 +27,7 @@ pub mod control_hub_tool;
 pub mod cron_tool;
 pub mod delete_file_tool;
     pub(crate) mod devecocli_run;
-    // DevEco MCP discovery pulls the MCP service layer; keep these helpers out
-    // of the light feature closures (agent-runtime, git) that never use them.
-    #[cfg(feature = "mcp-runtime")]
-    pub(crate) mod deveco_mcp_check;
+    pub mod devecocli_bash_guard;
     pub mod exec_command;
     pub mod file_edit_tool;
     pub mod file_read_tool;

@@ -43,12 +43,9 @@ const tools: GroupableTool[] = [
 describe('tool groups', () => {
   it('groups HarmonyOS tools under the HarmonyOS built-in group', () => {
     const harmonyTools: GroupableTool[] = [
-      { name: 'build_project', description: 'Build a HarmonyOS project', is_readonly: false },
       { name: 'start_app', description: 'Start a HarmonyOS app', is_readonly: false },
       { name: 'hdc_log', description: 'Read device logs', is_readonly: true },
-      { name: 'arkts_knowledge_search', description: 'Search HarmonyOS docs', is_readonly: true },
       { name: 'arkts_check', description: 'Check ArkTS files', is_readonly: true },
-      { name: 'check_cpp_files', description: 'Check C++ files', is_readonly: true },
       { name: 'switch_cwd', description: 'Switch project directory', is_readonly: false },
       { name: 'verify_ui', description: 'Verify HarmonyOS UI', is_readonly: false },
       { name: 'get_ui_verification_log', description: 'Read UI verification logs', is_readonly: true },

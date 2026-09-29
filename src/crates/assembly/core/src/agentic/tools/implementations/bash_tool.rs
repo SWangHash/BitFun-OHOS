@@ -472,6 +472,19 @@ Usage notes:
             .unwrap_or(false);
 
         if let Some(cmd) = command {
+            if let Some(message) =
+                crate::agentic::tools::implementations::devecocli_bash_guard::check_devecocli_only_command(
+                    context.and_then(|context| context.agent_type.as_deref()),
+                    cmd,
+                )
+            {
+                return ValidationResult {
+                    result: false,
+                    message: Some(message),
+                    error_code: Some(403),
+                    meta: None,
+                };
+            }
             if let Some(base_cmd) = banned_shell_command(cmd) {
                 return ValidationResult {
                     result: false,
