@@ -168,6 +168,8 @@ describe('SessionFilesBadge', () => {
     mocks.flowState.sessions = new Map<string, unknown>([
       ['session-1', {
         sessionId: 'session-1',
+        workspaceId: 'local_workspace',
+        workspacePath: 'D:/workspace/session',
         dialogTurns: [],
       }],
     ]);
@@ -206,6 +208,11 @@ describe('SessionFilesBadge', () => {
     const toggle = container.querySelector('.session-files-badge__button') as HTMLButtonElement | null;
     expect(toggle).not.toBeNull();
     expect(toggle?.querySelector('[data-bitfun-name="chevron-down"]')).not.toBeNull();
+    expect(mocks.getSessionFileDiffStats).toHaveBeenCalledWith(
+      'session-1',
+      'src/current-session.ts',
+      'local_workspace',
+    );
 
     await act(async () => {
       toggle?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -286,6 +293,13 @@ describe('SessionFilesBadge', () => {
       await Promise.resolve();
     });
 
+    expect(prepareReviewLaunchFromSessionFiles).toHaveBeenCalledWith(
+      ['src/current-session.ts', 'src/stale-session.ts'],
+      expect.objectContaining({
+        workspaceId: 'local_workspace',
+        workspacePath: 'D:/workspace/session',
+      }),
+    );
     expect(notificationService.error).toHaveBeenCalledWith(
       expect.stringContaining('review policy unavailable'),
       expect.objectContaining({ duration: 5000 }),

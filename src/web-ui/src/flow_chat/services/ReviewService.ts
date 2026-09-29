@@ -574,6 +574,7 @@ export async function launchPreparedReviewSession(params: {
     const result = await launchDeepReviewSession({
       parentSessionId: params.parentSessionId,
       workspacePath: params.workspacePath,
+      workspaceId: params.workspaceId,
       prompt: params.prepared.prompt,
       displayMessage: params.displayMessage,
       childSessionName,
@@ -597,6 +598,7 @@ export async function launchPreparedReviewSession(params: {
   const requestId = params.requestId ?? createBtwRequestId('review');
   const createChild = () => createBtwChildSession({
     parentSessionId: params.parentSessionId,
+    workspaceId: params.workspaceId,
     workspacePath: params.workspacePath,
     childSessionName,
     sessionKind: 'review',

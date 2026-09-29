@@ -7,7 +7,7 @@
 use std::process::{Command, Stdio};
 #[cfg(windows)]
 use std::sync::LazyLock;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_env = "ohos"))]
 use std::sync::OnceLock;
 use tokio::process::Command as TokioCommand;
 
@@ -132,7 +132,14 @@ pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
         cmd
     }
 
-    #[cfg(not(windows))]
+    #[cfg(any(target_os = "macos", target_env = "ohos"))]
+    {
+        let mut cmd = cmd;
+        apply_cached_platform_path(&mut cmd);
+        cmd
+    }
+
+    #[cfg(not(any(windows, target_os = "macos", target_env = "ohos")))]
     cmd
 }
 
@@ -140,10 +147,10 @@ pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
 pub fn create_tokio_command<S: AsRef<std::ffi::OsStr>>(program: S) -> TokioCommand {
     let cmd = TokioCommand::new(program.as_ref());
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_env = "ohos"))]
     {
         let mut cmd = cmd;
-        apply_cached_macos_path(&mut cmd);
+        apply_cached_platform_path_tokio(&mut cmd);
         cmd
     }
 
@@ -154,7 +161,7 @@ pub fn create_tokio_command<S: AsRef<std::ffi::OsStr>>(program: S) -> TokioComma
         cmd
     }
 
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(not(any(target_os = "macos", target_env = "ohos", windows)))]
     cmd
 }
 
@@ -208,45 +215,26 @@ const fn inherited_job_process_group_creation_flags() -> u32 {
     CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 }
 
-#[cfg(target_os = "macos")]
-fn apply_cached_macos_path(cmd: &mut TokioCommand) {
-    if let Some(path) = cached_macos_path_env() {
+#[cfg(any(target_os = "macos", target_env = "ohos"))]
+fn apply_cached_platform_path(cmd: &mut Command) {
+    if let Some(path) = cached_platform_path_env() {
         cmd.env("PATH", path);
     }
 }
 
-#[cfg(target_os = "macos")]
-fn cached_macos_path_env() -> Option<&'static std::ffi::OsString> {
-    static MACOS_PATH_ENV: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
-    MACOS_PATH_ENV.get_or_init(build_macos_path_env).as_ref()
+#[cfg(any(target_os = "macos", target_env = "ohos"))]
+fn apply_cached_platform_path_tokio(cmd: &mut TokioCommand) {
+    if let Some(path) = cached_platform_path_env() {
+        cmd.env("PATH", path);
+    }
 }
 
-#[cfg(target_os = "macos")]
-fn build_macos_path_env() -> Option<std::ffi::OsString> {
-    let existing_path = std::env::var_os("PATH");
-    let mut entries = Vec::new();
-    if let Some(path) = existing_path {
-        entries.extend(std::env::split_paths(&path));
-    }
-    entries.extend(crate::system::platform_path_entries());
-
-    if entries.is_empty() {
-        return None;
-    }
-
-    let mut merged = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for path in entries {
-        if path.as_os_str().is_empty() {
-            continue;
-        }
-        let key = path.to_string_lossy().to_string();
-        if seen.insert(key) {
-            merged.push(path);
-        }
-    }
-
-    std::env::join_paths(merged).ok()
+#[cfg(any(target_os = "macos", target_env = "ohos"))]
+fn cached_platform_path_env() -> Option<&'static std::ffi::OsString> {
+    static PLATFORM_PATH_ENV: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
+    PLATFORM_PATH_ENV
+        .get_or_init(crate::system::merged_platform_path)
+        .as_ref()
 }
 
 /// Stop managed child trees without creating or closing host containment.

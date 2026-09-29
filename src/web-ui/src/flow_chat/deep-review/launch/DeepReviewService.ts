@@ -6,6 +6,7 @@ import { closeBtwSessionInAuxPane, openBtwSessionInAuxPane } from '../../service
 import { FlowChatManager } from '../../services/FlowChatManager';
 import { flowChatStore } from '../../store/FlowChatStore';
 import { insertReviewSessionSummaryMarker } from '../../services/ReviewSessionMarkerService';
+import { sessionWorkspaceId } from '../../utils/sessionWorkspace';
 import {
   buildEffectiveReviewTeamManifest,
   buildReviewTeamPromptBlock,
@@ -50,6 +51,7 @@ const log = createLogger('DeepReviewService');
 interface LaunchDeepReviewSessionParams {
   parentSessionId: string;
   workspacePath?: string;
+  workspaceId?: string;
   prompt: string;
   displayMessage: string;
   childSessionName?: string;
@@ -312,6 +314,7 @@ export async function buildDeepReviewPromptFromSlashCommand(
 export async function launchDeepReviewSession({
   parentSessionId,
   workspacePath,
+  workspaceId,
   prompt,
   displayMessage,
   childSessionName = 'Review: Strict',
@@ -329,10 +332,12 @@ export async function launchDeepReviewSession({
   const effectiveRequestId = requestId ?? createBtwRequestId('deep_review');
 
   try {
+    const parentSession = flowChatStore.getState().sessions.get(parentSessionId);
+    const effectiveWorkspaceId = workspaceId || sessionWorkspaceId(parentSession);
+    if (!effectiveWorkspaceId) throw new Error('Parent session workspace ID is unavailable');
+
     if (!runManifest?.managedReviewPlan) {
-      const parentSession = flowChatStore.getState().sessions.get(parentSessionId);
-      if (!parentSession?.workspaceId) throw new Error('Parent session workspace ID is unavailable');
-      await prepareDefaultReviewTeamForLaunch(parentSession.workspaceId, {
+      await prepareDefaultReviewTeamForLaunch(effectiveWorkspaceId, {
         reviewTargetFilePaths: requestedFiles,
         target: runManifest?.target,
       });
@@ -341,6 +346,7 @@ export async function launchDeepReviewSession({
     launchStep = 'create_child_session';
     const createParams = {
       parentSessionId,
+      workspaceId: effectiveWorkspaceId,
       workspacePath,
       childSessionName,
       sessionKind: presentationKind,

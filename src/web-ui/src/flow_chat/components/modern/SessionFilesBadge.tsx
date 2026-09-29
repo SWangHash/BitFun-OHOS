@@ -26,6 +26,11 @@ import {
   shouldTriggerReviewReadyGlint,
 } from './reviewReadyGlint';
 import { flowChatStore } from '../../store/FlowChatStore';
+import { useFlowChatContext } from './FlowChatContext';
+import {
+  sessionExecutionWorkspacePath,
+  sessionWorkspaceId,
+} from '../../utils/sessionWorkspace';
 import type { DialogTurn } from '../../types/flow-chat';
 import { useSessionReviewActivity } from '../../hooks/useSessionReviewActivity';
 import { useSessionStateMachine } from '../../hooks/useSessionStateMachine';
@@ -158,6 +163,10 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
   const canLaunchReview = isTauriRuntime();
   const { files } = useSnapshotState(sessionId);
   const { currentWorkspace } = useWorkspaceContext();
+  const {
+    workspaceId: flowChatWorkspaceId,
+    workspacePath: flowChatWorkspacePath,
+  } = useFlowChatContext();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isReviewMenuOpen, setIsReviewMenuOpen] = useState(false);
   const [showReviewReadyGlint, setShowReviewReadyGlint] = useState(false);
@@ -399,6 +408,11 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         loadingFilesRef.current.add(file.filePath);
       });
 
+      const session = flowChatStore.getState().sessions.get(sessionId);
+      const workspaceId = sessionWorkspaceId(session)
+        || flowChatWorkspaceId
+        || currentWorkspace?.id;
+
       const batchResults = await runWithConcurrencyLimit(
         newFilesToLoad,
         DIFF_STATS_MAX_CONCURRENCY,
@@ -409,7 +423,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
             const statsResp = await snapshotAPI.getSessionFileDiffStats(
               sessionId,
               file.filePath,
-              currentWorkspace?.rootPath,
+              workspaceId,
             );
             const fileName = file.filePath.split(/[/\\]/).pop() || file.filePath;
 
@@ -473,7 +487,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } finally {
       setLoadingStats(false);
     }
-  }, [sessionId, t, currentWorkspace?.rootPath]);
+  }, [sessionId, t, flowChatWorkspaceId, currentWorkspace?.id]);
 
   // Reload stats when the file list changes.
   useEffect(() => {
@@ -588,6 +602,10 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         return;
       }
       const fileName = filePath.split(/[/\\]/).pop() || filePath;
+      const session = flowChatStore.getState().sessions.get(sessionId);
+      const workspacePath = (session && sessionExecutionWorkspacePath(session))
+        || flowChatWorkspacePath
+        || currentWorkspace?.rootPath;
 
       // Expand the right panel.
       window.dispatchEvent(new CustomEvent('expand-right-panel'));
@@ -600,7 +618,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
           diffData.modifiedContent || '',
           false,
           'agent',
-          currentWorkspace?.rootPath,
+          workspacePath,
           undefined,
           false,
           {
@@ -614,7 +632,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } catch (error) {
       log.error('Failed to open diff', { filePath, error });
     }
-  }, [sessionId, currentWorkspace?.rootPath]);
+  }, [sessionId, flowChatWorkspacePath, currentWorkspace?.rootPath]);
 
   // Prepare and launch the least costly sufficient Review path.
   const handleReviewClick = useCallback(async (e: React.MouseEvent) => {
@@ -657,10 +675,18 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         .map((filePath) => fileStats.get(filePath))
         .filter((stat): stat is FileStats => Boolean(stat));
       const hasUnknownLineStats = reviewableStats.some((stat) => Boolean(stat.error));
+      const session = flowChatStore.getState().sessions.get(sessionId);
+      const workspaceId = sessionWorkspaceId(session)
+        || flowChatWorkspaceId
+        || currentWorkspace?.id;
+      const workspacePath = (session && sessionExecutionWorkspacePath(session))
+        || flowChatWorkspacePath
+        || currentWorkspace?.rootPath;
       const prepared = await prepareReviewLaunchFromSessionFiles(
         reviewableFilePaths,
         {
-          workspacePath: currentWorkspace?.rootPath,
+          workspaceId,
+          workspacePath,
           changeStats: {
             fileCount: reviewableFilePaths.length,
             ...(!hasUnknownLineStats
@@ -691,7 +717,8 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
       const reviewThreadTitle = t('sessionFilesBadge.review.threadTitle');
       const launched = await launchPreparedReviewSession({
         parentSessionId: sessionId,
-        workspacePath: currentWorkspace?.rootPath,
+        workspaceId,
+        workspacePath,
         displayMessage,
         prepared,
         childSessionName: reviewThreadTitle,
@@ -720,7 +747,17 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } finally {
       setLaunchingReviewMode(null);
     }
-  }, [confirmDeepReviewLaunch, fileStats, isReviewActionLocked, sessionId, t, currentWorkspace?.rootPath]);
+  }, [
+    confirmDeepReviewLaunch,
+    fileStats,
+    flowChatWorkspaceId,
+    flowChatWorkspacePath,
+    isReviewActionLocked,
+    sessionId,
+    t,
+    currentWorkspace?.id,
+    currentWorkspace?.rootPath,
+  ]);
 
   const handleQuickActionClick = useCallback(async (action: QuickAction) => {
     if (!sessionId || isSessionProcessing) return;

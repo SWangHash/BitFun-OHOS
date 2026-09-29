@@ -4641,16 +4641,33 @@ fn parse_repository_root_output(output: &str) -> Result<String, ReviewPlatformEr
         })
 }
 
+fn find_git_in_directories(directories: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
+    let file_name = if cfg!(windows) { "git.exe" } else { "git" };
+    directories.into_iter().find_map(|directory| {
+        let candidate = directory.join(file_name);
+        candidate.is_file().then_some(candidate)
+    })
+}
+
 async fn resolve_git_program(current_dir: &Path) -> PathBuf {
     #[cfg(not(unix))]
     let _ = current_dir;
 
-    if let Some(path) = std::env::var_os("PATH").and_then(|value| {
-        std::env::split_paths(&value).find_map(|directory| {
-            let candidate = directory.join(if cfg!(windows) { "git.exe" } else { "git" });
-            candidate.is_file().then_some(candidate)
-        })
-    }) {
+    if let Some(path) = find_git_in_directories(
+        std::env::var_os("PATH")
+            .as_deref()
+            .map(std::env::split_paths)
+            .into_iter()
+            .flatten(),
+    ) {
+        return path;
+    }
+
+    // Same extra directories child processes receive when the host did not
+    // inherit the user login PATH.
+    if let Some(path) =
+        find_git_in_directories(bitfun_services_core::system::platform_path_entries())
+    {
         return path;
     }
 

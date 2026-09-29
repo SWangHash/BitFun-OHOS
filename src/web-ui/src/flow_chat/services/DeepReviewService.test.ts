@@ -484,6 +484,31 @@ describe('launchDeepReviewSession', () => {
     expect(mockPrepareDefaultReviewTeamForLaunch).not.toHaveBeenCalled();
   });
 
+  it('uses an explicit workspace ID for legacy parent sessions', async () => {
+    mockSessionsMap.set('parent-123', { workspacePath: '/same/path' });
+    mockCreateBtwChildSession.mockResolvedValue({
+      childSessionId: 'child-123',
+      parentDialogTurnId: 'turn-456',
+    });
+    mockSendMessage.mockResolvedValue(undefined);
+
+    await launchDeepReviewSession({
+      parentSessionId: 'parent-123',
+      workspaceId: 'workspace-fallback',
+      workspacePath: '/same/path',
+      prompt: 'Review files',
+      displayMessage: 'Review started',
+    });
+
+    expect(mockPrepareDefaultReviewTeamForLaunch).toHaveBeenCalledWith(
+      'workspace-fallback',
+      expect.anything(),
+    );
+    expect(mockCreateBtwChildSession).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-fallback' }),
+    );
+  });
+
   it('returns child session ID on successful launch', async () => {
     mockCreateBtwChildSession.mockResolvedValue({
       childSessionId: 'child-123',
@@ -503,6 +528,7 @@ describe('launchDeepReviewSession', () => {
     expect(mockCreateBtwChildSession).toHaveBeenCalledWith(
       expect.objectContaining({
         parentSessionId: 'parent-123',
+        workspaceId: 'workspace-1',
         workspacePath: 'D:\\workspace\\repo',
         sessionKind: 'deep_review',
         agentType: 'DeepReview',

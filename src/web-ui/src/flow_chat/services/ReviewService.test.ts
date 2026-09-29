@@ -701,6 +701,7 @@ describe('ReviewService', () => {
 
     expect(mocks.createBtwChildSession).toHaveBeenCalledWith(expect.objectContaining({
       parentSessionId: 'parent',
+      workspaceId: 'workspace-1',
       sessionKind: 'review',
       agentType: 'CodeReview',
       childSessionName: 'Review',
@@ -750,6 +751,7 @@ describe('ReviewService', () => {
     });
 
     expect(mocks.launchDeepReviewSession).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace-1',
       prompt: 'prepared prompt',
       runManifest: manifest,
       childSessionName: 'Review',
