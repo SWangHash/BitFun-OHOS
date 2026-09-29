@@ -255,5 +255,22 @@ Never guess `sys.media.*`/`sys.symbol.*`/`sys.color.*` names — they usually do
 | `does not meet UI component syntax` / structural build errors / callback type traps | `references/arkui-structure-rules.md` |
 | Error message contains an `arkts-xxx` rule tag | `references/arkts-rules.md` |
 | Migrating TypeScript/Android code | `references/ts-to-arkts-rewrites.md` |
+| ArkTS restriction checklist by rule tag (`arkts-no-var`, `arkts-no-destruct-*`, `arkts-sendable-*`) | `references/restrictions.md` |
+| Basic syntax review: variables, classes, interfaces, functions, operators | `references/basic-syntax.md` |
+| TypeScript-to-ArkTS differences and common rewrites | `references/ts-diff.md` |
 | Sendable / concurrency | `references/arkts-rules.md` § 10 |
 | UI quality review before finalizing | `references/ui-quality-checklist.md` |
+| V1/V2 state decorators (@State/@Prop/@Link/@Provide/@Observed, @ObservedV2/@Trace/@Local/@Param/@Monitor/@Computed), mixed-version rules | `references/quick-rules/05-state.md` |
+| Navigation stack, Navigation/NavDestination, pushPath params, route table | `references/quick-rules/08-navigation.md` + `references/quick-rules/12-layout.md` |
+| Component/modifier/layout/render traps (ForEach, LazyForEach, Repeat, child-component constraints) | `references/quick-rules/03-component.md` + `references/quick-apis/` |
+| Deprecated APIs, performance traps | `references/quick-rules/13-performance.md` + `references/quick-rules/14-deprecated.md` |
+
+> `references/restrictions.md` is a linter-derived restriction checklist. Where it disagrees with `references/arkts-rules.md` - notably on template literals - `references/arkts-rules.md` is authoritative: template literals, `value as T`, `Record<K,V>`, and arrow functions are legal.
+
+### ArkUI quick-rules & quick-apis (indexed rule pack)
+
+The `references/quick-rules/` (15 files) and `references/quick-apis/` (19 files) trees are a finer-grained, task-routed rule pack. Each tree has an `_index.md` to route from a symptom to the right file; consult them when the cookbook tables above do not cover the exact modifier, decorator, or API you are about to write.
+
+- Rules: `00-arkts-syntax`, `01-import`, `02-uicontext`, `03-component`, `04-build`, `05-state`, `06-rendering`, `07-attribute-params`, `08-navigation`, `09-dialog`, `10-style`, `11-extension`, `12-layout`, `13-performance`, `14-deprecated`
+- APIs: `01-layout` … `18-error-code`
+- Start from `references/quick-rules/_index.md` and `references/quick-apis/_index.md`; prefer `Grep` over reading a whole file.
