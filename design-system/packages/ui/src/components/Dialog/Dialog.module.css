@@ -16,6 +16,11 @@
     align-items: center;
     justify-content: center;
     padding: var(--bitfun-overlay-dialog-viewport-gutter);
+    /* Hosts that paint their own window chrome over the web view keep the strip
+       above it; the scrim still covers the whole viewport. */
+    padding-block-start: calc(
+      var(--bitfun-overlay-dialog-viewport-gutter) + var(--bitfun-viewport-host-chrome-inset-block-start)
+    );
     background: var(--bitfun-color-overlay-scrim);
     -webkit-backdrop-filter: var(--bitfun-overlay-dialog-backdrop-blur);
     backdrop-filter: var(--bitfun-overlay-dialog-backdrop-blur);
@@ -26,7 +31,9 @@
     position: relative;
     display: flex;
     min-inline-size: 0;
-    max-block-size: calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+    max-block-size: calc(
+      100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)
+    );
     flex-direction: column;
     inline-size: 100%;
     overflow: hidden;
@@ -46,6 +53,8 @@
 
   .overlay[data-bitfun-component="sheet"] {
     padding: 0;
+    /* Edge sheets already fill their own axis; only the host chrome strip stays reserved. */
+    padding-block-start: var(--bitfun-viewport-host-chrome-inset-block-start);
   }
 
   .overlay[data-bitfun-component="sheet"][data-placement="left"] { justify-content: flex-start; }

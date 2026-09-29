@@ -950,7 +950,7 @@ $todos-compact-breakpoint: 720px;
 .bitfun-todos-editor-dialog {
   inline-size: min(960px, 84vw);
   max-inline-size: min(960px, 84vw);
-  max-block-size: min(760px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  max-block-size: min(760px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
 }
 
 .bitfun-todos-editor-dialog__header {

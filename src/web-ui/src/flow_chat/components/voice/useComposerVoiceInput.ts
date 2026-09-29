@@ -8,7 +8,7 @@ import {
   type SpeechModelStatus,
 } from '@/infrastructure/api';
 import { useAIExperienceSettings } from '@/infrastructure/config/hooks';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { notificationService } from '@/shared/notification-system';
@@ -21,7 +21,6 @@ import {
 const log = createLogger('ComposerVoiceInput');
 
 type VoiceInputPhase = 'idle' | 'setup' | 'downloading' | 'preparing' | 'recording' | 'transcribing';
-export type VoiceInputCompletionMode = 'transcribe' | 'send';
 interface SelectedModelCapability {
   modelId: string;
   status: SpeechModelStatus | null;
@@ -36,30 +35,25 @@ export interface ComposerVoiceInputController {
   enabled: boolean;
   disabled: boolean;
   phase: VoiceInputPhase;
-  completionMode: VoiceInputCompletionMode | null;
   audioLevel: number;
   lowVolumeWarning: boolean;
   downloadProgress: number | null;
   setupMessage: string;
   setupActionLabel: string;
   setupCancelTooltip: string;
-  lowVolumeTooltip: string;
   tooltip: string;
-  cancelTooltip: string;
-  transcribeTooltip: string;
-  sendTooltip: string;
+  statusLabel: string;
   toggle: () => void;
   installAndStart: () => void;
   dismissSetup: () => void;
-  cancel: () => void;
   transcribe: () => void;
-  transcribeAndSend: () => void;
 }
 
 export interface UseComposerVoiceInputOptions {
   focusInputSoon: () => void;
+  getCurrentText: () => string;
   insertText: (text: string) => string | null;
-  submitText: (text: string) => Promise<void>;
+  replaceText: (text: string) => void;
 }
 
 function isMediaCaptureSupported(): boolean {
@@ -93,10 +87,18 @@ function estimatePcm16Base64Seconds(pcm16Base64: string, sampleRate: number): nu
   return bytes / (sampleRate * 2);
 }
 
+function getRecognitionDelta(previous: string, next: string): string {
+  if (!previous || next.startsWith(previous)) {
+    return previous ? next.slice(previous.length).trim() : next;
+  }
+  return '';
+}
+
 export function useComposerVoiceInput({
   focusInputSoon,
+  getCurrentText,
   insertText,
-  submitText,
+  replaceText,
 }: UseComposerVoiceInputOptions): ComposerVoiceInputController {
   const { t } = useTranslation('flow-chat');
   const { settings: aiExperienceSettings } = useAIExperienceSettings();
@@ -106,7 +108,6 @@ export function useComposerVoiceInput({
   const [modelCapability, setModelCapability] = useState<SelectedModelCapability | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [phase, setPhase] = useState<VoiceInputPhase>('idle');
-  const [completionMode, setCompletionMode] = useState<VoiceInputCompletionMode | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const [lowVolumeWarning, setLowVolumeWarning] = useState(false);
   const sessionRef = useRef<SpeechInputSession | null>(null);
@@ -122,7 +123,11 @@ export function useComposerVoiceInput({
   const bufferedChunksRef = useRef<Array<{ pcm16Base64: string; seconds: number }>>([]);
   const bufferedSecondsRef = useRef(0);
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
-  const recordingLimitTimerRef = useRef<number | null>(null);
+  const liveTextRef = useRef('');
+  const pendingLiveTextRef = useRef('');
+  const liveTextBaseRef = useRef('');
+  const liveTextEditedRef = useRef(false);
+  const lastRenderedTextRef = useRef('');
   const lowVolumeStartedAtRef = useRef<number | null>(null);
   const speechRuntimeSupported = isTauriRuntime();
   const selectedModelCapability = selectedProvider === 'local'
@@ -135,13 +140,6 @@ export function useComposerVoiceInput({
     : selectedModelCapability === null
       ? null
       : selectedModelCapability.status?.state === 'installed';
-
-  const clearRecordingLimitTimer = useCallback(() => {
-    if (recordingLimitTimerRef.current !== null) {
-      window.clearTimeout(recordingLimitTimerRef.current);
-      recordingLimitTimerRef.current = null;
-    }
-  }, []);
 
   const openVoiceInputSettings = useCallback(() => {
     useSettingsStore.getState().openDestination({
@@ -210,6 +208,71 @@ export function useComposerVoiceInput({
     };
   }, [refreshCapability, selectedModelId, selectedProvider, speechRuntimeSupported]);
 
+  const mergeLiveText = useCallback((nextText: string) => {
+    const base = liveTextBaseRef.current;
+    const current = getCurrentText();
+    const previousLive = liveTextRef.current;
+    const expectedPrevious = previousLive ? (base ? `${base} ${previousLive}` : previousLive) : base;
+
+    if (previousLive && !current.trim() && lastRenderedTextRef.current.trim()) {
+      liveTextBaseRef.current = '';
+      liveTextEditedRef.current = true;
+      liveTextRef.current = nextText;
+      pendingLiveTextRef.current = nextText;
+      lastRenderedTextRef.current = '';
+      return '';
+    }
+    if (current.length < lastRenderedTextRef.current.length && current !== lastRenderedTextRef.current) {
+      liveTextBaseRef.current = current;
+      liveTextEditedRef.current = true;
+      liveTextRef.current = nextText;
+      pendingLiveTextRef.current = nextText;
+      lastRenderedTextRef.current = current;
+      return current;
+    }
+    if (liveTextEditedRef.current) {
+      const delta = getRecognitionDelta(previousLive, nextText);
+      return current ? (delta ? `${current} ${delta}` : current) : delta;
+    }
+    if (current === lastRenderedTextRef.current) {
+      return base ? `${base} ${nextText}` : nextText;
+    }
+    if (current === expectedPrevious || (!current && !expectedPrevious)) {
+      return base ? `${base} ${nextText}` : nextText;
+    }
+    // The user edited the composer while recognition was running. Discard the
+    // current cumulative result and use it only as the new recognition cursor.
+    // The next result will be compared against this cursor, so old speech is
+    // never inserted into the edited draft again.
+    liveTextBaseRef.current = current;
+    liveTextEditedRef.current = true;
+    liveTextRef.current = nextText;
+    pendingLiveTextRef.current = nextText;
+    lastRenderedTextRef.current = current;
+    return current;
+  }, [getCurrentText]);
+
+  useEffect(() => {
+    return speechAPI.onTranscription(event => {
+      const session = sessionRef.current;
+      if (!session || session.sessionId !== event.sessionId || (phase !== 'recording' && phase !== 'transcribing')) {
+        return;
+      }
+      const nextText = event.text.trim();
+      if (!nextText || nextText === pendingLiveTextRef.current) {
+        return;
+      }
+      const mergedText = mergeLiveText(nextText);
+      liveTextRef.current = nextText;
+      pendingLiveTextRef.current = nextText;
+      if (mergedText === getCurrentText() && liveTextEditedRef.current) {
+        return;
+      }
+      replaceText(mergedText);
+      lastRenderedTextRef.current = mergedText;
+    });
+  }, [mergeLiveText, phase, replaceText]);
+
   useEffect(() => {
     if (phase !== 'setup' || modelInstalled !== true) return;
     setDownloadProgress(null);
@@ -243,7 +306,6 @@ export function useComposerVoiceInput({
     bufferedChunksRef.current = [];
     bufferedSecondsRef.current = 0;
     lowVolumeStartedAtRef.current = null;
-    clearRecordingLimitTimer();
     if (audioLevelFrameRef.current !== null) {
       window.cancelAnimationFrame(audioLevelFrameRef.current);
       audioLevelFrameRef.current = null;
@@ -273,7 +335,7 @@ export function useComposerVoiceInput({
         log.warn('Voice input session creation failed during cleanup', { error });
       });
     }
-  }, [clearRecordingLimitTimer]);
+  }, []);
 
   const updateAudioLevel = useCallback((level: number) => {
     latestAudioLevelRef.current = Math.max(0, Math.min(1, level));
@@ -365,7 +427,6 @@ export function useComposerVoiceInput({
   }, [appendChunkToSession]);
 
   const cancelRecording = useCallback(async () => {
-    clearRecordingLimitTimer();
     activeRecordingIdRef.current += 1;
     const session = sessionRef.current;
     const sessionPromise = sessionPromiseRef.current;
@@ -379,7 +440,6 @@ export function useComposerVoiceInput({
     bufferedSecondsRef.current = 0;
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
-    setCompletionMode(null);
     setPhase('idle');
 
     if (recorder) {
@@ -407,7 +467,7 @@ export function useComposerVoiceInput({
         log.warn('Voice input session creation failed after cancellation', { error });
       });
     }
-  }, [clearRecordingLimitTimer]);
+  }, []);
 
   useEffect(() => {
     cancelRecordingRef.current = cancelRecording;
@@ -418,17 +478,15 @@ export function useComposerVoiceInput({
     };
   }, [cancelRecording]);
 
-  const stopAndTranscribe = useCallback(async (mode: VoiceInputCompletionMode) => {
-    clearRecordingLimitTimer();
+  const stopAndTranscribe = useCallback(async () => {
     let session = sessionRef.current;
     const sessionPromise = sessionPromiseRef.current;
     const recorder = recorderRef.current;
-    if (!recorder || (!session && !sessionPromise)) {
+     if ((!recorder && !isOpenHarmonyRuntime()) || (!session && !sessionPromise)) {
       setPhase('idle');
       return;
     }
 
-    setCompletionMode(mode);
     setPhase('transcribing');
     lowVolumeStartedAtRef.current = null;
     setLowVolumeWarning(false);
@@ -436,7 +494,7 @@ export function useComposerVoiceInput({
     setAudioLevel(0);
     try {
       recorderRef.current = null;
-      await recorder.stop();
+       await recorder?.stop();
       if (!session && sessionPromise) {
         session = await sessionPromise;
         attachSession(session, activeRecordingIdRef.current);
@@ -450,16 +508,25 @@ export function useComposerVoiceInput({
       }
 
       const result = await speechAPI.finishInputSession(session.sessionId);
-      const text = result.text.trim();
+      const text = result.text.trim() || liveTextRef.current.trim();
       if (text) {
-        const mergedText = insertText(text);
-        if (mode === 'send' && mergedText) {
-          await submitText(mergedText);
-        } else {
-          focusInputSoon();
+        const base = liveTextBaseRef.current;
+        const current = getCurrentText();
+        const expectedPreview = liveTextRef.current
+          ? (base ? `${base} ${liveTextRef.current}` : liveTextRef.current)
+          : base;
+        const recognitionDelta = getRecognitionDelta(liveTextRef.current, text);
+        const mergedText = liveTextRef.current.length === 0
+          ? insertText(text)
+          : liveTextEditedRef.current
+            ? (current ? (recognitionDelta ? `${current} ${recognitionDelta}` : current) : recognitionDelta)
+            : current === expectedPreview
+              ? (base ? `${base} ${text}` : text)
+              : (current ? (recognitionDelta ? `${current} ${recognitionDelta}` : current) : text);
+        if (liveTextRef.current.length > 0) {
+          replaceText(mergedText ?? text);
         }
-      } else {
-        notificationService.info(t('input.voiceInput.empty'));
+        focusInputSoon();
       }
     } catch (error) {
       log.error('Voice input transcription failed', { sessionId: session?.sessionId, error });
@@ -485,27 +552,27 @@ export function useComposerVoiceInput({
       pendingAppendRef.current = Promise.resolve();
       bufferedChunksRef.current = [];
       bufferedSecondsRef.current = 0;
-      setCompletionMode(null);
       setPhase('idle');
     }
-  }, [attachSession, clearRecordingLimitTimer, focusInputSoon, insertText, submitText, t]);
+  }, [attachSession, focusInputSoon, getCurrentText, insertText, replaceText, t]);
 
   const startRecording = useCallback(async (skipModelCheck = false) => {
     if (!settings?.enabled) {
       notificationService.info(t('input.voiceInput.disabled'));
       return;
     }
-    if (!speechRuntimeSupported || !isMediaCaptureSupported()) {
+    const openHarmony = isOpenHarmonyRuntime();
+    if (!speechRuntimeSupported || (!openHarmony && !isMediaCaptureSupported())) {
       notificationService.error(t('input.voiceInput.unsupported'));
       return;
     }
-    if (settings.provider === 'cloud') {
+    if (!openHarmony && settings.provider === 'cloud') {
       notificationService.info(t('input.voiceInput.cloudPending'));
       openVoiceInputSettings();
       return;
     }
 
-    if (!skipModelCheck) {
+    if (!openHarmony && !skipModelCheck) {
       let installed = modelInstalled;
       if (installed === null) {
         setPhase('preparing');
@@ -519,7 +586,11 @@ export function useComposerVoiceInput({
     }
 
     setPhase('preparing');
-    setCompletionMode(null);
+    liveTextRef.current = '';
+    pendingLiveTextRef.current = '';
+    liveTextBaseRef.current = getCurrentText().trim();
+    liveTextEditedRef.current = false;
+    lastRenderedTextRef.current = liveTextBaseRef.current;
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
     const recordingId = activeRecordingIdRef.current + 1;
@@ -538,7 +609,7 @@ export function useComposerVoiceInput({
     try {
       const voiceSettings = settings;
       log.debug('Voice input startup requested', { modelInstalled });
-      const recorder = await createVoiceInputRecorder({
+      const recorder = openHarmony ? null : await createVoiceInputRecorder({
         targetSampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
         chunkDurationMs: RECORDING_CHUNK_DURATION_MS,
         microphoneDeviceId: voiceSettings.microphone_device_id || undefined,
@@ -555,18 +626,13 @@ export function useComposerVoiceInput({
         },
       });
       if (activeRecordingIdRef.current !== recordingId) {
-        await recorder.stop().catch(error => {
+        await recorder?.stop().catch(error => {
           log.warn('Failed to stop stale voice recorder', { error });
         });
         return;
       }
       recorderRef.current = recorder;
       setPhase('recording');
-      recordingLimitTimerRef.current = window.setTimeout(() => {
-        if (activeRecordingIdRef.current === recordingId && recorderRef.current) {
-          void stopAndTranscribe('transcribe');
-        }
-      }, voiceSettings.max_recording_seconds * 1000);
       log.debug('Voice input recorder ready', {
         startupMs: Math.round(performance.now() - startupStartedAt),
       });
@@ -576,7 +642,6 @@ export function useComposerVoiceInput({
         modelId: voiceSettings.model_id || DEFAULT_LOCAL_VOICE_MODEL_ID,
         language: voiceSettings.default_language,
         sampleRate: DEFAULT_SPEECH_SAMPLE_RATE,
-        maxRecordingSeconds: voiceSettings.max_recording_seconds,
       });
       sessionPromiseRef.current = sessionPromise;
       sessionPromise
@@ -657,7 +722,7 @@ export function useComposerVoiceInput({
       setAudioLevel(0);
       setPhase('idle');
     }
-  }, [attachSession, enqueueChunk, markSelectedModelMissing, modelInstalled, openVoiceInputSettings, refreshCapability, settings, speechRuntimeSupported, stopAndTranscribe, t, updateAudioLevel]);
+  }, [attachSession, enqueueChunk, getCurrentText, markSelectedModelMissing, modelInstalled, openVoiceInputSettings, refreshCapability, settings, speechRuntimeSupported, t, updateAudioLevel]);
 
   const installAndStart = useCallback(async () => {
     if (selectedProvider !== 'local' || phase !== 'setup') return;
@@ -706,7 +771,7 @@ export function useComposerVoiceInput({
 
   const toggle = useCallback(() => {
     if (phase === 'recording') {
-      void stopAndTranscribe('transcribe');
+      void stopAndTranscribe();
       return;
     }
     if (phase !== 'idle') {
@@ -715,16 +780,8 @@ export function useComposerVoiceInput({
     void startRecording();
   }, [phase, startRecording, stopAndTranscribe]);
 
-  const cancel = useCallback(() => {
-    void cancelRecording();
-  }, [cancelRecording]);
-
   const transcribe = useCallback(() => {
-    void stopAndTranscribe('transcribe');
-  }, [stopAndTranscribe]);
-
-  const transcribeAndSend = useCallback(() => {
-    void stopAndTranscribe('send');
+    void stopAndTranscribe();
   }, [stopAndTranscribe]);
 
   useEffect(() => {
@@ -747,7 +804,7 @@ export function useComposerVoiceInput({
   const disabled = phase === 'preparing' || phase === 'transcribing';
   const tooltip = useMemo(() => {
     if (!settings?.enabled) return t('input.voiceInput.disabled');
-    if (!speechRuntimeSupported || !isMediaCaptureSupported()) return t('input.voiceInput.unsupported');
+     if (!speechRuntimeSupported || (!isOpenHarmonyRuntime() && !isMediaCaptureSupported())) return t('input.voiceInput.unsupported');
     if (settings.provider === 'cloud') return t('input.voiceInput.cloudPending');
     if (phase === 'setup') return t('input.voiceInput.setupTooltip');
     if (phase === 'downloading') return t('input.voiceInput.downloadingTooltip');
@@ -767,27 +824,29 @@ export function useComposerVoiceInput({
       ? t('input.voiceInput.setupRequired', { size: selectedModelSize })
       : t('input.voiceInput.setupRequiredUnknownSize');
 
+  const statusLabel = phase === 'preparing'
+    ? t('input.voiceInput.preparing')
+    : phase === 'transcribing'
+      ? t('input.voiceInput.transcribing')
+      : lowVolumeWarning
+        ? t('input.voiceInput.lowVolume')
+        : t('input.voiceInput.recording');
+
   return {
     enabled: settings?.enabled === true && speechRuntimeSupported,
     disabled,
     phase,
-    completionMode,
     audioLevel,
     lowVolumeWarning,
     downloadProgress,
     setupMessage,
     setupActionLabel: t('input.voiceInput.downloadAndStart'),
     setupCancelTooltip: t('input.voiceInput.cancelSetup'),
-    lowVolumeTooltip: t('input.voiceInput.lowVolume'),
     tooltip,
-    cancelTooltip: t('input.cancelShortcut'),
-    transcribeTooltip: t('input.voiceInput.transcribeOnly'),
-    sendTooltip: t('input.voiceInput.transcribeAndSend'),
+    statusLabel,
     toggle,
     installAndStart,
     dismissSetup,
-    cancel,
     transcribe,
-    transcribeAndSend,
   };
 }

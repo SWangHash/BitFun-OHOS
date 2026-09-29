@@ -20,6 +20,11 @@ export interface FixedPopoverViewport {
 export interface FixedPopoverPositionOptions {
   gap?: number;
   padding?: number;
+  /**
+   * Space the popover must keep clear of at the viewport start edge, for host
+   * window chrome such as the OpenHarmony caption buttons. Defaults to 0.
+   */
+  topInset?: number;
   preferredPlacement?: FixedPopoverPlacement;
   alignment?: FixedPopoverAlignment;
 }
@@ -49,8 +54,9 @@ const fixedPopoverFitsVertically = (
   menuHeight: number,
   viewportHeight: number,
   padding: number,
+  topInset: number,
 ): boolean => {
-  return top >= padding && top + menuHeight <= viewportHeight - padding;
+  return top >= Math.max(padding, topInset) && top + menuHeight <= viewportHeight - padding;
 };
 
 const clampFixedPopoverTopInViewport = (
@@ -60,21 +66,23 @@ const clampFixedPopoverTopInViewport = (
   preferredPlacement: FixedPopoverPlacement,
   gap: number,
   padding: number,
+  topInset: number,
 ): number => {
   const belowTop = anchorRect.bottom + gap;
   const aboveTop = anchorRect.top - gap - menuHeight;
   const preferredTop = preferredPlacement === 'bottom' ? belowTop : aboveTop;
   const alternateTop = preferredPlacement === 'bottom' ? aboveTop : belowTop;
 
-  if (fixedPopoverFitsVertically(preferredTop, menuHeight, viewportHeight, padding)) {
+  if (fixedPopoverFitsVertically(preferredTop, menuHeight, viewportHeight, padding, topInset)) {
     return preferredTop;
   }
 
-  if (fixedPopoverFitsVertically(alternateTop, menuHeight, viewportHeight, padding)) {
+  if (fixedPopoverFitsVertically(alternateTop, menuHeight, viewportHeight, padding, topInset)) {
     return alternateTop;
   }
 
-  return clamp(preferredTop, padding, viewportHeight - padding - menuHeight);
+  const minimumTop = Math.max(padding, topInset);
+  return clamp(preferredTop, minimumTop, viewportHeight - padding - menuHeight);
 };
 
 /**
@@ -113,6 +121,7 @@ export function computeFixedPopoverPositionInViewport(
   const {
     gap = 6,
     padding = DEFAULT_POPOVER_VIEWPORT_PADDING,
+    topInset = 0,
     preferredPlacement = 'bottom',
     alignment = 'start',
   } = options;
@@ -125,6 +134,7 @@ export function computeFixedPopoverPositionInViewport(
       preferredPlacement,
       gap,
       padding,
+      topInset,
     ),
     left: computeFixedPopoverLeftInViewport(anchorRect, menuWidth, viewport.width, {
       padding,
@@ -163,6 +173,7 @@ export function clampFixedPopoverTop(
     'bottom',
     gap,
     padding,
+    0,
   );
 }
 

@@ -720,7 +720,7 @@
   }
 
   &__acp-dialog {
-    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
   }
 
   &__owner-loading {
@@ -915,7 +915,7 @@
   }
 
   &__catalog-dialog {
-    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
     container: ecosystem-content / inline-size;
   }
 
@@ -1073,7 +1073,7 @@
 
 .ecosystem-compatibility {
   &__batch-dialog {
-    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+    block-size: min(42rem, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
   }
 
   &__batch-status {

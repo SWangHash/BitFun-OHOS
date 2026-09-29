@@ -51,6 +51,10 @@ export const useWorkspaceResourceState = create<ResourceState>()(persist((set) =
 }), {
   name: 'bitfun-workspace-resource-layouts',
   version: 1,
+  // Some WebViews (e.g. HarmonyOS) expose localStorage as null, which makes
+  // zustand's default JSON storage throw "Cannot read properties of null
+  // (reading 'setItem')" on every setState and crash the resources panel.
+  // The storage adapter keeps the layouts in memory when storage is missing.
   storage: createJSONStorage(() => storage),
   partialize: state => ({ layouts: state.layouts }),
   merge: (persisted, current) => {

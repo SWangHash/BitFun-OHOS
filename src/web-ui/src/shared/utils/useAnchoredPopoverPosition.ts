@@ -10,6 +10,7 @@ import {
   DEFAULT_POPOVER_VIEWPORT_PADDING,
   type FixedPopoverPlacement,
 } from './fixedPopoverViewport';
+import { readHostChromeInsetBlockStart } from '@/infrastructure/runtime/environment';
 
 export type AnchoredPopoverAlignment = 'start' | 'end';
 
@@ -110,7 +111,12 @@ export function useAnchoredPopoverPosition({
       popoverWidth,
       popoverHeight,
       { width: window.innerWidth, height: window.innerHeight },
-      { gap, padding, preferredPlacement },
+      {
+        gap,
+        padding,
+        preferredPlacement,
+        topInset: readHostChromeInsetBlockStart(popover),
+      },
     );
     const placement = resolvePlacement(
       position.top,

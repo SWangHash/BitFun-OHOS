@@ -6,7 +6,7 @@
   inline-size: var(--bitfun-layout-search-dialog-width);
   block-size: min(
     var(--bitfun-layout-search-dialog-height),
-    calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter))
+    calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start))
   );
 }
 

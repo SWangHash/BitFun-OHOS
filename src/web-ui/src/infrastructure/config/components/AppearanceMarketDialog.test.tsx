@@ -170,7 +170,7 @@ const summary = {
   minBitFunVersion: '1.0.0',
   requiredCapabilities: ['components.v1'],
   owner: { githubId: 1, login: 'studio', avatarUrl: '' },
-  previewUrl: `https://market.bitfun.com/skin/api/v1/artifacts/previews/${'a'.repeat(64)}`,
+  previewUrl: `https://market.openbitfun.com/skin/api/v1/artifacts/previews/${'a'.repeat(64)}`,
   downloadCount: 10,
   publishedAt: 1,
 } as const;

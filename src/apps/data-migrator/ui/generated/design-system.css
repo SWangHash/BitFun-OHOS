@@ -77,8 +77,8 @@
     --bitfun-control-flow-chat-card-radius: var(--bitfun-radius-base);
     --bitfun-control-flow-chat-code-block-padding-block: 0.55rem;
     --bitfun-control-flow-chat-code-block-padding-inline: 0.75rem;
-    --bitfun-control-flow-chat-content-padding-inline: 3rem;
-    --bitfun-control-flow-chat-content-padding-inline-mobile: 1.5rem;
+    --bitfun-control-flow-chat-content-padding-inline: 0.75rem;
+    --bitfun-control-flow-chat-content-padding-inline-mobile: var(--bitfun-control-flow-chat-content-padding-inline);
     --bitfun-control-flow-chat-control-gap: var(--bitfun-space-2);
     --bitfun-control-flow-chat-control-padding-block: var(--bitfun-space-1);
     --bitfun-control-flow-chat-control-padding-inline: 0.75rem;
@@ -106,6 +106,9 @@
     --bitfun-control-launcher-button-min-inline-size: 72px;
     --bitfun-control-launcher-button-padding-inline: 10px;
     --bitfun-control-launcher-button-radius: var(--bitfun-radius-lg);
+    --bitfun-control-search-field-height-lg: var(--bitfun-control-height-lg);
+    --bitfun-control-search-field-height-md: var(--bitfun-control-height-md);
+    --bitfun-control-search-field-height-sm: var(--bitfun-control-height-sm);
     --bitfun-control-segmented-control-gap: var(--bitfun-space-1);
     --bitfun-control-segmented-control-icon-size: 12px;
     --bitfun-control-segmented-control-icon-size-md: 14px;
@@ -230,6 +233,15 @@
     --bitfun-layout-disclosure-trigger-padding-block: var(--bitfun-space-1);
     --bitfun-layout-disclosure-trigger-padding-inline: var(--bitfun-space-2);
     --bitfun-layout-disclosure-trigger-radius: var(--bitfun-radius-base);
+    --bitfun-layout-empty-gap: 10px;
+    --bitfun-layout-empty-icon-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-icon-size-md: var(--bitfun-control-height-sm);
+    --bitfun-layout-empty-icon-size-sm: var(--bitfun-control-icon-size-lg);
+    --bitfun-layout-empty-media-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-media-size-md: var(--bitfun-control-height-sm);
+    --bitfun-layout-empty-media-size-sm: var(--bitfun-control-icon-size-lg);
+    --bitfun-layout-empty-padding-block: var(--bitfun-space-8);
+    --bitfun-layout-empty-padding-inline: var(--bitfun-space-4);
     --bitfun-layout-field-content-gap: var(--bitfun-space-1);
     --bitfun-layout-field-control-gap: var(--bitfun-space-2);
     --bitfun-layout-field-horizontal-gap: var(--bitfun-space-5);
@@ -346,7 +358,7 @@
     --bitfun-overlay-dialog-footer-fade-extent: var(--bitfun-space-6);
     --bitfun-overlay-dialog-footer-gap: var(--bitfun-space-2);
     --bitfun-overlay-dialog-footer-height: 68px;
-    --bitfun-overlay-dialog-footer-padding-block-end: var(--bitfun-space-5);
+    --bitfun-overlay-dialog-footer-padding-block-end: var(--bitfun-space-6);
     --bitfun-overlay-dialog-footer-padding-block-start: var(--bitfun-space-2);
     --bitfun-overlay-dialog-footer-padding-inline: var(--bitfun-space-6);
     --bitfun-overlay-dialog-header-actions-gap: var(--bitfun-space-2);
@@ -374,6 +386,7 @@
     --bitfun-overlay-menu-item-padding-inline: var(--bitfun-space-2);
     --bitfun-overlay-menu-item-radius: var(--bitfun-radius-base);
     --bitfun-overlay-menu-max-block-size: 480px;
+    --bitfun-overlay-menu-row-gap: 2px;
     --bitfun-overlay-menu-scrollbar-gap: 2px;
     --bitfun-overlay-menu-section-gap: var(--bitfun-space-2);
     --bitfun-overlay-menu-surface-padding: var(--bitfun-space-2);
@@ -656,6 +669,7 @@
     --bitfun-type-support-font-weight: var(--bitfun-font-weight-regular);
     --bitfun-type-support-letter-spacing: var(--bitfun-letter-spacing-normal);
     --bitfun-type-support-line-height: var(--bitfun-line-height-comfortable);
+    --bitfun-viewport-host-chrome-inset-block-start: 0px;
   }
 }
 
@@ -666,7 +680,14 @@
     --bitfun-control-height-sm: 28px;
     --bitfun-control-hit-target: 36px;
     --bitfun-control-launcher-button-block-size: var(--bitfun-control-height-md);
+    --bitfun-control-search-field-height-lg: var(--bitfun-control-height-lg);
+    --bitfun-control-search-field-height-md: var(--bitfun-control-height-md);
+    --bitfun-control-search-field-height-sm: 30px;
     --bitfun-control-tab-group-item-height: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-icon-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-icon-size-md: var(--bitfun-control-height-sm);
+    --bitfun-layout-empty-media-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-media-size-md: var(--bitfun-control-height-sm);
     --bitfun-space-component-block: 6px;
     --bitfun-space-component-inline: 10px;
   }
@@ -679,7 +700,14 @@
     --bitfun-control-height-sm: 40px;
     --bitfun-control-hit-target: 48px;
     --bitfun-control-launcher-button-block-size: var(--bitfun-control-height-md);
+    --bitfun-control-search-field-height-lg: var(--bitfun-control-height-lg);
+    --bitfun-control-search-field-height-md: var(--bitfun-control-height-md);
+    --bitfun-control-search-field-height-sm: var(--bitfun-control-height-sm);
     --bitfun-control-tab-group-item-height: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-icon-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-icon-size-md: var(--bitfun-control-height-sm);
+    --bitfun-layout-empty-media-size-lg: var(--bitfun-control-height-md);
+    --bitfun-layout-empty-media-size-md: var(--bitfun-control-height-sm);
     --bitfun-space-component-block: 12px;
     --bitfun-space-component-inline: 16px;
   }
@@ -768,7 +796,7 @@
     --bitfun-color-field-background-hover: #ffffff;
     --bitfun-color-field-border: rgba(0, 0, 0, 0.08);
     --bitfun-color-field-border-active: rgba(0, 0, 0, 0.20);
-    --bitfun-color-field-border-focus: #858585;
+    --bitfun-color-field-border-focus: #101a27;
     --bitfun-color-field-border-hover: rgba(0, 0, 0, 0.20);
     --bitfun-color-field-group-background: rgba(0, 0, 0, 0.03);
     --bitfun-color-field-placeholder: rgba(0, 0, 0, 0.40);
@@ -794,8 +822,8 @@
     --bitfun-color-link-hover: #005fcc;
     --bitfun-color-number-badge-background: rgba(0, 0, 0, 0.08);
     --bitfun-color-overlay-scrim: rgba(16, 26, 39, 0.20);
-    --bitfun-color-scrollbar-thumb: rgba(0, 0, 0, 0.10);
-    --bitfun-color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.10);
+    --bitfun-color-scrollbar-thumb: rgba(0, 0, 0, 0.20);
+    --bitfun-color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.30);
     --bitfun-color-selection-surface: rgba(0, 0, 0, 0.08);
     --bitfun-color-status-danger-border: rgba(236, 34, 31, 0.3);
     --bitfun-color-status-danger-content: #bd1b19;
@@ -834,6 +862,7 @@
     --bitfun-component-button-text-content: #059cb0;
     --bitfun-component-button-text-content-disabled: rgba(5, 156, 176, 0.30);
     --bitfun-component-button-text-content-hover: #059cb0;
+    --bitfun-component-empty-media: color-mix(in srgb, #6a6a6a 35%, #f7f7f7);
     --bitfun-effect-blur-base: blur(8px) saturate(1.05);
     --bitfun-effect-blur-medium: blur(12px) saturate(1.2);
     --bitfun-effect-blur-subtle: blur(4px) saturate(1.02);
@@ -921,8 +950,8 @@
     --bitfun-color-field-background: #1c1c1f;
     --bitfun-color-field-background-hover: rgba(255, 255, 255, 0.06);
     --bitfun-color-field-border: rgba(255, 255, 255, 0.18);
-    --bitfun-color-field-border-active: #858585;
-    --bitfun-color-field-border-focus: #858585;
+    --bitfun-color-field-border-active: #60a5fa;
+    --bitfun-color-field-border-focus: #60a5fa;
     --bitfun-color-field-border-hover: rgba(255, 255, 255, 0.24);
     --bitfun-color-field-group-background: #0e0e10;
     --bitfun-color-field-placeholder: #858585;
@@ -948,8 +977,8 @@
     --bitfun-color-link-hover: #93c5fd;
     --bitfun-color-number-badge-background: rgba(255, 255, 255, 0.1);
     --bitfun-color-overlay-scrim: rgba(0, 0, 0, 0.56);
-    --bitfun-color-scrollbar-thumb: rgba(255, 255, 255, 0.12);
-    --bitfun-color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+    --bitfun-color-scrollbar-thumb: rgba(255, 255, 255, 0.20);
+    --bitfun-color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.30);
     --bitfun-color-selection-surface: rgba(255, 255, 255, 0.12);
     --bitfun-color-status-danger-border: rgba(236, 34, 31, 0.3);
     --bitfun-color-status-danger-content: #f47f7d;
@@ -988,6 +1017,7 @@
     --bitfun-component-button-text-content: #60a5fa;
     --bitfun-component-button-text-content-disabled: rgba(96, 165, 250, 0.30);
     --bitfun-component-button-text-content-hover: #3b82f6;
+    --bitfun-component-empty-media: color-mix(in srgb, #858585 35%, #0e0e10);
     --bitfun-effect-blur-base: blur(8px) saturate(1.1);
     --bitfun-effect-blur-medium: blur(12px) saturate(1.2);
     --bitfun-effect-blur-subtle: blur(4px) saturate(1.05);
@@ -1056,8 +1086,6 @@
     --bitfun-color-key-hint-background: #cccccc;
     --bitfun-color-key-hint-content: #343434;
     --bitfun-color-number-badge-background: #e6e6e6;
-    --bitfun-color-scrollbar-thumb: #b3b3b3;
-    --bitfun-color-scrollbar-thumb-hover: #b3b3b3;
     --bitfun-color-selection-surface: #cccccc;
     --bitfun-color-status-danger-content: #8e1413;
     --bitfun-color-status-info-content: #1c4c99;
@@ -1075,6 +1103,7 @@
     --bitfun-component-button-primary-background-hover: #262626;
     --bitfun-component-button-primary-background-pressed: #000000;
     --bitfun-component-button-primary-content-disabled: #343434;
+    --bitfun-component-empty-media: color-mix(in srgb, #343434 35%, #f7f7f7);
   }
 }
 
@@ -1123,8 +1152,6 @@
     --bitfun-color-key-hint-background: #343434;
     --bitfun-color-key-hint-content: #d0d0d0;
     --bitfun-color-number-badge-background: #343434;
-    --bitfun-color-scrollbar-thumb: #505050;
-    --bitfun-color-scrollbar-thumb-hover: #6b6b6b;
     --bitfun-color-selection-surface: #505050;
     --bitfun-color-status-danger-content: #f7a7a5;
     --bitfun-color-status-info-content: #abcbff;
@@ -1147,5 +1174,6 @@
     --bitfun-component-button-primary-background-hover: #e6e6e6;
     --bitfun-component-button-primary-background-pressed: #ffffff;
     --bitfun-component-button-primary-content-disabled: #d0d0d0;
+    --bitfun-component-empty-media: color-mix(in srgb, #d0d0d0 35%, #000000);
   }
 }

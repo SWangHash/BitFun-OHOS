@@ -44,6 +44,7 @@ vi.mock('@/infrastructure/api', () => ({
       return () => undefined;
     }),
     onModelProgress: vi.fn(() => () => undefined),
+    onTranscription: vi.fn(() => () => undefined),
     downloadModel: mocks.downloadModel,
     cancelModelDownload: mocks.cancelModelDownload,
     startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
@@ -65,6 +66,7 @@ vi.mock('@/infrastructure/config/hooks', () => ({
 
 vi.mock('@/infrastructure/runtime', () => ({
   isTauriRuntime: () => true,
+  isOpenHarmonyRuntime: () => false,
 }));
 
 vi.mock('@/app/stores/sceneStore', () => ({
@@ -104,8 +106,9 @@ vi.mock('@/infrastructure/speech/voiceInputAudio', () => ({
 
 interface ProbeProps {
   focusInputSoon: () => void;
+  getCurrentText: () => string;
   insertText: (text: string) => string | null;
-  submitText: (text: string) => Promise<void>;
+  replaceText: (text: string) => void;
   onController: (controller: ComposerVoiceInputController) => void;
 }
 
@@ -143,13 +146,14 @@ function speechModel(
   };
 }
 
-describe('useComposerVoiceInput completion modes', () => {
+describe('useComposerVoiceInput transcription', () => {
   let host: HTMLDivElement;
   let root: Root;
   let controller: ComposerVoiceInputController | undefined;
   let focusInputSoon: ReturnType<typeof vi.fn>;
   let insertText: ReturnType<typeof vi.fn>;
-  let submitText: ReturnType<typeof vi.fn>;
+  let getCurrentText: ReturnType<typeof vi.fn>;
+  let replaceText: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     mocks.voiceInputSettings = {
@@ -192,7 +196,8 @@ describe('useComposerVoiceInput completion modes', () => {
     mocks.notificationError.mockClear();
     focusInputSoon = vi.fn();
     insertText = vi.fn(() => 'Existing draft Transcribed request');
-    submitText = vi.fn(async () => undefined);
+    getCurrentText = vi.fn(() => 'Existing draft');
+    replaceText = vi.fn();
     controller = undefined;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
@@ -206,8 +211,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
-          submitText={submitText}
+          replaceText={replaceText}
           onController={(next) => { controller = next; }}
         />,
       );
@@ -229,7 +235,7 @@ describe('useComposerVoiceInput completion modes', () => {
     expect(controller?.phase).toBe('recording');
   }
 
-  it('inserts the transcript without sending in transcribe-only mode', async () => {
+  it('inserts the transcript into the draft when recording stops', async () => {
     await startRecording();
 
     await act(async () => {
@@ -240,36 +246,22 @@ describe('useComposerVoiceInput completion modes', () => {
 
     expect(insertText).toHaveBeenCalledWith('Transcribed request');
     expect(focusInputSoon).toHaveBeenCalledOnce();
-    expect(submitText).not.toHaveBeenCalled();
+    expect(controller?.phase).toBe('idle');
   });
 
-  it('submits the merged draft in transcribe-and-send mode', async () => {
-    await startRecording();
-
-    await act(async () => {
-      controller?.transcribeAndSend();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(insertText).toHaveBeenCalledWith('Transcribed request');
-    expect(submitText).toHaveBeenCalledWith('Existing draft Transcribed request');
-    expect(focusInputSoon).not.toHaveBeenCalled();
-  });
-
-  it('does not submit the existing draft when recognition is empty', async () => {
+  it('does not touch the draft or notify when recognition is empty', async () => {
     mocks.finishText = '   ';
     await startRecording();
 
     await act(async () => {
-      controller?.transcribeAndSend();
+      controller?.transcribe();
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(insertText).not.toHaveBeenCalled();
-    expect(submitText).not.toHaveBeenCalled();
-    expect(mocks.notificationInfo).toHaveBeenCalledOnce();
+    expect(mocks.notificationInfo).not.toHaveBeenCalled();
+    expect(controller?.phase).toBe('idle');
   });
 
   it('keeps the idle control actionable when microphone capture is unavailable', async () => {
@@ -281,8 +273,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
-          submitText={submitText}
+          replaceText={replaceText}
           onController={(next) => { controller = next; }}
         />,
       );
@@ -373,8 +366,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
-          submitText={submitText}
+          replaceText={replaceText}
           onController={(next) => { controller = next; }}
         />,
       );
@@ -395,8 +389,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
-          submitText={submitText}
+          replaceText={replaceText}
           onController={(next) => { controller = next; }}
         />,
       );
@@ -410,8 +405,9 @@ describe('useComposerVoiceInput completion modes', () => {
       root.render(
         <Probe
           focusInputSoon={focusInputSoon}
+          getCurrentText={getCurrentText}
           insertText={insertText}
-          submitText={submitText}
+          replaceText={replaceText}
           onController={(next) => { controller = next; }}
         />,
       );

@@ -53,6 +53,7 @@ test("Dialog geometry and typography use public design tokens", async () => {
 
   for (const token of [
     "--bitfun-overlay-dialog-viewport-gutter",
+    "--bitfun-viewport-host-chrome-inset-block-start",
     "--bitfun-overlay-dialog-backdrop-blur",
     "--bitfun-overlay-dialog-surface-radius",
     "--bitfun-overlay-dialog-header-padding-inline",

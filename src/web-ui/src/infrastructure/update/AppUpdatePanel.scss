@@ -3,7 +3,7 @@
 .bitfun-update-dialog {
   @include updateSurface.frosted-surface;
 
-  block-size: min(480px, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  block-size: min(480px, calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
 }
 
 .bitfun-update-details {

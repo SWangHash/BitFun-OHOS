@@ -383,6 +383,13 @@ test("Dialog tokens preserve the reference surface and chrome contract", async (
   assert.equal(tokens["overlay.dialog.footerContentInset"], "104px");
 });
 
+test("Viewport host chrome inset defaults to zero for every non host-chrome host", async () => {
+  const systemDocument = await readSource("system.tokens.json");
+
+  assert.equal(tokens["viewport.hostChromeInsetBlockStart"], "0px");
+  assert.equal(systemDocument.viewport.hostChromeInsetBlockStart.$value, "0px");
+});
+
 test("control heights preserve an eight-pixel size step in every density mode", () => {
   const valuesFor = (name) => tokenCatalog.find((token) => token.name === name)?.values;
 

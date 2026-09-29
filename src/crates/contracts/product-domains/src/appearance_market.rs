@@ -1,4 +1,9 @@
 //! Appearance marketplace contracts and pure publication policy.
+//!
+//! Market servers deployed before the BitFun identity rename still use the
+//! `minOpenBitFunVersion` wire name for the minimum-version field, so every
+//! minimum-version field accepts it as a legacy alias while the canonical
+//! `minBitFunVersion` name stays the one this client writes.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -358,31 +363,54 @@ mod tests {
     }
 
     #[test]
-    fn listing_contract_reads_the_renamed_upstream_version_field() {
+    fn listing_contract_reads_the_pre_rename_minimum_version_field() {
         let fixture = include_str!(
             "../../../../shared/appearance-market-contract-fixtures/listing-detail.json"
         );
         let mut listing: serde_json::Value = serde_json::from_str(fixture).unwrap();
-        let value = listing
-            .as_object_mut()
-            .unwrap()
-            .remove("minBitFunVersion")
-            .unwrap();
-        listing
-            .as_object_mut()
-            .unwrap()
-            .insert("minOpenBitFunVersion".to_string(), value);
+        rename_min_version_field(listing.as_object_mut().unwrap(), "minBitFunVersion");
         for release in listing["releases"].as_array_mut().unwrap() {
-            let value = release
-                .as_object_mut()
-                .unwrap()
-                .remove("minBitFunVersion")
-                .unwrap();
-            release["minOpenBitFunVersion"] = value;
+            rename_min_version_field(release.as_object_mut().unwrap(), "minBitFunVersion");
         }
 
-        let parsed: AppearanceMarketListingDetail = serde_json::from_value(listing).unwrap();
-        assert_eq!(parsed.summary.min_bitfun_version, "1.0.0");
-        assert_eq!(parsed.releases[0].min_bitfun_version, "1.0.0");
+        let detail: AppearanceMarketListingDetail = serde_json::from_value(listing).unwrap();
+        assert_eq!(detail.summary.min_bitfun_version, "1.0.0");
+        assert_eq!(detail.releases[0].min_bitfun_version, "1.0.0");
+
+        let serialized = serde_json::to_value(&detail).unwrap();
+        assert_eq!(serialized["minBitFunVersion"], "1.0.0");
+        assert!(serialized.get("minOpenBitFunVersion").is_none());
+    }
+
+    #[test]
+    fn submission_draft_reads_the_pre_rename_minimum_version_field() {
+        let draft = AppearanceMarketSubmissionDraftRequest {
+            listing_id: None,
+            slug: "ocean-night".to_string(),
+            release_number: 3,
+            min_bitfun_version: "1.0.0".to_string(),
+            changelog: "Refines the panel contrast.".to_string(),
+            license: AppearanceMarketLicense {
+                spdx_expression: Some("MIT".to_string()),
+                custom_url: None,
+            },
+            repository_url: None,
+        };
+        let mut value = serde_json::to_value(&draft).unwrap();
+        rename_min_version_field(value.as_object_mut().unwrap(), "minBitFunVersion");
+
+        let decoded: AppearanceMarketSubmissionDraftRequest =
+            serde_json::from_value(value).unwrap();
+        assert_eq!(decoded, draft);
+    }
+
+    /// Rewrites a canonical minimum-version key to the wire name used by market
+    /// servers deployed before the BitFun identity rename.
+    fn rename_min_version_field(
+        object: &mut serde_json::Map<String, serde_json::Value>,
+        canonical: &str,
+    ) {
+        let value = object.remove(canonical).unwrap();
+        object.insert("minOpenBitFunVersion".to_string(), value);
     }
 }

@@ -1,7 +1,7 @@
 .miniapp-detail-dialog {
   inline-size: min(1120px, 100%);
   max-inline-size: min(1120px, 100%);
-  max-block-size: calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+  max-block-size: calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
 }
 
 .miniapp-detail-dialog__header {

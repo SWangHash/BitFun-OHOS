@@ -2,6 +2,17 @@ import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObjec
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+/** System token a host sets when it paints its own window chrome over the viewport start edge. */
+const HOST_CHROME_INSET_BLOCK_START = "--bitfun-viewport-host-chrome-inset-block-start";
+
+/** Pixels the host reserves at the viewport start edge; 0 when the host paints no chrome there. */
+function readHostChromeInsetBlockStart(view: Window, element: HTMLElement): number {
+  const inset = Number.parseFloat(
+    view.getComputedStyle(element).getPropertyValue(HOST_CHROME_INSET_BLOCK_START),
+  );
+  return Number.isFinite(inset) && inset > 0 ? inset : 0;
+}
+
 export type LayerPlacement = "top" | "bottom" | "left" | "right";
 export type PortalTarget = Element | DocumentFragment | (() => Element | DocumentFragment | null) | null;
 
@@ -45,7 +56,10 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
       if (width !== undefined) layer.style.width = `${width}px`;
       const box = layer.getBoundingClientRect();
       const horizontal = placement === "left" || placement === "right";
-      const before = horizontal ? rect.left - vx : rect.top - vy;
+      // A strip the host paints over the viewport start edge is a hard top bound.
+      const topPadding = Math.max(padding, readHostChromeInsetBlockStart(view, layer));
+      const topBound = vy + topPadding;
+      const before = horizontal ? rect.left - vx : rect.top - topBound;
       const after = horizontal ? vx + vw - rect.right : vy + vh - rect.bottom;
       const anchorExtent = horizontal ? rect.width : rect.height;
       const overlapExtent = overlapAnchor ? anchorExtent : -resolvedGap;
@@ -58,7 +72,7 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
         : afterCapacity < needs && beforeCapacity > afterCapacity;
       const side: LayerPlacement = horizontal ? (useBefore ? "left" : "right") : (useBefore ? "top" : "bottom");
       const maxHeight = horizontal
-        ? vh - padding * 2
+        ? vh - padding - topPadding
         : Math.max(0, (useBefore ? beforeCapacity : afterCapacity) - padding);
       const height = Math.min(box.height, maxHeight);
       const left = horizontal
@@ -74,7 +88,7 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
       const style: CSSProperties = {
         position: "fixed", width, maxWidth: vw - padding * 2, maxHeight,
         left: Math.max(vx + padding, Math.min(left, vx + vw - box.width - padding)),
-        top: Math.max(vy + padding, Math.min(top, vy + vh - height - padding)),
+        top: Math.max(topBound, Math.min(top, vy + vh - height - padding)),
       };
       setLayout(previous => JSON.stringify(previous) === JSON.stringify({ style, placement: side }) ? previous : { style, placement: side });
     };

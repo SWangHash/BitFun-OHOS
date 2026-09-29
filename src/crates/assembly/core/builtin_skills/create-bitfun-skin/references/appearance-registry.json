@@ -1021,6 +1021,7 @@
             "install",
             "dismiss",
             "cancel",
+            "stop",
             "transcribe",
             "send"
           ]

@@ -5,7 +5,6 @@ export const LOCAL_SENSEVOICE_SMALL_INT8_MODEL_ID = 'sensevoice-small-int8';
 export const LOCAL_QWEN3_ASR_0_6B_INT8_MODEL_ID = 'qwen3-asr-0.6b-int8';
 export const DEFAULT_SPEECH_SAMPLE_RATE = 16000;
 export const DEFAULT_REALTIME_OUTPUT_SAMPLE_RATE = 24000;
-export const DEFAULT_MAX_RECORDING_SECONDS = 60;
 export const SPEECH_MODEL_PROGRESS_EVENT = 'speech://model-download-progress';
 export const SPEECH_MODEL_STATUS_CHANGED_EVENT = 'speech://model-status-changed';
 export const SPEECH_REALTIME_EVENT = 'speech://realtime-event';

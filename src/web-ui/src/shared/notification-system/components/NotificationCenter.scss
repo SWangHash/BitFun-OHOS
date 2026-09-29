@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   block-size: 600px;
-  max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - 2 * var(--bitfun-border-width-default));
+  max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start) - 2 * var(--bitfun-border-width-default));
   min-block-size: 0;
   font-family: var(--bitfun-type-body-sm-font-family);
   overflow: hidden;

@@ -51,6 +51,39 @@ export const usesHostWindowControls = (): boolean => {
 
 export const supportsNativeWindowDragging = supportsNativeWindowControls;
 
+/**
+ * System token that carries the strip a host window manager reserves and paints
+ * over the web view. Products set it from `hostWindowChromeInsetBlockStart`.
+ */
+export const HOST_CHROME_INSET_BLOCK_START_VARIABLE = '--bitfun-viewport-host-chrome-inset-block-start';
+
+/**
+ * Height of the OpenHarmony caption strip. It mirrors OHOS_DECOR_HEIGHT in
+ * `src/apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets` and the
+ * `--bitfun-layout-toolbar-md-height` strip the Web UI draws its own top bar in.
+ */
+export const HOST_WINDOW_CHROME_INSET_BLOCK_START = 45;
+
+/**
+ * Space floating surfaces must keep clear of at the viewport start edge. Zero
+ * unless the host paints window chrome over the same strip the Web UI uses.
+ */
+export const hostWindowChromeInsetBlockStart = (): number =>
+  usesHostWindowControls() ? HOST_WINDOW_CHROME_INSET_BLOCK_START : 0;
+
+/**
+ * Reads the inset from a mounted element so script positioned overlays keep the
+ * same clearance as the CSS driven ones.
+ */
+export const readHostChromeInsetBlockStart = (element: Element | null | undefined): number => {
+  if (!element || typeof window === 'undefined') return 0;
+  const raw = window
+    .getComputedStyle(element)
+    .getPropertyValue(HOST_CHROME_INSET_BLOCK_START_VARIABLE);
+  const inset = Number.parseFloat(raw);
+  return Number.isFinite(inset) && inset > 0 ? inset : 0;
+};
+
 export const isMacOSDesktopRuntime = (): boolean =>
   supportsNativeWindowControls() &&
   typeof navigator !== 'undefined' &&

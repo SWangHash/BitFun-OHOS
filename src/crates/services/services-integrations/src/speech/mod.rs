@@ -20,7 +20,7 @@ use self::recognizer::{SpeechRecognizer, SpeechRecognizerWarmupRequest};
 use self::recognizer_router::SpeechRecognizerRouter;
 use self::types::SpeechTranscribeRequest;
 pub use self::types::{
-    DEFAULT_MAX_RECORDING_SECONDS, DEFAULT_SPEECH_SAMPLE_RATE, LOCAL_QWEN3_ASR_0_6B_INT8_MODEL_ID,
+    DEFAULT_SPEECH_SAMPLE_RATE, LOCAL_QWEN3_ASR_0_6B_INT8_MODEL_ID,
     LOCAL_QWEN3_ASR_0_6B_INT8_MODEL_REF, LOCAL_SENSEVOICE_SMALL_INT8_MODEL_ID,
     LOCAL_SENSEVOICE_SMALL_INT8_MODEL_REF,
 };
@@ -241,14 +241,9 @@ impl SpeechService {
                 "Sample rate must be greater than zero",
             ));
         }
-        let max_recording_seconds = request
-            .max_recording_seconds
-            .unwrap_or(DEFAULT_MAX_RECORDING_SECONDS);
-        if max_recording_seconds == 0 {
-            return Err(BitFunError::validation(
-                "Recording limit must be greater than zero",
-            ));
-        }
+        // A caller that asks for no limit (absent or zero) keeps the whole
+        // recording; the session ends when the caller stops it.
+        let max_recording_seconds = request.max_recording_seconds.unwrap_or(0);
         let language = request.language.unwrap_or_else(|| "auto".to_string());
         let model_dir = self.store.model_dir(&manifest);
         let recognizer = Arc::clone(&self.recognizer);
@@ -313,10 +308,18 @@ impl SpeechService {
         let state = sessions.get_mut(&request.session_id).ok_or_else(|| {
             BitFunError::NotFound("Speech input session not found".to_string())
         })?;
-        let max_bytes =
-            state.session.sample_rate as u64 * state.session.max_recording_seconds as u64 * 2;
-        let remaining_bytes = max_bytes.saturating_sub(state.received_bytes);
-        let accepted_bytes = bytes.len().min(remaining_bytes as usize) & !1;
+        // `max_recording_seconds == 0` means the caller owns the stop condition,
+        // so every chunk is accepted instead of being truncated at a limit.
+        let max_bytes = (state.session.max_recording_seconds > 0).then(|| {
+            state.session.sample_rate as u64 * state.session.max_recording_seconds as u64 * 2
+        });
+        let accepted_bytes = match max_bytes {
+            Some(max_bytes) => {
+                let remaining_bytes = max_bytes.saturating_sub(state.received_bytes);
+                bytes.len().min(remaining_bytes as usize) & !1
+            }
+            None => bytes.len(),
+        };
 
         if accepted_bytes > 0 {
             let mut file = fs::OpenOptions::new()
@@ -332,7 +335,8 @@ impl SpeechService {
                 state.received_bytes,
                 state.session.sample_rate,
             ),
-            limit_reached: state.received_bytes >= max_bytes,
+            limit_reached: max_bytes
+                .is_some_and(|max_bytes| state.received_bytes >= max_bytes),
         })
     }
 
@@ -381,21 +385,22 @@ impl SpeechService {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn append_audio_chunk_truncates_at_recording_limit() {
-        let root = std::env::temp_dir().join(format!(
-            "bitfun-speech-limit-test-{}",
-            Uuid::new_v4().simple()
-        ));
-        let service = SpeechService::new(SpeechStoragePaths::new(
+    fn test_service(root: &std::path::Path) -> SpeechService {
+        SpeechService::new(SpeechStoragePaths::new(
             root.join("models"),
             root.join("downloads"),
             root.join("input"),
-        ));
-        fs::create_dir_all(&root).await.unwrap();
+        ))
+    }
+
+    async fn insert_session(
+        service: &SpeechService,
+        root: &std::path::Path,
+        max_recording_seconds: u32,
+    ) -> (String, PathBuf) {
         let audio_path = root.join("session.pcm");
         fs::File::create(&audio_path).await.unwrap();
-        let session_id = "limit-test-session".to_string();
+        let session_id = Uuid::new_v4().simple().to_string();
         service.sessions.lock().await.insert(
             session_id.clone(),
             SpeechInputSessionState {
@@ -404,25 +409,68 @@ mod tests {
                     model_id: LOCAL_SENSEVOICE_SMALL_INT8_MODEL_ID.to_string(),
                     language: "auto".to_string(),
                     sample_rate: 2,
-                    max_recording_seconds: 1,
+                    max_recording_seconds,
                 },
                 audio_path: audio_path.clone(),
                 received_bytes: 0,
             },
         );
+        (session_id, audio_path)
+    }
 
-        let response = service
+    async fn append_chunk(
+        service: &SpeechService,
+        session_id: &str,
+        samples: &[u8],
+    ) -> SpeechAppendAudioChunkResponse {
+        service
             .append_audio_chunk(SpeechAppendAudioChunkRequest {
-                session_id,
-                pcm16_base64: BASE64_STANDARD.encode([1_u8, 2, 3, 4, 5, 6]),
+                session_id: session_id.to_string(),
+                pcm16_base64: BASE64_STANDARD.encode(samples),
             })
             .await
-            .unwrap();
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn append_audio_chunk_truncates_at_recording_limit() {
+        let root = std::env::temp_dir().join(format!(
+            "bitfun-speech-limit-test-{}",
+            Uuid::new_v4().simple()
+        ));
+        let service = test_service(&root);
+        fs::create_dir_all(&root).await.unwrap();
+        let (session_id, audio_path) = insert_session(&service, &root, 1).await;
+
+        let response = append_chunk(&service, &session_id, &[1, 2, 3, 4, 5, 6]).await;
 
         assert_eq!(response.received_bytes, 4);
         assert_eq!(response.received_seconds, 1.0);
         assert!(response.limit_reached);
         assert_eq!(fs::read(&audio_path).await.unwrap(), vec![1, 2, 3, 4]);
+
+        let _ = fs::remove_dir_all(root).await;
+    }
+
+    #[tokio::test]
+    async fn append_audio_chunk_keeps_audio_without_a_recording_limit() {
+        let root = std::env::temp_dir().join(format!(
+            "bitfun-speech-unlimited-test-{}",
+            Uuid::new_v4().simple()
+        ));
+        let service = test_service(&root);
+        fs::create_dir_all(&root).await.unwrap();
+        let (session_id, audio_path) = insert_session(&service, &root, 0).await;
+
+        let response = append_chunk(&service, &session_id, &[1, 2, 3, 4, 5, 6, 7, 8]).await;
+
+        assert_eq!(response.received_bytes, 8);
+        assert_eq!(response.received_seconds, 2.0);
+        assert!(!response.limit_reached);
+        assert_eq!(
+            fs::read(&audio_path).await.unwrap(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8]
+        );
 
         let _ = fs::remove_dir_all(root).await;
     }
