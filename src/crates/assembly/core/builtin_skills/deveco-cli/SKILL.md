@@ -27,9 +27,12 @@ Available commands: `build`, `check`, `run`, `update`, `device`, `ui`, `skills`,
 ### `devecocli create`
 Scaffold a new HarmonyOS project.
 - `--app-name <name>` (Req): 1–200 chars, `^[a-zA-Z][a-zA-Z0-9_]*$`
-- `--project-path <path>`: Auto-created if omitted (`./<app-name>`). Must be empty if exists.
+- `--project-path <path>`: Final project root. Auto-created if omitted (`./<app-name>`) or missing, and populated if empty. A non-empty target returns `PROJECT_EXISTS` unless `--merge` is supplied.
 - `--bundle-name <bundle>`: Default `com.example.<appname-lowercase>`. 7–128 chars, ≥3 segments.
 - `--api-level <level>`: int ≥17 (default: auto or 23).
+- `--merge` allows a non-empty target while preserving existing content. Generated paths are checked before the target changes, and no existing file is overwritten.
+- `PROJECT_EXISTS` (exit 2): use `--merge` only if the existing directory is intended to become the project root. Otherwise ask whether to overwrite, rename, or cancel. Never clear the reported `details.targetRoot` without explicit confirmation.
+- `PROJECT_FILE_CONFLICT` (exit 2): report `details.conflicts` and ask the user to rename those paths, choose another root, or cancel. No existing files were changed; never overwrite the conflicts automatically.
 *Ex*: `devecocli create --app-name MyApp --project-path ./CustomDir --api-level 23`
 
 ### `devecocli build` `[Outside sandbox]`
@@ -41,10 +44,33 @@ Compile and package project/modules. (Defaults: `--product default`, `--build-mo
 | Whole product bundle (.app) | `devecocli build --product <name>` |
 | Clean build outputs | `devecocli build clean` |
 
+If build output is truncated, the complete log is saved at the path shown after `Full output saved to:`.
+
 ### `devecocli check lint`
 Run DevEco Code Linter checks for TS/ArkTS code.
+- **Studio requirement**: Default lint checks and `--fix`, `--incremental`, `--product`, `--config-path`, and `--limit` support DevEco Studio `>= 6.0.0`; explicitly using `--format` or `--output-path` requires DevEco Studio `>= 6.1.0`. Command Line Tools mode follows the CLT `>= 26.0.0` baseline.
 - `[path]`: File or directory to lint. Defaults to the project root from `build-profile.json5`, otherwise the current directory.
 - Options: `--config-path <file>`, `--fix`, `--incremental`, `--product <name>`, `--format <default|json>`, `--output-path <path>`, `--limit <number>`.
+- Set `DEVECO_CLI_CLT_PATH` to the Command Line Tools root when DevEco Studio is not installed; CLT is not discovered automatically from PATH or default installation directories.
+
+### `devecocli emulator`
+Manage local emulator instances and system images. **On HarmonyOS native PC (2in1) this command is NOT available — see Platform awareness above.**
+- **Studio requirement**: DevEco Studio `>= 6.1.0`.
+- `list`: Show instances (status, serial, device type). Opt: `--format <table|json>` (default: `table`).
+- `start <names...>`: Start instances. Quote names with spaces. (See Troubleshooting if blocked.)
+- `stop <names...>`: Stop by name or serial (`127.0.0.1:<port>`).
+- Scene control commands require Emulator 7.0 or later. Use `DEVECO_CLI_DEBUG=1` to inspect the underlying `Emulator` command mapping.
+- `shake` / `power` / `rotate <left|right>` / `volume <up|down>` (Req: `--target <nameOrSerial>`): Basic emulator controls.
+- `fold <state>` (Req: `--target <nameOrSerial>`): Set foldable display state, matched against the target emulator's reported `deviceType`. `foldable` uses `open|half-open|close`; `2in1_foldable` uses `open|vertical-open|half-open|close`; `triplefold` uses `single|double|triple` or one of its six left/right folded-state combinations. Other device types and cross-device states are rejected before execution.
+- `battery` (Req: `--target`; one of `--level <0-100>` or `--status <charging|discharging>`): Set battery state. `--level` checks the current emulator charging state automatically (`0-100` while charging, `1-100` otherwise).
+- `geolocation` (Req: `--target`; one of `--longitude`, `--latitude`, `--altitude`, `--direction`): Inject GPS data.
+- `scene <outdoorRunning|outdoorCycling|drivingNavigation>` (Req: `--target`): Start motion simulation.
+- `sensor` (Req: `--target`; one of `--light-intensity`, `--humidity`, `--temperature`, `--steps`, `--heartrate`): Inject sensor data.
+- `create <name>` (Req: `--device-type`, `--os-version`): Create instance. Optional: `--force`.
+- `delete <name>`: Delete instance.
+- `image list`: List downloaded images. Opts: `--device-type <type>`, `--all`, `--format <table|json>`.
+- `image download` / `image remove` (Req: `--device-type`, `--os-version`): Download/remove image. (Takes 30+ min, set long timeout.)
+*Device types*: `phone`, `foldable`, `widefold`, `triplefold`, `tablet`, `2in1`, `2in1 foldable`, `wearable`, `tv`.
 
 ### `devecocli docs`
 Search/read local HarmonyOS docs.
@@ -155,6 +181,18 @@ Manage HarmonyOS skills in AI agents/projects.
 - `add (--all | --skill <name>) [--agent <a,b…>] [--project <path>] [--path <path>] [-f]`: Install.
 - `remove --skill <name> [...]`: Uninstall.
 
+### `devecocli check compat` `[Outside sandbox]`
+Scan source code for breaking API changes between two SDK versions. Built on DevEco Studio's `arkanalyzer-apiscan` plugin.
+- `versions`: List available target SDK versions. Opts: `--format <default|json>` (default: `default`).
+- Default (no args): project-level scan.
+- `--modules <m1> [m2...]`: Module-level scan.
+- `<file1> [file2...]`: File-level scan (`.ets`/`.c`/`.cpp` only).
+- `--source-version <v>` (Req) / `--target-version <v>` (Req): SDK version pair. Run `devecocli check compat versions` first; on zsh, **quote the value**.
+- `--format <default|csv|json>`: Console output accepts `default` (text) or `json`; file output (via `--output-path`) accepts `default` (csv), `csv`, or `json`. `csv` requires `--output-path`.
+- `--output-path <path>`: Directory (writes `apiChange-*.csv`/`apiChange-*.json`) or explicit file (extension must match `--format`).
+- `--limit <n>` (default `100`): Max records shown on console when no `--output-path`.
+*Ex*: `devecocli check compat --source-version "<source_version>" --target-version "<target_version>" --output-path ./report`
+
 ## 3. Maintenance
 
 - **`devecocli update`** `[Outside sandbox]`: Update CLI to latest version.
@@ -182,5 +220,10 @@ Manage HarmonyOS skills in AI agents/projects.
 - **`Provision number exceeds limit`**: Test provision quota is full. Delete old test provisions in DevEco Studio (Signing Configs) or AGC console, then retry `devecocli signature generate`.
 - **`Invalid AccessToken. Sign in and try again`**: Token expired. Run `devecocli auth login` again.
 - **`skills add` agent not found**: Valid: `codebuddy`, `cursor`, `opencode`, `qoder`, `trae-cn`.
+- **`emulator start` / `image download` blocked on agreement**: User MUST accept agreements. Interactive: `devecocli emulator license` (requires TTY). Non-interactive (CI/scripts): `devecocli emulator license accept`. Ask the user to review and accept; run the non-interactive acceptance only if explicitly authorized. Do not retry until accepted.
+- **`image download` failure / timeout**: Do NOT auto-retry. Give the command to the user to run manually in their terminal.
+- **`emulator create` timeout**: Treat as a user-action step. Ask the user to open DevEco Studio → Device Manager. Check `emulator list` after the user confirms. Do NOT auto-retry or edit SDK files.
+- **`image list` duplicate OS rows**: `phone`/`foldable`/`widefold`/`triplefold` share the same image. Download/remove ONCE per OS version.
+- **`ui layout` missing expected node**: `layout` only returns on-screen nodes. Scroll the target into view with `ui dircfling` / `ui swipe` when appropriate, or ask the user to scroll, then retry `ui layout`.
 - **HarmonyOS native (2in1 PC) — `hdc list targets` shows `[Empty]`**: hdc on HarmonyOS does NOT auto-discover the local device. Open "Settings → System → Developer options → Wireless debugging", note the port, then `hdc tconn 127.0.0.1:<port>`. For normal run: pass `--device 127.0.0.1:<port>`. For previewer mode: set `DEVECO_HDC_PORT=<port>` env var (previewer mode uses `--device` for product name, not hdc target).
 - **Previewer — "DevEco Studio is not running"**: Tell the user to start DevEco Studio manually first, then retry. Do NOT retry automatically.
