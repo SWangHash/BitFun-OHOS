@@ -7,7 +7,7 @@ description: Load for ArkTS/JavaScript jscrash, runtime crash, uncaught exceptio
 
 Use this skill to diagnose and fix ArkTS or JavaScript runtime crashes with minimal edits.
 
-Use this skill's private Node scripts under `skills/arkts-runtime-fix/scripts/` to parse crash evidence, inspect recent faultlogger entries, or collect hilog when no better evidence is available.
+Use this skill's private Node scripts under `skills/arkts-runtime-fix/scripts/` to parse crash evidence, inspect recent faultlogger entries, or collect hilog when no better evidence is available. Use the `references/` error-pattern knowledge base below to map a signature to its root cause once you have a crash anchor.
 
 If `node` is unavailable, stop and explain that the private scripts cannot run.
 
@@ -123,12 +123,48 @@ If `status: no_crash_signature`, explain that the evidence is weak and ask for a
 
 ## Common Crash Signatures
 
-| Signature | Typical Cause | First Fix Direction |
+Map the parsed signal to a root cause, then confirm it against the `references/` file before editing. Match on `Error message` + `Error code` + the top application stack frame together; a single weak signal is not enough.
+
+| Error type / message keyword | Root cause | Reference |
 |---|---|---|
-| `TypeError` on property access | Null or undefined state during render or lifecycle | Guard null state, initialize earlier, or move logic to a safer lifecycle |
-| `ReferenceError` | Wrong scope, stale import, missing symbol | Fix symbol ownership, import path, or callback capture |
-| `RangeError` | Invalid index, recursion loop, oversized access | Add bounds checks, break loops, clamp indexes |
-| `BusinessError` / `ParameterError` | Framework API preconditions not met | Validate args, permissions, or call timing |
+| `ReferenceError` + `@Provide` / `@Consume` | Missing or duplicate @Provide/@Consume | `references/referenceerror_patterns.md` |
+| `ReferenceError` + `is not initialized` | Variable used before assignment | `references/referenceerror_patterns.md` |
+| `ReferenceError` + `<name> is not defined` | Variable scope or import missing | `references/fault-mode-library.md` |
+| `TypeError` + `Cannot read property` / `null or undefined` | Accessing a property on undefined/null during render or lifecycle | `references/typeerror_patterns.md` |
+| `TypeError` + `is not callable` | Calling a non-function value | `references/typeerror_patterns.md` |
+| `TypeError` + `circular structure` | Circular reference in JSON.stringify | `references/typeerror_patterns.md` |
+| `SyntaxError` + `Unexpected Text in JSON` / `Invalid Token` | Malformed JSON.parse input | `references/syntaxerror_patterns.md` |
+| `RangeError` + `Invalid array length` / `Stack overflow` | Bad index/array length or unbounded recursion | `references/rangeerror_patterns.md` |
+| `URIError` + `DecodeURI: invalid character` | Malformed URI passed to decodeURI | `references/urierror_patterns.md` |
+| `Error` + `UI execution context not found` / `100001` | UI context not bound; use `Navigation` or `UIContext.getRouter()` | `references/error_patterns.md` |
+| `Error` + `WebviewController must be associated` / `17100001` | WebviewController not linked to a Web component | `references/error_patterns.md` |
+| `Error` + `ForEach id` / id generator | `ForEach` keyGenerator missing or invalid | `references/error_patterns.md` |
+| `Error` + SQLite / RDB / resource ID / window state | DB handle, resource ID, or window API misuse | `references/error_patterns.md` |
+| `BusinessError` + `Parameter error` / URL / JSON / XML | Invalid API parameter type or value | `references/businesserror_patterns.md` |
+| `OutOfMemoryError` + allocate / leak | Heap allocation failure or memory leak | `references/outofmemoryerror_patterns.md` |
+| `TerminationError` / `AggregateError` / `ArrayBuffer` detached | Runtime lifecycle and ArkTS collection/type traps | `references/fault-mode-library.md` |
+
+## Error Pattern Knowledge Base
+
+Read the matching file under `references/` (relative to this skill directory) before applying a fix. Each file lists a pattern matrix plus credibility rules so you can confirm the hit instead of pattern-matching on a single keyword:
+
+| File | Covers |
+|---|---|
+| `references/typeerror_patterns.md` | TypeError: null/undefined access, not callable, circular reference, N-API receiver |
+| `references/referenceerror_patterns.md` | ReferenceError: @Provide/@Consume, uninitialized variable |
+| `references/syntaxerror_patterns.md` | SyntaxError: malformed JSON.parse input |
+| `references/rangeerror_patterns.md` | RangeError: invalid array length, stack overflow |
+| `references/urierror_patterns.md` | URIError: malformed URI in decodeURI |
+| `references/error_patterns.md` | Framework/API Error: UI context, WebviewController, ForEach, SQLite/RDB, resource ID, window state |
+| `references/businesserror_patterns.md` | BusinessError: invalid API parameters (URL/JSON/XML, permission, call timing) |
+| `references/outofmemoryerror_patterns.md` | OutOfMemoryError: heap allocation failure or leak |
+| `references/fault-mode-library.md` | Cross-cutting ArkTS traps: N-API, ArrayBuffer, Map constructor, TerminationError, AggregateError |
+
+Step order once you have a crash anchor:
+
+1. Pick the candidate file from `error_type`.
+2. Confirm using `Error message` + `Error code` + top application stack frame together.
+3. Apply a minimal fix to the suspected file from the stack. Do not refactor broadly.
 
 ## Interpretation Rules
 
@@ -141,7 +177,7 @@ If `status: no_crash_signature`, explain that the evidence is weak and ask for a
 ## Conversational Shape
 
 1. Say what evidence you already have.
-2. If logs are missing, say whether you are using faultlogger or hilog to get a better anchor.
+2. If logs are missing, say whether you are using a crash log (faultlog) or hilog to get a better anchor.
 3. Once you have an anchor, switch into focused code reading and minimal fixing.
 
 ## Constraints
