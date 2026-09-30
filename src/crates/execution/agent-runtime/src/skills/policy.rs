@@ -212,7 +212,7 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
 };
 
 /// HarmonyBuild mode (and its Harmony sub-agents) enable the HarmonyOS built-in
-/// skill group so the Skill tool can load `arkts-grammar-standards`,
+/// skill group so the Skill tool can load `hmos-arkui-develop-skill`,
 /// `deveco-cli`, `ohos-qt-skills`, etc. Office, Gstack, and Computer Use stay
 /// disabled to keep the industry agent focused on HarmonyOS workflows.
 const HARMONY_BUILD_POLICY: ModeSkillPolicy = ModeSkillPolicy {
@@ -337,6 +337,29 @@ mod tests {
                 spec.dir_name
             );
         }
+    }
+
+    #[test]
+    fn qt_migration_mode_enables_harmonyos_builtin_skills() {
+        // QtMigration must allow the managed ohos-qt-skills (HarmonyOS group)
+        // so the Skill tool can load it; otherwise the gate would permanently
+        // block because the skill policy rejects the call.
+        assert_eq!(
+            resolve_builtin_default_enabled("ohos-qt-skills", "QtMigration"),
+            Some(true),
+            "ohos-qt-skills must be enabled in QtMigration mode"
+        );
+        // Other HarmonyOS built-in skills are also enabled.
+        assert_eq!(
+            resolve_builtin_default_enabled("hmos-runtime-fix-skill", "QtMigration"),
+            Some(true)
+        );
+        // Non-HarmonyOS built-in skills stay disabled by default.
+        assert_eq!(
+            resolve_builtin_default_enabled("agent-browser", "QtMigration"),
+            Some(false),
+            "agent-browser must stay opt-in in QtMigration mode"
+        );
     }
 
     #[test]
@@ -500,11 +523,11 @@ mod tests {
     #[test]
     fn harmony_build_mode_enables_harmonyos_builtin_skills() {
         // HarmonyBuild must enable the HarmonyOS skill group so the Skill tool
-        // can load arkts-grammar-standards, deveco-cli, ohos-qt-skills, etc.
+        // can load hmos-arkui-develop-skill, deveco-cli, ohos-qt-skills, etc.
         assert_eq!(
-            resolve_builtin_default_enabled("arkts-grammar-standards", "HarmonyBuild"),
+            resolve_builtin_default_enabled("hmos-arkui-develop-skill", "HarmonyBuild"),
             Some(true),
-            "arkts-grammar-standards must be enabled in HarmonyBuild mode"
+            "hmos-arkui-develop-skill must be enabled in HarmonyBuild mode"
         );
         assert_eq!(
             resolve_builtin_default_enabled("deveco-cli", "HarmonyBuild"),
@@ -517,9 +540,9 @@ mod tests {
             "ohos-qt-skills must be enabled in HarmonyBuild mode"
         );
         assert_eq!(
-            resolve_builtin_default_enabled("arkts-error-fixes", "HarmonyBuild"),
+            resolve_builtin_default_enabled("hmos-runtime-fix-skill", "HarmonyBuild"),
             Some(true),
-            "arkts-error-fixes must be enabled in HarmonyBuild mode"
+            "hmos-runtime-fix-skill must be enabled in HarmonyBuild mode"
         );
         // Non-HarmonyOS groups stay disabled by default (Office, Gstack, ComputerUse).
         assert_eq!(
