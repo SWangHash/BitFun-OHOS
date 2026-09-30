@@ -59,11 +59,11 @@ pub(crate) fn truncate_output(text: &str, limit: usize) -> String {
     if text.len() <= limit {
         return text.to_string();
     }
-    format!(
-        "{}\n\n[output truncated at {} bytes]",
-        &text[..limit],
-        limit
-    )
+    let mut end = limit.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}\n\n[output truncated at {} bytes]", &text[..end], limit)
 }
 
 /// Spawn a shell-wrapped HarmonyOS CLI binary (`devecocli` or `hdc`) and capture
@@ -82,6 +82,12 @@ async fn run_shell_command(
     missing_msg: &str,
 ) -> BitFunResult<DevecocliOutput> {
     let cwd = resolve_harmony_cwd(context);
+    if !Path::new(&cwd).is_dir() {
+        return Err(BitFunError::tool(format!(
+            "Working directory does not exist or is not a directory: {}",
+            cwd
+        )));
+    }
     let full_command = format!("{} {}", binary, args.join(" "));
     log::info!("{} {} (cwd: {})", binary, args.join(" "), cwd);
 
@@ -94,6 +100,7 @@ async fn run_shell_command(
     command.args(&shell_argv[1..]);
     command
         .current_dir(&cwd)
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
@@ -159,8 +166,19 @@ async fn run_shell_command(
             .copied()
             .collect::<Vec<_>>()
             .join("\n");
-        if let Err(e) = tokio::fs::write(&resolved, &content).await {
-            log::warn!("Failed to write log file {}: {}", resolved, e);
+        let log_path = Path::new(&resolved);
+        if let Some(parent) = log_path.parent() {
+            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                log::warn!("Failed to create log directory {}: {}", parent.display(), e);
+            } else {
+                let temp_path = parent.join(format!(".{}.tmp", uuid::Uuid::new_v4()));
+                if let Err(e) = tokio::fs::write(&temp_path, &content).await {
+                    log::warn!("Failed to write log file {}: {}", resolved, e);
+                } else if let Err(e) = tokio::fs::rename(&temp_path, log_path).await {
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    log::warn!("Failed to replace log file {}: {}", resolved, e);
+                }
+            }
         }
     }
 

@@ -98,12 +98,23 @@ Example:
         if action != "collect" && action != "list_devices" {
             return ValidationResult {
                 result: false,
-                message: Some(format!("action must be \"collect\" or \"list_devices\", got: {}", action)),
+                message: Some(format!(
+                    "action must be \"collect\" or \"list_devices\", got: {}",
+                    action
+                )),
                 error_code: Some(400),
                 meta: None,
             };
         }
-        if let Some(lines) = input.get("lines").and_then(|v| v.as_i64()) {
+        if let Some(value) = input.get("lines") {
+            let Some(lines) = value.as_i64() else {
+                return ValidationResult {
+                    result: false,
+                    message: Some("lines must be an integer between 1 and 5000".to_string()),
+                    error_code: Some(400),
+                    meta: None,
+                };
+            };
             if !(1..=5000).contains(&lines) {
                 return ValidationResult {
                     result: false,
@@ -113,11 +124,39 @@ Example:
                 };
             }
         }
-        ValidationResult { result: true, message: None, error_code: None, meta: None }
+        for key in ["device_id", "log_prefix"] {
+            if let Some(value) = input.get(key) {
+                let Some(text) = value.as_str() else {
+                    return ValidationResult {
+                        result: false,
+                        message: Some(format!("{} must be a string", key)),
+                        error_code: Some(400),
+                        meta: None,
+                    };
+                };
+                if text.len() > 512 {
+                    return ValidationResult {
+                        result: false,
+                        message: Some(format!("{} is too long", key)),
+                        error_code: Some(400),
+                        meta: None,
+                    };
+                }
+            }
+        }
+        ValidationResult {
+            result: true,
+            message: None,
+            error_code: None,
+            meta: None,
+        }
     }
 
     fn render_tool_use_message(&self, input: &Value, options: &ToolRenderOptions) -> String {
-        let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("collect");
+        let action = input
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("collect");
         if options.verbose {
             format!("HarmonyOS hdc_log action: {}", action)
         } else {
@@ -130,15 +169,24 @@ Example:
         input: &Value,
         context: &ToolUseContext,
     ) -> BitFunResult<Vec<ToolResult>> {
-        let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("collect");
+        let action = input
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("collect");
 
         if action == "list_devices" {
-            let out = run_devecocli(&["device", "list"], context, DevecocliOptions::default()).await?;
+            let out =
+                run_devecocli(&["device", "list"], context, DevecocliOptions::default()).await?;
             let combined = [out.stdout.as_str(), out.stderr.as_str()]
-                .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
+                .iter()
+                .filter(|s| !s.is_empty())
+                .copied()
+                .collect::<Vec<_>>()
+                .join("\n");
             if out.exit_code != 0 {
                 return Err(BitFunError::tool(format!(
-                    "hdc_log list_devices failed (exit {}):\n{}", out.exit_code, combined
+                    "hdc_log list_devices failed (exit {}):\n{}",
+                    out.exit_code, combined
                 )));
             }
             let (formatted, device_count) = format_connected_device_list(&combined);
@@ -150,7 +198,10 @@ Example:
         }
 
         let lines = input.get("lines").and_then(|v| v.as_u64()).unwrap_or(2000);
-        let log_prefix = input.get("log_prefix").and_then(|v| v.as_str()).unwrap_or("[VCODER_DEBUG]");
+        let log_prefix = input
+            .get("log_prefix")
+            .and_then(|v| v.as_str())
+            .unwrap_or("[VCODER_DEBUG]");
         let device_id = input.get("device_id").and_then(|v| v.as_str());
 
         let lines_str = lines.to_string();
@@ -165,12 +216,25 @@ Example:
             argv.push(did.as_str());
         }
 
-        let out = run_devecocli(&argv, context, DevecocliOptions { timeout: HDC_LOG_TIMEOUT, ..Default::default() }).await?;
+        let out = run_devecocli(
+            &argv,
+            context,
+            DevecocliOptions {
+                timeout: HDC_LOG_TIMEOUT,
+                ..Default::default()
+            },
+        )
+        .await?;
         let combined = [out.stdout.as_str(), out.stderr.as_str()]
-            .iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n");
+            .iter()
+            .filter(|s| !s.is_empty())
+            .copied()
+            .collect::<Vec<_>>()
+            .join("\n");
         if out.exit_code != 0 {
             return Err(BitFunError::tool(format!(
-                "hdc_log collect failed (exit {}):\n{}", out.exit_code, combined
+                "hdc_log collect failed (exit {}):\n{}",
+                out.exit_code, combined
             )));
         }
         let line_count = combined.lines().filter(|l| !l.is_empty()).count();
@@ -179,7 +243,11 @@ Example:
                 "tool": "hdc_log", "action": "collect", "exitCode": out.exit_code,
                 "lineCount": line_count, "lines": lines, "logPrefix": log_prefix, "deviceId": did,
             }),
-            result_for_assistant: Some(if combined.is_empty() { "No logs collected.".to_string() } else { combined }),
+            result_for_assistant: Some(if combined.is_empty() {
+                "No logs collected.".to_string()
+            } else {
+                combined
+            }),
             image_attachments: None,
         }])
     }
@@ -210,35 +278,56 @@ mod tests {
 
     #[tokio::test]
     async fn hdc_log_rejects_missing_action() {
-        let r = HdcLogTool::new().validate_input(&json!({}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(&json!({}), Some(&test_context()))
+            .await;
         assert!(!r.result);
         assert_eq!(r.error_code, Some(400));
     }
 
     #[tokio::test]
     async fn hdc_log_rejects_unknown_action() {
-        let r = HdcLogTool::new().validate_input(&json!({"action": "clear"}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(&json!({"action": "clear"}), Some(&test_context()))
+            .await;
         assert!(!r.result);
         assert_eq!(r.error_code, Some(400));
     }
 
     #[tokio::test]
     async fn hdc_log_rejects_out_of_range_lines() {
-        let r = HdcLogTool::new().validate_input(&json!({"action": "collect", "lines": 0}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(
+                &json!({"action": "collect", "lines": 0}),
+                Some(&test_context()),
+            )
+            .await;
         assert!(!r.result);
-        let r = HdcLogTool::new().validate_input(&json!({"action": "collect", "lines": 5001}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(
+                &json!({"action": "collect", "lines": 5001}),
+                Some(&test_context()),
+            )
+            .await;
         assert!(!r.result);
     }
 
     #[tokio::test]
     async fn hdc_log_accepts_valid_collect() {
-        let r = HdcLogTool::new().validate_input(&json!({"action": "collect", "lines": 200, "log_prefix": "[VCODER_DEBUG]"}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(
+                &json!({"action": "collect", "lines": 200, "log_prefix": "[VCODER_DEBUG]"}),
+                Some(&test_context()),
+            )
+            .await;
         assert!(r.result);
     }
 
     #[tokio::test]
     async fn hdc_log_accepts_list_devices() {
-        let r = HdcLogTool::new().validate_input(&json!({"action": "list_devices"}), Some(&test_context())).await;
+        let r = HdcLogTool::new()
+            .validate_input(&json!({"action": "list_devices"}), Some(&test_context()))
+            .await;
         assert!(r.result);
     }
 

@@ -33,10 +33,6 @@ mod tests {
         assert_eq!(builtin_skill_group_key("arkts-runtime-fix"), Some("harmonyos"));
         assert_eq!(builtin_skill_group_key("arkui-knowledge"), Some("harmonyos"));
         assert_eq!(builtin_skill_group_key("deveco-cli"), Some("harmonyos"));
-        assert_eq!(
-            builtin_skill_group_key("deveco-create-project"),
-            Some("harmonyos")
-        );
         assert_eq!(builtin_skill_group_key("unknown-skill"), None);
     }
 

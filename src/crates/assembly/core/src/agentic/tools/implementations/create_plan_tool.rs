@@ -32,11 +32,21 @@ struct TodoItem {
 }
 
 /// CreatePlan tool - create plan file
-pub struct CreatePlanTool;
+pub struct CreatePlanTool {
+    tool_name: &'static str,
+}
 
 impl CreatePlanTool {
     pub fn new() -> Self {
-        Self
+        Self {
+            tool_name: "CreatePlan",
+        }
+    }
+
+    pub fn plan_write() -> Self {
+        Self {
+            tool_name: "plan_write",
+        }
     }
 }
 
@@ -49,7 +59,7 @@ impl Default for CreatePlanTool {
 #[async_trait]
 impl Tool for CreatePlanTool {
     fn name(&self) -> &str {
-        "CreatePlan"
+        self.tool_name
     }
 
     async fn description(&self) -> BitFunResult<String> {
@@ -141,12 +151,11 @@ Additional guidelines:
     }
 
     fn is_readonly(&self) -> bool {
-        // Only writes plan file, doesn't modify code
-        true
+        false
     }
 
     fn is_concurrency_safe(&self, _input: Option<&Value>) -> bool {
-        true
+        false
     }
 
     async fn call_impl(
@@ -170,6 +179,12 @@ Additional guidelines:
             .and_then(|v| v.as_str())
             .ok_or(BitFunError::validation("Missing required field: plan"))?;
 
+        if name.trim().is_empty() || overview.trim().is_empty() || plan.trim().is_empty() {
+            return Err(BitFunError::validation(
+                "name, overview, and plan must not be empty",
+            ));
+        }
+
         let todos = input.get("todos").and_then(|v| v.as_array());
 
         // Generate filename: {name_lowercase_underscored}_{8-digit uuid}.plan.md
@@ -187,6 +202,11 @@ Additional guidelines:
             .unwrap_or("00000000")
             .to_string();
 
+        if name_normalized.is_empty() || name_normalized.len() > 96 {
+            return Err(BitFunError::validation(
+                "name must contain at least one alphanumeric character and be at most 96 characters",
+            ));
+        }
         let plan_file_name = format!("{}_{}.plan.md", name_normalized, uuid_short);
 
         let file_content = generate_plan_file_content(name, overview, plan, todos);
@@ -194,9 +214,20 @@ Additional guidelines:
         let runtime_context = context.ensure_current_workspace_runtime().await?;
         let plans_dir = runtime_context.plans_dir.clone();
         let plan_file_path = plans_dir.join(&plan_file_name);
-        fs::write(&plan_file_path, &file_content)
+        fs::create_dir_all(&plans_dir)
+            .await
+            .map_err(|e| BitFunError::tool(format!("Failed to create plans directory: {}", e)))?;
+        let temp_path = plans_dir.join(format!(".{}.tmp", uuid::Uuid::new_v4()));
+        fs::write(&temp_path, &file_content)
             .await
             .map_err(|e| BitFunError::tool(format!("Failed to write plan file: {}", e)))?;
+        if let Err(error) = fs::rename(&temp_path, &plan_file_path).await {
+            let _ = fs::remove_file(&temp_path).await;
+            return Err(BitFunError::tool(format!(
+                "Failed to finalize plan file: {}",
+                error
+            )));
+        }
         let plan_file_path_str = plan_file_path.to_string_lossy().to_string();
 
         // Process todos for return result
@@ -300,7 +331,10 @@ fn generate_plan_file_content(
     };
 
     // Serialize frontmatter using serde_yaml
-    let yaml = serde_yaml::to_string(&frontmatter).unwrap_or_default();
+    let yaml = serde_yaml::to_string(&frontmatter).unwrap_or_else(|error| {
+        log::error!("Failed to serialize plan frontmatter: {}", error);
+        String::new()
+    });
 
     format!("---\n{}---\n\n{}", yaml, plan)
 }

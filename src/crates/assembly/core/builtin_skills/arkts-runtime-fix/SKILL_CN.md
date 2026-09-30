@@ -32,7 +32,7 @@ description: ArkTS Runtime Fix 的中文参考版本，仅用于保留中文说�
 
 ## 私有脚本执行约定
 
-所有脚本通过 Shell 执行，形式与 `deveco-create-project` 一致：
+所有脚本通过 Shell 执行：
 
 ```bash
 node "{SKILL_DIR}/scripts/<script>.mjs" ...
@@ -95,12 +95,44 @@ node "{SKILL_DIR}/scripts/parse-jscrash-log.mjs" --log-file "{hilogPathFromColle
 
 ## 常见崩溃签名
 
-| 签名 | 常见原因 | 优先修复方向 |
+解析出信号后先定位根因，再对照 `references/` 对应文件确认后修改。必须同时用 `Error message` + `Error code` + 栈顶应用帧三者相互印证，单一弱信号不足以定性。
+
+| 错误类型 / 消息关键字 | 根因 | 参考文件 |
 |---|---|---|
-| `TypeError` 属性访问 | 渲染 / 生命周期空状态 | 空值保护、提前初始化、调整生命周期 |
-| `ReferenceError` | 作用域 / 导入 / 闭包 | 修正符号、导入路径或回调捕获 |
-| `RangeError` | 下标 / 递归 / 长度 | 边界检查、断环、限制索引 |
-| `BusinessError` / `ParameterError` | API 前置条件 | 校验参数、权限与调用时机 |
+| `ReferenceError` + `@Provide` / `@Consume` | @Provide/@Consume 缺失或重复 | `references/referenceerror_patterns.md` |
+| `ReferenceError` + `is not initialized` | 变量在使用前赋值 | `references/referenceerror_patterns.md` |
+| `ReferenceError` + `<name> is not defined` | 作用域或导入缺失 | `references/fault-mode-library.md` |
+| `TypeError` + `Cannot read property` / `null or undefined` | 渲染 / 生命周期中访问 undefined/null 属性 | `references/typeerror_patterns.md` |
+| `TypeError` + `is not callable` | 调用了非函数值 | `references/typeerror_patterns.md` |
+| `TypeError` + `circular structure` | JSON.stringify 循环引用 | `references/typeerror_patterns.md` |
+| `SyntaxError` + `Unexpected Text in JSON` / `Invalid Token` | JSON.parse 输入非法 | `references/syntaxerror_patterns.md` |
+| `RangeError` + `Invalid array length` / `Stack overflow` | 数组长度非法或递归无界 | `references/rangeerror_patterns.md` |
+| `URIError` + `DecodeURI: invalid character` | decodeURI 传入非法 URI | `references/urierror_patterns.md` |
+| `Error` + `UI execution context not found` / `100001` | UI 上下文未绑定；改用 `Navigation` 或 `UIContext.getRouter()` | `references/error_patterns.md` |
+| `Error` + `WebviewController must be associated` / `17100001` | WebviewController 未与 Web 组件关联 | `references/error_patterns.md` |
+| `Error` + `ForEach id` / id 生成器 | `ForEach` keyGenerator 缺失或非法 | `references/error_patterns.md` |
+| `Error` + SQLite / RDB / 资源 ID / 窗口状态 | 数据库句柄、资源 ID 或窗口 API 误用 | `references/error_patterns.md` |
+| `BusinessError` + `Parameter error` / URL / JSON / XML | API 参数类型或取值非法 | `references/businesserror_patterns.md` |
+| `OutOfMemoryError` + allocate / leak | 堆分配失败或内存泄漏 | `references/outofmemoryerror_patterns.md` |
+| `TerminationError` / `AggregateError` / `ArrayBuffer` 已分离 | 运行时生命周期与 ArkTS 集合 / 类型陷阱 | `references/fault-mode-library.md` |
+
+## 错误模式知识库
+
+修改前先读取本技能目录下匹配的 `references/` 文件。每个文件包含模式矩阵与可信度规则，用于确认命中而不是凭单个关键字臆断：
+
+| 文件 | 覆盖范围 |
+|---|---|
+| `references/typeerror_patterns.md` | TypeError：空值访问、不可调用、循环引用、N-API 接收者 |
+| `references/referenceerror_patterns.md` | ReferenceError：@Provide/@Consume、变量未初始化 |
+| `references/syntaxerror_patterns.md` | SyntaxError：JSON.parse 输入非法 |
+| `references/rangeerror_patterns.md` | RangeError：数组长度非法、栈溢出 |
+| `references/urierror_patterns.md` | URIError：decodeURI 非法字符 |
+| `references/error_patterns.md` | 框架/API Error：UI 上下文、WebviewController、ForEach、SQLite/RDB、资源 ID、窗口状态 |
+| `references/businesserror_patterns.md` | BusinessError：API 参数非法（URL/JSON/XML、权限、调用时机） |
+| `references/outofmemoryerror_patterns.md` | OutOfMemoryError：堆分配失败或泄漏 |
+| `references/fault-mode-library.md` | 跨场景 ArkTS 陷阱：N-API、ArrayBuffer、Map 构造、TerminationError、AggregateError |
+
+拿到 anchor 后的步骤：按 `error_type` 选候选文件 → 用消息 + 错误码 + 栈顶应用帧三者确认 → 对栈中疑似文件做最小修复，不做大范围重构。
 
 ## 解释规则
 
