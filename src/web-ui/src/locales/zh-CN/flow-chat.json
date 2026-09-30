@@ -601,9 +601,6 @@
       "deviceDisconnected": "所选麦克风已断开连接",
       "lowVolume": "没有检测到声音，请检查所选麦克风。",
       "failed": "语音输入失败",
-      "empty": "没有识别到语音",
-      "transcribeOnly": "插入转写文本",
-      "transcribeAndSend": "转写并发送",
       "recording": "正在录音，点击麦克风可停止录制"
     },
     "nativeDropRemoteUnsupported": "无法将本地文件直接附加到远程工作区，请先通过文件面板上传。",

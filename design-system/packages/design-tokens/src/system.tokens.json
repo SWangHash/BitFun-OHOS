@@ -952,6 +952,13 @@
       "maxInlineSizeWide": { "$value": "1200px" }
     }
   },
+  "viewport": {
+    "$type": "dimension",
+    "hostChromeInsetBlockStart": {
+      "$description": "Viewport space a host window manager reserves and paints above the web view at the start edge, such as overlaid native caption buttons. Hosts override it where that strip exists; floating surfaces must stay clear of it while the zero default keeps every other host unchanged.",
+      "$value": "0px"
+    }
+  },
   "radius": {
     "$type": "dimension",
     "xs": { "$value": "4px" },

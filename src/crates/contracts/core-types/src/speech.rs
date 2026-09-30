@@ -84,6 +84,8 @@ pub struct SpeechStartInputSessionRequest {
     pub language: Option<String>,
     #[serde(default)]
     pub sample_rate: Option<u32>,
+    /// Optional audio cap in seconds. Absent or `0` records until the caller
+    /// stops the session; any other value truncates lengthier recordings.
     #[serde(default)]
     pub max_recording_seconds: Option<u32>,
 }
@@ -95,6 +97,7 @@ pub struct SpeechInputSession {
     pub model_id: String,
     pub language: String,
     pub sample_rate: u32,
+    /// Resolved cap in seconds. `0` means the session is not capped.
     pub max_recording_seconds: u32,
 }
 

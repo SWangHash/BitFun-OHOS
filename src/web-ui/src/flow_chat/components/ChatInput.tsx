@@ -191,7 +191,11 @@ import {
 } from '@/features/dispatch/approvalPolicy';
 import { dispatchJobStore } from '@/features/dispatch/dispatchJobStore';
 import { useComposerCapabilities } from '../session-drivers/useComposerCapabilities';
-import { ComposerVoiceInputButton } from './voice/ComposerVoiceInputButton';
+import {
+  ComposerVoiceInputBar,
+  ComposerVoiceInputButton,
+  ComposerVoiceStopButton,
+} from './voice/ComposerVoiceInputButton';
 import { useRealtimeVoiceCallActive } from './voice/RealtimeVoiceCallContext';
 import { useComposerVoiceInput } from './voice/useComposerVoiceInput';
 import { expandWidgetPromptReferenceTokens } from '@/tools/generative-widget/widgetPromptReference';
@@ -5863,8 +5867,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       });
       return mergedText;
     },
-    submitText: async (text) => {
-      await handleSendOrCancel(text);
+    getCurrentText: () => inputState.value,
+    replaceText: (text) => {
+      dispatchInput({
+        type: 'SET_VALUE',
+        payload: text,
+      });
     },
   });
 
@@ -6772,10 +6780,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   && !isInterruptedTurnRecoveryInFlight ? (
                   <ComposerVoiceInputButton controller={voiceInput} />
                 ) : null}
+                {/* The stop control takes the send slot during capture, so the
+                    microphone that ends the recording sits where the user
+                    already reaches for the send action. */}
+                <ComposerVoiceStopButton controller={voiceInput} />
                 {voiceInput.phase === 'idle' ? renderActionButton() : null}
               </div>
               </ChatComposerEndActions>
             </ChatComposer>
+            {/* The recording status lives outside the composer surface so the
+                draft stays readable while the microphone is capturing. */}
+            {presentation !== 'conversation' && !realtimeVoiceCallActive
+              && !caps.transferInFlight
+              && !isInterruptedTurnRecoveryInFlight ? (
+              <ComposerVoiceInputBar controller={voiceInput} />
+            ) : null}
           </div>
         </div>
       </div>

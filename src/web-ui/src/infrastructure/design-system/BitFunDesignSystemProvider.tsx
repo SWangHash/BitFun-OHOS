@@ -13,6 +13,10 @@ import {
 import { useAppearance } from '@/infrastructure/appearance';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n';
+import {
+  HOST_CHROME_INSET_BLOCK_START_VARIABLE,
+  hostWindowChromeInsetBlockStart,
+} from '@/infrastructure/runtime/environment';
 
 const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
@@ -59,16 +63,28 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
     const previousValues = new Map(
       Object.keys(attributes).map(name => [name, root.getAttribute(name)]),
     );
+    const previousInset = root.style.getPropertyValue(HOST_CHROME_INSET_BLOCK_START_VARIABLE);
 
     Object.entries(attributes).forEach(([name, value]) => {
       root.setAttribute(name, value);
     });
+    // A host that paints window chrome over the web view reserves that strip for
+    // every floating surface; hosts without it keep the zero default.
+    root.style.setProperty(
+      HOST_CHROME_INSET_BLOCK_START_VARIABLE,
+      `${hostWindowChromeInsetBlockStart()}px`,
+    );
 
     return () => {
       previousValues.forEach((value, name) => {
         if (value === null) root.removeAttribute(name);
         else root.setAttribute(name, value);
       });
+      if (previousInset) {
+        root.style.setProperty(HOST_CHROME_INSET_BLOCK_START_VARIABLE, previousInset);
+      } else {
+        root.style.removeProperty(HOST_CHROME_INSET_BLOCK_START_VARIABLE);
+      }
     };
   }, [colorScheme, contrast]);
 

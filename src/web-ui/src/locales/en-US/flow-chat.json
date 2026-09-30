@@ -601,9 +601,6 @@
       "deviceDisconnected": "The selected microphone was disconnected",
       "lowVolume": "No voice detected. Check the selected microphone.",
       "failed": "Voice input failed",
-      "empty": "No speech was recognized",
-      "transcribeOnly": "Insert transcription",
-      "transcribeAndSend": "Transcribe and send",
       "recording": "Recording, click the microphone to stop"
     },
     "nativeDropRemoteUnsupported": "Local files cannot be attached directly to a remote workspace. Upload them through the Files panel first.",

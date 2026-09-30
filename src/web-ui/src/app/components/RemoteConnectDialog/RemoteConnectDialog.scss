@@ -1,7 +1,7 @@
 .bitfun-remote-connect-dialog {
-  block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
-  min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
-  max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
+  min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
+  max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
 }
 
 .bitfun-remote-connect-dialog__header {
@@ -1014,9 +1014,9 @@
 
 @media (max-width: 760px) {
   .bitfun-remote-connect-dialog {
-    block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
-    min-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
-    max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+    block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
+    min-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
+    max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
   }
   .bitfun-remote-connect { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .bitfun-remote-connect__sidebar {

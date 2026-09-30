@@ -1454,7 +1454,7 @@
   &__editor-dialog {
     max-block-size: min(
       640px,
-      calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter))
+      calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start))
     );
   }
 

@@ -3,14 +3,12 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const composerVoiceInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'composer-voice-input',
   parts: [
-    { id: 'root' }, { id: 'control' }, { id: 'pill' }, { id: 'setupPill' },
-    { id: 'setupMessage' }, { id: 'status' },
-    { id: 'time' }, { id: 'timeline' }, { id: 'timelineBar' }, { id: 'divider' },
-    { id: 'action' },
+    { id: 'root' }, { id: 'control' }, { id: 'setupPill' },
+    { id: 'setupMessage' }, { id: 'status' }, { id: 'action' },
   ],
   facets: [
     { id: 'phase', attribute: 'data-bitfun-phase', values: ['idle', 'setup', 'downloading', 'preparing', 'recording', 'transcribing'] },
-    { id: 'action', attribute: 'data-bitfun-action', values: ['install', 'dismiss', 'cancel', 'transcribe', 'send'] },
+    { id: 'action', attribute: 'data-bitfun-action', values: ['install', 'dismiss', 'stop'] },
   ],
   states: [
     { id: 'active', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="active"]' } },

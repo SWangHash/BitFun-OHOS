@@ -101,9 +101,9 @@ describe('Remote Connect safety contracts', () => {
       dialogStyleSource.indexOf('.bitfun-remote-connect-dialog__header'),
     );
 
-    expect(desktopGeometry).toContain('block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
-    expect(desktopGeometry).toContain('min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
-    expect(desktopGeometry).toContain('max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)))');
+    expect(desktopGeometry).toContain('block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)))');
+    expect(desktopGeometry).toContain('min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)))');
+    expect(desktopGeometry).toContain('max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)))');
     expect(dialogStyleSource).toContain(".bitfun-remote-connect [data-bitfun-part='panel']");
     expect(dialogSource).toContain('<ScrollArea');
   });

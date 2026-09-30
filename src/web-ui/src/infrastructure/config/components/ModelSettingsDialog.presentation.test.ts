@@ -44,7 +44,7 @@ describe('ModelSettingsPage dialog presentation', () => {
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-footer');
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-cancel');
     expect(styles).toMatch(
-      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--bitfun-overlay-dialog-viewport-gutter\)\)\s*\);/,
+      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--bitfun-overlay-dialog-viewport-gutter\) - var\(--bitfun-viewport-host-chrome-inset-block-start\)\)\s*\);/,
     );
     expect(styles).not.toContain('&__editor-dialog-footer');
     expect(styles).not.toContain('&__editor-dialog-cancel');

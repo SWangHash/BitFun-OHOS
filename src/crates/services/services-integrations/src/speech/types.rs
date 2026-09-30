@@ -10,7 +10,6 @@ pub(super) use bitfun_core_types::speech::{
 };
 
 pub const DEFAULT_SPEECH_SAMPLE_RATE: u32 = 16_000;
-pub const DEFAULT_MAX_RECORDING_SECONDS: u32 = 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

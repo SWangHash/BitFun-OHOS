@@ -86,4 +86,15 @@ describe('persist stores survive a null localStorage WebView', () => {
     useI18nStore.getState().setCurrentLanguage('zh-CN');
     expect(useI18nStore.getState().currentLanguage).toBe('zh-CN');
   });
+
+  it('keeps workspace resource layouts in memory', () => {
+    hideLocalStorageAsNull();
+
+    expect(() => useWorkspaceResourceState.getState().updateLayout('legacy', { terminalFraction: 0.5 })).not.toThrow();
+    expect(useWorkspaceResourceState.getState().layouts.legacy.terminalFraction).toBe(0.5);
+
+    useWorkspaceResourceState.getState().migrateLayout('legacy', 'current');
+    expect(useWorkspaceResourceState.getState().layouts.current.terminalFraction).toBe(0.5);
+    expect(useWorkspaceResourceState.getState().layouts.legacy).toBeUndefined();
+  });
 });

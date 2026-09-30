@@ -50,6 +50,20 @@ test("Select exposes size, invalid, disabled, and leading regions independently"
   assert.match(markup, /data-bitfun-part="indicator"/);
 });
 
+test("Select anchoring keeps the host window chrome strip clear", async () => {
+  const positioner = await readFile(
+    new URL("../src/internal/useAnchoredLayer.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(positioner, /"--bitfun-viewport-host-chrome-inset-block-start"/);
+  assert.match(
+    positioner,
+    /Math\.max\(padding, readHostChromeInsetBlockStart\(view, layer\)\)/,
+  );
+  assert.match(positioner, /top: Math\.max\(topBound,/);
+});
+
 test("Select styling owns one token-driven surface for the expanded header and listbox", async () => {
   const source = await readFile(
     new URL("../src/components/Select/Select.tsx", import.meta.url),

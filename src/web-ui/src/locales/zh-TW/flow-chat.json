@@ -600,10 +600,7 @@
       "permissionDenied": "麥克風權限被拒絕",
       "deviceDisconnected": "所選麥克風已中斷連線",
       "lowVolume": "沒有偵測到聲音，請檢查所選麥克風。",
-      "failed": "語音輸入失敗",
-      "empty": "沒有辨識到語音",
-      "transcribeOnly": "插入轉寫文字",
-      "transcribeAndSend": "轉寫並傳送"
+      "failed": "語音輸入失敗"
     }
   },
   "workspaceStrip": {
