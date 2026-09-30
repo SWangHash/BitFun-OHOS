@@ -94,6 +94,7 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         | "WriteStdin"
         | "ExecControl"
         | "GetTime"
+        | "OpenUrl"
         | "ListModels"
         | "start_app"
         | "hdc_log"
@@ -197,6 +198,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
         ],
     },
@@ -513,6 +515,7 @@ mod tests {
                 "WriteStdin",
                 "ExecControl",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "Task",
                 "AgentWait",

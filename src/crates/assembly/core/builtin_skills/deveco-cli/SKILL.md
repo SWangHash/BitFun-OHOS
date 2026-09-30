@@ -11,7 +11,8 @@ description: >-
 **Do NOT use these legacy commands** — use the `devecocli` equivalent instead:
 - ❌ `deveco preview` / `hvigorw preview` → ✅ `devecocli run --device <product-name>` (launches DevEco Studio previewer; product name in `--device` triggers previewer mode)
 - ❌ `hvigorw` directly → ✅ `devecocli build`
-- ❌ `hdc` directly (when a `devecocli` wrapper exists) → ✅ `devecocli device` / `devecocli log` / `devecocli run`
+- ❌ `hdc` directly (when a `devecocli` wrapper exists) → ✅ `devecocli device` / `devecocli log`; for device install + launch use the **`start_app` tool**, not `devecocli run` (see below)
+  - **BitFun override — device install + launch**: `devecocli run` drives devices through DevEco Studio's own bundled `hdc`, which BitFun must NOT use. Run code on a device/emulator with the **`start_app` tool** instead; it uses BitFun's own `hdc`. Use `devecocli run --device <product-name>` only for the DevEco Studio previewer (no device/hdc involved).
 
 Available commands: `build`, `check`, `run`, `update`, `device`, `ui`, `skills`, `log`, `create`, `init`, `serve`, `docs`, `signature`, `auth`.
 
@@ -84,6 +85,9 @@ Search/read local HarmonyOS docs.
 
 ### `devecocli run` `[Outside sandbox]`
 Build, install, and launch.
+
+> **BitFun override — do NOT use `devecocli run` to install + launch on a device/emulator.** BitFun must not use DevEco Studio's bundled `hdc`. Use the **`start_app` tool** for on-device run: it locates the built `.hap`, reads `bundleName`, and installs + launches through BitFun's own `hdc` (`hdc` fallback is built in). Reserve `devecocli run` for the **DevEco Studio previewer** only: `devecocli run --device <product-name>` (the product name in `--device` triggers previewer mode). `devecocli build` is unaffected and still preferred.
+
 - `--module <module>`: Target module (auto-selected if only one runnable).
 - `--device <name|serial>`: Target device (Req if multiple connected).
 - `--product <product>` / `--build-mode <mode>`: Defaults: `default` / `debug`.
@@ -105,7 +109,7 @@ Build, install, and launch.
 
 ### `devecocli signature generate` `[Outside sandbox]`
 Auto-generate HarmonyOS signing materials (local p12/csr + cloud cert + test profile) and write signing config to `build-profile.json5`.
-- **Prereq**: `devecocli auth login` first; run from a project directory (with `build-profile.json5`); a connected device is required for device registration.
+- **Prereq**: `devecocli auth login` first; run from a project directory (with `build-profile.json5`); a connected device is required for device registration. Device registration drives the device through DevEco Studio's bundled `hdc`; if that `hdc` cannot see the device, register the device another way (DevEco Studio UI) and keep the generated materials rather than switching device transport.
 - `--product <name>`: Product name for local p12/csr file naming (default: `default`).
 - `--team-id <id>`: Specify the team-id (default: current user's id).
 - `--force`: Force regenerate even if existing materials are valid.
@@ -163,7 +167,12 @@ MUTUALLY EXCLUSIVE modes for setup:
 *MCP Rules*: Global MCP (no `--project`) only supports `opencode` and `cursor`. Others require `--project`.
 
 ### `devecocli auth login`
-Sign in to your Huawei Developer account. Opens a browser for OAuth authentication. Required before `signature generate`.
+Sign in to your Huawei Developer account. Required before `signature generate`. Starts a local OAuth callback server, prints the authorization URL, and waits for the browser callback.
+- **If it opens a browser** (desktop): complete the sign-in there; the CLI detects the callback automatically.
+- **If it cannot open a browser** (HarmonyOS native PC and other hosts without a desktop browser handler): the command reports the failure and **prints the authorization URL**. It keeps polling while the callback server stays open.
+  - Read that URL from the command output and open it for the user with the **`OpenUrl` tool** (`{ "url": "<printed URL>" }`). `OpenUrl` prefers BitFun's built-in browser panel, so the user can sign in without leaving the app.
+  - The URL is dynamic (it embeds a per-run `port` and `code`); open the exact URL that was printed. If it expired, re-run `devecocli auth login` and use the new URL.
+  - Do **not** kill the `auth login` process while the user signs in — its callback server must stay up to capture the redirect. Wait for it to report success, then verify with `devecocli auth status`.
 *Ex*: `devecocli auth login`
 
 ### `devecocli auth logout`
@@ -201,22 +210,23 @@ Scan source code for breaking API changes between two SDK versions. Built on Dev
 ## Recipes
 
 - **Fresh checkout to real device**:
-  `devecocli build` -> `devecocli device list` -> `devecocli run --device <serial>`
+  `devecocli build` -> `start_app` tool (lists devices, then installs + launches via BitFun's own `hdc`)
 - **Launch previewer**: `devecocli run --device "Pura 90 Pro"` (single) or `devecocli run --device "Pura 90 Pro,Mate XT"` (multi).
 - **Diagnose crash**:
   `devecocli log --crash --bundle-name <bundle>`
 - **Release build**:
   `devecocli build --product oversea --build-mode release`
 - **First-time signing setup**:
-  `devecocli auth login` -> `devecocli signature generate --product default` -> `devecocli build` -> `devecocli run`
+  `devecocli auth login` -> `devecocli signature generate --product default` -> `devecocli build` -> `start_app`
 
 ## Troubleshooting
 
 - **"Product / Build mode `<x>` not found"**: Check `build-profile.json5`.
 - **"Multiple entry modules" / "No entry module"**: Pass `--modules` (build) or `--module` (run).
 - **"No active devices" / "Multiple devices connected"**: Connect a real device (or self-connect via wireless debugging on HarmonyOS native PC). Pass `-t <serial>` (device view) or `--device <name|serial>` (run/log).
-- **`error:install sign info inconsistent`**: Signing key changed. Run `devecocli run --uninstall` or `devecocli signature generate --force`.
-- **`Not logged in. Run devecocli auth login first`**: Run `devecocli auth login` to authenticate.
+- **`error:install sign info inconsistent`**: Signing key changed. Regenerate materials (`devecocli signature generate --force`) or uninstall the existing app on the device via BitFun's own `hdc` (`hdc uninstall <bundleName>`), then re-run `start_app`.
+- **`Not logged in. Run devecocli auth login first`**: Run `devecocli auth login` to authenticate. If the host cannot open a browser, it prints the authorization URL — open that URL with the `OpenUrl` tool and let the user sign in.
+- **`auth login` did not open a browser**, and the terminal/built-in browser shows the sign-in page but nothing happens**: the printed URL is per-run. Cover the whole flow without restarting: open the exact printed URL via `OpenUrl`, keep the `auth login` command running until it reports success, then re-check with `devecocli auth status`.
 - **`Provision number exceeds limit`**: Test provision quota is full. Delete old test provisions in DevEco Studio (Signing Configs) or AGC console, then retry `devecocli signature generate`.
 - **`Invalid AccessToken. Sign in and try again`**: Token expired. Run `devecocli auth login` again.
 - **`skills add` agent not found**: Valid: `codebuddy`, `cursor`, `opencode`, `qoder`, `trae-cn`.

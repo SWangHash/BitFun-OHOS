@@ -43,6 +43,7 @@ const tools: GroupableTool[] = [
 describe('tool groups', () => {
   it('groups HarmonyOS tools under the HarmonyOS built-in group', () => {
     const harmonyTools: GroupableTool[] = [
+      { name: 'OpenUrl', description: 'Open a URL', is_readonly: true },
       { name: 'start_app', description: 'Start a HarmonyOS app', is_readonly: false },
       { name: 'hdc_log', description: 'Read device logs', is_readonly: true },
       { name: 'arkts_check', description: 'Check ArkTS files', is_readonly: true },

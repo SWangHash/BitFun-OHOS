@@ -35,7 +35,7 @@ BitFun Agent 要"进入真实环境"完成任务，必须能读 / 写文件、�
 
 | provider id | feature groups | 代表工具 |
 | --- | --- | --- |
-| `core.basic` | basic, image-analysis | `LS`、`Read`、`Write`、`Edit`、`Delete`、`Glob`、`Grep`、`view_image`、`analyze_image`、`ExecCommand` / `WriteStdin` / `ExecControl`、`GetTime`、`ListModels` |
+| `core.basic` | basic, image-analysis | `LS`、`Read`、`Write`、`Edit`、`Delete`、`Glob`、`Grep`、`view_image`、`analyze_image`、`ExecCommand` / `WriteStdin` / `ExecControl`、`GetTime`、`OpenUrl`、`ListModels` |
 | `core.agent` | agent-control, git | `Task`、`AgentWait`、`LaunchReviewAgent`、`Skill`、`AskUserQuestion`、`TodoWrite`、`get_goal` / `create_goal` / `update_goal`、`CreatePlan`、`submit_code_review`、`GetToolSpec`、`CallDeferredTool`、`GetFileDiff` |
 | `core.canvas` | canvas | `CreateCanvas` / `ReadCanvas` / `UpdateCanvas` / `PatchCanvas` |
 | `core.session` | agent-control | `SessionControl`、`SessionMessage`、`SessionHistory`、`Cron` |

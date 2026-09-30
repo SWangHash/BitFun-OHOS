@@ -568,6 +568,7 @@ mod tests {
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
             "Task",
             "AgentWait",
@@ -614,6 +615,7 @@ mod tests {
             "verify_ui",
             "get_ui_verification_log",
             "save_ui_screenshot",
+            "QtMigrationIntake",
         ];
 
         assert_eq!(
@@ -667,7 +669,8 @@ mod tests {
                 "core.agent",
                 "core.session",
                 "core.integration",
-                "core.openharmony"
+                "core.openharmony",
+                "core.qt-migration"
             ],
             "provider groups must stay stable until concrete tool-pack owners exist"
         );
@@ -830,6 +833,7 @@ mod tests {
                 "Glob",
                 "Grep",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "Skill",
                 "AskUserQuestion",
@@ -850,6 +854,7 @@ mod tests {
                 "hdc_log",
                 "arkts_check",
                 "get_ui_verification_log",
+                "QtMigrationIntake",
             ],
             "readonly tool manifest must stay stable before moving registry ownership"
         );

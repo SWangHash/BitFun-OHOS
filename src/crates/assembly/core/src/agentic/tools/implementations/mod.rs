@@ -57,6 +57,7 @@ pub mod miniapp_init_tool;
 pub mod miniapp_publish_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod page_deploy_tool;
+pub mod open_url_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod page_publish_tool;
 #[cfg(feature = "tools-miniapp")]
@@ -126,6 +127,7 @@ pub use grep_tool::GrepTool;
 pub use hdc_log_tool::HdcLogTool;
 pub use list_models_tool::ListModelsTool;
 pub use ls_tool::LSTool;
+pub use open_url_tool::OpenUrlTool;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_tools::{
     GetMCPPromptTool, ListMCPPromptsTool, ListMCPResourcesTool, ReadMCPResourceTool,
