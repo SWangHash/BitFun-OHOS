@@ -27,6 +27,7 @@ const VERIFY_TOOLS: &[&str] = &[
     "Grep",
     "LS",
     "ExecCommand",
+    "OpenUrl",
     "start_app",
     "hdc_log",
     "arkts_check",
